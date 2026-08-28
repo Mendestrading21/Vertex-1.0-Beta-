@@ -1,0 +1,536 @@
+"""Market statistics and indicator calculations (registry ids ``market.*``).
+
+Pure, deterministic functions implementing the ``market.*`` entries of
+``docs/03-domain/calculations/CALCULATION_REGISTRY.yaml``:
+
+- ``market.simple_return``       -> :func:`simple_return`
+- ``market.log_return``          -> :func:`log_return`
+- ``market.realized_volatility`` -> :func:`realized_volatility`
+- ``market.atr``                 -> :func:`atr`
+- ``market.relative_strength``   -> :func:`relative_strength`
+- ``market.breadth``             -> :func:`breadth`
+
+Numeric policy (UNITS_TIME_AND_PRECISION):
+
+- Boundary inputs may be ``int``, ``float`` or ``Decimal``; ``Decimal`` values
+  are converted explicitly to ``float64`` before computation. ``bool`` is
+  rejected (it is not a number at this boundary).
+- The numerical core is ``float64``. Documented tolerances:
+  results are reproducible bit-for-bit for identical inputs (determinism), and
+  algebraic identities (return composition, annualization) hold within
+  ``FLOAT64_REL_TOL`` relative / ``FLOAT64_ABS_TOL`` absolute error.
+- ``NaN``, infinities and non-numeric sentinels are rejected fail-closed with
+  :class:`CalculationInputError`; negative zero is normalized to ``0.0``.
+- A computation whose result would not be finite (float64 overflow or
+  underflow to an unusable value) raises :class:`CalculationInputError`
+  instead of returning ``inf``/``NaN`` — never a silent fallback.
+- Absent data is never substituted: there are no default values for prices,
+  returns, counts or thresholds.
+
+No randomness is used anywhere in this module.
+"""
+
+from __future__ import annotations
+
+import math
+from datetime import datetime
+from decimal import Decimal
+from typing import Sequence, Union
+
+from vertex_core.contracts.types import ContractModel, PositiveDecimal, UtcDatetime
+
+__all__ = [
+    "CalculationInputError",
+    "FLOAT64_ABS_TOL",
+    "FLOAT64_REL_TOL",
+    "NumberLike",
+    "OhlcBar",
+    "atr",
+    "breadth",
+    "log_return",
+    "realized_volatility",
+    "relative_strength",
+    "simple_return",
+]
+
+FLOAT64_REL_TOL = 1e-9
+"""Documented relative tolerance for float64 algebraic identities."""
+
+FLOAT64_ABS_TOL = 1e-12
+"""Documented absolute tolerance for float64 comparisons near zero."""
+
+NumberLike = Union[int, float, Decimal]
+"""Accepted numeric boundary types; converted explicitly to float64 inside."""
+
+
+class CalculationInputError(ValueError):
+    """Typed, fail-closed gate violation for a ``market.*`` calculation.
+
+    ``reason`` is a stable machine-readable code naming the violated gate
+    (e.g. ``"non_positive_price"``, ``"adjustment_basis_mismatch"``,
+    ``"minimum_sample"``); ``detail`` is the human-readable explanation.
+    No calculation in this module ever substitutes a default value for an
+    invalid input — it raises this exception instead.
+    """
+
+    def __init__(self, reason: str, detail: str) -> None:
+        super().__init__(f"{reason}: {detail}")
+        self.reason = reason
+        self.detail = detail
+
+
+class OhlcBar(ContractModel):
+    """One OHLC bar at the contract boundary (strict, frozen, Decimal prices).
+
+    Prices are strictly positive finite ``Decimal`` values and the timestamp
+    is timezone-aware UTC. Cross-field OHLC coherence (``high >= low``,
+    ``high >= max(open, close)``, ``low <= min(open, close)``) is deliberately
+    NOT enforced here: it is the ``ordered_complete_bars`` gate of
+    :func:`atr`, which rejects an incoherent bar with a typed
+    :class:`CalculationInputError` so the violation is observable and
+    reportable rather than silently unconstructible.
+    """
+
+    timestamp: UtcDatetime
+    open: PositiveDecimal
+    high: PositiveDecimal
+    low: PositiveDecimal
+    close: PositiveDecimal
+
+
+def _to_float(value: NumberLike, name: str) -> float:
+    """Convert a boundary number to finite float64; reject everything else.
+
+    Rejects ``bool``, non-numeric types, ``NaN``, infinities, and any value
+    whose float64 conversion is not finite (overflow). Negative zero is
+    normalized to ``0.0``.
+    """
+    if isinstance(value, bool):
+        raise CalculationInputError(
+            "invalid_type", f"{name} must be int, float or Decimal, got bool"
+        )
+    if isinstance(value, Decimal):
+        if not value.is_finite():
+            raise CalculationInputError(
+                "non_finite_input", f"{name} is a non-finite Decimal ({value})"
+            )
+        result = float(value)
+    elif isinstance(value, int):
+        try:
+            result = float(value)
+        except OverflowError:
+            raise CalculationInputError(
+                "non_finite_input", f"{name} is too large for float64"
+            ) from None
+    elif isinstance(value, float):
+        result = value
+    else:
+        raise CalculationInputError(
+            "invalid_type",
+            f"{name} must be int, float or Decimal, got {type(value).__name__}",
+        )
+    if not math.isfinite(result):
+        raise CalculationInputError(
+            "non_finite_input", f"{name} is not finite in float64 ({result!r})"
+        )
+    # Normalize negative zero so sign sentinels never propagate.
+    return 0.0 if result == 0.0 else result
+
+
+def _require_positive_price(value: NumberLike, name: str) -> float:
+    price = _to_float(value, name)
+    if price <= 0.0:
+        raise CalculationInputError(
+            "non_positive_price", f"{name} must be strictly positive, got {price!r}"
+        )
+    return price
+
+
+def _require_int(value: object, name: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise CalculationInputError(
+            "invalid_type", f"{name} must be int, got {type(value).__name__}"
+        )
+    return value
+
+
+def _require_sequence(value: object, name: str) -> Sequence[object]:
+    if isinstance(value, (str, bytes, bytearray)) or not isinstance(value, (list, tuple)):
+        raise CalculationInputError(
+            "invalid_type", f"{name} must be a list or tuple, got {type(value).__name__}"
+        )
+    return value
+
+
+def _require_adjustment_basis(value: object, name: str) -> str:
+    if not isinstance(value, str) or not value:
+        raise CalculationInputError(
+            "invalid_adjustment_basis", f"{name} must be a non-empty string"
+        )
+    return value
+
+
+def _check_same_adjustment_basis(basis_t0: object, basis_t1: object) -> None:
+    b0 = _require_adjustment_basis(basis_t0, "adjustment_basis_t0")
+    b1 = _require_adjustment_basis(basis_t1, "adjustment_basis_t1")
+    if b0 != b1:
+        raise CalculationInputError(
+            "adjustment_basis_mismatch",
+            f"prices are on different adjustment bases ({b0!r} vs {b1!r}); "
+            "returns across bases are meaningless",
+        )
+
+
+def _finite_result(value: float, calculation_id: str) -> float:
+    if not math.isfinite(value):
+        raise CalculationInputError(
+            "non_finite_result",
+            f"{calculation_id} produced a non-finite float64 result ({value!r})",
+        )
+    return 0.0 if value == 0.0 else value
+
+
+def simple_return(
+    price_t0: NumberLike,
+    price_t1: NumberLike,
+    *,
+    adjustment_basis_t0: str,
+    adjustment_basis_t1: str,
+) -> float:
+    """``market.simple_return`` — simple (arithmetic) return ``p1 / p0 - 1``.
+
+    Gates (each violation raises :class:`CalculationInputError`):
+
+    - ``positive_prices``: both prices strictly positive and finite;
+    - ``same_adjustment_basis``: both adjustment-basis labels are required,
+      non-empty, and must compare equal (e.g. ``"split_adjusted"``); mixing
+      bases silently is forbidden.
+
+    Composition (documented invariant, within ``FLOAT64_REL_TOL``):
+    ``(1 + r(p0, p1)) * (1 + r(p1, p2)) == 1 + r(p0, p2)``.
+
+    Returns a finite float64 ratio (dimensionless, per registry ``ratio``).
+    """
+    _check_same_adjustment_basis(adjustment_basis_t0, adjustment_basis_t1)
+    p0 = _require_positive_price(price_t0, "price_t0")
+    p1 = _require_positive_price(price_t1, "price_t1")
+    return _finite_result(p1 / p0 - 1.0, "market.simple_return")
+
+
+def log_return(
+    price_t0: NumberLike,
+    price_t1: NumberLike,
+    *,
+    adjustment_basis_t0: str,
+    adjustment_basis_t1: str,
+) -> float:
+    """``market.log_return`` — logarithmic return ``ln(p1) - ln(p0)``.
+
+    Gates:
+
+    - ``strictly_positive_prices``: both prices strictly positive and finite;
+    - ``same_adjustment_basis``: enforced identically to
+      :func:`simple_return` (a fail-closed superset of the registry gate —
+      a log return across two different adjustment bases is just as
+      meaningless as a simple one).
+
+    Computed as ``log(p1) - log(p0)`` (never ``log(p1 / p0)``) so the ratio
+    cannot overflow float64. Additive composition holds within
+    ``FLOAT64_REL_TOL``, and ``log_return == log1p(simple_return)`` within
+    documented tolerance. Returns a finite float64 log-ratio.
+    """
+    _check_same_adjustment_basis(adjustment_basis_t0, adjustment_basis_t1)
+    p0 = _require_positive_price(price_t0, "price_t0")
+    p1 = _require_positive_price(price_t1, "price_t1")
+    return _finite_result(math.log(p1) - math.log(p0), "market.log_return")
+
+
+def realized_volatility(
+    returns: Sequence[NumberLike],
+    periods_per_year: NumberLike,
+) -> float:
+    """``market.realized_volatility`` — annualized sample volatility.
+
+    Method: unbiased sample standard deviation (``ddof=1``) of the provided
+    per-period returns, annualized by ``sqrt(periods_per_year)``
+    (independent-increments scaling — a documented assumption). The caller
+    states the sampling regularity by providing ``periods_per_year``
+    consistent with the return series (e.g. 252 for daily bars).
+
+    Gates:
+
+    - ``minimum_sample``: at least 2 returns, otherwise the sample standard
+      deviation does not exist — the input is INVALID and rejected;
+    - every return must be a finite number (``NaN``/inf rejected);
+    - ``periods_per_year`` must be strictly positive and finite.
+
+    Invariants: result is non-negative and finite (an overflowing series
+    raises :class:`CalculationInputError` rather than returning ``inf``).
+    Returns an annualized decimal ratio as float64 (e.g. ``0.24`` = 24%/yr).
+    """
+    seq = _require_sequence(returns, "returns")
+    n = len(seq)
+    if n < 2:
+        raise CalculationInputError(
+            "minimum_sample",
+            f"realized volatility requires at least 2 returns, got {n}",
+        )
+    ppy = _to_float(periods_per_year, "periods_per_year")
+    if ppy <= 0.0:
+        raise CalculationInputError(
+            "invalid_annualization",
+            f"periods_per_year must be strictly positive, got {ppy!r}",
+        )
+    values = [_to_float(r, f"returns[{i}]") for i, r in enumerate(seq)]
+    mean = math.fsum(values) / n
+    if not math.isfinite(mean):
+        raise CalculationInputError(
+            "non_finite_result",
+            "market.realized_volatility mean overflowed float64",
+        )
+    squared = []
+    for value in values:
+        deviation = value - mean
+        squared.append(deviation * deviation)
+    variance = math.fsum(squared) / (n - 1)
+    annualized_variance = variance * ppy
+    if not math.isfinite(annualized_variance):
+        raise CalculationInputError(
+            "non_finite_result",
+            "market.realized_volatility variance overflowed float64",
+        )
+    return _finite_result(math.sqrt(annualized_variance), "market.realized_volatility")
+
+
+def _check_bar_complete(bar: OhlcBar, index: int) -> None:
+    # Exact Decimal comparisons — no float rounding at the gate.
+    if bar.high < bar.low:
+        raise CalculationInputError(
+            "incomplete_bar",
+            f"bars[{index}] has high < low ({bar.high} < {bar.low})",
+        )
+    if bar.high < bar.open or bar.high < bar.close:
+        raise CalculationInputError(
+            "incomplete_bar",
+            f"bars[{index}] has high below open or close",
+        )
+    if bar.low > bar.open or bar.low > bar.close:
+        raise CalculationInputError(
+            "incomplete_bar",
+            f"bars[{index}] has low above open or close",
+        )
+
+
+def atr(bars: Sequence[OhlcBar], lookback: int) -> float:
+    """``market.atr`` — Average True Range over the last ``lookback`` bars.
+
+    Method: Wilder true range
+    ``TR_i = max(high_i - low_i, |high_i - close_{i-1}|, |low_i - close_{i-1}|)``
+    averaged with a simple arithmetic mean over the last ``lookback`` true
+    ranges (NOT Wilder's recursive exponential smoothing — documented choice,
+    deterministic and warm-up free).
+
+    Gate ``ordered_complete_bars`` (any violation raises
+    :class:`CalculationInputError`):
+
+    - ``bars`` is a list/tuple of :class:`OhlcBar` only;
+    - ``lookback >= 1`` and ``len(bars) >= lookback + 1`` (each true range
+      needs the previous close — fewer bars is INVALID, never padded);
+    - timestamps strictly increasing (duplicates and disorder rejected);
+    - every bar coherent: ``high >= low``, ``high >= max(open, close)``,
+      ``low <= min(open, close)``.
+
+    Invariant: result is non-negative and finite, in price units of the bars
+    (unit/currency ownership stays with the caller's instrument identity).
+    """
+    seq = _require_sequence(bars, "bars")
+    typed_bars: list[OhlcBar] = []
+    for i, bar in enumerate(seq):
+        if not isinstance(bar, OhlcBar):
+            raise CalculationInputError(
+                "invalid_type",
+                f"bars[{i}] must be OhlcBar, got {type(bar).__name__}",
+            )
+        typed_bars.append(bar)
+    lb = _require_int(lookback, "lookback")
+    if lb < 1:
+        raise CalculationInputError(
+            "invalid_lookback", f"lookback must be >= 1, got {lb}"
+        )
+    if len(typed_bars) < lb + 1:
+        raise CalculationInputError(
+            "minimum_sample",
+            f"ATR with lookback {lb} requires at least {lb + 1} bars, "
+            f"got {len(typed_bars)}",
+        )
+    previous_ts: Union[datetime, None] = None
+    for i, bar in enumerate(typed_bars):
+        if previous_ts is not None and bar.timestamp <= previous_ts:
+            raise CalculationInputError(
+                "unordered_bars",
+                f"bars[{i}] timestamp {bar.timestamp.isoformat()} does not "
+                f"strictly follow bars[{i - 1}]",
+            )
+        previous_ts = bar.timestamp
+        _check_bar_complete(bar, i)
+    true_ranges = []
+    start = len(typed_bars) - lb
+    for i in range(start, len(typed_bars)):
+        bar = typed_bars[i]
+        prev = typed_bars[i - 1]
+        high = _to_float(bar.high, f"bars[{i}].high")
+        low = _to_float(bar.low, f"bars[{i}].low")
+        prev_close = _to_float(prev.close, f"bars[{i - 1}].close")
+        true_ranges.append(
+            max(high - low, abs(high - prev_close), abs(low - prev_close))
+        )
+    result = _finite_result(math.fsum(true_ranges) / lb, "market.atr")
+    if result < 0.0:  # defensive: TR terms are non-negative by construction
+        raise CalculationInputError(
+            "non_finite_result", "market.atr produced a negative range"
+        )
+    return result
+
+
+def relative_strength(
+    asset_returns: Sequence[NumberLike],
+    benchmark_returns: Sequence[NumberLike],
+    horizon: int,
+) -> float:
+    """``market.relative_strength`` — compounded asset vs benchmark ratio.
+
+    Method: over the last ``horizon`` aligned periods,
+    ``RS = prod(1 + r_asset) / prod(1 + r_benchmark)``. ``RS > 1`` means the
+    asset outperformed the benchmark over the horizon. Inputs are per-period
+    SIMPLE returns (not log returns).
+
+    Gates:
+
+    - ``aligned_calendars``: both series are lists/tuples of the exact same
+      length — the caller must have aligned the calendars beforehand;
+      mismatched lengths are rejected, never truncated;
+    - ``horizon >= 1`` and ``horizon <= len(series)`` (INVALID otherwise);
+    - every return finite and strictly greater than ``-1`` (a simple return
+      of ``-100%`` or below cannot come from positive prices and would make
+      compounding degenerate).
+
+    Invariant: result is a finite, strictly positive float64 ratio; float64
+    overflow/underflow of the compounded factors raises
+    :class:`CalculationInputError` instead of returning ``inf`` or ``0/0``.
+    """
+    asset_seq = _require_sequence(asset_returns, "asset_returns")
+    bench_seq = _require_sequence(benchmark_returns, "benchmark_returns")
+    if len(asset_seq) != len(bench_seq):
+        raise CalculationInputError(
+            "misaligned_calendars",
+            f"asset_returns has {len(asset_seq)} entries but benchmark_returns "
+            f"has {len(bench_seq)}; series must be aligned on the same calendar",
+        )
+    h = _require_int(horizon, "horizon")
+    if h < 1:
+        raise CalculationInputError("invalid_horizon", f"horizon must be >= 1, got {h}")
+    if h > len(asset_seq):
+        raise CalculationInputError(
+            "minimum_sample",
+            f"horizon {h} exceeds the {len(asset_seq)} aligned periods available",
+        )
+
+    def _compound(seq: Sequence[NumberLike], name: str) -> float:
+        growth = 1.0
+        for offset in range(len(seq) - h, len(seq)):
+            value = _to_float(seq[offset], f"{name}[{offset}]")
+            factor = 1.0 + value
+            if factor <= 0.0:
+                raise CalculationInputError(
+                    "invalid_return",
+                    f"{name}[{offset}] = {value!r} implies a non-positive price "
+                    "factor; simple returns must be > -1",
+                )
+            growth *= factor
+            if not math.isfinite(growth):
+                raise CalculationInputError(
+                    "non_finite_result",
+                    f"market.relative_strength {name} compounding overflowed float64",
+                )
+        return growth
+
+    asset_growth = _compound(asset_seq, "asset_returns")
+    bench_growth = _compound(bench_seq, "benchmark_returns")
+    if bench_growth <= 0.0:  # float64 underflow of a positive product
+        raise CalculationInputError(
+            "non_finite_result",
+            "market.relative_strength benchmark compounding underflowed float64",
+        )
+    result = _finite_result(asset_growth / bench_growth, "market.relative_strength")
+    if result <= 0.0:
+        raise CalculationInputError(
+            "non_finite_result",
+            "market.relative_strength ratio underflowed float64",
+        )
+    return result
+
+
+def breadth(
+    above_count: int,
+    universe_size: int,
+    *,
+    covered_count: int,
+    coverage_threshold: NumberLike,
+) -> float:
+    """``market.breadth`` — participation ratio of a point-in-time universe.
+
+    Method and range (documented registry decision): this implementation
+    returns the PARTICIPATION ratio ``above_count / covered_count`` in
+    ``[0, 1]`` — the share of covered universe members above the reference
+    (e.g. above their moving average). The registry invariant
+    ``between_minus_one_and_one`` is therefore satisfied; the signed
+    advancers-minus-decliners variant in ``[-1, 1]`` is a distinct
+    calculation and is NOT what this function computes.
+
+    Semantics of the counts (no defaults, all explicit):
+
+    - ``universe_size``: full point-in-time universe (``>= 1``);
+    - ``covered_count``: members with usable data for the measure
+      (``0 <= covered_count <= universe_size``);
+    - ``above_count``: covered members above the reference
+      (``0 <= above_count <= covered_count``).
+
+    Gate ``coverage_threshold``: ``covered_count / universe_size`` must reach
+    ``coverage_threshold`` (in ``(0, 1]``, caller-provided, no default) or
+    the breadth is INVALID and rejected — a ratio computed on a sliver of the
+    universe is never silently presented as universe breadth.
+    """
+    above = _require_int(above_count, "above_count")
+    universe = _require_int(universe_size, "universe_size")
+    covered = _require_int(covered_count, "covered_count")
+    if universe < 1:
+        raise CalculationInputError(
+            "invalid_universe", f"universe_size must be >= 1, got {universe}"
+        )
+    if covered < 0 or covered > universe:
+        raise CalculationInputError(
+            "invalid_coverage",
+            f"covered_count must be within [0, universe_size], got {covered} "
+            f"for universe {universe}",
+        )
+    if above < 0 or above > covered:
+        raise CalculationInputError(
+            "invalid_count",
+            f"above_count must be within [0, covered_count], got {above} "
+            f"for coverage {covered}",
+        )
+    threshold = _to_float(coverage_threshold, "coverage_threshold")
+    if threshold <= 0.0 or threshold > 1.0:
+        raise CalculationInputError(
+            "invalid_threshold",
+            f"coverage_threshold must be in (0, 1], got {threshold!r}",
+        )
+    coverage = covered / universe
+    if coverage < threshold:
+        raise CalculationInputError(
+            "coverage_below_threshold",
+            f"coverage {coverage:.6f} ({covered}/{universe}) is below the "
+            f"required threshold {threshold:.6f}",
+        )
+    # threshold > 0 and coverage >= threshold imply covered >= 1 here.
+    return _finite_result(above / covered, "market.breadth")
