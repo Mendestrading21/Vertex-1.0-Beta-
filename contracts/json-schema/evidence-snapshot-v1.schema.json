@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vertex.local/schemas/evidence-snapshot-v1.schema.json",
+  "title": "Vertex Evidence Snapshot v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "snapshot_id",
+    "instrument",
+    "observed_at",
+    "knowledge_cutoff",
+    "sources",
+    "features",
+    "contradictions",
+    "quality"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "snapshot_id": {"type": "string", "pattern": "^ev_[A-Za-z0-9_-]{12,}$"},
+    "instrument": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["canonical_id", "symbol", "asset_type", "currency"],
+      "properties": {
+        "canonical_id": {"type": "string", "minLength": 1},
+        "symbol": {"type": "string", "minLength": 1},
+        "asset_type": {"enum": ["STOCK", "ETF", "OPTION", "INDEX", "RATE", "OTHER"]},
+        "currency": {"type": "string", "pattern": "^[A-Z]{3}$"}
+      }
+    },
+    "observed_at": {"type": "string", "format": "date-time"},
+    "knowledge_cutoff": {"type": "string", "format": "date-time"},
+    "sources": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/source"}
+    },
+    "features": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/feature"}
+    },
+    "contradictions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "feature_ids", "severity", "explanation"],
+        "properties": {
+          "id": {"type": "string"},
+          "feature_ids": {"type": "array", "minItems": 2, "items": {"type": "string"}},
+          "severity": {"enum": ["INFO", "WARNING", "BLOCKING"]},
+          "explanation": {"type": "string", "minLength": 1}
+        }
+      }
+    },
+    "quality": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "coverage", "blocking_reasons"],
+      "properties": {
+        "status": {"enum": ["GOOD", "PARTIAL", "DEGRADED", "MISSING", "CONTRADICTORY"]},
+        "coverage": {"type": "number", "minimum": 0, "maximum": 1},
+        "blocking_reasons": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "content_hash": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}
+  },
+  "$defs": {
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["source_id", "provider", "capability", "rights", "as_of", "received_at", "freshness"],
+      "properties": {
+        "source_id": {"type": "string", "minLength": 1},
+        "provider": {"type": "string", "minLength": 1},
+        "capability": {"type": "string", "minLength": 1},
+        "rights": {"enum": ["ALLOWED", "NOT_ENTITLED", "UNSUPPORTED", "UNKNOWN"]},
+        "as_of": {"type": "string", "format": "date-time"},
+        "received_at": {"type": "string", "format": "date-time"},
+        "freshness": {"enum": ["LIVE", "DELAYED", "STALE", "FALLBACK", "MISSING", "UNKNOWN"]},
+        "license_ref": {"type": ["string", "null"]}
+      }
+    },
+    "feature": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["feature_id", "value", "unit", "source_ids", "as_of", "quality", "method_version"],
+      "properties": {
+        "feature_id": {"type": "string", "minLength": 1},
+        "value": {"type": ["number", "string", "boolean", "null"]},
+        "unit": {"type": ["string", "null"]},
+        "source_ids": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+        "as_of": {"type": "string", "format": "date-time"},
+        "quality": {"enum": ["GOOD", "PARTIAL", "DEGRADED", "MISSING", "INVALID"]},
+        "method_version": {"type": "string", "minLength": 1},
+        "limitations": {"type": "array", "items": {"type": "string"}}
+      }
+    }
+  }
+}
+

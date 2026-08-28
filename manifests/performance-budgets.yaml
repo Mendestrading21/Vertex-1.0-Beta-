@@ -1,0 +1,505 @@
+schema_version: 1
+manifest_id: vertex-one-performance-budgets
+updated_at: "2026-08-28"
+status: provisional_targets
+
+policy:
+  interpretation: benchmark_objectives_not_promises
+  beta_ui_scope: desktop_only
+  phone_role: claude_remote_control_only
+  vertex_ui_on_phone_allowed: false
+  tailscale_serve_allowed: false
+  mobile_ui_status: later
+  future_clients_must_reuse_canonical_contracts: true
+  canonical_document: docs/06-quality/DATA_LATENCY_BUDGETS.md
+  test_plan: docs/06-quality/PERFORMANCE_TEST_PLAN.md
+  architecture: docs/02-architecture/HOT_PATHS_AND_CACHING.md
+  correctness_precedes_speed: true
+  safety_gates_always_block: true
+  missing_measurement_is_pass: false
+  redis_v1_default: false
+  distributed_cache_requires_benchmark_and_adr: true
+  cache_may_extend_freshness: false
+
+enforcement:
+  stage: baseline_only
+  absolute_targets_block_pr: false
+  relative_regressions_block_pr_when_repeated: true
+  release_requires_accepted_local_baseline: true
+  activation_requirements:
+    - reproducible_reference_profile
+    - versioned_synthetic_dataset
+    - five_valid_runs
+    - human_review
+
+measurement:
+  latency_unit: ms
+  size_unit: byte
+  memory_unit: MiB
+  rate_unit: events_per_second
+  percentiles: [p50, p90, p95, p99, max]
+  minimum_samples:
+    p95: 1000
+    p99: 10000
+  baseline_repetitions: 5
+  nominal_run_minutes: 15
+  soak_hours: 8
+  warmup_excluded: true
+  raw_samples_retained: true
+  clocks:
+    within_process: monotonic
+    cross_process: synchronized_utc
+    max_cross_process_skew_ms: 2000
+    invalidate_cross_process_latency_when_skew_exceeded: true
+  dimensions:
+    - profile_id
+    - dataset_id
+    - scenario_id
+    - cache_state
+    - git_sha
+    - manifest_hash
+
+profiles:
+  P-CI:
+    purpose: relative_regression_only
+    absolute_release_gate: false
+    required_metadata:
+      - runner_image
+      - cpu
+      - ram_mib
+      - disk
+      - os_kernel
+      - python_version
+      - node_version
+      - postgresql_version
+      - browser_version
+  P-LOCAL:
+    purpose: local_release_reference
+    absolute_release_gate: true
+    required_metadata:
+      - cpu_model
+      - physical_and_logical_cores
+      - power_profile
+      - ram_and_swap_mib
+      - disk_model_filesystem_and_free_space
+      - os_build
+      - container_runtime
+      - runtime_and_image_versions
+      - browser_gpu_zoom_and_display
+      - local_http_and_network_baseline
+      - concurrent_processes
+      - temperature_or_throttling_state
+  P-DESKTOP:
+    purpose: beta_desktop_viewport_matrix
+    absolute_release_gate: true
+    full_quality_viewports:
+      - "1280x800"
+      - "1440x900"
+      - "1600x1000"
+    degraded_laptop_viewport: "1024x768"
+    mobile_viewports_are_release_gates: false
+    viewports:
+      - "1024x768"
+      - "1280x800"
+      - "1440x900"
+      - "1600x1000"
+
+datasets:
+  S:
+    purpose: pr_smoke
+    instruments: 100
+    observations_and_bars: 100000
+    option_contracts: 5000
+    news_and_events: 2000
+  R:
+    purpose: nightly_and_release
+    instruments: 1000
+    active_instruments: 250
+    observations_and_bars: 10000000
+    option_contracts: 250000
+    news_and_events: 100000
+    manual_position_lots: 200
+    theses: 100
+    dedicated_columnar_window_rows: 5000000
+  X:
+    purpose: stress_and_breakpoint
+    instruments: 5000
+    observations_and_bars: 50000000
+    option_contracts: 1000000
+    news_and_events: 1000000
+  requirements:
+    deterministic: true
+    seeded: true
+    versioned_generator: true
+    content_hash_required: true
+    synthetic_only: true
+    real_market_or_personal_data_allowed: false
+
+hot_paths:
+  HP-01:
+    name: ibkr_quote_to_ui
+    start: edge_received
+    end: ui_painted
+    objective_p95_ms: 800
+    objective_p99_ms: 2500
+    degrade_after_ms: 3000
+    segments:
+      - id: admission_and_commit
+        start: edge_received
+        end: db_committed
+        objective_p95_ms: 120
+        objective_p99_ms: 400
+        degrade_after_ms: 750
+      - id: quality_and_snapshot
+        start: db_committed
+        end: snapshot_published
+        objective_p95_ms: 120
+        objective_p99_ms: 400
+        degrade_after_ms: 750
+      - id: sse_invalidation
+        start: snapshot_published
+        end: sse_received
+        objective_p95_ms: 250
+        objective_p99_ms: 750
+        degrade_after_ms: 1500
+      - id: refetch_and_paint
+        start: sse_received
+        end: ui_painted
+        objective_p95_ms: 250
+        objective_p99_ms: 750
+        degrade_after_ms: 1500
+    safety:
+      durable_event_loss_max: 0
+      freshness_extension_allowed: false
+      epoch_and_entitlement_required: true
+
+  HP-02:
+    name: tradingview_webhook_to_advice
+    external_dependency: true
+    segments:
+      - id: worker_validate_enqueue_ack
+        objective_p95_ms: 100
+        objective_p99_ms: 300
+        timeout_ms: 2500
+      - id: queue_available_to_local_pull
+        objective_p95_ms: 2000
+        objective_p99_ms: 5000
+      - id: local_pull_to_fresh_quote_or_block
+        objective_p95_ms: 3000
+        objective_p99_ms: 8000
+        timeout_ms: 10000
+      - id: local_pull_to_advice_persisted
+        objective_p95_ms: 4000
+        objective_p99_ms: 10000
+        timeout_behavior: fail_closed_status
+    safety:
+      ack_requires_durable_enqueue: true
+      alert_price_authoritative: false
+      secret_in_body_allowed: false
+
+  HP-03:
+    name: page_snapshot
+    segments:
+      - id: hot_postgresql_query
+        objective_p95_ms: 50
+        objective_p99_ms: 150
+        investigate_after_ms: 250
+      - id: hot_api_snapshot_server
+        objective_p95_ms: 150
+        objective_p99_ms: 500
+        initial_gate_p95_ms: 250
+        initial_gate_p99_ms: 750
+      - id: cold_api_snapshot_no_external_source
+        objective_p95_ms: 500
+        objective_p99_ms: 1500
+        timeout_ms: 2000
+      - id: valid_client_cache_navigation
+        objective_p95_ms: 100
+        objective_p99_ms: 250
+        investigate_after_ms: 500
+      - id: bounded_local_interaction
+        objective_p95_ms: 50
+        objective_p99_ms: 100
+        hard_inp_ms: 200
+
+  HP-04:
+    name: lazy_option_chain
+    external_dependency: true
+    segments:
+      - id: expiries_and_trading_classes_snapshot
+        objective_p95_ms: 250
+        objective_p99_ms: 750
+      - id: selected_expiry_valid_cache
+        objective_p95_ms: 750
+        objective_p99_ms: 2000
+      - id: uncached_first_usable_batch
+        objective_p95_ms: 3000
+        objective_p99_ms: 8000
+      - id: complete_window_or_final_partial
+        objective_p95_ms: 8000
+        objective_p99_ms: 10000
+        timeout_ms: 10000
+        timeout_behavior: publish_partial_with_coverage
+      - id: local_filter_or_scroll
+        objective_p95_ms: 50
+        objective_p99_ms: 100
+    policies:
+      whole_chain_eager_load_allowed: false
+      exact_contract_identity_required: true
+      pacing_overrides_latency_target: true
+      missing_contracts_may_be_synthesized: false
+
+  HP-05:
+    name: information_fusion
+    external_dependency: true
+    segments:
+      - id: committed_to_normalized
+        objective_p95_ms: 500
+        objective_p99_ms: 2000
+        degrade_after_ms: 5000
+      - id: batch_end_to_fused_views
+        objective_p95_ms: 1000
+        objective_p99_ms: 3000
+        degrade_after_ms: 10000
+      - id: received_to_attention_item_painted
+        objective_p95_ms: 2000
+        objective_p99_ms: 8000
+        degrade_after_ms: 15000
+
+  HP-06:
+    name: calculation
+    segments:
+      - id: admitted_light_deterministic_calculation
+        objective_p95_ms: 100
+        objective_p99_ms: 300
+      - id: heavy_job_idempotent_creation
+        objective_p95_ms: 150
+        objective_p99_ms: 500
+      - id: first_progress_visible
+        objective_p95_ms: 500
+        objective_p99_ms: 1000
+      - id: cooperative_cancellation_observed
+        objective_p95_ms: 250
+        objective_p99_ms: 1000
+    policies:
+      heavy_calculation_in_api_event_loop_allowed: false
+      final_duration_budget_is_algorithm_specific: true
+
+  HP-07:
+    name: history_and_chart
+    segments:
+      - id: hot_window_up_to_2000_bars
+        objective_p95_ms: 250
+        objective_p99_ms: 750
+        degrade_after_ms: 1500
+      - id: one_million_row_scan_filter_downsample
+        objective_p95_ms: 1000
+        objective_p99_ms: 3000
+        timeout_ms: 5000
+      - id: desktop_initial_price_chart_render
+        objective_p95_ms: 200
+        objective_p99_ms: 500
+      - id: incremental_chart_update
+        objective_p95_ms: 16.7
+        objective_p99_ms: 33.3
+      - id: adjacent_cached_pan_or_zoom
+        objective_p95_ms: 100
+        objective_p99_ms: 250
+    safety:
+      downsampled_data_allowed_for_financial_authority: false
+      gaps_and_extrema_must_be_preserved: true
+
+batching:
+  ingestion:
+    max_wait_ms: 25
+    max_items: 500
+    max_bytes: 1048576
+    close_on_first_limit: true
+  outbox_claim:
+    max_jobs: 100
+    deterministic_order_required: true
+    lease_required: true
+  sse_invalidation:
+    coalesce_window_ms: 50
+    coalesce_key: resource_id_and_version
+    complete_payload_allowed: false
+  columnar:
+    projection_required: true
+    predicate_pushdown_verified_by_plan: true
+    batch_size_must_be_benchmarked: true
+    readahead_must_be_benchmarked: true
+    thread_count_must_be_bounded: true
+
+backpressure:
+  queue_defaults:
+    general_max_items: 1024
+    option_request_max_items: 256
+    high_water_fraction: 0.75
+    critical_fraction: 0.90
+    recovery_target_fraction: 0.50
+    recovery_objective_ms: 30000
+    hysteresis_required: true
+  event_loop:
+    objective_lag_p95_ms: 20
+    objective_lag_p99_ms: 100
+  overload_order:
+    - pause_backfill
+    - stop_prefetch
+    - reduce_optional_concurrency
+    - coalesce_replaceable_invalidations
+    - reject_non_durable_with_retry_after
+    - preserve_durable_and_control_messages
+  durable_message_drop_max: 0
+  unbounded_queue_allowed: false
+
+cache:
+  key_algorithm: sha256_canonical_json
+  immutable_content_addressed_artifacts: true
+  checksum_required: true
+  entitlement_scope_in_key: true
+  quality_policy_version_in_key: true
+  code_and_engine_version_in_key: true
+  atomic_publish_required: true
+  single_producer_per_key: true
+  corruption_behavior: miss_and_incident
+  negative_cache:
+    allowed_for_deterministic_absence_only: true
+    may_hide_not_entitled_or_timeout: false
+  layers:
+    L0_process_memory:
+      objective_hit_p95_ms: 2
+      objective_hit_p99_ms: 5
+      bounded: true
+      durable: false
+    L1_postgresql_snapshot:
+      objective_hit_p95_ms: 50
+      objective_hit_p99_ms: 150
+      version_and_as_of_required: true
+    L2_local_cas_up_to_10_mib:
+      objective_hit_p95_ms: 100
+      objective_hit_p99_ms: 300
+      quota_and_gc_required: true
+    L3_tanstack_query:
+      objective_hit_p95_ms: 16.7
+      objective_hit_p99_ms: 50
+      server_freshness_controls_stale_time: true
+
+frontend:
+  viewport_policy:
+    beta_scope: desktop_only
+    full_quality_required: ["1280x800", "1440x900", "1600x1000"]
+    degraded_laptop_required: "1024x768"
+    mobile_ui_status: later
+  web_vitals:
+    aggregation_percentile: p75
+    lcp_max_ms: 2500
+    inp_max_ms: 200
+    cls_max: 0.1
+  bundles:
+    initial_gzip_recommended_max_bytes: 307200
+    chart_engines_route_chunked: true
+    echarts_tree_shakeable_imports_required: true
+  charts:
+    desktop_initial_points_max: 4000
+    points_per_css_pixel_max: 2
+    lightweight_charts_realtime_method: update
+    recurring_set_data_allowed: false
+    downsampling_metadata_required: true
+  tables:
+    virtualization_initial_threshold_rows: 200
+    rendered_dom_rows_max: 160
+    overscan_rows_each_side_max: 20
+    keyboard_and_screen_reader_must_pass: true
+  react:
+    interaction_commit_objective_p95_ms: 50
+    ordinary_long_task_max_ms: 50
+    query_abort_signal_required: true
+    global_invalidation_per_tick_allowed: false
+  memory:
+    monotonic_heap_growth_allowed: false
+
+resources:
+  values_are_investigation_thresholds_not_hard_capacity_promises: true
+  investigate_rss_mib:
+    api: 768
+    edge_ibkr: 512
+    worker_per_process: 2048
+  investigate_browser_heap_mib: 256
+  soak:
+    duration_hours: 8
+    final_two_hour_rss_growth_max_fraction: 0.05
+    monotonic_backlog_allowed: false
+  telemetry_overhead:
+    objective_latency_overhead_max_fraction: 0.05
+    objective_cpu_overhead_max_fraction: 0.05
+    application_must_survive_exporter_failure: true
+
+load_scenarios:
+  ingestion_reference:
+    - phase: warmup
+      rate: 50
+      duration_seconds: 120
+    - phase: nominal
+      rate: 100
+      duration_seconds: 900
+    - phase: burst
+      rate: 1000
+      duration_seconds: 30
+    - phase: recovery
+      rate: 100
+      duration_seconds: 300
+  api_clients: [1, 5, 20]
+  outbox_consumers: [1, 2, 4, 8]
+  outbox_backlog_jobs: 100000
+  option_chain_contract_counts: [400, 2000, 10000]
+  chart_point_counts: [500, 2000, 4000, 20000]
+  table_row_counts: [50, 200, 1000, 10000]
+
+regression:
+  comparable_run_required: true
+  warning_fraction: 0.10
+  block_fraction: 0.20
+  block_after_comparable_repetitions: 3
+  faster_but_incorrect_is_failure: true
+  exception_fields:
+    - owner
+    - cause
+    - financial_and_user_impact
+    - mitigation
+    - expires_at
+    - closure_criterion
+
+observability:
+  tracing: opentelemetry
+  metrics: prometheus
+  propagation: w3c_trace_context
+  histograms_for_latency: true
+  summaries_for_cross_worker_quantiles: false
+  permitted_metric_labels:
+    - service
+    - templated_route
+    - hot_path
+    - outcome
+    - cache_state
+    - quality_class
+  forbidden_metric_labels:
+    - ticker
+    - instrument_id
+    - portfolio_id
+    - news_id
+    - user_text
+    - trace_id
+  full_financial_payload_export_allowed: false
+
+hard_failures:
+  - durable_event_loss
+  - duplicate_non_idempotent_effect
+  - stale_or_partial_presented_as_live_or_complete
+  - financial_result_outside_allowed_tolerance
+  - unbounded_queue_or_memory_or_dom
+  - cpu_heavy_work_in_api_event_loop
+  - cache_without_hash_checksum_or_entitlement_scope
+  - silent_cache_corruption
+  - secret_or_real_data_in_fixture_trace_metric_or_report
+  - forbidden_ibkr_capability
+  - dependency_or_redis_adopted_without_benchmark_and_adr

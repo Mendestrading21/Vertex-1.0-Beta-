@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vertex.local/schemas/strategy-profile-v1.schema.json",
+  "title": "Vertex Strategy Profile v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "id", "version", "state", "instruments", "horizon", "required_evidence", "hard_gates", "forbidden"],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "id": {"type": "string", "pattern": "^[a-z][a-z0-9_]+$"},
+    "version": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$"},
+    "state": {"enum": ["DRAFT", "VALIDATED", "SHADOW", "ACTIVE", "SUSPENDED", "RETIRED"]},
+    "instruments": {"type": "array", "minItems": 1, "items": {"enum": ["STOCK", "ETF", "LONG_CALL", "LONG_PUT"]}},
+    "horizon": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["unit", "minimum", "maximum"],
+      "properties": {
+        "unit": {"enum": ["DAYS", "WEEKS", "MONTHS"]},
+        "minimum": {"type": "number", "exclusiveMinimum": 0},
+        "maximum": {"type": "number", "exclusiveMinimum": 0}
+      }
+    },
+    "entry_dte_days": {
+      "type": ["object", "null"],
+      "properties": {
+        "minimum": {"type": "integer", "minimum": 1},
+        "target": {"type": "integer", "minimum": 1},
+        "maximum": {"type": "integer", "minimum": 1}
+      },
+      "required": ["minimum", "target", "maximum"],
+      "additionalProperties": false
+    },
+    "absolute_delta": {
+      "type": ["object", "null"],
+      "properties": {
+        "minimum": {"type": "number", "minimum": 0, "maximum": 1},
+        "maximum": {"type": "number", "minimum": 0, "maximum": 1}
+      },
+      "required": ["minimum", "maximum"],
+      "additionalProperties": false
+    },
+    "required_evidence": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+    "hard_gates": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+    "forbidden": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+    "notes": {"type": "array", "items": {"type": "string"}}
+  }
+}
+

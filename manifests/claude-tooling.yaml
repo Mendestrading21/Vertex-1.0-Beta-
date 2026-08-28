@@ -1,0 +1,64 @@
+schema_version: 1
+policy_id: vertex-one-claude-tooling
+scope: development_orchestration_only
+runtime_authority: none
+project_local:
+  skill:
+    path: .claude/skills/vertex-one/SKILL.md
+    status: adopted
+  audit_agents:
+    path: .claude/agents
+    status: adopted_read_only
+  prompts:
+    path: .claude/prompts
+    status: adopted
+official_candidates:
+  - id: anthropic-frontend-design
+    source: https://github.com/anthropics/claude-code/tree/main/plugins/frontend-design
+    status: review_then_pin
+    allowed_for: [folder-13-ui-system, folder-14-shell, folders-15-to-24-pages]
+    constraints:
+      - vertex_tokens_and_widget_catalog_remain_authoritative
+      - no_generic_dashboard_template
+      - no_financial_calculation_in_client
+      - desktop_only
+  - id: anthropic-code-review
+    source: https://github.com/anthropics/claude-code/tree/main/plugins/code-review
+    status: review_then_pin
+    allowed_for: [draft_pull_request_review]
+    constraints: [advisory_only, local_tests_and_human_review_remain_required, no_automatic_merge]
+  - id: anthropic-security-guidance
+    source: https://github.com/anthropics/claude-code/tree/main/plugins/security-guidance
+    status: review_then_pin
+    allowed_for: [pre_tool_security_reminders]
+    constraints: [not_a_replacement_for_static_scans, must_not_send_market_or_personal_payloads]
+  - id: anthropic-security-review-action
+    source: https://github.com/anthropics/claude-code-security-review
+    status: optional_requires_human_decision
+    allowed_for: [changed_code_security_review]
+    constraints: [cost_and_data_egress_review, pin_full_commit_sha, least_privilege_permissions]
+  - id: shadcn-ai-skill
+    source: https://ui.shadcn.com/docs/skills
+    status: reference_only
+    allowed_for: [component_api_research]
+    constraints:
+      - do_not_install_component_registry_wholesale
+      - radix_wrappers_remain_vertex_owned
+      - every_component_requires_license_accessibility_and_bundle_review
+rejected_patterns:
+  - install_all_awesome_lists
+  - copy_dashboard_starter
+  - unpinned_marketplace_skill
+  - remote_skill_with_secrets_or_market_payloads
+  - ai_generated_financial_formula
+  - agent_with_write_access_to_donor
+activation_gate:
+  required:
+    - official_source
+    - reviewed_license
+    - pinned_version_or_commit
+    - permissions_inventory
+    - data_egress_inventory
+    - rollback_documented
+    - isolated_smoke_test
+  approver: human_for_cost_egress_or_new_permissions

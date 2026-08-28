@@ -1,0 +1,137 @@
+schema_version: 1
+policy_id: vertex-one-forbidden-capabilities
+default_action: deny_on_match
+owner: security
+review_required: human
+
+principles:
+  - id: ibkr-information-only
+    statement: "IBKR fournit uniquement des informations de marché et de référence."
+  - id: python-financial-authority
+    statement: "Les calculs financiers et verdicts faisant autorité résident uniquement en Python."
+  - id: fail-closed
+    statement: "Une donnée requise invalide ou absente ne peut jamais produire un avis qualifié."
+  - id: official-sources-only
+    statement: "Aucun scraping ni contournement de droits ou d'abonnement n'est permis."
+
+forbidden_groups:
+  - id: ibkr-orders
+    severity: critical
+    scope: [runtime, tests, dependencies, routes, permissions, ai_tools]
+    symbols:
+      - placeOrder
+      - cancelOrder
+      - reqOpenOrders
+      - reqAllOpenOrders
+      - reqAutoOpenOrders
+      - reqCompletedOrders
+      - reqGlobalCancel
+      - reqIds
+      - whatIfOrder
+      - exerciseOptions
+    endpoint_fragments:
+      - /iserver/account/orders
+      - /iserver/account/order
+    remediation: "Supprimer le chemin complet et ajouter un test négatif."
+
+  - id: ibkr-account-portfolio
+    severity: critical
+    scope: [runtime, tests, dependencies, routes, permissions, ai_tools]
+    symbols:
+      - managedAccounts
+      - reqAccountUpdates
+      - reqAccountUpdatesMulti
+      - reqAccountSummary
+      - reqPositions
+      - reqPositionsMulti
+      - reqPnL
+      - reqPnLSingle
+      - reqExecutions
+      - reqCompletedOrders
+    endpoint_fragments:
+      - /portfolio/accounts
+      - /portfolio/
+      - /pa/performance
+      - /iserver/account/trades
+      - /iserver/account/pnl
+    remediation: "Retirer toute lecture de compte, position, P&L ou exécution. Le portefeuille Vertex reste manuel."
+
+  - id: scraping-and-entitlement-bypass
+    severity: critical
+    scope: [runtime, integrations, research]
+    forbidden_intents:
+      - "Piloter ou parser l'interface TradingView, TWS ou IBKR pour extraire des données."
+      - "Contourner paywall, entitlement, session, robots, pacing ou limitation fournisseur."
+      - "Utiliser un navigateur headless comme source de données."
+    package_indicators:
+      - scrapy
+      - beautifulsoup4
+    exceptions:
+      - "Playwright est permis uniquement pour tester l'application Vertex et ses pages locales."
+      - "Une bibliothèque HTML est permise uniquement pour assainir du contenu déjà obtenu par une API officielle, avec revue sécurité."
+    remediation: "Remplacer par API, webhook, Pine ou export officiellement autorisé et documenter licence/droit."
+
+  - id: secrets-and-sensitive-data
+    severity: critical
+    scope: [repository, logs, fixtures, screenshots, errors, artifacts]
+    prohibited_content:
+      - api_key
+      - access_token
+      - refresh_token
+      - password
+      - cookie
+      - signed_url
+      - ibkr_account_id
+      - real_market_payload
+      - personal_data
+    remediation: "Arrêter, révoquer ou faire tourner le secret, purger selon procédure et utiliser une valeur synthétique."
+
+  - id: frontend-financial-authority
+    severity: critical
+    scope: [apps/web, packages/typescript, pine, ai]
+    prohibited_authorities:
+      - option_price
+      - implied_volatility
+      - greeks
+      - risk
+      - reward_risk
+      - financial_score
+      - calibrated_probability
+      - gate
+      - advice_status
+      - verdict
+    remediation: "Déplacer le calcul vers vertex_core Python et consommer le DTO OpenAPI généré."
+
+  - id: fail-open
+    severity: critical
+    scope: [runtime, api, web, ai]
+    prohibited_behaviors:
+      - "Transformer une donnée absente, partielle, retardée, périmée, future ou contradictoire en QUALIFIED."
+      - "Conserver silencieusement un verdict ancien après erreur, timeout ou perte de source."
+      - "Remplacer une valeur requise par zéro, moyenne, théorie, cache ou source secondaire sans contrat explicite."
+    remediation: "Fermer la gate, exposer la raison et conserver provenance/fraîcheur."
+
+  - id: fake-as-real
+    severity: critical
+    scope: [runtime, api, web, ai, screenshots]
+    prohibited_behaviors:
+      - "Présenter mock, fixture, placeholder, snapshot synthétique ou résultat théorique comme réel ou live."
+      - "Masquer le badge DÉMONSTRATION ou le type delayed/theoretical/simulated."
+    remediation: "Séparer les environnements et rendre l'étiquette de nature obligatoire dans le contrat et l'interface."
+
+enforcement:
+  required_checks:
+    - policy-static-scan
+    - dependency-capability-review
+    - openapi-route-review
+    - negative-runtime-tests
+    - secret-scan
+    - human-security-review
+  match_handling:
+    test_negative_fixture: allow_only_if_path_is_allowlisted
+    comment_or_documentation: review_required
+    production_code: deny
+  test_allowlist:
+    - "tests/security/forbidden_capabilities/**"
+    - "fixtures/synthetic/forbidden_capabilities/**"
+

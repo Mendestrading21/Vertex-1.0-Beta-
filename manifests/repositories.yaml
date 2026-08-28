@@ -1,0 +1,31 @@
+schema_version: 1
+observed_at: "2026-08-28T20:00:00Z"
+repositories:
+  donor:
+    full_name: Mendestrading21/Vertex-
+    remote_https: https://github.com/Mendestrading21/Vertex-.git
+    local_path_env: VERTEX_DONOR_ROOT
+    observed_local_path_example: /home/user/Vertex-
+    branch_observed: claude/vertex-connection-kgkntr
+    baseline_commit: c683c944f93f61d5fd22303df726fac6e79820fe
+    default_branch: main
+    access_mode: READ_ONLY
+    allowed_operations: [status, log, show, diff, grep, test_in_isolated_copy]
+    forbidden_operations: [edit, commit, push, merge, rebase, reset, clean]
+  target:
+    full_name: Mendestrading21/Vertex-1.0-Beta-
+    remote_https: https://github.com/Mendestrading21/Vertex-1.0-Beta-.git
+    local_path_env: VERTEX_BETA_ROOT
+    observed_local_path_example: /home/user/Vertex-1.0-Beta-
+    branch_observed: claude/vertex-connection-kgkntr
+    initial_state: README_ONLY
+    access_mode: WRITE_BY_EXPLICIT_LOT
+    allowed_operations: [plan, edit_on_work_branch, test, draft_pull_request]
+    forbidden_operations: [direct_main_edit, force_push, automatic_merge]
+safety:
+  same_branch_name_is_not_same_repository: true
+  verify_origin_before_every_write: true
+  donor_must_never_be_target: true
+  no_runtime_import_from_donor: true
+  no_personal_data_in_git: true
+

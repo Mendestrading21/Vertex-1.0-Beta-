@@ -1,0 +1,227 @@
+schema_version: "1.0"
+catalog_id: "vertex-black-glass-icons"
+status: "normative"
+base_library:
+  name: "Lucide"
+  package: "lucide-react"
+  role: "Seule bibliothèque d'icônes généralistes."
+  source: "https://lucide.dev/guide/react/"
+  license: "ISC avec notices incorporées à conserver"
+  license_source: "https://github.com/lucide-icons/lucide/blob/main/LICENSE"
+  import_policy: "Imports ESM nommés uniquement; aucun import dynamique par chaîne."
+geometry:
+  view_box: "0 0 24 24"
+  fill: "none"
+  stroke: "currentColor"
+  stroke_width: 1.75
+  stroke_linecap: "round"
+  stroke_linejoin: "round"
+  sizes_px: [16, 18, 20, 24]
+  minimum_pointer_target_px: 32
+accessibility:
+  raw_custom_svg: "decorative_by_default"
+  raw_attributes:
+    aria_hidden: true
+    focusable: false
+  icon_only_control: "Nom accessible sur le contrôle et tooltip Radix; SVG masqué."
+  informative_icon: "Texte visible préféré; sinon Radix AccessibleIcon avec le libellé français du catalogue."
+  status_rule: "Toujours icône plus libellé; jamais couleur seule."
+color_policy:
+  source: "inherit"
+  fixed_color_in_svg: false
+  option_accent: "--vx-option"
+  positive: "--vx-positive"
+  negative: "--vx-negative"
+  warning: "--vx-warning"
+lucide_registry:
+  navigation:
+    today: "Sun"
+    calendar: "CalendarDays"
+    markets: "ChartLine"
+    opportunities: "ScanSearch"
+    analysis: "ChartCandlestick"
+    options: "Rows3"
+    simulator: "FlaskConical"
+    portfolio: "BriefcaseBusiness"
+    follow_up: "ClipboardCheck"
+    performance: "ChartSpline"
+    vertex_ai: "Bot"
+    system: "Settings2"
+  actions:
+    search: "Search"
+    filter: "ListFilter"
+    configure: "SlidersHorizontal"
+    refresh: "RefreshCw"
+    save: "Save"
+    upload: "Upload"
+    download: "Download"
+    export: "FileDown"
+    open_detail: "ArrowRight"
+    external_link: "ExternalLink"
+    close: "X"
+    more: "Ellipsis"
+  common_states:
+    information: "Info"
+    warning: "TriangleAlert"
+    success: "CircleCheck"
+    error: "CircleX"
+    delayed: "Clock3"
+    offline: "WifiOff"
+    not_entitled: "ShieldX"
+    revision: "History"
+custom_icons:
+  - id: "attention-queue"
+    file: "design-assets/icons/custom/attention-queue.svg"
+    concept: "File priorisée mélangeant incidents, événements et opportunités."
+    semantic_label_fr: "File d'attention prioritaire"
+    pages: ["today"]
+    allowed_roles: ["dominant_heading", "empty_state"]
+    default_decorative: true
+  - id: "market-regime"
+    file: "design-assets/icons/custom/market-regime.svg"
+    concept: "Régime de marché versionné et calculé par le serveur."
+    semantic_label_fr: "Régime de marché"
+    pages: ["today", "markets", "analysis"]
+    allowed_roles: ["category", "detail_heading"]
+    default_decorative: true
+  - id: "gate-pass"
+    file: "design-assets/icons/custom/gate-pass.svg"
+    concept: "Porte de décision validée."
+    semantic_label_fr: "Porte validée"
+    pages: ["opportunities", "analysis"]
+    allowed_roles: ["status"]
+    required_visible_label: "Validée"
+    default_decorative: true
+  - id: "gate-degrade"
+    file: "design-assets/icons/custom/gate-degrade.svg"
+    concept: "Porte dégradée mais non bloquante."
+    semantic_label_fr: "Porte dégradée"
+    pages: ["opportunities", "analysis"]
+    allowed_roles: ["status"]
+    required_visible_label: "Dégradée"
+    default_decorative: true
+  - id: "gate-block"
+    file: "design-assets/icons/custom/gate-block.svg"
+    concept: "Porte bloquante; aucun classement qualifié."
+    semantic_label_fr: "Porte bloquante"
+    pages: ["opportunities", "analysis"]
+    allowed_roles: ["status"]
+    required_visible_label: "Bloquée"
+    default_decorative: true
+  - id: "evidence-rail"
+    file: "design-assets/icons/custom/evidence-rail.svg"
+    concept: "Chaîne de preuves traçables reliée à un résultat."
+    semantic_label_fr: "Preuves et provenance"
+    pages: ["today", "opportunities", "analysis", "vertex_ai"]
+    allowed_roles: ["rail_heading", "citation"]
+    default_decorative: true
+  - id: "snapshot-sealed"
+    file: "design-assets/icons/custom/snapshot-sealed.svg"
+    concept: "Snapshot immuable utilisé par un calcul ou une réponse."
+    semantic_label_fr: "Snapshot immuable"
+    pages: ["analysis", "simulator", "performance", "vertex_ai"]
+    allowed_roles: ["metadata", "status"]
+    required_visible_label: "Snapshot"
+    default_decorative: true
+  - id: "option-chain"
+    file: "design-assets/icons/custom/option-chain.svg"
+    concept: "Chaîne Calls, strikes et Puts avec identité exacte."
+    semantic_label_fr: "Chaîne d'options"
+    pages: ["options", "simulator"]
+    allowed_roles: ["dominant_heading", "category"]
+    default_decorative: true
+  - id: "volatility-smile"
+    file: "design-assets/icons/custom/volatility-smile.svg"
+    concept: "Smile ou skew de volatilité implicite calculé côté serveur."
+    semantic_label_fr: "Smile de volatilité implicite"
+    pages: ["options"]
+    allowed_roles: ["chart_heading"]
+    default_decorative: true
+  - id: "term-structure"
+    file: "design-assets/icons/custom/term-structure.svg"
+    concept: "Structure à terme issue de plusieurs expirations."
+    semantic_label_fr: "Structure à terme"
+    pages: ["options", "simulator"]
+    allowed_roles: ["chart_heading"]
+    default_decorative: true
+  - id: "payoff-curve"
+    file: "design-assets/icons/custom/payoff-curve.svg"
+    concept: "Courbe de payoff d'une structure simulée."
+    semantic_label_fr: "Courbe de payoff"
+    pages: ["simulator"]
+    allowed_roles: ["dominant_heading", "chart_heading"]
+    default_decorative: true
+  - id: "greeks-basket"
+    file: "design-assets/icons/custom/greeks-basket.svg"
+    concept: "Ensemble de sensibilités d'options, avec unités explicites."
+    semantic_label_fr: "Sensibilités et Greeks"
+    pages: ["options", "simulator", "portfolio"]
+    allowed_roles: ["metric_group", "detail_heading"]
+    default_decorative: true
+  - id: "manual-ledger"
+    file: "design-assets/icons/custom/manual-ledger.svg"
+    concept: "Ledger Vertex manuel, jamais synchronisé depuis un compte IBKR."
+    semantic_label_fr: "Ledger manuel"
+    pages: ["portfolio", "performance"]
+    allowed_roles: ["dominant_heading", "source_badge"]
+    required_visible_label: "Manuel"
+    default_decorative: true
+  - id: "thesis-active"
+    file: "design-assets/icons/custom/thesis-active.svg"
+    concept: "Thèse manuelle active avec niveau d'invalidation."
+    semantic_label_fr: "Thèse active"
+    pages: ["analysis", "follow_up"]
+    allowed_roles: ["category", "detail_heading"]
+    default_decorative: true
+  - id: "source-coverage"
+    file: "design-assets/icons/custom/source-coverage.svg"
+    concept: "Couverture reçue par rapport au périmètre attendu."
+    semantic_label_fr: "Couverture de la source"
+    pages: ["today", "calendar", "markets", "options", "system"]
+    allowed_roles: ["metadata", "status"]
+    required_visible_label: "Couverture"
+    default_decorative: true
+  - id: "audit-trace"
+    file: "design-assets/icons/custom/audit-trace.svg"
+    concept: "Trace reliant entrée, calcul et résultat versionnés."
+    semantic_label_fr: "Trace d'audit"
+    pages: ["analysis", "simulator", "performance", "vertex_ai", "system"]
+    allowed_roles: ["metadata", "detail_heading"]
+    default_decorative: true
+  - id: "news-cluster"
+    file: "design-assets/icons/custom/news-cluster.svg"
+    concept: "Plusieurs articles dédupliqués autour d'un même fait."
+    semantic_label_fr: "Groupe d'actualités dédupliquées"
+    pages: ["today", "calendar", "opportunities", "analysis", "portfolio", "follow_up"]
+    allowed_roles: ["category", "row_leading"]
+    default_decorative: true
+  - id: "scenario-bull"
+    file: "design-assets/icons/custom/scenario-bull.svg"
+    concept: "Scénario haussier, sans probabilité implicite."
+    semantic_label_fr: "Scénario haussier"
+    pages: ["analysis"]
+    allowed_roles: ["scenario"]
+    required_visible_label: "Haussier"
+    default_decorative: true
+  - id: "scenario-neutral"
+    file: "design-assets/icons/custom/scenario-neutral.svg"
+    concept: "Scénario neutre, sans probabilité implicite."
+    semantic_label_fr: "Scénario neutre"
+    pages: ["analysis"]
+    allowed_roles: ["scenario"]
+    required_visible_label: "Neutre"
+    default_decorative: true
+  - id: "scenario-bear"
+    file: "design-assets/icons/custom/scenario-bear.svg"
+    concept: "Scénario baissier, sans probabilité implicite."
+    semantic_label_fr: "Scénario baissier"
+    pages: ["analysis"]
+    allowed_roles: ["scenario"]
+    required_visible_label: "Baissier"
+    default_decorative: true
+validation:
+  expected_custom_icon_count: 20
+  xml_required: true
+  forbidden_svg_elements: ["script", "foreignObject", "image", "use"]
+  forbidden_attributes: ["onclick", "onload", "style"]
+  visual_sizes_px: [16, 20, 24]

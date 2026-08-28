@@ -1,0 +1,512 @@
+schema_version: "1.0"
+catalog_id: "vertex-black-glass-widgets"
+status: "normative"
+phase_scope:
+  beta_ui: "desktop_only"
+  target_viewports: ["1280x800", "1440x900", "1600x1000"]
+  laptop_degradation_viewport: "1024x768"
+  mobile_ui: "LATER"
+  phone_role: "Claude Code Remote Control uniquement; aucun client Vertex."
+  semantic_contracts_remain_device_independent: true
+global_contract:
+  visible_modules_per_page:
+    minimum: 3
+    maximum: 5
+  dominant_widgets_per_page: 1
+  filled_primary_actions_per_page: 1
+  states: ["loading", "refreshing", "empty", "partial", "delayed", "stale", "offline", "error"]
+  financial_authority: "server_only"
+  browser_rule: "Le client affiche, formate, filtre ou réordonne explicitement; aucun calcul financier en TypeScript."
+  decimal_transport: "string"
+  required_metadata: ["source", "as_of", "freshness", "coverage", "unit_or_not_applicable"]
+  required_accessibility: ["keyboard", "focus_visible", "zoom_200", "no_color_only", "semantic_alternative"]
+  viewports: ["1280x800", "1440x900", "1600x1000"]
+  laptop_degradation_viewport: "1024x768"
+engines:
+  semantic_html:
+    role: "Files, agendas, fiches, réponses et diagnostics."
+  radix_primitives:
+    role: "Comportements accessibles des sheets, dialogs, accordéons, menus, selects et tooltips."
+    source: "https://www.radix-ui.com/primitives/docs/overview/accessibility"
+  tanstack_table:
+    role: "État headless des tables; aucune agrégation financière client."
+    source: "https://tanstack.com/table/latest"
+  tanstack_virtual:
+    role: "Index visibles et mesure du viewport uniquement après seuil mesuré."
+    source: "https://tanstack.com/virtual/latest"
+  lightweight_charts:
+    role: "Chandeliers et volume sur Analyse seulement."
+    attribution_required: true
+    source: "https://tradingview.github.io/lightweight-charts/docs"
+  apache_echarts:
+    role: "Heatmaps, treemaps, payoff, surfaces, drawdown et attribution."
+    aria_component_required: true
+    echarts_gl_forbidden: true
+    source: "https://echarts.apache.org/handbook/en/best-practices/aria/"
+visual_contracts:
+  gauges:
+    allowed_forms: ["linear_bullet", "segmented_band", "progress_with_target"]
+    forbidden_forms: ["decorative_speedometer", "three_dimensional_dial", "animated_needle", "opaque_composite_score"]
+    server_authority_required: true
+    required_fields: ["metric_name", "value", "unit", "scale_min", "scale_max", "thresholds", "method_version", "as_of", "quality_status"]
+    accessibility: "Valeur textuelle, seuil courant et limites annoncés; couleur jamais seule."
+    independence_rule: "Confiance, régime, fraîcheur, couverture et risque restent des mesures distinctes."
+  required_graphic_families:
+    - "price_and_volume"
+    - "option_chain"
+    - "volatility_smile_and_surface"
+    - "bear_neutral_bull_scenarios"
+    - "payoff_and_sensitivities"
+    - "performance_and_drawdown"
+    - "data_states_and_contradictions"
+performance:
+  route_lazy_load_charts: true
+  cached_api_p95_ms: 250
+  cached_api_p99_ms: 750
+  local_interaction_p95_ms: 100
+  target_fps: 60
+  initial_bundle_gzip_kb_recommended: 300
+  virtualization:
+    default_row_threshold: 200
+    overscan_policy: "Mesuré par widget; borne explicite, jamais source d'abonnement illimité."
+widgets:
+  - id: "session-health-strip"
+    kind: "support"
+    engine: "semantic_html"
+    pages: ["today", "markets"]
+    question: "Quelle séance et quelles sources encadrent la lecture ?"
+    desktop: "Bandeau horizontal compact."
+    laptop_compact: "Deux lignes à 1024 px, incidents dans un SideSheet."
+    financial_values_from_server: true
+  - id: "attention-queue"
+    kind: "dominant"
+    engine: "semantic_html"
+    pages: ["today"]
+    question: "Qu'est-ce qui mérite mon attention maintenant ?"
+    desktop: "File de 8 à 15 lignes, détail en side sheet."
+    laptop_compact: "Dominante pleine largeur, détail en SideSheet."
+    financial_values_from_server: true
+  - id: "next-24-hours"
+    kind: "support"
+    engine: "semantic_html"
+    pages: ["today", "calendar"]
+    question: "Quels événements arrivent dans les 24 heures ?"
+    desktop: "Chronologie courte."
+    laptop_compact: "Liste bornée sous la file lorsque le rail ne tient pas."
+    financial_values_from_server: true
+  - id: "exposure-focus"
+    kind: "support"
+    engine: "semantic_html"
+    pages: ["today"]
+    question: "Quelles expositions manuelles sont concernées ?"
+    desktop: "Liste bornée avec provenance."
+    laptop_compact: "Liste compacte sous les événements."
+    financial_values_from_server: true
+  - id: "event-agenda"
+    kind: "dominant"
+    engine: "semantic_html"
+    pages: ["calendar"]
+    question: "Quels événements affectent le périmètre choisi ?"
+    desktop: "Agenda jour/semaine."
+    laptop_compact: "Agenda vertical groupé par jour à 1024 px."
+    financial_values_from_server: true
+  - id: "event-context"
+    kind: "support"
+    engine: "radix_primitives"
+    pages: ["calendar"]
+    question: "Comment l'événement est-il relié aux positions, watchlists et thèses ?"
+    desktop: "Croisement plus fiche latérale."
+    laptop_compact: "Fiche dans un SideSheet de largeur bornée."
+    financial_values_from_server: true
+  - id: "market-map"
+    kind: "dominant"
+    engine: "apache_echarts"
+    pages: ["markets"]
+    question: "Où se situe la force ou faiblesse relative du marché ?"
+    desktop: "Heatmap ou treemap avec table identique."
+    laptop_compact: "Table sectorielle si la treemap passe sous sa largeur lisible."
+    financial_values_from_server: true
+  - id: "market-regime-gauge"
+    kind: "support"
+    engine: "semantic_html"
+    visual: "segmented_band"
+    pages: ["markets", "analysis"]
+    question: "Dans quel régime versionné le marché se situe-t-il ?"
+    desktop: "Bande segmentée avec état, confiance descriptive, méthode et as_of."
+    laptop_compact: "Bande pleine largeur sous le contexte de marché."
+    financial_values_from_server: true
+    required_contract: ["regime", "descriptive_confidence", "thresholds", "method_version", "coverage", "as_of"]
+  - id: "market-breadth"
+    kind: "support"
+    engine: "apache_echarts"
+    pages: ["markets"]
+    question: "Quelle breadth, dispersion et volatilité sont observées ?"
+    desktop: "Petits multiples sobres."
+    laptop_compact: "Barres et valeurs essentielles sous la dominante."
+    financial_values_from_server: true
+  - id: "benchmark-strip"
+    kind: "support"
+    engine: "semantic_html"
+    pages: ["markets"]
+    question: "Que montrent les benchmarks de référence ?"
+    desktop: "Lignes avec sparklines SVG internes."
+    laptop_compact: "Liste compacte sur une rangée ou sous la carte."
+    financial_values_from_server: true
+  - id: "opportunity-table"
+    kind: "dominant"
+    engine: "tanstack_table"
+    virtualizer: "tanstack_virtual"
+    pages: ["opportunities"]
+    question: "Quels candidats admissibles méritent l'analyse ?"
+    desktop: "Table qualifiés/exclus, virtualisée au seuil."
+    laptop_compact: "Table avec colonnes essentielles épinglées; détail en SideSheet."
+    financial_values_from_server: true
+  - id: "candidate-compare"
+    kind: "support"
+    engine: "semantic_html"
+    pages: ["opportunities"]
+    question: "Quelles différences séparent deux ou trois candidats ?"
+    desktop: "Comparaison bornée à trois colonnes."
+    laptop_compact: "Comparaison limitée à deux candidats."
+    financial_values_from_server: true
+  - id: "gate-evidence-rail"
+    kind: "rail"
+    engine: "radix_primitives"
+    pages: ["opportunities", "analysis"]
+    question: "Quelles portes et preuves justifient le statut ?"
+    desktop: "Rail latéral de 320 à 360 px."
+    laptop_compact: "Rail déplacé sous la dominante ou ouvert en SideSheet."
+    financial_values_from_server: true
+  - id: "advice-card"
+    kind: "support"
+    engine: "semantic_html"
+    pages: ["analysis"]
+    question: "Quel est le résultat canonique et jusqu'à quand est-il valide ?"
+    desktop: "Carte compacte au-dessus de la dominante."
+    laptop_compact: "Résumé compact; statut et validité restent visibles."
+    financial_values_from_server: true
+  - id: "calibrated-confidence-gauge"
+    kind: "support"
+    engine: "semantic_html"
+    visual: "linear_bullet"
+    pages: ["analysis"]
+    question: "Quelle confiance calibrée est réellement démontrée ?"
+    desktop: "Barre bornée avec valeur, intervalle, population et qualité de calibration."
+    laptop_compact: "Barre sous AdviceCard, sans masquer les limites."
+    financial_values_from_server: true
+    render_condition: "probability_evidence.status == VALID"
+    absent_state: "Ne pas afficher de pourcentage; montrer Données insuffisantes."
+    required_contract: ["probability_evidence", "calibration_method", "holdout_period", "sample_size", "interval", "as_of"]
+  - id: "price-volume-chart"
+    kind: "dominant"
+    engine: "lightweight_charts"
+    pages: ["analysis"]
+    question: "Que montrent prix et volume sur la période ?"
+    desktop: "Chandeliers, volume et deux overlays maximum."
+    laptop_compact: "Graphique pleine largeur plus table OHLCV accessible."
+    financial_values_from_server: true
+  - id: "evidence-rail"
+    kind: "rail"
+    engine: "semantic_html"
+    pages: ["analysis", "vertex_ai"]
+    question: "Quelles preuves, contradictions et limites accompagnent le résultat ?"
+    desktop: "Rail latéral traçable."
+    laptop_compact: "Preuves sous la dominante ou dans un SideSheet."
+    financial_values_from_server: true
+  - id: "scenario-set"
+    kind: "support"
+    engine: "semantic_html"
+    pages: ["analysis"]
+    question: "Quelles hypothèses définissent les scénarios baissier, neutre et haussier ?"
+    desktop: "Trois panneaux comparables, sans probabilité implicite."
+    laptop_compact: "Trois lignes comparables sous le graphique."
+    financial_values_from_server: true
+  - id: "underlying-strip"
+    kind: "support"
+    engine: "semantic_html"
+    pages: ["options"]
+    question: "Quel sous-jacent, expiration et trading class sont observés ?"
+    desktop: "Bandeau identité, droit, liquidité et couverture."
+    laptop_compact: "Contrôles sur deux lignes en conservant trading class."
+    financial_values_from_server: true
+  - id: "option-chain"
+    kind: "dominant"
+    engine: "tanstack_table"
+    virtualizer: "tanstack_virtual"
+    pages: ["options"]
+    question: "Quels contrats exacts sont exploitables ?"
+    desktop: "Calls, strikes, Puts; colonnes bornées."
+    laptop_compact: "Strikes épinglés et colonnes secondaires masquables."
+    financial_values_from_server: true
+  - id: "option-surface"
+    kind: "support"
+    engine: "apache_echarts"
+    pages: ["options"]
+    question: "Que montrent smile, skew et structure à terme ?"
+    desktop: "Courbes ou surface seulement si couverture suffisante."
+    laptop_compact: "Coupes 2D sélectionnables plus table."
+    financial_values_from_server: true
+  - id: "option-inspector"
+    kind: "support"
+    engine: "radix_primitives"
+    pages: ["options"]
+    question: "Quels risques, hypothèses et anomalies porte ce contrat ?"
+    desktop: "Inspecteur latéral."
+    laptop_compact: "Inspecteur dans un SideSheet."
+    financial_values_from_server: true
+  - id: "leg-composer"
+    kind: "support"
+    engine: "radix_primitives"
+    pages: ["simulator"]
+    question: "Quelles jambes exactes composent la structure ?"
+    desktop: "Compositeur visible avec validation serveur."
+    laptop_compact: "Compositeur repliable au-dessus du résultat."
+    financial_values_from_server: true
+  - id: "assumption-panel"
+    kind: "support"
+    engine: "radix_primitives"
+    pages: ["simulator"]
+    question: "Quelles hypothèses et quel snapshot encadrent le calcul ?"
+    desktop: "Panneau borné et attribué."
+    laptop_compact: "Hypothèses dans un panneau repliable."
+    financial_values_from_server: true
+  - id: "payoff-chart"
+    kind: "dominant"
+    engine: "apache_echarts"
+    pages: ["simulator"]
+    question: "Comment la structure réagit-elle au spot, temps et volatilité ?"
+    desktop: "Payoff avec bascule explicite vers surface."
+    laptop_compact: "Résultat pleine largeur plus table."
+    financial_values_from_server: true
+  - id: "simulation-summary"
+    kind: "support"
+    engine: "semantic_html"
+    pages: ["simulator"]
+    question: "Quels breakevens, bornes et sensibilités résultent du calcul ?"
+    desktop: "Résumé lié au CalculationRecord."
+    laptop_compact: "Résumé sous le graphique, hypothèses toujours accessibles."
+    financial_values_from_server: true
+  - id: "portfolio-summary"
+    kind: "support"
+    engine: "semantic_html"
+    pages: ["portfolio"]
+    question: "Quelle valorisation datée résulte du ledger manuel ?"
+    desktop: "Bandeau valeur, cash, P&L et couverture."
+    laptop_compact: "Résumé sur deux lignes avec état FX."
+    financial_values_from_server: true
+  - id: "risk-gauge"
+    kind: "support"
+    engine: "semantic_html"
+    visual: "linear_bullet"
+    pages: ["portfolio", "simulator"]
+    question: "Où se situe une mesure de risque nommée face à ses seuils ?"
+    desktop: "Une mesure sélectionnée par jauge; seuils, unité, couverture et scénario visibles."
+    laptop_compact: "Jauge pleine largeur sous le résumé."
+    financial_values_from_server: true
+    opaque_risk_score_forbidden: true
+    required_contract: ["risk_measure_id", "value", "unit", "thresholds", "coverage", "method_version", "as_of"]
+  - id: "portfolio-table"
+    kind: "dominant"
+    engine: "tanstack_table"
+    pages: ["portfolio"]
+    question: "Quels lots et cashflows manuels composent le portefeuille ?"
+    desktop: "Table positions/lots; aucune lecture de compte IBKR."
+    laptop_compact: "Colonnes essentielles et fiche détaillée en SideSheet."
+    financial_values_from_server: true
+  - id: "concentration-panel"
+    kind: "support"
+    engine: "apache_echarts"
+    pages: ["portfolio"]
+    question: "Quelles concentrations instrument, secteur et devise sont calculées ?"
+    desktop: "Barres sobres plus table."
+    laptop_compact: "Table de concentrations; graphique secondaire repliable."
+    financial_values_from_server: true
+  - id: "portfolio-risk-rail"
+    kind: "rail"
+    engine: "semantic_html"
+    pages: ["portfolio"]
+    question: "Quels risques, événements et actualités touchent le ledger ?"
+    desktop: "Rail borné."
+    laptop_compact: "Section sous la table dominante."
+    financial_values_from_server: true
+  - id: "review-queue"
+    kind: "dominant"
+    engine: "semantic_html"
+    pages: ["follow_up"]
+    question: "Quelles thèses doivent être revues ?"
+    desktop: "File par urgence expliquée."
+    laptop_compact: "File tabulaire compacte par urgence."
+    financial_values_from_server: true
+  - id: "thesis-detail"
+    kind: "support"
+    engine: "radix_primitives"
+    pages: ["follow_up"]
+    question: "Quelles hypothèses, invalidations et notes porte la thèse ?"
+    desktop: "Fiche sélectionnée."
+    laptop_compact: "Détail dans un SideSheet."
+    financial_values_from_server: true
+  - id: "revision-timeline"
+    kind: "support"
+    engine: "semantic_html"
+    pages: ["follow_up"]
+    question: "Quels changements et éléments nouveaux expliquent l'urgence ?"
+    desktop: "Timeline append-only."
+    laptop_compact: "Liste chronologique sous la fiche."
+    financial_values_from_server: true
+  - id: "watchlist-hygiene"
+    kind: "support"
+    engine: "semantic_html"
+    pages: ["follow_up"]
+    question: "Quelles alertes et watchlists doivent être nettoyées ?"
+    desktop: "Liste d'actions manuelles."
+    laptop_compact: "Section repliable sous la dominante."
+    financial_values_from_server: true
+  - id: "performance-chart"
+    kind: "dominant"
+    engine: "apache_echarts"
+    pages: ["performance"]
+    question: "Quelle performance et quel drawdown ont été enregistrés ?"
+    desktop: "Courbes synchronisées plus table."
+    laptop_compact: "Graphiques empilés en pleine largeur."
+    financial_values_from_server: true
+  - id: "performance-metrics"
+    kind: "support"
+    engine: "semantic_html"
+    pages: ["performance"]
+    question: "Quelles métriques définies résument le risque et le rendement ?"
+    desktop: "Bandeau de métriques avec conventions."
+    laptop_compact: "Métriques essentielles sur une rangée, détail à la demande."
+    financial_values_from_server: true
+  - id: "monthly-heatmap"
+    kind: "support"
+    engine: "apache_echarts"
+    pages: ["performance"]
+    question: "Comment les résultats se répartissent-ils dans le temps ?"
+    desktop: "Heatmap avec motifs et table."
+    laptop_compact: "Heatmap réduite ou table mensuelle équivalente."
+    financial_values_from_server: true
+  - id: "attribution-panel"
+    kind: "support"
+    engine: "apache_echarts"
+    pages: ["performance"]
+    question: "Quelles contributions sont calculables avec la couverture disponible ?"
+    desktop: "Barres d'attribution plus limites."
+    laptop_compact: "Table triée et couverture sous le graphique."
+    financial_values_from_server: true
+  - id: "ai-answer"
+    kind: "dominant"
+    engine: "semantic_html"
+    pages: ["vertex_ai"]
+    question: "Comment expliquer les données certifiées sans seconde vérité ?"
+    desktop: "Réponse structurée et périmètre."
+    laptop_compact: "Réponse pleine largeur, contrôles dans l'en-tête."
+    financial_values_from_server: true
+  - id: "contradiction-panel"
+    kind: "support"
+    engine: "semantic_html"
+    pages: ["vertex_ai"]
+    question: "Quelles contradictions, données manquantes et limites subsistent ?"
+    desktop: "Panneau toujours visible lorsque non vide."
+    laptop_compact: "Section sous la réponse avant les citations secondaires."
+    financial_values_from_server: true
+  - id: "source-health-matrix"
+    kind: "dominant"
+    engine: "tanstack_table"
+    pages: ["system"]
+    question: "Quelles capacités sont réellement disponibles maintenant ?"
+    desktop: "Matrice source par capacité."
+    laptop_compact: "Matrice à colonnes épinglées puis détail source."
+    financial_values_from_server: true
+  - id: "freshness-coverage-gauge"
+    kind: "support"
+    engine: "semantic_html"
+    visual: "two_independent_linear_bullets"
+    pages: ["system", "today"]
+    question: "Les données sont-elles assez fraîches et assez couvertes pour cet usage ?"
+    desktop: "Deux jauges distinctes : âge contre TTL, puis reçu contre attendu."
+    laptop_compact: "Deux lignes sous la santé des sources."
+    financial_values_from_server: true
+    combined_score_forbidden: true
+    required_contract: ["age", "ttl_policy", "received", "expected", "quality_status", "source", "as_of"]
+  - id: "job-queue-panel"
+    kind: "support"
+    engine: "semantic_html"
+    pages: ["system"]
+    question: "Quels jobs, queues et DLQ demandent une action ?"
+    desktop: "Résumé et diagnostic."
+    laptop_compact: "Liste sous la matrice puis détail en SideSheet."
+    financial_values_from_server: true
+  - id: "security-backup-panel"
+    kind: "support"
+    engine: "radix_primitives"
+    pages: ["system"]
+    question: "Les versions, contrôles et sauvegardes sont-ils sains ?"
+    desktop: "Contrôles sans secrets."
+    laptop_compact: "Grille deux colonnes et confirmations Radix."
+    financial_values_from_server: true
+  - id: "audit-incident-log"
+    kind: "support"
+    engine: "semantic_html"
+    pages: ["system"]
+    question: "Quels incidents et diagnostics expliquent l'état ?"
+    desktop: "Journal borné et filtrable."
+    laptop_compact: "Journal chronologique sous les diagnostics."
+    financial_values_from_server: true
+page_compositions:
+  today:
+    question: "Qu'est-ce qui mérite réellement mon attention maintenant ?"
+    dominant: "attention-queue"
+    modules: ["session-health-strip", "attention-queue", "next-24-hours", "exposure-focus"]
+  calendar:
+    question: "Quels événements peuvent affecter mes instruments et mon portefeuille ?"
+    dominant: "event-agenda"
+    modules: ["event-agenda", "event-context", "next-24-hours"]
+  markets:
+    question: "Dans quel contexte de marché vais-je analyser les instruments ?"
+    dominant: "market-map"
+    modules: ["session-health-strip", "market-regime-gauge", "market-map", "market-breadth", "benchmark-strip"]
+  opportunities:
+    question: "Quels candidats admissibles méritent une analyse approfondie ?"
+    dominant: "opportunity-table"
+    modules: ["opportunity-table", "candidate-compare", "gate-evidence-rail"]
+  analysis:
+    question: "Que disent les données certifiées sur cet instrument, et quelles limites restent ouvertes ?"
+    dominant: "price-volume-chart"
+    modules: ["advice-card", "calibrated-confidence-gauge", "price-volume-chart", "evidence-rail", "scenario-set"]
+  options:
+    question: "Quels contrats sont réellement exploitables et quels risques portent-ils ?"
+    dominant: "option-chain"
+    modules: ["underlying-strip", "option-chain", "option-surface", "option-inspector"]
+  simulator:
+    question: "Comment une structure réagit-elle au prix, au temps et à la volatilité ?"
+    dominant: "payoff-chart"
+    modules: ["leg-composer", "assumption-panel", "payoff-chart", "simulation-summary"]
+  portfolio:
+    question: "Quelles expositions et concentrations résultent de mon ledger manuel ?"
+    dominant: "portfolio-table"
+    modules: ["portfolio-summary", "risk-gauge", "portfolio-table", "concentration-panel", "portfolio-risk-rail"]
+  follow_up:
+    question: "Quelles thèses, alertes et informations doivent être revues ?"
+    dominant: "review-queue"
+    modules: ["review-queue", "thesis-detail", "revision-timeline", "watchlist-hygiene"]
+  performance:
+    question: "Quelle performance ai-je réellement enregistrée, avec quels risques et contributions ?"
+    dominant: "performance-chart"
+    modules: ["performance-chart", "performance-metrics", "monthly-heatmap", "attribution-panel"]
+  vertex_ai:
+    question: "Comment expliquer, relier et résumer les données certifiées sans créer une seconde vérité ?"
+    dominant: "ai-answer"
+    modules: ["ai-answer", "evidence-rail", "contradiction-panel"]
+  system:
+    question: "Puis-je faire confiance aux sources, traitements et sauvegardes maintenant ?"
+    dominant: "source-health-matrix"
+    modules: ["freshness-coverage-gauge", "source-health-matrix", "job-queue-panel", "security-backup-panel", "audit-incident-log"]
+validation:
+  every_page_has_one_question: true
+  every_page_has_one_dominant: true
+  every_page_has_three_to_five_modules: true
+  financial_typescript_forbidden: true
+  charts_require_text_and_table_alternative: true
+  three_dimensional_visualization_forbidden: true
+  decorative_gauges_forbidden: true
+  calibrated_confidence_requires_probability_evidence: true

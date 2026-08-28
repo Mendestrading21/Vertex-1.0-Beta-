@@ -1,0 +1,306 @@
+schema_version: 1
+authority: adapters.ibkr.entitlement_probe
+documentation: docs/04-integrations/IBKR_ENTITLEMENT_PROBE.md
+mode: INFORMATION_ONLY
+read_only_required: true
+portfolio_source: MANUAL_VERTEX_ONLY
+canonical_statuses:
+  - AVAILABLE
+  - DELAYED
+  - MANUAL_EXPORT
+  - NOT_ENTITLED
+  - UNSUPPORTED
+  - ERROR
+market_data_types:
+  1: LIVE
+  2: FROZEN
+  3: DELAYED
+  4: DELAYED_FROZEN
+safety:
+  loopback_only: true
+  max_messages_per_second: 40
+  provider_disconnect_threshold_per_second: 50
+  default_max_concurrent_lines: 2
+  maximum_line_usage_fraction: 0.80
+  one_probe_at_a_time: true
+  cancel_every_subscription: true
+  forbidden_methods:
+    - placeOrder
+    - cancelOrder
+    - reqGlobalCancel
+    - whatIfOrder
+    - exerciseOptions
+    - reqAccountUpdates
+    - reqAccountSummary
+    - reqPositions
+    - reqPositionsMulti
+    - reqPnL
+    - reqPnLSingle
+    - reqOpenOrders
+    - reqAllOpenOrders
+    - reqCompletedOrders
+    - reqExecutions
+probe_defaults:
+  contract_selector: LOCAL_CONFIG_EXACT_CONTRACTS
+  require_underlying_con_id: true
+  require_option_con_id: true
+  require_trading_class: true
+  require_current_connection_epoch: true
+  live_first: true
+  delayed_fallback_requires_local_opt_in: true
+  step_timeout_seconds: 12
+  total_deadline_seconds: 60
+  result_ttl_seconds: 21600
+  retry_policy: BOUNDED_EXPONENTIAL_JITTER_TRANSPORT_ONLY
+evidence_fields:
+  - probe_id
+  - capability_id
+  - request_id
+  - callback
+  - tick_type
+  - generic_tick_requested
+  - market_data_type
+  - instrument_id
+  - con_id
+  - connection_epoch
+  - observed_at
+  - tested_at
+  - expires_at
+  - provider_error_code
+  - reason_code
+capabilities:
+  - id: option_chain_definition
+    request_method: reqSecDefOptParams
+    callback: securityDefinitionOptionParameter
+    generic_ticks: []
+    tick_types: []
+    requires_exact_underlying: true
+    entitlement_dependencies: []
+    positive_evidence:
+      - exchange
+      - trading_class
+      - multiplier
+      - expirations
+      - strikes
+    semantic_limits:
+      - DOES_NOT_PROVE_QUOTE_ENTITLEMENT
+      - DOES_NOT_PROVE_CHAIN_QUOTE_COVERAGE
+
+  - id: underlying_top_of_book
+    request_method: reqMktData
+    callback:
+      - tickPrice
+      - tickSize
+      - marketDataType
+    generic_ticks: []
+    tick_types: [0, 1, 2, 3, 4, 5, 8, 9]
+    requires_exact_underlying: true
+    entitlement_dependencies:
+      - UNDERLYING_VENUE_LEVEL_1
+    semantic_limits:
+      - AGGREGATED_WATCHLIST_DATA
+      - LAST_MAY_BE_STALE_OR_OUTSIDE_SPREAD
+
+  - id: option_top_of_book
+    request_method: reqMktData
+    callback:
+      - tickPrice
+      - tickSize
+      - marketDataType
+    generic_ticks: []
+    tick_types: [0, 1, 2, 3, 4, 5, 8, 9]
+    requires_exact_option: true
+    entitlement_dependencies:
+      - OPTION_VENUE_LEVEL_1
+    semantic_limits:
+      - AGGREGATED_WATCHLIST_DATA
+      - LIVE_OPTION_TICK_BY_TICK_NOT_AVAILABLE
+
+  - id: option_computations_live
+    request_method: reqMktData
+    callback:
+      - tickOptionComputation
+      - marketDataType
+    generic_ticks: []
+    tick_types: [10, 11, 12, 13]
+    fields:
+      - implied_volatility
+      - delta
+      - option_price
+      - present_value_dividends
+      - gamma
+      - vega
+      - theta
+      - underlying_price
+    requires_exact_option: true
+    entitlement_dependencies:
+      - OPTION_VENUE_LEVEL_1
+      - UNDERLYING_VENUE_LEVEL_1
+    semantic_limits:
+      - BID_ASK_LAST_MODEL_MUST_REMAIN_DISTINCT
+      - PROVIDER_GREEKS_ARE_NOT_VERTEX_GREEKS
+      - MISSING_OR_SENTINEL_IS_NOT_ZERO
+
+  - id: option_computations_delayed
+    request_method: reqMktData
+    requested_market_data_type: 3
+    callback:
+      - tickOptionComputation
+      - marketDataType
+    generic_ticks: []
+    tick_types: [80, 81, 82, 83]
+    fields:
+      - implied_volatility
+      - delta
+      - option_price
+      - present_value_dividends
+      - gamma
+      - vega
+      - theta
+      - underlying_price
+    requires_exact_option: true
+    entitlement_dependencies: []
+    semantic_limits:
+      - STATUS_MUST_BE_DELAYED
+      - NEVER_SATISFIES_LIVE_GATE
+      - AVAILABILITY_VARIES_BY_INSTRUMENT_AND_EXCHANGE
+
+  - id: exact_option_contract_volume
+    request_method: reqMktData
+    callback: tickSize
+    generic_ticks: []
+    tick_types: [8]
+    requires_exact_option: true
+    entitlement_dependencies:
+      - OPTION_VENUE_LEVEL_1
+    semantic_limits:
+      - SESSION_CUMULATIVE_VENDOR_SEMANTICS
+      - DOES_NOT_IDENTIFY_TRADE_SIDE
+      - DOES_NOT_IDENTIFY_OPENING_OR_CLOSING
+
+  - id: underlying_call_put_option_volume
+    request_method: reqMktData
+    callback: tickSize
+    generic_ticks: [100]
+    tick_types: [29, 30]
+    requires_exact_underlying: true
+    entitlement_dependencies:
+      - APPLICABLE_OPTION_MARKET_DATA
+    semantic_limits:
+      - CALL_AND_PUT_SCOPE_REMAINS_PROVIDER_DEFINED
+      - DOES_NOT_IDENTIFY_TRADE_SIDE
+      - CALL_IS_NOT_AUTOMATICALLY_BULLISH
+      - PUT_IS_NOT_AUTOMATICALLY_BEARISH
+
+  - id: option_open_interest
+    request_method: reqMktData
+    callback: tickSize
+    generic_ticks: [101]
+    tick_types: [27, 28]
+    requires_exact_contract_context: true
+    entitlement_dependencies:
+      - APPLICABLE_OPTION_MARKET_DATA
+    semantic_limits:
+      - NOT_AN_INTRADAY_OPENING_CLOSING_MEASURE
+      - AS_OF_OR_UNKNOWN_MUST_BE_PUBLISHED
+      - CALL_AND_PUT_MUST_REMAIN_DISTINCT
+
+  - id: underlying_historical_volatility_30d
+    request_method: reqMktData
+    callback: tickGeneric
+    generic_ticks: [104]
+    tick_types: [23]
+    requires_exact_underlying: true
+    entitlement_dependencies:
+      - UNDERLYING_VENUE_LEVEL_1
+    semantic_limits:
+      - CURRENTLY_FOR_STOCKS
+      - IBKR_METHOD_NOT_VERTEX_REALIZED_VOLATILITY
+
+  - id: underlying_average_option_volume
+    request_method: reqMktData
+    callback: tickSize
+    generic_ticks: [105]
+    tick_types: [87]
+    requires_exact_underlying: true
+    entitlement_dependencies:
+      - APPLICABLE_OPTION_MARKET_DATA
+    semantic_limits:
+      - PROVIDER_DEFINED_AVERAGING
+      - PRODUCT_AVAILABILITY_VARIES
+
+  - id: underlying_option_implied_volatility_30d
+    request_method: reqMktData
+    callback: tickGeneric
+    generic_ticks: [106]
+    tick_types: [24]
+    requires_exact_underlying: true
+    entitlement_dependencies:
+      - APPLICABLE_OPTION_MARKET_DATA
+    semantic_limits:
+      - IBKR_AT_MARKET_30_CALENDAR_DAY_ESTIMATE
+      - NOT_THE_IV_OF_ONE_OPTION_CONTRACT
+
+  - id: option_historical_bars
+    request_method: reqHistoricalData
+    callback:
+      - historicalData
+      - historicalDataEnd
+    generic_ticks: []
+    tick_types: []
+    requires_exact_option: true
+    entitlement_dependencies:
+      - OPTION_HISTORICAL_MARKET_DATA
+    semantic_limits:
+      - SEPARATE_HISTORICAL_PACING_APPLIES
+      - EXPIRED_CONTRACT_AVAILABILITY_IS_LIMITED
+      - NO_RETROACTIVE_CHAIN_COVERAGE_ASSUMPTION
+
+  - id: live_option_tick_by_tick
+    request_method: NONE
+    callback: NONE
+    generic_ticks: []
+    tick_types: []
+    default_status: UNSUPPORTED
+    entitlement_dependencies: []
+    semantic_limits:
+      - TWS_API_DOES_NOT_PROVIDE_LIVE_TICK_BY_TICK_FOR_OPTIONS
+      - DO_NOT_INFER_AGGRESSOR_FROM_WATCHLIST_TICKS
+
+  - id: option_time_and_sales_trade_conditions
+    request_method: NONE
+    callback: NONE
+    generic_ticks: []
+    tick_types: []
+    default_status: UNSUPPORTED
+    entitlement_dependencies: []
+    semantic_limits:
+      - TWS_TIME_AND_SALES_CONDITIONS_NOT_EXPOSED_AS_EQUIVALENT_API_DATA
+error_mapping:
+  100:
+    status: ERROR
+    reason_code: MESSAGE_RATE_EXCEEDED
+  101:
+    status: ERROR
+    reason_code: MARKET_DATA_LINES_EXHAUSTED
+  354:
+    status: NOT_ENTITLED
+    reason_code: LIVE_MARKET_DATA_NOT_SUBSCRIBED
+  10090:
+    status: NOT_ENTITLED
+    reason_code: PARTIAL_MARKET_DATA_SUBSCRIPTION
+    apply_per_field: true
+  10186:
+    status: NOT_ENTITLED
+    reason_code: LIVE_NOT_SUBSCRIBED_DELAYED_NOT_ENABLED
+  10197:
+    status: ERROR
+    reason_code: COMPETING_SESSION
+source_urls:
+  tick_types: https://interactivebrokers.github.io/tws-api/tick_types.html
+  option_computations: https://interactivebrokers.github.io/tws-api/option_computations.html
+  market_data_types: https://interactivebrokers.github.io/tws-api/market_data_type.html
+  message_codes: https://interactivebrokers.github.io/tws-api/message_codes.html
+  market_data_lines: https://ibkrcampus.com/docs/general/market-data-subscriptions/market-data-lines/introduction
+  current_subscription_intro: https://ibkrcampus.com/docs/general/market-data-subscriptions/introduction
+

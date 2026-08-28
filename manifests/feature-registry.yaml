@@ -1,0 +1,631 @@
+schema_version: 1
+registry_status: planning_seed
+as_of: "2026-08-28"
+
+activation_rule: >-
+  Aucune feature n'est approuvée pour le runtime tant que son implémentation Python,
+  son contrat, ses tests point-in-time, sa licence de données, ses limites et sa
+  validation ne sont pas acceptés. Ce registre est une liste blanche de conception,
+  pas une autorisation de modèle ou de trading.
+
+global_rules:
+  authority: python_only
+  timestamp_timezone: UTC
+  point_in_time_join: available_at_lte_decision_time
+  revision_policy: use_vintage_known_at_decision_time
+  missing_is_zero: false
+  infinity_or_nan_at_boundary: forbidden
+  preprocessing_fit_scope: train_fold_only
+  random_split_for_market_time_series: forbidden
+  purged_walk_forward: required_for_predictive_use
+  embargo: at_least_max_label_horizon_plus_publication_latency
+  feature_selection_scope: train_fold_only
+  direct_javascript_calculation: forbidden
+  llm_generated_feature_value: forbidden
+  automatic_order_use: forbidden
+  unregistered_feature_use: forbidden
+  default_runtime_allowed: false
+
+required_fields:
+  - id
+  - version
+  - status
+  - description
+  - dtype
+  - unit
+  - entity
+  - source_contracts
+  - event_time
+  - available_time
+  - lookback
+  - point_in_time_rule
+  - null_policy
+  - quality_gates
+  - correlation_group
+  - allowed_uses
+  - forbidden_uses
+  - leakage_tests
+  - owner
+
+features:
+  - id: quality.quote_age_seconds
+    version: 1
+    status: PLANNING
+    description: age_session_aware_of_selected_quote_at_decision_time
+    dtype: decimal_string
+    unit: seconds
+    entity: instrument
+    source_contracts: [QuoteSnapshot, DataEnvelope]
+    event_time: quote_observed_at
+    available_time: quote_received_at
+    lookback: none
+    formula: max_zero_decision_time_minus_quote_observed_at
+    point_in_time_rule: quote_received_at_lte_decision_time_and_same_connection_epoch
+    null_policy: BLOCK_IF_USAGE_REQUIRES_FRESH_QUOTE
+    quality_gates:
+      - resolved_instrument
+      - known_connection_epoch
+      - clock_drift_within_budget
+    correlation_group: data_quality_quote
+    allowed_uses: [quality_gate, freshness_badge, anomaly_context]
+    forbidden_uses: [directional_prediction_alone, probability, order]
+    leakage_tests:
+      - future_received_at_is_rejected
+      - stale_epoch_is_rejected
+      - closed_session_policy_is_applied
+    owner: data_quality
+
+  - id: quality.collection_coverage_ratio
+    version: 1
+    status: PLANNING
+    description: valid_received_items_divided_by_expected_items_for_exact_usage
+    dtype: decimal_string
+    unit: ratio_0_1
+    entity: collection_snapshot
+    source_contracts: [SourceCoverage, DataEnvelope]
+    event_time: coverage_as_of
+    available_time: coverage_computed_at
+    lookback: snapshot
+    formula: valid_received_count_divided_by_expected_count
+    point_in_time_rule: expected_universe_and_received_items_use_same_vintage
+    null_policy: UNKNOWN_IF_EXPECTED_COUNT_UNKNOWN
+    quality_gates:
+      - expected_count_positive
+      - usage_policy_version_known
+      - item_identity_resolved
+    correlation_group: data_quality_coverage
+    allowed_uses: [quality_gate, uncertainty, anomaly_context]
+    forbidden_uses: [direction, impute_missing_items, order]
+    leakage_tests:
+      - future_universe_members_are_excluded
+      - revised_expected_count_uses_original_vintage
+    owner: data_quality
+
+  - id: market.relative_spread_bps
+    version: 1
+    status: PLANNING
+    description: bid_ask_spread_relative_to_valid_mid
+    dtype: decimal_string
+    unit: basis_points
+    entity: instrument
+    source_contracts: [QuoteSnapshot]
+    event_time: quote_observed_at
+    available_time: quote_received_at
+    lookback: snapshot
+    formula: ten_thousand_times_ask_minus_bid_divided_by_mid
+    point_in_time_rule: bid_and_ask_from_same_coherent_snapshot_available_before_decision
+    null_policy: NULL_IF_SIDE_MISSING_OR_MID_NON_POSITIVE
+    quality_gates:
+      - bid_non_negative
+      - ask_not_below_bid
+      - mid_positive
+      - quote_fresh_for_usage
+    correlation_group: liquidity_quote
+    allowed_uses: [liquidity_gate, anomaly_detection, risk_context]
+    forbidden_uses: [directional_probability_alone, cross_currency_comparison_without_policy, order]
+    leakage_tests:
+      - post_decision_quote_is_rejected
+      - crossed_quote_returns_invalid_not_negative_spread
+    owner: market_statistics
+
+  - id: market.log_return_1d
+    version: 1
+    status: PLANNING
+    description: close_to_close_log_return_on_same_adjustment_basis
+    dtype: decimal_string
+    unit: log_ratio
+    entity: instrument
+    source_contracts: [Bar]
+    event_time: later_bar_close_time
+    available_time: later_bar_available_at
+    lookback: 2_completed_daily_bars
+    formula: natural_log_close_t_divided_by_close_t_minus_1
+    point_in_time_rule: both_bars_completed_and_available_before_decision_with_vintage_adjustments
+    null_policy: NULL_IF_PRICE_NON_POSITIVE_OR_BAR_MISSING
+    quality_gates:
+      - strictly_positive_closes
+      - same_adjustment_basis
+      - consecutive_valid_sessions
+    correlation_group: price_return_short
+    allowed_uses: [market_context, anomaly_detection, lagged_predictor]
+    forbidden_uses: [use_before_bar_completion, probability_without_calibration, order]
+    leakage_tests:
+      - incomplete_current_bar_is_rejected
+      - future_corporate_action_adjustment_not_backfilled
+    owner: market_statistics
+
+  - id: market.realized_volatility_20d
+    version: 1
+    status: PLANNING
+    description: annualized_close_to_close_volatility_over_twenty_valid_sessions
+    dtype: decimal_string
+    unit: annualized_decimal
+    entity: instrument
+    source_contracts: [Bar]
+    event_time: latest_completed_bar_close_time
+    available_time: latest_component_available_at
+    lookback: 20_valid_daily_returns
+    formula: registered_market_realized_volatility_method
+    point_in_time_rule: window_ends_at_latest_completed_bar_available_before_decision
+    null_policy: NULL_IF_SAMPLE_OR_REGULARITY_REQUIREMENT_FAILS
+    quality_gates:
+      - minimum_sample_20
+      - regularized_session_sampling
+      - same_adjustment_basis
+    correlation_group: price_volatility
+    allowed_uses: [regime_context, anomaly_detection, risk_scaling_research]
+    forbidden_uses: [directional_probability_alone, hidden_annualization, order]
+    leakage_tests:
+      - current_incomplete_return_is_excluded
+      - annualization_calendar_is_versioned
+    owner: market_statistics
+
+  - id: market.atr_percent_14d
+    version: 1
+    status: PLANNING
+    description: fourteen_session_atr_relative_to_latest_valid_close
+    dtype: decimal_string
+    unit: ratio
+    entity: instrument
+    source_contracts: [Bar]
+    event_time: latest_completed_bar_close_time
+    available_time: latest_component_available_at
+    lookback: 15_completed_daily_bars
+    formula: registered_atr_14_divided_by_latest_close
+    point_in_time_rule: all_ohlc_bars_completed_and_available_before_decision
+    null_policy: NULL_IF_ANY_REQUIRED_OHLC_INVALID_OR_CLOSE_NON_POSITIVE
+    quality_gates:
+      - ordered_complete_bars
+      - high_gte_max_open_close
+      - low_lte_min_open_close
+    correlation_group: price_volatility
+    allowed_uses: [market_context, anomaly_detection, scenario_scaling]
+    forbidden_uses: [probability_label, stop_recommendation_alone, order]
+    leakage_tests:
+      - incomplete_bar_is_excluded
+      - future_adjustment_is_not_used
+    owner: indicators
+
+  - id: market.relative_volume_20d
+    version: 1
+    status: PLANNING
+    description: completed_session_volume_relative_to_prior_twenty_comparable_sessions
+    dtype: decimal_string
+    unit: ratio
+    entity: instrument
+    source_contracts: [Bar]
+    event_time: target_bar_close_time
+    available_time: target_bar_available_at
+    lookback: target_plus_20_prior_comparable_sessions
+    formula: target_volume_divided_by_prior_window_median_volume
+    point_in_time_rule: denominator_excludes_target_and_all_bars_are_available_before_decision
+    null_policy: NULL_IF_TARGET_INCOMPLETE_OR_DENOMINATOR_NON_POSITIVE
+    quality_gates:
+      - volumes_non_negative
+      - comparable_session_type
+      - minimum_prior_sample_20
+    correlation_group: volume_activity
+    allowed_uses: [market_context, anomaly_detection, event_attention]
+    forbidden_uses: [intraday_use_of_final_daily_volume, probability_alone, order]
+    leakage_tests:
+      - target_is_excluded_from_reference_median
+      - half_session_policy_is_explicit
+    owner: market_statistics
+
+  - id: market.open_gap_percent_1d
+    version: 1
+    status: PLANNING
+    description: current_session_open_relative_to_previous_valid_close
+    dtype: decimal_string
+    unit: ratio
+    entity: instrument
+    source_contracts: [Bar]
+    event_time: current_session_open_time
+    available_time: current_open_available_at
+    lookback: previous_completed_session_and_current_open
+    formula: current_open_divided_by_previous_close_minus_one
+    point_in_time_rule: open_and_previous_close_received_before_decision_on_same_adjustment_basis
+    null_policy: NULL_IF_SESSION_OR_PRICE_INVALID
+    quality_gates:
+      - previous_close_positive
+      - current_open_positive
+      - session_calendar_resolved
+    correlation_group: price_return_short
+    allowed_uses: [market_context, anomaly_detection, event_attention]
+    forbidden_uses: [using_future_session_high_low_close, probability_alone, order]
+    leakage_tests:
+      - only_open_field_is_used_for_current_session
+      - overnight_corporate_action_vintage_is_respected
+    owner: market_statistics
+
+  - id: market.relative_strength_63d
+    version: 1
+    status: PLANNING
+    description: instrument_cumulative_return_relative_to_versioned_benchmark
+    dtype: decimal_string
+    unit: ratio
+    entity: instrument_benchmark_pair
+    source_contracts: [Bar, InstrumentId]
+    event_time: latest_shared_completed_bar_close_time
+    available_time: latest_component_available_at
+    lookback: 63_aligned_valid_sessions
+    formula: registered_relative_strength_method
+    point_in_time_rule: instrument_benchmark_membership_and_bars_use_vintage_known_at_decision
+    null_policy: NULL_IF_ALIGNMENT_OR_MINIMUM_SAMPLE_FAILS
+    quality_gates:
+      - aligned_calendars
+      - benchmark_identity_resolved
+      - same_currency_or_registered_fx_conversion
+    correlation_group: price_trend_medium
+    allowed_uses: [market_context, candidate_ranking_after_gates, lagged_predictor]
+    forbidden_uses: [survivorship_biased_universe, hidden_fx_conversion, order]
+    leakage_tests:
+      - future_benchmark_membership_is_excluded
+      - benchmark_and_instrument_end_at_same_as_of
+    owner: indicators
+
+  - id: market.breadth_above_ma50
+    version: 1
+    status: PLANNING
+    description: share_of_point_in_time_universe_above_its_fifty_session_average
+    dtype: decimal_string
+    unit: ratio_0_1
+    entity: market_universe
+    source_contracts: [Bar, SourceCoverage, InstrumentId]
+    event_time: universe_snapshot_as_of
+    available_time: latest_component_available_at
+    lookback: 50_valid_sessions_per_member
+    formula: eligible_members_above_ma50_divided_by_eligible_members
+    point_in_time_rule: universe_membership_and_bars_use_same_vintage_known_before_decision
+    null_policy: NULL_IF_COVERAGE_BELOW_USAGE_THRESHOLD
+    quality_gates:
+      - point_in_time_universe
+      - minimum_member_coverage
+      - comparable_adjustment_basis
+    correlation_group: market_breadth
+    allowed_uses: [market_context, regime_context, lagged_predictor]
+    forbidden_uses: [current_constituents_backfilled_into_history, hidden_missing_members, order]
+    leakage_tests:
+      - delisted_members_remain_in_historical_universe
+      - future_constituent_changes_are_excluded
+    owner: market_statistics
+
+  - id: options.mid_implied_volatility
+    version: 1
+    status: PLANNING
+    description: implied_volatility_solved_from_valid_mid_for_exact_option_contract
+    dtype: decimal_string
+    unit: annualized_decimal
+    entity: option_contract
+    source_contracts: [OptionQuote, OptionContractId, CalculationRecord]
+    event_time: option_quote_observed_at
+    available_time: calculation_completed_at
+    lookback: coherent_option_and_underlying_snapshot
+    formula: registered_options_implied_volatility_method
+    point_in_time_rule: option_underlying_curves_and_dividends_available_in_coherent_snapshot
+    null_policy: NULL_IF_PRICE_OUTSIDE_BOUNDS_OR_SOLVER_FAILS
+    quality_gates:
+      - exact_contract_identity
+      - bid_ask_valid
+      - price_inside_no_arbitrage_bounds
+      - curves_and_dividends_valid
+      - quote_fresh_for_usage
+    correlation_group: options_iv_level
+    allowed_uses: [options_context, anomaly_detection, surface_input]
+    forbidden_uses: [vendor_greek_substitution_without_label, direction_alone, order]
+    leakage_tests:
+      - later_underlying_quote_is_rejected
+      - expiration_trading_class_and_multiplier_are_exact
+    owner: options
+
+  - id: options.relative_spread
+    version: 1
+    status: PLANNING
+    description: option_bid_ask_spread_relative_to_valid_mid
+    dtype: decimal_string
+    unit: ratio
+    entity: option_contract
+    source_contracts: [OptionQuote, OptionContractId]
+    event_time: option_quote_observed_at
+    available_time: option_quote_received_at
+    lookback: snapshot
+    formula: ask_minus_bid_divided_by_mid
+    point_in_time_rule: bid_and_ask_same_contract_snapshot_available_before_decision
+    null_policy: NULL_IF_SIDE_MISSING_OR_MID_NON_POSITIVE
+    quality_gates:
+      - exact_contract_identity
+      - ask_not_below_bid
+      - mid_positive
+      - quote_fresh_for_usage
+    correlation_group: options_liquidity
+    allowed_uses: [liquidity_gate, options_context, anomaly_detection]
+    forbidden_uses: [directional_probability, fill_price_promise, order]
+    leakage_tests:
+      - contract_collision_by_expiry_only_is_rejected
+      - later_quote_side_is_not_mixed
+    owner: options
+
+  - id: options.iv_skew_25_delta
+    version: 1
+    status: PLANNING
+    description: matched_put_call_twenty_five_delta_iv_difference_on_valid_smile
+    dtype: decimal_string
+    unit: annualized_volatility_points
+    entity: underlying_expiry
+    source_contracts: [OptionChainSnapshot, OptionContractId, CalculationRecord]
+    event_time: chain_snapshot_as_of
+    available_time: calculation_completed_at
+    lookback: coherent_single_expiry_snapshot
+    formula: registered_interpolated_put_25_delta_iv_minus_call_25_delta_iv
+    point_in_time_rule: all_contracts_underlying_and_curves_from_same_snapshot_vintage
+    null_policy: NULL_IF_BOTH_WINGS_OR_LIQUIDITY_COVERAGE_MISSING
+    quality_gates:
+      - exact_expiry_and_trading_class
+      - no_arbitrage_checks
+      - minimum_two_sided_liquidity
+      - interpolation_domain_valid
+    correlation_group: options_smile_shape
+    allowed_uses: [options_context, anomaly_detection, regime_context]
+    forbidden_uses: [direction_alone, extrapolation_without_label, order]
+    leakage_tests:
+      - contracts_from_different_snapshots_are_rejected
+      - delta_selection_uses_current_valid_model_only
+    owner: options_intelligence
+
+  - id: options.iv_term_slope_30_90
+    version: 1
+    status: PLANNING
+    description: comparable_atm_iv_difference_between_near_thirty_and_ninety_day_nodes
+    dtype: decimal_string
+    unit: annualized_volatility_points
+    entity: underlying
+    source_contracts: [OptionChainSnapshot, OptionContractId, CalculationRecord]
+    event_time: chain_snapshot_as_of
+    available_time: calculation_completed_at
+    lookback: coherent_term_structure_snapshot
+    formula: interpolated_atm_iv_30d_minus_interpolated_atm_iv_90d
+    point_in_time_rule: both_nodes_use_same_underlying_curves_and_snapshot_vintage
+    null_policy: NULL_IF_BRACKETING_EXPIRIES_OR_COVERAGE_MISSING
+    quality_gates:
+      - exact_contract_identity
+      - minimum_term_coverage
+      - no_arbitrage_checks
+      - interpolation_domain_valid
+    correlation_group: options_term_structure
+    allowed_uses: [options_context, anomaly_detection, event_context]
+    forbidden_uses: [direction_alone, silent_extrapolation, order]
+    leakage_tests:
+      - later_expiry_quote_snapshot_is_not_mixed
+      - dte_uses_exchange_calendar_and_as_of
+    owner: options_intelligence
+
+  - id: events.minutes_to_next_known_event
+    version: 1
+    status: PLANNING
+    description: signed_market_minutes_to_next_versioned_corporate_or_macro_event
+    dtype: integer
+    unit: market_minutes
+    entity: instrument_or_market
+    source_contracts: [CorporateEvent, MacroEvent]
+    event_time: scheduled_event_time
+    available_time: event_revision_published_at
+    lookback: next_event_known_at_decision_time
+    formula: exchange_calendar_minutes_between_decision_and_event
+    point_in_time_rule: select_latest_event_revision_published_before_decision
+    null_policy: NULL_IF_NO_KNOWN_EVENT_OR_TIMEZONE_UNRESOLVED
+    quality_gates:
+      - event_identity_resolved
+      - estimated_vs_confirmed_status_preserved
+      - timezone_and_calendar_resolved
+    correlation_group: scheduled_event_risk
+    allowed_uses: [event_risk_gate, market_context, anomaly_context]
+    forbidden_uses: [using_revised_time_before_publication, directional_probability_alone, order]
+    leakage_tests:
+      - future_revision_is_excluded
+      - date_only_event_is_not_given_false_intraday_precision
+    owner: news_events
+
+  - id: regime.garch_volatility_forecast_1d
+    version: 1
+    status: RESEARCH_ONLY
+    description: one_session_conditional_volatility_forecast_from_approved_arch_family_model
+    dtype: decimal_string
+    unit: annualized_decimal
+    entity: instrument
+    source_contracts: [Bar, ModelRun]
+    event_time: latest_training_bar_close_time
+    available_time: model_run_completed_at
+    lookback: model_specific_rolling_training_window
+    formula: approved_model_artifact_output
+    point_in_time_rule: training_window_and_model_selection_end_before_forecast_origin
+    null_policy: NULL_ON_CONVERGENCE_DIAGNOSTIC_OR_DOMAIN_FAILURE
+    quality_gates:
+      - approved_model_version
+      - convergence_success
+      - residual_diagnostics_within_budget
+      - calibration_not_expired
+    correlation_group: price_volatility
+    allowed_uses: [regime_context, uncertainty_scaling, research_challenger]
+    forbidden_uses: [direction, runtime_before_approval, standalone_advice, order]
+    leakage_tests:
+      - forecast_origin_precedes_target_session
+      - model_selection_does_not_use_test_loss
+    owner: model_risk
+
+  - id: regime.change_point_age_bars
+    version: 1
+    status: RESEARCH_ONLY
+    description: bars_since_latest_stable_offline_change_point_known_at_as_of
+    dtype: integer
+    unit: bars
+    entity: instrument_or_market_series
+    source_contracts: [Bar, ModelRun]
+    event_time: detected_change_bar_time
+    available_time: retrospective_detection_completed_at
+    lookback: truncated_history_ending_at_as_of
+    formula: current_completed_bar_index_minus_detected_break_index
+    point_in_time_rule: detector_receives_no_sample_after_as_of_and_availability_is_not_backdated
+    null_policy: NULL_IF_NO_STABLE_BREAK_OR_HISTORY_INSUFFICIENT
+    quality_gates:
+      - approved_cost_and_penalty
+      - breakpoint_stability_within_budget
+      - minimum_segment_length
+    correlation_group: regime_change
+    allowed_uses: [regime_context, anomaly_context, research_challenger]
+    forbidden_uses: [claim_break_known_at_break_time, real_time_direction, order]
+    leakage_tests:
+      - future_samples_are_removed_before_each_replay
+      - available_time_equals_detection_time_not_break_time
+    owner: model_risk
+
+  - id: anomaly.robust_return_z_63d
+    version: 1
+    status: PLANNING
+    description: robust_signed_deviation_of_latest_return_from_prior_sixty_three_sessions
+    dtype: decimal_string
+    unit: robust_standard_deviations
+    entity: instrument
+    source_contracts: [Bar]
+    event_time: latest_completed_bar_close_time
+    available_time: calculation_completed_at
+    lookback: latest_return_plus_63_prior_valid_returns
+    formula: latest_return_minus_prior_median_divided_by_scaled_prior_mad
+    point_in_time_rule: reference_window_excludes_latest_return_and_all_values_available_before_decision
+    null_policy: NULL_IF_MAD_NON_POSITIVE_OR_SAMPLE_INSUFFICIENT
+    quality_gates:
+      - latest_return_valid
+      - prior_sample_minimum_63
+      - comparable_sessions_and_adjustments
+    correlation_group: price_return_short
+    allowed_uses: [anomaly_detection, attention_context, robust_baseline]
+    forbidden_uses: [probability, directional_advice_alone, order]
+    leakage_tests:
+      - target_return_is_excluded_from_reference_statistics
+      - future_returns_are_rejected
+    owner: anomaly_engine
+
+feature_sets:
+  - id: quality_gate_v1
+    status: PLANNING
+    features:
+      - quality.quote_age_seconds@1
+      - quality.collection_coverage_ratio@1
+      - market.relative_spread_bps@1
+    use: deterministic_quality_and_liquidity_gates
+    predictive_model_allowed: false
+
+  - id: market_anomaly_v1
+    status: PLANNING
+    features:
+      - market.log_return_1d@1
+      - market.realized_volatility_20d@1
+      - market.atr_percent_14d@1
+      - market.relative_volume_20d@1
+      - market.open_gap_percent_1d@1
+      - anomaly.robust_return_z_63d@1
+    use: batch_anomaly_research
+    predictive_model_allowed: false
+
+  - id: market_anomaly_online_v1
+    status: PLANNING
+    features:
+      - market.log_return_1d@1
+      - market.relative_spread_bps@1
+      - market.relative_volume_20d@1
+    use: river_shadow_online_anomaly
+    predictive_model_allowed: false
+    extra_controls:
+      - score_before_learn
+      - versioned_online_scaler
+      - anomaly_quarantine_before_update
+
+  - id: market_context_v1
+    status: RESEARCH_ONLY
+    features:
+      - market.log_return_1d@1
+      - market.realized_volatility_20d@1
+      - market.atr_percent_14d@1
+      - market.relative_volume_20d@1
+      - market.relative_strength_63d@1
+      - market.breadth_above_ma50@1
+      - events.minutes_to_next_known_event@1
+    use: fixed_horizon_predictive_research
+    predictive_model_allowed: true
+    extra_controls:
+      - every_feature_lag_and_availability_tested
+      - nested_purged_walk_forward_with_embargo
+      - separate_calibration_and_untouched_holdout
+
+  - id: options_context_v1
+    status: PLANNING
+    features:
+      - options.mid_implied_volatility@1
+      - options.relative_spread@1
+      - options.iv_skew_25_delta@1
+      - options.iv_term_slope_30_90@1
+      - events.minutes_to_next_known_event@1
+    use: options_context_and_anomaly_research
+    predictive_model_allowed: false
+
+  - id: volatility_model_v1
+    status: RESEARCH_ONLY
+    features:
+      - market.log_return_1d@1
+    use: arch_family_volatility_research
+    predictive_model_allowed: true
+    extra_controls:
+      - no_directional_target
+      - convergence_and_residual_diagnostics
+      - ewma_and_realized_volatility_baselines
+
+  - id: regime_change_v1
+    status: RESEARCH_ONLY
+    features:
+      - market.log_return_1d@1
+      - market.realized_volatility_20d@1
+    use: ruptures_offline_truncated_history_research
+    predictive_model_allowed: false
+
+  - id: drift_monitor_v1
+    status: PLANNING
+    features:
+      - quality.collection_coverage_ratio@1
+      - market.relative_spread_bps@1
+      - market.realized_volatility_20d@1
+    use: monitoring_only
+    predictive_model_allowed: false
+    extra_controls:
+      - alarm_cannot_retrain_reset_promote_or_rollback_automatically
+
+explicit_exclusions:
+  - raw_ticker_as_numeric_feature
+  - future_revised_fundamental
+  - current_universe_backfilled_into_history
+  - unlicensed_news_body_embedding
+  - llm_sentiment_without_separate_validation
+  - ibkr_account_or_position_data
+  - user_private_thesis_as_market_prediction_label
+  - frontend_computed_financial_feature
+  - model_output_recursively_used_without_graph_cycle_check
+  - any_feature_that_can_directly_generate_an_order
+

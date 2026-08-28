@@ -1,0 +1,713 @@
+schema_version: 1
+generated_at: "2026-08-28T00:00:00Z"
+language: "fr"
+
+source:
+  repository: "Mendestrading21/Vertex-"
+  visibility: "public"
+  default_branch: "main"
+  head_sha: "c683c944f93f61d5fd22303df726fac6e79820fe"
+  head_committed_at: "2026-08-28T19:55:51Z"
+  head_url: "https://github.com/Mendestrading21/Vertex-/commit/c683c944f93f61d5fd22303df726fac6e79820fe"
+  prior_audit_sha: "9c0e0bc67112fe775fb20170a5745dd763ba180a"
+  comparison:
+    status: "ahead"
+    ahead_by: 4
+    behind_by: 0
+    changed_paths: 15
+  verification:
+    default_branch_blob_matches_pinned_head: true
+    github_code_search_index_available: false
+    github_directory_listing_available: false
+    github_actions_runs_returned_for_merge_sha: 0
+    combined_statuses_returned_for_merge_sha: 0
+    repository_reported_tests: "4471 passed, 152 skipped, 0 failed"
+    repository_reported_tests_independently_verified: false
+
+inspection_levels:
+  CURRENT_HEAD: "Fichier relu par le connecteur GitHub au SHA figé."
+  BASE_PLUS_DIFF: "Chemin inventorié au clone propre du SHA précédent et absent des 15 changements GitHub."
+  METADATA_ONLY: "Existence ou rôle inspecté sans ouvrir un contenu potentiellement personnel, secret ou binaire."
+
+dispositions:
+  KEEP_AS_REFERENCE: "Conserver seulement exigence, preuve ou vecteur de test; aucun import de code."
+  ADAPT: "Réexprimer l'idée dans les contrats neufs après revues licence, sécurité et exactitude; aucun copier-coller."
+  REWRITE: "Reconstruction intégrale; l'implémentation actuelle n'entre pas dans le nouveau runtime."
+  DROP: "Exclure du produit cible et ne rien migrer."
+
+content_policy:
+  code_copied: false
+  secrets_copied: false
+  personal_data_copied: false
+  binaries_copied: false
+  uncertain_license_code_copied: false
+  root_license_present: false
+  root_notice_present: false
+  migration_of_user_data_requires_explicit_consent: true
+
+coverage_limits:
+  - "Le connecteur GitHub ne pouvait ni rechercher l'index de code ni énumérer un répertoire."
+  - "Les nombres de fichiers sont projetés depuis le clone propre du SHA précédent et la comparaison exhaustive de 15 chemins."
+  - "Aucun TWS, IB Gateway, entitlement, webhook TradingView, fournisseur IA, navigateur ou restauration n'a été testé en direct."
+  - "Les valeurs des JSON runtime, caches, portefeuilles, secrets, binaires, polices et captures n'ont pas été ouvertes."
+  - "Le résultat de tests est une déclaration du rapport du dépôt; aucun statut CI n'a été retourné pour le merge SHA."
+
+projected_inventory:
+  tracked_files: 2544
+  python_files: 952
+  test_python_files: 524
+  markdown_files: 1082
+  javascript_files: 49
+  css_files: 19
+  png_files: 359
+  projection_is_not_fresh_tree_enumeration: true
+
+capabilities:
+  - id: "A01"
+    category: "architecture"
+    capability: "Runtime Flask et monolithe terminal"
+    disposition: "REWRITE"
+    inspection: "CURRENT_HEAD"
+    evidence_paths: ["README.md", "vertex/runtime.py", "terminal.py", "vertex/app/factory.py"]
+    finding: "vertex.runtime active un profil puis importe encore terminal.py; la factory ne possède pas tout le lifecycle."
+    risk: "Couplage des états, workers, routes et caches; isolation et arrêt déterministe difficiles."
+    target: "FastAPI, worker, edge IBKR et web séparés dans un monolithe modulaire local; aucun import historique."
+
+  - id: "A02"
+    category: "architecture"
+    capability: "Découpage en domaines Python"
+    disposition: "ADAPT"
+    inspection: "BASE_PLUS_DIFF"
+    evidence_paths: ["vertex/data_sources/", "vertex/engines/", "vertex/options/", "vertex/portfolio/", "vertex/positions/", "vertex/storage/"]
+    finding: "Le vocabulaire de domaines est riche mais les injections et états globaux traversent encore les frontières."
+    risk: "Dépendances circulaires et responsabilités concurrentes."
+    target: "Reprendre les noms utiles, imposer des dépendances unidirectionnelles et des contrats Pydantic versionnés."
+
+  - id: "A03"
+    category: "architecture"
+    capability: "Publication de l'état de scan"
+    disposition: "REWRITE"
+    inspection: "CURRENT_HEAD"
+    evidence_paths: ["vertex/app/state.py", "terminal.py", "tests/test_rows_publies_immuables_lot45.py", "docs/vertex-2-0/lot-45/RAPPORT.md"]
+    finding: "Le lot 45 republie une copie atomique, mais scan_state reste un dictionnaire global mutable."
+    risk: "Snapshot partagé encore modifiable et cohérence inter-domaines non transactionnelle."
+    target: "Observations immuables, transactions/outbox PostgreSQL et snapshots typés; conserver l'invariant du lot 45 en test."
+
+  - id: "A04"
+    category: "architecture"
+    capability: "Snapshot singleflight et stale-while-revalidate"
+    disposition: "ADAPT"
+    inspection: "CURRENT_HEAD"
+    evidence_paths: ["vertex/app/snapshot.py"]
+    finding: "Le magasin distingue frais, rassis et absent, puis coalesce les constructions."
+    risk: "Clés, threads, plafonds et éviction ne sont pas uniformément bornés."
+    target: "Cache borné par domaine avec DataEnvelope, cancellation, backpressure et métriques."
+
+  - id: "A05"
+    category: "architecture"
+    capability: "File du worker IBKR"
+    disposition: "ADAPT"
+    inspection: "CURRENT_HEAD"
+    evidence_paths: ["vertex/services/file_ibkr.py", "tests/test_file_ibkr_lot40.py"]
+    finding: "Priorités, coalescence, péremption et circuit breaker sont explicités dans une file pure."
+    risk: "Clé repr(args), file non bornée et None ambigu."
+    target: "Edge IBKR unique avec clés typées, limites/pacing, erreurs structurées et tests de contention."
+
+  - id: "A06"
+    category: "architecture"
+    capability: "Registre point-in-time append-only"
+    disposition: "ADAPT"
+    inspection: "CURRENT_HEAD"
+    evidence_paths: ["vertex/storage/point_in_time.py", "vertex/storage/schemas.py"]
+    finding: "Le registre sépare observed_at, available_at et received_at, conserve les révisions et vérifie un checksum."
+    risk: "JSONL local peu branché au runtime et écriture non transactionnelle multi-processus."
+    target: "Tables append-only PostgreSQL et Parquet/DuckDB recherche en conservant la sémantique temporelle."
+
+  - id: "A07"
+    category: "architecture"
+    capability: "API Flask et registre de routes"
+    disposition: "REWRITE"
+    inspection: "CURRENT_HEAD"
+    evidence_paths: ["vertex/app/factory.py", "vertex/app/routes/"]
+    finding: "La factory centralise une partie des blueprints, mais les routes injectées et collisions historiques subsistent."
+    risk: "API non typée, collecte synchrone, aliases et contrat client implicite."
+    target: "FastAPI/OpenAPI, DTO générés, jobs asynchrones et aucune collecte fournisseur dans une route."
+
+  - id: "P01"
+    category: "page"
+    capability: "Aujourd'hui"
+    disposition: "REWRITE"
+    inspection: "CURRENT_HEAD"
+    evidence_paths: ["vertex/ui/pages/briefing.py", "vertex/app/routes/redesign.py"]
+    finding: "La route / compose un brief dense avec de nombreux modules."
+    risk: "Priorité et états dispersés; forte charge HTML/JS."
+    target: "/today avec une file de 8 à 15 éléments, provenance et raison de priorité."
+
+  - id: "P02"
+    category: "page"
+    capability: "Calendrier"
+    disposition: "REWRITE"
+    inspection: "CURRENT_HEAD"
+    evidence_paths: ["vertex/ui/pages/calendar_page.py", "vertex/static/vertex/js/pages/calendar.js", "vertex/app/routes/content.py", "docs/vertex-2-0/lot-46/RAPPORT.md"]
+    finding: "La route /calendar existe et /cal-feed possède désormais un timestamp serveur."
+    risk: "Couverture partielle; plusieurs catégories n'ont pas de source actuelle."
+    target: "Agenda jour/semaine fusionné, dates révisables, entitlements et couverture visibles."
+
+  - id: "P03"
+    category: "page"
+    capability: "Marchés"
+    disposition: "REWRITE"
+    inspection: "CURRENT_HEAD"
+    evidence_paths: ["vertex/ui/pages/markets_page.py", "vertex/app/routes/redesign.py"]
+    finding: "La route /markets sert plusieurs sous-vues de régime, secteurs et participation."
+    risk: "Graphiques monolithiques et provenance/fallback non obligatoires."
+    target: "Heatmap ou treemap dominante, régime/breadth/dispersion serveur et table accessible."
+
+  - id: "P04"
+    category: "page"
+    capability: "Opportunités"
+    disposition: "REWRITE"
+    inspection: "CURRENT_HEAD"
+    evidence_paths: ["vertex/ui/pages/opportunities_page.py", "vertex/app/routes/opportunities_api.py"]
+    finding: "La page agrège actions, ETF, options, funnel, anomalies et catalyseurs."
+    risk: "Plusieurs scores/verdicts, forte densité et adaptateurs ad hoc."
+    target: "Table qualifiés/exclus issue du seul AdviceEngine, gates avant classement et aucune action d'ordre."
+
+  - id: "P05"
+    category: "page"
+    capability: "Analyse instrument"
+    disposition: "REWRITE"
+    inspection: "CURRENT_HEAD"
+    evidence_paths: ["vertex/ui/pages/analysis_page.py", "vertex/app/routes/analysis_api.py"]
+    finding: "Les routes /analysis et /analysis/<sym> servent un dossier détaillé."
+    risk: "Deux moteurs graphiques et vérité R:R/décision incohérente."
+    target: "Dossier typé, chandeliers LWC, preuves et calculs canoniques."
+
+  - id: "P06"
+    category: "page"
+    capability: "Options"
+    disposition: "REWRITE"
+    inspection: "CURRENT_HEAD"
+    evidence_paths: ["vertex/ui/pages/options_intel_page.py", "vertex/ui/pages/options_symbol_page.py", "vertex/app/routes/ticker_api.py", "vertex/app/routes/redesign.py"]
+    finding: "Le hub vit sur /options, le dossier HTML sur /options/dossier/<sym> et /options/<sym> reste JSON."
+    risk: "Collision sémantique, neuf sous-vues et identité de contrat incomplète."
+    target: "Chaîne principale liée à OptionContractId exact; surface, risque et scénarios secondaires."
+
+  - id: "P07"
+    category: "page"
+    capability: "Simulateur"
+    disposition: "REWRITE"
+    inspection: "CURRENT_HEAD"
+    evidence_paths: ["vertex/ui/pages/simulator_page.py", "vertex/app/routes/redesign.py", "vertex/options/scenario_pricer.py", "vertex/engines/multileg_lab.py"]
+    finding: "La page compose simulateur option, payoff multi-jambes et prétrade."
+    risk: "Multiplicateur, horizon et traitement des options américaines incomplets."
+    target: "Scénarios certifiés spot-temps-IV, payoff, hypothèses et limites obligatoires."
+
+  - id: "P08"
+    category: "page"
+    capability: "Portefeuille"
+    disposition: "REWRITE"
+    inspection: "CURRENT_HEAD"
+    evidence_paths: ["vertex/ui/pages/portfolio_page.py", "vertex/app/routes/desk.py", "vertex/positions/repository.py"]
+    finding: "La page couvre positions manuelles, allocation, options, risque, thèses et performance."
+    risk: "Store JSON et contrats visuels/domaines legacy concurrents."
+    target: "Portefeuille manuel/import approuvé, ledger transactionnel, risque et thèses séparés."
+
+  - id: "P09"
+    category: "page"
+    capability: "Suivi"
+    disposition: "REWRITE"
+    inspection: "CURRENT_HEAD"
+    evidence_paths: ["vertex/ui/pages/tracking_page.py", "vertex/app/routes/tracking_api.py", "vertex/app/routes/redesign.py"]
+    finding: "Les routes /follow-up et /tracking composent surtout des idées suivies hypothétiques."
+    risk: "Pas de révision de thèse append-only complète."
+    target: "File de revues, timeline de preuves et révisions immuables; aucune modification automatique de thèse."
+
+  - id: "P10"
+    category: "page"
+    capability: "Performance"
+    disposition: "REWRITE"
+    inspection: "CURRENT_HEAD"
+    evidence_paths: ["vertex/ui/pages/performance_page.py", "vertex/app/routes/track_record_api.py", "vertex/engines/performance_ledger.py"]
+    finding: "Les routes /performance et /journal séparent plusieurs populations mais mélangent discipline et historique."
+    risk: "Pas de ledger cashflow/FX, TWR ou XIRR canonique."
+    target: "Capital/drawdown, TWR/XIRR, brut/net et populations séparées avec export reproductible."
+
+  - id: "P11"
+    category: "page"
+    capability: "Vertex IA"
+    disposition: "REWRITE"
+    inspection: "CURRENT_HEAD"
+    evidence_paths: ["vertex/ui/pages/intelligence_page.py", "vertex/app/routes/ai_api.py", "vertex/ai/"]
+    finding: "La route /intelligence propose assistant, brief, comité, décisions, recherche et mémoire."
+    risk: "Copilot texte libre et citations/validation non uniformes."
+    target: "/ai avec claims structurés et cités vers snapshots; aucune écriture, aucun calcul ni verdict IA."
+
+  - id: "P12"
+    category: "page"
+    capability: "Système"
+    disposition: "REWRITE"
+    inspection: "CURRENT_HEAD"
+    evidence_paths: ["vertex/ui/pages/system_page.py", "vertex/app/routes/system.py", "vertex/app/routes/strategy_os_api.py"]
+    finding: "La page montre connexions, données, jobs, alertes, préférences, sécurité et archives."
+    risk: "Santé globale et compteurs peuvent masquer capacités non testées ou non exécutées."
+    target: "Matrice exhaustive sources-capacités-droits-fraîcheur, queues, backups et diagnostics."
+
+  - id: "U01"
+    category: "ui_design"
+    capability: "Shell, navigation et deep links"
+    disposition: "ADAPT"
+    inspection: "CURRENT_HEAD"
+    evidence_paths: ["vertex/ui/shell/__init__.py", "vertex/static/vertex/js/vx-router.js"]
+    finding: "Le shell groupe les tâches et le routeur conserve les URL/deep links."
+    risk: "Shell Python et routeur maison; teardown et héritages complexes."
+    target: "React Router, TanStack Query et layout Beta desktop-only 1280/1440/1600; 1024 en dégradation laptop, mobile LATER."
+
+  - id: "U02"
+    category: "ui_design"
+    capability: "Primitives vx2"
+    disposition: "ADAPT"
+    inspection: "CURRENT_HEAD"
+    evidence_paths: ["vertex/ui/vx2.py"]
+    finding: "Les primitives rendent une donnée absente par un tiret et déclarent ne rien calculer."
+    risk: "HTML concaténé et métadonnées parfois facultatives."
+    target: "Composants React/Radix typés, DataStateBoundary et ProvenanceBadge obligatoires."
+
+  - id: "U03"
+    category: "ui_design"
+    capability: "États UI et fraîcheur"
+    disposition: "ADAPT"
+    inspection: "CURRENT_HEAD"
+    evidence_paths: ["vertex/static/vertex/css/states.css", "vertex/static/vertex/js/vx-core.js", "tests/test_fraicheur_honnete_lot46.py"]
+    finding: "Loading, empty, stale, error, offline et demo existent; le lot 46 retire plusieurs timestamps navigateur mensongers."
+    risk: "États incomplets et logique répétée page par page."
+    target: "Huit états obligatoires avec fixtures: loading, refreshing, empty, partial, delayed, stale, offline, error."
+
+  - id: "U04"
+    category: "ui_design"
+    capability: "Contrat de graphique"
+    disposition: "ADAPT"
+    inspection: "CURRENT_HEAD"
+    evidence_paths: ["vertex/static/vertex/js/charts/chart-core.js", "vertex/ui/vx2.py"]
+    finding: "ChartCard prévoit question, unité, source, date, limites et explication."
+    risk: "Champs non imposés et rendu dispersé."
+    target: "ChartFrame strict avec table accessible/export et erreur de build si métadonnée absente."
+
+  - id: "U05"
+    category: "ui_design"
+    capability: "Moteurs graphiques vendored"
+    disposition: "DROP"
+    inspection: "CURRENT_HEAD"
+    evidence_paths: ["static/chart.umd.min.js", "vertex/static/vertex/js/vendor/README.md", "vertex/static/vertex/js/vendor/lightweight-charts.standalone.production.js"]
+    finding: "Chart.js 4.4.1 MIT et Lightweight Charts 4.2.3 Apache-2.0 sont copiés dans l'arbre."
+    risk: "Deux stacks, mises à jour manuelles et notices racine absentes."
+    target: "Paquets officiels ECharts et Lightweight Charts verrouillés; notices et attribution générées."
+
+  - id: "U06"
+    category: "ui_design"
+    capability: "Palette Black Glass"
+    disposition: "ADAPT"
+    inspection: "CURRENT_HEAD"
+    evidence_paths: ["vertex/static/vertex/css/tokens.css", "vertex/static/vertex/css/vertex-2-0.css", "vertex/ui/shell/__init__.py"]
+    finding: "L'ADN obsidienne/argent et les couleurs sémantiques sont bien définis, mais dix-neuf feuilles coexistent."
+    risk: "Aliases legacy et plusieurs sources de vérité CSS."
+    target: "Une seule taxonomie de tokens, mêmes couleurs de marque, contrastes WCAG et aucun alias historique."
+
+  - id: "U07"
+    category: "ui_design"
+    capability: "Polices, icônes et actifs de marque"
+    disposition: "ADAPT"
+    inspection: "METADATA_ONLY"
+    evidence_paths: ["vertex/static/vertex/fonts/licences/GEIST-OFL.txt", "vertex/static/vertex/fonts/", "static/icon-180.png", "vertex/app/routes/system.py"]
+    finding: "Geist possède une licence OFL; les autres binaires et éléments de marque n'ont pas tous une provenance uniforme."
+    risk: "Droits incertains et actifs historiques non adaptés au nouveau visuel."
+    target: "Geist depuis une source vérifiée, icônes Lucide/SVG internes et nouveau logo validé; aucun binaire repris sans preuve."
+
+  - id: "C01"
+    category: "calculation"
+    capability: "Identités instrument et contrat option"
+    disposition: "ADAPT"
+    inspection: "CURRENT_HEAD"
+    evidence_paths: ["vertex/domain/instruments.py", "vertex/data_sources/ibkr_contracts.py", "vertex/data_sources/ibkr_option_chain.py"]
+    finding: "Les contrats IBKR sont qualifiés, mais symbole et expiration restent utilisés dans plusieurs clés."
+    risk: "Collisions de symbole, trading_class et ajustements non représentés."
+    target: "InstrumentId et OptionContractId exacts avec conId, trading_class, multiplicateur, devise, règlement et validité."
+
+  - id: "C02"
+    category: "calculation"
+    capability: "Reward-risk et plan"
+    disposition: "REWRITE"
+    inspection: "CURRENT_HEAD"
+    evidence_paths: ["vertex/engines/analysis.py", "vertex/engines/quant_engine.py", "vertex/strategy/decision_packet.py"]
+    finding: "analysis publie rr_res et un plan.rr constant; quant_engine publie un score 0-100 sous le nom rr."
+    risk: "Ratio financier et score confondus, verdict et interface potentiellement faux."
+    target: "Formule R:R unique et versionnée avec coûts/unités; score séparé; entrée invalide bloque."
+
+  - id: "C03"
+    category: "calculation"
+    capability: "Moteurs de décision"
+    disposition: "REWRITE"
+    inspection: "CURRENT_HEAD"
+    evidence_paths: ["vertex/engines/advice.py", "vertex/engines/decision_stack.py", "vertex/engines/committee.py", "vertex/strategy/executive_engine.py", "vertex/strategy/decision_packet.py"]
+    finding: "Plusieurs moteurs publient encore une orientation actionnable."
+    risk: "Autorités concurrentes, gates incomplets et dégradation fail-open."
+    target: "AdviceEngine unique; GateResult fail-closed avant statut et direction séparés."
+
+  - id: "C04"
+    category: "calculation"
+    capability: "Indicateurs, breadth, régimes et facteurs"
+    disposition: "ADAPT"
+    inspection: "BASE_PLUS_DIFF"
+    evidence_paths: ["vertex/engines/indicators.py", "vertex/market/regime_engine.py", "vertex/market/regime_features.py", "vertex/research/institutional/"]
+    finding: "La couverture analytique est riche mais les méthodes, univers et versions ne sont pas uniformes."
+    risk: "Résultat non reproductible ou contaminé par un univers actuel."
+    target: "Registre de calculs YAML, fonctions pures, unités/lookbacks et univers point-in-time."
+
+  - id: "C05"
+    category: "calculation"
+    capability: "Options: prix, IV, Greeks, payoff, surface et GEX"
+    disposition: "ADAPT"
+    inspection: "CURRENT_HEAD"
+    evidence_paths: ["vertex/options/scenario_pricer.py", "vertex/options/legacy_engine.py", "vertex/engines/multileg_lab.py", "tests/test_calculations_golden.py"]
+    finding: "Le dépôt possède BSM, inversion IV, Greeks, scénarios et tests de propriétés."
+    risk: "Implémentations doublées, modèle européen sur américaines et multiplicateur/hypothèses incomplets."
+    target: "QuantLib comme cœur, SciPy oracle, modèle par style, bornes d'arbitrage et hypothèse dealer visible."
+
+  - id: "C06"
+    category: "calculation"
+    capability: "Risque portefeuille"
+    disposition: "ADAPT"
+    inspection: "CURRENT_HEAD"
+    evidence_paths: ["vertex/portfolio/risk_engine.py", "vertex/engines/portfolio_stress.py", "vertex/portfolio/correlation.py"]
+    finding: "Poids, secteurs, concentration, bêta, corrélations, stress et Greeks sont couverts avec des champs de couverture."
+    risk: "Sources réelles/simulées et unités restent ambiguës dans les couches legacy."
+    target: "Calculs sur ledger manuel typé avec couverture, devise, unité et scénarios certifiés."
+
+  - id: "C07"
+    category: "calculation"
+    capability: "Performance et attribution"
+    disposition: "REWRITE"
+    inspection: "CURRENT_HEAD"
+    evidence_paths: ["vertex/engines/performance_ledger.py", "vertex/app/routes/track_record_api.py"]
+    finding: "PerformanceLedger sépare les types mais calcule des métriques simplifiées sur des returns fournis."
+    risk: "Pas de cashflows/FX/frais transactionnels, TWR/XIRR absents et métriques like."
+    target: "Ledger transactionnel, cashflows/frais/FX datés, TWR/XIRR et définitions versionnées."
+
+  - id: "C08"
+    category: "calculation"
+    capability: "Probabilités ML, Kelly et Monte-Carlo heuristiques"
+    disposition: "DROP"
+    inspection: "CURRENT_HEAD"
+    evidence_paths: ["vertex/quant/ml_calibration.py", "vertex/engines/quant_engine.py", "vertex/validation/probability_calibration.py"]
+    finding: "Des probabilités et un Kelly indicatif dérivent de scores/heuristiques sans modèle calibré de production."
+    risk: "Fausse précision et sizing fondé sur une probabilité non prouvée."
+    target: "Aucune probabilité avant dataset, validation hors échantillon, Brier/log-loss et probability_evidence."
+
+  - id: "C09"
+    category: "calculation"
+    capability: "Backtests et walk-forward"
+    disposition: "DROP"
+    inspection: "CURRENT_HEAD"
+    evidence_paths: ["vertex/engines/backtest.py", "vertex/research/backtest.py", "vertex/research/walk_forward.py"]
+    finding: "Le forward-test utilise la watchlist courante; le module walk_forward délègue à une factory interne."
+    risk: "Survivorship bias, coûts/slippage/capacité et réentraînement incomplets."
+    target: "Nouveau laboratoire point-in-time séparé, oracle LEAN et données licenciées; aucun résultat historique migré."
+
+  - id: "X01"
+    category: "connector"
+    capability: "IBKR gateway, quotes et historique"
+    disposition: "ADAPT"
+    inspection: "CURRENT_HEAD"
+    evidence_paths: ["vertex/data_sources/ibkr_gateway.py", "vertex/data_sources/ibkr_market_data.py", "vertex/data_sources/ibkr_historical.py"]
+    finding: "readonly=True est dur, les snapshots sont horodatés et le mode inconnu est traité prudemment."
+    risk: "Connexions dispersées et distinction live/frozen parfois non observable."
+    target: "Edge IBKR isolé avec epoch de connexion, états 1100/1101/1102/1300, entitlements et erreurs structurées."
+
+  - id: "X02"
+    category: "connector"
+    capability: "IBKR contrats et chaînes options"
+    disposition: "ADAPT"
+    inspection: "CURRENT_HEAD"
+    evidence_paths: ["vertex/data_sources/ibkr_option_chain.py", "vertex/options/chain_loader.py", "vertex/data_sources/ibkr_contracts.py"]
+    finding: "L'entonnoir demande expirations puis finalistes, récupère OI/Greeks et annule les lignes."
+    risk: "Pacing, identité exacte et appels à la demande longs."
+    target: "reqSecDefOptParams, budget de lignes, snapshots de contrats exacts et backpressure."
+
+  - id: "X03"
+    category: "connector"
+    capability: "IBKR news"
+    disposition: "ADAPT"
+    inspection: "CURRENT_HEAD"
+    evidence_paths: ["vertex/data_sources/ibkr_news.py", "vertex/market/news_pipeline.py"]
+    finding: "Les providers sont interrogés séparément pour isoler un entitlement refusé."
+    risk: "Liste mesurée pour un compte, droits article et découverte dynamique non modélisés."
+    target: "Découverte des providers, ArticleAccess, entitlements, déduplication et droits conservés."
+
+  - id: "X04"
+    category: "connector"
+    capability: "Lecture IBKR de compte et positions"
+    disposition: "DROP"
+    inspection: "CURRENT_HEAD"
+    evidence_paths: ["ib_reader.py", "test_connection.py", "terminal.py"]
+    finding: "Le worker actif a été réduit au socket, mais les scripts racine conservent des appels compte/positions."
+    risk: "Frontière market-data-only contournable et données de compte imprimables."
+    target: "Aucun appel account, position, execution ou order dans le nouveau dépôt; portefeuille manuel seulement."
+
+  - id: "X05"
+    category: "connector"
+    capability: "TradingView webhook et Pine"
+    disposition: "REWRITE"
+    inspection: "CURRENT_HEAD"
+    evidence_paths: ["vertex/data_sources/tradingview_webhooks.py", "vertex/data_sources/tradingview_signal_store.py", "tradingview/vertex_signals.pine", "tradingview/README.md"]
+    finding: "Le webhook valide un secret, mais le Pine n'appelle pas payload et la documentation décrit plusieurs timestamps."
+    risk: "Contrat incohérent, anti-replay/dédup mémoire et callback d'échec masqué."
+    target: "Ingress Cloudflare, Queue/DLQ, schéma versionné, idempotence durable et revalidation par quote IBKR fraîche."
+
+  - id: "X06"
+    category: "connector"
+    capability: "Passerelle Anthropic et Copilot"
+    disposition: "REWRITE"
+    inspection: "CURRENT_HEAD"
+    evidence_paths: ["vertex/ai/gateway.py", "vertex/ai/copilot.py", "vertex/ai/response_validator.py"]
+    finding: "Budgets et audit existent, mais le Copilot reçoit encore un JSON de stores et renvoie du texte libre."
+    risk: "Grounding/citations non uniformes et surface de prompt injection."
+    target: "Outils read-only allowlistés, contexte de snapshots, schéma strict, claims cités et refus calcul/ordre."
+
+  - id: "X07"
+    category: "connector"
+    capability: "SEC, FRED et BLS"
+    disposition: "ADAPT"
+    inspection: "CURRENT_HEAD"
+    evidence_paths: ["vertex/data_sources/sec_edgar.py", "vertex/data_sources/sec_fondamentaux.py", "vertex/data_sources/fred.py", "vertex/data_sources/bls.py"]
+    finding: "Des adaptateurs vers sources primaires existent."
+    risk: "Vintages, taxonomies, retries, quotas et couverture non unifiés."
+    target: "Connecteurs officiels versionnés, ALFRED/vintages, unités et limites par source."
+
+  - id: "X08"
+    category: "connector"
+    capability: "Fallbacks yfinance et Stooq"
+    disposition: "DROP"
+    inspection: "CURRENT_HEAD"
+    evidence_paths: ["vertex/data_sources/fallback_market_data.py", "vertex/data_sources/fundamentals.py", "terminal.py"]
+    finding: "Ces sources servent de repli aux cours/fondamentaux et sont étiquetées."
+    risk: "Origines mélangées, throttling, révisions non point-in-time et qualité incertaine."
+    target: "Interdits pour décision live; éventuelle sandbox recherche explicitement non autoritaire."
+
+  - id: "X09"
+    category: "connector"
+    capability: "WMB et enrichissements web"
+    disposition: "ADAPT"
+    inspection: "BASE_PLUS_DIFF"
+    evidence_paths: ["vertex/market/wmb.py", "vertex/services/news_plus.py", "vertex/market/news_pipeline.py"]
+    finding: "Le contexte macro et les enrichissements existent, mais utilisent des provenances et appels réseau hétérogènes."
+    risk: "Droits, délais, blocage HTTP et duplication d'information."
+    target: "Data Fusion Hub sur sources primaires/IR autorisées, ingestion asynchrone et clusters déterministes."
+
+  - id: "D01"
+    category: "data_storage"
+    capability: "Provenance, qualité et fraîcheur"
+    disposition: "ADAPT"
+    inspection: "CURRENT_HEAD"
+    evidence_paths: ["vertex/data_sources/models.py", "vertex/data_sources/provenance.py", "vertex/data_sources/quality.py", "tests/test_fraicheur_honnete_lot46.py"]
+    finding: "Les valeurs portent source/mode/âge; le lot 46 corrige des timestamps de calendrier et options."
+    risk: "Métadonnées non obligatoires sur tous les payloads et seuils encore globaux."
+    target: "DataEnvelope obligatoire avec observed/published/received, stale_after, entitlement, epoch, hash et couverture."
+
+  - id: "D02"
+    category: "data_storage"
+    capability: "Priorité de sources et entitlements"
+    disposition: "REWRITE"
+    inspection: "CURRENT_HEAD"
+    evidence_paths: ["vertex/data_sources/source_router.py", "vertex/ui/pages/system_page.py"]
+    finding: "Une priorité live-delayed-secondary-EOD existe, mais pas une matrice de capacités complète."
+    risk: "Fallback silencieux ou statut global trompeur."
+    target: "Priorité par champ, SourceEntitlement et SourceCoverage avec six états canoniques."
+
+  - id: "D03"
+    category: "data_storage"
+    capability: "Persistance JSON"
+    disposition: "REWRITE"
+    inspection: "CURRENT_HEAD"
+    evidence_paths: ["vertex/services/persist.py", "vertex/app/routes/desk.py", "vertex/tracking/"]
+    finding: "Chaque fichier est remplacé atomiquement, mais les erreurs sont avalées et la transaction globale n'existe pas."
+    risk: "Succès trompeur, lost update, stockage cloud éphémère."
+    target: "PostgreSQL/Alembic, transactions, optimistic locking, outbox et restauration testée."
+
+  - id: "D04"
+    category: "data_storage"
+    capability: "Positions manuelles et suivis"
+    disposition: "ADAPT"
+    inspection: "METADATA_ONLY"
+    evidence_paths: ["vertex/positions/models.py", "vertex/positions/repository.py", "vertex/tracking/", "<root>/*.json"]
+    finding: "Les schémas distinguent manuel/simulé; les valeurs runtime n'ont pas été ouvertes."
+    risk: "Données personnelles et schémas legacy potentiellement mêlés."
+    target: "Migrer seulement les schémas et les données choisies après aperçu, redaction, consentement et sauvegarde."
+
+  - id: "D05"
+    category: "data_storage"
+    capability: "News, calendrier, fondamentaux et événements"
+    disposition: "REWRITE"
+    inspection: "BASE_PLUS_DIFF"
+    evidence_paths: ["vertex/market/news_pipeline.py", "vertex/data/macro_calendar.py", "vertex/catalysts/", "vertex/company/", "vertex/companies/"]
+    finding: "Plusieurs pipelines couvrent ces domaines sans modèle de fusion unique."
+    risk: "Déduplication, droits, révisions et résolution d'entités partielles."
+    target: "Data Fusion Hub avec NewsCluster, événements révisables, faits fondamentaux/ETF et conflits conservés."
+
+  - id: "D06"
+    category: "data_storage"
+    capability: "Univers et données démo statiques"
+    disposition: "DROP"
+    inspection: "BASE_PLUS_DIFF"
+    evidence_paths: ["vertex/data/universe.py", "vertex/data/_constituents_static.py", "vertex/data/demo.py"]
+    finding: "L'univers courant et les fixtures synthétiques vivent dans le runtime."
+    risk: "Survivorship bias et confusion entre donnée réelle et fixture."
+    target: "Fixtures synthétiques isolées; univers recherche point-in-time et univers live déclarés par source."
+
+  - id: "T01"
+    category: "quality"
+    capability: "Suite pytest historique"
+    disposition: "KEEP_AS_REFERENCE"
+    inspection: "CURRENT_HEAD"
+    evidence_paths: ["tests/", "tests/conftest.py", "docs/vertex-2-0/lot-46/RAPPORT.md"]
+    finding: "Le rapport annonce 4471 tests réussis et 152 ignorés; le merge SHA n'a aucun statut CI retourné."
+    risk: "Couplage à l'implémentation et skips/superseded nombreux."
+    target: "Extraire scénarios et invariants utiles; nouvelle pyramide unit, contract, integration et E2E."
+
+  - id: "T02"
+    category: "quality"
+    capability: "Tests golden et propriétés financières"
+    disposition: "ADAPT"
+    inspection: "CURRENT_HEAD"
+    evidence_paths: ["tests/test_calculations_golden.py", "tests/test_calc_honesty.py", "tests/test_options_correctness.py"]
+    finding: "Le dépôt teste parité, bornes, IV roundtrip, scénarios, unités et performances."
+    risk: "Certains goldens comparent deux implémentations internes."
+    target: "Oracles QuantLib/SciPy/finance indépendants, tolérances et cas extrêmes inscrits au registre."
+
+  - id: "T03"
+    category: "quality"
+    capability: "Garde no-orders et readonly"
+    disposition: "ADAPT"
+    inspection: "CURRENT_HEAD"
+    evidence_paths: ["tests/test_no_orders.py", "vertex/data_sources/ibkr_gateway.py"]
+    finding: "Le scanner interdit plusieurs symboles d'ordre et exige readonly=True."
+    risk: "Recherche par motifs, couverture incomplète des capacités et scripts."
+    target: "AST, allowlist d'appels IBKR, forbidden-capabilities manifest et tests API bloquants."
+
+  - id: "T04"
+    category: "quality"
+    capability: "Tests d'immutabilité et fraîcheur des lots 45-46"
+    disposition: "KEEP_AS_REFERENCE"
+    inspection: "CURRENT_HEAD"
+    evidence_paths: ["tests/test_rows_publies_immuables_lot45.py", "tests/test_fraicheur_honnete_lot46.py"]
+    finding: "Ces tests empêchent mutation d'un snapshot publié et timestamp navigateur présenté comme observation."
+    risk: "Assertions fortement liées au texte de terminal.py."
+    target: "Réécrire comme propriétés de contrats et tests end-to-end de provenance."
+
+  - id: "T05"
+    category: "quality"
+    capability: "Tests navigateur, a11y et Lighthouse"
+    disposition: "REWRITE"
+    inspection: "CURRENT_HEAD"
+    evidence_paths: ["requirements-dev.txt", "tests/test_a11y_lighthouse_lot28.py", "tests/test_a11y_*.py"]
+    finding: "Playwright est déclaré mais Chromium n'est pas installé dans le workflow CI."
+    risk: "Des tests s'abstiennent et le rendu réel n'est pas un gate reproductible."
+    target: "Playwright trois moteurs, axe, viewports bureau 1280/1440/1600, smoke 1024, captures et budgets Web Vitals obligatoires."
+
+  - id: "T06"
+    category: "quality"
+    capability: "CI et supply chain"
+    disposition: "REWRITE"
+    inspection: "CURRENT_HEAD"
+    evidence_paths: [".github/workflows/ci.yml", "requirements.txt", "requirements-dev.txt"]
+    finding: "La CI compile, teste et exécute un job safety avec permissions read."
+    risk: "Actions par tags, dépendances non verrouillées et absence de CodeQL, SBOM, CVE, licences et secret scan."
+    target: "Actions pinées SHA, uv/pnpm lock, CodeQL, dependency review, gitleaks, OSV, Syft/Grype/Cosign et ruleset PR."
+
+  - id: "S01"
+    category: "config_security"
+    capability: "Constitution analyse seulement"
+    disposition: "KEEP_AS_REFERENCE"
+    inspection: "CURRENT_HEAD"
+    evidence_paths: ["README.md", "docs/READONLY_SAFETY.md", "vertex/app/config.py"]
+    finding: "READONLY, ANALYSIS_ONLY et l'interdiction d'ordre sont explicites."
+    risk: "Le texte ne ferme pas seul les scripts de compte/positions."
+    target: "Constitution machine-readable, capacités interdites, TWS read-only et gates fail-closed."
+
+  - id: "S02"
+    category: "config_security"
+    capability: "Authentification et accès réseau"
+    disposition: "REWRITE"
+    inspection: "CURRENT_HEAD"
+    evidence_paths: ["vertex/app/routes/auth.py", "vertex/app/config.py"]
+    finding: "Un code d'accès Flask est optionnel et la démo peut rester ouverte."
+    risk: "Protection faible et exposition distante/publique ambiguë."
+    target: "Runtime Vertex loopback-only pour la Beta; téléphone limité à Claude Remote Control officiel, aucun client Vertex."
+
+  - id: "S03"
+    category: "config_security"
+    capability: "Dépendances et build"
+    disposition: "REWRITE"
+    inspection: "CURRENT_HEAD"
+    evidence_paths: ["requirements.txt", "requirements-dev.txt"]
+    finding: "Les dépendances utilisent des plages sans lock ni hashes."
+    risk: "Build non reproductible et dérive supply-chain."
+    target: "Python 3.13 avec pyproject/uv.lock; Node 24 avec pnpm-lock; digests et licences."
+
+  - id: "S04"
+    category: "config_security"
+    capability: "Déploiement Render public"
+    disposition: "DROP"
+    inspection: "CURRENT_HEAD"
+    evidence_paths: ["render.yaml"]
+    finding: "Le service gratuit écoute 0.0.0.0 avec DEMO=1 et sans TWS."
+    risk: "Démo publique mutable et stockage éphémère."
+    target: "Runtime Vertex local-first; seul l'ingress TradingView minimal est public."
+
+  - id: "S05"
+    category: "config_security"
+    capability: "Variables d'environnement"
+    disposition: "ADAPT"
+    inspection: "METADATA_ONLY"
+    evidence_paths: [".env.example", "vertex/app/config_validation.py"]
+    finding: "Un exemple et une validation d'aliases existent; aucune valeur de secret n'a été lue."
+    risk: "Noms historiques multiples et options de sécurité facultatives."
+    target: "Schéma strict, secrets hors dépôt et démarrage refusé si configuration incohérente."
+
+  - id: "S06"
+    category: "config_security"
+    capability: "Lanceurs et service worker historiques"
+    disposition: "DROP"
+    inspection: "BASE_PLUS_DIFF"
+    evidence_paths: ["Lancer_VERTEX.bat", "Lancer_VERTEX.command", "Lancer_VERTEX_DEMO.bat", "Installer_Demarrage_Auto.bat", "vertex/app/routes/system.py"]
+    finding: "Plusieurs lanceurs et un service worker versionné manuellement gèrent démarrage et cache."
+    risk: "Chemins de démarrage et versions de cache concurrents."
+    target: "Commandes make/PowerShell documentées et services explicites; PWA seulement après stratégie offline testée."
+
+  - id: "S07"
+    category: "config_security"
+    capability: "Licences et notices"
+    disposition: "REWRITE"
+    inspection: "CURRENT_HEAD"
+    evidence_paths: ["vertex/static/vertex/fonts/licences/GEIST-OFL.txt", "vertex/static/vertex/js/vendor/README.md", "static/chart.umd.min.js", "LICENSE (absent)", "NOTICE (absent)"]
+    finding: "Quelques licences tierces sont documentées, mais aucun LICENSE ou NOTICE racine n'existe."
+    risk: "Provenance et redistribution non gouvernées."
+    target: "THIRD_PARTY_NOTICES, SBOM et gate licence; décision de licence du nouveau produit avant release."
+
+  - id: "S08"
+    category: "config_security"
+    capability: "Documentation, audits et skills Claude"
+    disposition: "KEEP_AS_REFERENCE"
+    inspection: "BASE_PLUS_DIFF"
+    evidence_paths: ["docs/", ".claude/", "CLAUDE.md"]
+    finding: "Le dépôt contient un historique massif de rapports, captures, plans et skills."
+    risk: "Contradictions, instructions périmées et navigation coûteuse."
+    target: "Conserver seulement les preuves sélectionnées dans l'inventaire de migration; le pack Vertex 1.0 reste l'autorité."
+
+summary:
+  total_capabilities: 64
+  by_disposition:
+    KEEP_AS_REFERENCE: 4
+    ADAPT: 24
+    REWRITE: 28
+    DROP: 8
+  decision: "Utiliser le Vertex actuel comme bibliothèque de besoins, preuves, incidents et vecteurs de test; ne pas le prolonger comme base de code."

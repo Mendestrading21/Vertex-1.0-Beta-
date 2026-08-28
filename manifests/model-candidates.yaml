@@ -1,0 +1,486 @@
+schema_version: 1
+registry_status: planning_seed
+as_of: "2026-08-28"
+
+activation_rule: >-
+  Ce registre documente des candidats. Il n'ajoute aucune dépendance et ne vaut
+  jamais approbation runtime. Une promotion exige version et hash verrouillés,
+  revue de licence et supply-chain, dossier modèle complet, validation
+  point-in-time hors échantillon, calibration, shadow mode, décision humaine et
+  rollback prouvé.
+
+authority:
+  financial_calculations: python_only
+  final_decision: advice_engine_only
+  model_alone_may_decide: false
+  automatic_trading: forbidden
+  order_generation: forbidden
+  llm_model_arbitration: forbidden
+
+global_guards:
+  point_in_time_required: true
+  random_split_for_market_time_series: forbidden
+  purged_walk_forward: required
+  embargo: required
+  nested_validation_for_tuning: required
+  separate_calibration_window: required_for_probabilities
+  untouched_final_holdout: required
+  uncertainty_output: required
+  abstention_path: required
+  drift_monitoring: required
+  immutable_artifact: required
+  deterministic_seed_when_applicable: required
+  no_claim_of_perfect_accuracy_or_coverage: true
+  fallback_to_last_prediction: forbidden
+  retrain_on_drift_without_review: forbidden
+  minimum_challenger: deterministic_baseline
+
+version_policy:
+  package: exact_version_in_uv_lock
+  source: release_artifact_or_commit_sha
+  model: content_hash_and_signed_metadata
+  features: exact_feature_registry_versions
+  configuration: immutable_hash
+  promotion: human_approval_record
+
+data_tooling:
+  - id: polars
+    status: EVALUATE_RESEARCH
+    purpose: lazy_and_streaming_feature_pipelines
+    runtime_scope: research_snapshots_first
+    official_documentation: https://docs.pola.rs/user-guide/lazy/using/
+    official_repository: https://github.com/pola-rs/polars
+    official_license: https://github.com/pola-rs/polars/blob/main/LICENSE
+    license_spdx: MIT
+    strengths:
+      - lazy_query_plan
+      - schema_checks_before_execution
+      - streaming_for_larger_than_memory_data
+    mandatory_controls:
+      - preserve_arrow_schema_and_timezone
+      - reject_implicit_type_coercion_on_financial_fields
+      - materialize_dataset_vintage_and_query_plan_hash
+      - compare_reference_results_with_python_authority
+    prohibited_uses:
+      - live_database_of_record
+      - unversioned_feature_computation
+
+  - id: apache_arrow_pyarrow
+    status: EVALUATE_RESEARCH
+    purpose: canonical_columnar_schema_dataset_and_parquet_exchange
+    runtime_scope: immutable_research_exports_and_typed_interchange
+    official_documentation: https://arrow.apache.org/docs/python/
+    official_repository: https://github.com/apache/arrow
+    official_license: https://github.com/apache/arrow/blob/main/LICENSE.txt
+    license_spdx: Apache-2.0
+    strengths:
+      - language_independent_columnar_schema
+      - partitioned_dataset_api
+      - parquet_interchange
+    mandatory_controls:
+      - embed_schema_version_dataset_vintage_and_rights
+      - verify_file_and_manifest_hashes
+      - keep_utc_timezone_metadata
+      - test_decimal_round_trip
+    prohibited_uses:
+      - mutable_live_truth
+      - export_beyond_source_rights
+
+candidates:
+  - id: vertex_robust_univariate_baseline
+    status: REQUIRED_BASELINE
+    risk_class: M1_DESCRIPTIVE
+    purpose: interpretable_univariate_anomaly_reference
+    library: vertex_python_core
+    license_spdx: PROJECT_INTERNAL
+    task: anomaly_detection
+    feature_sets:
+      - market_anomaly_v1
+    method:
+      - rolling_median
+      - median_absolute_deviation
+      - rolling_quantiles
+    outputs:
+      - descriptive_score
+      - threshold
+      - reason_codes
+      - uncertainty_from_sample_size
+    validation:
+      primary_metrics:
+        - false_alarms_per_session
+        - precision_at_review_capacity_when_labels_exist
+        - detection_delay
+      minimum_proofs:
+        - point_in_time_window
+        - session_aware_reference
+        - extreme_and_missing_value_tests
+        - contamination_robustness
+    abstention:
+      - insufficient_valid_history
+      - stale_or_conflicting_input
+      - unknown_session_or_unit
+    known_limits:
+      - univariate_only
+      - threshold_is_not_probability
+    prohibited_uses:
+      - directional_verdict
+      - probability_label
+      - order_or_position_action
+
+  - id: sklearn_calibrated_logistic_baseline
+    status: EVALUATE_RESEARCH
+    risk_class: M2_PREDICTIVE
+    purpose: transparent_directional_probability_challenger
+    library: scikit-learn
+    official_documentation: https://scikit-learn.org/stable/modules/calibration.html
+    official_repository: https://github.com/scikit-learn/scikit-learn
+    official_license: https://github.com/scikit-learn/scikit-learn/blob/main/COPYING
+    license_spdx: BSD-3-Clause
+    task: binary_classification_fixed_horizon
+    estimator: logistic_regression_with_separate_probability_calibration
+    feature_sets:
+      - market_context_v1
+    outputs:
+      - calibrated_physical_probability
+      - calibration_status
+      - valid_until
+      - uncertainty_interval
+    validation:
+      split: nested_purged_walk_forward_with_embargo
+      primary_metrics:
+        - brier_score
+        - log_loss
+      secondary_metrics:
+        - reliability_by_regime
+        - calibration_error
+        - discrimination_vs_base_rate
+      minimum_proofs:
+        - holdout_untouched
+        - block_bootstrap_intervals
+        - stability_by_horizon_and_liquidity
+        - negative_control_permuted_labels
+    abstention:
+      - invalid_or_expired_calibration
+      - out_of_domain
+      - drift_watch_or_quarantine
+      - insufficient_independent_evidence
+    known_limits:
+      - linear_decision_surface
+      - probability_is_conditional_on_dataset_and_horizon
+      - calibration_does_not_remove_model_bias
+    prohibited_uses:
+      - risk_neutral_probability_label
+      - standalone_advice
+      - automatic_trading
+
+  - id: sklearn_hist_gradient_boosting_challenger
+    status: RESEARCH_ONLY
+    risk_class: M2_PREDICTIVE
+    purpose: nonlinear_challenger_to_logistic_baseline
+    library: scikit-learn
+    official_documentation: https://scikit-learn.org/stable/modules/ensemble.html#histogram-based-gradient-boosting
+    official_repository: https://github.com/scikit-learn/scikit-learn
+    official_license: https://github.com/scikit-learn/scikit-learn/blob/main/COPYING
+    license_spdx: BSD-3-Clause
+    task: binary_classification_fixed_horizon
+    feature_sets:
+      - market_context_v1
+    outputs:
+      - raw_score
+      - separately_calibrated_physical_probability
+      - uncertainty_interval
+    validation:
+      split: nested_purged_walk_forward_with_embargo
+      primary_metrics:
+        - brier_score
+        - log_loss
+      minimum_proofs:
+        - material_gain_over_calibrated_logistic_baseline
+        - stable_feature_importance_and_partial_dependence_checks
+        - monotonic_constraints_where_financially_justified
+        - multiple_testing_register
+    abstention:
+      - calibration_invalid
+      - drift_or_out_of_domain
+      - champion_disagreement_above_budget
+    known_limits:
+      - higher_overfit_risk
+      - explanations_are_not_causal
+    prohibited_uses:
+      - promotion_without_linear_baseline_comparison
+      - standalone_advice
+      - automatic_trading
+
+  - id: sklearn_isolation_forest_batch
+    status: EVALUATE_RESEARCH
+    risk_class: M1_DESCRIPTIVE
+    purpose: multivariate_batch_anomaly_challenger
+    library: scikit-learn
+    official_documentation: https://scikit-learn.org/stable/modules/generated/sklearn.ensemble.IsolationForest.html
+    official_repository: https://github.com/scikit-learn/scikit-learn
+    official_license: https://github.com/scikit-learn/scikit-learn/blob/main/COPYING
+    license_spdx: BSD-3-Clause
+    task: unsupervised_outlier_detection
+    feature_sets:
+      - market_anomaly_v1
+    outputs:
+      - anomaly_score
+      - calibrated_review_threshold
+      - stability_measure
+    validation:
+      split: purged_walk_forward_fit_threshold_test
+      primary_metrics:
+        - false_alarms_per_session
+        - precision_at_review_capacity_when_labels_exist
+        - threshold_stability
+      minimum_proofs:
+        - contamination_not_estimated_on_test
+        - seed_replay
+        - comparison_with_robust_univariate_baseline
+    abstention:
+      - feature_out_of_domain
+      - invalid_quality
+      - threshold_expired
+    known_limits:
+      - score_is_not_probability
+      - unsupervised_anomaly_may_be_legitimate_regime_change
+    prohibited_uses:
+      - directional_interpretation
+      - automatic_retrain_on_alert
+      - standalone_advice
+
+  - id: sklearn_local_outlier_factor_novelty
+    status: EVALUATE_WITH_RESTRICTIONS
+    risk_class: M1_DESCRIPTIVE
+    purpose: novelty_detection_against_clean_reference_only
+    library: scikit-learn
+    official_documentation: https://scikit-learn.org/stable/modules/outlier_detection.html
+    official_repository: https://github.com/scikit-learn/scikit-learn
+    official_license: https://github.com/scikit-learn/scikit-learn/blob/main/COPYING
+    license_spdx: BSD-3-Clause
+    task: novelty_detection
+    feature_sets:
+      - market_anomaly_v1
+    outputs:
+      - novelty_score
+      - review_threshold
+    validation:
+      split: clean_reference_then_future_test
+      minimum_proofs:
+        - novelty_mode_semantics_tested
+        - reference_contamination_bounded
+        - density_and_dimension_sensitivity_reported
+    abstention:
+      - no_clean_reference_set
+      - density_shift_or_dimension_change
+    known_limits:
+      - outlier_and_novelty_modes_are_not_interchangeable
+      - sensitive_to_neighborhood_and_scaling
+    prohibited_uses:
+      - scoring_training_samples_as_unseen_novelty
+      - probability_label
+      - standalone_advice
+
+  - id: river_half_space_trees_online
+    status: EVALUATE_SHADOW
+    risk_class: M1_DESCRIPTIVE
+    purpose: sequential_multivariate_anomaly_scoring
+    library: River
+    official_documentation: https://riverml.xyz/dev/api/anomaly/HalfSpaceTrees/
+    official_repository: https://github.com/online-ml/river
+    official_license: https://github.com/online-ml/river/blob/main/LICENSE
+    license_spdx: BSD-3-Clause
+    task: online_anomaly_detection
+    feature_sets:
+      - market_anomaly_online_v1
+    outputs:
+      - online_anomaly_score
+      - state_snapshot_hash
+    validation:
+      split: prequential_test_then_train_with_delayed_labels
+      primary_metrics:
+        - false_alarms_per_session
+        - detection_delay
+        - state_replay_consistency
+      minimum_proofs:
+        - score_before_learn
+        - bounded_or_scaled_features
+        - anti_poisoning_quarantine
+        - snapshot_and_rollback
+    abstention:
+      - scaler_unstable_or_out_of_domain
+      - state_version_mismatch
+      - drift_quarantine
+    known_limits:
+      - clustered_anomalies_may_be_missed
+      - feature_limits_or_scaling_are_required
+      - initial_learning_call_has_different_cost
+    prohibited_uses:
+      - learning_suspect_event_without_quarantine
+      - automatic_promotion
+      - standalone_advice
+
+  - id: river_adwin_page_hinkley_monitor
+    status: MONITOR_ONLY
+    risk_class: M1_DESCRIPTIVE
+    purpose: online_drift_alarm_on_feature_or_model_error_stream
+    library: River
+    official_documentation:
+      - https://riverml.xyz/dev/api/drift/ADWIN/
+      - https://riverml.xyz/dev/api/drift/PageHinkley/
+    official_repository: https://github.com/online-ml/river
+    official_license: https://github.com/online-ml/river/blob/main/LICENSE
+    license_spdx: BSD-3-Clause
+    task: concept_or_distribution_drift_alarm
+    feature_sets:
+      - drift_monitor_v1
+    outputs:
+      - watch_or_drift_alarm
+      - detector_state_hash
+      - detection_delay
+    validation:
+      split: prequential_synthetic_and_replayed_streams
+      primary_metrics:
+        - false_alarm_rate
+        - detection_delay
+      minimum_proofs:
+        - parameter_sensitivity
+        - reset_policy_reviewed
+        - known_drift_scenarios
+    abstention:
+      - insufficient_warmup
+      - monitored_metric_unavailable
+    known_limits:
+      - alarm_does_not_identify_cause
+      - detector_may_lag_or_false_alarm
+    prohibited_uses:
+      - automatic_retrain
+      - automatic_model_reset
+      - automatic_promotion_or_rollback
+
+  - id: ruptures_pelt_offline
+    status: RESEARCH_ONLY
+    risk_class: M1_DESCRIPTIVE
+    purpose: retrospective_change_point_segmentation
+    library: ruptures
+    official_documentation: https://centre-borelli.github.io/ruptures-docs/user-guide/detection/pelt/
+    official_repository: https://github.com/deepcharles/ruptures
+    official_license: https://github.com/deepcharles/ruptures/blob/master/LICENSE
+    license_spdx: BSD-2-Clause
+    task: offline_change_point_detection
+    feature_sets:
+      - regime_change_v1
+    outputs:
+      - change_points
+      - penalty_and_cost_configuration
+      - stability_window
+      - detection_available_at
+    validation:
+      split: history_truncated_at_each_as_of
+      primary_metrics:
+        - detection_delay
+        - false_change_rate
+        - breakpoint_stability
+      minimum_proofs:
+        - no_future_sample_in_detection
+        - cost_and_penalty_sensitivity
+        - synthetic_break_recovery
+    abstention:
+      - history_too_short
+      - unstable_breakpoint
+      - cost_model_invalid
+    known_limits:
+      - offline_retrospective_method
+      - detected_break_cannot_be_backdated_as_live_knowledge
+    prohibited_uses:
+      - real_time_claim_without_sequential_validation
+      - directional_prediction
+      - standalone_advice
+
+  - id: arch_garch_volatility_family
+    status: REFERENCE_RESEARCH_ONLY
+    risk_class: M2_PREDICTIVE
+    purpose: conditional_volatility_forecast_and_regime_context
+    library: arch
+    official_documentation: https://bashtage.github.io/arch/doc/univariate/univariate_volatility_forecasting.html
+    official_repository: https://github.com/bashtage/arch
+    official_license: https://github.com/bashtage/arch/blob/main/LICENSE.md
+    license_spdx: NCSA
+    task: volatility_forecasting
+    feature_sets:
+      - volatility_model_v1
+    candidate_models:
+      - GARCH
+      - EGARCH
+      - baseline_EWMA
+    outputs:
+      - conditional_volatility_forecast
+      - forecast_horizon
+      - convergence_status
+      - residual_diagnostics
+      - uncertainty_interval
+    validation:
+      split: rolling_purged_walk_forward
+      primary_metrics:
+        - volatility_forecast_loss_predeclared
+        - interval_coverage
+      minimum_proofs:
+        - convergence_and_parameter_constraints
+        - residual_diagnostics
+        - comparison_with_realized_volatility_and_ewma_baseline
+        - stability_across_regimes
+    abstention:
+      - convergence_failure
+      - residual_diagnostics_failure
+      - insufficient_history
+      - forecast_out_of_domain
+    known_limits:
+      - volatility_is_not_direction
+      - specification_and_distribution_sensitive
+    prohibited_uses:
+      - runtime_before_new_adr_and_dependency_review
+      - standalone_advice
+      - automatic_trading
+
+  - id: mapie_conformal_uncertainty
+    status: OPTIONAL_RESEARCH_ONLY
+    risk_class: M2_PREDICTIVE
+    purpose: conformal_prediction_intervals_or_sets_for_validated_base_models
+    library: MAPIE
+    official_documentation: https://mapie.readthedocs.io/
+    official_repository: https://github.com/scikit-learn-contrib/MAPIE
+    official_license: https://github.com/scikit-learn-contrib/MAPIE/blob/master/LICENSE
+    license_spdx: BSD-3-Clause
+    task: uncertainty_quantification
+    feature_sets:
+      - inherited_from_validated_base_model
+    outputs:
+      - prediction_interval_or_set
+      - nominal_coverage
+      - empirical_rolling_coverage
+      - interval_width
+      - method_assumptions
+    validation:
+      split: time_ordered_train_conformalization_test_with_purge_and_embargo
+      primary_metrics:
+        - empirical_rolling_coverage
+        - interval_width
+      minimum_proofs:
+        - method_assumptions_documented
+        - coverage_by_regime_and_horizon
+        - calibration_set_separate
+        - comparison_with_simple_quantile_baseline
+    abstention:
+      - conformalization_sample_too_small
+      - assumption_violation
+      - coverage_below_budget
+      - drift_or_expired_window
+    known_limits:
+      - nominal_marginal_coverage_is_not_conditional_perfect_coverage
+      - coverage_does_not_mean_directional_accuracy
+      - time_series_require_method_specific_validation
+    prohibited_uses:
+      - claim_of_guaranteed_100_percent_coverage
+      - standalone_advice
+      - automatic_trading
+

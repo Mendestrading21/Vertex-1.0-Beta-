@@ -1,0 +1,73 @@
+schema_version: 1
+authority: vertex_core.attention
+deterministic_and_replayable: true
+required_gates:
+  - RIGHTS_OK
+  - IDENTITY_OK
+  - TIME_OK
+  - SOURCE_OK
+  - QUALITY_OK
+positive_factors:
+  portfolio_relevance:
+    weight_policy: LOCAL_CONFIG
+  watchlist_relevance:
+    weight_policy: LOCAL_CONFIG
+  strategy_fit:
+    weight_policy: PROFILE_VERSIONED
+  catalyst_proximity:
+    weight_policy: PROFILE_VERSIONED
+  severity:
+    weight_policy: RULESET_VERSIONED
+  novelty:
+    weight_policy: RULESET_VERSIONED
+  source_reliability:
+    weight_policy: SOURCE_REGISTRY
+  source_diversity:
+    weight_policy: SOURCE_REGISTRY
+  anomaly_evidence:
+    weight_policy: MODEL_REGISTRY
+penalties:
+  - duplicate
+  - syndicated_copy
+  - stale
+  - ambiguous_entity
+  - single_unverified_source
+  - probable_spam_or_bot
+  - missing_rights
+  - outside_universe_without_propagation
+attention_budgets:
+  today:
+    major_events: 3
+    changes: 3
+    blockers: UNLIMITED
+  markets:
+    dominant_narratives: 1
+    contradictions: 3
+  opportunities:
+    qualified_candidates: 5
+    rejection_reasons_per_candidate: 3
+  analysis:
+    evidence_groups: 5
+  options:
+    explained_anomalies: 5
+audit_fields:
+  - why_now
+  - source_diversity
+  - novelty
+  - strategy_fit
+  - portfolio_relevance
+  - quality
+  - penalties
+  - clustered_count
+  - filtered_count
+  - policy_version
+learning_ranker:
+  default: DISABLED
+  activation_requires:
+    - explicit_feedback
+    - point_in_time_dataset
+    - out_of_sample_improvement
+    - calibration
+    - deterministic_baseline_comparison
+    - rollback
+

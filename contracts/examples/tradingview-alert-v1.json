@@ -1,0 +1,15 @@
+{
+  "schema": "vertex.tradingview.alert.v1",
+  "alert_id": "spy-regime-v1",
+  "script_version": "2026-08-28.1",
+  "sent_at": "2026-08-28T14:35:02Z",
+  "bar_time": "2026-08-28T14:35:00Z",
+  "exchange": "AMEX",
+  "ticker": "SPY",
+  "interval": "5",
+  "signal": "REGIME_CHANGE",
+  "price": "651.42",
+  "values": {
+    "volume": "128400"
+  }
+}

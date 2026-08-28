@@ -1,0 +1,547 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vertex.local/schemas/option-anomaly-snapshot-v1.json",
+  "title": "Vertex Option Anomaly Snapshot v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "snapshot_id",
+    "generated_at",
+    "as_of",
+    "environment",
+    "fixture",
+    "underlying",
+    "option_contract",
+    "quote",
+    "activity_observations",
+    "provider_computations",
+    "anomaly",
+    "coverage",
+    "entitlement_evidence",
+    "quality_status",
+    "quality_flags",
+    "source_event_ids",
+    "limitations",
+    "safety"
+  ],
+  "properties": {
+    "schema": {"const": "vertex.option_anomaly_snapshot.v1"},
+    "snapshot_id": {"$ref": "#/$defs/id"},
+    "generated_at": {"$ref": "#/$defs/timestamp"},
+    "as_of": {"$ref": "#/$defs/timestamp"},
+    "environment": {
+      "type": "string",
+      "enum": ["SYNTHETIC", "PAPER_INFORMATION", "LIVE_INFORMATION"]
+    },
+    "fixture": {"type": "boolean"},
+    "underlying": {"$ref": "#/$defs/underlying"},
+    "option_contract": {"$ref": "#/$defs/optionContract"},
+    "quote": {"$ref": "#/$defs/quote"},
+    "activity_observations": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/activityObservation"},
+      "maxItems": 16
+    },
+    "provider_computations": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/providerComputation"},
+      "maxItems": 8
+    },
+    "anomaly": {"$ref": "#/$defs/anomaly"},
+    "coverage": {"$ref": "#/$defs/coverage"},
+    "entitlement_evidence": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/entitlementEvidence"},
+      "minItems": 1,
+      "maxItems": 32
+    },
+    "quality_status": {
+      "type": "string",
+      "enum": ["VALID", "PARTIAL", "STALE", "INVALID", "CONFLICT", "INSUFFICIENT_DATA"]
+    },
+    "quality_flags": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/reasonCode"},
+      "uniqueItems": true,
+      "maxItems": 64
+    },
+    "source_event_ids": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/id"},
+      "minItems": 1,
+      "uniqueItems": true,
+      "maxItems": 128
+    },
+    "limitations": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1, "maxLength": 240},
+      "minItems": 1,
+      "uniqueItems": true,
+      "maxItems": 32
+    },
+    "safety": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "information_only",
+        "no_order_capability",
+        "portfolio_source",
+        "trade_side_inference_allowed",
+        "opening_closing_inference_allowed"
+      ],
+      "properties": {
+        "information_only": {"const": true},
+        "no_order_capability": {"const": true},
+        "portfolio_source": {"const": "MANUAL_VERTEX_ONLY"},
+        "trade_side_inference_allowed": {"const": false},
+        "opening_closing_inference_allowed": {"const": false}
+      }
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+    },
+    "reasonCode": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9_]{1,95}$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "(?:Z|[+-][0-9]{2}:[0-9]{2})$"
+    },
+    "date": {
+      "type": "string",
+      "format": "date"
+    },
+    "decimal": {
+      "type": "string",
+      "pattern": "^-?(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?$"
+    },
+    "nonNegativeDecimal": {
+      "type": "string",
+      "pattern": "^(?:0|[1-9][0-9]*)(?:\\.[0-9]+)?$"
+    },
+    "ratio": {
+      "type": "string",
+      "pattern": "^(?:0(?:\\.[0-9]+)?|1(?:\\.0+)?)$"
+    },
+    "nullableDecimal": {
+      "oneOf": [
+        {"$ref": "#/$defs/decimal"},
+        {"type": "null"}
+      ]
+    },
+    "nullableNonNegativeDecimal": {
+      "oneOf": [
+        {"$ref": "#/$defs/nonNegativeDecimal"},
+        {"type": "null"}
+      ]
+    },
+    "underlying": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "instrument_id",
+        "canonical_symbol",
+        "ibkr_con_id",
+        "exchange",
+        "currency",
+        "price",
+        "observed_at",
+        "market_data_type",
+        "connection_epoch"
+      ],
+      "properties": {
+        "instrument_id": {"$ref": "#/$defs/id"},
+        "canonical_symbol": {"type": "string", "minLength": 1, "maxLength": 64},
+        "ibkr_con_id": {"type": "integer", "minimum": 1},
+        "exchange": {"type": "string", "minLength": 1, "maxLength": 32},
+        "currency": {"type": "string", "pattern": "^[A-Z]{3}$"},
+        "price": {"$ref": "#/$defs/nonNegativeDecimal"},
+        "observed_at": {"$ref": "#/$defs/timestamp"},
+        "market_data_type": {
+          "type": "string",
+          "enum": ["LIVE", "FROZEN", "DELAYED", "DELAYED_FROZEN", "UNKNOWN"]
+        },
+        "connection_epoch": {"$ref": "#/$defs/id"}
+      }
+    },
+    "optionContract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "option_contract_id",
+        "ibkr_con_id",
+        "underlying_instrument_id",
+        "trading_class",
+        "expiry",
+        "strike",
+        "right",
+        "multiplier",
+        "currency",
+        "exchange",
+        "exercise_style",
+        "settlement",
+        "deliverable_resolved"
+      ],
+      "properties": {
+        "option_contract_id": {"$ref": "#/$defs/id"},
+        "ibkr_con_id": {"type": "integer", "minimum": 1},
+        "underlying_instrument_id": {"$ref": "#/$defs/id"},
+        "trading_class": {"type": "string", "minLength": 1, "maxLength": 32},
+        "expiry": {"$ref": "#/$defs/date"},
+        "strike": {"$ref": "#/$defs/nonNegativeDecimal"},
+        "right": {"type": "string", "enum": ["CALL", "PUT"]},
+        "multiplier": {"$ref": "#/$defs/nonNegativeDecimal"},
+        "currency": {"type": "string", "pattern": "^[A-Z]{3}$"},
+        "exchange": {"type": "string", "minLength": 1, "maxLength": 32},
+        "exercise_style": {"type": "string", "enum": ["AMERICAN", "EUROPEAN", "OTHER", "UNKNOWN"]},
+        "settlement": {"type": "string", "enum": ["PHYSICAL", "CASH", "OTHER", "UNKNOWN"]},
+        "adjustment_code": {"type": ["string", "null"], "maxLength": 64},
+        "deliverable_resolved": {"type": "boolean"}
+      }
+    },
+    "quote": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "bid",
+        "ask",
+        "last",
+        "bid_size",
+        "ask_size",
+        "observed_at",
+        "market_data_type",
+        "connection_epoch",
+        "is_locked",
+        "is_crossed",
+        "is_stale"
+      ],
+      "properties": {
+        "bid": {"$ref": "#/$defs/nullableNonNegativeDecimal"},
+        "ask": {"$ref": "#/$defs/nullableNonNegativeDecimal"},
+        "last": {"$ref": "#/$defs/nullableNonNegativeDecimal"},
+        "bid_size": {"$ref": "#/$defs/nullableNonNegativeDecimal"},
+        "ask_size": {"$ref": "#/$defs/nullableNonNegativeDecimal"},
+        "observed_at": {"$ref": "#/$defs/timestamp"},
+        "market_data_type": {
+          "type": "string",
+          "enum": ["LIVE", "FROZEN", "DELAYED", "DELAYED_FROZEN", "UNKNOWN"]
+        },
+        "connection_epoch": {"$ref": "#/$defs/id"},
+        "is_locked": {"type": "boolean"},
+        "is_crossed": {"type": "boolean"},
+        "is_stale": {"type": "boolean"}
+      }
+    },
+    "activityObservation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "metric",
+        "value",
+        "scope",
+        "tick_type",
+        "generic_tick_requested",
+        "observed_at",
+        "effective_as_of",
+        "market_data_type",
+        "update_semantics"
+      ],
+      "properties": {
+        "metric": {
+          "type": "string",
+          "enum": [
+            "CONTRACT_VOLUME",
+            "CALL_VOLUME",
+            "PUT_VOLUME",
+            "CALL_OPEN_INTEREST",
+            "PUT_OPEN_INTEREST",
+            "AVERAGE_OPTION_VOLUME"
+          ]
+        },
+        "value": {"$ref": "#/$defs/nonNegativeDecimal"},
+        "scope": {
+          "type": "string",
+          "enum": ["EXACT_OPTION_CONTRACT", "UNDERLYING_OPTION_CLASS", "PROVIDER_DEFINED"]
+        },
+        "tick_type": {"type": "integer", "enum": [8, 27, 28, 29, 30, 87]},
+        "generic_tick_requested": {
+          "oneOf": [
+            {"type": "integer", "enum": [100, 101, 105]},
+            {"type": "null"}
+          ]
+        },
+        "observed_at": {"$ref": "#/$defs/timestamp"},
+        "effective_as_of": {
+          "oneOf": [
+            {"$ref": "#/$defs/timestamp"},
+            {"type": "null"}
+          ]
+        },
+        "market_data_type": {
+          "type": "string",
+          "enum": ["LIVE", "FROZEN", "DELAYED", "DELAYED_FROZEN", "UNKNOWN"]
+        },
+        "update_semantics": {
+          "type": "string",
+          "enum": ["SESSION_CUMULATIVE", "DAILY_SNAPSHOT", "PROVIDER_DEFINED", "UNKNOWN"]
+        }
+      },
+      "allOf": [
+        {
+          "oneOf": [
+            {
+              "properties": {
+                "metric": {"const": "CONTRACT_VOLUME"},
+                "scope": {"const": "EXACT_OPTION_CONTRACT"},
+                "tick_type": {"const": 8},
+                "generic_tick_requested": {"type": "null"}
+              }
+            },
+            {
+              "properties": {
+                "metric": {"const": "CALL_VOLUME"},
+                "tick_type": {"const": 29},
+                "generic_tick_requested": {"const": 100}
+              }
+            },
+            {
+              "properties": {
+                "metric": {"const": "PUT_VOLUME"},
+                "tick_type": {"const": 30},
+                "generic_tick_requested": {"const": 100}
+              }
+            },
+            {
+              "properties": {
+                "metric": {"const": "CALL_OPEN_INTEREST"},
+                "tick_type": {"const": 27},
+                "generic_tick_requested": {"const": 101}
+              }
+            },
+            {
+              "properties": {
+                "metric": {"const": "PUT_OPEN_INTEREST"},
+                "tick_type": {"const": 28},
+                "generic_tick_requested": {"const": 101}
+              }
+            },
+            {
+              "properties": {
+                "metric": {"const": "AVERAGE_OPTION_VOLUME"},
+                "tick_type": {"const": 87},
+                "generic_tick_requested": {"const": 105}
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "providerComputation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source",
+        "tick_type",
+        "price_basis",
+        "market_data_type",
+        "observed_at",
+        "implied_volatility",
+        "delta",
+        "gamma",
+        "vega",
+        "theta",
+        "option_price",
+        "present_value_dividends",
+        "underlying_price"
+      ],
+      "properties": {
+        "source": {"const": "IBKR"},
+        "tick_type": {"type": "integer", "enum": [10, 11, 12, 13, 80, 81, 82, 83]},
+        "price_basis": {
+          "type": "string",
+          "enum": ["BID", "ASK", "LAST", "MODEL", "DELAYED_BID", "DELAYED_ASK", "DELAYED_LAST", "DELAYED_MODEL"]
+        },
+        "market_data_type": {
+          "type": "string",
+          "enum": ["LIVE", "FROZEN", "DELAYED", "DELAYED_FROZEN", "UNKNOWN"]
+        },
+        "observed_at": {"$ref": "#/$defs/timestamp"},
+        "implied_volatility": {"$ref": "#/$defs/nullableNonNegativeDecimal"},
+        "delta": {"$ref": "#/$defs/nullableDecimal"},
+        "gamma": {"$ref": "#/$defs/nullableDecimal"},
+        "vega": {"$ref": "#/$defs/nullableDecimal"},
+        "theta": {"$ref": "#/$defs/nullableDecimal"},
+        "option_price": {"$ref": "#/$defs/nullableNonNegativeDecimal"},
+        "present_value_dividends": {"$ref": "#/$defs/nullableDecimal"},
+        "underlying_price": {"$ref": "#/$defs/nullableNonNegativeDecimal"}
+      },
+      "allOf": [
+        {
+          "oneOf": [
+            {
+              "properties": {
+                "tick_type": {"const": 10},
+                "price_basis": {"const": "BID"},
+                "market_data_type": {"enum": ["LIVE", "FROZEN"]}
+              }
+            },
+            {
+              "properties": {
+                "tick_type": {"const": 11},
+                "price_basis": {"const": "ASK"},
+                "market_data_type": {"enum": ["LIVE", "FROZEN"]}
+              }
+            },
+            {
+              "properties": {
+                "tick_type": {"const": 12},
+                "price_basis": {"const": "LAST"},
+                "market_data_type": {"enum": ["LIVE", "FROZEN"]}
+              }
+            },
+            {
+              "properties": {
+                "tick_type": {"const": 13},
+                "price_basis": {"const": "MODEL"},
+                "market_data_type": {"enum": ["LIVE", "FROZEN"]}
+              }
+            },
+            {
+              "properties": {
+                "tick_type": {"const": 80},
+                "price_basis": {"const": "DELAYED_BID"},
+                "market_data_type": {"enum": ["DELAYED", "DELAYED_FROZEN"]}
+              }
+            },
+            {
+              "properties": {
+                "tick_type": {"const": 81},
+                "price_basis": {"const": "DELAYED_ASK"},
+                "market_data_type": {"enum": ["DELAYED", "DELAYED_FROZEN"]}
+              }
+            },
+            {
+              "properties": {
+                "tick_type": {"const": 82},
+                "price_basis": {"const": "DELAYED_LAST"},
+                "market_data_type": {"enum": ["DELAYED", "DELAYED_FROZEN"]}
+              }
+            },
+            {
+              "properties": {
+                "tick_type": {"const": 83},
+                "price_basis": {"const": "DELAYED_MODEL"},
+                "market_data_type": {"enum": ["DELAYED", "DELAYED_FROZEN"]}
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "detector": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "detector_id",
+        "status",
+        "score",
+        "percentile",
+        "population",
+        "window",
+        "coverage_ratio",
+        "reason_codes"
+      ],
+      "properties": {
+        "detector_id": {"$ref": "#/$defs/id"},
+        "status": {"type": "string", "enum": ["OK", "WARMING_UP", "BLOCKED"]},
+        "score": {
+          "oneOf": [
+            {"$ref": "#/$defs/decimal"},
+            {"type": "null"}
+          ]
+        },
+        "percentile": {
+          "oneOf": [
+            {"$ref": "#/$defs/ratio"},
+            {"type": "null"}
+          ]
+        },
+        "population": {"type": "string", "minLength": 1, "maxLength": 160},
+        "window": {"type": "string", "minLength": 1, "maxLength": 80},
+        "coverage_ratio": {"$ref": "#/$defs/ratio"},
+        "reason_codes": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/reasonCode"},
+          "minItems": 1,
+          "uniqueItems": true,
+          "maxItems": 16
+        }
+      }
+    },
+    "anomaly": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "direction_hypothesis", "detectors", "final_score", "model_version"],
+      "properties": {
+        "status": {"type": "string", "enum": ["VALID", "PARTIAL", "WARMING_UP", "BLOCKED"]},
+        "direction_hypothesis": {
+          "type": "string",
+          "enum": ["UP", "DOWN", "VOLATILITY", "HEDGE_LIKELY", "MIXED", "UNKNOWN"]
+        },
+        "detectors": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/detector"},
+          "minItems": 1,
+          "maxItems": 32
+        },
+        "final_score": {
+          "oneOf": [
+            {"$ref": "#/$defs/decimal"},
+            {"type": "null"}
+          ]
+        },
+        "model_version": {"$ref": "#/$defs/id"}
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expected", "received", "valid", "delayed", "stale", "missing", "coverage_ratio", "max_age_seconds"],
+      "properties": {
+        "expected": {"type": "integer", "minimum": 0},
+        "received": {"type": "integer", "minimum": 0},
+        "valid": {"type": "integer", "minimum": 0},
+        "delayed": {"type": "integer", "minimum": 0},
+        "stale": {"type": "integer", "minimum": 0},
+        "missing": {"type": "integer", "minimum": 0},
+        "coverage_ratio": {"$ref": "#/$defs/ratio"},
+        "max_age_seconds": {"type": "integer", "minimum": 0}
+      }
+    },
+    "entitlementEvidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["capability_id", "status", "market_data_type", "tested_at", "expires_at", "reason_code"],
+      "properties": {
+        "capability_id": {"$ref": "#/$defs/id"},
+        "status": {
+          "type": "string",
+          "enum": ["AVAILABLE", "DELAYED", "MANUAL_EXPORT", "NOT_ENTITLED", "UNSUPPORTED", "ERROR"]
+        },
+        "market_data_type": {
+          "type": "string",
+          "enum": ["LIVE", "FROZEN", "DELAYED", "DELAYED_FROZEN", "UNKNOWN"]
+        },
+        "tested_at": {"$ref": "#/$defs/timestamp"},
+        "expires_at": {"$ref": "#/$defs/timestamp"},
+        "reason_code": {"$ref": "#/$defs/reasonCode"}
+      }
+    }
+  }
+}
