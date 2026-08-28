@@ -2,8 +2,16 @@
 # Cible runtime : Python 3.13 (uv.lock au LOT-01 sur la machine cible).
 # Plancher local de développement : 3.11 (aucune syntaxe > 3.11 dans le code).
 [tool.pytest.ini_options]
-testpaths = ["packages/python/vertex_core/tests"]
-pythonpath = ["packages/python/vertex_core/src"]
+# NOTE: étendu au fur et à mesure que les paquets naissent — un chemin absent
+# ferait échouer pytest ; persistence/api ajoutés dès leurs dossiers créés.
+testpaths = [
+    "packages/python/vertex_core/tests",
+]
+pythonpath = [
+    "packages/python/vertex_core/src",
+    "packages/python/vertex_persistence/src",
+    "apps/api/src",
+]
 addopts = "-q --strict-markers"
 markers = [
     "property: tests de propriétés Hypothesis",
