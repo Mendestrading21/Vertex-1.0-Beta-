@@ -25,7 +25,8 @@ Non-root, filesystem root read-only, tmpfs, `cap_drop: ALL`, `no-new-privileges`
 ## Application
 
 - passkey/WebAuthn et session courte pour l'accès utilisateur ;
-- Tailscale protège le réseau mais ne remplace pas la session ;
+- l'écoute reste loopback-only en Beta (ADR-002/ADR-009 : ni Tailscale Serve ni
+  exposition LAN) ; aucune protection réseau ne remplace la session ;
 - validation stricte de toute entrée/import ;
 - CSRF, CORS fermé, CSP, cookies Secure/HttpOnly/SameSite ;
 - logs expurgés et identifiants de corrélation ;

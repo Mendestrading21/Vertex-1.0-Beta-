@@ -13,8 +13,8 @@
   "gates": [
     {
       "gate_id": "fundamentals",
-      "status": "UNKNOWN",
-      "reasons": ["fixture sans fondamentaux"]
+      "status": "BLOCK",
+      "reasons": ["UNEVALUABLE: fixture sans fondamentaux"]
     }
   ],
   "reasons": ["données insuffisantes pour qualifier l'idée"],

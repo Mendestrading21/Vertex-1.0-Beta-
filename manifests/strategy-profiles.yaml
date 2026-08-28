@@ -1,12 +1,13 @@
 schema_version: 1
 authority: vertex_core.strategy_profiles
 repository_contains_personal_values: false
+# États canoniques — ADR-014 (REJECT→BLOCKED, WATCH→OBSERVE, RESEARCH→REVIEW)
 output_states:
-  - REJECT
-  - WATCH
-  - RESEARCH
-  - QUALIFIED
+  - BLOCKED
   - INSUFFICIENT_DATA
+  - OBSERVE
+  - REVIEW
+  - QUALIFIED
 forbidden_outputs:
   - BUY
   - SELL

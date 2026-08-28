@@ -18,8 +18,8 @@ Git.
 - preuves minimales : identité du titre, prix/fraîcheur, liquidité, régime,
   secteur, fondamentaux, calendrier, thèse, invalidation et risque portefeuille
   manuel ;
-- sortie analytique : `REJECT`, `WATCH`, `RESEARCH`, `QUALIFIED` ou
-  `INSUFFICIENT_DATA`, jamais `BUY` ou `SELL`.
+- sortie analytique (ADR-014) : `BLOCKED`, `INSUFFICIENT_DATA`, `OBSERVE`,
+  `REVIEW` ou `QUALIFIED`, jamais `BUY` ou `SELL`.
 
 ### `long_option_tactical_2_12w`
 

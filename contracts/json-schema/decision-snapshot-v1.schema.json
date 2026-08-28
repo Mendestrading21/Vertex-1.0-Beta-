@@ -34,8 +34,8 @@
     },
     "generated_at": {"type": "string", "format": "date-time"},
     "engine_version": {"type": "string", "minLength": 1},
-    "status": {"enum": ["REJECT", "WATCH", "RESEARCH", "QUALIFIED", "INSUFFICIENT_DATA"]},
-    "direction": {"enum": ["UP", "DOWN", "VOLATILITY", "MIXED", "UNKNOWN"]},
+    "status": {"enum": ["BLOCKED", "INSUFFICIENT_DATA", "OBSERVE", "REVIEW", "QUALIFIED"]},
+    "direction": {"enum": ["BULLISH", "BEARISH", "NEUTRAL", "MIXED", "UNKNOWN"]},
     "gates": {
       "type": "array",
       "minItems": 1,
@@ -45,7 +45,7 @@
         "required": ["gate_id", "status", "reasons"],
         "properties": {
           "gate_id": {"type": "string"},
-          "status": {"enum": ["PASS", "WARN", "BLOCK", "UNKNOWN"]},
+          "status": {"enum": ["PASS", "DEGRADE", "BLOCK"]},
           "reasons": {"type": "array", "items": {"type": "string"}}
         }
       }
