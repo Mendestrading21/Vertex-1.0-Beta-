@@ -817,3 +817,35 @@ def test_analysis_config_rejects_a_non_boolean_portfolio_requirement() -> None:
             usable_rights=frozenset({"SYNTHETIC"}),
             portfolio_risk_required="yes",  # type: ignore[arg-type]
         )
+
+
+def test_a_profile_declaring_no_required_evidence_is_refused(
+    tmp_path: Path,
+) -> None:
+    """An empty ``required_evidence`` list disables admissibility silently.
+
+    ``all(...)`` is true over an empty sequence, so before this guard a profile
+    declaring no required evidence was accepted and every candidate passed the
+    third admissibility fact by vacuity. A profile that requires nothing is a
+    contract error, not a permissive configuration.
+    """
+    manifest = tmp_path / "strategy-profiles.yaml"
+    manifest.write_text(
+        yaml.safe_dump(
+            {
+                "profiles": [
+                    {
+                        "id": "empty_evidence_profile",
+                        "version": "1.0.0",
+                        "instruments": ["STOCK"],
+                        "required_evidence": [],
+                        "decision_horizons_months": [3],
+                    }
+                ]
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(StrategyProfileError, match="invalid required_evidence"):
+        load_strategy_profile("empty_evidence_profile", path=manifest)

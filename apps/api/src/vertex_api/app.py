@@ -13,6 +13,7 @@ from typing import Any
 from fastapi import FastAPI, Request
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
+from pydantic import ValidationError
 
 from vertex_api.ai_explain import AiExplainRequest
 from vertex_api.auth import auth_router
@@ -98,6 +99,24 @@ def _build_openapi_schema(app: FastAPI) -> dict[str, Any]:
     return schema
 
 
+def _snapshot_content_response() -> JSONResponse:
+    """The single fail-closed answer of a snapshot that cannot be served.
+
+    Stable, typed and value-free: the client renders an honest error state
+    and no fragment of the persisted payload travels in the response.
+    """
+    return JSONResponse(
+        status_code=500,
+        content={
+            "code": "SNAPSHOT_CONTENT_INVALID",
+            "detail": (
+                "a published snapshot cannot be served: its stored content "
+                "does not match the published schema"
+            ),
+        },
+    )
+
+
 def create_app() -> FastAPI:
     """Build the Vertex One API application.
 
@@ -128,23 +147,55 @@ def create_app() -> FastAPI:
 
         Serving such content would present an unverified payload as a
         canonical result, so the relay fails closed. The client receives a
-        stable code it can render as an honest error state; the reason (field
-        names only, never the stored values) stays in the server log so no
-        payload fragment can leak through the response.
+        stable code it can render as an honest error state; the trace keeps
+        the RESOURCE and the offending FIELD PATH only — never the exception
+        message, which may quote a stored value
+        (``.claude/rules/security.md`` forbids any payload fragment in a
+        log, and ``SnapshotContentError.field`` is the sanitized part).
         """
         logging.getLogger("vertex_api.snapshot").error(
-            "snapshot content rejected on %s: %s", request.url.path, exc
+            "snapshot content rejected on %s: invalid field %s",
+            request.url.path,
+            exc.field or "unknown",
         )
-        return JSONResponse(
-            status_code=500,
-            content={
-                "code": "SNAPSHOT_CONTENT_INVALID",
-                "detail": (
-                    "a published snapshot cannot be served: its stored content "
-                    "does not match the published schema"
-                ),
-            },
+        return _snapshot_content_response()
+
+    @app.exception_handler(ValidationError)
+    async def _snapshot_content_validation_rejected(
+        request: Request, exc: ValidationError
+    ) -> JSONResponse:
+        """LAST RAMPART: persisted content refused by a wire contract itself.
+
+        Every relay validates the content it relays and raises
+        ``SnapshotContentError`` (the handler above). Should one field escape
+        that review, pydantic still refuses to build the DTO — and its
+        ``ValidationError`` carries ``input_value``, i.e. THE STORED VALUE.
+        Letting it reach the default handler would answer an untyped 500 and
+        write that payload fragment into the server log. It is caught here
+        instead: same typed code, and a trace reduced to the failing model
+        and the pydantic error TYPES (``string_type``, ``greater_than``...),
+        never a ``loc`` (a mapping key is itself stored data) and never an
+        input value.
+
+        A malformed REQUEST never reaches this handler: every request-parsing
+        site converts its ``ValidationError`` into a ``RequestValidationError``
+        (422), a distinct class — a client error therefore stays a 4xx.
+        """
+        kinds = sorted(
+            {
+                str(error.get("type", "unknown"))
+                for error in exc.errors(
+                    include_url=False, include_context=False, include_input=False
+                )
+            }
         )
+        logging.getLogger("vertex_api.snapshot").error(
+            "snapshot content rejected on %s: %s violated by %s",
+            request.url.path,
+            exc.title,
+            ", ".join(kinds) or "unknown",
+        )
+        return _snapshot_content_response()
 
     def custom_openapi() -> dict[str, Any]:
         if app.openapi_schema is None:

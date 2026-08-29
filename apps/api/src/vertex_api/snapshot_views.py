@@ -15,6 +15,16 @@ presentation only:
   ``ERROR`` with reason ``CONFLICTING_FIELD_STATUSES``.
 
 No price, Greek, score, probability or verdict is ever computed here.
+
+FAIL-CLOSED SHAPE CHECK (P1-7). Every builder validates the persisted content
+against what the WIRE CONTRACT really constrains — not merely "a string is a
+string": a non-empty string where the DTO requires one, ``>= 0`` or ``> 0``
+where the DTO constrains the sign, string keys where the DTO expects a
+``FrozenStrMapping``. The refusal is therefore always a
+:class:`SnapshotContentError` naming its field, never a raw pydantic
+``ValidationError`` — whose message quotes ``input_value``, i.e. THE STORED
+VALUE, and would carry a fragment of the persisted payload into the server
+log (``.claude/rules/security.md``).
 """
 
 from __future__ import annotations
@@ -71,18 +81,33 @@ _EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
 
 
 class SnapshotContentError(ValueError):
-    """Persisted snapshot content does not match its published schema."""
+    """Persisted snapshot content does not match its published schema.
+
+    ``field`` is the DOTTED PATH of the offending field inside the persisted
+    content (``items[3].title``, ``coverage.lookback_seconds``...). It is the
+    only part of this exception that may be logged: the message itself is a
+    developer/test aid and may quote a stored value, whereas a log record may
+    never carry a fragment of the persisted payload
+    (``.claude/rules/security.md``). ``field`` stays ``None`` when the caller
+    could not name one — the handler then logs an explicit ``unknown``.
+    """
+
+    def __init__(self, message: str, *, field: Optional[str] = None) -> None:
+        super().__init__(message)
+        self.field = field
 
 
 def _parse_utc(value: Any, *, field: str) -> datetime:
     if not isinstance(value, str):
-        raise SnapshotContentError(f"{field}: ISO-8601 string required")
+        raise SnapshotContentError(f"{field}: ISO-8601 string required", field=field)
     try:
         parsed = datetime.fromisoformat(value)
     except ValueError as exc:
-        raise SnapshotContentError(f"{field}: invalid ISO-8601 datetime") from exc
+        raise SnapshotContentError(
+            f"{field}: invalid ISO-8601 datetime", field=field
+        ) from exc
     if parsed.tzinfo is None or parsed.tzinfo.utcoffset(parsed) is None:
-        raise SnapshotContentError(f"{field}: naive datetime rejected")
+        raise SnapshotContentError(f"{field}: naive datetime rejected", field=field)
     return parsed.astimezone(timezone.utc)
 
 
@@ -100,14 +125,32 @@ def _parse_utc_or_none(value: Any) -> Optional[datetime]:
 
 def _require_mapping(value: Any, *, field: str) -> Mapping[str, Any]:
     if not isinstance(value, Mapping):
-        raise SnapshotContentError(f"{field}: mapping required")
+        raise SnapshotContentError(f"{field}: mapping required", field=field)
     return value
 
 
 def _require_list(value: Any, *, field: str) -> Sequence[Any]:
     if not isinstance(value, list):
-        raise SnapshotContentError(f"{field}: list required")
+        raise SnapshotContentError(f"{field}: list required", field=field)
     return value
+
+
+def _wire_mapping(value: Any, *, field: str) -> dict[str, Any]:
+    """A mapping relayed as-is into a ``FrozenStrMapping`` wire field.
+
+    The wire contract is ``Mapping[str, Any]`` in STRICT mode: a persisted
+    mapping carrying a non-string key would be refused by pydantic itself,
+    and the resulting ``ValidationError`` quotes that key — a stored value —
+    in its message. The check therefore happens HERE, so the refusal stays a
+    :class:`SnapshotContentError` naming the field only.
+    """
+    mapping = _require_mapping(value, field=field)
+    for key in mapping:
+        if not isinstance(key, str):
+            raise SnapshotContentError(
+                f"{field}: string keys required", field=field
+            )
+    return dict(mapping)
 
 
 def _str_tuple(value: Any, *, field: str) -> tuple[str, ...]:
@@ -115,7 +158,9 @@ def _str_tuple(value: Any, *, field: str) -> tuple[str, ...]:
     result: list[str] = []
     for entry in items:
         if not isinstance(entry, str) or not entry:
-            raise SnapshotContentError(f"{field}: non-empty strings required")
+            raise SnapshotContentError(
+                f"{field}: non-empty strings required", field=field
+            )
         result.append(entry)
     return tuple(result)
 
@@ -127,21 +172,23 @@ def _str_tuple(value: Any, *, field: str) -> tuple[str, ...]:
 
 def _attention_item(raw: Any, *, index: int) -> AttentionItem:
     item = _require_mapping(raw, field=f"items[{index}]")
-    provenance = _require_mapping(item.get("provenance"), field=f"items[{index}].provenance")
+    provenance = _wire_mapping(
+        item.get("provenance"), field=f"items[{index}].provenance"
+    )
     reasons = _str_tuple(
         item.get("relevance_reasons"), field=f"items[{index}].relevance_reasons"
     )
-    synthetic = item.get("synthetic")
-    if not isinstance(synthetic, bool):
-        raise SnapshotContentError(f"items[{index}].synthetic: boolean required")
+    synthetic = _require_bool(
+        item.get("synthetic"), field=f"items[{index}].synthetic"
+    )
     return AttentionItem(
-        id=item.get("item_id"),
-        title=item.get("title"),
+        id=_require_str(item.get("item_id"), field=f"items[{index}].item_id"),
+        title=_require_str(item.get("title"), field=f"items[{index}].title"),
         sources=_str_tuple(provenance.get("sources"), field=f"items[{index}].provenance.sources"),
         rights=_str_tuple(provenance.get("rights"), field=f"items[{index}].provenance.rights"),
         relevance_reasons=reasons[:3],
         synthetic=synthetic,
-        provenance=dict(provenance),
+        provenance=provenance,
     )
 
 
@@ -169,17 +216,15 @@ def build_attention_response(
     content = _require_mapping(snapshot.content, field="content")
     items_raw = _require_list(content.get("items"), field="items")
     rejected_raw = _require_list(content.get("rejected"), field="rejected")
-    population = content.get("population")
-    if not isinstance(population, str) or not population:
-        raise SnapshotContentError("population: non-empty string required")
-    coverage = _require_mapping(content.get("coverage"), field="coverage")
+    population = _require_str(content.get("population"), field="population")
+    coverage = _wire_mapping(content.get("coverage"), field="coverage")
 
     return AttentionSnapshotResponse(
         state="ok",
         snapshot_version=snapshot.version,
         as_of=_parse_utc(content.get("as_of"), field="as_of"),
         population=population,
-        coverage=dict(coverage),
+        coverage=coverage,
         items=tuple(
             _attention_item(raw, index=index) for index, raw in enumerate(items_raw)
         ),
@@ -195,7 +240,9 @@ def build_attention_response(
 
 def _require_str(value: Any, *, field: str) -> str:
     if not isinstance(value, str) or not value:
-        raise SnapshotContentError(f"{field}: non-empty string required")
+        raise SnapshotContentError(
+            f"{field}: non-empty string required", field=field
+        )
     return value
 
 
@@ -207,13 +254,33 @@ def _optional_str(value: Any, *, field: str) -> Optional[str]:
 
 def _require_int(value: Any, *, field: str) -> int:
     if isinstance(value, bool) or not isinstance(value, int):
-        raise SnapshotContentError(f"{field}: integer required")
+        raise SnapshotContentError(f"{field}: integer required", field=field)
     return value
+
+
+def _require_non_negative_int(value: Any, *, field: str) -> int:
+    """An integer the wire contract constrains to ``>= 0``."""
+    result = _require_int(value, field=field)
+    if result < 0:
+        raise SnapshotContentError(
+            f"{field}: non-negative integer required", field=field
+        )
+    return result
+
+
+def _require_positive_int(value: Any, *, field: str) -> int:
+    """An integer the wire contract constrains to ``> 0``."""
+    result = _require_int(value, field=field)
+    if result <= 0:
+        raise SnapshotContentError(
+            f"{field}: positive integer required", field=field
+        )
+    return result
 
 
 def _require_bool(value: Any, *, field: str) -> bool:
     if not isinstance(value, bool):
-        raise SnapshotContentError(f"{field}: boolean required")
+        raise SnapshotContentError(f"{field}: boolean required", field=field)
     return value
 
 
@@ -249,8 +316,8 @@ def _markets_ticker(raw: Any, *, field: str) -> MarketsTicker:
         ),
         quality=_require_str(entry.get("quality"), field=f"{field}.quality"),
         synthetic=_require_bool(entry.get("synthetic"), field=f"{field}.synthetic"),
-        calculation=dict(
-            _require_mapping(entry.get("calculation"), field=f"{field}.calculation")
+        calculation=_wire_mapping(
+            entry.get("calculation"), field=f"{field}.calculation"
         ),
     )
 
@@ -262,10 +329,10 @@ def _markets_sector(raw: Any, *, index: int) -> MarketsSector:
     return MarketsSector(
         sector=_require_str(entry.get("sector"), field=f"{field}.sector"),
         label=_require_str(entry.get("label"), field=f"{field}.label"),
-        declared_count=_require_int(
+        declared_count=_require_non_negative_int(
             entry.get("declared_count"), field=f"{field}.declared_count"
         ),
-        covered_count=_require_int(
+        covered_count=_require_non_negative_int(
             entry.get("covered_count"), field=f"{field}.covered_count"
         ),
         tickers=tuple(
@@ -279,18 +346,22 @@ def _markets_breadth(raw: Any) -> MarketsBreadth:
     entry = _require_mapping(raw, field="breadth")
     status = entry.get("status")
     if status not in ("OK", "INVALID"):
-        raise SnapshotContentError("breadth.status: 'OK' or 'INVALID' required")
+        raise SnapshotContentError(
+            "breadth.status: 'OK' or 'INVALID' required", field="breadth.status"
+        )
     calculation = entry.get("calculation")
     return MarketsBreadth(
         status=status,
         reason=_optional_str(entry.get("reason"), field="breadth.reason"),
         value=_optional_str(entry.get("value"), field="breadth.value"),
         value_pct=_optional_str(entry.get("value_pct"), field="breadth.value_pct"),
-        above_count=_require_int(entry.get("above_count"), field="breadth.above_count"),
-        covered_count=_require_int(
+        above_count=_require_non_negative_int(
+            entry.get("above_count"), field="breadth.above_count"
+        ),
+        covered_count=_require_non_negative_int(
             entry.get("covered_count"), field="breadth.covered_count"
         ),
-        universe_size=_require_int(
+        universe_size=_require_positive_int(
             entry.get("universe_size"), field="breadth.universe_size"
         ),
         coverage_pct=_require_str(
@@ -305,7 +376,7 @@ def _markets_breadth(raw: Any) -> MarketsBreadth:
         calculation=(
             None
             if calculation is None
-            else dict(_require_mapping(calculation, field="breadth.calculation"))
+            else _wire_mapping(calculation, field="breadth.calculation")
         ),
     )
 
@@ -345,17 +416,25 @@ def _markets_coverage(raw: Any) -> MarketsCoverage:
             )
         )
     return MarketsCoverage(
-        expected=_require_int(entry.get("expected"), field="coverage.expected"),
-        received=_require_int(entry.get("received"), field="coverage.received"),
-        covered=_require_int(entry.get("covered"), field="coverage.covered"),
-        discarded=_require_int(entry.get("discarded"), field="coverage.discarded"),
+        expected=_require_non_negative_int(
+            entry.get("expected"), field="coverage.expected"
+        ),
+        received=_require_non_negative_int(
+            entry.get("received"), field="coverage.received"
+        ),
+        covered=_require_non_negative_int(
+            entry.get("covered"), field="coverage.covered"
+        ),
+        discarded=_require_non_negative_int(
+            entry.get("discarded"), field="coverage.discarded"
+        ),
         discarded_tickers=tuple(discarded),
         rejected_records=tuple(rejected),
-        observations_considered=_require_int(
+        observations_considered=_require_non_negative_int(
             entry.get("observations_considered"),
             field="coverage.observations_considered",
         ),
-        lookback_seconds=_require_int(
+        lookback_seconds=_require_positive_int(
             entry.get("lookback_seconds"), field="coverage.lookback_seconds"
         ),
     )
@@ -393,7 +472,9 @@ def build_markets_overview_response(
     sectors_raw = _require_list(content.get("sectors"), field="sectors")
     data_state = content.get("data_state")
     if data_state not in ("ok", "partial", "stale"):
-        raise SnapshotContentError("data_state: 'ok', 'partial' or 'stale' required")
+        raise SnapshotContentError(
+            "data_state: 'ok', 'partial' or 'stale' required", field="data_state"
+        )
 
     return MarketsOverviewResponse(
         state="ok",
@@ -433,12 +514,14 @@ def _checked_advice(value: Any) -> Mapping[str, Any]:
     whose advice block does not look like the canonical contract (missing
     id, unknown status, gate without a reason code).
     """
-    advice = _require_mapping(value, field="advice")
+    advice = _wire_mapping(value, field="advice")
     _require_str(advice.get("advice_id"), field="advice.advice_id")
     _require_str(advice.get("engine_version"), field="advice.engine_version")
     status = advice.get("status")
     if status not in _ADVICE_STATUSES:
-        raise SnapshotContentError("advice.status: canonical AdviceStatus required")
+        raise SnapshotContentError(
+            "advice.status: canonical AdviceStatus required", field="advice.status"
+        )
     gates = _require_list(advice.get("gates"), field="advice.gates")
     for index, raw_gate in enumerate(gates):
         gate = _require_mapping(raw_gate, field=f"advice.gates[{index}]")
@@ -448,7 +531,8 @@ def _checked_advice(value: Any) -> Mapping[str, Any]:
         )
         if gate.get("status") not in _GATE_STATUSES:
             raise SnapshotContentError(
-                f"advice.gates[{index}].status: PASS/DEGRADE/BLOCK required"
+                f"advice.gates[{index}].status: PASS/DEGRADE/BLOCK required",
+                field=f"advice.gates[{index}].status",
             )
     return advice
 
@@ -484,16 +568,20 @@ def build_analysis_response(
     published_instrument = _require_str(content.get("instrument"), field="instrument")
     if published_instrument != instrument:
         raise SnapshotContentError(
-            "instrument: snapshot content does not match the requested key"
+            "instrument: snapshot content does not match the requested key",
+            field="instrument",
         )
-    bars = _require_mapping(content.get("bars"), field="bars")
-    scenarios = _require_mapping(content.get("scenarios"), field="scenarios")
+    bars = _wire_mapping(content.get("bars"), field="bars")
+    scenarios = _wire_mapping(content.get("scenarios"), field="scenarios")
     scenario_status = scenarios.get("status")
     if scenario_status not in ("OK", "ABSENT"):
-        raise SnapshotContentError("scenarios.status: 'OK' or 'ABSENT' required")
+        raise SnapshotContentError(
+            "scenarios.status: 'OK' or 'ABSENT' required", field="scenarios.status"
+        )
     if scenario_status == "OK" and scenarios.get("value_nature") != "THEORETICAL":
         raise SnapshotContentError(
-            "scenarios.value_nature: 'THEORETICAL' required on a computed grid"
+            "scenarios.value_nature: 'THEORETICAL' required on a computed grid",
+            field="scenarios.value_nature",
         )
     if scenario_status == "ABSENT":
         _require_str(scenarios.get("reason"), field="scenarios.reason")
@@ -506,11 +594,11 @@ def build_analysis_response(
         engine_version=_require_str(
             content.get("engine_version"), field="engine_version"
         ),
-        bars=dict(bars),
-        evidence=dict(_require_mapping(content.get("evidence"), field="evidence")),
-        scenarios=dict(scenarios),
+        bars=bars,
+        evidence=_wire_mapping(content.get("evidence"), field="evidence"),
+        scenarios=scenarios,
         advice=dict(_checked_advice(content.get("advice"))),
-        coverage=dict(_require_mapping(content.get("coverage"), field="coverage")),
+        coverage=_wire_mapping(content.get("coverage"), field="coverage"),
         reason=None,
     )
 
@@ -523,18 +611,13 @@ def build_analysis_response(
 def _optional_non_negative_int(value: Any, *, field: str) -> Optional[int]:
     if value is None:
         return None
-    result = _require_int(value, field=field)
-    if result < 0:
-        raise SnapshotContentError(f"{field}: non-negative integer required")
-    return result
+    return _require_non_negative_int(value, field=field)
 
 
 def _status_mapping(value: Any, *, field: str) -> Mapping[str, Any]:
     """A worker result block: a mapping carrying a non-empty ``status``."""
-    mapping = _require_mapping(value, field=field)
-    status = mapping.get("status")
-    if not isinstance(status, str) or not status:
-        raise SnapshotContentError(f"{field}.status: non-empty string required")
+    mapping = _wire_mapping(value, field=field)
+    _require_str(mapping.get("status"), field=f"{field}.status")
     return mapping
 
 
@@ -542,10 +625,12 @@ def _option_contract(raw: Any, *, field: str) -> OptionChainContract:
     entry = _require_mapping(raw, field=field)
     con_id = entry.get("con_id")
     if con_id is not None:
-        con_id = _require_int(con_id, field=f"{field}.con_id")
+        con_id = _require_positive_int(con_id, field=f"{field}.con_id")
     right = entry.get("right")
     if right is not None and right not in ("CALL", "PUT"):
-        raise SnapshotContentError(f"{field}.right: 'CALL', 'PUT' or null required")
+        raise SnapshotContentError(
+            f"{field}.right: 'CALL', 'PUT' or null required", field=f"{field}.right"
+        )
     return OptionChainContract(
         con_id=con_id,
         strike=_optional_str(entry.get("strike"), field=f"{field}.strike"),
@@ -554,7 +639,9 @@ def _option_contract(raw: Any, *, field: str) -> OptionChainContract:
         trading_class=_require_str(
             entry.get("trading_class"), field=f"{field}.trading_class"
         ),
-        multiplier=_require_int(entry.get("multiplier"), field=f"{field}.multiplier"),
+        multiplier=_require_positive_int(
+            entry.get("multiplier"), field=f"{field}.multiplier"
+        ),
         currency=_require_str(entry.get("currency"), field=f"{field}.currency"),
         exchange=_require_str(entry.get("exchange"), field=f"{field}.exchange"),
         style=_require_str(entry.get("style"), field=f"{field}.style"),
@@ -585,7 +672,9 @@ def _option_expiration(raw: Any, *, index: int) -> OptionChainExpiration:
         exchange=_require_str(entry.get("exchange"), field=f"{field}.exchange"),
         style=_require_str(entry.get("style"), field=f"{field}.style"),
         settlement=_require_str(entry.get("settlement"), field=f"{field}.settlement"),
-        multiplier=_require_int(entry.get("multiplier"), field=f"{field}.multiplier"),
+        multiplier=_require_positive_int(
+            entry.get("multiplier"), field=f"{field}.multiplier"
+        ),
         currency=_require_str(entry.get("currency"), field=f"{field}.currency"),
         maturity_years=_require_str(
             entry.get("maturity_years"), field=f"{field}.maturity_years"
@@ -598,9 +687,7 @@ def _option_expiration(raw: Any, *, index: int) -> OptionChainExpiration:
             _option_contract(contract, field=f"{field}.contracts[{i}]")
             for i, contract in enumerate(contracts_raw)
         ),
-        coverage=dict(
-            _require_mapping(entry.get("coverage"), field=f"{field}.coverage")
-        ),
+        coverage=_wire_mapping(entry.get("coverage"), field=f"{field}.coverage"),
     )
 
 
@@ -636,11 +723,14 @@ def build_option_chain_response(
     published_underlying = _require_str(content.get("underlying"), field="underlying")
     if published_underlying != underlying:
         raise SnapshotContentError(
-            "underlying: snapshot content does not match the requested key"
+            "underlying: snapshot content does not match the requested key",
+            field="underlying",
         )
     value_nature = content.get("value_nature")
     if value_nature != "THEORETICAL":
-        raise SnapshotContentError("value_nature: 'THEORETICAL' required")
+        raise SnapshotContentError(
+            "value_nature: 'THEORETICAL' required", field="value_nature"
+        )
     expirations_raw = _require_list(content.get("expirations"), field="expirations")
     spot = content.get("spot")
     assumptions = content.get("assumptions")
@@ -654,18 +744,18 @@ def build_option_chain_response(
             content.get("engine_version"), field="engine_version"
         ),
         value_nature="THEORETICAL",
-        spot=None if spot is None else dict(_require_mapping(spot, field="spot")),
+        spot=None if spot is None else _wire_mapping(spot, field="spot"),
         assumptions=(
             None
             if assumptions is None
-            else dict(_require_mapping(assumptions, field="assumptions"))
+            else _wire_mapping(assumptions, field="assumptions")
         ),
         expirations=tuple(
             _option_expiration(raw, index=index)
             for index, raw in enumerate(expirations_raw)
         ),
-        row_budget=dict(_require_mapping(content.get("row_budget"), field="row_budget")),
-        coverage=dict(_require_mapping(content.get("coverage"), field="coverage")),
+        row_budget=_wire_mapping(content.get("row_budget"), field="row_budget"),
+        coverage=_wire_mapping(content.get("coverage"), field="coverage"),
         reason=None,
     )
 

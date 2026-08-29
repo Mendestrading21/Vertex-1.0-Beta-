@@ -975,7 +975,7 @@
       },
       "CalendarResponse": {
         "additionalProperties": false,
-        "description": "The last published calendar snapshot — or an honest empty state.\n\n``state = \"ok\"`` relays the persisted agenda VERBATIM (importance from\nthe versioned rule, distinct ESTIMATED/CONFIRMED labels, revisions and\nprevious values, freshness, exchange timezones); the API invents no event\nand recomputes no importance. ``state = \"empty\"`` means nothing to show\n(never published, or nothing observed), ``state = \"not_entitled\"`` that\nthe considered records were rejected for missing rights and\n``state = \"rejected\"`` that they were all invalid. Every non-ok state\ncarries its ``reason``: an empty agenda never passes for a success.",
+        "description": "The last published calendar snapshot — or an honest empty state.\n\n``state = \"ok\"`` relays the persisted agenda VERBATIM (importance from\nthe versioned rule, distinct ESTIMATED/CONFIRMED labels, revisions and\nprevious values, freshness, exchange timezones); the API invents no event\nand recomputes no importance. ``state = \"empty\"`` means nothing to show\n(never published, or nothing observed), ``state = \"not_entitled\"`` that\nthe considered records were rejected for missing rights,\n``state = \"rejected\"`` that they were all invalid, ``state = \"stale\"``\nthat every displayed event is past its freshness bound,\n``state = \"empty_window\"`` that the REQUESTED window selects none of the\npublished events, and ``state = \"degraded\"`` that the snapshot predates\nthe ``agenda_state`` contract and its state is therefore unknown. Every\nnon-ok state carries its ``reason``: an empty agenda never passes for a\nsuccess.",
         "properties": {
           "agenda": {
             "items": {
@@ -1074,7 +1074,10 @@
               "ok",
               "empty",
               "not_entitled",
-              "rejected"
+              "rejected",
+              "stale",
+              "empty_window",
+              "degraded"
             ],
             "title": "State",
             "type": "string"
@@ -2881,8 +2884,20 @@
       },
       "OpportunitiesResponse": {
         "additionalProperties": false,
-        "description": "The last published opportunities snapshot — or an honest empty state.\n\n``state = \"ok\"`` relays the persisted content VERBATIM: profile\nreference (id + version + what is really applied), calendar provenance,\ndocumented lexicographic ordering, qualified and excluded candidates with\ntheir gates, honest evidence checks and published exclusion reasons (the\npage's honest empty state on synthetic data). ``state = \"empty\"`` means\nthe worker never published.",
+        "description": "The last published opportunities snapshot — or an honest empty state.\n\n``state = \"ok\"`` relays the persisted content VERBATIM: profile\nreference (id + version + what is really applied), calendar provenance,\ndocumented lexicographic ordering, qualified and excluded candidates with\ntheir gates, honest evidence checks and published exclusion reasons (the\npage's honest empty state on synthetic data). ``state = \"stale\"`` relays\nthe SAME content, but says it is past its freshness budget and publishes\nwhy — an old verdict is never presented as current. ``state = \"empty\"``\nmeans the worker never published.\n\n``age_seconds`` is published in every served state (server timestamps\nonly), so the interface can always show how old the verdict is.",
         "properties": {
+          "age_seconds": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age Seconds"
+          },
           "as_of": {
             "anyOf": [
               {
@@ -2934,6 +2949,7 @@
           "state": {
             "enum": [
               "ok",
+              "stale",
               "empty"
             ],
             "title": "State",
@@ -2944,6 +2960,7 @@
           "state",
           "snapshot_version",
           "as_of",
+          "age_seconds",
           "content",
           "reason"
         ],

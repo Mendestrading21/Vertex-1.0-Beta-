@@ -273,8 +273,14 @@ def load_strategy_profile(
             raise StrategyProfileError(
                 f"profile {profile_id}: invalid instruments"
             )
-        if not isinstance(required, list) or not all(
-            isinstance(r, str) and r for r in required
+        # An EMPTY list must be refused, not silently accepted: ``all(...)`` is
+        # true over an empty sequence, so a profile declaring no required
+        # evidence would disable the whole admissibility check (a candidate
+        # could then reach the qualified group holding no evidence at all).
+        if (
+            not isinstance(required, list)
+            or not required
+            or not all(isinstance(r, str) and r for r in required)
         ):
             raise StrategyProfileError(
                 f"profile {profile_id}: invalid required_evidence"

@@ -375,3 +375,132 @@ def test_window_counters_without_window_match_the_whole_agenda(
     body = api.get("/api/v1/calendar").json()
     assert body["window"]["categories"] == body["categories"]
     assert body["window"]["statuses"] == body["statuses"]
+
+
+# --------------------------------------------------------------------------
+# Regression tests of the adversarial RE-AUDIT (P1-6, P2-6 relay, P2-7).
+# Availability of a legitimate page and honesty of the served state are the
+# promises under test.
+# --------------------------------------------------------------------------
+
+
+def test_a_snapshot_predating_the_state_contract_is_served_degraded_not_500(
+    api: TestClient, reader: FakeSnapshotReader
+) -> None:
+    """P1-6 — publication is publish-if-changed: a snapshot published BEFORE
+    ``agenda_state`` existed is never republished until a new observation
+    arrives. Refusing it would keep page 02 in a permanent 500, so it is
+    served DEGRADED with its cause — and never as ``ok``."""
+    legacy = snapshot([event("syn-ev-1"), event("syn-ev-2", status="CONFIRMED")])
+    legacy.content.pop("agenda_state")
+    legacy.content.pop("agenda_state_reason")
+    reader.snapshots[("calendar", "global")] = legacy
+
+    response = api.get("/api/v1/calendar")
+    assert response.status_code == 200
+    body = response.json()
+
+    assert body["state"] == "degraded"
+    assert body["state"] != "ok"
+    assert body["reason"] == (
+        "state field missing: snapshot predates the current agenda_state "
+        "contract"
+    )
+    # The published events stay AVAILABLE and verbatim: the missing field
+    # degrades the STATE, not the agenda.
+    assert [entry["event_id"] for entry in body["agenda"]] == [
+        "syn-ev-1",
+        "syn-ev-2",
+    ]
+    assert body["window"]["events_total"] == 2
+    assert body["snapshot_version"] == 1
+
+
+def test_a_legacy_snapshot_keeps_failing_closed_on_its_events(
+    reader: FakeSnapshotReader,
+) -> None:
+    """P1-6 — backward compatibility covers the ABSENT state field ONLY: an
+    unusable event of the same legacy snapshot is still refused."""
+    legacy = snapshot([event("syn-ev-1", status="TENTATIVE")])
+    legacy.content.pop("agenda_state")
+    with pytest.raises(SnapshotContentError):
+        build_calendar_response(legacy, window=None)
+
+
+def test_a_window_that_selects_nothing_is_not_reported_ok(
+    api: TestClient, reader: FakeSnapshotReader
+) -> None:
+    """P2-7 — a window emptying the agenda must not be served ``ok`` with an
+    empty list and no reason: the served state carries the distinction, not
+    only the counters."""
+    events = [
+        event("syn-ev-1", when="2026-09-01T15:30:00+00:00"),
+        event("syn-ev-2", when="2026-09-10T15:30:00+00:00"),
+    ]
+    reader.snapshots[("calendar", "global")] = snapshot(events)
+
+    body = api.get(
+        "/api/v1/calendar",
+        params={"from": "2026-11-01T00:00:00Z", "to": "2026-11-30T00:00:00Z"},
+    ).json()
+
+    assert body["agenda"] == []
+    assert body["state"] == "empty_window"
+    assert body["reason"] == (
+        "the requested window selects none of the 2 published events "
+        "(published agenda_state: OK)"
+    )
+    # The published totals stay readable: the events EXIST, out of window.
+    assert body["window"]["events_total"] == 2
+    assert body["window"]["events_in_window"] == 0
+    assert body["window"]["applied"] is True
+
+
+def test_a_window_selecting_nothing_never_hides_a_non_ok_state(
+    api: TestClient, reader: FakeSnapshotReader
+) -> None:
+    """P2-7 — the window state never overwrites a worker verdict: a rights
+    rejection stays ``not_entitled`` with its own reason."""
+    reader.snapshots[("calendar", "global")] = snapshot(
+        [],
+        agenda_state="NOT_ENTITLED",
+        agenda_state_reason="every considered record was rejected: "
+        "rights_not_usable x2",
+    )
+    body = api.get(
+        "/api/v1/calendar",
+        params={"from": "2026-11-01T00:00:00Z", "to": "2026-11-30T00:00:00Z"},
+    ).json()
+    assert body["state"] == "not_entitled"
+    assert body["reason"] == (
+        "every considered record was rejected: rights_not_usable x2"
+    )
+
+
+def test_a_wholly_stale_agenda_is_relayed_as_stale(
+    api: TestClient, reader: FakeSnapshotReader
+) -> None:
+    """P2-6 — the worker owns the verdict: a published ``STALE`` agenda is
+    relayed as ``stale`` with its reason, never flattened into ``ok``."""
+    stale_event = event("syn-ev-1")
+    stale_event["fresh"] = False
+    reader.snapshots[("calendar", "global")] = snapshot(
+        [stale_event],
+        agenda_state="STALE",
+        agenda_state_reason="every displayed event is stale (1/1)",
+    )
+    body = api.get("/api/v1/calendar").json()
+    assert body["state"] == "stale"
+    assert body["reason"] == "every displayed event is stale (1/1)"
+    assert [entry["event_id"] for entry in body["agenda"]] == ["syn-ev-1"]
+
+
+def test_every_state_the_worker_can_publish_is_mapped() -> None:
+    """P1-6 (root cause) — the relay must know EVERY state the worker can
+    publish: an unmapped one would fail closed at runtime and take page 02
+    down, exactly like the missing field did."""
+    from vertex_worker.calendar import AGENDA_STATES
+
+    from vertex_api.calendar import AGENDA_STATE_TO_RESPONSE_STATE
+
+    assert set(AGENDA_STATES) == set(AGENDA_STATE_TO_RESPONSE_STATE)

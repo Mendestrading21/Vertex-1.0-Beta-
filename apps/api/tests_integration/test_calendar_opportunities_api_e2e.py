@@ -233,9 +233,18 @@ class TestCalendarRoute:
             params={"from": _iso(far), "to": _iso(far + timedelta(days=1))},
         )
         assert empty.status_code == 200
-        assert empty.json()["agenda"] == []
-        assert empty.json()["window"]["events_in_window"] == 0
-        assert empty.json()["state"] == "ok"
+        body_empty = empty.json()
+        assert body_empty["agenda"] == []
+        assert body_empty["window"]["events_in_window"] == 0
+        # The state carries the distinction: the events EXIST, outside the
+        # requested window — an empty selection is never served as "ok".
+        assert body_empty["state"] == "empty_window"
+        assert body_empty["reason"] == (
+            "the requested window selects none of the "
+            f"{body_empty['window']['events_total']} published events "
+            "(published agenda_state: OK)"
+        )
+        assert body_empty["window"]["events_total"] == len(instants)
 
     def test_window_violations_are_typed_422(
         self, authenticated: TestClient, published: dict[str, Any]

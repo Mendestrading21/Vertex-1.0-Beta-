@@ -9,16 +9,29 @@ aware datetimes (fail-closed 422 otherwise). Estimated/confirmed labels,
 revisions, previous values, freshness and exchange timezones are conserved
 exactly as published.
 
-Two honesty rules govern the relayed state:
+Three honesty rules govern the relayed state:
 
 - the ``state`` comes from the worker's published ``agenda_state`` (single
   authority). An agenda emptied by a rights rejection is served as
   ``not_entitled`` WITH its reason — page 02 forbids the misleading empty
-  agenda — and an unknown state fails closed instead of being shown ``ok``;
+  agenda — a wholly stale agenda as ``stale``, and an unknown state value
+  fails closed instead of being shown ``ok``;
+- BACKWARD COMPATIBILITY (documented choice): publication is
+  publish-if-changed, so a snapshot published BEFORE ``agenda_state`` existed
+  is not republished until a new calendar observation arrives. Refusing it
+  would leave page 02 in a permanent 500 for a snapshot that is otherwise
+  readable, so an ABSENT ``agenda_state`` is served in the explicit
+  ``degraded`` state, naming its cause, with the published agenda relayed as
+  usual. Absence is a KNOWN older contract; an unknown state VALUE is an
+  unreadable claim and still fails closed. Everything else in the snapshot
+  keeps failing closed exactly as before;
 - every relayed event is shape-checked IDENTICALLY with and without a
   window (``event_time_utc`` included), so one snapshot always yields ONE
-  behaviour; and the counters of what is really displayed travel in
-  ``window`` beside the published snapshot-wide totals.
+  behaviour; the counters of what is really displayed travel in ``window``
+  beside the published snapshot-wide totals; and a window that selects NONE
+  of the published events is served ``empty_window`` — the API states the
+  result of its OWN selection instead of relaying ``ok`` with an empty list,
+  and never overwrites a non-ok worker verdict.
 """
 
 from __future__ import annotations
@@ -52,8 +65,11 @@ __all__ = [
     "ERROR_WINDOW_NAIVE_DATETIME",
     "ERROR_WINDOW_TOO_LARGE",
     "MAX_WINDOW_DAYS",
+    "REASON_MISSING_AGENDA_STATE",
     "REASON_NO_SNAPSHOT_PUBLISHED",
     "SNAPSHOT_KIND_CALENDAR",
+    "STATE_DEGRADED",
+    "STATE_EMPTY_WINDOW",
     "CalendarResponse",
     "CalendarWindow",
     "build_calendar_response",
@@ -65,14 +81,27 @@ SNAPSHOT_KEY_GLOBAL = "global"
 
 REASON_NO_SNAPSHOT_PUBLISHED = "no snapshot published"
 
+STATE_DEGRADED = "degraded"
+"""Served when the snapshot carries NO ``agenda_state`` (older contract): the
+agenda is relayed, the state is honestly unknown — never ``ok``."""
+
+STATE_EMPTY_WINDOW = "empty_window"
+"""Served when the REQUESTED window selects none of the published events."""
+
+REASON_MISSING_AGENDA_STATE = (
+    "state field missing: snapshot predates the current agenda_state contract"
+)
+
 AGENDA_STATE_TO_RESPONSE_STATE: Mapping[str, str] = {
     "OK": "ok",
     "EMPTY": "empty",
     "NOT_ENTITLED": "not_entitled",
     "REJECTED": "rejected",
+    "STALE": "stale",
 }
 """Published worker state -> served state. The worker OWNS the verdict; an
-``agenda_state`` outside this mapping is refused, never downgraded to ok."""
+``agenda_state`` VALUE outside this mapping is refused, never downgraded to
+ok (an ABSENT field is the documented legacy case, served ``degraded``)."""
 
 MAX_WINDOW_DAYS = 90
 """Hard bound of the from/to query window (inclusive bounds)."""
@@ -109,12 +138,25 @@ class CalendarResponse(ContractModel):
     previous values, freshness, exchange timezones); the API invents no event
     and recomputes no importance. ``state = "empty"`` means nothing to show
     (never published, or nothing observed), ``state = "not_entitled"`` that
-    the considered records were rejected for missing rights and
-    ``state = "rejected"`` that they were all invalid. Every non-ok state
-    carries its ``reason``: an empty agenda never passes for a success.
+    the considered records were rejected for missing rights,
+    ``state = "rejected"`` that they were all invalid, ``state = "stale"``
+    that every displayed event is past its freshness bound,
+    ``state = "empty_window"`` that the REQUESTED window selects none of the
+    published events, and ``state = "degraded"`` that the snapshot predates
+    the ``agenda_state`` contract and its state is therefore unknown. Every
+    non-ok state carries its ``reason``: an empty agenda never passes for a
+    success.
     """
 
-    state: Literal["ok", "empty", "not_entitled", "rejected"]
+    state: Literal[
+        "ok",
+        "empty",
+        "not_entitled",
+        "rejected",
+        "stale",
+        "empty_window",
+        "degraded",
+    ]
     snapshot_version: Optional[PositiveInt]
     as_of: Optional[UtcDatetime]
     population: Optional[NonEmptyStr]
@@ -268,26 +310,36 @@ def build_calendar_response(
         instants.append(instant)
         events.append(event)
 
-    agenda_state = _require_str(
-        content.get("agenda_state"), field="agenda_state"
-    )
-    if agenda_state not in AGENDA_STATE_TO_RESPONSE_STATE:
-        raise SnapshotContentError(
-            "agenda_state: one of "
-            + ", ".join(sorted(AGENDA_STATE_TO_RESPONSE_STATE))
-            + " required"
-        )
-    reason = content.get("agenda_state_reason")
-    if reason is not None and (not isinstance(reason, str) or not reason):
-        raise SnapshotContentError(
-            "agenda_state_reason: non-empty string or null required"
-        )
-    if agenda_state != "OK" and reason is None:
-        # A non-ok state without its cause would be an unexplained empty
-        # agenda: refuse it rather than serve it.
-        raise SnapshotContentError(
-            "agenda_state_reason: required for a non-OK agenda_state"
-        )
+    published_state = content.get("agenda_state")
+    agenda_state: Optional[str]
+    reason: Optional[str]
+    if published_state is None:
+        # Documented backward compatibility: publish-if-changed would keep an
+        # older snapshot in place indefinitely, so its readable agenda is
+        # served DEGRADED instead of turning page 02 into a permanent 500.
+        agenda_state = None
+        state = STATE_DEGRADED
+        reason = REASON_MISSING_AGENDA_STATE
+    else:
+        agenda_state = _require_str(published_state, field="agenda_state")
+        if agenda_state not in AGENDA_STATE_TO_RESPONSE_STATE:
+            raise SnapshotContentError(
+                "agenda_state: one of "
+                + ", ".join(sorted(AGENDA_STATE_TO_RESPONSE_STATE))
+                + " required"
+            )
+        state = AGENDA_STATE_TO_RESPONSE_STATE[agenda_state]
+        reason = content.get("agenda_state_reason")
+        if reason is not None and (not isinstance(reason, str) or not reason):
+            raise SnapshotContentError(
+                "agenda_state_reason: non-empty string or null required"
+            )
+        if agenda_state != "OK" and reason is None:
+            # A non-ok state without its cause would be an unexplained empty
+            # agenda: refuse it rather than serve it.
+            raise SnapshotContentError(
+                "agenda_state_reason: required for a non-OK agenda_state"
+            )
 
     if window is None:
         selected = events
@@ -299,8 +351,19 @@ def build_calendar_response(
             if start <= instant <= end
         ]
 
+    empties_the_window = window is not None and bool(events) and not selected
+    if empties_the_window and state in ("ok", "stale"):
+        # The API states the result of its OWN selection: the events exist,
+        # outside the requested window. A non-ok worker verdict is never
+        # overwritten — its cause stays the served reason.
+        reason = (
+            f"the requested window selects none of the {len(events)} "
+            f"published events (published agenda_state: {agenda_state})"
+        )
+        state = STATE_EMPTY_WINDOW
+
     return CalendarResponse(
-        state=AGENDA_STATE_TO_RESPONSE_STATE[agenda_state],
+        state=state,
         snapshot_version=snapshot.version,
         as_of=_parse_utc(content.get("as_of"), field="as_of"),
         population=_require_str(content.get("population"), field="population"),

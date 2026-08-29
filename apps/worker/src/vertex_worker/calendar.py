@@ -10,20 +10,33 @@ The handler recomputes ONE ``calendar/global`` snapshot:
 
 - the agenda is the chronologically sorted list of the persisted
   calendar-event observations. Several envelopes may share one stable
-  ``event_id``; the displayed one is chosen by the BUSINESS chronology —
-  the most recent declared ``revisions[].revised_at`` first, then ``as_of``,
-  then the envelope ``event_id`` as an explicitly documented LAST-RESORT
-  deterministic tie-break (one generation gives all its envelopes the same
-  ``as_of``, so equality is the normal case). Nothing is erased: the builder
-  BUILDS ``previous_values`` from the records it really saw (status, instant,
-  source, ``as_of``) beside the ``revisions`` the source declares, and an
-  event whose state changed is flagged ``revised``;
+  ``event_id``; the displayed one is chosen by the RECEPTION chronology
+  (``as_of``), the single authority a declaration cannot overrule, then — for
+  the records of ONE generation, which all share the same ``as_of`` — by the
+  most recent USABLE declared ``revisions[].revised_at``. Nothing is erased:
+  the builder BUILDS ``previous_values`` from the records it really saw
+  (status, instant, source, ``as_of``) beside the ``revisions`` the source
+  declares, and an event whose state changed is flagged ``revised``;
+- when those two business instants TIE and the tied records disagree on the
+  displayed value, no lexicographic tie-break may choose a business value:
+  the event is published ``version_state = "CONFLICTING_VERSIONS"`` with
+  every tied version readable in ``conflicting_versions``, and the displayed
+  one is selected by a stable VALUE-derived order, so permuting the envelope
+  ids cannot change what is shown. The envelope ``event_id`` only ever
+  separates records carrying an IDENTICAL business value;
 - every event is validated FAIL-CLOSED (declared source/rights, known
   category, canonical ``ESTIMATED``/``CONFIRMED`` status, aware UTC instant,
   allowlisted ``scope`` coherent with the ticker presence, RESOLVABLE IANA
-  exchange timezone whose offset matches ``event_time_local``, dated
-  revisions); an invalid event is rejected WITH its reason, never repaired —
-  estimated and confirmed dates keep their distinct labels end to end;
+  exchange timezone whose offset matches ``event_time_local``); an invalid
+  event is rejected WITH its reason, never repaired — estimated and confirmed
+  dates keep their distinct labels end to end;
+- a revision is DECLARED by the source, so it is bounded, never trusted: an
+  entry is usable only when ``revised_at`` is an aware instant that is
+  neither after the ``as_of`` of the observation carrying it nor after the
+  builder clock. An unusable revision degrades THE REVISION, never the
+  event: the event stays displayed, the faulty entry is published in
+  ``rejected_revisions`` with its reason and the coverage counts it. An
+  ABSENT ``revisions`` key is the NORMAL shape of an original, not a defect;
 - the importance of each event comes from the VERSIONED rule
   :data:`IMPORTANCE_RULE_VERSION` (documented in
   :data:`IMPORTANCE_RULE_RANKS`); nothing here invents an importance:
@@ -47,12 +60,22 @@ The handler recomputes ONE ``calendar/global`` snapshot:
   ``stale_after``, ``delay_status`` and the derived ``fresh`` flag, so a
   stale event is never displayed as a plain valid one;
 - the published ``population`` is computed over ALL considered records
-  (displayed AND rejected), and ``agenda_state`` says why an agenda is empty
-  (``EMPTY`` nothing observed, ``NOT_ENTITLED`` rights rejection,
-  ``REJECTED`` every record invalid, ``OK`` otherwise): an empty agenda is
-  never published as a silent success;
+  (displayed AND rejected), and ``agenda_state`` says what the agenda really
+  is (``EMPTY`` nothing observed, ``NOT_ENTITLED`` every rejection is a
+  rights rejection, ``REJECTED`` every record invalid — with the EXACT
+  rejection census in ``agenda_state_reason`` —, ``STALE`` every displayed
+  event is stale, ``OK`` otherwise): neither an empty agenda nor a wholly
+  stale one is published as a silent success;
 - timezone conservation: ``event_time_utc``, ``event_time_local`` and
   ``exchange_timezone`` are relayed VERBATIM.
+
+PRODUCER CONTRACT for the instant pair (opposable, validated here):
+``event_time_utc`` and ``event_time_local`` MUST denote the same instant, and
+``event_time_local`` MUST carry the UTC offset that ``exchange_timezone``
+gives at that instant. A local instant expressed with the ``+00:00`` offset
+under a non-UTC ``exchange_timezone`` therefore contradicts its own zone and
+is rejected (``invalid_exchange_timezone``): repairing it would INVENT a
+wall-clock time no source declared.
 
 Publication follows publish-if-changed: identical inputs and clock republish
 nothing.
@@ -60,6 +83,7 @@ nothing.
 
 from __future__ import annotations
 
+import json
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -96,16 +120,22 @@ __all__ = [
     "REASON_INVALID_CATEGORY",
     "REASON_INVALID_EVENT_TIME",
     "REASON_INVALID_PAYLOAD",
-    "REASON_INVALID_REVISIONS",
     "REASON_INVALID_SCOPE",
     "REASON_INVALID_STATUS",
     "REASON_INVALID_TIMEZONE",
     "REASON_MISSING_TIMEZONE",
     "REASON_RIGHTS_NOT_USABLE",
     "REASON_SOURCE_NOT_ALLOWED",
+    "REVISION_REASON_AFTER_OBSERVATION",
+    "REVISION_REASON_IN_THE_FUTURE",
+    "REVISION_REASON_NOT_A_LIST",
+    "REVISION_REASON_NOT_A_MAPPING",
+    "REVISION_REASON_NOT_DATED",
     "SNAPSHOT_KEY_GLOBAL",
     "SNAPSHOT_KIND_CALENDAR",
     "TOPIC_CALENDAR_INGESTED",
+    "VERSION_STATE_CONFLICTING",
+    "VERSION_STATE_RESOLVED",
     "AGENDA_STATES",
     "CalendarConfig",
     "CalendarEventRecord",
@@ -198,26 +228,44 @@ _ESCALATING_THESIS_STATUSES = frozenset({"ACTIVE", "SNOOZED"})
 """Thesis statuses that still escalate an earnings event. An ARCHIVED thesis
 stays VISIBLE in the event context but escalates nothing."""
 
-AGENDA_STATES: tuple[str, ...] = ("OK", "EMPTY", "NOT_ENTITLED", "REJECTED")
-"""Published agenda states: an empty agenda always names its cause."""
+AGENDA_STATES: tuple[str, ...] = (
+    "OK",
+    "EMPTY",
+    "NOT_ENTITLED",
+    "REJECTED",
+    "STALE",
+)
+"""Published agenda states: an empty OR wholly stale agenda names its cause.
 
-AGENDA_STATE_REASONS: Mapping[str, Optional[str]] = {
-    "OK": None,
-    "EMPTY": "no calendar observation in the considered window",
-    "NOT_ENTITLED": "every considered record was rejected: rights not usable",
-    "REJECTED": "every considered record was rejected",
-}
+``STALE`` is not a rejection: the events ARE displayed, but every one of them
+is past its ``stale_after``, and a reader must not take that agenda for a
+fresh one. Partial staleness stays carried per event (``fresh``).
+"""
+
+EMPTY_AGENDA_REASON = "no calendar observation in the considered window"
 
 REASON_INVALID_PAYLOAD = "invalid_payload"
 REASON_INVALID_CATEGORY = "invalid_category"
 REASON_INVALID_STATUS = "invalid_status"
 REASON_INVALID_EVENT_TIME = "invalid_event_time"
-REASON_INVALID_REVISIONS = "invalid_revisions"
 REASON_INVALID_SCOPE = "invalid_scope"
 REASON_INVALID_TIMEZONE = "invalid_exchange_timezone"
 REASON_MISSING_TIMEZONE = "missing_exchange_timezone"
 REASON_SOURCE_NOT_ALLOWED = "source_not_allowed"
 REASON_RIGHTS_NOT_USABLE = "rights_not_usable"
+
+REVISION_REASON_NOT_A_LIST = "revisions_not_a_list"
+REVISION_REASON_NOT_A_MAPPING = "revision_not_a_mapping"
+REVISION_REASON_NOT_DATED = "revision_not_dated"
+REVISION_REASON_AFTER_OBSERVATION = "revision_after_observation"
+REVISION_REASON_IN_THE_FUTURE = "revision_in_the_future"
+"""Why a DECLARED revision is unusable. None of them rejects the event: a
+revision is a statement ABOUT the event, never the event itself."""
+
+VERSION_STATE_RESOLVED = "RESOLVED"
+VERSION_STATE_CONFLICTING = "CONFLICTING_VERSIONS"
+"""Per-event version state: ``CONFLICTING_VERSIONS`` says the business
+chronology could NOT rank the tied records and publishes them all."""
 
 
 def is_calendar_event_schema(schema_version: str) -> bool:
@@ -367,6 +415,20 @@ def load_calendar_event_records(
 # --------------------------------------------------------------------------
 
 
+def _aware_utc_or_none(value: Any) -> Optional[datetime]:
+    """``value`` as an aware UTC datetime, or ``None`` when unusable.
+
+    A naive observation instant cannot be compared to a declared revision
+    instant; rather than inventing a timezone for it, the bound it would have
+    served is simply not applied (the ``now`` bound still is).
+    """
+    if not isinstance(value, datetime):
+        return None
+    if value.tzinfo is None or value.tzinfo.utcoffset(value) is None:
+        return None
+    return value.astimezone(timezone.utc)
+
+
 def _aware_iso_or_none(value: Any) -> Optional[datetime]:
     if not isinstance(value, str) or not value:
         return None
@@ -379,33 +441,117 @@ def _aware_iso_or_none(value: Any) -> Optional[datetime]:
     return parsed
 
 
-def _validated_revisions(
-    revisions: Any,
-) -> tuple[Optional[list[dict[str, Any]]], Optional[datetime]]:
-    """Declared revisions, each DATED with an aware ``revised_at``.
+@dataclass(frozen=True)
+class _RevisionPartition:
+    """Usable revisions, unusable ones (with their reason), latest instant."""
 
-    Returns ``(None, None)`` when the list is unusable: the business ordering
-    of a stable id relies on ``revised_at``, so an undated revision cannot be
-    accepted and silently fall back to an arbitrary tie-break.
+    accepted: list[dict[str, Any]]
+    rejected: list[dict[str, Any]]
+    latest_revised_at: Optional[datetime]
+
+
+def _rejected_revision(
+    index: Optional[int], reason: str, declared: Any
+) -> dict[str, Any]:
+    """One READABLE rejected revision: what was declared, and why it fails."""
+    return {
+        "index": index,
+        "reason": reason,
+        "declared_revised_at": declared if isinstance(declared, str) else None,
+    }
+
+
+def _partition_revisions(
+    revisions: Any, *, observed_at: Optional[datetime], now: datetime
+) -> _RevisionPartition:
+    """Split the DECLARED revisions into usable and unusable ones.
+
+    A revision is usable only when ``revised_at`` is an aware instant that is
+    neither after the observation carrying it (``observed_at``) nor after the
+    builder clock: ``revised_at`` is declared by the source, so it may order
+    the records of one generation but never rewrite the reception chronology
+    nor state a knowledge from the future.
+
+    An ABSENT ``revisions`` key is the normal shape of an original: it yields
+    an empty partition, not a rejection. An unusable entry NEVER rejects the
+    event — it is published with its reason instead.
     """
+    if revisions is None:
+        return _RevisionPartition([], [], None)
     if not isinstance(revisions, list):
-        return None, None
-    entries: list[dict[str, Any]] = []
+        return _RevisionPartition(
+            [],
+            [_rejected_revision(None, REVISION_REASON_NOT_A_LIST, None)],
+            None,
+        )
+    accepted: list[dict[str, Any]] = []
+    rejected: list[dict[str, Any]] = []
     latest: Optional[datetime] = None
-    for entry in revisions:
+    for index, entry in enumerate(revisions):
         if not isinstance(entry, Mapping):
-            return None, None
-        revised_at = _aware_iso_or_none(entry.get("revised_at"))
+            rejected.append(
+                _rejected_revision(index, REVISION_REASON_NOT_A_MAPPING, None)
+            )
+            continue
+        declared = entry.get("revised_at")
+        revised_at = _aware_iso_or_none(declared)
         if revised_at is None:
-            return None, None
+            rejected.append(
+                _rejected_revision(index, REVISION_REASON_NOT_DATED, declared)
+            )
+            continue
         revised_at = revised_at.astimezone(timezone.utc)
+        if revised_at > now:
+            rejected.append(
+                _rejected_revision(index, REVISION_REASON_IN_THE_FUTURE, declared)
+            )
+            continue
+        if observed_at is not None and revised_at > observed_at:
+            rejected.append(
+                _rejected_revision(
+                    index, REVISION_REASON_AFTER_OBSERVATION, declared
+                )
+            )
+            continue
         latest = revised_at if latest is None else max(latest, revised_at)
-        entries.append(dict(entry))
-    return entries, latest
+        accepted.append(dict(entry))
+    return _RevisionPartition(accepted, rejected, latest)
+
+
+_VALUE_FIELDS: tuple[str, ...] = (
+    "status",
+    "event_time_utc",
+    "event_time_local",
+    "exchange_timezone",
+    "title",
+    "category",
+    "ticker",
+    "scope",
+)
+"""The published fields that MAKE the displayed value of an event."""
+
+
+def _value_fingerprint(event: Mapping[str, Any]) -> str:
+    """A canonical, envelope-INDEPENDENT signature of the displayed value.
+
+    Two records of one stable id share a fingerprint exactly when they would
+    be displayed identically. It is what separates tied records, so the
+    displayed value never depends on an envelope id.
+    """
+    return json.dumps(
+        {
+            **{field: event[field] for field in _VALUE_FIELDS},
+            "extra": event["extra"],
+            "revisions": event["revisions"],
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+        default=str,
+    )
 
 
 def _validate_event(
-    record: CalendarEventRecord, config: CalendarConfig
+    record: CalendarEventRecord, config: CalendarConfig, now: datetime
 ) -> tuple[Optional[dict[str, Any]], Optional[str]]:
     """Fail-closed validation of one event record: (validated, reason)."""
     if record.source not in config.allowed_sources:
@@ -463,10 +609,12 @@ def _validate_event(
         # A scope contradicting the ticker presence would promote the
         # importance of an event that is not global.
         return None, REASON_INVALID_SCOPE
-    revisions, latest_revised_at = _validated_revisions(payload.get("revisions"))
-    if revisions is None:
-        return None, REASON_INVALID_REVISIONS
-    return {
+    partition = _partition_revisions(
+        payload.get("revisions"),
+        observed_at=_aware_utc_or_none(record.as_of),
+        now=now,
+    )
+    validated: dict[str, Any] = {
         "stable_id": stable_id,
         "category": category,
         "status": status,
@@ -477,14 +625,17 @@ def _validate_event(
         "event_time_local": payload["event_time_local"],
         "exchange_timezone": exchange_timezone,
         "event_time_utc_parsed": event_time_utc.astimezone(timezone.utc),
-        "revisions": revisions,
-        "latest_revised_at": latest_revised_at,
+        "revisions": partition.accepted,
+        "rejected_revisions": partition.rejected,
+        "latest_revised_at": partition.latest_revised_at,
         "extra": {
             key: payload[key]
             for key in ("amount", "currency", "expiration")
             if key in payload
         },
-    }, None
+    }
+    validated["value_fingerprint"] = _value_fingerprint(validated)
+    return validated, None
 
 
 def _importance(
@@ -557,33 +708,54 @@ def _event_context(
 
 
 _NO_DECLARED_REVISION = datetime.min.replace(tzinfo=timezone.utc)
-"""Business instant of a record declaring NO revision: any dated revision of
-the same stable id is later business knowledge than an undated original."""
+"""Business instant of a record declaring NO usable revision. It only ranks
+records that share an ``as_of``: within ONE generation, a record carrying a
+dated revision states later knowledge than one carrying none."""
+
+
+def _business_instants(
+    record: CalendarEventRecord, event: Mapping[str, Any]
+) -> tuple[datetime, datetime]:
+    """The two BUSINESS instants ranking one record of a stable id.
+
+    1. the envelope ``as_of``: the reception chronology is the authority no
+       source declaration may overrule — a record received LATER is the
+       current knowledge, even when it declares no revision;
+    2. then, and only at equal ``as_of`` (one generation gives all its
+       envelopes the same one), the most recent USABLE declared
+       ``revisions[].revised_at``.
+    """
+    return (
+        record.as_of,
+        event["latest_revised_at"] or _NO_DECLARED_REVISION,
+    )
 
 
 def _business_order_key(
     record: CalendarEventRecord, event: Mapping[str, Any]
-) -> tuple[datetime, datetime, str]:
-    """Business chronology of one record of a stable id.
+) -> tuple[datetime, datetime, str, str]:
+    """Total, id-agnostic ordering of the records of one stable id.
 
-    1. the most recent declared ``revisions[].revised_at`` (a record carrying
-       a dated revision states later business knowledge than an original
-       carrying none — the two share the SAME ``as_of`` in the normal case);
-    2. then the envelope ``as_of`` (reception chronology);
-    3. then the envelope ``event_id``, documented as the LAST-RESORT
-       deterministic tie-break — it decides nothing else.
+    After the two business instants comes the VALUE fingerprint: it makes the
+    order total WITHOUT letting the envelope id choose a displayed value, and
+    the envelope ``event_id`` closes the order only between records whose
+    business value is IDENTICAL (where no value can be chosen wrongly). A
+    remaining tie on the business instants with DIFFERENT values is published
+    as a conflict, never silently arbitrated.
     """
-    return (
-        event["latest_revised_at"] or _NO_DECLARED_REVISION,
-        record.as_of,
-        record.event_id,
-    )
+    as_of, revised_at = _business_instants(record, event)
+    return (as_of, revised_at, event["value_fingerprint"], record.event_id)
 
 
 def _previous_value(
     record: CalendarEventRecord, event: Mapping[str, Any]
 ) -> dict[str, Any]:
-    """One READABLE previous value, built from a record really seen."""
+    """One READABLE version, built from a record really seen.
+
+    Used for the superseded records (``previous_values``) and for the tied
+    ones of an unresolved conflict (``conflicting_versions``): both must stay
+    readable with their provenance, so nothing is ever erased.
+    """
     return {
         "source_event_id": record.event_id,
         "source": record.source,
@@ -591,6 +763,40 @@ def _previous_value(
         "status": event["status"],
         "event_time_utc": event["event_time_utc"],
     }
+
+
+def _rejection_census(rejected_reasons: Mapping[str, int]) -> str:
+    """The EXACT rejection census, e.g. ``invalid_category x2, rights x1``."""
+    return ", ".join(
+        f"{reason} x{count}" for reason, count in sorted(rejected_reasons.items())
+    )
+
+
+def _agenda_state(
+    *,
+    records: Sequence[CalendarEventRecord],
+    displayed: int,
+    stale: int,
+    rejected_reasons: Mapping[str, int],
+) -> tuple[str, Optional[str]]:
+    """The published agenda state and its EXACT reason.
+
+    ``NOT_ENTITLED`` is reserved for a population whose rejections are ALL
+    rights rejections: a mixed census is ``REJECTED`` and enumerates what was
+    really rejected, so the reason never asserts a population that does not
+    exist. A non-empty agenda whose events are ALL stale is ``STALE``: the
+    freshness reaches the state instead of hiding behind per-event flags.
+    """
+    if displayed:
+        if stale == displayed:
+            return "STALE", f"every displayed event is stale ({stale}/{displayed})"
+        return "OK", None
+    if not records:
+        return "EMPTY", EMPTY_AGENDA_REASON
+    census = _rejection_census(rejected_reasons)
+    if set(rejected_reasons) == {REASON_RIGHTS_NOT_USABLE}:
+        return "NOT_ENTITLED", f"every considered record was rejected: {census}"
+    return "REJECTED", f"every considered record was rejected: {census}"
 
 
 def build_calendar_content(
@@ -604,36 +810,61 @@ def build_calendar_content(
 ) -> dict[str, Any]:
     """Build the ``calendar/global`` snapshot content (pure, deterministic).
 
-    Identical inputs produce an identical dict. Every considered record is
-    either displayed, superseded by another record of the same stable id, or
-    rejected with a reason. Estimated and confirmed statuses are relayed
-    verbatim (distinct labels); a superseded record is NEVER erased — it
-    becomes a readable ``previous_values`` entry beside the ``revisions`` the
-    source declares —; freshness and the exchange timezone are conserved.
+    Identical inputs produce an identical dict, and permuting the input
+    sequence — or the envelope ids of records carrying the same business
+    value — changes nothing. Every considered record is either displayed,
+    superseded by another record of the same stable id, or rejected with a
+    reason. Estimated and confirmed statuses are relayed verbatim (distinct
+    labels); a superseded record is NEVER erased — it becomes a readable
+    ``previous_values`` entry beside the ``revisions`` the source declares —;
+    freshness and the exchange timezone are conserved.
+
+    Fail-closed applies to the VALUE, never to the AVAILABILITY of a
+    legitimate event: an unusable DECLARED revision is published in the
+    event's ``rejected_revisions`` (and counted in the coverage) while the
+    event stays displayed, and two equally recent records disagreeing on the
+    value are published together under ``version_state =
+    "CONFLICTING_VERSIONS"`` instead of being arbitrated by an envelope id.
     """
     now = _require_aware_utc(now)
 
     rejected: list[dict[str, str]] = []
     rejected_reasons: dict[str, int] = {}
+    rejected_revisions_count = 0
+    rejected_revision_reasons: dict[str, int] = {}
     Candidate = tuple[
-        tuple[datetime, datetime, str], CalendarEventRecord, dict[str, Any]
+        tuple[datetime, datetime, str, str], CalendarEventRecord, dict[str, Any]
     ]
     by_stable_id: dict[str, list[Candidate]] = {}
     for record in records:
-        validated, reason = _validate_event(record, config)
+        validated, reason = _validate_event(record, config, now)
         if validated is None:
             assert reason is not None
             rejected.append({"event_id": record.event_id, "reason": reason})
             rejected_reasons[reason] = rejected_reasons.get(reason, 0) + 1
             continue
+        # An unusable revision degrades the REVISION: the record stays a
+        # candidate, and the faulty declaration is counted and published.
+        for entry in validated["rejected_revisions"]:
+            rejected_revisions_count += 1
+            rejected_revision_reasons[entry["reason"]] = (
+                rejected_revision_reasons.get(entry["reason"], 0) + 1
+            )
         by_stable_id.setdefault(validated["stable_id"], []).append(
             (_business_order_key(record, validated), record, validated)
         )
     rejected.sort(key=lambda entry: (entry["event_id"], entry["reason"]))
 
     superseded = 0
+    conflicting = 0
     latest_by_stable_id: dict[
-        str, tuple[CalendarEventRecord, dict[str, Any], list[dict[str, Any]]]
+        str,
+        tuple[
+            CalendarEventRecord,
+            dict[str, Any],
+            list[dict[str, Any]],
+            list[dict[str, Any]],
+        ],
     ] = {}
     for stable_id, candidates in by_stable_id.items():
         candidates.sort(key=lambda item: item[0])
@@ -643,10 +874,27 @@ def build_calendar_content(
         previous_values = [
             _previous_value(record, event) for _, record, event in candidates[:-1]
         ]
+        # The records TIED with the winner on the business chronology: when
+        # they disagree on the displayed value, no chronology ranks them and
+        # the conflict is PUBLISHED instead of being arbitrated silently.
+        tied = [
+            (record, event)
+            for _, record, event in candidates
+            if _business_instants(record, event)
+            == _business_instants(winner_record, winner_event)
+        ]
+        distinct_values = {event["value_fingerprint"] for _, event in tied}
+        conflicting_versions: list[dict[str, Any]] = []
+        if len(distinct_values) > 1:
+            conflicting += 1
+            conflicting_versions = [
+                _previous_value(record, event) for record, event in tied
+            ]
         latest_by_stable_id[stable_id] = (
             winner_record,
             winner_event,
             previous_values,
+            conflicting_versions,
         )
 
     # An EMPTY position list is not a position, and an ARCHIVED thesis is not
@@ -678,7 +926,7 @@ def build_calendar_content(
         latest_by_stable_id.values(),
         key=lambda item: (item[1]["event_time_utc_parsed"], item[1]["stable_id"]),
     )
-    for record, event, previous_values in entries:
+    for record, event, previous_values, conflicting_versions in entries:
         is_synthetic = _is_synthetic_record(record)
         categories[event["category"]] = categories.get(event["category"], 0) + 1
         statuses[event["status"]] += 1
@@ -709,7 +957,14 @@ def build_calendar_content(
                 watchlist=watchlist,
             ),
             "revisions": event["revisions"],
+            "rejected_revisions": event["rejected_revisions"],
             "previous_values": previous_values,
+            "version_state": (
+                VERSION_STATE_CONFLICTING
+                if conflicting_versions
+                else VERSION_STATE_RESOLVED
+            ),
+            "conflicting_versions": conflicting_versions,
             "revised": revised,
             "event_context": _event_context(
                 event["ticker"],
@@ -737,21 +992,21 @@ def build_calendar_content(
     else:
         population = "REAL"
 
-    if agenda:
-        agenda_state = "OK"
-    elif not records:
-        agenda_state = "EMPTY"
-    elif REASON_RIGHTS_NOT_USABLE in rejected_reasons:
-        agenda_state = "NOT_ENTITLED"
-    else:
-        agenda_state = "REJECTED"
+    # The state describes what was REALLY produced, and its reason names the
+    # REAL census: it never asserts a population it did not observe.
+    agenda_state, agenda_state_reason = _agenda_state(
+        records=records,
+        displayed=len(agenda),
+        stale=stale_events,
+        rejected_reasons=rejected_reasons,
+    )
 
     return {
         "schema_version": CALENDAR_SCHEMA_VERSION,
         "as_of": now.isoformat(),
         "population": population,
         "agenda_state": agenda_state,
-        "agenda_state_reason": AGENDA_STATE_REASONS[agenda_state],
+        "agenda_state_reason": agenda_state_reason,
         "importance_rule": {
             "version": IMPORTANCE_RULE_VERSION,
             "ranks": [dict(entry) for entry in IMPORTANCE_RULE_RANKS],
@@ -764,6 +1019,11 @@ def build_calendar_content(
             "events_displayed": len(agenda),
             "events_superseded": superseded,
             "events_stale": stale_events,
+            "events_conflicting": conflicting,
+            "revisions_rejected": rejected_revisions_count,
+            "rejected_revision_reasons": dict(
+                sorted(rejected_revision_reasons.items())
+            ),
             "rejected_records": rejected,
             "rejected_reasons": dict(sorted(rejected_reasons.items())),
             "window_truncated": truncated,

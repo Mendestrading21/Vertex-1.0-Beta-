@@ -21,7 +21,6 @@ from vertex_worker.calendar import (
     IMPORTANCE_RULE_VERSION,
     REASON_INVALID_CATEGORY,
     REASON_INVALID_EVENT_TIME,
-    REASON_INVALID_REVISIONS,
     REASON_INVALID_SCOPE,
     REASON_INVALID_STATUS,
     REASON_INVALID_TIMEZONE,
@@ -446,23 +445,53 @@ def test_same_as_of_revision_wins_by_revised_at_not_by_event_id(records) -> None
     assert build([stale_original, revision]) == content
 
 
-def test_a_revision_entry_without_a_dated_revised_at_is_rejected(records) -> None:
-    """F2 — the business ordering needs a DATED revision: an undated entry is
-    rejected fail-closed instead of silently ordering by envelope id."""
+def test_an_undated_revision_never_orders_a_stable_id(records) -> None:
+    """F2 (contract updated by P1-5) — the business ordering needs a DATED
+    revision: an undated entry is published as a REJECTED revision and takes
+    no part in the ordering, instead of silently ordering by envelope id.
+
+    The event itself stays available: only the declaration is degraded (see
+    ``test_an_undated_revision_degrades_the_revision_not_the_event``).
+    """
     original = estimated_earnings(records)
-    broken = record_from_envelope(
+    stable_id = original.payload["event_id"]
+    # The record with the UNDATED revision sorts FIRST lexicographically and
+    # is the OLDEST received: it must not win anything.
+    undated = record_from_envelope(
         generate_calendar_event_envelopes(seed=SEED, base_time=BASE_TIME)[0],
-        event_id="synthetic-dev:undated:0001",
+        event_id="aaa-undated",
+        as_of=original.as_of - timedelta(hours=1),
         payload=with_payload(
             original,
             revisions=[{"previous_status": "ESTIMATED"}],
         ),
     )
-    content = build([broken])
-    assert content["agenda"] == []
-    assert content["coverage"]["rejected_records"] == [
-        {"event_id": "synthetic-dev:undated:0001", "reason": REASON_INVALID_REVISIONS}
+    confirmed_utc = "2026-09-05T15:30:00+00:00"
+    later = record_from_envelope(
+        generate_calendar_event_envelopes(seed=SEED, base_time=BASE_TIME)[0],
+        event_id="zzz-later",
+        as_of=original.as_of,
+        payload=with_payload(
+            original,
+            status="CONFIRMED",
+            event_time_utc=confirmed_utc,
+            event_time_local=confirmed_utc,
+            exchange_timezone="UTC",
+            revisions=[],
+        ),
+    )
+
+    content = build([undated, later])
+    entry = next(e for e in content["agenda"] if e["event_id"] == stable_id)
+
+    assert entry["source_event_id"] == "zzz-later"
+    assert entry["status"] == "CONFIRMED"
+    assert entry["version_state"] == "RESOLVED"
+    assert [p["source_event_id"] for p in entry["previous_values"]] == [
+        "aaa-undated"
     ]
+    assert content["coverage"]["revisions_rejected"] == 1
+    assert build([later, undated]) == content
 
 
 def test_all_records_rejected_never_yields_population_real(records) -> None:
@@ -722,3 +751,462 @@ def test_truncation_is_published_in_the_coverage(records) -> None:
     assert build(records)["coverage"]["window_truncated"] is False
     truncated = build(records, truncated=True)
     assert truncated["coverage"]["window_truncated"] is True
+
+
+# --------------------------------------------------------------------------
+# Regression tests of the adversarial RE-AUDIT (P1-2..P1-5, P2-1, P2-5, P2-6).
+# Every test below was written RED against the previous builder: the business
+# ORDERING and the AVAILABILITY of a legitimate event are the promises under
+# test, never an implementation detail.
+# --------------------------------------------------------------------------
+
+
+def sibling(
+    record: CalendarEventRecord, *, event_id: str, **overrides: Any
+) -> CalendarEventRecord:
+    """Another envelope of the SAME stable id, with explicit overrides.
+
+    ``payload`` overrides are merged into the source payload, so a test only
+    states what it really changes.
+    """
+    payload_changes = overrides.pop("payload_changes", {})
+    fields = dict(
+        event_id=event_id,
+        source=record.source,
+        instrument_ref=record.instrument_ref,
+        as_of=record.as_of,
+        stale_after=record.stale_after,
+        quality_status=record.quality_status,
+        delay_status=record.delay_status,
+        rights=record.rights,
+        schema_version=record.schema_version,
+        payload=with_payload(record, **payload_changes),
+    )
+    fields.update(overrides)
+    return CalendarEventRecord(**fields)
+
+
+def test_equal_business_instants_never_let_the_envelope_id_choose_the_value(
+    records,
+) -> None:
+    """P1-2 — two records of one stable id sharing BOTH their ``as_of`` and
+    their declared ``revised_at`` are equally recent: the displayed VALUE must
+    not depend on the lexicographic order of the envelope ids, and the
+    unresolved conflict must be PUBLISHED with both versions readable."""
+    original = estimated_earnings(records)
+    stable_id = original.payload["event_id"]
+    revised_at = (original.as_of - timedelta(hours=2)).isoformat()
+    confirmed_utc = "2026-09-05T15:30:00+00:00"
+    confirmed_changes = {
+        "status": "CONFIRMED",
+        "event_time_utc": confirmed_utc,
+        "event_time_local": confirmed_utc,
+        "exchange_timezone": "UTC",
+        "revisions": [{"revised_at": revised_at, "previous_status": "ESTIMATED"}],
+    }
+    estimated_changes = {
+        "revisions": [{"revised_at": revised_at, "previous_status": "ESTIMATED"}],
+    }
+
+    # Same two business versions, envelope ids PERMUTED between them.
+    first = build(
+        [
+            sibling(original, event_id="zz", payload_changes=confirmed_changes),
+            sibling(original, event_id="aa", payload_changes=estimated_changes),
+        ]
+    )
+    second = build(
+        [
+            sibling(original, event_id="aa", payload_changes=confirmed_changes),
+            sibling(original, event_id="zz", payload_changes=estimated_changes),
+        ]
+    )
+
+    entry_first = next(
+        e for e in first["agenda"] if e["event_id"] == stable_id
+    )
+    entry_second = next(
+        e for e in second["agenda"] if e["event_id"] == stable_id
+    )
+
+    # 1. the displayed VALUE is invariant under the permutation of the ids.
+    assert entry_first["status"] == entry_second["status"]
+    assert entry_first["event_time_utc"] == entry_second["event_time_utc"]
+    assert entry_first["event_time_local"] == entry_second["event_time_local"]
+
+    # 2. the conflict itself is PUBLISHED, with the two versions readable.
+    for entry in (entry_first, entry_second):
+        assert entry["version_state"] == "CONFLICTING_VERSIONS"
+        published = {
+            (version["status"], version["event_time_utc"])
+            for version in entry["conflicting_versions"]
+        }
+        assert published == {
+            ("CONFIRMED", confirmed_utc),
+            ("ESTIMATED", original.payload["event_time_utc"]),
+        }
+    assert first["coverage"]["events_conflicting"] == 1
+    assert second["coverage"]["events_conflicting"] == 1
+
+
+def test_an_unconflicting_event_is_not_flagged_conflicting(records) -> None:
+    """P1-2 — the conflict flag stays EXCEPTIONAL: a normal agenda declares
+    every event resolved and publishes no conflicting version."""
+    content = build(records)
+    assert content["agenda"]
+    for entry in content["agenda"]:
+        assert entry["version_state"] == "RESOLVED"
+        assert entry["conflicting_versions"] == []
+    assert content["coverage"]["events_conflicting"] == 0
+
+
+def test_a_revision_declared_after_its_own_observation_is_not_authoritative(
+    records,
+) -> None:
+    """P1-3 — ``revised_at`` is DECLARED by the source: dated after the
+    observation that carries it, it is unusable and can never bury the
+    freshest received version."""
+    original = estimated_earnings(records)
+    stable_id = original.payload["event_id"]
+    confirmed_utc = "2026-09-05T15:30:00+00:00"
+    # Declared in the PAST (so the clock bound alone would accept it) but
+    # AFTER the observation that carries it: the declaration is impossible.
+    stale_with_future_revision = sibling(
+        original,
+        event_id="ev-stale",
+        as_of=NOW - timedelta(days=200),
+        stale_after=NOW + timedelta(hours=1),
+        payload_changes={
+            "revisions": [
+                {"revised_at": (NOW - timedelta(days=1)).isoformat()}
+            ],
+        },
+    )
+    fresh = sibling(
+        original,
+        event_id="ev-fresh",
+        as_of=NOW - timedelta(hours=6),
+        stale_after=NOW + timedelta(hours=1),
+        payload_changes={
+            "status": "CONFIRMED",
+            "event_time_utc": confirmed_utc,
+            "event_time_local": confirmed_utc,
+            "exchange_timezone": "UTC",
+            "revisions": [],
+        },
+    )
+
+    content = build([stale_with_future_revision, fresh])
+    entry = next(e for e in content["agenda"] if e["event_id"] == stable_id)
+
+    # The freshest RECEIVED version is the displayed one.
+    assert entry["status"] == "CONFIRMED"
+    assert entry["source_event_id"] == "ev-fresh"
+    assert [p["source_event_id"] for p in entry["previous_values"]] == ["ev-stale"]
+    assert entry["version_state"] == "RESOLVED"
+    # The unusable declaration is PUBLISHED as a rejected revision, and the
+    # event that carried it stays available.
+    assert content["coverage"]["revisions_rejected"] == 1
+    assert content["coverage"]["rejected_revision_reasons"] == {
+        "revision_after_observation": 1
+    }
+    assert content["coverage"]["rejected_records"] == []
+
+
+def test_a_revision_dated_in_the_future_is_rejected(records) -> None:
+    """P1-3 — a revision dated after the builder clock is refused too: the
+    declared chronology never overtakes the present."""
+    original = estimated_earnings(records)
+    forged = sibling(
+        original,
+        event_id="ev-future-revision",
+        as_of=NOW - timedelta(hours=1),
+        payload_changes={
+            "revisions": [
+                {"revised_at": (NOW + timedelta(days=1)).isoformat()}
+            ]
+        },
+    )
+    content = build([forged])
+    entry = content["agenda"][0]
+    assert entry["revisions"] == []
+    assert entry["rejected_revisions"] == [
+        {
+            "index": 0,
+            "reason": "revision_in_the_future",
+            "declared_revised_at": (NOW + timedelta(days=1)).isoformat(),
+        }
+    ]
+    assert entry["revised"] is False
+    assert content["coverage"]["revisions_rejected"] == 1
+
+
+def test_a_later_record_without_declared_revision_is_never_a_previous_value(
+    records,
+) -> None:
+    """P1-4 — the record received LAST is the current knowledge: an older
+    record carrying a dated revision must not relegate it to the rank of
+    'previous value'."""
+    original = estimated_earnings(records)
+    stable_id = original.payload["event_id"]
+    confirmed_utc = "2026-09-05T15:30:00+00:00"
+    old_confirmed = sibling(
+        original,
+        event_id="ev-old",
+        as_of=NOW - timedelta(days=200),
+        stale_after=NOW + timedelta(hours=1),
+        payload_changes={
+            "status": "CONFIRMED",
+            "event_time_utc": confirmed_utc,
+            "event_time_local": confirmed_utc,
+            "exchange_timezone": "UTC",
+            "revisions": [
+                {"revised_at": (NOW - timedelta(days=201)).isoformat()}
+            ],
+        },
+    )
+    new_postponed = sibling(
+        original,
+        event_id="ev-new",
+        as_of=NOW - timedelta(hours=6),
+        stale_after=NOW + timedelta(hours=1),
+        payload_changes={"revisions": []},
+    )
+
+    content = build([old_confirmed, new_postponed])
+    entry = next(e for e in content["agenda"] if e["event_id"] == stable_id)
+
+    assert entry["source_event_id"] == "ev-new"
+    assert entry["status"] == "ESTIMATED"
+    assert entry["event_time_utc"] == original.payload["event_time_utc"]
+    assert [p["source_event_id"] for p in entry["previous_values"]] == ["ev-old"]
+    assert entry["revised"] is True
+    assert build([new_postponed, old_confirmed]) == content
+
+
+def test_an_undated_revision_degrades_the_revision_not_the_event(
+    records,
+) -> None:
+    """P1-5 — a revision the builder cannot date is an unusable DECLARATION,
+    not a reason to lose the event: the event stays displayed, the faulty
+    revision is published with its reason and the coverage counts it."""
+    original = estimated_earnings(records)
+    stable_id = original.payload["event_id"]
+    dated = (original.as_of - timedelta(hours=3)).isoformat()
+    degraded = sibling(
+        original,
+        event_id="synthetic-dev:undated:0001",
+        payload_changes={
+            "revisions": [
+                {"revised_at": dated, "previous_status": "ESTIMATED"},
+                {"previous_status": "ESTIMATED"},
+            ]
+        },
+    )
+
+    content = build([degraded])
+    entry = next(e for e in content["agenda"] if e["event_id"] == stable_id)
+
+    assert content["agenda_state"] == "OK"
+    assert content["coverage"]["rejected_records"] == []
+    assert content["coverage"]["events_displayed"] == 1
+    # The usable revision survives, the unusable one is published apart.
+    assert entry["revisions"] == [
+        {"revised_at": dated, "previous_status": "ESTIMATED"}
+    ]
+    assert entry["rejected_revisions"] == [
+        {"index": 1, "reason": "revision_not_dated", "declared_revised_at": None}
+    ]
+    assert content["coverage"]["revisions_rejected"] == 1
+    assert content["coverage"]["rejected_revision_reasons"] == {
+        "revision_not_dated": 1
+    }
+
+
+@pytest.mark.parametrize(
+    ("declared", "reason"),
+    [
+        ([{"previous_status": "ESTIMATED"}], "revision_not_dated"),
+        ([{"revised_at": "2026-08-28"}], "revision_not_dated"),
+        ([{"revised_at": "2026-08-28T10:00:00"}], "revision_not_dated"),
+        ([{"revised_at": 1756468800}], "revision_not_dated"),
+        (["revised 2026-08-28"], "revision_not_a_mapping"),
+    ],
+)
+def test_every_unusable_revision_shape_keeps_the_event_available(
+    records, declared: Any, reason: str
+) -> None:
+    """P1-5 — none of the unusable revision shapes may destroy the event."""
+    original = estimated_earnings(records)
+    content = build(
+        [
+            sibling(
+                original,
+                event_id="synthetic-dev:degraded:0001",
+                payload_changes={"revisions": declared},
+            )
+        ]
+    )
+    assert len(content["agenda"]) == 1
+    assert content["agenda_state"] == "OK"
+    assert content["coverage"]["rejected_records"] == []
+    assert content["agenda"][0]["revisions"] == []
+    assert [
+        entry["reason"] for entry in content["agenda"][0]["rejected_revisions"]
+    ] == [reason]
+
+
+def test_an_event_without_a_revisions_key_is_normal(records) -> None:
+    """P1-5 — an ORIGINAL declares no ``revisions`` key at all: this is the
+    normal shape of any producer, never a rejection."""
+    original = estimated_earnings(records)
+    payload = dict(original.payload)
+    payload.pop("revisions")
+    plain = CalendarEventRecord(
+        event_id="producer-without-revisions",
+        source=original.source,
+        instrument_ref=original.instrument_ref,
+        as_of=original.as_of,
+        stale_after=original.stale_after,
+        quality_status=original.quality_status,
+        delay_status=original.delay_status,
+        rights=original.rights,
+        schema_version=original.schema_version,
+        payload=payload,
+    )
+
+    content = build([plain])
+    entry = content["agenda"][0]
+
+    assert content["agenda_state"] == "OK"
+    assert content["coverage"]["rejected_records"] == []
+    assert entry["event_id"] == original.payload["event_id"]
+    assert entry["revisions"] == []
+    assert entry["rejected_revisions"] == []
+    assert entry["revised"] is False
+    assert content["coverage"]["revisions_rejected"] == 0
+
+
+def test_a_non_list_revisions_field_degrades_only_that_field(records) -> None:
+    """P1-5 — a ``revisions`` field of the wrong TYPE is an unusable
+    declaration, published as such; the event stays available."""
+    original = estimated_earnings(records)
+    content = build(
+        [
+            sibling(
+                original,
+                event_id="synthetic-dev:not-a-list:0001",
+                payload_changes={"revisions": {"revised_at": "2026-08-28"}},
+            )
+        ]
+    )
+    entry = content["agenda"][0]
+    assert content["coverage"]["rejected_records"] == []
+    assert entry["revisions"] == []
+    assert entry["rejected_revisions"] == [
+        {
+            "index": None,
+            "reason": "revisions_not_a_list",
+            "declared_revised_at": None,
+        }
+    ]
+
+
+def test_a_mixed_rejection_never_claims_a_rights_only_population(
+    records,
+) -> None:
+    """P2-1 — the published reason must describe the REAL rejections: one
+    rights rejection among invalid records is not 'every record was rejected:
+    rights not usable'."""
+    original = estimated_earnings(records)
+    no_rights = sibling(original, event_id="ev-rights", rights="REALTIME")
+    bad_category_1 = sibling(
+        original,
+        event_id="ev-cat-1",
+        payload_changes={"category": "IPO_UNKNOWN"},
+    )
+    bad_category_2 = sibling(
+        original,
+        event_id="ev-cat-2",
+        payload_changes={"category": "IPO_UNKNOWN"},
+    )
+
+    content = build([no_rights, bad_category_1, bad_category_2])
+
+    assert content["agenda"] == []
+    assert content["coverage"]["rejected_reasons"] == {
+        REASON_INVALID_CATEGORY: 2,
+        REASON_RIGHTS_NOT_USABLE: 1,
+    }
+    reason = content["agenda_state_reason"]
+    assert "invalid_category x2" in reason
+    assert "rights_not_usable x1" in reason
+    assert content["agenda_state"] == "REJECTED"
+
+    # A rights-ONLY population keeps its exact NOT_ENTITLED verdict.
+    only_rights = build([no_rights])
+    assert only_rights["agenda_state"] == "NOT_ENTITLED"
+    assert only_rights["agenda_state_reason"] == (
+        "every considered record was rejected: rights_not_usable x1"
+    )
+
+
+def test_an_agenda_of_only_stale_events_is_not_reported_ok(records) -> None:
+    """P2-6 — an agenda whose events are ALL stale is not an ``OK`` agenda:
+    the freshness reaches the published state, not only the per-event flag."""
+    original = estimated_earnings(records)
+    stale = sibling(
+        original, event_id="ev-stale-only", stale_after=NOW - timedelta(minutes=1)
+    )
+    content = build([stale])
+
+    assert content["agenda"][0]["fresh"] is False
+    assert content["coverage"]["events_stale"] == 1
+    assert content["agenda_state"] == "STALE"
+    assert content["agenda_state_reason"] == "every displayed event is stale (1/1)"
+
+    # One fresh event is enough to keep the agenda OK: staleness stays
+    # readable per event, and the state never overstates the degradation.
+    stale_apart = sibling(
+        original,
+        event_id="ev-stale-apart",
+        stale_after=NOW - timedelta(minutes=1),
+        payload_changes={"event_id": "syn-ev-earnings-STALE-ONLY"},
+    )
+    mixed = build([stale_apart, *records])
+    assert mixed["agenda_state"] == "OK"
+    assert mixed["agenda_state_reason"] is None
+    assert mixed["coverage"]["events_stale"] == 1
+    assert mixed["coverage"]["events_displayed"] == len(records) + 1
+
+
+def test_a_local_instant_contradicting_the_declared_zone_is_rejected(
+    records,
+) -> None:
+    """P2-5 — the module documents the PRODUCER contract: ``event_time_local``
+    carries the offset of ``exchange_timezone``. A local instant expressed in
+    UTC under a non-UTC exchange zone contradicts it and is rejected."""
+    original = estimated_earnings(records)
+    utc_instant = "2026-09-05T15:30:00+00:00"
+    forged = sibling(
+        original,
+        event_id="synthetic-dev:utc-local:0001",
+        payload_changes={
+            "event_time_utc": utc_instant,
+            "event_time_local": utc_instant,
+            "exchange_timezone": "Europe/Zurich",
+        },
+    )
+    content = build([forged])
+    assert content["agenda"] == []
+    assert content["coverage"]["rejected_records"] == [
+        {
+            "event_id": "synthetic-dev:utc-local:0001",
+            "reason": REASON_INVALID_TIMEZONE,
+        }
+    ]
+    # The rule is documented in the module, hence opposable to a producer.
+    import vertex_worker.calendar as calendar_module
+
+    assert "event_time_local" in (calendar_module.__doc__ or "")
+    assert "exchange_timezone" in (calendar_module.__doc__ or "")
