@@ -1,0 +1,914 @@
+{
+  "components": {
+    "schemas": {
+      "AdvicePreviewRequest": {
+        "additionalProperties": false,
+        "description": "Complete certified input set for one advice preview.\n\nField-for-field the engine's own ``AdviceInputs`` (subclass — nothing is\nredefined), with the gate 6 mapping typed for the wire. A field left\nabsent stays honestly absent and blocks its gate with ``UNEVALUABLE``.",
+        "properties": {
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "calculations": {
+            "$ref": "#/components/schemas/CalculationStatusesInput"
+          },
+          "constraints": {
+            "$ref": "#/components/schemas/ConstraintsInput"
+          },
+          "contradictions": {
+            "$ref": "#/components/schemas/ContradictionsInput"
+          },
+          "direction": {
+            "$ref": "#/components/schemas/Direction"
+          },
+          "entitlements": {
+            "$ref": "#/components/schemas/EntitlementsInput"
+          },
+          "evidence_ids": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Evidence Ids",
+            "type": "array"
+          },
+          "explanation_facts": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Explanation Facts",
+            "type": "array"
+          },
+          "horizon": {
+            "minLength": 1,
+            "title": "Horizon",
+            "type": "string"
+          },
+          "input_snapshot_id": {
+            "minLength": 1,
+            "title": "Input Snapshot Id",
+            "type": "string"
+          },
+          "instrument": {
+            "$ref": "#/components/schemas/InstrumentResolutionInput"
+          },
+          "instrument_id": {
+            "minLength": 1,
+            "title": "Instrument Id",
+            "type": "string"
+          },
+          "limitations": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Limitations",
+            "type": "array"
+          },
+          "liquidity": {
+            "$ref": "#/components/schemas/LiquidityInput"
+          },
+          "portfolio_risk": {
+            "$ref": "#/components/schemas/PortfolioRiskInput"
+          },
+          "probability": {
+            "$ref": "#/components/schemas/ProbabilityInput"
+          },
+          "probability_evidence": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Probability Evidence"
+          },
+          "risk_summary": {
+            "minLength": 1,
+            "title": "Risk Summary",
+            "type": "string"
+          },
+          "scenario_ids": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Scenario Ids",
+            "type": "array"
+          },
+          "session_event": {
+            "$ref": "#/components/schemas/SessionEventInput"
+          },
+          "snapshot": {
+            "$ref": "#/components/schemas/SnapshotInput"
+          },
+          "supersedes": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Supersedes"
+          },
+          "valid_until": {
+            "format": "date-time",
+            "title": "Valid Until",
+            "type": "string"
+          }
+        },
+        "required": [
+          "instrument_id",
+          "as_of",
+          "valid_until",
+          "input_snapshot_id",
+          "horizon",
+          "direction",
+          "risk_summary"
+        ],
+        "title": "AdvicePreviewRequest",
+        "type": "object"
+      },
+      "AdviceResult": {
+        "additionalProperties": false,
+        "description": "The single authoritative analytical verdict for one instrument.\n\nCarries status, direction, gates, evidence, limitations and explanation\nfacts. ``probability_evidence`` stays ``None`` unless calibrated evidence\ngenuinely exists — absence is never converted into a fabricated figure.\nContains no transactional field of any kind.",
+        "properties": {
+          "advice_id": {
+            "minLength": 1,
+            "title": "Advice Id",
+            "type": "string"
+          },
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "direction": {
+            "$ref": "#/components/schemas/Direction"
+          },
+          "engine_version": {
+            "minLength": 1,
+            "title": "Engine Version",
+            "type": "string"
+          },
+          "evidence_ids": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Evidence Ids",
+            "type": "array"
+          },
+          "explanation_facts": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Explanation Facts",
+            "type": "array"
+          },
+          "gates": {
+            "items": {
+              "$ref": "#/components/schemas/GateResult"
+            },
+            "minItems": 1,
+            "title": "Gates",
+            "type": "array"
+          },
+          "horizon": {
+            "minLength": 1,
+            "title": "Horizon",
+            "type": "string"
+          },
+          "input_snapshot_id": {
+            "minLength": 1,
+            "title": "Input Snapshot Id",
+            "type": "string"
+          },
+          "instrument_id": {
+            "minLength": 1,
+            "title": "Instrument Id",
+            "type": "string"
+          },
+          "limitations": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Limitations",
+            "type": "array"
+          },
+          "probability_evidence": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Probability Evidence"
+          },
+          "risk_summary": {
+            "minLength": 1,
+            "title": "Risk Summary",
+            "type": "string"
+          },
+          "scenario_ids": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Scenario Ids",
+            "type": "array"
+          },
+          "status": {
+            "$ref": "#/components/schemas/AdviceStatus"
+          },
+          "supersedes": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Supersedes"
+          },
+          "valid_until": {
+            "format": "date-time",
+            "title": "Valid Until",
+            "type": "string"
+          }
+        },
+        "required": [
+          "advice_id",
+          "instrument_id",
+          "as_of",
+          "valid_until",
+          "input_snapshot_id",
+          "engine_version",
+          "status",
+          "direction",
+          "horizon",
+          "gates",
+          "risk_summary"
+        ],
+        "title": "AdviceResult",
+        "type": "object"
+      },
+      "AdviceStatus": {
+        "description": "Canonical verdict status of an ``AdviceResult`` (ADR-014).\n\n``BLOCKED`` (a gate closed), ``INSUFFICIENT_DATA`` (required inputs\nmissing), ``OBSERVE`` (valid data, not enough for study), ``REVIEW``\n(worth analytical study), ``QUALIFIED`` (passes all gates). Distinct from\n:class:`Direction`; never a transactional instruction.",
+        "enum": [
+          "BLOCKED",
+          "INSUFFICIENT_DATA",
+          "OBSERVE",
+          "REVIEW",
+          "QUALIFIED"
+        ],
+        "title": "AdviceStatus",
+        "type": "string"
+      },
+      "AssetClass": {
+        "description": "Canonical asset class of an identified instrument.",
+        "enum": [
+          "STOCK",
+          "ETF",
+          "INDEX",
+          "OPTION"
+        ],
+        "title": "AssetClass",
+        "type": "string"
+      },
+      "CalculationStatus": {
+        "description": "Outcome of a deterministic calculation.\n\n``NOT_IMPLEMENTED`` names an absent capability honestly; it is never\npresented as a pending automation.",
+        "enum": [
+          "OK",
+          "INVALID",
+          "NOT_IMPLEMENTED"
+        ],
+        "title": "CalculationStatus",
+        "type": "string"
+      },
+      "CalculationStatusesInput": {
+        "additionalProperties": false,
+        "description": "Wire form of the gate 6 facts.\n\nNarrows the engine's ``Any``-valued mapping to ``CalculationStatus``\nmembers so JSON input (``{\"iv_surface\": \"OK\"}``) reaches the gate as\ncanonical enum values. An absent mapping stays ``None`` (fail-closed at\nthe gate), never an empty default.",
+        "properties": {
+          "calculation_statuses": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/CalculationStatus"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Calculation Statuses"
+          }
+        },
+        "title": "CalculationStatusesInput",
+        "type": "object"
+      },
+      "ConstraintsInput": {
+        "additionalProperties": false,
+        "description": "Facts for gate 10 (``user_constraints_versioned``).",
+        "properties": {
+          "constraints_current": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Constraints Current"
+          },
+          "constraints_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Constraints Version"
+          }
+        },
+        "title": "ConstraintsInput",
+        "type": "object"
+      },
+      "ContradictionsInput": {
+        "additionalProperties": false,
+        "description": "Facts for gate 9 (``critical_contradictions_resolved``).",
+        "properties": {
+          "explicit_contradiction_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Explicit Contradiction Count"
+          },
+          "unresolved_critical_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Unresolved Critical Count"
+          }
+        },
+        "title": "ContradictionsInput",
+        "type": "object"
+      },
+      "Direction": {
+        "description": "Analytical directional reading attached to a verdict (ADR-014).",
+        "enum": [
+          "BULLISH",
+          "BEARISH",
+          "NEUTRAL",
+          "MIXED",
+          "UNKNOWN"
+        ],
+        "title": "Direction",
+        "type": "string"
+      },
+      "EngineInfoResponse": {
+        "additionalProperties": false,
+        "description": "Engine and contract versions backing every verdict. Carries no secret.\n\n``contracts_version`` equals the ``ENGINE_VERSION`` stamp because the\ncanonical contracts are versioned by the same identifier that is recorded\nin every calculation and advice contract (``vertex_core.version``).",
+        "properties": {
+          "contracts_version": {
+            "minLength": 1,
+            "title": "Contracts Version",
+            "type": "string"
+          },
+          "engine_version": {
+            "minLength": 1,
+            "title": "Engine Version",
+            "type": "string"
+          },
+          "gate_versions": {
+            "additionalProperties": true,
+            "title": "Gate Versions",
+            "type": "object"
+          }
+        },
+        "required": [
+          "engine_version",
+          "contracts_version",
+          "gate_versions"
+        ],
+        "title": "EngineInfoResponse",
+        "type": "object"
+      },
+      "EntitlementsInput": {
+        "additionalProperties": false,
+        "description": "Facts for gate 2 (``entitlements_sufficient``).",
+        "properties": {
+          "capability_status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SourceCapabilityStatus"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          }
+        },
+        "title": "EntitlementsInput",
+        "type": "object"
+      },
+      "GateResult": {
+        "additionalProperties": false,
+        "description": "Outcome of one versioned decision gate.\n\n``observed_values`` and ``thresholds`` carry the real evidence the gate\nsaw; both are frozen at validation time. A gate that cannot be evaluated\nis ``BLOCK`` with ``reason_code = \"UNEVALUABLE\"`` (fail-closed).",
+        "properties": {
+          "evidence_ids": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Evidence Ids",
+            "type": "array"
+          },
+          "gate_id": {
+            "minLength": 1,
+            "title": "Gate Id",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "observed_values": {
+            "additionalProperties": true,
+            "title": "Observed Values",
+            "type": "object"
+          },
+          "reason_code": {
+            "minLength": 1,
+            "title": "Reason Code",
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/GateStatus"
+          },
+          "thresholds": {
+            "additionalProperties": true,
+            "title": "Thresholds",
+            "type": "object"
+          },
+          "version": {
+            "minLength": 1,
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "gate_id",
+          "version",
+          "status",
+          "reason_code",
+          "message"
+        ],
+        "title": "GateResult",
+        "type": "object"
+      },
+      "GateStatus": {
+        "description": "Result of one decision gate: ``PASS``, ``DEGRADE`` or ``BLOCK``.\n\nA gate that cannot be evaluated is ``BLOCK`` with\n``reason_code = \"UNEVALUABLE\"`` (fail-closed); there is no ``UNKNOWN``\ngate state (ADR-014).",
+        "enum": [
+          "PASS",
+          "DEGRADE",
+          "BLOCK"
+        ],
+        "title": "GateStatus",
+        "type": "string"
+      },
+      "HealthResponse": {
+        "additionalProperties": false,
+        "description": "Liveness payload: static status and engine version, nothing sensitive.",
+        "properties": {
+          "engine_version": {
+            "minLength": 1,
+            "title": "Engine Version",
+            "type": "string"
+          },
+          "status": {
+            "const": "alive",
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "engine_version"
+        ],
+        "title": "HealthResponse",
+        "type": "object"
+      },
+      "IdentityStatus": {
+        "description": "Resolution state of an instrument identity. Collisions stay ``UNRESOLVED``.",
+        "enum": [
+          "RESOLVED",
+          "AMBIGUOUS",
+          "UNRESOLVED"
+        ],
+        "title": "IdentityStatus",
+        "type": "string"
+      },
+      "InstrumentResolutionInput": {
+        "additionalProperties": false,
+        "description": "Facts for gate 1 (``instrument_resolved``).",
+        "properties": {
+          "identity_status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/IdentityStatus"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "resolved_with_conid": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Resolved With Conid"
+          }
+        },
+        "title": "InstrumentResolutionInput",
+        "type": "object"
+      },
+      "LiquidityInput": {
+        "additionalProperties": false,
+        "description": "Facts for gate 5 (``minimum_liquidity``); the threshold is per asset class.",
+        "properties": {
+          "asset_class": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AssetClass"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "observation_delayed": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Observation Delayed"
+          },
+          "observed_liquidity": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Observed Liquidity"
+          },
+          "required_minimum": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Required Minimum"
+          }
+        },
+        "title": "LiquidityInput",
+        "type": "object"
+      },
+      "PortfolioRiskInput": {
+        "additionalProperties": false,
+        "description": "Facts for gate 7 (``manual_portfolio_risk_available``); declarations are user-made only.",
+        "properties": {
+          "declarations_current": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Declarations Current"
+          },
+          "portfolio_risk_available": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Portfolio Risk Available"
+          },
+          "risk_required": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Risk Required"
+          }
+        },
+        "title": "PortfolioRiskInput",
+        "type": "object"
+      },
+      "ProbabilityInput": {
+        "additionalProperties": false,
+        "description": "Facts for gate 8 (``probability_calibrated_if_used``).",
+        "properties": {
+          "calibration_current": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Calibration Current"
+          },
+          "calibration_valid": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Calibration Valid"
+          },
+          "out_of_sample_validated": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Out Of Sample Validated"
+          },
+          "probability_used": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Probability Used"
+          }
+        },
+        "title": "ProbabilityInput",
+        "type": "object"
+      },
+      "SessionEventInput": {
+        "additionalProperties": false,
+        "description": "Facts for gate 4 (``session_and_event_known``).",
+        "properties": {
+          "event_calendar_known": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Event Calendar Known"
+          },
+          "session_known": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Session Known"
+          }
+        },
+        "title": "SessionEventInput",
+        "type": "object"
+      },
+      "SnapshotInput": {
+        "additionalProperties": false,
+        "description": "Facts for gate 3 (``snapshot_fresh_and_coherent``).",
+        "properties": {
+          "fresh": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Fresh"
+          },
+          "quality": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SnapshotQuality"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          }
+        },
+        "title": "SnapshotInput",
+        "type": "object"
+      },
+      "SnapshotQuality": {
+        "description": "Quality of an evidence snapshot (namespace distinct from ``EnvelopeQuality``).\n\nNeither quality namespace converts implicitly into the other (ADR-014).",
+        "enum": [
+          "GOOD",
+          "PARTIAL",
+          "DEGRADED",
+          "MISSING",
+          "CONTRADICTORY"
+        ],
+        "title": "SnapshotQuality",
+        "type": "string"
+      },
+      "SourceCapabilityStatus": {
+        "description": "Effective availability of one data-source capability (market data only).",
+        "enum": [
+          "AVAILABLE",
+          "DELAYED",
+          "NOT_ENTITLED",
+          "UNSUPPORTED",
+          "ERROR",
+          "MANUAL_EXPORT"
+        ],
+        "title": "SourceCapabilityStatus",
+        "type": "string"
+      }
+    }
+  },
+  "info": {
+    "description": "Local, analysis-only API of Vertex One. It serves the canonical contracts of vertex_core and delegates every verdict to the single AdviceEngine. No transactional capability exists; the human remains the sole decision maker, acting outside Vertex.",
+    "title": "Vertex One API",
+    "version": "vertex_core@0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/v1/advice/preview": {
+      "post": {
+        "description": "Return the canonical ``AdviceResult`` for certified gate inputs.\n\nPass-through only: the route validates the wire payload and hands it to\nthe single ``AdviceEngine``. Decimals serialize as strings and datetimes\nas ISO-8601 UTC. The result is analytical — the human decides outside\nVertex.",
+        "operationId": "post_advice_preview",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdvicePreviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdviceResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Authentication is not implemented yet (LOT-09): every request fails closed with detail code AUTH_NOT_IMPLEMENTED."
+          }
+        },
+        "summary": "Evaluate gate inputs through the single AdviceEngine"
+      }
+    },
+    "/api/v1/health": {
+      "get": {
+        "description": "Report process liveness and the engine version. No sensitive data.",
+        "operationId": "get_health",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Liveness probe"
+      }
+    },
+    "/api/v1/system/engine": {
+      "get": {
+        "description": "Report the engine, contract and per-gate versions. Never a secret.",
+        "operationId": "get_system_engine",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EngineInfoResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Authentication is not implemented yet (LOT-09): every request fails closed with detail code AUTH_NOT_IMPLEMENTED."
+          }
+        },
+        "summary": "Engine and contract versions"
+      }
+    }
+  }
+}
