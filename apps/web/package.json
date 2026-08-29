@@ -1,0 +1,56 @@
+{
+  "name": "@vertex/web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "//": [
+    "ÉCART D'ENVIRONNEMENT — Node : la cible officielle du programme est Node 24 LTS ;",
+    "cet environnement de travail fournit Node 22 (v22.22.2). Le code n'utilise aucune",
+    "API absente de Node 22 ; le script tokens:css s'appuie sur le type-stripping natif",
+    "(stable depuis Node 22.18). Revalider tsc/vitest/build sous Node 24 avant release.",
+    "ÉCART — TypeScript : épinglé en 5.9.3 (dernière 5.x stable) plutôt que la 7.x",
+    "(compilateur natif récent) pour rester sur la chaîne éprouvée par Vite/Vitest ;",
+    "montée de version = décision dédiée, pas un effet de bord de ce lot.",
+    "Toutes les versions sont épinglées exactes (règle supply-chain .claude/rules/security.md).",
+    "geist (OFL-1.1) n'est utilisé que pour ses fichiers woff2 auto-hébergés ;",
+    "son peer 'next' (intégration Next.js, inutilisée ici) est exclu de l'auto-install pnpm."
+  ],
+  "pnpm": {
+    "peerDependencyRules": {
+      "ignoreMissing": [
+        "next"
+      ]
+    }
+  },
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "tokens:css": "node --experimental-strip-types src/design/generate-css.ts"
+  },
+  "dependencies": {
+    "@tanstack/react-query": "5.102.8",
+    "geist": "1.7.2",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "react-router-dom": "7.18.3"
+  },
+  "devDependencies": {
+    "@testing-library/dom": "10.4.1",
+    "@testing-library/react": "16.3.3",
+    "@testing-library/user-event": "14.6.6",
+    "@types/node": "22.20.1",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.5",
+    "@vitejs/plugin-react": "6.1.1",
+    "jsdom": "30.0.1",
+    "typescript": "5.9.3",
+    "vite": "8.2.2",
+    "vitest": "4.1.11"
+  }
+}
