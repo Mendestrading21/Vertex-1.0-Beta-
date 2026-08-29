@@ -954,7 +954,7 @@ def get_follow_up_queue(
                 "original ids are returned."
             )
         },
-        404: {"description": "Unknown portfolio (code UNKNOWN_PORTFOLIO)."},
+        404: {"description": "Unknown portfolio — code UNKNOWN_PORTFOLIO."},
         409: {
             "description": (
                 "The idempotency_key already names a DIFFERENT operation "
@@ -1128,7 +1128,7 @@ def get_performance(
         404: {
             "description": (
                 "No performance snapshot was ever published for this "
-                "portfolio (code NO_PERFORMANCE_SNAPSHOT) — there is nothing "
+                "portfolio — code NO_PERFORMANCE_SNAPSHOT — there is nothing "
                 "honest to export."
             )
         }

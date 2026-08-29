@@ -4597,7 +4597,7 @@
             "description": "Authentication required: no valid WebAuthn session cookie (or missing/invalid CSRF header on a mutation). Always the same generic body with detail code AUTH_REQUIRED."
           },
           "404": {
-            "description": "No performance snapshot was ever published for this portfolio (code NO_PERFORMANCE_SNAPSHOT) — there is nothing honest to export."
+            "description": "No performance snapshot was ever published for this portfolio — code NO_PERFORMANCE_SNAPSHOT — there is nothing honest to export."
           },
           "422": {
             "content": {
@@ -4933,7 +4933,7 @@
             "description": "Authentication required: no valid WebAuthn session cookie (or missing/invalid CSRF header on a mutation). Always the same generic body with detail code AUTH_REQUIRED."
           },
           "404": {
-            "description": "Unknown portfolio (code UNKNOWN_PORTFOLIO)."
+            "description": "Unknown portfolio — code UNKNOWN_PORTFOLIO."
           },
           "409": {
             "description": "The idempotency_key already names a DIFFERENT operation (code IDEMPOTENCY_KEY_REUSED) — keys are never recycled."

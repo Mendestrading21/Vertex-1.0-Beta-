@@ -2807,7 +2807,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description No performance snapshot was ever published for this portfolio (code NO_PERFORMANCE_SNAPSHOT) — there is nothing honest to export. */
+            /** @description No performance snapshot was ever published for this portfolio — code NO_PERFORMANCE_SNAPSHOT — there is nothing honest to export. */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -3177,7 +3177,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Unknown portfolio (code UNKNOWN_PORTFOLIO). */
+            /** @description Unknown portfolio — code UNKNOWN_PORTFOLIO. */
             404: {
                 headers: {
                     [name: string]: unknown;

@@ -118,7 +118,7 @@ describe('hooks API (fetch factice)', () => {
     expect(isKnownResource('performance/1')).toBe(true);
     expect(isKnownResource('portfolio_valuation/')).toBe(false);
     expect(isKnownResource('performance/')).toBe(false);
-    // La valorisation vit dans GET /portfolio (une seule clé de cache) : tout
+    // La valorisation vit dans GET /portfolio — une seule clé de cache : tout
     // signal portfolio_valuation/<id> invalide cette clé unique.
     expect(queryKeyForResource('portfolio_valuation/1')).toEqual(['snapshot', 'portfolio']);
     expect(queryKeyForResource('portfolio_valuation/42')).toEqual(['snapshot', 'portfolio']);

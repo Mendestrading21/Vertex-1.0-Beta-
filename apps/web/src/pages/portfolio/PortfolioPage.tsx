@@ -21,7 +21,7 @@ import type { ValuationContentView } from './portfolioView.ts';
  * Page Portefeuille — question : « Quelles expositions et concentrations
  * résultent de mon ledger manuel ? »
  *
- * Le journal manuel est la SEULE source de positions (aucun compte courtier,
+ * Le journal manuel est la SEULE source de positions — aucun compte courtier,
  * jamais). La valorisation affichée est le snapshot publié par le worker,
  * relayé verbatim : marques SYNTHÉTIQUES étiquetées, lots exclus listés à
  * part avec raison, totaux serveur uniquement. L'interface enregistre des

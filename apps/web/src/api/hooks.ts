@@ -51,7 +51,7 @@ export const SSE_RESOURCE_PREFIXES = [
 export type SseResource = string;
 
 export function queryKeyForResource(resource: SseResource): readonly [string, string] {
-  // La valorisation vit DANS la réponse GET /portfolio (route sans identifiant
+  // La valorisation vit DANS la réponse GET /portfolio — route sans identifiant
   // côté client) : tout signal `portfolio_valuation/<id>` invalide donc la
   // clé unique du portefeuille. Aucune autre traduction n'existe.
   if (resource.startsWith('portfolio_valuation/')) {
