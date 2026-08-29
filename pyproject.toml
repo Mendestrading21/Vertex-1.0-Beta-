@@ -10,6 +10,7 @@ testpaths = [
     "apps/api/tests",
     "apps/edge-ibkr/tests",
     "apps/ingress-tradingview/tests",
+    "apps/worker/tests",
 ]
 pythonpath = [
     "apps/ingress-tradingview/src",
@@ -17,6 +18,7 @@ pythonpath = [
     "packages/python/vertex_persistence/src",
     "apps/api/src",
     "apps/edge-ibkr/src",
+    "apps/worker/src",
 ]
 addopts = "-q --strict-markers"
 markers = [
