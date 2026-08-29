@@ -293,6 +293,172 @@
         "title": "AssetClass",
         "type": "string"
       },
+      "AttentionItem": {
+        "additionalProperties": false,
+        "description": "One published attention item, relayed from the worker snapshot.\n\n``synthetic`` and the ``population`` label of the response are shown\nexactly as published — synthetic data never blends into a real\npresentation. ``provenance`` is the cluster provenance block verbatim\n(cluster id, member event ids, sources, rights, timestamps,\ninstrument_ref); the API adds nothing and recomputes nothing.",
+        "properties": {
+          "id": {
+            "minLength": 1,
+            "title": "Id",
+            "type": "string"
+          },
+          "provenance": {
+            "additionalProperties": true,
+            "title": "Provenance",
+            "type": "object"
+          },
+          "relevance_reasons": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 3,
+            "title": "Relevance Reasons",
+            "type": "array"
+          },
+          "rights": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "title": "Rights",
+            "type": "array"
+          },
+          "sources": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "title": "Sources",
+            "type": "array"
+          },
+          "synthetic": {
+            "title": "Synthetic",
+            "type": "boolean"
+          },
+          "title": {
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "sources",
+          "rights",
+          "relevance_reasons",
+          "synthetic",
+          "provenance"
+        ],
+        "title": "AttentionItem",
+        "type": "object"
+      },
+      "AttentionSnapshotResponse": {
+        "additionalProperties": false,
+        "description": "The last ``attention/global`` snapshot — or an honest empty state.\n\n``state = \"empty\"`` means NO snapshot was ever published: every\nsnapshot-derived field is ``None`` (never zero, never invented) and\n``reason`` says why. ``state = \"ok\"`` carries the persisted snapshot\nversion, ``as_of``, ``population`` (``SYNTHETIC`` shown as-is),\nthe full coverage block and the published items.",
+        "properties": {
+          "as_of": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "As Of"
+          },
+          "coverage": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coverage"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AttentionItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "population": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Population"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "rejected_count": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rejected Count"
+          },
+          "snapshot_version": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Snapshot Version"
+          },
+          "state": {
+            "enum": [
+              "ok",
+              "empty"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "snapshot_version",
+          "as_of",
+          "population",
+          "coverage",
+          "items",
+          "rejected_count",
+          "reason"
+        ],
+        "title": "AttentionSnapshotResponse",
+        "type": "object"
+      },
       "CalculationStatus": {
         "description": "Outcome of a deterministic calculation.\n\n``NOT_IMPLEMENTED`` names an absent capability honestly; it is never\npresented as a pending automation.",
         "enum": [
@@ -324,6 +490,77 @@
           }
         },
         "title": "CalculationStatusesInput",
+        "type": "object"
+      },
+      "CapabilityStatusEntry": {
+        "additionalProperties": false,
+        "description": "One declared capability crossed with the latest persisted probe.\n\nA capability never probed is ``tested_status = ERROR`` with\n``reason = \"NEVER_TESTED\"`` and ``tested_at = None`` — absence of a probe\nis never presented as availability.",
+        "properties": {
+          "capability_id": {
+            "minLength": 1,
+            "title": "Capability Id",
+            "type": "string"
+          },
+          "declared_mode": {
+            "minLength": 1,
+            "title": "Declared Mode",
+            "type": "string"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "family": {
+            "minLength": 1,
+            "title": "Family",
+            "type": "string"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "tested_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tested At"
+          },
+          "tested_status": {
+            "$ref": "#/components/schemas/SourceCapabilityStatus"
+          }
+        },
+        "required": [
+          "capability_id",
+          "family",
+          "declared_mode",
+          "description",
+          "tested_status",
+          "tested_at",
+          "reason"
+        ],
+        "title": "CapabilityStatusEntry",
         "type": "object"
       },
       "CeremonyOptionsResponse": {
@@ -410,6 +647,25 @@
           }
         },
         "title": "ContradictionsInput",
+        "type": "object"
+      },
+      "DbHealth": {
+        "additionalProperties": false,
+        "description": "Result of the ``SELECT 1`` probe: ``ok`` or ``error``, nothing more.",
+        "properties": {
+          "status": {
+            "enum": [
+              "ok",
+              "error"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status"
+        ],
+        "title": "DbHealth",
         "type": "object"
       },
       "Direction": {
@@ -918,6 +1174,59 @@
         "title": "SessionEventInput",
         "type": "object"
       },
+      "SnapshotHealth": {
+        "additionalProperties": false,
+        "description": "Presence and age of one published snapshot head (no content).",
+        "properties": {
+          "age_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age Seconds"
+          },
+          "as_of": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "As Of"
+          },
+          "present": {
+            "title": "Present",
+            "type": "boolean"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          }
+        },
+        "required": [
+          "present",
+          "version",
+          "as_of",
+          "age_seconds"
+        ],
+        "title": "SnapshotHealth",
+        "type": "object"
+      },
       "SnapshotInput": {
         "additionalProperties": false,
         "description": "Facts for gate 3 (``snapshot_fresh_and_coherent``).",
@@ -974,6 +1283,101 @@
         "title": "SourceCapabilityStatus",
         "type": "string"
       },
+      "SystemCapabilitiesResponse": {
+        "additionalProperties": false,
+        "description": "Every declared capability with its really-tested status, plus health.\n\n``total`` equals the exact number of manifest entries; ``as_of`` and\n``snapshot_version`` describe the persisted capabilities snapshot\n(``None`` when never published). ``unknown_probed_capability_ids`` lists\nprobed ids absent from the manifest — never silently dropped, never\nmerged into the declared set. ``checked_at`` is the response instant.",
+        "properties": {
+          "as_of": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "As Of"
+          },
+          "capabilities": {
+            "items": {
+              "$ref": "#/components/schemas/CapabilityStatusEntry"
+            },
+            "title": "Capabilities",
+            "type": "array"
+          },
+          "checked_at": {
+            "format": "date-time",
+            "title": "Checked At",
+            "type": "string"
+          },
+          "health": {
+            "$ref": "#/components/schemas/SystemHealth"
+          },
+          "snapshot_version": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Snapshot Version"
+          },
+          "total": {
+            "minimum": 0.0,
+            "title": "Total",
+            "type": "integer"
+          },
+          "unknown_probed_capability_ids": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "title": "Unknown Probed Capability Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "checked_at",
+          "snapshot_version",
+          "as_of",
+          "total",
+          "capabilities",
+          "unknown_probed_capability_ids",
+          "health"
+        ],
+        "title": "SystemCapabilitiesResponse",
+        "type": "object"
+      },
+      "SystemHealth": {
+        "additionalProperties": false,
+        "description": "Health blocks: database, both snapshot heads, worker proxy.",
+        "properties": {
+          "attention_snapshot": {
+            "$ref": "#/components/schemas/SnapshotHealth"
+          },
+          "capabilities_snapshot": {
+            "$ref": "#/components/schemas/SnapshotHealth"
+          },
+          "db": {
+            "$ref": "#/components/schemas/DbHealth"
+          },
+          "worker": {
+            "$ref": "#/components/schemas/WorkerHealth"
+          }
+        },
+        "required": [
+          "db",
+          "attention_snapshot",
+          "capabilities_snapshot",
+          "worker"
+        ],
+        "title": "SystemHealth",
+        "type": "object"
+      },
       "ValidationError": {
         "properties": {
           "ctx": {
@@ -1012,6 +1416,47 @@
           "type"
         ],
         "title": "ValidationError",
+        "type": "object"
+      },
+      "WorkerHealth": {
+        "additionalProperties": false,
+        "description": "Honest worker liveness proxy: the age of the freshest snapshot.\n\nThe worker exposes no direct heartbeat; the method label\n``heartbeat_proxy`` names that limitation explicitly instead of\npretending to observe the process.",
+        "properties": {
+          "age_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age Seconds"
+          },
+          "last_snapshot_as_of": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Snapshot As Of"
+          },
+          "method": {
+            "const": "heartbeat_proxy",
+            "title": "Method",
+            "type": "string"
+          }
+        },
+        "required": [
+          "method",
+          "last_snapshot_as_of",
+          "age_seconds"
+        ],
+        "title": "WorkerHealth",
         "type": "object"
       }
     }
@@ -1205,6 +1650,28 @@
         "summary": "Finish a passkey registration ceremony"
       }
     },
+    "/api/v1/events/stream": {
+      "get": {
+        "description": "Stream head-version change signals (database polling, coalesced).",
+        "operationId": "get_events_stream",
+        "responses": {
+          "200": {
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "text/event-stream of `snapshot` events (`{\"resource\": \"<kind>/<key>\", \"version\": <int>}`) and keepalive `ping` events. Signal only — no business data; clients refetch through the REST endpoints."
+          },
+          "401": {
+            "description": "Authentication required: no valid WebAuthn session cookie (or missing/invalid CSRF header on a mutation). Always the same generic body with detail code AUTH_REQUIRED."
+          }
+        },
+        "summary": "Signal-only SSE: snapshot head version changes and pings"
+      }
+    },
     "/api/v1/health": {
       "get": {
         "description": "Report process liveness and the engine version. No sensitive data.",
@@ -1222,6 +1689,28 @@
           }
         },
         "summary": "Liveness probe"
+      }
+    },
+    "/api/v1/system/capabilities": {
+      "get": {
+        "description": "Cross the FULL declared manifest with the latest persisted probes.\n\nEvery manifest entry is present (``total`` equals the manifest size); a\ncapability never probed answers ``ERROR`` with reason ``NEVER_TESTED``.\nHealth blocks report the database (``SELECT 1``), both snapshot heads,\nand the worker through the explicitly labeled ``heartbeat_proxy``.",
+        "operationId": "get_system_capabilities",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemCapabilitiesResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Authentication required: no valid WebAuthn session cookie (or missing/invalid CSRF header on a mutation). Always the same generic body with detail code AUTH_REQUIRED."
+          }
+        },
+        "summary": "Declared capabilities crossed with really-probed statuses, plus health"
       }
     },
     "/api/v1/system/engine": {
@@ -1244,6 +1733,28 @@
           }
         },
         "summary": "Engine and contract versions"
+      }
+    },
+    "/api/v1/today/attention": {
+      "get": {
+        "description": "Serve the LAST ``attention/global`` snapshot exactly as persisted.\n\nThe API relays the worker's published content — population (``SYNTHETIC``\nshown as-is), coverage, items with provenance — and computes nothing.\nWith no snapshot ever published the answer is a 200 with ``state =\n\"empty\"``: absent stays absent, nothing is invented.",
+        "operationId": "get_today_attention",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AttentionSnapshotResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Authentication required: no valid WebAuthn session cookie (or missing/invalid CSRF header on a mutation). Always the same generic body with detail code AUTH_REQUIRED."
+          }
+        },
+        "summary": "Last published attention snapshot (or honest empty state)"
       }
     }
   }

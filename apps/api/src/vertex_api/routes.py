@@ -1,10 +1,17 @@
-"""HTTP routes of the Vertex One API (LOT-12 base: three endpoints).
+"""HTTP routes of the Vertex One API.
 
 - ``GET /api/v1/health`` — public liveness, no sensitive data;
 - ``POST /api/v1/advice/preview`` — protected; a pure pass-through to the
   single ``AdviceEngine`` of ``vertex_core.decision`` (the API computes no
   score, no gate and no verdict of its own);
-- ``GET /api/v1/system/engine`` — protected; engine/contract versions only.
+- ``GET /api/v1/system/engine`` — protected; engine/contract versions only;
+- ``GET /api/v1/today/attention`` — protected; the LAST published
+  ``attention/global`` snapshot verbatim, or an honest empty state;
+- ``GET /api/v1/system/capabilities`` — protected; the declared capability
+  manifest crossed with the latest persisted probe snapshot, plus health;
+- ``GET /api/v1/events/stream`` — protected; signal-only SSE
+  (``{resource, version}`` head changes and keepalive pings, no business
+  data).
 
 Protected routes depend on :func:`vertex_api.auth.require_session` (LOT-09):
 a valid WebAuthn session cookie — plus the CSRF double-submit header on every
@@ -15,20 +22,36 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.exceptions import RequestValidationError
+from fastapi.responses import StreamingResponse
 from pydantic import ValidationError
 
 from vertex_api.auth import require_session
-from vertex_api.schemas import AdvicePreviewRequest, EngineInfoResponse, HealthResponse
+from vertex_api.capability_manifest import CapabilityManifest
+from vertex_api.events import StreamSettings, get_stream_settings, snapshot_event_stream
+from vertex_api.schemas import (
+    AdvicePreviewRequest,
+    AttentionSnapshotResponse,
+    EngineInfoResponse,
+    HealthResponse,
+    SystemCapabilitiesResponse,
+)
+from vertex_api.snapshot_reader import Clock, SnapshotReader, get_clock, get_snapshot_reader
+from vertex_api.snapshot_views import build_attention_response, build_capabilities_response
 from vertex_core.contracts.decision import AdviceResult
 from vertex_core.decision import GATE_VERSIONS, AdviceEngine
 from vertex_core.version import ENGINE_VERSION
 
 __all__ = [
     "get_advice_engine",
+    "get_capability_manifest",
     "parse_advice_preview_request",
     "protected_router",
     "public_router",
 ]
+
+SNAPSHOT_KIND_ATTENTION = "attention"
+SNAPSHOT_KIND_CAPABILITIES = "capabilities"
+SNAPSHOT_KEY_GLOBAL = "global"
 
 public_router = APIRouter(prefix="/api/v1")
 
@@ -124,4 +147,87 @@ def get_system_engine() -> EngineInfoResponse:
         engine_version=ENGINE_VERSION,
         contracts_version=ENGINE_VERSION,
         gate_versions=dict(GATE_VERSIONS),
+    )
+
+
+def get_capability_manifest(request: Request) -> CapabilityManifest:
+    """Provide the manifest parsed once at startup (``create_app``)."""
+    return request.app.state.capability_manifest
+
+
+@protected_router.get(
+    "/today/attention",
+    operation_id="get_today_attention",
+    response_model=AttentionSnapshotResponse,
+    summary="Last published attention snapshot (or honest empty state)",
+)
+def get_today_attention(
+    reader: Annotated[SnapshotReader, Depends(get_snapshot_reader)],
+) -> AttentionSnapshotResponse:
+    """Serve the LAST ``attention/global`` snapshot exactly as persisted.
+
+    The API relays the worker's published content — population (``SYNTHETIC``
+    shown as-is), coverage, items with provenance — and computes nothing.
+    With no snapshot ever published the answer is a 200 with ``state =
+    "empty"``: absent stays absent, nothing is invented.
+    """
+    snapshot = reader.current(kind=SNAPSHOT_KIND_ATTENTION, key=SNAPSHOT_KEY_GLOBAL)
+    return build_attention_response(snapshot)
+
+
+@protected_router.get(
+    "/system/capabilities",
+    operation_id="get_system_capabilities",
+    response_model=SystemCapabilitiesResponse,
+    summary="Declared capabilities crossed with really-probed statuses, plus health",
+)
+def get_system_capabilities(
+    manifest: Annotated[CapabilityManifest, Depends(get_capability_manifest)],
+    reader: Annotated[SnapshotReader, Depends(get_snapshot_reader)],
+    clock: Annotated[Clock, Depends(get_clock)],
+) -> SystemCapabilitiesResponse:
+    """Cross the FULL declared manifest with the latest persisted probes.
+
+    Every manifest entry is present (``total`` equals the manifest size); a
+    capability never probed answers ``ERROR`` with reason ``NEVER_TESTED``.
+    Health blocks report the database (``SELECT 1``), both snapshot heads,
+    and the worker through the explicitly labeled ``heartbeat_proxy``.
+    """
+    capabilities = reader.current(kind=SNAPSHOT_KIND_CAPABILITIES, key=SNAPSHOT_KEY_GLOBAL)
+    attention = reader.current(kind=SNAPSHOT_KIND_ATTENTION, key=SNAPSHOT_KEY_GLOBAL)
+    return build_capabilities_response(
+        manifest,
+        snapshot=capabilities,
+        attention=attention,
+        db_ok=reader.ping(),
+        now=clock(),
+    )
+
+
+@protected_router.get(
+    "/events/stream",
+    operation_id="get_events_stream",
+    summary="Signal-only SSE: snapshot head version changes and pings",
+    response_class=StreamingResponse,
+    responses={
+        200: {
+            "description": (
+                "text/event-stream of `snapshot` events "
+                '(`{"resource": "<kind>/<key>", "version": <int>}`) and '
+                "keepalive `ping` events. Signal only — no business data; "
+                "clients refetch through the REST endpoints."
+            ),
+            "content": {"text/event-stream": {"schema": {"type": "string"}}},
+        }
+    },
+)
+async def get_events_stream(
+    reader: Annotated[SnapshotReader, Depends(get_snapshot_reader)],
+    settings: Annotated[StreamSettings, Depends(get_stream_settings)],
+) -> StreamingResponse:
+    """Stream head-version change signals (database polling, coalesced)."""
+    return StreamingResponse(
+        snapshot_event_stream(reader, settings),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"},
     )

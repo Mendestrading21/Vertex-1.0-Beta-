@@ -14,6 +14,7 @@ from fastapi.openapi.utils import get_openapi
 
 from vertex_api.auth import auth_router
 from vertex_api.auth.challenges import ChallengeStore
+from vertex_api.capability_manifest import load_capability_manifest
 from vertex_api.routes import protected_router, public_router
 from vertex_api.schemas import AdvicePreviewRequest
 from vertex_core.version import ENGINE_VERSION
@@ -72,8 +73,11 @@ def create_app() -> FastAPI:
 
     Health, the passkey authentication ceremonies (``/api/v1/auth``), and the
     protected advice/system routes behind the fail-closed WebAuthn session
-    dependency. Each application carries its own in-memory challenge store;
-    no environment is read here, so the OpenAPI document stays deterministic.
+    dependency. Each application carries its own in-memory challenge store
+    and the capability manifest parsed once from
+    ``manifests/ibkr-market-data-capabilities.yaml`` (a committed file — the
+    read stays deterministic); no environment is read here, so the OpenAPI
+    document stays deterministic.
     """
     app = FastAPI(
         title=_API_TITLE,
@@ -81,6 +85,7 @@ def create_app() -> FastAPI:
         description=_API_DESCRIPTION,
     )
     app.state.challenge_store = ChallengeStore()
+    app.state.capability_manifest = load_capability_manifest()
     app.include_router(public_router)
     app.include_router(auth_router)
     app.include_router(protected_router)

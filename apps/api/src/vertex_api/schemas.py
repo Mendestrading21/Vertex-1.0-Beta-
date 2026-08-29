@@ -12,15 +12,30 @@ from typing import Annotated, Literal, Mapping, Optional
 
 from pydantic import AfterValidator, Field, PlainSerializer
 
-from vertex_core.contracts.enums import CalculationStatus
-from vertex_core.contracts.types import ContractModel, NonEmptyStr, freeze_str_mapping
+from vertex_core.contracts.enums import CalculationStatus, SourceCapabilityStatus
+from vertex_core.contracts.types import (
+    ContractModel,
+    FrozenStrMapping,
+    NonEmptyStr,
+    PositiveInt,
+    UtcDatetime,
+    freeze_str_mapping,
+)
 from vertex_core.decision import AdviceInputs, CalculationsInput
 
 __all__ = [
     "AdvicePreviewRequest",
+    "AttentionItem",
+    "AttentionSnapshotResponse",
     "CalculationStatusesInput",
+    "CapabilityStatusEntry",
+    "DbHealth",
     "EngineInfoResponse",
     "HealthResponse",
+    "SnapshotHealth",
+    "SystemCapabilitiesResponse",
+    "SystemHealth",
+    "WorkerHealth",
 ]
 
 FrozenCalculationStatusMapping = Annotated[
@@ -79,3 +94,127 @@ class EngineInfoResponse(ContractModel):
     engine_version: NonEmptyStr
     contracts_version: NonEmptyStr
     gate_versions: FrozenGateVersionMapping
+
+
+# ---------------------------------------------------------------------------
+# GET /api/v1/today/attention — last published attention snapshot, verbatim
+# ---------------------------------------------------------------------------
+
+
+class AttentionItem(ContractModel):
+    """One published attention item, relayed from the worker snapshot.
+
+    ``synthetic`` and the ``population`` label of the response are shown
+    exactly as published — synthetic data never blends into a real
+    presentation. ``provenance`` is the cluster provenance block verbatim
+    (cluster id, member event ids, sources, rights, timestamps,
+    instrument_ref); the API adds nothing and recomputes nothing.
+    """
+
+    id: NonEmptyStr
+    title: NonEmptyStr
+    sources: tuple[NonEmptyStr, ...]
+    rights: tuple[NonEmptyStr, ...]
+    relevance_reasons: tuple[NonEmptyStr, ...] = Field(max_length=3)
+    synthetic: bool
+    provenance: FrozenStrMapping
+
+
+class AttentionSnapshotResponse(ContractModel):
+    """The last ``attention/global`` snapshot — or an honest empty state.
+
+    ``state = "empty"`` means NO snapshot was ever published: every
+    snapshot-derived field is ``None`` (never zero, never invented) and
+    ``reason`` says why. ``state = "ok"`` carries the persisted snapshot
+    version, ``as_of``, ``population`` (``SYNTHETIC`` shown as-is),
+    the full coverage block and the published items.
+    """
+
+    state: Literal["ok", "empty"]
+    snapshot_version: Optional[PositiveInt]
+    as_of: Optional[UtcDatetime]
+    population: Optional[NonEmptyStr]
+    coverage: Optional[FrozenStrMapping]
+    items: tuple[AttentionItem, ...]
+    rejected_count: Optional[Annotated[int, Field(ge=0)]]
+    reason: Optional[NonEmptyStr]
+
+
+# ---------------------------------------------------------------------------
+# GET /api/v1/system/capabilities — manifest x latest probed snapshot + health
+# ---------------------------------------------------------------------------
+
+
+class CapabilityStatusEntry(ContractModel):
+    """One declared capability crossed with the latest persisted probe.
+
+    A capability never probed is ``tested_status = ERROR`` with
+    ``reason = "NEVER_TESTED"`` and ``tested_at = None`` — absence of a probe
+    is never presented as availability.
+    """
+
+    capability_id: NonEmptyStr
+    family: NonEmptyStr
+    declared_mode: NonEmptyStr
+    description: Optional[NonEmptyStr]
+    tested_status: SourceCapabilityStatus
+    tested_at: Optional[UtcDatetime]
+    reason: Optional[NonEmptyStr]
+
+
+class DbHealth(ContractModel):
+    """Result of the ``SELECT 1`` probe: ``ok`` or ``error``, nothing more."""
+
+    status: Literal["ok", "error"]
+
+
+class SnapshotHealth(ContractModel):
+    """Presence and age of one published snapshot head (no content)."""
+
+    present: bool
+    version: Optional[PositiveInt]
+    as_of: Optional[UtcDatetime]
+    age_seconds: Optional[int]
+    """May be negative under clock drift — reported honestly, never clamped."""
+
+
+class WorkerHealth(ContractModel):
+    """Honest worker liveness proxy: the age of the freshest snapshot.
+
+    The worker exposes no direct heartbeat; the method label
+    ``heartbeat_proxy`` names that limitation explicitly instead of
+    pretending to observe the process.
+    """
+
+    method: Literal["heartbeat_proxy"]
+    last_snapshot_as_of: Optional[UtcDatetime]
+    age_seconds: Optional[int]
+    """May be negative under clock drift — reported honestly, never clamped."""
+
+
+class SystemHealth(ContractModel):
+    """Health blocks: database, both snapshot heads, worker proxy."""
+
+    db: DbHealth
+    attention_snapshot: SnapshotHealth
+    capabilities_snapshot: SnapshotHealth
+    worker: WorkerHealth
+
+
+class SystemCapabilitiesResponse(ContractModel):
+    """Every declared capability with its really-tested status, plus health.
+
+    ``total`` equals the exact number of manifest entries; ``as_of`` and
+    ``snapshot_version`` describe the persisted capabilities snapshot
+    (``None`` when never published). ``unknown_probed_capability_ids`` lists
+    probed ids absent from the manifest — never silently dropped, never
+    merged into the declared set. ``checked_at`` is the response instant.
+    """
+
+    checked_at: UtcDatetime
+    snapshot_version: Optional[PositiveInt]
+    as_of: Optional[UtcDatetime]
+    total: Annotated[int, Field(ge=0)]
+    capabilities: tuple[CapabilityStatusEntry, ...]
+    unknown_probed_capability_ids: tuple[NonEmptyStr, ...]
+    health: SystemHealth
