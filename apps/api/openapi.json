@@ -740,6 +740,50 @@
         "title": "CeremonyOptionsResponse",
         "type": "object"
       },
+      "CompensateTransactionRequest": {
+        "additionalProperties": false,
+        "description": "Correction by compensation: the mandatory reason of the new row.",
+        "properties": {
+          "note": {
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Note",
+            "type": "string"
+          }
+        },
+        "required": [
+          "note"
+        ],
+        "title": "CompensateTransactionRequest",
+        "type": "object"
+      },
+      "CompensateTransactionResponse": {
+        "additionalProperties": false,
+        "description": "Receipt of one compensating row (the original stays untouched).",
+        "properties": {
+          "compensates": {
+            "exclusiveMinimum": 0.0,
+            "title": "Compensates",
+            "type": "integer"
+          },
+          "compensation_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Compensation Id",
+            "type": "integer"
+          },
+          "refresh_enqueued": {
+            "title": "Refresh Enqueued",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "compensation_id",
+          "compensates",
+          "refresh_enqueued"
+        ],
+        "title": "CompensateTransactionResponse",
+        "type": "object"
+      },
       "ConstraintsInput": {
         "additionalProperties": false,
         "description": "Facts for gate 10 (``user_constraints_versioned``).",
@@ -802,6 +846,21 @@
           }
         },
         "title": "ContradictionsInput",
+        "type": "object"
+      },
+      "CsvImportPreviewRequest": {
+        "additionalProperties": false,
+        "description": "Raw CSV text to preview. Nothing is written by the preview.",
+        "properties": {
+          "csv": {
+            "title": "Csv",
+            "type": "string"
+          }
+        },
+        "required": [
+          "csv"
+        ],
+        "title": "CsvImportPreviewRequest",
         "type": "object"
       },
       "DbHealth": {
@@ -992,6 +1051,248 @@
         "title": "IdentityStatus",
         "type": "string"
       },
+      "ImportConfirmRequest": {
+        "additionalProperties": false,
+        "description": "The rows to record: the preview echo, unmodified, hash included.",
+        "properties": {
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/ImportRowEcho"
+            },
+            "maxItems": 500,
+            "minItems": 1,
+            "title": "Rows",
+            "type": "array"
+          }
+        },
+        "required": [
+          "rows"
+        ],
+        "title": "ImportConfirmRequest",
+        "type": "object"
+      },
+      "ImportConfirmResponse": {
+        "additionalProperties": false,
+        "description": "Receipt of one confirmed import (source ``IMPORT_CONFIRMED``).",
+        "properties": {
+          "recorded_transaction_ids": {
+            "items": {
+              "exclusiveMinimum": 0.0,
+              "type": "integer"
+            },
+            "title": "Recorded Transaction Ids",
+            "type": "array"
+          },
+          "refresh_enqueued": {
+            "title": "Refresh Enqueued",
+            "type": "boolean"
+          },
+          "source": {
+            "const": "IMPORT_CONFIRMED",
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "recorded_transaction_ids",
+          "source",
+          "refresh_enqueued"
+        ],
+        "title": "ImportConfirmResponse",
+        "type": "object"
+      },
+      "ImportPreviewResponse": {
+        "additionalProperties": false,
+        "description": "Typed preview of one CSV import — NO write happened.",
+        "properties": {
+          "max_bytes": {
+            "exclusiveMinimum": 0.0,
+            "title": "Max Bytes",
+            "type": "integer"
+          },
+          "max_rows": {
+            "exclusiveMinimum": 0.0,
+            "title": "Max Rows",
+            "type": "integer"
+          },
+          "potential_duplicates": {
+            "items": {
+              "$ref": "#/components/schemas/ImportRowDuplicate"
+            },
+            "title": "Potential Duplicates",
+            "type": "array"
+          },
+          "rows_invalid": {
+            "items": {
+              "$ref": "#/components/schemas/ImportRowError"
+            },
+            "title": "Rows Invalid",
+            "type": "array"
+          },
+          "rows_total": {
+            "minimum": 0.0,
+            "title": "Rows Total",
+            "type": "integer"
+          },
+          "rows_valid": {
+            "items": {
+              "$ref": "#/components/schemas/ImportRowEcho"
+            },
+            "title": "Rows Valid",
+            "type": "array"
+          }
+        },
+        "required": [
+          "rows_total",
+          "rows_valid",
+          "rows_invalid",
+          "potential_duplicates",
+          "max_rows",
+          "max_bytes"
+        ],
+        "title": "ImportPreviewResponse",
+        "type": "object"
+      },
+      "ImportRowDuplicate": {
+        "additionalProperties": false,
+        "description": "One valid row that matches already-recorded ledger transactions.",
+        "properties": {
+          "matching_transaction_ids": {
+            "items": {
+              "exclusiveMinimum": 0.0,
+              "type": "integer"
+            },
+            "minItems": 1,
+            "title": "Matching Transaction Ids",
+            "type": "array"
+          },
+          "row_number": {
+            "exclusiveMinimum": 0.0,
+            "title": "Row Number",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "row_number",
+          "matching_transaction_ids"
+        ],
+        "title": "ImportRowDuplicate",
+        "type": "object"
+      },
+      "ImportRowEcho": {
+        "additionalProperties": false,
+        "description": "One VALIDATED import row echoed with its integrity hash.\n\nThe confirm endpoint replays the validation on these fields and\nrecomputes ``row_hash``; any divergence rejects the whole request.\nOptional fields are empty strings in the canonical hashed form.",
+        "properties": {
+          "amount": {
+            "minLength": 1,
+            "title": "Amount",
+            "type": "string"
+          },
+          "currency": {
+            "minLength": 1,
+            "title": "Currency",
+            "type": "string"
+          },
+          "effective_at": {
+            "minLength": 1,
+            "title": "Effective At",
+            "type": "string"
+          },
+          "fees": {
+            "minLength": 1,
+            "title": "Fees",
+            "type": "string"
+          },
+          "kind": {
+            "minLength": 1,
+            "title": "Kind",
+            "type": "string"
+          },
+          "note": {
+            "title": "Note",
+            "type": "string"
+          },
+          "price": {
+            "title": "Price",
+            "type": "string"
+          },
+          "quantity": {
+            "title": "Quantity",
+            "type": "string"
+          },
+          "row_hash": {
+            "minLength": 1,
+            "title": "Row Hash",
+            "type": "string"
+          },
+          "row_number": {
+            "exclusiveMinimum": 0,
+            "title": "Row Number",
+            "type": "integer"
+          },
+          "ticker": {
+            "title": "Ticker",
+            "type": "string"
+          }
+        },
+        "required": [
+          "row_number",
+          "kind",
+          "ticker",
+          "quantity",
+          "price",
+          "amount",
+          "currency",
+          "fees",
+          "effective_at",
+          "note",
+          "row_hash"
+        ],
+        "title": "ImportRowEcho",
+        "type": "object"
+      },
+      "ImportRowError": {
+        "additionalProperties": false,
+        "description": "One rejected import row with its machine-readable error codes.",
+        "properties": {
+          "errors": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Errors",
+            "type": "array"
+          },
+          "row_number": {
+            "exclusiveMinimum": 0.0,
+            "title": "Row Number",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "row_number",
+          "errors"
+        ],
+        "title": "ImportRowError",
+        "type": "object"
+      },
+      "InstrumentRefInput": {
+        "additionalProperties": false,
+        "description": "Canonical instrument reference of a recorded position fact.\n\n``ticker`` only for now: the synthetic universe identifies instruments by\nplain ticker. Extending the identity (options, con_id, trading class) is a\ncontract change, never an implicit field.",
+        "properties": {
+          "ticker": {
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$",
+            "title": "Ticker",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ticker"
+        ],
+        "title": "InstrumentRefInput",
+        "type": "object"
+      },
       "InstrumentResolutionInput": {
         "additionalProperties": false,
         "description": "Facts for gate 1 (``instrument_resolved``).",
@@ -1021,6 +1322,162 @@
           }
         },
         "title": "InstrumentResolutionInput",
+        "type": "object"
+      },
+      "LedgerEventKind": {
+        "description": "Kind of one manually recorded ledger fact.\n\nEvery kind names a **past fact typed in by the user** after it happened\noutside Vertex (``docs/03-domain/PORTFOLIO_MANUAL.md``). None of these is\nan instruction, an order or a transmissible ticket.",
+        "enum": [
+          "BUY_RECORDED",
+          "SELL_RECORDED",
+          "OPTION_OPEN",
+          "OPTION_CLOSE",
+          "DIVIDEND",
+          "INTEREST",
+          "FEE",
+          "TAX",
+          "DEPOSIT",
+          "WITHDRAWAL",
+          "FX_CONVERSION",
+          "CORPORATE_ACTION",
+          "ADJUSTMENT"
+        ],
+        "title": "LedgerEventKind",
+        "type": "string"
+      },
+      "LedgerTransactionEntry": {
+        "additionalProperties": false,
+        "description": "One journal row, verbatim (decimal strings, UTC instants).",
+        "properties": {
+          "amount": {
+            "minLength": 1,
+            "title": "Amount",
+            "type": "string"
+          },
+          "compensated_by": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Compensated By"
+          },
+          "compensates": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Compensates"
+          },
+          "currency": {
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "type": "string"
+          },
+          "effective_at": {
+            "format": "date-time",
+            "title": "Effective At",
+            "type": "string"
+          },
+          "fees": {
+            "minLength": 1,
+            "title": "Fees",
+            "type": "string"
+          },
+          "id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Id",
+            "type": "integer"
+          },
+          "instrument": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instrument"
+          },
+          "kind": {
+            "minLength": 1,
+            "title": "Kind",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "price": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price"
+          },
+          "quantity": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quantity"
+          },
+          "recorded_at": {
+            "format": "date-time",
+            "title": "Recorded At",
+            "type": "string"
+          },
+          "source": {
+            "minLength": 1,
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "instrument",
+          "quantity",
+          "price",
+          "amount",
+          "currency",
+          "fees",
+          "effective_at",
+          "recorded_at",
+          "source",
+          "note",
+          "compensates",
+          "compensated_by"
+        ],
+        "title": "LedgerTransactionEntry",
         "type": "object"
       },
       "LiquidityInput": {
@@ -2146,6 +2603,133 @@
         "title": "OptionLeg",
         "type": "object"
       },
+      "PortfolioInfo": {
+        "additionalProperties": false,
+        "description": "The user-declared portfolio identity (never a broker account).",
+        "properties": {
+          "base_currency": {
+            "pattern": "^[A-Z]{3}$",
+            "title": "Base Currency",
+            "type": "string"
+          },
+          "id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Id",
+            "type": "integer"
+          },
+          "name": {
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "base_currency"
+        ],
+        "title": "PortfolioInfo",
+        "type": "object"
+      },
+      "PortfolioLotEntry": {
+        "additionalProperties": false,
+        "description": "One user-declared position lot, verbatim from the repository.",
+        "properties": {
+          "currency": {
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "type": "string"
+          },
+          "id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Id",
+            "type": "integer"
+          },
+          "instrument": {
+            "additionalProperties": true,
+            "title": "Instrument",
+            "type": "object"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "opened_at": {
+            "format": "date-time",
+            "title": "Opened At",
+            "type": "string"
+          },
+          "quantity": {
+            "minLength": 1,
+            "title": "Quantity",
+            "type": "string"
+          },
+          "source": {
+            "minLength": 1,
+            "title": "Source",
+            "type": "string"
+          },
+          "unit_cost": {
+            "minLength": 1,
+            "title": "Unit Cost",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "instrument",
+          "quantity",
+          "unit_cost",
+          "currency",
+          "opened_at",
+          "source",
+          "note"
+        ],
+        "title": "PortfolioLotEntry",
+        "type": "object"
+      },
+      "PortfolioResponse": {
+        "additionalProperties": false,
+        "description": "The manual portfolio: journal, declared lots, last valuation.",
+        "properties": {
+          "lots": {
+            "items": {
+              "$ref": "#/components/schemas/PortfolioLotEntry"
+            },
+            "title": "Lots",
+            "type": "array"
+          },
+          "portfolio": {
+            "$ref": "#/components/schemas/PortfolioInfo"
+          },
+          "transactions": {
+            "items": {
+              "$ref": "#/components/schemas/LedgerTransactionEntry"
+            },
+            "title": "Transactions",
+            "type": "array"
+          },
+          "valuation": {
+            "$ref": "#/components/schemas/PortfolioValuationView"
+          }
+        },
+        "required": [
+          "portfolio",
+          "transactions",
+          "lots",
+          "valuation"
+        ],
+        "title": "PortfolioResponse",
+        "type": "object"
+      },
       "PortfolioRiskInput": {
         "additionalProperties": false,
         "description": "Facts for gate 7 (``manual_portfolio_risk_available``); declarations are user-made only.",
@@ -2188,6 +2772,77 @@
           }
         },
         "title": "PortfolioRiskInput",
+        "type": "object"
+      },
+      "PortfolioValuationView": {
+        "additionalProperties": false,
+        "description": "The last published valuation snapshot — or an honest empty state.\n\n``state = \"empty\"`` means the worker never published a valuation for this\nportfolio: nothing is invented, ``reason`` says why. ``state = \"ok\"``\nrelays the persisted snapshot content VERBATIM (``mark_population``\n``SYNTHETIC`` shown as-is); the API computes no P&L, weight or total.",
+        "properties": {
+          "as_of": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "As Of"
+          },
+          "content": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "snapshot_version": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Snapshot Version"
+          },
+          "state": {
+            "enum": [
+              "ok",
+              "empty"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "snapshot_version",
+          "as_of",
+          "content",
+          "reason"
+        ],
+        "title": "PortfolioValuationView",
         "type": "object"
       },
       "ProbabilityInput": {
@@ -2244,6 +2899,136 @@
           }
         },
         "title": "ProbabilityInput",
+        "type": "object"
+      },
+      "RecordTransactionRequest": {
+        "additionalProperties": false,
+        "description": "One past fact to append to the accounting journal.\n\nThis RECORDS a transaction the user already executed outside Vertex; it\nis never an instruction. ``amount`` is the signed cash impact declared by\nthe user (exact decimal string on the wire); ``effective_at`` must not be\nin the future (a fact that has not happened yet cannot be recorded).",
+        "properties": {
+          "amount": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "title": "Amount"
+          },
+          "currency": {
+            "pattern": "^[A-Z]{3}$",
+            "title": "Currency",
+            "type": "string"
+          },
+          "effective_at": {
+            "format": "date-time",
+            "title": "Effective At",
+            "type": "string"
+          },
+          "fees": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "default": "0",
+            "title": "Fees"
+          },
+          "instrument": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InstrumentRefInput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "kind": {
+            "$ref": "#/components/schemas/LedgerEventKind"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Note"
+          },
+          "price": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Price"
+          },
+          "quantity": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Quantity"
+          }
+        },
+        "required": [
+          "kind",
+          "amount",
+          "currency",
+          "effective_at"
+        ],
+        "title": "RecordTransactionRequest",
+        "type": "object"
+      },
+      "RecordTransactionResponse": {
+        "additionalProperties": false,
+        "description": "Receipt of one recorded journal fact.",
+        "properties": {
+          "refresh_enqueued": {
+            "title": "Refresh Enqueued",
+            "type": "boolean"
+          },
+          "transaction_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Transaction Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "transaction_id",
+          "refresh_enqueued"
+        ],
+        "title": "RecordTransactionResponse",
         "type": "object"
       },
       "RegisterVerifyRequest": {
@@ -3266,6 +4051,215 @@
           }
         },
         "summary": "Last published option chain for one underlying (or honest empty state)"
+      }
+    },
+    "/api/v1/portfolio": {
+      "get": {
+        "description": "Serve the manual ledger verbatim plus the LAST valuation snapshot.\n\nThe default portfolio ``main`` is created on first use (documented\nget-or-create). The valuation block relays the worker's snapshot exactly\nas persisted (``mark_population = \"SYNTHETIC\"`` shown as-is) or an honest\nempty state — the API computes no P&L, mark, weight or total.",
+        "operationId": "get_portfolio",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PortfolioResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Authentication required: no valid WebAuthn session cookie (or missing/invalid CSRF header on a mutation). Always the same generic body with detail code AUTH_REQUIRED."
+          }
+        },
+        "summary": "Manual journal, declared lots and last published valuation"
+      }
+    },
+    "/api/v1/portfolio/export": {
+      "get": {
+        "description": "Export the journal as CSV. Nothing but the ledger leaves the server.",
+        "operationId": "export_portfolio",
+        "responses": {
+          "200": {
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "text/csv: one version-stamp comment line, the header row and the ledger rows — no other data. Cells starting with '=', '+', '-' or '@' are neutralized with a leading apostrophe against spreadsheet formula injection."
+          },
+          "401": {
+            "description": "Authentication required: no valid WebAuthn session cookie (or missing/invalid CSRF header on a mutation). Always the same generic body with detail code AUTH_REQUIRED."
+          }
+        },
+        "summary": "CSV export of the manual ledger (version stamp, ledger only)"
+      }
+    },
+    "/api/v1/portfolio/import/confirm": {
+      "post": {
+        "description": "Record ONLY rows that re-pass the full validation with intact hashes.\n\nThe confirm never trusts the echo: each row's fields are re-validated\nexactly like at preview time and its integrity hash is recomputed; any\ndivergence rejects the WHOLE request before any write. Accepted rows are\nrecorded with source ``IMPORT_CONFIRMED`` and one revaluation is\nenqueued in the same transaction.",
+        "operationId": "confirm_portfolio_import",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportConfirmRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportConfirmResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Authentication required: no valid WebAuthn session cookie (or missing/invalid CSRF header on a mutation). Always the same generic body with detail code AUTH_REQUIRED."
+          },
+          "422": {
+            "description": "Rejected fail-closed: IMPORT_ROW_INVALID (a row no longer passes the replayed validation) or ECHO_HASH_MISMATCH (an echoed row was altered after the preview). Nothing is written on rejection."
+          }
+        },
+        "summary": "Record the previewed rows (validation replayed, hash verified)"
+      }
+    },
+    "/api/v1/portfolio/import/preview": {
+      "post": {
+        "description": "Validate a CSV import WITHOUT writing anything.\n\nEvery data row becomes either a typed, hash-stamped echo (to be sent\nback verbatim to the confirm endpoint) or a per-row error list. Valid\nrows matching already-recorded facts are flagged as potential duplicates\n— information for the user, never a silent drop.",
+        "operationId": "preview_portfolio_import",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CsvImportPreviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportPreviewResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Authentication required: no valid WebAuthn session cookie (or missing/invalid CSRF header on a mutation). Always the same generic body with detail code AUTH_REQUIRED."
+          },
+          "422": {
+            "description": "Whole-input rejection: CSV_TOO_LARGE (256 KiB), CSV_TOO_MANY_ROWS (500 data rows) or CSV_HEADER_INVALID."
+          }
+        },
+        "summary": "Typed CSV preview: rows, per-row errors, duplicates — NO write"
+      }
+    },
+    "/api/v1/portfolio/transactions": {
+      "post": {
+        "description": "Append one accounting-journal fact and enqueue the revaluation.\n\nThe ledger write and the ``portfolio.valuation.refresh`` outbox message\ncommit in the SAME transaction (outbox atomicity). This endpoint records\nwhat already happened outside Vertex — it never transmits anything to a\nbroker and no such capability exists.",
+        "operationId": "record_transaction",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordTransactionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordTransactionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Authentication required: no valid WebAuthn session cookie (or missing/invalid CSRF header on a mutation). Always the same generic body with detail code AUTH_REQUIRED."
+          },
+          "422": {
+            "description": "Rejected fail-closed: wire-contract violation or EFFECTIVE_AT_IN_FUTURE (a fact that has not happened yet cannot be recorded)."
+          }
+        },
+        "summary": "Record one past transaction already executed outside Vertex"
+      }
+    },
+    "/api/v1/portfolio/transactions/{transaction_id}/compensate": {
+      "post": {
+        "description": "Append the compensating row of one recorded fact (never an edit).\n\nThe original row stays untouched forever; the compensating row negates\namount, fees and quantity and carries the mandatory reason note. A second\ncompensation of the same row is a clean 409 conflict.",
+        "operationId": "compensate_transaction",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "transaction_id",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Transaction Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompensateTransactionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompensateTransactionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Authentication required: no valid WebAuthn session cookie (or missing/invalid CSRF header on a mutation). Always the same generic body with detail code AUTH_REQUIRED."
+          },
+          "404": {
+            "description": "Unknown transaction (code UNKNOWN_TRANSACTION)."
+          },
+          "409": {
+            "description": "The transaction already has a compensating row (code ALREADY_COMPENSATED) — history is append-only, a fact is corrected at most once."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Correct one recorded fact by appending its compensating row"
       }
     },
     "/api/v1/simulations/preview": {

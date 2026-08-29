@@ -63,6 +63,14 @@ def test_openapi_structure_is_explicit() -> None:
         "get_system_capabilities",
         "get_events_stream",
         "post_simulations_preview",
+        # Manual portfolio journal (accounting semantics, neutral operation
+        # ids: these RECORD past facts, they never transmit anything).
+        "get_portfolio",
+        "record_transaction",
+        "compensate_transaction",
+        "preview_portfolio_import",
+        "confirm_portfolio_import",
+        "export_portfolio",
         "post_auth_register_options",
         "post_auth_register_verify",
         "post_auth_login_options",

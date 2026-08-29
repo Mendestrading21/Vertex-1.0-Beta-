@@ -28,9 +28,37 @@ from fastapi.responses import StreamingResponse
 from pydantic import ValidationError
 from starlette.concurrency import run_in_threadpool
 
+from fastapi.responses import Response
+
 from vertex_api.auth import require_session
 from vertex_api.capability_manifest import CapabilityManifest
 from vertex_api.events import StreamSettings, get_stream_settings, snapshot_event_stream
+from vertex_api.portfolio import (
+    ERROR_ALREADY_COMPENSATED,
+    ERROR_ECHO_HASH_MISMATCH,
+    ERROR_EFFECTIVE_AT_IN_FUTURE,
+    ERROR_IMPORT_ROW_INVALID,
+    ERROR_UNKNOWN_TRANSACTION,
+    EXPORT_SCHEMA_VERSION,
+    CompensateTransactionRequest,
+    CompensateTransactionResponse,
+    CsvImportError,
+    CsvImportPreviewRequest,
+    DbPortfolioGateway,
+    ImportConfirmRequest,
+    ImportConfirmResponse,
+    ImportPreviewResponse,
+    PortfolioGateway,
+    PortfolioResponse,
+    RecordTransactionRequest,
+    RecordTransactionResponse,
+    build_portfolio_response,
+    detect_potential_duplicates,
+    import_row_hash,
+    parse_import_csv,
+    render_export_csv,
+    validate_import_fields,
+)
 from vertex_api.schemas import (
     AdvicePreviewRequest,
     AnalysisResponse,
@@ -399,4 +427,416 @@ async def get_events_stream(
         snapshot_event_stream(reader, settings),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"},
+    )
+
+
+# ---------------------------------------------------------------------------
+# Manual portfolio journal (accounting semantics — records of PAST facts
+# executed outside Vertex; nothing here is, or ever becomes, an order)
+# ---------------------------------------------------------------------------
+
+
+def get_portfolio_gateway(request: Request) -> PortfolioGateway:
+    """FastAPI dependency: the real gateway (tests override with fakes)."""
+    return DbPortfolioGateway(request.app)
+
+
+async def parse_record_transaction_request(
+    request: Request,
+) -> RecordTransactionRequest:
+    """Validate the raw JSON body in pydantic JSON mode (fail-closed 422).
+
+    Same rationale as :func:`parse_advice_preview_request`: the journal DTO
+    is a strict model whose wire form carries decimal strings and ISO
+    datetimes — any deviation (naive datetime, non-finite decimal, missing
+    instrument on a position fact, unknown field) is rejected as 422.
+    """
+    raw_body = await request.body()
+    try:
+        return RecordTransactionRequest.model_validate_json(raw_body)
+    except ValidationError as exc:
+        raise RequestValidationError(
+            exc.errors(include_url=False, include_context=False, include_input=False)
+        ) from exc
+
+
+async def parse_compensate_request(request: Request) -> CompensateTransactionRequest:
+    """Strict JSON-mode validation of the compensation body (fail-closed 422)."""
+    raw_body = await request.body()
+    try:
+        return CompensateTransactionRequest.model_validate_json(raw_body)
+    except ValidationError as exc:
+        raise RequestValidationError(
+            exc.errors(include_url=False, include_context=False, include_input=False)
+        ) from exc
+
+
+async def parse_import_preview_request(request: Request) -> CsvImportPreviewRequest:
+    """Strict JSON-mode validation of the CSV preview body (fail-closed 422)."""
+    raw_body = await request.body()
+    try:
+        return CsvImportPreviewRequest.model_validate_json(raw_body)
+    except ValidationError as exc:
+        raise RequestValidationError(
+            exc.errors(include_url=False, include_context=False, include_input=False)
+        ) from exc
+
+
+async def parse_import_confirm_request(request: Request) -> ImportConfirmRequest:
+    """Strict JSON-mode validation of the CSV confirm body (fail-closed 422)."""
+    raw_body = await request.body()
+    try:
+        return ImportConfirmRequest.model_validate_json(raw_body)
+    except ValidationError as exc:
+        raise RequestValidationError(
+            exc.errors(include_url=False, include_context=False, include_input=False)
+        ) from exc
+
+
+@protected_router.get(
+    "/portfolio",
+    operation_id="get_portfolio",
+    response_model=PortfolioResponse,
+    summary="Manual journal, declared lots and last published valuation",
+)
+def get_portfolio(
+    gateway: Annotated[PortfolioGateway, Depends(get_portfolio_gateway)],
+) -> PortfolioResponse:
+    """Serve the manual ledger verbatim plus the LAST valuation snapshot.
+
+    The default portfolio ``main`` is created on first use (documented
+    get-or-create). The valuation block relays the worker's snapshot exactly
+    as persisted (``mark_population = "SYNTHETIC"`` shown as-is) or an honest
+    empty state — the API computes no P&L, mark, weight or total.
+    """
+    return build_portfolio_response(gateway.overview())
+
+
+@protected_router.post(
+    "/portfolio/transactions",
+    operation_id="record_transaction",
+    response_model=RecordTransactionResponse,
+    summary="Record one past transaction already executed outside Vertex",
+    status_code=201,
+    openapi_extra={
+        "requestBody": {
+            "required": True,
+            "content": {
+                "application/json": {
+                    "schema": {
+                        "$ref": "#/components/schemas/RecordTransactionRequest"
+                    }
+                }
+            },
+        }
+    },
+    responses={
+        422: {
+            "description": (
+                "Rejected fail-closed: wire-contract violation or "
+                "EFFECTIVE_AT_IN_FUTURE (a fact that has not happened yet "
+                "cannot be recorded)."
+            )
+        }
+    },
+)
+def record_transaction(
+    inputs: Annotated[
+        RecordTransactionRequest, Depends(parse_record_transaction_request)
+    ],
+    gateway: Annotated[PortfolioGateway, Depends(get_portfolio_gateway)],
+    clock: Annotated[Clock, Depends(get_clock)],
+) -> RecordTransactionResponse:
+    """Append one accounting-journal fact and enqueue the revaluation.
+
+    The ledger write and the ``portfolio.valuation.refresh`` outbox message
+    commit in the SAME transaction (outbox atomicity). This endpoint records
+    what already happened outside Vertex — it never transmits anything to a
+    broker and no such capability exists.
+    """
+    now = clock()
+    if inputs.effective_at > now:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": ERROR_EFFECTIVE_AT_IN_FUTURE,
+                "message": "effective_at must not be in the future",
+            },
+        )
+    transaction_id = gateway.record_transaction(
+        kind=inputs.kind.value,
+        instrument=(
+            {"ticker": inputs.instrument.ticker} if inputs.instrument else None
+        ),
+        quantity=inputs.quantity,
+        price=inputs.price,
+        amount=inputs.amount,
+        currency=inputs.currency,
+        fees=inputs.fees,
+        effective_at=inputs.effective_at,
+        note=inputs.note,
+        now=now,
+    )
+    return RecordTransactionResponse(
+        transaction_id=transaction_id, refresh_enqueued=True
+    )
+
+
+@protected_router.post(
+    "/portfolio/transactions/{transaction_id}/compensate",
+    operation_id="compensate_transaction",
+    response_model=CompensateTransactionResponse,
+    summary="Correct one recorded fact by appending its compensating row",
+    status_code=201,
+    openapi_extra={
+        "requestBody": {
+            "required": True,
+            "content": {
+                "application/json": {
+                    "schema": {
+                        "$ref": "#/components/schemas/CompensateTransactionRequest"
+                    }
+                }
+            },
+        }
+    },
+    responses={
+        404: {"description": "Unknown transaction (code UNKNOWN_TRANSACTION)."},
+        409: {
+            "description": (
+                "The transaction already has a compensating row (code "
+                "ALREADY_COMPENSATED) — history is append-only, a fact is "
+                "corrected at most once."
+            )
+        },
+    },
+)
+def compensate_transaction(
+    transaction_id: Annotated[int, Path(ge=1)],
+    inputs: Annotated[CompensateTransactionRequest, Depends(parse_compensate_request)],
+    gateway: Annotated[PortfolioGateway, Depends(get_portfolio_gateway)],
+    clock: Annotated[Clock, Depends(get_clock)],
+) -> CompensateTransactionResponse:
+    """Append the compensating row of one recorded fact (never an edit).
+
+    The original row stays untouched forever; the compensating row negates
+    amount, fees and quantity and carries the mandatory reason note. A second
+    compensation of the same row is a clean 409 conflict.
+    """
+    from vertex_persistence.errors import (
+        AlreadyCompensatedError,
+        UnknownLedgerEventError,
+    )
+
+    now = clock()
+    try:
+        compensation_id = gateway.compensate_transaction(
+            event_id=transaction_id, note=inputs.note, now=now
+        )
+    except AlreadyCompensatedError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={"code": ERROR_ALREADY_COMPENSATED, "message": str(exc)},
+        ) from exc
+    except UnknownLedgerEventError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail={"code": ERROR_UNKNOWN_TRANSACTION, "message": str(exc)},
+        ) from exc
+    return CompensateTransactionResponse(
+        compensation_id=compensation_id,
+        compensates=transaction_id,
+        refresh_enqueued=True,
+    )
+
+
+@protected_router.post(
+    "/portfolio/import/preview",
+    operation_id="preview_portfolio_import",
+    response_model=ImportPreviewResponse,
+    summary="Typed CSV preview: rows, per-row errors, duplicates — NO write",
+    openapi_extra={
+        "requestBody": {
+            "required": True,
+            "content": {
+                "application/json": {
+                    "schema": {
+                        "$ref": "#/components/schemas/CsvImportPreviewRequest"
+                    }
+                }
+            },
+        }
+    },
+    responses={
+        422: {
+            "description": (
+                "Whole-input rejection: CSV_TOO_LARGE (256 KiB), "
+                "CSV_TOO_MANY_ROWS (500 data rows) or CSV_HEADER_INVALID."
+            )
+        }
+    },
+)
+def preview_portfolio_import(
+    inputs: Annotated[CsvImportPreviewRequest, Depends(parse_import_preview_request)],
+    gateway: Annotated[PortfolioGateway, Depends(get_portfolio_gateway)],
+    clock: Annotated[Clock, Depends(get_clock)],
+) -> ImportPreviewResponse:
+    """Validate a CSV import WITHOUT writing anything.
+
+    Every data row becomes either a typed, hash-stamped echo (to be sent
+    back verbatim to the confirm endpoint) or a per-row error list. Valid
+    rows matching already-recorded facts are flagged as potential duplicates
+    — information for the user, never a silent drop.
+    """
+    from vertex_api.portfolio import ImportRowEcho, MAX_IMPORT_BYTES, MAX_IMPORT_ROWS
+
+    now = clock()
+    try:
+        valid, invalid = parse_import_csv(inputs.csv, now=now)
+    except CsvImportError as exc:
+        raise HTTPException(
+            status_code=422, detail={"code": exc.code, "message": str(exc)}
+        ) from exc
+    ledger = gateway.overview().transactions
+    duplicates = detect_potential_duplicates(valid, ledger)
+    return ImportPreviewResponse(
+        rows_total=len(valid) + len(invalid),
+        rows_valid=tuple(
+            ImportRowEcho(
+                row_number=row.row_number,
+                kind=row.canonical_fields["kind"],
+                ticker=row.canonical_fields["ticker"],
+                quantity=row.canonical_fields["quantity"],
+                price=row.canonical_fields["price"],
+                amount=row.canonical_fields["amount"],
+                currency=row.canonical_fields["currency"],
+                fees=row.canonical_fields["fees"],
+                effective_at=row.canonical_fields["effective_at"],
+                note=row.canonical_fields["note"],
+                row_hash=row.row_hash,
+            )
+            for row in valid
+        ),
+        rows_invalid=tuple(invalid),
+        potential_duplicates=tuple(duplicates),
+        max_rows=MAX_IMPORT_ROWS,
+        max_bytes=MAX_IMPORT_BYTES,
+    )
+
+
+@protected_router.post(
+    "/portfolio/import/confirm",
+    operation_id="confirm_portfolio_import",
+    response_model=ImportConfirmResponse,
+    summary="Record the previewed rows (validation replayed, hash verified)",
+    status_code=201,
+    openapi_extra={
+        "requestBody": {
+            "required": True,
+            "content": {
+                "application/json": {
+                    "schema": {"$ref": "#/components/schemas/ImportConfirmRequest"}
+                }
+            },
+        }
+    },
+    responses={
+        422: {
+            "description": (
+                "Rejected fail-closed: IMPORT_ROW_INVALID (a row no longer "
+                "passes the replayed validation) or ECHO_HASH_MISMATCH (an "
+                "echoed row was altered after the preview). Nothing is "
+                "written on rejection."
+            )
+        }
+    },
+)
+def confirm_portfolio_import(
+    inputs: Annotated[ImportConfirmRequest, Depends(parse_import_confirm_request)],
+    gateway: Annotated[PortfolioGateway, Depends(get_portfolio_gateway)],
+    clock: Annotated[Clock, Depends(get_clock)],
+) -> ImportConfirmResponse:
+    """Record ONLY rows that re-pass the full validation with intact hashes.
+
+    The confirm never trusts the echo: each row's fields are re-validated
+    exactly like at preview time and its integrity hash is recomputed; any
+    divergence rejects the WHOLE request before any write. Accepted rows are
+    recorded with source ``IMPORT_CONFIRMED`` and one revaluation is
+    enqueued in the same transaction.
+    """
+    now = clock()
+    validated = []
+    for echo in inputs.rows:
+        fields = {
+            "kind": echo.kind,
+            "ticker": echo.ticker,
+            "quantity": echo.quantity,
+            "price": echo.price,
+            "amount": echo.amount,
+            "currency": echo.currency,
+            "fees": echo.fees,
+            "effective_at": echo.effective_at,
+            "note": echo.note,
+        }
+        row, errors = validate_import_fields(
+            fields, row_number=echo.row_number, now=now
+        )
+        if row is None:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": ERROR_IMPORT_ROW_INVALID,
+                    "message": f"row {echo.row_number} failed the replayed validation",
+                    "errors": errors,
+                },
+            )
+        if row.row_hash != echo.row_hash:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": ERROR_ECHO_HASH_MISMATCH,
+                    "message": (
+                        f"row {echo.row_number}: the echoed content does not "
+                        "match its integrity hash"
+                    ),
+                },
+            )
+        validated.append(row)
+    recorded = gateway.record_import(validated, now=now)
+    return ImportConfirmResponse(
+        recorded_transaction_ids=tuple(recorded),
+        source="IMPORT_CONFIRMED",
+        refresh_enqueued=True,
+    )
+
+
+@protected_router.get(
+    "/portfolio/export",
+    operation_id="export_portfolio",
+    summary="CSV export of the manual ledger (version stamp, ledger only)",
+    response_class=Response,
+    responses={
+        200: {
+            "description": (
+                "text/csv: one version-stamp comment line, the header row and "
+                "the ledger rows — no other data. Cells starting with "
+                "'=', '+', '-' or '@' are neutralized with a leading "
+                "apostrophe against spreadsheet formula injection."
+            ),
+            "content": {"text/csv": {"schema": {"type": "string"}}},
+        }
+    },
+)
+def export_portfolio(
+    gateway: Annotated[PortfolioGateway, Depends(get_portfolio_gateway)],
+) -> Response:
+    """Export the journal as CSV. Nothing but the ledger leaves the server."""
+    overview = gateway.overview()
+    return Response(
+        content=render_export_csv(overview.transactions),
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": 'attachment; filename="vertex-portfolio-ledger.csv"',
+            "X-Vertex-Export-Version": EXPORT_SCHEMA_VERSION,
+        },
     )

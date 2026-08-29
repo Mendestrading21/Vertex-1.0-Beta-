@@ -15,6 +15,12 @@ from fastapi.openapi.utils import get_openapi
 from vertex_api.auth import auth_router
 from vertex_api.auth.challenges import ChallengeStore
 from vertex_api.capability_manifest import load_capability_manifest
+from vertex_api.portfolio import (
+    CompensateTransactionRequest,
+    CsvImportPreviewRequest,
+    ImportConfirmRequest,
+    RecordTransactionRequest,
+)
 from vertex_api.routes import protected_router, public_router
 from vertex_api.schemas import AdvicePreviewRequest
 from vertex_api.simulation import SimulationPreviewRequest
@@ -55,6 +61,10 @@ def _build_openapi_schema(app: FastAPI) -> dict[str, Any]:
     for name, model in (
         ("AdvicePreviewRequest", AdvicePreviewRequest),
         ("SimulationPreviewRequest", SimulationPreviewRequest),
+        ("RecordTransactionRequest", RecordTransactionRequest),
+        ("CompensateTransactionRequest", CompensateTransactionRequest),
+        ("CsvImportPreviewRequest", CsvImportPreviewRequest),
+        ("ImportConfirmRequest", ImportConfirmRequest),
     ):
         request_schema = model.model_json_schema(
             ref_template="#/components/schemas/{model}"

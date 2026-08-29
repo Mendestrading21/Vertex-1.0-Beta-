@@ -45,9 +45,14 @@ WATCHED_SNAPSHOTS: tuple[tuple[str, str], ...] = (
 )
 """(kind, key) heads whose version changes are signalled on the stream."""
 
-WATCHED_SNAPSHOT_KINDS: tuple[str, ...] = ("analysis", "option_chain")
+WATCHED_SNAPSHOT_KINDS: tuple[str, ...] = (
+    "analysis",
+    "option_chain",
+    "portfolio_valuation",
+)
 """Kinds watched BY PREFIX: every published key of these kinds is signalled
-as ``<kind>/<key>`` (e.g. ``option_chain/SYN-TECH-01``).
+as ``<kind>/<key>`` (e.g. ``option_chain/SYN-TECH-01``,
+``portfolio_valuation/1``).
 
 Documented semantics choice: rather than hard-coding the current list of
 synthetic underlyings, the stream polls the head table for ALL keys of a
