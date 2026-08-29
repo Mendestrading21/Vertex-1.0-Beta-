@@ -30,8 +30,13 @@ from vertex_persistence.repository.observations import insert_observation
 from vertex_persistence.repository.outbox import enqueue_outbox
 
 from vertex_worker.analysis import TOPIC_ANALYSIS_INGESTED, is_daily_bars_schema
+from vertex_worker.calendar import (
+    TOPIC_CALENDAR_INGESTED,
+    is_calendar_event_schema,
+)
 from vertex_worker.follow_up import TOPIC_REVIEW_QUEUE_REFRESH
 from vertex_worker.markets import TOPIC_QUOTES_INGESTED, is_daily_quote_schema
+from vertex_worker.opportunities import TOPIC_OPPORTUNITIES_REFRESH
 from vertex_worker.options import (
     TOPIC_OPTION_CHAINS_INGESTED,
     is_option_chain_schema,
@@ -143,6 +148,37 @@ def ingest_envelope(session: Session, envelope: DataEnvelope) -> IngestResult:
         enqueue_outbox(
             session,
             TOPIC_ANALYSIS_INGESTED,
+            {
+                "event_id": envelope.event_id,
+                "source": envelope.source,
+                "schema_version": envelope.schema_version,
+            },
+        )
+    if is_calendar_event_schema(envelope.schema_version):
+        # Additional calendar job (same transaction, same idempotence): the
+        # calendar handler owns its dedicated topic (vertex_worker.calendar).
+        enqueue_outbox(
+            session,
+            TOPIC_CALENDAR_INGESTED,
+            {
+                "event_id": envelope.event_id,
+                "source": envelope.source,
+                "schema_version": envelope.schema_version,
+            },
+        )
+    if (
+        is_daily_bars_schema(envelope.schema_version)
+        or is_option_chain_schema(envelope.schema_version)
+        or is_calendar_event_schema(envelope.schema_version)
+    ):
+        # Opportunities job (page 04): bars and chains change the advice
+        # basis of a candidate, a calendar event changes its catalyst
+        # evidence. For calendar envelopes this message is enqueued AFTER
+        # the calendar job, so a drained outbox recomputes the calendar
+        # snapshot before the opportunities handler reads it.
+        enqueue_outbox(
+            session,
+            TOPIC_OPPORTUNITIES_REFRESH,
             {
                 "event_id": envelope.event_id,
                 "source": envelope.source,

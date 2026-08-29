@@ -12,6 +12,7 @@ from typing import Any
 from fastapi import FastAPI
 from fastapi.openapi.utils import get_openapi
 
+from vertex_api.ai_explain import AiExplainRequest
 from vertex_api.auth import auth_router
 from vertex_api.auth.challenges import ChallengeStore
 from vertex_api.capability_manifest import load_capability_manifest
@@ -61,6 +62,7 @@ def _build_openapi_schema(app: FastAPI) -> dict[str, Any]:
     definitions: dict[str, Any] = {}
     for name, model in (
         ("AdvicePreviewRequest", AdvicePreviewRequest),
+        ("AiExplainRequest", AiExplainRequest),
         ("SimulationPreviewRequest", SimulationPreviewRequest),
         ("RecordTransactionRequest", RecordTransactionRequest),
         ("CompensateTransactionRequest", CompensateTransactionRequest),

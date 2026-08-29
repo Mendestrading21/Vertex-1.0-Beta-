@@ -282,6 +282,263 @@
         "title": "AdviceStatus",
         "type": "string"
       },
+      "AiAnswer": {
+        "additionalProperties": false,
+        "description": "The structured deterministic answer (never presented as a model).",
+        "properties": {
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "claims": {
+            "items": {
+              "$ref": "#/components/schemas/AiClaim"
+            },
+            "title": "Claims",
+            "type": "array"
+          },
+          "contradictions": {
+            "items": {
+              "$ref": "#/components/schemas/AiContradiction"
+            },
+            "title": "Contradictions",
+            "type": "array"
+          },
+          "evidence_catalog": {
+            "items": {
+              "$ref": "#/components/schemas/AiEvidenceCatalogEntry"
+            },
+            "title": "Evidence Catalog",
+            "type": "array"
+          },
+          "limitations": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Limitations",
+            "type": "array"
+          },
+          "locale": {
+            "const": "fr",
+            "title": "Locale",
+            "type": "string"
+          },
+          "missing_data": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "title": "Missing Data",
+            "type": "array"
+          },
+          "provider": {
+            "const": "DETERMINISTIC_TEMPLATE",
+            "title": "Provider",
+            "type": "string"
+          },
+          "snapshot_version": {
+            "exclusiveMinimum": 0.0,
+            "title": "Snapshot Version",
+            "type": "integer"
+          },
+          "subject": {
+            "$ref": "#/components/schemas/AiSubject"
+          },
+          "template_version": {
+            "const": "vertex.ai-deterministic-template/1.0",
+            "title": "Template Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "template_version",
+          "subject",
+          "locale",
+          "as_of",
+          "snapshot_version",
+          "claims",
+          "contradictions",
+          "missing_data",
+          "limitations",
+          "evidence_catalog"
+        ],
+        "title": "AiAnswer",
+        "type": "object"
+      },
+      "AiClaim": {
+        "additionalProperties": false,
+        "description": "One factual sentence, grounded on evidence really present.",
+        "properties": {
+          "evidence_refs": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "minItems": 1,
+            "title": "Evidence Refs",
+            "type": "array"
+          },
+          "kind": {
+            "const": "FACT",
+            "title": "Kind",
+            "type": "string"
+          },
+          "text": {
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "text",
+          "kind",
+          "evidence_refs"
+        ],
+        "title": "AiClaim",
+        "type": "object"
+      },
+      "AiContradiction": {
+        "additionalProperties": false,
+        "description": "One contradiction carried by the snapshot (e.g. a closed gate).",
+        "properties": {
+          "code": {
+            "minLength": 1,
+            "title": "Code",
+            "type": "string"
+          },
+          "reference": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference"
+          },
+          "text": {
+            "minLength": 1,
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "reference",
+          "text"
+        ],
+        "title": "AiContradiction",
+        "type": "object"
+      },
+      "AiEvidenceCatalogEntry": {
+        "additionalProperties": false,
+        "description": "One resolvable evidence id of the source snapshot (server catalog).",
+        "properties": {
+          "evidence_id": {
+            "minLength": 1,
+            "title": "Evidence Id",
+            "type": "string"
+          },
+          "evidence_type": {
+            "minLength": 1,
+            "title": "Evidence Type",
+            "type": "string"
+          },
+          "path": {
+            "minLength": 1,
+            "title": "Path",
+            "type": "string"
+          }
+        },
+        "required": [
+          "evidence_id",
+          "evidence_type",
+          "path"
+        ],
+        "title": "AiEvidenceCatalogEntry",
+        "type": "object"
+      },
+      "AiExplainRequest": {
+        "additionalProperties": false,
+        "description": "Wire contract of ``POST /api/v1/ai/explain``.",
+        "properties": {
+          "locale": {
+            "const": "fr",
+            "title": "Locale",
+            "type": "string"
+          },
+          "subject": {
+            "$ref": "#/components/schemas/AiSubject"
+          }
+        },
+        "required": [
+          "subject",
+          "locale"
+        ],
+        "title": "AiExplainRequest",
+        "type": "object"
+      },
+      "AiStatusResponse": {
+        "additionalProperties": false,
+        "description": "State of the AI provider: disabled until human decision B-05.",
+        "properties": {
+          "deterministic_template_available": {
+            "const": true,
+            "title": "Deterministic Template Available",
+            "type": "boolean"
+          },
+          "provider": {
+            "const": "DISABLED",
+            "title": "Provider",
+            "type": "string"
+          },
+          "reason": {
+            "const": "B-05_HUMAN_DECISION_PENDING",
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider",
+          "reason",
+          "deterministic_template_available"
+        ],
+        "title": "AiStatusResponse",
+        "type": "object"
+      },
+      "AiSubject": {
+        "additionalProperties": false,
+        "description": "What the template explains: one persisted snapshot.",
+        "properties": {
+          "key": {
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$",
+            "title": "Key",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "analysis",
+              "portfolio_valuation",
+              "performance"
+            ],
+            "title": "Kind",
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "key"
+        ],
+        "title": "AiSubject",
+        "type": "object"
+      },
       "AnalysisResponse": {
         "additionalProperties": false,
         "description": "The last ``analysis/{instrument}`` snapshot — or an honest empty state.\n\n``state = \"empty\"`` means NO dossier was ever published for this\ninstrument: every snapshot-derived field is ``None`` (never invented)\nand ``reason`` says why. ``state = \"ok\"`` relays the persisted content\nverbatim:\n\n- ``advice`` is the canonical ``AdviceResult`` produced by THE single\n  ``AdviceEngine`` — status, direction, the ten gates with their reason\n  codes, limitations — exactly as published; the API neither recomputes\n  nor softens it;\n- ``bars`` carries the validated synthetic OHLCV series (decimal\n  strings) with its per-bar discard account;\n- ``evidence`` is the fusion-cluster rail of the instrument;\n- ``scenarios`` is either the ``THEORETICAL`` scenario grid with its\n  ``CalculationRecord`` lineage or an honest ``ABSENT`` block with its\n  typed reason.",
@@ -645,6 +902,199 @@
           }
         },
         "title": "CalculationStatusesInput",
+        "type": "object"
+      },
+      "CalendarResponse": {
+        "additionalProperties": false,
+        "description": "The last published calendar snapshot — or an honest empty state.\n\n``state = \"ok\"`` relays the persisted agenda VERBATIM (importance from\nthe versioned rule, distinct ESTIMATED/CONFIRMED labels, revisions with\ntheir preserved previous values, exchange timezones); the API invents no\nevent and recomputes no importance. ``state = \"empty\"`` means the worker\nnever published: nothing is invented, ``reason`` says why.",
+        "properties": {
+          "agenda": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Agenda",
+            "type": "array"
+          },
+          "as_of": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "As Of"
+          },
+          "categories": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Categories"
+          },
+          "coverage": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coverage"
+          },
+          "importance_rule": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Importance Rule"
+          },
+          "population": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Population"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "snapshot_version": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Snapshot Version"
+          },
+          "state": {
+            "enum": [
+              "ok",
+              "empty"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "statuses": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Statuses"
+          },
+          "window": {
+            "$ref": "#/components/schemas/CalendarWindow"
+          }
+        },
+        "required": [
+          "state",
+          "snapshot_version",
+          "as_of",
+          "population",
+          "importance_rule",
+          "agenda",
+          "categories",
+          "statuses",
+          "coverage",
+          "window",
+          "reason"
+        ],
+        "title": "CalendarResponse",
+        "type": "object"
+      },
+      "CalendarWindow": {
+        "additionalProperties": false,
+        "description": "Echo of the applied (or absent) display window.",
+        "properties": {
+          "applied": {
+            "title": "Applied",
+            "type": "boolean"
+          },
+          "events_in_window": {
+            "title": "Events In Window",
+            "type": "integer"
+          },
+          "events_total": {
+            "title": "Events Total",
+            "type": "integer"
+          },
+          "from_utc": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "From Utc"
+          },
+          "max_days": {
+            "exclusiveMinimum": 0.0,
+            "title": "Max Days",
+            "type": "integer"
+          },
+          "to_utc": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "To Utc"
+          }
+        },
+        "required": [
+          "applied",
+          "from_utc",
+          "to_utc",
+          "max_days",
+          "events_total",
+          "events_in_window"
+        ],
+        "title": "CalendarWindow",
         "type": "object"
       },
       "CapabilityStatusEntry": {
@@ -2344,6 +2794,77 @@
           "calculation"
         ],
         "title": "MarketsTicker",
+        "type": "object"
+      },
+      "OpportunitiesResponse": {
+        "additionalProperties": false,
+        "description": "The last published opportunities snapshot — or an honest empty state.\n\n``state = \"ok\"`` relays the persisted content VERBATIM: profile\nreference (id + version), documented lexicographic ordering, qualified\nand excluded candidates with their gates and honest evidence checks, and\nthe distribution of exclusion reasons (the page's honest empty state on\nsynthetic data). ``state = \"empty\"`` means the worker never published.",
+        "properties": {
+          "as_of": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "As Of"
+          },
+          "content": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "snapshot_version": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Snapshot Version"
+          },
+          "state": {
+            "enum": [
+              "ok",
+              "empty"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "snapshot_version",
+          "as_of",
+          "content",
+          "reason"
+        ],
+        "title": "OpportunitiesResponse",
         "type": "object"
       },
       "OptionChainContract": {
@@ -4199,6 +4720,63 @@
         "summary": "Evaluate gate inputs through the single AdviceEngine"
       }
     },
+    "/api/v1/ai/explain": {
+      "post": {
+        "description": "Explain ONE persisted snapshot through the DETERMINISTIC template.\n\nPure presentation of already-certified data: no network, no model, no\nfinancial computation, no clock beyond the snapshot's own ``as_of``.\nEvery claim cites evidence really present in the snapshot (validated\nfail-closed); the answer is labeled ``DETERMINISTIC_TEMPLATE`` and its\nlimitations always carry the B-05 notice. An absent snapshot is a clean\n404 — never an invented explanation.",
+        "operationId": "post_ai_explain",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AiExplainRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiAnswer"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Authentication required: no valid WebAuthn session cookie (or missing/invalid CSRF header on a mutation). Always the same generic body with detail code AUTH_REQUIRED."
+          },
+          "404": {
+            "description": "No snapshot was ever published for this subject (code NO_SNAPSHOT_FOR_SUBJECT) — there is nothing honest to explain."
+          }
+        },
+        "summary": "Deterministic template explanation of one persisted snapshot"
+      }
+    },
+    "/api/v1/ai/status": {
+      "get": {
+        "description": "Report the honest AI state: no provider, deterministic template only.",
+        "operationId": "get_ai_status",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AiStatusResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Authentication required: no valid WebAuthn session cookie (or missing/invalid CSRF header on a mutation). Always the same generic body with detail code AUTH_REQUIRED."
+          }
+        },
+        "summary": "AI provider state: DISABLED pending human decision B-05"
+      }
+    },
     "/api/v1/analysis/{instrument}": {
       "get": {
         "description": "Serve the LAST ``analysis/{instrument}`` snapshot exactly as persisted.\n\nThe API relays the worker's published dossier — the canonical\n``AdviceResult`` of the single ``AdviceEngine`` with its ten gates and\nreason codes, the validated OHLCV bars, the fusion evidence rail and the\n``THEORETICAL`` scenario block (or its typed absence reason) — and\ncomputes nothing. With no snapshot ever published for this instrument\nthe answer is a 200 with ``state = \"empty\"``: absent stays absent,\nnothing is invented.",
@@ -4393,6 +4971,67 @@
         "summary": "Finish a passkey registration ceremony"
       }
     },
+    "/api/v1/calendar": {
+      "get": {
+        "description": "Serve the LAST ``calendar/global`` snapshot exactly as persisted.\n\nThe API relays the worker's published agenda — importance from the\nversioned rule, distinct ESTIMATED/CONFIRMED labels, revisions with\ntheir preserved previous values, conserved exchange timezones and the\nposition/thesis event context — and computes nothing. The optional\n``from``/``to`` query window (both bounds, aware datetimes, at most 90\ndays) SELECTS events without altering any. With no snapshot ever\npublished the answer is a 200 with ``state = \"empty\"``.",
+        "operationId": "get_calendar",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "From"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "To"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CalendarResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Authentication required: no valid WebAuthn session cookie (or missing/invalid CSRF header on a mutation). Always the same generic body with detail code AUTH_REQUIRED."
+          },
+          "422": {
+            "description": "Rejected fail-closed window: WINDOW_INCOMPLETE (one bound without the other), WINDOW_NAIVE_DATETIME, WINDOW_INVERTED or WINDOW_TOO_LARGE (bounded to 90 days)."
+          }
+        },
+        "summary": "Last published calendar snapshot (or honest empty state)"
+      }
+    },
     "/api/v1/events/stream": {
       "get": {
         "description": "Stream head-version change signals (database polling, coalesced).",
@@ -4476,6 +5115,28 @@
           }
         },
         "summary": "Last published markets overview snapshot (or honest empty state)"
+      }
+    },
+    "/api/v1/opportunities": {
+      "get": {
+        "description": "Serve the LAST ``opportunities/global`` snapshot exactly as persisted.\n\nThe API relays the worker's published candidates — the single\n``AdviceEngine``'s statuses under the manifest profile (id + version),\nthe documented lexicographic ordering, the honest evidence-presence\nchecks and the exclusion-reason distribution — and computes nothing. A\nrelay guard refuses a snapshot carrying a closed candidate in the\nqualified group. With no snapshot ever published the answer is a 200\nwith ``state = \"empty\"``.",
+        "operationId": "get_opportunities",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OpportunitiesResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Authentication required: no valid WebAuthn session cookie (or missing/invalid CSRF header on a mutation). Always the same generic body with detail code AUTH_REQUIRED."
+          }
+        },
+        "summary": "Last published opportunities snapshot (or honest empty state)"
       }
     },
     "/api/v1/options/{underlying}/chain": {

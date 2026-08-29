@@ -601,7 +601,15 @@ def build_registry(
         DEV_SYNTHETIC_ANALYSIS_CONFIG,
         register_analysis_handler,
     )
+    from vertex_worker.calendar import (
+        DEV_SYNTHETIC_CALENDAR_CONFIG,
+        register_calendar_handler,
+    )
     from vertex_worker.follow_up import register_follow_up_handler
+    from vertex_worker.opportunities import (
+        DEV_SYNTHETIC_OPPORTUNITIES_CONFIG,
+        register_opportunities_handler,
+    )
     from vertex_worker.options import (
         DEV_SYNTHETIC_OPTIONS_CONFIG,
         register_options_handler,
@@ -632,6 +640,16 @@ def build_registry(
         config=analysis_config if analysis_config is not None else DEV_SYNTHETIC_ANALYSIS_CONFIG,
     )
     register_portfolio_handler(registry, clock=clock)
+    # Calendar (page 02): the dev synthetic registry (declared universe as
+    # watchlist); positions/theses are read inside the handler.
+    register_calendar_handler(
+        registry, clock=clock, config=DEV_SYNTHETIC_CALENDAR_CONFIG
+    )
+    # Opportunities (page 04): the full declared universe under the single
+    # AdviceEngine and the manifest profile equity_etf_swing_3_12m.
+    register_opportunities_handler(
+        registry, clock=clock, config=DEV_SYNTHETIC_OPPORTUNITIES_CONFIG
+    )
     # Review queue (page 09): same fusion registry as the attention handler.
     register_follow_up_handler(registry, clock=clock, config=fusion_config)
     # Performance (page 10): same quote registry as the markets handler.
