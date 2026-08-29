@@ -29,16 +29,26 @@ import type { OpportunitiesContentView } from './opportunitiesView.ts';
  * fail-closed, affiché comme tel — pas un état d'erreur — et le groupe
  * qualifié porte son état vide honnête.
  *
- * Trois états servis, jamais confondus : `ok`, `stale` (même contenu, mais
- * hors budget de fraîcheur : il s'affiche sous le bandeau « Données
- * périmées » avec son âge serveur et sa raison) et `empty`. L'âge affiché est
- * le `age_seconds` PUBLIÉ par le serveur — jamais mesuré par le navigateur.
+ * États servis, jamais confondus : `ok`, `stale` (même contenu, mais hors
+ * budget de fraîcheur : il s'affiche sous le bandeau « Données périmées » avec
+ * son âge serveur et sa raison) et `empty`. L'âge affiché est le `age_seconds`
+ * PUBLIÉ par le serveur — jamais mesuré par le navigateur.
+ *
+ * `clock_inconsistent` (dérive d'horloge entre le worker et l'API au-delà de
+ * la tolérance) reste FERMÉ : aucun contenu n'est rendu. Mais la cause publiée
+ * par le serveur est affichée, sinon la page dirait « erreur » là où le
+ * serveur dit précisément que c'est l'horloge, et non le contenu. Tout autre
+ * état hors contrat reste fermé sans cause inventée.
  */
 
 export function opportunitiesFrameStateOf(
   queryState: PageDataState,
   data: OpportunitiesResponse | undefined,
-): { readonly state: DataState | 'auth-required'; readonly view: OpportunitiesContentView | null } {
+): {
+  readonly state: DataState | 'auth-required';
+  readonly view: OpportunitiesContentView | null;
+  readonly detail?: string;
+} {
   if (queryState !== 'ready' && queryState !== 'refreshing') {
     return { state: queryState, view: null };
   }
@@ -49,8 +59,20 @@ export function opportunitiesFrameStateOf(
   if (served === 'empty') {
     return { state: 'empty', view: null };
   }
+  if (served === 'clock_inconsistent') {
+    // Fermé comme tout état sans contenu servable, mais la cause vient du
+    // serveur : dire « erreur » seul laisserait croire à un contenu invalide.
+    return {
+      state: 'error',
+      view: null,
+      detail:
+        data.reason ??
+        'Horloge incohérente entre le worker et l’API : aucun verdict n’est affiché.',
+    };
+  }
   if (served !== 'ok' && served !== 'stale') {
-    // Fail-closed : un état hors contrat n'est jamais rendu comme un succès.
+    // Fail-closed : un état hors contrat n'est jamais rendu comme un succès,
+    // et aucune cause n'est inventée pour lui.
     return { state: 'error', view: null };
   }
   const view = opportunitiesContentOf(data.content);
@@ -315,6 +337,7 @@ export function OpportunitiesPage() {
                   'Aucun snapshot d’opportunités publié : rien n’est affiché.',
               }
             : {})}
+          {...(frame.detail !== undefined ? { detail: frame.detail } : {})}
         />
       ) : (
         <DataStateBoundary

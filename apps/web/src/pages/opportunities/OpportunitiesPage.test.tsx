@@ -276,3 +276,39 @@ describe('page Opportunités — rendu', () => {
     expect(within(statusRow).getByRole('cell').textContent).toBe('24');
   });
 });
+
+describe('état clock_inconsistent', () => {
+  const base = {
+    state: 'clock_inconsistent',
+    content: null,
+    as_of: null,
+    age_seconds: null,
+    snapshot_version: null,
+  } as unknown as OpportunitiesResponse;
+
+  it('reste fermé : aucun contenu n’est rendu', () => {
+    const frame = opportunitiesFrameStateOf('ready', base);
+    expect(frame.state).toBe('error');
+    expect(frame.view).toBeNull();
+  });
+
+  it('affiche la cause PUBLIÉE par le serveur, pas un message générique', () => {
+    const reason =
+      'clock inconsistent: snapshot as_of is 42 s ahead of the relay clock (tolerance 5 s)';
+    const frame = opportunitiesFrameStateOf('ready', {
+      ...base,
+      reason,
+    } as unknown as OpportunitiesResponse);
+    expect(frame.detail).toBe(reason);
+  });
+
+  it('n’invente aucune cause pour un état hors contrat inconnu', () => {
+    const frame = opportunitiesFrameStateOf('ready', {
+      ...base,
+      state: 'un_etat_que_le_client_ne_connait_pas',
+      reason: 'peu importe',
+    } as unknown as OpportunitiesResponse);
+    expect(frame.state).toBe('error');
+    expect(frame.detail).toBeUndefined();
+  });
+});
