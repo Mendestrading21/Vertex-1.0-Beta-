@@ -1992,3 +1992,507 @@ body {
   color: var(--vx-text-muted);
   font-size: var(--vx-font-size-meta);
 }
+
+/* ------------------------------------------------------------------ */
+/* Vague 4 — Portefeuille (/portfolio)                                 */
+/* ------------------------------------------------------------------ */
+
+.vx-pf-scope,
+.vx-fu-populations,
+.vx-perf-population {
+  margin: 0 0 var(--vx-space-16);
+  padding: var(--vx-space-12) var(--vx-space-16);
+  background: var(--vx-surface-1);
+  border: 1px solid var(--vx-border-soft);
+  border-radius: var(--vx-radius-10);
+  color: var(--vx-text-secondary);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-perf-population strong {
+  color: var(--vx-warning);
+}
+
+.vx-pf-summary,
+.vx-pf-table,
+.vx-pf-concentration,
+.vx-pf-ledger,
+.vx-pf-form,
+.vx-pf-import,
+.vx-fu-queue,
+.vx-fu-theses,
+.vx-thesis-form,
+.vx-perf-metrics,
+.vx-perf-heatmap-section,
+.vx-perf-export,
+.vx-perf-conventions {
+  margin: 0 0 var(--vx-space-24);
+  padding: var(--vx-space-16);
+  background: var(--vx-surface-0);
+  border: 1px solid var(--vx-border-soft);
+  border-radius: var(--vx-radius-10);
+}
+
+.vx-pf-summary h2,
+.vx-pf-table h2,
+.vx-pf-concentration h2,
+.vx-pf-ledger h2,
+.vx-pf-form h2,
+.vx-pf-import h2,
+.vx-fu-queue h2,
+.vx-fu-theses h2,
+.vx-thesis-form h2,
+.vx-perf-metrics h2,
+.vx-perf-heatmap-section h2,
+.vx-perf-export h2,
+.vx-perf-conventions h2 {
+  margin: 0 0 var(--vx-space-12);
+  font-size: var(--vx-font-size-title);
+}
+
+.vx-pf-summary-head,
+.vx-pf-ledger-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--vx-space-16);
+  flex-wrap: wrap;
+}
+
+.vx-pf-summary-meta,
+.vx-pf-provenance,
+.vx-pf-concentration-meta,
+.vx-pf-excluded-note,
+.vx-pf-import-limits,
+.vx-fu-ordering,
+.vx-perf-metric-meta,
+.vx-perf-metric-def {
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-pf-hash {
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-meta);
+  word-break: break-all;
+}
+
+.vx-pf-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: var(--vx-space-16);
+  margin: var(--vx-space-12) 0 0;
+}
+
+.vx-pf-summary-block dt {
+  font-weight: 600;
+  margin-bottom: var(--vx-space-8);
+}
+
+.vx-pf-summary-block dd {
+  margin: 0;
+}
+
+.vx-pf-summary-list {
+  margin: 0 0 var(--vx-space-8);
+  padding-left: var(--vx-space-20);
+}
+
+.vx-pf-summary-list li {
+  margin-bottom: var(--vx-space-4);
+}
+
+.vx-pf-table-scroll {
+  overflow-x: auto;
+}
+
+.vx-pf-lots,
+.vx-pf-excluded-table,
+.vx-pf-ledger-table,
+.vx-pf-concentration-table,
+.vx-pf-import-errors,
+.vx-pf-import-valid,
+.vx-fu-theses-table,
+.vx-perf-months-table,
+.vx-perf-points-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-pf-lots th,
+.vx-pf-lots td,
+.vx-pf-excluded-table th,
+.vx-pf-excluded-table td,
+.vx-pf-ledger-table th,
+.vx-pf-ledger-table td,
+.vx-pf-concentration-table th,
+.vx-pf-concentration-table td,
+.vx-pf-import-errors th,
+.vx-pf-import-errors td,
+.vx-pf-import-valid th,
+.vx-pf-import-valid td,
+.vx-fu-theses-table th,
+.vx-fu-theses-table td,
+.vx-perf-months-table th,
+.vx-perf-months-table td,
+.vx-perf-points-table th,
+.vx-perf-points-table td {
+  padding: var(--vx-space-8);
+  border-bottom: 1px solid var(--vx-border-soft);
+  text-align: left;
+  vertical-align: top;
+  white-space: nowrap;
+}
+
+.vx-pf-lots td[data-sign='negative'] {
+  color: var(--vx-negative);
+}
+
+.vx-pf-lots td[data-sign='positive'] {
+  color: var(--vx-positive);
+}
+
+.vx-pf-excluded {
+  margin-top: var(--vx-space-16);
+  padding-top: var(--vx-space-12);
+  border-top: 1px solid var(--vx-border);
+}
+
+.vx-pf-excluded h3,
+.vx-pf-concentration-block h3 {
+  margin: 0 0 var(--vx-space-8);
+  font-size: var(--vx-font-size-body);
+}
+
+.vx-pf-bars {
+  margin: 0 0 var(--vx-space-12);
+  padding: 0;
+  list-style: none;
+}
+
+.vx-pf-bar-row {
+  display: grid;
+  grid-template-columns: 120px 1fr 160px;
+  align-items: center;
+  gap: var(--vx-space-12);
+  margin-bottom: var(--vx-space-4);
+}
+
+.vx-pf-bar-track {
+  display: block;
+  height: 12px;
+  background: var(--vx-surface-2);
+  border-radius: var(--vx-radius-6);
+  overflow: hidden;
+}
+
+.vx-pf-bar-fill {
+  display: block;
+  height: 100%;
+  background: var(--vx-silver);
+}
+
+.vx-pf-form-grid,
+.vx-thesis-form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--vx-space-12);
+}
+
+.vx-pf-form-grid label,
+.vx-thesis-form-grid label,
+.vx-pf-compensate-confirm label,
+.vx-thesis-action-form label,
+.vx-pf-import-file {
+  display: flex;
+  flex-direction: column;
+  gap: var(--vx-space-4);
+  color: var(--vx-text-secondary);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-pf-form-grid input,
+.vx-pf-form-grid select,
+.vx-thesis-form-grid input,
+.vx-thesis-form-grid textarea,
+.vx-pf-compensate-confirm input,
+.vx-thesis-action-form input {
+  padding: var(--vx-space-8);
+  background: var(--vx-surface-1);
+  border: 1px solid var(--vx-border);
+  border-radius: var(--vx-radius-6);
+  color: var(--vx-text);
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-body);
+}
+
+.vx-thesis-form-grid textarea {
+  font-family: var(--vx-font-sans);
+  resize: vertical;
+}
+
+.vx-pf-form-wide {
+  grid-column: 1 / -1;
+}
+
+.vx-pf-form-actions {
+  grid-column: 1 / -1;
+  display: flex;
+  gap: var(--vx-space-12);
+}
+
+.vx-pf-form-note {
+  margin: 0 0 var(--vx-space-12);
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-pf-form-invalid,
+.vx-pf-form-rejected {
+  margin: var(--vx-space-12) 0 0;
+  padding: var(--vx-space-12) var(--vx-space-16);
+  border: 1px solid var(--vx-negative);
+  border-radius: var(--vx-radius-10);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-pf-form-invalid strong,
+.vx-pf-form-rejected strong {
+  color: var(--vx-negative);
+}
+
+.vx-pf-form-invalid ul,
+.vx-pf-form-rejected ul {
+  margin: var(--vx-space-8) 0;
+  padding-left: var(--vx-space-20);
+}
+
+.vx-pf-form-recorded {
+  margin: var(--vx-space-12) 0 0;
+  padding: var(--vx-space-12) var(--vx-space-16);
+  border: 1px solid var(--vx-positive);
+  border-radius: var(--vx-radius-10);
+  color: var(--vx-positive);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-pf-compensate,
+.vx-fu-thesis-open,
+.vx-thesis-action-buttons button,
+.vx-pf-import-actions button:not(.vx-primary-action),
+.vx-pf-compensate-actions button:not(.vx-primary-action),
+.vx-thesis-action-send button:not(.vx-primary-action) {
+  padding: var(--vx-space-4) var(--vx-space-12);
+  background: transparent;
+  border: 1px solid var(--vx-border);
+  border-radius: var(--vx-radius-6);
+  color: var(--vx-text-secondary);
+  font-size: var(--vx-font-size-meta);
+  cursor: pointer;
+}
+
+.vx-pf-compensate:hover,
+.vx-fu-thesis-open:hover,
+.vx-thesis-action-buttons button:hover:not(:disabled) {
+  background: var(--vx-hover);
+}
+
+.vx-pf-compensate-confirm,
+.vx-thesis-action-form {
+  margin: var(--vx-space-12) 0 0;
+  padding: var(--vx-space-12) var(--vx-space-16);
+  border: 1px solid var(--vx-warning);
+  border-radius: var(--vx-radius-10);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-pf-compensate-actions,
+.vx-pf-import-actions,
+.vx-thesis-action-send {
+  display: flex;
+  gap: var(--vx-space-12);
+  margin-top: var(--vx-space-12);
+}
+
+.vx-pf-import-error-code {
+  display: inline-block;
+  margin-right: var(--vx-space-8);
+  font-family: var(--vx-font-mono);
+}
+
+.vx-pf-import-duplicates {
+  margin: var(--vx-space-8) 0;
+  padding-left: var(--vx-space-20);
+  color: var(--vx-warning);
+  font-size: var(--vx-font-size-meta);
+}
+
+/* ------------------------------------------------------------------ */
+/* Vague 4 — Suivi (/follow-up)                                        */
+/* ------------------------------------------------------------------ */
+
+.vx-fu-due-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.vx-fu-due-item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--vx-space-12);
+  padding: var(--vx-space-12) 0;
+  border-bottom: 1px solid var(--vx-border-soft);
+}
+
+.vx-fu-due-open {
+  padding: 0;
+  background: transparent;
+  border: none;
+  color: var(--vx-text);
+  font-size: var(--vx-font-size-body);
+  text-align: left;
+  cursor: pointer;
+}
+
+.vx-fu-due-open:hover .vx-fu-due-title,
+.vx-fu-due-open:focus-visible .vx-fu-due-title {
+  text-decoration: underline;
+}
+
+.vx-fu-due-rank {
+  color: var(--vx-text-muted);
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-fu-due-meta,
+.vx-fu-due-reasons {
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--vx-space-8);
+  flex-wrap: wrap;
+}
+
+.vx-thesis-text {
+  white-space: pre-wrap;
+}
+
+.vx-thesis-history,
+.vx-thesis-new-info,
+.vx-thesis-clusters,
+.vx-thesis-actions {
+  margin: var(--vx-space-16) 0 0;
+}
+
+.vx-thesis-history h3,
+.vx-thesis-new-info h3,
+.vx-thesis-clusters h3,
+.vx-thesis-actions h3 {
+  margin: 0 0 var(--vx-space-8);
+  font-size: var(--vx-font-size-meta);
+  color: var(--vx-text-secondary);
+}
+
+.vx-thesis-action-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--vx-space-8);
+}
+
+/* ------------------------------------------------------------------ */
+/* Vague 4 — Performance (/performance)                                */
+/* ------------------------------------------------------------------ */
+
+.vx-perf-chart {
+  margin: 0 0 var(--vx-space-24);
+}
+
+.vx-perf-chart-canvas {
+  width: 100%;
+  height: 420px;
+}
+
+.vx-perf-heatmap-canvas {
+  width: 100%;
+  height: 220px;
+}
+
+.vx-perf-chart-caption,
+.vx-perf-chart-fallback {
+  margin-top: var(--vx-space-8);
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-perf-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--vx-space-16);
+  margin: 0;
+}
+
+.vx-perf-metric dt {
+  font-weight: 600;
+  margin-bottom: var(--vx-space-4);
+}
+
+.vx-perf-metric dd {
+  margin: 0;
+}
+
+.vx-perf-metric-value {
+  font-family: var(--vx-font-mono);
+  font-size: 20px;
+}
+
+.vx-perf-metric-raw {
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-perf-metric-blocked {
+  display: block;
+  margin: var(--vx-space-4) 0;
+  color: var(--vx-warning);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-perf-conventions-list dt {
+  margin-top: var(--vx-space-8);
+  color: var(--vx-text-secondary);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-perf-conventions-list dd {
+  margin: 0 0 var(--vx-space-4);
+  font-size: var(--vx-font-size-meta);
+}
+
+/* Jetons longs insécables (hash sha256, décimaux exacts, clés de rejeu) :
+   coupure autorisée pour ne jamais créer de défilement horizontal de page. */
+.vx-pf-provenance code,
+.vx-perf-metric-raw code,
+.vx-perf-metric-meta code,
+.vx-pf-summary-meta code,
+.vx-thesis-action-form code,
+.vx-pf-summary-list code {
+  word-break: break-all;
+}
+
+.vx-pf-summary-meta,
+.vx-pf-provenance,
+.vx-perf-population,
+.vx-fu-populations {
+  overflow-wrap: anywhere;
+}
+
+.vx-pf-bar-value {
+  /* Poids serveur exact (long décimal insécable) : coupure autorisée pour ne
+     jamais déborder la colonne fixe de la barre ni créer un scroll de page. */
+  word-break: break-all;
+}

@@ -41,8 +41,32 @@ export type SimulationAssumptions = components['schemas']['SimulationAssumptions
 export type SimulationBreakeven = components['schemas']['SimulationBreakeven'];
 export type SimulationExtreme = components['schemas']['SimulationExtreme'];
 export type SimulationPayoffPoint = components['schemas']['SimulationPayoffPoint'];
+export type PortfolioResponse = components['schemas']['PortfolioResponse'];
+export type PortfolioInfo = components['schemas']['PortfolioInfo'];
+export type PortfolioLotEntry = components['schemas']['PortfolioLotEntry'];
+export type PortfolioValuationView = components['schemas']['PortfolioValuationView'];
+export type LedgerTransactionEntry = components['schemas']['LedgerTransactionEntry'];
+export type LedgerEventKind = components['schemas']['LedgerEventKind'];
+export type RecordTransactionRequest = components['schemas']['RecordTransactionRequest'];
+export type RecordTransactionResponse = components['schemas']['RecordTransactionResponse'];
+export type CompensateTransactionRequest = components['schemas']['CompensateTransactionRequest'];
+export type CompensateTransactionResponse = components['schemas']['CompensateTransactionResponse'];
+export type CsvImportPreviewRequest = components['schemas']['CsvImportPreviewRequest'];
+export type ImportPreviewResponse = components['schemas']['ImportPreviewResponse'];
+export type ImportRowEcho = components['schemas']['ImportRowEcho'];
+export type ImportRowError = components['schemas']['ImportRowError'];
+export type ImportRowDuplicate = components['schemas']['ImportRowDuplicate'];
+export type ImportConfirmRequest = components['schemas']['ImportConfirmRequest'];
+export type ImportConfirmResponse = components['schemas']['ImportConfirmResponse'];
+export type FollowUpQueueResponse = components['schemas']['FollowUpQueueResponse'];
+export type CreateThesisRequest = components['schemas']['CreateThesisRequest'];
+export type CreateThesisResponse = components['schemas']['CreateThesisResponse'];
+export type ThesisRevisionRequest = components['schemas']['ThesisRevisionRequest'];
+export type ThesisRevisionResponse = components['schemas']['ThesisRevisionResponse'];
+export type PerformanceSnapshotResponse = components['schemas']['PerformanceSnapshotResponse'];
+export type PerformanceExportResponse = components['schemas']['PerformanceExportResponse'];
 
-const API_BASE = '/api';
+export const API_BASE = '/api';
 
 export const CSRF_COOKIE_NAME = 'vertex_csrf';
 export const CSRF_HEADER_NAME = 'X-Vertex-CSRF';
@@ -136,7 +160,7 @@ export function readCsrfCookie(): string | null {
   return null;
 }
 
-interface RequestSpec {
+export interface RequestSpec {
   readonly method: 'GET' | 'POST';
   readonly path: string;
   readonly body?: unknown;
@@ -144,7 +168,12 @@ interface RequestSpec {
   readonly protectedRoute: boolean;
 }
 
-async function request<T>(spec: RequestSpec): Promise<T> {
+/**
+ * Transport partagé, EXPORTÉ pour les modules de routes chargés paresseusement
+ * (vague 4 : `portfolioApi.ts`, hors bundle initial). Un seul transport, une
+ * seule discipline CSRF/session — jamais un second client concurrent.
+ */
+export async function request<T>(spec: RequestSpec): Promise<T> {
   const headers: Record<string, string> = { Accept: 'application/json' };
   const init: RequestInit = {
     method: spec.method,

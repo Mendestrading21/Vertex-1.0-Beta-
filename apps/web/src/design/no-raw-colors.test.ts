@@ -94,14 +94,24 @@ describe("interdiction du vocabulaire d'ordre boursier", () => {
   });
 
   it('schema.d.ts généré : le vocabulaire n’apparaît que dans une négation du contrat', () => {
+    // Chaque phrase autorisée est une NÉGATION écrite par le backend (le
+    // contrat interdit la capacité) ; certaines s'étalent sur deux lignes de
+    // JSDoc, d'où la fenêtre ligne courante + ligne précédente.
+    const negationPatterns = [
+      /nothing here is, or ever becomes/i,
+      /none of these is\s+(?:\*\s*)?an instruction, an ord/i,
+    ];
     const generated = scannedFiles().find((file) => isGeneratedSchema(file));
     expect(generated).toBeDefined();
     const lines = readFileSync(generated!, 'utf8').split('\n');
-    const matchingLines = lines.filter((line) => termPattern.test(line));
-    for (const line of matchingLines) {
+    for (const [index, line] of lines.entries()) {
+      if (!termPattern.test(line)) {
+        continue;
+      }
+      const window = `${lines[index - 1] ?? ''}\n${line}`;
       expect(
-        /nothing here is, or ever becomes/i.test(line),
-        `Occurrence non couverte par la négation du contrat : ${line.trim()}`,
+        negationPatterns.some((pattern) => pattern.test(window)),
+        `Occurrence non couverte par une négation du contrat : ${line.trim()}`,
       ).toBe(true);
     }
   });
@@ -117,6 +127,30 @@ describe("interdiction du vocabulaire d'ordre boursier", () => {
       join('src', 'pages', 'simulator', 'SimulatorPage.tsx'),
       join('src', 'pages', 'simulator', 'PayoffChart.tsx'),
       join('src', 'charts', 'lightweightChartsLoader.ts'),
+    ]) {
+      expect(files, `${expected} doit être couvert par les gardes`).toContain(expected);
+    }
+  });
+
+  it('les nouveaux fichiers V4 (portefeuille, suivi, performance) sont bien balayés', () => {
+    const files = scannedFiles().map((file) => relative(APP_ROOT, file));
+    for (const expected of [
+      join('src', 'pages', 'portfolio', 'PortfolioPage.tsx'),
+      join('src', 'pages', 'portfolio', 'PortfolioSummary.tsx'),
+      join('src', 'pages', 'portfolio', 'PortfolioTable.tsx'),
+      join('src', 'pages', 'portfolio', 'ConcentrationPanel.tsx'),
+      join('src', 'pages', 'portfolio', 'LedgerPanel.tsx'),
+      join('src', 'pages', 'portfolio', 'TransactionForm.tsx'),
+      join('src', 'pages', 'portfolio', 'CsvImportPanel.tsx'),
+      join('src', 'pages', 'portfolio', 'portfolioView.ts'),
+      join('src', 'pages', 'follow-up', 'FollowUpPage.tsx'),
+      join('src', 'pages', 'follow-up', 'ThesisSheet.tsx'),
+      join('src', 'pages', 'follow-up', 'ThesisForm.tsx'),
+      join('src', 'pages', 'follow-up', 'followUpView.ts'),
+      join('src', 'pages', 'performance', 'PerformancePage.tsx'),
+      join('src', 'pages', 'performance', 'PerformanceChart.tsx'),
+      join('src', 'pages', 'performance', 'MonthlyHeatmap.tsx'),
+      join('src', 'pages', 'performance', 'performanceView.ts'),
     ]) {
       expect(files, `${expected} doit être couvert par les gardes`).toContain(expected);
     }

@@ -127,4 +127,50 @@ test.describe('Dégradation 1024×768', () => {
       fullPage: true,
     });
   });
+
+  test('/portfolio : badge marques, tables dans leurs conteneurs défilants, pas de scroll horizontal', async ({
+    page,
+  }, testInfo) => {
+    await page.goto('/portfolio');
+    await expect(page.getByTestId('pf-marks-badge')).toBeVisible({ timeout: 20_000 });
+    await expect(
+      page.getByRole('heading', { name: 'Enregistrer une transaction (déjà exécutée hors Vertex)' }),
+    ).toBeVisible();
+    await expectNoHorizontalPageScroll(page);
+    const scrollMode = await page
+      .locator('.vx-pf-table-scroll')
+      .first()
+      .evaluate((element) => getComputedStyle(element).overflowX);
+    expect(scrollMode).toBe('auto');
+    await page.screenshot({
+      path: screenshotPath('portfolio-smoke', testInfo.project.name),
+      fullPage: true,
+    });
+  });
+
+  test('/follow-up : file due et populations séparées visibles, pas de scroll horizontal', async ({
+    page,
+  }, testInfo) => {
+    await page.goto('/follow-up');
+    await expect(page.getByTestId('fu-due-list')).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId('fu-populations')).toContainText('USER_DECLARED');
+    await expectNoHorizontalPageScroll(page);
+    await page.screenshot({
+      path: screenshotPath('follow-up-smoke', testInfo.project.name),
+      fullPage: true,
+    });
+  });
+
+  test('/performance : bandeau population, métriques et table quotidienne présents, pas de scroll horizontal', async ({
+    page,
+  }, testInfo) => {
+    await page.goto('/performance');
+    await expect(page.getByTestId('perf-population')).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId('perf-metrics')).toBeVisible();
+    await expectNoHorizontalPageScroll(page);
+    await page.screenshot({
+      path: screenshotPath('performance-smoke', testInfo.project.name),
+      fullPage: true,
+    });
+  });
 });

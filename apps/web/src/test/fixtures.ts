@@ -648,3 +648,471 @@ export function makeSimulationPreview(
     ...overrides,
   };
 }
+
+// ---------------------------------------------------------------------------
+// Vague 4 — portefeuille, suivi, performance (fixtures SYNTHETIC/DEMO)
+// ---------------------------------------------------------------------------
+
+import type {
+  FollowUpQueueResponse,
+  LedgerTransactionEntry,
+  PerformanceSnapshotResponse,
+  PortfolioResponse,
+} from '../api/client.ts';
+
+export function makeLedgerEntry(
+  overrides: Partial<LedgerTransactionEntry> = {},
+): LedgerTransactionEntry {
+  return {
+    id: 1,
+    kind: 'DEPOSIT',
+    instrument: null,
+    quantity: null,
+    price: null,
+    amount: '10000',
+    currency: 'SYN',
+    fees: '0',
+    effective_at: '2026-08-20T09:00:00+00:00',
+    recorded_at: '2026-08-25T10:00:00+00:00',
+    source: 'MANUAL',
+    note: '[SYNTHETIC] dépôt de test',
+    compensates: null,
+    compensated_by: null,
+    ...overrides,
+  };
+}
+
+/** Contenu de valorisation SYNTHETIC complet : 1 lot valorisé + 1 exclu. */
+export function makeValuationContent(
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return {
+    schema_version: 'vertex.portfolio-valuation/1.0',
+    as_of: SYNTHETIC_AS_OF,
+    engine_version: 'vertex-core/0.0-test',
+    portfolio: { id: 1, name: 'main', base_currency: 'USD' },
+    mark_population: 'SYNTHETIC',
+    lot_method: 'fifo/1.0',
+    marks: {
+      status: 'OK',
+      reason: null,
+      source: { kind: 'markets_overview', key: 'global', snapshot_version: 7, as_of: SYNTHETIC_AS_OF },
+      tickers_marked: 22,
+      invalid_mark_tickers: [],
+    },
+    positions_by_currency: [
+      {
+        currency: 'SYN',
+        unrealized: {
+          status: 'OK',
+          reason: null,
+          total_unrealized: '55',
+          lots: [
+            {
+              lot_id: 'ledger-2',
+              ticker: 'SYN-TECH-01',
+              quantity: '5',
+              unit_cost: '100',
+              mark: '111',
+              market_value: '555',
+              unrealized_pnl: '55',
+            },
+          ],
+          calculation: {
+            calculation_id: 'portfolio.unrealized_pnl',
+            engine_version: 'vertex-core/0.0-test',
+            method: 'per-lot unrealized P&L (fifo/1.0)',
+            input_hash: 'sha256:aa',
+            result_hash: 'sha256:bb',
+            status: 'OK',
+          },
+        },
+        realized: {
+          status: 'OK',
+          reason: null,
+          gross_proceeds: '550',
+          cost_basis: '500',
+          total_fees: '1',
+          total_pnl: '49',
+          lots: [],
+          calculation: {
+            calculation_id: 'portfolio.realized_pnl',
+            engine_version: 'vertex-core/0.0-test',
+            method: 'per-lot realized P&L (fifo/1.0)',
+            input_hash: 'sha256:cc',
+            result_hash: 'sha256:dd',
+            status: 'OK',
+          },
+        },
+        concentration: {
+          status: 'OK',
+          reason: null,
+          total_value: '555',
+          weights: { 'SYN-TECH-01': '1' },
+          herfindahl_index: '1',
+          calculation: {
+            calculation_id: 'portfolio.concentration',
+            engine_version: 'vertex-core/0.0-test',
+            method: 'normalized marked-value weights',
+            input_hash: 'sha256:ee',
+            result_hash: 'sha256:ff',
+            status: 'OK',
+          },
+        },
+      },
+    ],
+    excluded_lots: [
+      { lot_id: 'ledger-9', ticker: 'SYN-NOMARK-01', currency: 'SYN', reason: 'missing_mark' },
+    ],
+    coverage: {
+      events_considered: 5,
+      position_events: 3,
+      cash_events: 2,
+      compensation_pairs: 0,
+      invalid_events: [],
+      invalid_positions: [],
+      lots_open: 2,
+      lots_valued: 1,
+      lots_excluded: 1,
+    },
+    ...overrides,
+  };
+}
+
+export function makePortfolioResponse(
+  overrides: Partial<PortfolioResponse> = {},
+): PortfolioResponse {
+  return {
+    portfolio: { id: 1, name: 'main', base_currency: 'USD' },
+    transactions: [
+      makeLedgerEntry(),
+      makeLedgerEntry({
+        id: 2,
+        kind: 'BUY_RECORDED',
+        instrument: { ticker: 'SYN-TECH-01' },
+        quantity: '10',
+        price: '100',
+        amount: '-1000',
+        fees: '1',
+        note: '[SYNTHETIC] achat enregistré le 2026-08-20',
+      }),
+    ],
+    lots: [],
+    valuation: {
+      state: 'ok',
+      snapshot_version: 3,
+      as_of: SYNTHETIC_AS_OF,
+      reason: null,
+      content: makeValuationContent(),
+    },
+    ...overrides,
+  };
+}
+
+export function makeEmptyPortfolioResponse(): PortfolioResponse {
+  return makePortfolioResponse({
+    transactions: [],
+    valuation: {
+      state: 'empty',
+      snapshot_version: null,
+      as_of: null,
+      reason: 'never_published',
+      content: null,
+    },
+  });
+}
+
+/** Contenu de file de revues SYNTHETIC : 2 thèses dont 1 due avec nouveauté. */
+export function makeQueueContent(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  const thesisDue = {
+    thesis: {
+      id: 1,
+      portfolio_id: null,
+      instrument: { ticker: 'SYN-TECH-01' },
+      title: '[SYNTHETIC] Thèse due — rotation vers SYN-TECH-01',
+      hypotheses: 'Hypothèse synthétique de test.',
+      invalidation: 'Invalidée si la clôture synthétique retombe sous 90.',
+      horizon: '3 mois',
+      review_due_at: '2026-08-20T00:00:00+00:00',
+      created_at: '2026-08-01T00:00:00+00:00',
+    },
+    state: {
+      status: 'ACTIVE',
+      review_due_at: '2026-08-20T00:00:00+00:00',
+      is_due: true,
+      snooze_until: null,
+      last_reviewed_at: null,
+      last_action: 'CREATED',
+      last_recorded_at: '2026-08-01T00:00:00+00:00',
+      revision_count: 1,
+    },
+    instrument_ticker: 'SYN-TECH-01',
+    information_context: {
+      population: 'SYNTHETIC',
+      clusters: [
+        {
+          cluster_id: 'cluster-0001',
+          title: '[SYNTHETIC] information de test',
+          tickers: ['SYN-TECH-01'],
+          synthetic: true,
+          provenance: {
+            member_event_ids: ['evt-1'],
+            sources: ['synthetic-dev'],
+            rights: ['SYNTHETIC'],
+            first_published_at: '2026-08-24T10:00:00+00:00',
+            last_received_at: '2026-08-24T10:05:00+00:00',
+          },
+        },
+      ],
+    },
+    has_new_information: true,
+    urgency_reasons: [
+      {
+        code: 'NEW_INFORMATION_SINCE_LAST_REVIEW',
+        cluster_id: 'cluster-0001',
+        last_received_at: '2026-08-24T10:05:00+00:00',
+        reference_instant: '2026-08-01T00:00:00+00:00',
+      },
+    ],
+  };
+  const thesisQuiet = {
+    thesis: {
+      id: 2,
+      portfolio_id: null,
+      instrument: null,
+      title: '[SYNTHETIC] Thèse sans instrument',
+      hypotheses: 'Autre hypothèse synthétique.',
+      invalidation: 'Invalidée si X.',
+      horizon: null,
+      review_due_at: null,
+      created_at: '2026-08-10T00:00:00+00:00',
+    },
+    state: {
+      status: 'ACTIVE',
+      review_due_at: null,
+      is_due: false,
+      snooze_until: null,
+      last_reviewed_at: null,
+      last_action: 'CREATED',
+      last_recorded_at: '2026-08-10T00:00:00+00:00',
+      revision_count: 1,
+    },
+    instrument_ticker: null,
+    information_context: { population: 'SYNTHETIC', clusters: [] },
+    has_new_information: false,
+    urgency_reasons: [],
+  };
+  return {
+    schema_version: 'vertex.review-queue/1.0',
+    as_of: SYNTHETIC_AS_OF,
+    populations: { theses: 'USER_DECLARED', information_context: 'SYNTHETIC' },
+    ordering: {
+      method: 'lexicographic',
+      keys: ['effective_review_due_at asc', 'base_review_due_at asc', 'last_recorded_at asc', 'thesis_id asc'],
+      note: 'une nouvelle information élève l’urgence visible mais ne modifie jamais la thèse',
+    },
+    theses: [thesisDue, thesisQuiet],
+    due: [
+      {
+        rank: 1,
+        thesis_id: 1,
+        title: '[SYNTHETIC] Thèse due — rotation vers SYN-TECH-01',
+        review_due_at: '2026-08-20T00:00:00+00:00',
+        overdue_seconds: 432000,
+        last_recorded_at: '2026-08-01T00:00:00+00:00',
+        has_new_information: true,
+        urgency_reasons: thesisDue.urgency_reasons,
+      },
+    ],
+    coverage: {
+      theses_total: 2,
+      due_count: 1,
+      theses_with_instrument: 1,
+      theses_with_new_information: 1,
+      observations_considered: 3,
+      content_observations: 3,
+      clusters: 1,
+      lookback_seconds: 86400,
+    },
+    ...overrides,
+  };
+}
+
+export function makeFollowUpQueue(
+  overrides: Partial<FollowUpQueueResponse> = {},
+): FollowUpQueueResponse {
+  return {
+    state: 'ok',
+    snapshot_version: 4,
+    as_of: SYNTHETIC_AS_OF,
+    reason: null,
+    content: makeQueueContent(),
+    ...overrides,
+  };
+}
+
+function makePerfMetricTwr(): Record<string, unknown> {
+  return {
+    status: 'OK',
+    reason: null,
+    total_return: '0.0140909090909090909090909091',
+    total_return_pct: '+1.41',
+    periods: [
+      { from_day: '2026-08-20', to_day: '2026-08-21', return: '0.0090909090909090909090909091' },
+    ],
+    cashflows_embedded_in_opening: 1,
+    cashflows_after_last_valuation: 0,
+    calculation: {
+      calculation_id: 'performance.twr',
+      engine_version: 'vertex-core/0.0-test',
+      method: 'chain-linked TWR',
+      input_hash: 'sha256:11',
+      result_hash: 'sha256:22',
+      status: 'OK',
+    },
+  };
+}
+
+/** Contenu performance SYNTHETIC_MARKS_REAL_LEDGER complet (2 jours). */
+export function makePerformanceContent(
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return {
+    schema_version: 'vertex.performance/1.0',
+    as_of: SYNTHETIC_AS_OF,
+    engine_version: 'vertex-core/0.0-test',
+    portfolio: { id: 1, name: 'main', base_currency: 'USD' },
+    population: 'SYNTHETIC_MARKS_REAL_LEDGER',
+    population_components: { marks: 'SYNTHETIC', ledger: 'USER_DECLARED' },
+    currency: 'SYN',
+    lot_method: 'fifo/1.0',
+    conventions: {
+      valuation_instant: 'trading day at 23:59:59 UTC (end of day)',
+      cashflow_timing: 'flux au début de la période close',
+      net_definition: 'net_value(day) = gross_value(day) - frais cumulés',
+      external_cashflow_kinds: ['DEPOSIT', 'WITHDRAWAL'],
+      xirr_sign_convention: 'dépôt négatif, retrait positif, valeur terminale positive',
+    },
+    series: {
+      status: 'OK',
+      reason: null,
+      points: [
+        {
+          trading_day: '2026-08-20',
+          at: '2026-08-20T23:59:59+00:00',
+          gross_value: '10000',
+          net_value: '9999',
+          cash: '9000',
+          position_value: '1000',
+          fees_cumulative: '1',
+          lots_valued: 1,
+        },
+        {
+          trading_day: '2026-08-21',
+          at: '2026-08-21T23:59:59+00:00',
+          gross_value: '10140',
+          net_value: '10139',
+          cash: '9000',
+          position_value: '1140',
+          fees_cumulative: '1',
+          lots_valued: 1,
+        },
+      ],
+      excluded_days: [],
+    },
+    external_cashflows: [
+      {
+        event_id: 1,
+        kind: 'DEPOSIT',
+        amount: '10000',
+        currency: 'SYN',
+        effective_at: '2026-08-20T09:00:00+00:00',
+      },
+    ],
+    metrics: {
+      twr_gross: makePerfMetricTwr(),
+      twr_net: makePerfMetricTwr(),
+      xirr_gross: {
+        status: 'OK',
+        reason: null,
+        rate: '0.42',
+        rate_pct: '+42.00',
+        npv_at_rate: '0.0',
+        cashflows_after_last_valuation: 0,
+        calculation: {
+          calculation_id: 'performance.xirr',
+          engine_version: 'vertex-core/0.0-test',
+          method: 'XIRR',
+          input_hash: 'sha256:33',
+          result_hash: 'sha256:44',
+          status: 'OK',
+        },
+      },
+      xirr_net: { status: 'INSUFFICIENT_DATA', reason: 'no_external_cashflow', calculation: null },
+      drawdown_gross: {
+        status: 'OK',
+        reason: null,
+        max_drawdown: '0',
+        max_drawdown_pct: '0.00',
+        peak_at: '2026-08-20T23:59:59+00:00',
+        trough_at: null,
+        points: [
+          { trading_day: '2026-08-20', drawdown: '0' },
+          { trading_day: '2026-08-21', drawdown: '0' },
+        ],
+        calculation: {
+          calculation_id: 'performance.drawdown',
+          engine_version: 'vertex-core/0.0-test',
+          method: 'max drawdown',
+          input_hash: 'sha256:55',
+          result_hash: 'sha256:66',
+          status: 'OK',
+        },
+      },
+      drawdown_net: { status: 'INVALID', reason: 'insufficient_valuations', calculation: null },
+    },
+    heatmap: {
+      status: 'OK',
+      reason: null,
+      months: [
+        {
+          month: '2026-08',
+          return: '0.0140909090909090909090909091',
+          return_pct: '+1.41',
+          periods: 1,
+          complete: false,
+          incomplete_reasons: ['first_month_of_series', 'last_month_of_series'],
+        },
+      ],
+      method: 'chain-linked product of the authoritative performance.twr period returns',
+      derived_from_calculation: null,
+    },
+    coverage: {
+      days_with_close: 2,
+      days_valued: 2,
+      days_excluded: 0,
+      days_before_first_ledger_event: 0,
+      coverage_ratio: '1.000000',
+      events_considered: 3,
+      external_cashflows: 1,
+      observations_considered: 44,
+      observations_truncated: false,
+      rejected_records: [],
+    },
+    ...overrides,
+  };
+}
+
+export function makePerformanceSnapshot(
+  overrides: Partial<PerformanceSnapshotResponse> = {},
+): PerformanceSnapshotResponse {
+  return {
+    portfolio_id: 1,
+    state: 'ok',
+    snapshot_version: 2,
+    as_of: SYNTHETIC_AS_OF,
+    reason: null,
+    content: makePerformanceContent(),
+    ...overrides,
+  };
+}

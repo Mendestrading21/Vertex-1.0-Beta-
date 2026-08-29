@@ -28,6 +28,7 @@ from __future__ import annotations
 import os
 import sys
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 from pathlib import Path
 
 from alembic import command
@@ -42,9 +43,11 @@ from vertex_core.synthetic import (
     generate_envelopes,
     generate_option_chain_envelopes,
 )
+from vertex_persistence.repository.ledger import create_portfolio, record_ledger_event
 from vertex_persistence.repository.observations import insert_observation
 from vertex_persistence.repository.outbox import enqueue_outbox
 from vertex_persistence.repository.snapshots import get_current_snapshot
+from vertex_persistence.repository.theses import create_thesis
 from vertex_worker.handlers import (
     DEV_SYNTHETIC_CONFIG,
     SNAPSHOT_KEY_GLOBAL,
@@ -142,6 +145,107 @@ def main() -> int:
             bars_inserted = sum(
                 1 for e in bar_envelopes if ingest_envelope(session, e).inserted
             )
+            session.commit()
+
+        # 2 quater. Portefeuille DÉMO (vague 4) : journal manuel SYNTHETIC —
+        # 2 dépôts + 2 achats + 1 vente — et 2 thèses (dont 1 due, liée au
+        # ticker SYN7 du flux d'attention pour que le contexte d'information
+        # s'y attache). Tout passe par les repositories de production ; les
+        # topics de refresh sont mis en file comme le ferait l'API.
+        latest_published = (now - timedelta(minutes=5)) - timedelta(hours=2)
+        older_published = latest_published - timedelta(hours=24)
+        with Session(engine) as session:
+            # Même identité que le get-or-create de l'API (« main », USD).
+            portfolio_id = create_portfolio(session, name="main", base_currency="USD")
+
+            def record(offset: timedelta, **kwargs) -> int:
+                return record_ledger_event(
+                    session,
+                    portfolio_id=portfolio_id,
+                    currency="SYN",
+                    effective_at=older_published + offset,
+                    recorded_at=now,
+                    **kwargs,
+                )
+
+            # Jour 1 (clôtures synthétiques D1) — dépôt puis 2 achats.
+            record(
+                timedelta(minutes=-90),
+                kind="DEPOSIT",
+                amount=Decimal("10000"),
+                fees=Decimal("0"),
+                note="[SYNTHETIC] depot initial declare (demo E2E)",
+            )
+            record(
+                timedelta(minutes=-60),
+                kind="BUY_RECORDED",
+                amount=Decimal("-1750"),
+                fees=Decimal("1"),
+                instrument={"ticker": "SYN-TECH-01"},
+                quantity=Decimal("10"),
+                price=Decimal("175.00"),
+                note="[SYNTHETIC] achat enregistre apres coup (demo E2E)",
+            )
+            record(
+                timedelta(minutes=-45),
+                kind="BUY_RECORDED",
+                amount=Decimal("-550"),
+                fees=Decimal("0"),
+                instrument={"ticker": "SYN-FINL-01"},
+                quantity=Decimal("5"),
+                price=Decimal("110.00"),
+                note="[SYNTHETIC] achat enregistre apres coup (demo E2E)",
+            )
+            # Jour 2 (clôtures synthétiques D2) — dépôt puis vente partielle.
+            day2 = latest_published - older_published
+            record(
+                day2 + timedelta(minutes=-60),
+                kind="DEPOSIT",
+                amount=Decimal("1000"),
+                fees=Decimal("0"),
+                note="[SYNTHETIC] second depot declare (demo E2E)",
+            )
+            record(
+                day2 + timedelta(minutes=-30),
+                kind="SELL_RECORDED",
+                amount=Decimal("686"),
+                fees=Decimal("0"),
+                instrument={"ticker": "SYN-TECH-01"},
+                quantity=Decimal("4"),
+                price=Decimal("171.50"),
+                note="[SYNTHETIC] vente enregistree apres coup (demo E2E)",
+            )
+
+            # 2 thèses DÉMO. La première suit un ticker du flux d'attention
+            # synthétique (SYN7), est créée AVANT l'arrivée des observations
+            # (now-6h) et son échéance est passée : elle est DUE et porte
+            # « nouvelle information » (clusters reçus après la création).
+            # La seconde n'a pas d'échéance : jamais due.
+            create_thesis(
+                session,
+                title="[SYNTHETIC] These due - surveiller SYN7",
+                hypotheses="[SYNTHETIC] Hypothese de demonstration E2E.",
+                invalidation="[SYNTHETIC] Invalidee si la cloture synthetique retombe sous 90.",
+                idempotency_key="e2e-seed-thesis-due",
+                now=now - timedelta(hours=6),
+                instrument={"ticker": "SYN7"},
+                horizon="3 mois",
+                review_due_at=now - timedelta(days=2),
+                note="[SYNTHETIC] semee par e2e/seed_synthetic.py",
+            )
+            create_thesis(
+                session,
+                title="[SYNTHETIC] These sans echeance",
+                hypotheses="[SYNTHETIC] Autre hypothese de demonstration.",
+                invalidation="[SYNTHETIC] Invalidee si X survient.",
+                idempotency_key="e2e-seed-thesis-quiet",
+                now=now - timedelta(hours=6),
+            )
+
+            # Refresh jobs — mêmes topics/payloads que l'API en production.
+            enqueue_outbox(session, "portfolio.valuation.refresh", {"portfolio_id": portfolio_id})
+            enqueue_outbox(session, "performance.refresh", {"portfolio_id": portfolio_id})
+            enqueue_outbox(session, "review_queue.refresh", {"reason": "e2e-seed"})
             session.commit()
 
         # 3. DEMO capability probe + refresh job. UNE seule observation par
@@ -290,6 +394,69 @@ def main() -> int:
                     return 1
                 analysis_versions[underlying] = analysis.version
 
+        # 5 ter. Vague 4 : valorisation, performance et file de revues
+        # réellement publiées, populations honnêtes, métriques OK.
+        with Session(engine) as session:
+            valuation = get_current_snapshot(
+                session, kind="portfolio_valuation", key=str(portfolio_id)
+            )
+            performance = get_current_snapshot(
+                session, kind="performance", key=str(portfolio_id)
+            )
+            review_queue = get_current_snapshot(session, kind="review_queue", key="global")
+        if valuation is None or performance is None or review_queue is None:
+            print(
+                "expected portfolio_valuation, performance and review_queue "
+                "snapshots to be published",
+                file=sys.stderr,
+            )
+            return 1
+        vcontent = valuation.content
+        vcoverage = vcontent["coverage"]
+        if (
+            vcontent["mark_population"] != "SYNTHETIC"
+            or vcoverage["lots_open"] != 2
+            or vcoverage["lots_valued"] != 2
+            or vcoverage["lots_excluded"] != 0
+        ):
+            print(f"unexpected portfolio valuation: coverage={vcoverage}", file=sys.stderr)
+            return 1
+        pcontent = performance.content
+        metric_status = {
+            key: pcontent["metrics"][key]["status"] for key in pcontent["metrics"]
+        }
+        if (
+            pcontent["population"] != "SYNTHETIC_MARKS_REAL_LEDGER"
+            or pcontent["series"]["status"] != "OK"
+            or len(pcontent["series"]["points"]) != 2
+            or metric_status["twr_gross"] != "OK"
+            or metric_status["xirr_gross"] != "OK"
+            or metric_status["drawdown_gross"] != "OK"
+        ):
+            print(
+                f"unexpected performance snapshot: series={pcontent['series']['status']} "
+                f"points={len(pcontent['series']['points'])} metrics={metric_status}",
+                file=sys.stderr,
+            )
+            return 1
+        qcontent = review_queue.content
+        due_ids = [entry["thesis_id"] for entry in qcontent["due"]]
+        due_new_info = {
+            entry["thesis_id"]: entry["has_new_information"] for entry in qcontent["due"]
+        }
+        if (
+            qcontent["populations"]["theses"] != "USER_DECLARED"
+            or qcontent["coverage"]["theses_total"] != 2
+            or len(due_ids) != 1
+            or due_new_info[due_ids[0]] is not True
+        ):
+            print(
+                f"unexpected review queue: populations={qcontent['populations']} "
+                f"coverage={qcontent['coverage']} due={qcontent['due']}",
+                file=sys.stderr,
+            )
+            return 1
+
         print(
             "seed ok: "
             f"envelopes={len(envelopes)} inserted={inserted} "
@@ -301,7 +468,10 @@ def main() -> int:
             f"markets_covered={markets_coverage['covered']}/{markets_coverage['expected']} "
             f"chains={len(chain_envelopes)} chains_inserted={chains_inserted} "
             f"bars_envelopes={len(bar_envelopes)} bars_inserted={bars_inserted} "
-            f"chain_versions={chain_versions} analysis_versions={analysis_versions}"
+            f"chain_versions={chain_versions} analysis_versions={analysis_versions} "
+            f"portfolio_id={portfolio_id} valuation_version={valuation.version} "
+            f"performance_version={performance.version} "
+            f"review_queue_version={review_queue.version} due_ids={due_ids}"
         )
         return 0
     finally:

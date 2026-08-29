@@ -5,7 +5,17 @@ import { renderApp } from '../test/render.tsx';
 import { ALL_PAGES } from './pages.ts';
 
 /** Pages réellement installées (routes + données + états + tests). */
-const INSTALLED_KEYS = new Set(['today', 'markets', 'system', 'options', 'analysis', 'simulator']);
+const INSTALLED_KEYS = new Set([
+  'today',
+  'markets',
+  'system',
+  'options',
+  'analysis',
+  'simulator',
+  'portfolio',
+  'follow-up',
+  'performance',
+]);
 
 describe('routes — pages non installées : « Lot non installé » honnête', () => {
   for (const page of ALL_PAGES.filter((entry) => !INSTALLED_KEYS.has(entry.key))) {

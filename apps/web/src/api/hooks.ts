@@ -31,19 +31,32 @@ export const SSE_RESOURCES = [
   'attention/global',
   'capabilities/global',
   'markets_overview/global',
+  'review_queue/global',
 ] as const;
 
 /**
  * Familles de ressources signalées PAR PRÉFIXE : le serveur publie une clé
- * par instrument (`option_chain/SYN-…`, `analysis/SYN-…`). Le suivi par
- * préfixe reflète la sémantique serveur (`WATCHED_SNAPSHOT_KINDS`) : une clé
- * jamais interrogée localement n'a simplement aucun cache à invalider.
+ * par instrument (`option_chain/SYN-…`, `analysis/SYN-…`) ou par portefeuille
+ * (`portfolio_valuation/1`, `performance/1`). Le suivi par préfixe reflète la
+ * sémantique serveur (`WATCHED_SNAPSHOT_KINDS`) : une clé jamais interrogée
+ * localement n'a simplement aucun cache à invalider.
  */
-export const SSE_RESOURCE_PREFIXES = ['option_chain/', 'analysis/'] as const;
+export const SSE_RESOURCE_PREFIXES = [
+  'option_chain/',
+  'analysis/',
+  'portfolio_valuation/',
+  'performance/',
+] as const;
 
 export type SseResource = string;
 
 export function queryKeyForResource(resource: SseResource): readonly [string, string] {
+  // La valorisation vit DANS la réponse GET /portfolio (route sans identifiant
+  // côté client) : tout signal `portfolio_valuation/<id>` invalide donc la
+  // clé unique du portefeuille. Aucune autre traduction n'existe.
+  if (resource.startsWith('portfolio_valuation/')) {
+    return ['snapshot', 'portfolio'] as const;
+  }
   return ['snapshot', resource] as const;
 }
 

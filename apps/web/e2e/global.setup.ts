@@ -137,6 +137,22 @@ export default async function globalSetup(config: FullConfig): Promise<void> {
   process.env['VX_E2E_API_PID'] = String(apiPid);
   await waitForHttp(API_HEALTH_URL, 30_000);
 
+  // 3 bis. Worker RÉEL en continu (vague 4) : les écritures faites via l'UI
+  // pendant les tests (transactions, compensations, révisions de thèses)
+  // sont traitées et republiées (valorisation, performance, file de revues),
+  // puis signalées par le flux SSE — aucun instantané simulé.
+  const workerPid = spawnLogged(
+    'python3',
+    [`${WEB_ROOT}e2e/run_worker.py`],
+    {
+      ...process.env,
+      PYTHONPATH,
+      VERTEX_TEST_DATABASE_URL: databaseUrl,
+    },
+    'worker',
+  );
+  process.env['VX_E2E_WORKER_PID'] = String(workerPid);
+
   // 4. Build réel + serveur de prévisualisation Vite (proxy /api).
   execSync('pnpm build', { cwd: WEB_ROOT, stdio: 'inherit', env: process.env });
   const previewPid = spawnLogged(

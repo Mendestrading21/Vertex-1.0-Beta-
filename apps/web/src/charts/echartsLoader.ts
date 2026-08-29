@@ -11,27 +11,34 @@
  * Canvas. ECharts est sous licence Apache-2.0 (NOTICE conservée dans le
  * paquet npm ; mention visible dans le pied du cadre graphique).
  */
-import { LineChart, TreemapChart } from 'echarts/charts';
+import { HeatmapChart, LineChart, TreemapChart } from 'echarts/charts';
 import {
   AriaComponent,
+  AxisPointerComponent,
   GridComponent,
   MarkLineComponent,
   MarkPointComponent,
   TooltipComponent,
+  VisualMapComponent,
 } from 'echarts/components';
 import * as echarts from 'echarts/core';
 import { CanvasRenderer } from 'echarts/renderers';
 
 // Treemap : MarketMap (/markets). Ligne + grille cartésienne + repères
-// (markLine/markPoint) : PayoffChart (/simulator). Le chunk reste unique et
-// paresseux — aucun de ces modules n'entre dans le bundle initial.
+// (markLine/markPoint) : PayoffChart (/simulator). Ligne double grille +
+// axisPointer lié : PerformanceChart (/performance). Heatmap + visualMap :
+// MonthlyHeatmap (/performance). Le chunk reste unique et paresseux — aucun
+// de ces modules n'entre dans le bundle initial.
 echarts.use([
   TreemapChart,
   LineChart,
+  HeatmapChart,
   GridComponent,
   TooltipComponent,
+  AxisPointerComponent,
   MarkLineComponent,
   MarkPointComponent,
+  VisualMapComponent,
   AriaComponent,
   CanvasRenderer,
 ]);

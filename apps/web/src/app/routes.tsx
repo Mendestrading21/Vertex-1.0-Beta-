@@ -19,7 +19,9 @@ import type { PageDef } from './pages.ts';
  * Aujourd'hui (/today), Marchés (/markets), Options (/options/:underlying?),
  * Analyse (/analysis/:instrument?), Simulateur (/simulator) et Système
  * (/system), plus la page d'accès /auth (hors rail — elle n'est pas une page
- * produit du blueprint).
+ * produit du blueprint). Vague 4 : Portefeuille (/portfolio), Suivi
+ * (/follow-up) et Performance (/performance) sont réelles ; seules
+ * /calendar, /opportunities et /ai restent NON_IMPLÉMENTÉ.
  *
  * /markets, /options, /analysis et /simulator sont chargées PARESSEUSEMENT
  * (React.lazy) : leurs chunks — et les chunks moteurs qu'elles importent
@@ -46,6 +48,21 @@ const LazyAnalysisPage = lazy(async () => {
 const LazySimulatorPage = lazy(async () => {
   const module = await import('../pages/simulator/SimulatorPage.tsx');
   return { default: module.SimulatorPage };
+});
+
+const LazyPortfolioPage = lazy(async () => {
+  const module = await import('../pages/portfolio/PortfolioPage.tsx');
+  return { default: module.PortfolioPage };
+});
+
+const LazyFollowUpPage = lazy(async () => {
+  const module = await import('../pages/follow-up/FollowUpPage.tsx');
+  return { default: module.FollowUpPage };
+});
+
+const LazyPerformancePage = lazy(async () => {
+  const module = await import('../pages/performance/PerformancePage.tsx');
+  return { default: module.PerformancePage };
 });
 
 function MarketsRoute() {
@@ -80,6 +97,30 @@ function SimulatorRoute() {
   );
 }
 
+function PortfolioRoute() {
+  return (
+    <Suspense fallback={<DataStateBoundary state="loading" />}>
+      <LazyPortfolioPage />
+    </Suspense>
+  );
+}
+
+function FollowUpRoute() {
+  return (
+    <Suspense fallback={<DataStateBoundary state="loading" />}>
+      <LazyFollowUpPage />
+    </Suspense>
+  );
+}
+
+function PerformanceRoute() {
+  return (
+    <Suspense fallback={<DataStateBoundary state="loading" />}>
+      <LazyPerformancePage />
+    </Suspense>
+  );
+}
+
 const INSTALLED_PAGES: Readonly<Record<string, () => React.JSX.Element>> = {
   today: TodayPage,
   markets: MarketsRoute,
@@ -87,6 +128,9 @@ const INSTALLED_PAGES: Readonly<Record<string, () => React.JSX.Element>> = {
   options: OptionsRoute,
   analysis: AnalysisRoute,
   simulator: SimulatorRoute,
+  portfolio: PortfolioRoute,
+  'follow-up': FollowUpRoute,
+  performance: PerformanceRoute,
 };
 
 /** Définition de la page d'accès (hors navigation, hors blueprint des 12). */
