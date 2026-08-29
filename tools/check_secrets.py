@@ -193,6 +193,14 @@ def main() -> int:
         if not absolute.is_file():
             continue
         relative = absolute.relative_to(REPO_ROOT).as_posix()
+        if absolute == ALLOWLIST_PATH:
+            # L'allowlist cite forcément les valeurs qu'elle exempte : la
+            # scanner reviendrait à s'auto-signaler. Ce n'est pas une faille :
+            # une entrée dont la valeur n'apparaît dans AUCUN autre fichier est
+            # rejetée comme exemption morte (voir `stale` plus bas). On ne peut
+            # donc pas y « garer » un secret — il devrait exister ailleurs, là
+            # où le relecteur le verrait.
+            continue
         if absolute.suffix.lower() in BINARY_SUFFIXES:
             continue
         if absolute.stat().st_size > MAX_BYTES:

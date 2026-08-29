@@ -47,36 +47,38 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Python ${{ env.PYTHON_VERSION }}
-        uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
       - name: uv
         uses: astral-sh/setup-uv@2ddd2b9cb38ad8efd50337e8ab201519a34c9f24 # v7.1.1
         with:
           enable-cache: false
 
+      # Les gardes-fous valident des YAML et des manifestes : ils exigent les
+      # mêmes dépendances verrouillées que le reste. Un interpréteur nu ferait
+      # échouer `verify_blueprint` fail-closed sur l'absence de PyYAML —
+      # comportement correct de la porte, mais preuve inexploitable.
+      - name: Installation depuis le verrou exact
+        run: uv sync --locked --all-extras --python ${{ env.PYTHON_VERSION }}
+
       - name: Porte 1 — rôle du dépôt (cible d'écriture uniquement)
-        run: python3 tools/check_repository_role.py target .
+        run: uv run --no-sync python tools/check_repository_role.py target .
 
       - name: Porte 2 — blueprint complet
-        run: python3 tools/verify_blueprint.py
+        run: uv run --no-sync python tools/verify_blueprint.py
 
       - name: Porte 3 — frontière financière (capacités IBKR interdites)
-        run: python3 tools/check_financial_boundary.py
+        run: uv run --no-sync python tools/check_financial_boundary.py
 
       - name: Porte 4 — registre des calculs (autorité à jour)
-        run: python3 tools/check_calculation_registry.py
+        run: uv run --no-sync python tools/check_calculation_registry.py
 
       - name: Porte 5 — verrouillage supply-chain (uv.lock à jour, exact)
         run: uv lock --check
 
       - name: Porte 5bis — détection de secrets (arbre suivi)
-        run: uv run --no-project --with PyYAML==6.0.1 python tools/check_secrets.py
+        run: uv run --no-sync python tools/check_secrets.py
 
       - name: Porte 6 — compilation du domaine et des applications
-        run: python3 -m compileall -q packages/python apps
+        run: uv run --no-sync python -m compileall -q packages/python apps
 
   # ── Porte 7 : unitaires, propriétés, oracles, contrats ─────────────────
   python-unitaire:
@@ -250,6 +252,13 @@ jobs:
       - name: Navigateur Chromium (version épinglée par le verrou pnpm)
         working-directory: apps/web
         run: pnpm exec playwright install --with-deps chromium
+
+      # `global.setup.ts` démarre le pipeline réel en invoquant `python3` :
+      # sans le venv verrouillé EN TÊTE de PATH, c'est l'interpréteur système
+      # (sans alembic ni vertex_*) qui répond et le semis SYNTHETIC échoue.
+      # Le venv est créé par `uv sync` à la racine du dépôt.
+      - name: Interpréteur verrouillé en tête de PATH
+        run: echo "${{ github.workspace }}/.venv/bin" >> "$GITHUB_PATH"
 
       - name: Porte 14 — parcours critiques des 13 routes
         working-directory: apps/web

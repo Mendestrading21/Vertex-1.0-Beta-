@@ -62,6 +62,45 @@ vertex-ingress-tradingview = { workspace = true }
 
 # Cible runtime : Python 3.13 (uv.lock au LOT-01 sur la machine cible).
 # Plancher local de développement : 3.11 (aucune syntaxe > 3.11 dans le code).
+[tool.ruff]
+# Le domaine et les adaptateurs sont lus autant qu'écrits : lignes longues
+# tolérées jusqu'à 100, jamais au-delà.
+line-length = 100
+target-version = "py311"  # plancher local ; la cible 3.13 est vérifiée en CI
+extend-exclude = ["apps/web", "node_modules", ".venv"]
+
+[tool.ruff.lint]
+select = [
+    "E", "W",   # pycodestyle
+    "F",        # pyflakes
+    "I",        # ordre des imports
+    "UP",       # pyupgrade
+    "B",        # bugbear
+    "C4",       # comprehensions
+    "DTZ",      # datetime SANS timezone — invariant financier
+    "T20",      # print() oublié dans du code applicatif
+    "RUF",      # règles Ruff
+    "S",        # bandit (sécurité)
+]
+ignore = [
+    # Ruff ne sait pas distinguer un texte français d'un identifiant ambigu ;
+    # la documentation et les libellés du produit sont en français.
+    "RUF001", "RUF002", "RUF003",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Les tests utilisent assert (S101) et des constantes SYNTHETIC (S105/S106).
+"**/tests/**" = ["S101", "S105", "S106", "S311"]
+"**/tests_integration/**" = ["S101", "S105", "S106", "S311"]
+"tools/**" = ["T201"]  # les portes CI écrivent leur verdict sur la sortie
+"**/conftest.py" = ["S101"]
+
+[tool.ruff.lint.isort]
+known-first-party = [
+    "vertex_core", "vertex_persistence", "vertex_api",
+    "vertex_worker", "vertex_edge_ibkr", "vertex_ingress_tv",
+]
+
 [tool.pytest.ini_options]
 # tests_integration/ (PostgreSQL réel) s'exécute explicitement :
 #   bash tools/run_checks.sh --integration

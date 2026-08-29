@@ -112,3 +112,34 @@ def test_l_allowlist_exige_un_motif_ecrit(tmp_path: Path, monkeypatch: pytest.Mo
     with pytest.raises(SystemExit) as raised:
         gate.load_allowlist()
     assert "reason" in str(raised.value)
+
+
+def test_l_allowlist_ne_peut_pas_servir_de_cachette(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """L'allowlist n'est pas scannée — mais une entrée dont la valeur
+    n'apparaît nulle part ailleurs est rejetée comme exemption morte.
+    Garer un secret dans l'allowlist est donc impossible : il faudrait qu'il
+    existe aussi dans un vrai fichier, là où le relecteur le verrait."""
+    cachette = tmp_path / "secret-allowlist.yaml"
+    cachette.write_text(
+        "allow:\n"
+        "  - path: nulle/part.py\n"
+        "    code: AWS_ACCESS_KEY\n"
+        "    match: AKIAIOSFODNN7EXAMPLE\n"
+        "    reason: tentative de dissimulation\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(gate, "ALLOWLIST_PATH", cachette)
+    completed = subprocess.run(
+        [sys.executable, "-c", "import sys; sys.exit(0)"], capture_output=True
+    )
+    assert completed.returncode == 0  # garde-fou de l'environnement de test
+
+    # L'entrée n'est utilisée par aucun fichier réel du dépôt : la porte doit
+    # refuser, en nommant l'exemption morte.
+    allowlist = gate.load_allowlist()
+    assert set(allowlist) == {"nulle/part.py:AWS_ACCESS_KEY:AKIAIOSFODNN7EXAMPLE"}
+    # `main` compare les exemptions déclarées aux exemptions réellement
+    # consommées ; ici aucune ne l'est.
+    assert gate.main() == 1
