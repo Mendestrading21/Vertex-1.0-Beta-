@@ -26,6 +26,10 @@ __all__ = [
     "CredentialRevokedError",
     "DuplicateCredentialError",
     "SignCountRegressionError",
+    "ThesisError",
+    "UnknownThesisError",
+    "IdempotencyKeyReuseError",
+    "ThesisProjectionError",
 ]
 
 
@@ -105,6 +109,33 @@ class CredentialRevokedError(AuthStorageError):
 
 class DuplicateCredentialError(AuthStorageError):
     """A credential with the same authenticator credential id already exists."""
+
+
+class ThesisError(PersistenceError):
+    """Base class of thesis and thesis-revision storage errors."""
+
+
+class UnknownThesisError(ThesisError):
+    """The referenced thesis does not exist."""
+
+
+class IdempotencyKeyReuseError(ThesisError):
+    """An idempotency key already names a DIFFERENT operation.
+
+    Replaying the same operation with the same key is silently deduplicated
+    (``created=False``); presenting a key that belongs to another thesis or
+    another action is a caller bug and fails closed instead of aliasing two
+    distinct facts.
+    """
+
+
+class ThesisProjectionError(ThesisError):
+    """A revision history cannot be projected to a coherent thesis state.
+
+    Raised for an empty history, a history that does not start with CREATED
+    or a second CREATED revision. Corrupt history is never guessed around —
+    the projection fails closed.
+    """
 
 
 class SignCountRegressionError(AuthStorageError):
