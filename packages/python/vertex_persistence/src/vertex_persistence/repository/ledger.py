@@ -19,6 +19,7 @@ from decimal import Decimal
 from typing import Any, Optional
 
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from vertex_persistence.enums import (
@@ -53,6 +54,10 @@ __all__ = [
     "compensate_ledger_event",
     "list_position_lots",
 ]
+
+# Partial unique index (0002_concurrency_guards): at most one compensating row
+# per event, enforced by the database itself under any concurrent interleaving.
+_COMPENSATES_UNIQUE_INDEX = "uq_ledger_transactions_compensates"
 
 
 @dataclass(frozen=True)
@@ -140,7 +145,12 @@ def record_ledger_event(
     ``amount`` and ``fees`` are required exact Decimals — an unknown amount is
     an error, never zero. Optional fields stay ``None`` when absent.
     ``compensates`` must reference an existing event of the same portfolio
-    that has no compensating entry yet.
+    that has no compensating entry yet. That uniqueness is guaranteed by the
+    database (partial unique index on ``compensates``), so two concurrent
+    transactions compensating the same event cannot both commit: the loser
+    gets :class:`AlreadyCompensatedError` when its insert is flushed, even
+    though the advisory pre-check below could not see the winner's
+    uncommitted row.
     """
     _require_portfolio(session, portfolio_id)
     kind = validate_enum_value("kind", kind, LEDGER_EVENT_KINDS)
@@ -181,7 +191,20 @@ def record_ledger_event(
         compensates=compensates,
     )
     session.add(row)
-    session.flush()
+    try:
+        session.flush()
+    except IntegrityError as exc:
+        # Authoritative duplicate-compensation rejection: the database's
+        # partial unique index closes the SELECT-then-INSERT race the
+        # pre-check above cannot close. Other integrity errors re-raise
+        # untouched; the caller must roll back either way.
+        constraint = getattr(getattr(exc.orig, "diag", None), "constraint_name", None)
+        if constraint == _COMPENSATES_UNIQUE_INDEX and compensates is not None:
+            raise AlreadyCompensatedError(
+                f"ledger event {compensates} is already compensated "
+                "(concurrent compensation committed first)"
+            ) from exc
+        raise
     return row.id
 
 

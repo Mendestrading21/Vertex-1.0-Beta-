@@ -15,6 +15,7 @@ __all__ = [
     "EnumValidationError",
     "ValidationFailedError",
     "OutboxStateError",
+    "OutboxLeaseError",
     "SnapshotStateError",
     "LedgerError",
     "UnknownPortfolioError",
@@ -49,6 +50,16 @@ class ValidationFailedError(PersistenceError):
 
 class OutboxStateError(PersistenceError):
     """An outbox message is missing or not in the status required by the call."""
+
+
+class OutboxLeaseError(OutboxStateError):
+    """The caller does not hold the lease on the outbox message it targets.
+
+    Raised when ack/fail present a ``lease_token`` that does not match the
+    row: the lease expired and was reaped (its attempt already counted), the
+    message was re-claimed by another worker, or it was never claimed at all.
+    The caller must discard its result and never retry the call.
+    """
 
 
 class SnapshotStateError(PersistenceError):

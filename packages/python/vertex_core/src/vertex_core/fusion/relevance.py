@@ -8,10 +8,14 @@ blockers included — ever crosses a rights or identity gate.
 Ranking is lexicographic over the documented priorities
 (docs/02-architecture/DATA_FLOW.md): security/quality incident > manual
 position > active thesis or alert > watchlist > recently analyzed instrument
-> global market event > novelty/freshness. Sub-scores are kept separately —
-an opaque summed score is forbidden. Attention budgets per page mirror
-``manifests/relevance-policy.yaml`` (the manifest is authoritative; a sync
-test enforces exact equality).
+> global market event > novelty/freshness. Manifest penalties are applied,
+never inert: within an identical priority-flag profile, each penalty demotes
+the item behind every otherwise-identical cleaner item (before freshness),
+and ``missing_rights`` closes the ``RIGHTS_OK`` gate even when the upstream
+boolean claims the rights are usable (fail-closed cross-invariant).
+Sub-scores are kept separately — an opaque summed score is forbidden.
+Attention budgets per page mirror ``manifests/relevance-policy.yaml`` (the
+manifest is authoritative; a sync test enforces exact equality).
 """
 
 from __future__ import annotations
@@ -40,6 +44,7 @@ __all__ = [
     "GATE_SOURCE_OK",
     "GATE_QUALITY_OK",
     "PENALTY_CODES",
+    "PENALTY_MISSING_RIGHTS",
     "POLICY_AUTHORITY",
     "POLICY_VERSION",
     "REQUIRED_GATES",
@@ -93,6 +98,10 @@ PENALTY_CODES = (
     "outside_universe_without_propagation",
 )
 """Mirrors ``penalties`` of the manifest, in manifest order."""
+
+PENALTY_MISSING_RIGHTS = "missing_rights"
+"""Penalty code carrying a rights problem: it closes the ``RIGHTS_OK`` gate
+regardless of the upstream ``rights_usable`` boolean (fail-closed)."""
 
 ATTENTION_BUDGETS: Mapping[str, Mapping[str, Union[int, str]]] = MappingProxyType(
     {
@@ -160,6 +169,11 @@ class RelevanceInput(ContractModel):
         unknown = [code for code in self.penalties if code not in PENALTY_CODES]
         if unknown:
             raise ValueError(f"unknown penalty codes rejected: {unknown!r}")
+        if len(set(self.penalties)) != len(self.penalties):
+            duplicated = sorted(
+                {code for code in self.penalties if self.penalties.count(code) > 1}
+            )
+            raise ValueError(f"duplicate penalty codes rejected: {duplicated!r}")
         return self
 
     @property
@@ -258,12 +272,16 @@ def evaluate_gates(item: RelevanceInput, as_of: datetime) -> GateEvaluation:
     ``as_of`` must be timezone-aware (naive datetimes are rejected).
     ``TIME_OK`` fails on any future timestamp; ``QUALITY_OK`` fails for
     deleted content and for any quality outside {VALID, PARTIAL}.
+    ``RIGHTS_OK`` fails when ``rights_usable`` is false OR when the upstream
+    expressed a rights problem through the ``missing_rights`` penalty code —
+    the two vocabularies must never contradict each other into a rankable
+    item (fail-closed cross-invariant).
     """
     as_of = ensure_utc(as_of)
     observation = item.observation
     return GateEvaluation(
         item_id=item.item_id,
-        rights_ok=item.rights_usable,
+        rights_ok=item.rights_usable and PENALTY_MISSING_RIGHTS not in item.penalties,
         identity_ok=item.identity_status is IdentityStatus.RESOLVED,
         time_ok=(
             observation.received_at <= as_of
@@ -288,7 +306,14 @@ def _age_seconds(item: RelevanceInput, as_of: datetime) -> int:
 
 
 def _sort_key(item: RelevanceInput, age_seconds: int) -> tuple:
-    """Lexicographic key over the documented priorities; no summed score."""
+    """Lexicographic key over the documented priorities; no summed score.
+
+    Manifest penalties demote strictly within an identical priority-flag
+    profile and BEFORE freshness: a clean item always outranks an
+    otherwise-identical penalized item, however fresh the penalized one is,
+    and more penalties rank lower. Penalties never promote a lower documented
+    priority class above a higher one.
+    """
     return (
         0 if item.security_or_quality_incident else 1,
         0 if item.manual_position else 1,
@@ -297,6 +322,7 @@ def _sort_key(item: RelevanceInput, age_seconds: int) -> tuple:
         0 if item.recently_analyzed else 1,
         0 if item.global_market_event else 1,
         0 if item.novelty else 1,
+        len(item.penalties),
         age_seconds,
         item.observation.source_tier,
         item.item_id,

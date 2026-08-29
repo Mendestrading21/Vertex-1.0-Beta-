@@ -170,6 +170,9 @@ class OutboxMessage(Base):
     status: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'PENDING'"))
     attempts: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
     lease_until: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Opaque per-claim ownership nonce: set on claim, required by ack/fail,
+    # cleared on every transition out of IN_PROGRESS (ack, fail, reap).
+    lease_token: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     # Short technical diagnostic only — never a payload, secret or account datum.
     last_error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
@@ -262,4 +265,12 @@ class LedgerTransaction(Base):
         CheckConstraint(sql_enum_check("source", POSITION_LOT_SOURCES), name="source_canonical"),
         CheckConstraint(f"currency ~ '{CURRENCY_PATTERN}'", name="currency_format"),
         Index("ix_ledger_transactions_portfolio_effective", "portfolio_id", "effective_at"),
+        # At most one compensating row per event, enforced by the database
+        # itself so the guarantee holds under concurrency and for every client.
+        Index(
+            "uq_ledger_transactions_compensates",
+            "compensates",
+            unique=True,
+            postgresql_where=text("compensates IS NOT NULL"),
+        ),
     )

@@ -235,6 +235,129 @@ class TestLexicographicRanking:
             make_input("a", penalties=("made_up_penalty",))
 
 
+class TestPenaltiesApplied:
+    """Every manifest penalty code must have an observable effect.
+
+    The manifest-sync test only proves the code lists are equal; these tests
+    prove the penalty policy is actually applied: a penalized item is demoted
+    behind an otherwise-identical clean item, and ``missing_rights`` expressed
+    through the penalty vocabulary closes the RIGHTS_OK gate (fail-closed
+    cross-invariant), never yielding a rankable item.
+    """
+
+    RANKING_PENALTIES = tuple(code for code in PENALTY_CODES if code != "missing_rights")
+
+    def test_spam_item_ranks_after_identical_clean_item(self):
+        # Reproducer for the confirmed finding: same flags, same age, and the
+        # penalized item_id sorts first alphabetically — before the fix the
+        # item_id tiebreak put the spam item ahead of the clean one.
+        spam = make_input(
+            "a_spam",
+            watchlist=True,
+            penalties=("probable_spam_or_bot", "duplicate", "syndicated_copy"),
+        )
+        clean = make_input("b_clean", watchlist=True)
+        ranking = rank_items([spam, clean], as_of=AS_OF)
+        assert [item.item_id for item in ranking.ranked] == ["b_clean", "a_spam"]
+
+    @pytest.mark.parametrize("code", RANKING_PENALTIES)
+    def test_every_ranking_penalty_code_demotes(self, code):
+        penalized = make_input("a_penalized", watchlist=True, penalties=(code,))
+        clean = make_input("b_clean", watchlist=True)
+        ranking = rank_items([penalized, clean], as_of=AS_OF)
+        assert [item.item_id for item in ranking.ranked] == ["b_clean", "a_penalized"]
+
+    def test_more_penalties_rank_lower(self):
+        two = make_input("a_two", penalties=("duplicate", "stale"))
+        one = make_input("b_one", penalties=("duplicate",))
+        none = make_input("c_none")
+        ranking = rank_items([two, one, none], as_of=AS_OF)
+        assert [item.item_id for item in ranking.ranked] == ["c_none", "b_one", "a_two"]
+
+    def test_older_clean_item_beats_fresher_penalized_item_within_class(self):
+        old_clean = make_input(
+            "old_clean",
+            watchlist=True,
+            received_at=BASE_TIME - timedelta(hours=6),
+        )
+        fresh_spam = make_input(
+            "fresh_spam",
+            watchlist=True,
+            received_at=AS_OF,
+            penalties=("probable_spam_or_bot",),
+        )
+        ranking = rank_items([fresh_spam, old_clean], as_of=AS_OF)
+        assert [item.item_id for item in ranking.ranked] == ["old_clean", "fresh_spam"]
+
+    def test_penalty_never_overrides_documented_priority_ladder(self):
+        # Penalties demote within the lexicographic flag profile; they never
+        # promote a lower documented class above a higher one.
+        penalized_position = make_input(
+            "penalized_position",
+            manual_position=True,
+            penalties=("duplicate", "probable_spam_or_bot"),
+        )
+        clean_watchlist = make_input("clean_watchlist", watchlist=True)
+        ranking = rank_items([clean_watchlist, penalized_position], as_of=AS_OF)
+        assert [item.item_id for item in ranking.ranked] == [
+            "penalized_position",
+            "clean_watchlist",
+        ]
+
+    def test_missing_rights_penalty_closes_rights_gate_despite_rights_usable(self):
+        # Cross-invariant: an upstream expressing a rights problem through the
+        # penalty vocabulary instead of the gate boolean must NOT obtain a
+        # rankable item (fail-closed).
+        item = make_input(
+            "rights_conflict", rights_usable=True, penalties=("missing_rights",)
+        )
+        ranking = rank_items([item], as_of=AS_OF)
+        assert ranking.ranked == ()
+        assert len(ranking.rejected) == 1
+        rejection = ranking.rejected[0]
+        assert rejection.filtered_reason == "RIGHTS_OK_FAILED"
+        assert "RIGHTS_OK" in rejection.failed_gates
+
+    def test_missing_rights_penalty_fails_gate_evaluation(self):
+        gates = evaluate_gates(
+            make_input("a", rights_usable=True, penalties=("missing_rights",)), AS_OF
+        )
+        assert gates.rights_ok is False
+        assert "RIGHTS_OK" in gates.failed_gates
+
+    def test_missing_rights_penalty_never_ranked_even_with_maximum_priority(self):
+        blocked = make_input(
+            "critical",
+            rights_usable=True,
+            penalties=("missing_rights",),
+            security_or_quality_incident=True,
+            manual_position=True,
+            active_thesis_or_alert=True,
+            watchlist=True,
+            recently_analyzed=True,
+            global_market_event=True,
+            novelty=True,
+        )
+        ranking = rank_items([blocked, make_input("ordinary")], as_of=AS_OF)
+        assert [item.item_id for item in ranking.ranked] == ["ordinary"]
+        assert ranking.rejected[0].filtered_reason == "RIGHTS_OK_FAILED"
+
+    def test_duplicate_penalty_codes_rejected(self):
+        with pytest.raises(ValidationError, match="duplicate penalty codes"):
+            make_input("a", penalties=("duplicate", "duplicate"))
+
+    def test_budget_cuts_penalized_items_first_within_class(self):
+        items = [
+            make_input("a_spam", watchlist=True, penalties=("probable_spam_or_bot",)),
+            make_input("b_clean", watchlist=True),
+            make_input("c_clean", watchlist=True),
+            make_input("d_clean", watchlist=True),
+        ]
+        ranking = rank_items(items, as_of=AS_OF)
+        kept = apply_attention_budget(ranking.ranked, "today", "major_events")
+        assert [item.item_id for item in kept] == ["b_clean", "c_clean", "d_clean"]
+
+
 class TestAttentionBudgets:
     def _ranked(self, count: int):
         items = [make_input(f"item-{i:02d}", watchlist=True) for i in range(count)]
@@ -322,6 +445,7 @@ class TestDeterminism:
                     recently_analyzed=rng.random() < 0.3,
                     global_market_event=rng.random() < 0.2,
                     novelty=rng.random() < 0.5,
+                    penalties=tuple(rng.sample(PENALTY_CODES, rng.randint(0, 3))),
                 )
             )
         return items

@@ -11,9 +11,9 @@ import pytest
 from sqlalchemy import Engine, func, select
 from sqlalchemy.orm import Session
 
-from vertex_persistence.backoff import DEFAULT_MAX_ATTEMPTS
+from vertex_persistence.backoff import DEFAULT_MAX_ATTEMPTS, compute_backoff_seconds
 from vertex_persistence.enums import OutboxStatus
-from vertex_persistence.errors import OutboxStateError
+from vertex_persistence.errors import OutboxLeaseError, OutboxStateError
 from vertex_persistence.models import Observation, OutboxMessage
 from vertex_persistence.repository import (
     ack_outbox,
@@ -105,23 +105,37 @@ def test_expired_lease_is_reaped_then_reclaimable(db_session: Session) -> None:
     assert reap_expired_leases(db_session, now=T0 + timedelta(seconds=30)) == 0
     assert claim_outbox_batch(db_session, [TOPIC], 1, 60, now=T0 + timedelta(seconds=30)) == []
 
-    # Worker vanished, lease expired: the message is re-offered.
-    assert reap_expired_leases(db_session, now=T0 + timedelta(seconds=61)) == 1
+    # Worker vanished, lease expired: the reaper counts the lost attempt and
+    # re-offers the message after its backoff (never a silent PENDING).
+    reap_now = T0 + timedelta(seconds=61)
+    assert reap_expired_leases(db_session, now=reap_now) == 1
     db_session.commit()
     row = db_session.get(OutboxMessage, claimed.id)
     assert row is not None
-    assert row.status == OutboxStatus.PENDING.value
-    assert row.lease_until is None
-    reclaimed = claim_outbox_batch(db_session, [TOPIC], 1, 60, now=T0 + timedelta(seconds=61))
+    assert row.status == OutboxStatus.FAILED.value
+    assert row.attempts == 1
+    assert row.lease_token is None
+    retry_at = reap_now + timedelta(seconds=compute_backoff_seconds(1))
+    assert row.lease_until == retry_at
+    # Not claimable before the retry-not-before instant, claimable after.
+    assert claim_outbox_batch(db_session, [TOPIC], 1, 60, now=reap_now) == []
+    reclaimed = claim_outbox_batch(db_session, [TOPIC], 1, 60, now=retry_at)
     assert [message.id for message in reclaimed] == [claimed.id]
+    assert reclaimed[0].lease_token != claimed.lease_token  # a fresh lease grant
     db_session.commit()
 
 
 def test_fail_applies_exponential_backoff(db_session: Session) -> None:
     (message_id,) = _enqueue(db_session, 1)
     db_session.commit()
-    claim_outbox_batch(db_session, [TOPIC], 1, 60, now=T0)
-    status = fail_outbox(db_session, message_id, "synthetic handler error", now=T0)
+    (claimed,) = claim_outbox_batch(db_session, [TOPIC], 1, 60, now=T0)
+    status = fail_outbox(
+        db_session,
+        message_id,
+        "synthetic handler error",
+        lease_token=claimed.lease_token,
+        now=T0,
+    )
     db_session.commit()
     row = db_session.get(OutboxMessage, message_id)
     assert status == OutboxStatus.FAILED.value
@@ -142,7 +156,13 @@ def test_max_attempts_reaches_dead_and_stops_delivery(db_session: Session) -> No
     for attempt in range(1, DEFAULT_MAX_ATTEMPTS + 1):
         claimed = claim_outbox_batch(db_session, [TOPIC], 1, lease_seconds=10, now=now)
         assert [message.id for message in claimed] == [message_id]
-        status = fail_outbox(db_session, message_id, f"synthetic failure {attempt}", now=now)
+        status = fail_outbox(
+            db_session,
+            message_id,
+            f"synthetic failure {attempt}",
+            lease_token=claimed[0].lease_token,
+            now=now,
+        )
         db_session.commit()
         now = now + timedelta(hours=2)  # move past any backoff before the next claim
     assert status == OutboxStatus.DEAD.value
@@ -156,25 +176,38 @@ def test_max_attempts_reaches_dead_and_stops_delivery(db_session: Session) -> No
 def test_ack_marks_done_and_message_stays_done(db_session: Session) -> None:
     (message_id,) = _enqueue(db_session, 1)
     db_session.commit()
-    claim_outbox_batch(db_session, [TOPIC], 1, 60, now=T0)
-    ack_outbox(db_session, message_id, now=T0 + timedelta(seconds=1))
+    (claimed,) = claim_outbox_batch(db_session, [TOPIC], 1, 60, now=T0)
+    ack_outbox(
+        db_session, message_id, lease_token=claimed.lease_token, now=T0 + timedelta(seconds=1)
+    )
     db_session.commit()
     row = db_session.get(OutboxMessage, message_id)
     assert row is not None
     assert row.status == OutboxStatus.DONE.value
     assert row.lease_until is None
+    assert row.lease_token is None
     assert claim_outbox_batch(db_session, [TOPIC], 1, 60, now=T0 + timedelta(hours=1)) == []
 
 
-def test_ack_and_fail_require_in_progress(db_session: Session) -> None:
+def test_ack_and_fail_require_an_owned_lease(db_session: Session) -> None:
     (message_id,) = _enqueue(db_session, 1)
     db_session.commit()
-    with pytest.raises(OutboxStateError, match="expected IN_PROGRESS"):
-        ack_outbox(db_session, message_id, now=T0)
+    # Never claimed: no lease is held, whatever token the caller presents.
+    with pytest.raises(OutboxLeaseError, match="not held under this lease token"):
+        ack_outbox(db_session, message_id, lease_token="synthetic-unissued-token", now=T0)
     db_session.rollback()
-    with pytest.raises(OutboxStateError, match="expected IN_PROGRESS"):
-        fail_outbox(db_session, message_id, "synthetic", now=T0)
+    with pytest.raises(OutboxLeaseError, match="not held under this lease token"):
+        fail_outbox(
+            db_session, message_id, "synthetic", lease_token="synthetic-unissued-token", now=T0
+        )
     db_session.rollback()
     with pytest.raises(OutboxStateError, match="does not exist"):
-        ack_outbox(db_session, 999999, now=T0)
+        ack_outbox(db_session, 999999, lease_token="synthetic-unissued-token", now=T0)
+    db_session.rollback()
+    # A finished message no longer carries a lease either: the old token is dead.
+    (claimed,) = claim_outbox_batch(db_session, [TOPIC], 1, 60, now=T0)
+    ack_outbox(db_session, message_id, lease_token=claimed.lease_token, now=T0)
+    db_session.commit()
+    with pytest.raises(OutboxLeaseError, match="not held under this lease token"):
+        ack_outbox(db_session, message_id, lease_token=claimed.lease_token, now=T0)
     db_session.rollback()
