@@ -1,0 +1,37 @@
+# Image commune API + worker.
+# Base épinglée par digest immuable (jamais un tag seul, jamais `latest`).
+# python:3.13-slim-trixie — cible runtime du programme.
+FROM python:3.13-slim-trixie@sha256:7ce4b6dfe35e55397b7cda544f8a13f191b7ae28dc5aad71fe664dbc9bc2623f AS base
+
+# uv fournit l'installation depuis `uv.lock` (versions exactes + hachages).
+# Copié depuis son image officielle, elle aussi épinglée par digest.
+COPY --from=ghcr.io/astral-sh/uv:0.8.17@sha256:e4644cb5bd56fdc2c5ea3ee0525d9d21eed1603bccd6a21f887a938be7e85be1 /uv /usr/local/bin/uv
+
+ENV UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+WORKDIR /srv/vertex
+
+# Couche de dépendances : ne change que si le verrou change.
+COPY pyproject.toml uv.lock ./
+COPY packages/python/vertex_core/pyproject.toml packages/python/vertex_core/
+COPY packages/python/vertex_persistence/pyproject.toml packages/python/vertex_persistence/
+COPY apps/api/pyproject.toml apps/api/
+COPY apps/worker/pyproject.toml apps/worker/
+COPY apps/edge-ibkr/pyproject.toml apps/edge-ibkr/
+COPY apps/ingress-tradingview/pyproject.toml apps/ingress-tradingview/
+RUN uv sync --locked --no-install-workspace
+
+# Code applicatif.
+COPY packages/python ./packages/python
+COPY apps ./apps
+RUN uv sync --locked
+
+# Utilisateur non privilégié : aucun service ne tourne en root.
+RUN useradd --system --uid 10001 --no-create-home vertex \
+ && chown -R vertex:vertex /srv/vertex
+USER 10001:10001
+
+ENV PATH="/srv/vertex/.venv/bin:${PATH}"

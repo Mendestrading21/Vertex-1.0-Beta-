@@ -1,0 +1,113 @@
+# Exécution locale de Vertex 1.0 Beta — machine personnelle, boucle locale.
+#
+# INVARIANTS TENUS ICI
+# - toutes les images sont épinglées par digest immuable, jamais par tag seul ;
+# - tous les services tournent en utilisateur non privilégié ;
+# - chaque port est publié sur 127.0.0.1 UNIQUEMENT : rien n'écoute sur 0.0.0.0,
+#   rien n'est joignable depuis le LAN ou un téléphone ;
+# - aucun secret n'est écrit ici : les variables sans valeur par défaut font
+#   échouer le démarrage si elles manquent (`${VAR:?message}`) ;
+# - le système de fichiers applicatif est en lecture seule ; ce qui doit être
+#   écrit l'est dans un tmpfs déclaré ;
+# - `edge-ibkr` n'est PAS ici : il joint TWS sur la boucle locale de l'hôte.
+#
+# Se lance depuis la RACINE du dépôt :
+#   docker compose -f infra/compose/compose.yaml --env-file .env up
+
+name: vertex-one
+
+x-hardening: &hardening
+  read_only: true
+  security_opt: ["no-new-privileges:true"]
+  cap_drop: ["ALL"]
+  restart: unless-stopped
+
+services:
+  db:
+    image: postgres:18@sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280
+    security_opt: ["no-new-privileges:true"]
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${VERTEX_DB_USER:?VERTEX_DB_USER requis}
+      POSTGRES_PASSWORD: ${VERTEX_DB_PASSWORD:?VERTEX_DB_PASSWORD requis}
+      POSTGRES_DB: ${VERTEX_DB_NAME:?VERTEX_DB_NAME requis}
+      # Horodatage : le stockage est en UTC, la conversion est un choix
+      # d'affichage fait à l'interface, jamais dans la base.
+      TZ: UTC
+      PGTZ: UTC
+    command:
+      - postgres
+      # WAL archivable : prérequis du RPO ≤ 5 min visé par le runbook
+      # docs/08-runbooks/BACKUP_RESTORE.md. L'archivage lui-même est activé
+      # au LOT-24, sur la machine cible.
+      - -c
+      - wal_level=replica
+      - -c
+      - summarize_wal=on
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:${VERTEX_DB_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+
+  api:
+    <<: *hardening
+    build:
+      context: ../..
+      dockerfile: infra/compose/Dockerfile.python
+    depends_on:
+      db: {condition: service_healthy}
+    environment:
+      VERTEX_ENV: ${VERTEX_ENV:?VERTEX_ENV requis}
+      VERTEX_DATABASE_URL: ${VERTEX_DATABASE_URL:?VERTEX_DATABASE_URL requis}
+    command:
+      - python
+      - -m
+      - uvicorn
+      - vertex_api.app:create_app
+      - --factory
+      - --host
+      - "0.0.0.0"   # à l'intérieur du conteneur ; la publication reste loopback
+      - --port
+      - "8000"
+    tmpfs: ["/tmp:size=64m,mode=1777"]
+    ports:
+      - "127.0.0.1:${VERTEX_API_PORT:-8000}:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/api/v1/health', timeout=3).status==200 else 1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+
+  worker:
+    <<: *hardening
+    build:
+      context: ../..
+      dockerfile: infra/compose/Dockerfile.python
+    depends_on:
+      db: {condition: service_healthy}
+    environment:
+      VERTEX_ENV: ${VERTEX_ENV:?VERTEX_ENV requis}
+      VERTEX_DATABASE_URL: ${VERTEX_DATABASE_URL:?VERTEX_DATABASE_URL requis}
+    command: ["python", "-m", "vertex_worker"]
+    tmpfs: ["/tmp:size=64m,mode=1777"]
+    # Aucun port : le worker ne sert rien, il consomme l'outbox.
+
+  web:
+    <<: *hardening
+    build:
+      context: ../..
+      dockerfile: infra/compose/Dockerfile.web
+    depends_on:
+      api: {condition: service_healthy}
+    ports:
+      - "127.0.0.1:${VERTEX_WEB_PORT:-4173}:4173"
+
+volumes:
+  db-data:

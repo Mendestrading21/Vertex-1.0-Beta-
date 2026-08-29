@@ -1,0 +1,25 @@
+# Interface web : build Vite, puis service de fichiers statiques.
+# Bases épinglées par digest immuable.
+FROM node:24-slim@sha256:ba849c60be29959425b8734d57b8b4b7d56f98edd9504c9af091d5281095a71e AS build
+
+ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+WORKDIR /srv/web
+
+COPY apps/web/package.json apps/web/pnpm-lock.yaml ./
+# `--frozen-lockfile` : le verrou fait autorité, aucune résolution n'est permise.
+RUN corepack enable && corepack prepare pnpm@10.33.0 --activate \
+ && pnpm install --frozen-lockfile
+
+COPY apps/web/ ./
+RUN pnpm build
+
+# Étage de service : Node seul, pas de serveur web supplémentaire à auditer.
+FROM node:24-slim@sha256:ba849c60be29959425b8734d57b8b4b7d56f98edd9504c9af091d5281095a71e AS serve
+
+WORKDIR /srv/web
+COPY --from=build /srv/web/dist ./dist
+COPY infra/compose/serve-static.mjs ./serve-static.mjs
+
+USER 65532:65532
+EXPOSE 4173
+CMD ["node", "serve-static.mjs"]
