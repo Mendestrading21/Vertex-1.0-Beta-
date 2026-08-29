@@ -139,7 +139,11 @@ def test_iv_round_trip_within_relative_tolerance(s, m, t, vol, r, q, right):
         assert abs(iv - vol) <= 1e-4
 
 
-quantities = st.integers(min_value=-3, max_value=3).filter(lambda q: q != 0)
+# All-long quantities only: a short quantity requires DEFINED_RISK
+# certification (strict closed catalogue) and a certified short leg is
+# inseparable from its structure, so it cannot be priced alone — exact
+# leg-sum linearity is therefore asserted on all-long combinations.
+quantities = st.integers(min_value=1, max_value=3)
 strike_decimals = st.sampled_from(
     [Decimal("80"), Decimal("95.50"), Decimal("100"), Decimal("112.25"), Decimal("130")]
 )
@@ -186,11 +190,12 @@ def test_payoff_leg_sum_linearity_exact(legs, grid):
     right=rights,
 )
 def test_american_not_below_european(s, m, days, vol, r, q, right):
-    """American >= European minus the documented CRR lattice tolerance.
+    """American >= European minus the documented discretization tolerance.
 
-    The CRR-800 discretization error oscillates with an amplitude well
-    below 1e-3 of spot on this domain; the tolerance is that documented
-    lattice error, not model slack.
+    The finite-difference 800x800 discretization error is well below
+    1e-3 of spot on this domain (tighter than the former CRR-800
+    lattice); the tolerance is that documented grid error, not model
+    slack.
     """
     t = days / 365.0  # exact on the engine's ACT/365F date grid
     k = s * m

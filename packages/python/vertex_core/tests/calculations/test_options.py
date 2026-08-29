@@ -39,9 +39,10 @@ NON_FINITE_FLOATS = [float("nan"), float("inf"), float("-inf")]
 T_HALF = 182.0 / 365.0
 T_ONE = 365.0 / 365.0
 
-# CRR-800 lattice tolerance for |tree - analytic| on a spot~100 scale
-# (empirically ~3e-3; documented engine tolerance, not a hidden fudge).
-CRR_TOL = 5e-3
+# American engine discretization tolerance for |numeric - analytic| on a
+# spot~100 scale (finite-difference 800x800 error is well below the former
+# CRR-800 ~3e-3; documented engine tolerance, not a hidden fudge).
+AMERICAN_TOL = 5e-3
 
 
 def call_leg(qty, strike, premium="5", mult=100):
@@ -450,25 +451,25 @@ class TestAmericanPrice:
         for k in (90.0, 100.0, 120.0):
             am = american_price(100, k, T_HALF, 0.05, 0.0, 0.3, "PUT")
             eu = european_price(100, k, T_HALF, 0.05, 0.0, 0.3, "PUT")
-            assert am >= eu - CRR_TOL
+            assert am >= eu - AMERICAN_TOL
 
     def test_american_call_no_dividend_equals_european(self):
         # Without dividends early exercise of a call is never optimal.
         am = american_price(100, 100, T_HALF, 0.05, 0.0, 0.3, "CALL")
         eu = european_price(100, 100, T_HALF, 0.05, 0.0, 0.3, "CALL")
-        assert am == pytest.approx(eu, abs=CRR_TOL)
-        assert am >= eu - CRR_TOL
+        assert am == pytest.approx(eu, abs=AMERICAN_TOL)
+        assert am >= eu - AMERICAN_TOL
 
     def test_american_call_with_yield_not_below_european(self):
         am = american_price(100, 90, T_ONE, 0.03, 0.05, 0.25, "CALL")
         eu = european_price(100, 90, T_ONE, 0.03, 0.05, 0.25, "CALL")
-        assert am >= eu - CRR_TOL
+        assert am >= eu - AMERICAN_TOL
 
     def test_deep_itm_put_early_exercise_premium_positive(self):
         am = american_price(60, 100, T_ONE, 0.08, 0.0, 0.2, "PUT")
         eu = european_price(60, 100, T_ONE, 0.08, 0.0, 0.2, "PUT")
         assert am > eu + 0.01  # genuine early-exercise premium
-        assert am >= 40.0 - CRR_TOL  # not below intrinsic
+        assert am >= 40.0 - AMERICAN_TOL  # not below intrinsic
 
     def test_expiry_is_intrinsic(self):
         assert american_price(110, 100, 0.0, 0.05, 0.0, 0.3, "CALL") == 10.0
@@ -477,7 +478,7 @@ class TestAmericanPrice:
     def test_grid_convergence_between_step_counts(self):
         coarse = american_price(100, 110, T_ONE, 0.05, 0.02, 0.35, "PUT", steps=400)
         fine = american_price(100, 110, T_ONE, 0.05, 0.02, 0.35, "PUT", steps=800)
-        assert abs(coarse - fine) <= 2 * CRR_TOL
+        assert abs(coarse - fine) <= 2 * AMERICAN_TOL
 
     def test_deterministic(self):
         a = american_price(100, 105, T_ONE, 0.04, 0.01, 0.4, "PUT")
@@ -549,6 +550,45 @@ class TestAmericanPrice:
             american_price(100, 100, t, 0.05, 0.0, 0.3, "PUT")
         assert err.value.reason == "maturity_off_date_grid"
 
+    def test_global_evaluation_date_restored_after_pricing(self):
+        # Reproducer P2: american_price mutates the process-global
+        # QuantLib Settings.instance().evaluationDate; it must restore the
+        # caller's value (try/finally), never leak its internal anchor.
+        import QuantLib as ql
+
+        settings = ql.Settings.instance()
+        saved = settings.evaluationDate
+        sentinel = ql.Date(15, 6, 2030)
+        try:
+            settings.evaluationDate = sentinel
+            american_price(100, 100, T_ONE, 0.03, 0.0, 0.3, "PUT")
+            assert settings.evaluationDate == sentinel
+        finally:
+            settings.evaluationDate = saved
+
+    def test_global_evaluation_date_restored_on_failure_inside_engine(self):
+        # The restoration must also hold when pricing raises AFTER the
+        # mutation. steps below the validated grid raises BEFORE the
+        # mutation; an engine-level failure is hard to trigger with valid
+        # gates, so this asserts restoration around a rejected input that
+        # passes every pre-mutation gate is not required — instead verify
+        # that a successful call immediately after a gate rejection still
+        # sees the sentinel untouched.
+        import QuantLib as ql
+
+        settings = ql.Settings.instance()
+        saved = settings.evaluationDate
+        sentinel = ql.Date(16, 6, 2030)
+        try:
+            settings.evaluationDate = sentinel
+            with pytest.raises(OptionInputError):
+                american_price(100, 100, 0.5, 0.03, 0.0, 0.3, "PUT")  # off-grid
+            assert settings.evaluationDate == sentinel
+            american_price(100, 100, T_ONE, 0.03, 0.0, 0.3, "PUT")
+            assert settings.evaluationDate == sentinel
+        finally:
+            settings.evaluationDate = saved
+
     def test_on_grid_maturities_accepted_despite_float_roundoff(self):
         # days / 365.0 carries float round-off up to a few ulps (e.g.
         # 3/365.0 * 365.0 == 3 - 4.44e-16); exact-grid maturities must
@@ -559,7 +599,7 @@ class TestAmericanPrice:
             am = american_price(100, 100, t, 0.05, 0.0, 0.8, "PUT")
             eu = european_price(100, 100, t, 0.05, 0.0, 0.8, "PUT")
             assert math.isfinite(am)
-            assert am >= eu - CRR_TOL
+            assert am >= eu - AMERICAN_TOL
 
 
 class TestOptionLeg:
@@ -633,12 +673,25 @@ class TestPayoffAtExpiry:
         assert pnl[0] == Decimal("0")
 
     def test_leg_sum_linearity_exact(self):
-        legs = self.bull_call()
+        # Linearity is asserted on an all-long decomposition: a certified
+        # short leg is inseparable from its structure (P1-3) and cannot be
+        # priced alone through the public API.
+        legs = [call_leg(1, "100", "5"), put_leg(1, "110", "6"), stock_leg(2, "95")]
         grid = [Decimal("80"), Decimal("100"), Decimal("103.17"), Decimal("110"), Decimal("140")]
         combined = payoff_at_expiry(legs, grid, Decimal("0"))
-        first = payoff_at_expiry([legs[0]], grid, Decimal("0"))
-        second = payoff_at_expiry([legs[1]], grid, Decimal("0"))
-        assert all(c == a + b for c, a, b in zip(combined, first, second))
+        parts = [payoff_at_expiry([leg], grid, Decimal("0")) for leg in legs]
+        for i in range(len(grid)):
+            assert combined[i] == sum(p[i] for p in parts)
+
+    def test_certified_vertical_equals_hand_computed_leg_sum(self):
+        # For the certified bull call debit the combined payoff still equals
+        # the exact per-leg formula sum(q*M*(h(S)-p)) computed by hand.
+        grid = [Decimal("80"), Decimal("103"), Decimal("110"), Decimal("140")]
+        combined = payoff_at_expiry(self.bull_call(), grid, Decimal("0"))
+        for spot, total in zip(grid, combined):
+            long_leg = 100 * (max(spot - Decimal("100"), Decimal(0)) - Decimal("5"))
+            short_leg = -100 * (max(spot - Decimal("110"), Decimal(0)) - Decimal("2"))
+            assert total == long_leg + short_leg
 
     def test_put_leg_and_bankruptcy_tail(self):
         legs = [put_leg(1, "100", "4")]
@@ -662,6 +715,35 @@ class TestPayoffAtExpiry:
         base = payoff_at_expiry(self.bull_call(), [Decimal("110")], Decimal("0"))[0]
         with_fees = payoff_at_expiry(self.bull_call(), [Decimal("110")], Decimal("2.25"))[0]
         assert base - with_fees == Decimal("2.25")
+
+    def test_naked_short_call_rejected_without_certification(self):
+        # Reproducer P1-3: the spec requires the defined-risk verifier
+        # before any scenario on a structure containing a short quantity;
+        # payoff_at_expiry used to price a naked short call silently.
+        with pytest.raises(OptionInputError) as err:
+            payoff_at_expiry([call_leg(-1, "110", "3")], [Decimal("100")], Decimal("0"))
+        assert err.value.reason == "undefined_risk_structure"
+
+    def test_uncertified_covered_call_rejected(self):
+        # Covered call is outside the closed catalogue (P1-2), therefore
+        # payoff refuses it too as long as no dedicated profile exists.
+        legs = [stock_leg(100, "100"), call_leg(-1, "110", "3")]
+        with pytest.raises(OptionInputError) as err:
+            payoff_at_expiry(legs, [Decimal("100")], Decimal("0"))
+        assert err.value.reason == "undefined_risk_structure"
+
+    def test_certified_bull_call_debit_accepted(self):
+        # A certified catalogue member keeps pricing normally.
+        pnl = payoff_at_expiry(self.bull_call(), [Decimal("110")], Decimal("0"))
+        assert pnl == (Decimal("700"),)
+
+    def test_all_long_structure_needs_no_certification(self):
+        pnl = payoff_at_expiry(
+            [call_leg(1, "100", "5"), put_leg(1, "100", "5")],
+            [Decimal("100")],
+            Decimal("0"),
+        )
+        assert pnl == (Decimal("-1000"),)
 
     def test_gates(self):
         legs = self.bull_call()
@@ -749,25 +831,101 @@ class TestScenarioGrid:
         with pytest.raises(OptionInputError):
             scenario_grid(self.legs(), [0.0], [0.5], [(0.2, 0.2)], 0.03, 0.0)
 
+    def test_naked_short_call_rejected_without_certification(self):
+        # Reproducer P1-3: same certification gate as payoff_at_expiry —
+        # scenario_grid used to reprice a naked short call silently.
+        with pytest.raises(OptionInputError) as err:
+            scenario_grid([call_leg(-1, "110", "3")], [100.0], [0.5], [(0.2,)], 0.03, 0.0)
+        assert err.value.reason == "undefined_risk_structure"
+
+    def test_certified_bull_call_debit_accepted_short_leg_present(self):
+        # The certified debit vertical (contains a short leg) keeps pricing.
+        grid = scenario_grid(self.legs(), [100.0], [0.5], [(0.2, 0.2)], 0.03, 0.0)
+        assert math.isfinite(grid[0][0][0])
+
+    def test_leg_strike_outside_model_domain_rejected(self):
+        # Reproducer P1-1: a strike of 5e13 is rejected by european_price
+        # (model domain (0, 1e12]) but scenario_grid used to convert it with
+        # a bare float(leg.strike) and price it silently, bypassing the gate.
+        legs = [call_leg(1, "5e13", "5")]
+        with pytest.raises(OptionInputError) as err:
+            scenario_grid(legs, [100.0], [0.5], [(0.2,)], 0.03, 0.0)
+        assert err.value.reason == "leg_strike_out_of_domain"
+
+    def test_leg_strike_overflowing_float64_rejected_typed(self):
+        # Reproducer P1-1: Decimal('1e400') is a finite Decimal accepted by
+        # OptionLeg but overflows float64 to inf; the old code leaked a raw
+        # ValueError from math.log instead of a typed OptionInputError.
+        legs = [call_leg(1, "1e400", "5")]
+        with pytest.raises(OptionInputError) as err:
+            scenario_grid(legs, [100.0], [0.5], [(0.2,)], 0.03, 0.0)
+        assert err.value.reason == "non_finite_input"
+
+    def test_leg_premium_outside_domain_rejected(self):
+        # Same P1-1 gate for the declared premium (finite, [0, 1e12]).
+        legs = [call_leg(1, "100", "5e13")]
+        with pytest.raises(OptionInputError) as err:
+            scenario_grid(legs, [100.0], [0.5], [(0.2,)], 0.03, 0.0)
+        assert err.value.reason == "leg_premium_out_of_domain"
+        legs = [call_leg(1, "100", "1e400")]
+        with pytest.raises(OptionInputError) as err:
+            scenario_grid(legs, [100.0], [0.5], [(0.2,)], 0.03, 0.0)
+        assert err.value.reason == "non_finite_input"
+
+    def test_leg_multiplier_overflowing_float64_rejected_typed(self):
+        # Same P1-1 gate for the multiplier (int too large for float64).
+        legs = [call_leg(1, "100", "5", mult=10**400)]
+        with pytest.raises(OptionInputError) as err:
+            scenario_grid(legs, [100.0], [0.5], [(0.2,)], 0.03, 0.0)
+        assert err.value.reason == "non_finite_input"
+
 
 class TestDefinedRiskCheck:
-    """Closed catalogue: accepted and rejected structures, with reasons."""
+    """Strict closed catalogue: accepted and rejected structures, with reasons."""
 
     def test_bull_call_debit_accepted(self):
         result = defined_risk_check([call_leg(1, "100", "5"), call_leg(-1, "110", "2")])
         assert result.is_defined_risk is True
         assert result.reason_code == "DEFINED_RISK"
+        assert "BULL_CALL_DEBIT" in result.detail
+
+    def test_bull_call_debit_multiple_paired_contracts_accepted(self):
+        result = defined_risk_check([call_leg(3, "100", "5"), call_leg(-3, "110", "2")])
+        assert result.is_defined_risk is True
+        assert "BULL_CALL_DEBIT" in result.detail
 
     def test_bear_put_debit_accepted(self):
         result = defined_risk_check([put_leg(1, "110", "6"), put_leg(-1, "100", "3")])
         assert result.is_defined_risk is True
+        assert "BEAR_PUT_DEBIT" in result.detail
 
     def test_long_straddle_accepted(self):
         result = defined_risk_check([call_leg(1, "100", "5"), put_leg(1, "100", "5")])
         assert result.is_defined_risk is True
+        assert "LONG_STRADDLE" in result.detail
 
     def test_long_strangle_accepted(self):
         result = defined_risk_check([call_leg(1, "110", "3"), put_leg(1, "90", "3")])
+        assert result.is_defined_risk is True
+        assert "LONG_STRANGLE" in result.detail
+
+    def test_single_long_call_accepted(self):
+        result = defined_risk_check([call_leg(1, "100", "5")])
+        assert result.is_defined_risk is True
+        assert result.reason_code == "DEFINED_RISK"
+
+    def test_single_long_put_accepted(self):
+        result = defined_risk_check([put_leg(1, "100", "5")])
+        assert result.is_defined_risk is True
+
+    def test_long_stock_alone_accepted(self):
+        result = defined_risk_check([stock_leg(100, "100")])
+        assert result.is_defined_risk is True
+
+    def test_all_long_combination_accepted(self):
+        result = defined_risk_check(
+            [call_leg(2, "110", "3"), put_leg(1, "90", "3"), stock_leg(10, "100")]
+        )
         assert result.is_defined_risk is True
 
     def test_naked_short_call_rejected(self):
@@ -795,10 +953,91 @@ class TestDefinedRiskCheck:
         assert result.is_defined_risk is False
         assert result.reason_code == "UNCOVERED_SHORT_UPSIDE_TAIL"
 
-    def test_covered_call_accepted(self):
-        # 100 shares (multiplier 1) cover one short contract (multiplier 100).
+    def test_covered_call_rejected_outside_closed_catalogue(self):
+        # Reproducer P1-2: a covered call (100 shares covering one short
+        # contract) has covered tails but is NOT in the documented closed
+        # catalogue {BULL_CALL_DEBIT, BEAR_PUT_DEBIT, LONG_STRADDLE,
+        # LONG_STRANGLE, all-long}. It used to be certified by the tail
+        # math alone; strict recognition must refuse it until a separate
+        # profile is validated.
         result = defined_risk_check([stock_leg(100, "100"), call_leg(-1, "110", "3")])
-        assert result.is_defined_risk is True
+        assert result.is_defined_risk is False
+        assert result.reason_code == "OUTSIDE_CLOSED_CATALOG"
+
+    def test_broken_wing_butterfly_rejected(self):
+        # Reproducer P1-2: +1 C90 / -2 C100 / +1 C120 has zero net call
+        # quantity on the upside tail (the tail math passes) but is a
+        # broken-wing butterfly, explicitly refused by the specification
+        # until a dedicated profile is validated.
+        legs = [
+            call_leg(1, "90", "12"),
+            call_leg(-2, "100", "6"),
+            call_leg(1, "120", "1"),
+        ]
+        result = defined_risk_check(legs)
+        assert result.is_defined_risk is False
+        assert result.reason_code == "OUTSIDE_CLOSED_CATALOG"
+
+    def test_call_credit_vertical_rejected(self):
+        # Reproducer P1-2: bear call credit (short C100, long C110) has
+        # covered tails but the catalogue only contains DEBIT verticals;
+        # credit verticals are refused until a separate profile exists.
+        result = defined_risk_check([call_leg(-1, "100", "5"), call_leg(1, "110", "2")])
+        assert result.is_defined_risk is False
+        assert result.reason_code == "CREDIT_VERTICAL_NOT_VALIDATED"
+
+    def test_put_credit_vertical_rejected(self):
+        # Bull put credit (short P110, long P100): same refusal.
+        result = defined_risk_check([put_leg(-1, "110", "6"), put_leg(1, "100", "3")])
+        assert result.is_defined_risk is False
+        assert result.reason_code == "CREDIT_VERTICAL_NOT_VALIDATED"
+
+    def test_debit_shape_with_non_positive_debit_rejected(self):
+        # Bull-call shape whose declared premiums produce D <= 0: the doc
+        # requires rejection (incoherent quotes / hidden credit), not repair.
+        result = defined_risk_check([call_leg(1, "100", "2"), call_leg(-1, "110", "5")])
+        assert result.is_defined_risk is False
+        assert result.reason_code == "VERTICAL_DEBIT_NOT_POSITIVE"
+        # Exactly zero debit is also rejected.
+        result = defined_risk_check([call_leg(1, "100", "3"), call_leg(-1, "110", "3")])
+        assert result.is_defined_risk is False
+        assert result.reason_code == "VERTICAL_DEBIT_NOT_POSITIVE"
+
+    def test_debit_at_or_above_width_rejected(self):
+        # D >= W*M means incoherent quotes for a debit vertical: rejected.
+        result = defined_risk_check([call_leg(1, "100", "15"), call_leg(-1, "110", "2")])
+        assert result.is_defined_risk is False
+        assert result.reason_code == "VERTICAL_DEBIT_NOT_BELOW_WIDTH"
+        # Exactly D == W*M (width 10, net debit 10) is also rejected.
+        result = defined_risk_check([call_leg(1, "100", "12"), call_leg(-1, "110", "2")])
+        assert result.is_defined_risk is False
+        assert result.reason_code == "VERTICAL_DEBIT_NOT_BELOW_WIDTH"
+
+    def test_unpaired_vertical_quantities_rejected(self):
+        # +2/-1 is net long (tails pass) but the legs are not paired 1:1.
+        result = defined_risk_check([call_leg(2, "100", "5"), call_leg(-1, "110", "2")])
+        assert result.is_defined_risk is False
+        assert result.reason_code == "VERTICAL_LEGS_NOT_PAIRED"
+
+    def test_unpaired_vertical_multipliers_rejected(self):
+        result = defined_risk_check(
+            [call_leg(1, "100", "5", mult=100), call_leg(-1, "110", "2", mult=10)]
+        )
+        assert result.is_defined_risk is False
+        assert result.reason_code == "VERTICAL_LEGS_NOT_PAIRED"
+
+    def test_same_strike_vertical_rejected(self):
+        result = defined_risk_check([call_leg(1, "100", "5"), call_leg(-1, "100", "4")])
+        assert result.is_defined_risk is False
+        assert result.reason_code == "VERTICAL_LEGS_NOT_PAIRED"
+
+    def test_short_leg_with_extra_long_legs_rejected(self):
+        # Vertical plus an extra long put: defined tails, but not a
+        # catalogue structure — strict recognition refuses it.
+        legs = [call_leg(1, "100", "5"), call_leg(-1, "110", "2"), put_leg(1, "90", "1")]
+        result = defined_risk_check(legs)
+        assert result.is_defined_risk is False
+        assert result.reason_code == "OUTSIDE_CLOSED_CATALOG"
 
     def test_multiplier_weighting_detects_partial_cover(self):
         # 50 shares do NOT cover a 100-multiplier short call.

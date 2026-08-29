@@ -116,7 +116,8 @@ IV_BRACKET_HI = 5.0
 """Upper edge of the explicit implied-volatility root bracket."""
 
 AMERICAN_MIN_STEPS = 50
-"""Minimum validated binomial grid size for the American engine."""
+"""Minimum validated grid resolution (time and space steps) for the
+American finite-difference engine."""
 
 QUOTE_SIDES = frozenset({"BID", "ASK", "MID", "LAST", "MODEL"})
 """Closed catalogue of quote-side labels accepted by implied volatility."""
@@ -793,13 +794,17 @@ def american_price(
     steps: int = 800,
     discrete_dividends: Sequence[object] = (),
 ) -> float:
-    """``options.american_price`` — QuantLib binomial CRR tree.
+    """``options.american_price`` — QuantLib finite differences.
 
-    Method: ``QuantLib.BinomialVanillaEngine(process, "crr", steps)`` on a
+    Method (registry reference ``QuantLib_finite_difference``):
+    ``QuantLib.FdBlackScholesVanillaEngine(process, tGrid=steps,
+    xGrid=steps, dampingSteps=0)`` (Douglas scheme) on a
     ``BlackScholesMertonProcess`` with flat continuously compounded rate and
     dividend-yield curves (Actual/365 Fixed day count, null calendar) and
     constant volatility. QuantLib is a hard dependency of the ``quant``
     extra and is imported at module top — there is no analytic fallback.
+    The differential oracle for this engine is an independent binomial CRR
+    tree plus golden vectors (see ``test_options_oracle.py``).
 
     Date grid (strict, fail-closed): QuantLib prices between dates, so the
     maturity is realized as an integral number of calendar days on an
@@ -811,7 +816,10 @@ def american_price(
     return a price below the no-arbitrage floor of the requested maturity
     for short maturities. A positive maturity that rounds to zero days is
     rejected with ``maturity_below_date_grid`` (never silently priced at
-    expiry).
+    expiry). The engine prices on an internal fixed anchor date; the
+    process-global ``QuantLib.Settings.instance().evaluationDate`` is
+    saved and restored around the computation (``try``/``finally``), so
+    callers never observe a leaked mutation.
 
     Explicit non-capabilities (fail-closed):
 
@@ -819,16 +827,19 @@ def american_price(
       :class:`OptionNotImplementedError` — discrete cash dividends are
       NOT_IMPLEMENTED; they are never approximated by the continuous yield
       and never silently priced with BSM;
-    - ``volatility == 0`` is rejected (:class:`OptionInputError`) — the CRR
-      lattice degenerates; there is no deterministic-bound fallback here.
+    - ``volatility == 0`` is rejected (:class:`OptionInputError`) — the
+      numerical grid degenerates; there is no deterministic-bound fallback
+      here.
 
     Other gates: the :func:`european_price` domain gates;
-    ``steps`` an int ``>= AMERICAN_MIN_STEPS`` (validated numerical grid,
+    ``steps`` an int ``>= AMERICAN_MIN_STEPS`` (validated numerical grid:
+    both the time grid and the space grid of the finite-difference solver,
     default 800). ``maturity_years == 0`` returns intrinsic value.
 
     Invariants (verified by tests): finite non-negative price; American
-    >= European minus a documented lattice tolerance; convergence between
-    grid sizes.
+    >= European minus a documented discretization tolerance; convergence
+    between grid sizes; agreement with the independent CRR second method
+    and the golden vectors of the oracle suite.
     """
     s = _require_price_positive(spot, "spot")
     k = _require_price_positive(strike, "strike")
@@ -858,8 +869,9 @@ def american_price(
     if vol == 0.0:
         raise OptionInputError(
             "volatility_out_of_domain",
-            "the American CRR engine requires volatility > 0 (the lattice "
-            "degenerates at zero volatility); no deterministic fallback",
+            "the American finite-difference engine requires volatility > 0 "
+            "(the numerical grid degenerates at zero volatility); no "
+            "deterministic fallback",
         )
     days = int(round(t * DAYS_PER_YEAR))
     if days < 1:
@@ -886,25 +898,36 @@ def american_price(
             "multiple of 1/365 (e.g. days / 365.0)",
         )
     anchor = _ql.Date(_QL_ANCHOR_SERIAL)
-    _ql.Settings.instance().evaluationDate = anchor
-    expiry = anchor + days
-    day_count = _ql.Actual365Fixed()
-    calendar = _ql.NullCalendar()
-    process = _ql.BlackScholesMertonProcess(
-        _ql.QuoteHandle(_ql.SimpleQuote(s)),
-        _ql.YieldTermStructureHandle(_ql.FlatForward(anchor, q, day_count)),
-        _ql.YieldTermStructureHandle(_ql.FlatForward(anchor, r, day_count)),
-        _ql.BlackVolTermStructureHandle(
-            _ql.BlackConstantVol(anchor, calendar, vol, day_count)
-        ),
-    )
-    ql_right = _ql.Option.Call if right_s == "CALL" else _ql.Option.Put
-    option = _ql.VanillaOption(
-        _ql.PlainVanillaPayoff(ql_right, k),
-        _ql.AmericanExercise(anchor, expiry),
-    )
-    option.setPricingEngine(_ql.BinomialVanillaEngine(process, "crr", n_steps))
-    npv = float(option.NPV())
+    # QuantLib's evaluation date is PROCESS-GLOBAL state. Save it and
+    # restore it unconditionally (try/finally) so pricing never leaks the
+    # internal anchor to other QuantLib users in the process, success or
+    # failure alike (P2 audit fix).
+    settings = _ql.Settings.instance()
+    saved_evaluation_date = settings.evaluationDate
+    try:
+        settings.evaluationDate = anchor
+        expiry = anchor + days
+        day_count = _ql.Actual365Fixed()
+        calendar = _ql.NullCalendar()
+        process = _ql.BlackScholesMertonProcess(
+            _ql.QuoteHandle(_ql.SimpleQuote(s)),
+            _ql.YieldTermStructureHandle(_ql.FlatForward(anchor, q, day_count)),
+            _ql.YieldTermStructureHandle(_ql.FlatForward(anchor, r, day_count)),
+            _ql.BlackVolTermStructureHandle(
+                _ql.BlackConstantVol(anchor, calendar, vol, day_count)
+            ),
+        )
+        ql_right = _ql.Option.Call if right_s == "CALL" else _ql.Option.Put
+        option = _ql.VanillaOption(
+            _ql.PlainVanillaPayoff(ql_right, k),
+            _ql.AmericanExercise(anchor, expiry),
+        )
+        option.setPricingEngine(
+            _ql.FdBlackScholesVanillaEngine(process, n_steps, n_steps, 0)
+        )
+        npv = float(option.NPV())
+    finally:
+        settings.evaluationDate = saved_evaluation_date
     npv = _finite_result(npv, "options.american_price")
     if npv < -FLOAT64_ABS_TOL * max(1.0, s):
         raise OptionInputError(
@@ -977,6 +1000,82 @@ def _require_legs(legs: object) -> Tuple[OptionLeg, ...]:
     return tuple(typed)
 
 
+def _require_defined_risk_for_shorts(
+    typed_legs: Tuple[OptionLeg, ...], calculation_id: str
+) -> None:
+    """Registry gate: a short quantity requires DEFINED_RISK certification.
+
+    The specification requires the defined-risk verifier BEFORE any
+    multi-leg scenario: as soon as a declared structure contains at least
+    one short quantity it must be recognized by :func:`defined_risk_check`
+    (strict closed catalogue). An uncertified structure is rejected
+    fail-closed with reason ``undefined_risk_structure`` — a short leg only
+    exists as an inseparable component of a certified structure. Strictly
+    all-long structures pass without certification (their maximum loss is
+    the premium paid, by construction).
+    """
+    if all(leg.quantity > 0 for leg in typed_legs):
+        return
+    verdict = defined_risk_check(typed_legs)
+    if not verdict.is_defined_risk:
+        raise OptionInputError(
+            "undefined_risk_structure",
+            f"{calculation_id} refuses an uncertified structure containing "
+            f"short quantities — {verdict.reason_code}: {verdict.detail}",
+        )
+
+
+def _leg_pricing_floats(
+    typed_legs: Tuple[OptionLeg, ...],
+) -> Tuple[Tuple[float, str, Optional[float], float], ...]:
+    """Validate every leg against the pricing model domain, as float64.
+
+    :func:`scenario_grid` reprices option legs through the same BSM core as
+    :func:`european_price`, so every leg passes the SAME domain gate before
+    any pricing (fail-closed; P1 audit fix — a bare ``float(leg.strike)``
+    used to bypass the ``inside_model_domain`` gate entirely):
+
+    - CALL/PUT strike: finite in float64, strictly positive and
+      ``<= SPOT_STRIKE_MAX`` — reason ``leg_strike_out_of_domain``;
+    - premium: finite in float64, inside ``[0, SPOT_STRIKE_MAX]`` (price
+      units, zero allowed) — reason ``leg_premium_out_of_domain``;
+    - quantity and multiplier: representable as finite float64 (an
+      overflowing value raises ``non_finite_input``, never a raw
+      ``OverflowError``).
+
+    A ``Decimal`` such as ``1e400`` is finite as a Decimal but overflows
+    float64 to ``inf``; :func:`_to_float` rejects it with the typed reason
+    ``non_finite_input`` instead of leaking a raw ``ValueError`` from the
+    pricing core. Returns one ``(quantity*multiplier, right, strike,
+    premium)`` float64 tuple per leg, in leg order.
+    """
+    static: list = []
+    for i, leg in enumerate(typed_legs):
+        prefix = f"legs[{i}]"
+        if leg.right == "STOCK":
+            strike_f: Optional[float] = None
+        else:
+            strike_f = _to_float(leg.strike, f"{prefix}.strike")
+            if strike_f <= 0.0 or strike_f > SPOT_STRIKE_MAX:
+                raise OptionInputError(
+                    "leg_strike_out_of_domain",
+                    f"{prefix}.strike {strike_f!r} is outside the validated "
+                    f"model domain (0, {SPOT_STRIKE_MAX:g}] shared with "
+                    "options.european_price",
+                )
+        premium_f = _to_float(leg.premium, f"{prefix}.premium")
+        if premium_f < 0.0 or premium_f > SPOT_STRIKE_MAX:
+            raise OptionInputError(
+                "leg_premium_out_of_domain",
+                f"{prefix}.premium {premium_f!r} is outside the validated "
+                f"domain [0, {SPOT_STRIKE_MAX:g}]",
+            )
+        qty_f = _to_float(leg.quantity, f"{prefix}.quantity")
+        mult_f = _to_float(leg.multiplier, f"{prefix}.multiplier")
+        static.append((qty_f * mult_f, leg.right, strike_f, premium_f))
+    return tuple(static)
+
+
 def _spot_to_exact_decimal(value: object, name: str) -> Decimal:
     """Convert a terminal spot to an EXACT Decimal (no rounding).
 
@@ -1033,15 +1132,21 @@ def payoff_at_expiry(
     and realistic spot grids are far below that). Terminal spots given as
     ``float`` are converted by their exact binary expansion.
 
-    Gates: legs non-empty and typed; every terminal spot finite and >= 0
-    (zero = bankruptcy tail); ``fees`` a finite non-negative ``Decimal``
-    instance (costs are declared, never defaulted).
+    Gates: legs non-empty and typed; any structure containing a short
+    quantity must be certified by :func:`defined_risk_check` (strict closed
+    catalogue) — an uncertified structure raises
+    ``undefined_risk_structure`` and is never priced, while strictly
+    all-long structures pass without certification; every terminal spot
+    finite and >= 0 (zero = bankruptcy tail); ``fees`` a finite
+    non-negative ``Decimal`` instance (costs are declared, never
+    defaulted).
 
     This formula describes expiry only; before expiry legs are repriced by
     :func:`scenario_grid`. Returns one exact ``Decimal`` P&L (money units of
     the declared premiums) per grid point, in grid order.
     """
     typed_legs = _require_legs(legs)
+    _require_defined_risk_for_shorts(typed_legs, "options.payoff")
     if not isinstance(fees, Decimal) or isinstance(fees, bool):
         raise OptionInputError(
             "invalid_type",
@@ -1125,7 +1230,15 @@ def scenario_grid(
     maturity in years, ``>= 0``); calendar/diagonal structures are out of
     scope for this grid.
 
-    Gates: leg/domain gates as elsewhere; every spot strictly positive
+    Gates: leg/domain gates as elsewhere; any structure containing a short
+    quantity must be certified by :func:`defined_risk_check` (strict closed
+    catalogue) — an uncertified structure raises
+    ``undefined_risk_structure`` before any pricing, all-long structures
+    pass without certification; every leg strike and premium is
+    validated against the SAME model domain as :func:`european_price`
+    before any pricing (``leg_strike_out_of_domain`` /
+    ``leg_premium_out_of_domain`` / ``non_finite_input``, fail-closed —
+    never a silent out-of-domain repricing); every spot strictly positive
     within domain (a zero terminal spot belongs to
     :func:`payoff_at_expiry`); non-empty grids; scenario vectors sized
     exactly like ``legs``.
@@ -1140,6 +1253,7 @@ def scenario_grid(
     float64 P&L values in the money units of the declared premiums.
     """
     typed_legs = _require_legs(legs)
+    _require_defined_risk_for_shorts(typed_legs, "options.scenario_grid")
     r = _require_rate(rate, "rate")
     q = _require_rate(dividend_yield, "dividend_yield")
     spot_seq = _require_sequence(spot_grid, "spot_grid")
@@ -1190,15 +1304,7 @@ def scenario_grid(
                 )
         scenarios.append(vols)
 
-    leg_static = [
-        (
-            float(leg.quantity) * float(leg.multiplier),
-            leg.right,
-            None if leg.strike is None else float(leg.strike),
-            float(leg.premium),
-        )
-        for leg in typed_legs
-    ]
+    leg_static = _leg_pricing_floats(typed_legs)
     grid: list = []
     for vols in scenarios:
         time_rows: list = []
@@ -1228,12 +1334,29 @@ def scenario_grid(
 
 
 class DefinedRiskResult(ContractModel):
-    """Outcome of the defined-risk tail certification (strict, frozen).
+    """Outcome of the defined-risk certification (strict, frozen).
 
     ``is_defined_risk`` is the verdict; ``reason_code`` is the stable
-    machine-readable code (``DEFINED_RISK``,
-    ``UNCOVERED_SHORT_UPSIDE_TAIL``, ``UNCOVERED_SHORT_DOWNSIDE_TAIL``);
-    ``detail`` is the human-readable justification with the tail exposures.
+    machine-readable code; ``detail`` is the human-readable justification
+    (for an accepted structure it names the recognized catalogue member).
+
+    Codes:
+
+    - ``DEFINED_RISK`` — accepted; the structure is an exact member of the
+      closed catalogue AND both tails are covered;
+    - ``UNCOVERED_SHORT_UPSIDE_TAIL`` / ``UNCOVERED_SHORT_DOWNSIDE_TAIL``
+      — rejected by the tail guard (unbounded or uncovered loss);
+    - ``CREDIT_VERTICAL_NOT_VALIDATED`` — a credit-shaped vertical, refused
+      until a separate credit profile is formally validated;
+    - ``VERTICAL_DEBIT_NOT_POSITIVE`` — debit-shaped vertical with
+      ``D <= 0`` (hidden credit / incoherent quotes);
+    - ``VERTICAL_DEBIT_NOT_BELOW_WIDTH`` — debit vertical with
+      ``D >= W*M`` (incoherent quotes);
+    - ``VERTICAL_LEGS_NOT_PAIRED`` — two same-right legs whose quantities,
+      multipliers or strikes do not form one exact K1<K2 pairing;
+    - ``OUTSIDE_CLOSED_CATALOG`` — any other structure containing a short
+      quantity (covered call, broken wing, ratio/combination not reducible
+      to a catalogue member), refused until a dedicated profile exists.
     """
 
     is_defined_risk: bool
@@ -1248,38 +1371,91 @@ class DefinedRiskResult(ContractModel):
         return value
 
 
+_CLOSED_CATALOG = (
+    "BULL_CALL_DEBIT",
+    "BEAR_PUT_DEBIT",
+    "LONG_STRADDLE",
+    "LONG_STRANGLE",
+    "ALL_LONG",
+)
+"""The documented closed catalogue of certifiable structures (spec:
+OPTIONS_PRICING_AND_SCENARIOS.md, « Stratégies multi-jambes à risque
+défini »). ``ALL_LONG`` covers every structure whose legs are strictly
+long — single long CALL/PUT, long STOCK, and any all-long combination
+(straddle and strangle are named members of that family)."""
+
+
+def _classify_all_long(typed_legs: Tuple[OptionLeg, ...]) -> str:
+    """Name an all-long structure: LONG_STRADDLE, LONG_STRANGLE or ALL_LONG.
+
+    A straddle is one long CALL plus one long PUT at the SAME strike, same
+    quantity and multiplier; a strangle is the same pairing with the PUT
+    strike strictly below the CALL strike. Every other all-long structure
+    (single legs, long stock, other combinations) is the generic ALL_LONG
+    member. The label only refines ``detail``; acceptance is identical.
+    """
+    if len(typed_legs) == 2:
+        calls = [leg for leg in typed_legs if leg.right == "CALL"]
+        puts = [leg for leg in typed_legs if leg.right == "PUT"]
+        if len(calls) == 1 and len(puts) == 1:
+            call, put = calls[0], puts[0]
+            if call.quantity == put.quantity and call.multiplier == put.multiplier:
+                if call.strike == put.strike:
+                    return "LONG_STRADDLE"
+                if put.strike < call.strike:
+                    return "LONG_STRANGLE"
+    return "ALL_LONG"
+
+
+def _reject(reason_code: str, detail: str) -> DefinedRiskResult:
+    return DefinedRiskResult(
+        is_defined_risk=False, reason_code=reason_code, detail=detail
+    )
+
+
 def defined_risk_check(legs: Sequence[OptionLeg]) -> DefinedRiskResult:
-    """Certify that a declared structure has no uncovered short tail.
+    """Certify a declared structure by STRICT closed-catalogue recognition.
 
-    Tail analysis (piecewise-linear expiry payoff, both tails):
+    Acceptance criterion (spec: « Stratégies multi-jambes à risque défini »):
+    the structure must be recognized as an EXACT member of the closed
+    catalogue :data:`_CLOSED_CATALOG` — nothing else is certified, even
+    when its expiry tails happen to be covered:
 
-    - upside tail ``S -> inf``: CALL and STOCK legs dominate; the
-      multiplier-weighted net quantity
-      ``sum(q*M over CALL legs) + sum(q*M over STOCK legs)`` must be >= 0,
-      otherwise the residual short quantity is uncovered and the loss is
-      unbounded — REJECTED (``UNCOVERED_SHORT_UPSIDE_TAIL``);
-    - downside tail ``S -> 0``: PUT legs dominate; the multiplier-weighted
-      net put quantity ``sum(q*M over PUT legs)`` must be >= 0, otherwise a
-      residual short put quantity is uncovered on the bankruptcy tail —
-      REJECTED (``UNCOVERED_SHORT_DOWNSIDE_TAIL``). (A short STOCK leg
-      never covers this check's puts: a structure net short stock is
-      already rejected on the upside tail unless calls cover it.)
+    - ``BULL_CALL_DEBIT``: long CALL at ``K1`` paired 1:1 (same absolute
+      quantity, same multiplier) with a short CALL at ``K2``, ``K1 < K2``,
+      per-unit net debit ``d = p_long - p_short`` with ``0 < d < W`` where
+      ``W = K2 - K1`` (equivalently ``0 < D < W*M`` per paired contract);
+    - ``BEAR_PUT_DEBIT``: long PUT at ``K2`` paired 1:1 with a short PUT at
+      ``K1``, ``K1 < K2``, same debit conditions;
+    - ``LONG_STRADDLE`` / ``LONG_STRANGLE`` and every other strictly
+      all-long structure (``ALL_LONG``): every leg quantity > 0 — STOCK
+      legs are only ever accepted long; maximum loss is the premium paid.
 
-    Consequences on the closed catalogue (verified by tests): bull call
-    debit, bear put debit, long straddle and long strangle are ACCEPTED;
-    naked short calls/puts and ratio spreads (net short one tail) are
-    REJECTED. A short leg therefore only exists as an inseparable component
-    of an accepted structure.
+    Everything else is REJECTED with an explicit reason: any residual short
+    quantity (naked shorts, ratios — also caught by the tail guard), credit
+    verticals (``CREDIT_VERTICAL_NOT_VALIDATED``), incoherent debit quotes
+    (``VERTICAL_DEBIT_NOT_POSITIVE`` for ``D <= 0``,
+    ``VERTICAL_DEBIT_NOT_BELOW_WIDTH`` for ``D >= W*M``), unpaired legs
+    (``VERTICAL_LEGS_NOT_PAIRED``) and every other short-containing
+    combination — covered call, broken-wing butterfly, ratio or unknown
+    combination — as ``OUTSIDE_CLOSED_CATALOG``, until a dedicated profile
+    is formally validated. Calendars and diagonals cannot even be expressed
+    with :class:`OptionLeg` (single shared expiry by construction).
+
+    The expiry tail analysis (net multiplier-weighted CALL+STOCK quantity
+    on ``S -> inf`` >= 0, net PUT quantity on ``S -> 0`` >= 0) remains a
+    SECONDARY safeguard evaluated first: it rejects unbounded structures
+    with the historical ``UNCOVERED_SHORT_*_TAIL`` codes, but passing it
+    never certifies anything — catalogue recognition does.
 
     Premise (caller's responsibility, as for :func:`payoff_at_expiry`):
-    all legs share the same underlying, currency and expiry; unknown
-    combinations across expiries (calendars, diagonals) cannot be expressed
-    with :class:`OptionLeg` and are out of scope by construction.
-
-    This is an analytic certification of a manually declared structure;
-    it neither creates nor implies any transaction.
+    all legs share the same underlying, currency and expiry. This is an
+    analytic certification of a manually declared structure; it neither
+    creates nor implies any transaction.
     """
     typed_legs = _require_legs(legs)
+
+    # --- Secondary tail guard (never the acceptance criterion) ------------
     upside = 0
     downside_puts = 0
     for leg in typed_legs:
@@ -1289,30 +1465,131 @@ def defined_risk_check(legs: Sequence[OptionLeg]) -> DefinedRiskResult:
         else:
             downside_puts += weight
     if upside < 0:
-        return DefinedRiskResult(
-            is_defined_risk=False,
-            reason_code="UNCOVERED_SHORT_UPSIDE_TAIL",
-            detail=(
-                "net multiplier-weighted CALL+STOCK quantity on the S->inf "
-                f"tail is {upside} < 0: unbounded loss, structure rejected"
-            ),
+        return _reject(
+            "UNCOVERED_SHORT_UPSIDE_TAIL",
+            "net multiplier-weighted CALL+STOCK quantity on the S->inf "
+            f"tail is {upside} < 0: unbounded loss, structure rejected",
         )
     if downside_puts < 0:
+        return _reject(
+            "UNCOVERED_SHORT_DOWNSIDE_TAIL",
+            "net multiplier-weighted PUT quantity on the S->0 tail is "
+            f"{downside_puts} < 0: uncovered short puts, structure rejected",
+        )
+
+    # --- Strict closed-catalogue recognition (the acceptance criterion) ---
+    short_legs = [leg for leg in typed_legs if leg.quantity < 0]
+    if not short_legs:
+        structure = _classify_all_long(typed_legs)
         return DefinedRiskResult(
-            is_defined_risk=False,
-            reason_code="UNCOVERED_SHORT_DOWNSIDE_TAIL",
+            is_defined_risk=True,
+            reason_code="DEFINED_RISK",
             detail=(
-                "net multiplier-weighted PUT quantity on the S->0 tail is "
-                f"{downside_puts} < 0: uncovered short puts, structure "
-                "rejected"
+                f"{structure}: all {len(typed_legs)} leg(s) strictly long; "
+                "maximum loss is the declared premium paid (tail guard: net "
+                f"CALL+STOCK {upside} >= 0, net PUT {downside_puts} >= 0)"
             ),
         )
+
+    # A short quantity is only certifiable inside one of the two debit
+    # verticals: exactly two same-right option legs paired 1:1.
+    catalogue_msg = (
+        "the closed catalogue only certifies BULL_CALL_DEBIT, "
+        "BEAR_PUT_DEBIT, LONG_STRADDLE/LONG_STRANGLE and all-long "
+        "structures; every other short-containing structure (covered "
+        "call, broken wing, ratio, credit or unknown combination) is "
+        "refused until a dedicated profile is validated"
+    )
+    if len(typed_legs) != 2:
+        return _reject(
+            "OUTSIDE_CLOSED_CATALOG",
+            f"{len(typed_legs)} legs with {len(short_legs)} short leg(s) do "
+            f"not form a recognized debit vertical; {catalogue_msg}",
+        )
+    if any(leg.right == "STOCK" for leg in typed_legs):
+        return _reject(
+            "OUTSIDE_CLOSED_CATALOG",
+            "a STOCK leg combined with a short option leg (e.g. a covered "
+            f"call) is not a catalogue member; {catalogue_msg}",
+        )
+    first, second = typed_legs
+    if first.right != second.right:
+        return _reject(
+            "OUTSIDE_CLOSED_CATALOG",
+            "two option legs of different rights with a short quantity do "
+            f"not form a debit vertical; {catalogue_msg}",
+        )
+    long_leg = first if first.quantity > 0 else second
+    short_leg = second if first.quantity > 0 else first
+    if long_leg.quantity <= 0 or short_leg.quantity >= 0:
+        # Both legs short: already rejected by the tail guard above; kept
+        # fail-closed against any future reordering.
+        return _reject(
+            "OUTSIDE_CLOSED_CATALOG",
+            f"no long leg available to pair the short leg; {catalogue_msg}",
+        )
+    if long_leg.quantity != -short_leg.quantity:
+        return _reject(
+            "VERTICAL_LEGS_NOT_PAIRED",
+            f"quantities are not paired 1:1 (long {long_leg.quantity}, "
+            f"short {short_leg.quantity}); a debit vertical requires the "
+            "same absolute quantity on both legs",
+        )
+    if long_leg.multiplier != short_leg.multiplier:
+        return _reject(
+            "VERTICAL_LEGS_NOT_PAIRED",
+            f"multipliers differ (long {long_leg.multiplier}, short "
+            f"{short_leg.multiplier}); a debit vertical requires one shared "
+            "multiplier",
+        )
+    if long_leg.strike == short_leg.strike:
+        return _reject(
+            "VERTICAL_LEGS_NOT_PAIRED",
+            f"both legs share strike {long_leg.strike}; a debit vertical "
+            "requires two distinct strikes K1 < K2",
+        )
+    right = long_leg.right
+    debit_shape = (
+        long_leg.strike < short_leg.strike
+        if right == "CALL"
+        else long_leg.strike > short_leg.strike
+    )
+    if not debit_shape:
+        return _reject(
+            "CREDIT_VERTICAL_NOT_VALIDATED",
+            f"the long {right} sits at the credit side of the spread (long "
+            f"K={long_leg.strike}, short K={short_leg.strike}): this is a "
+            "credit vertical, refused until the formal proof and separate "
+            "credit profile required by the specification are validated",
+        )
+    width = abs(short_leg.strike - long_leg.strike)  # W, price units
+    net_debit = long_leg.premium - short_leg.premium  # D/M per unit
+    if net_debit <= 0:
+        return _reject(
+            "VERTICAL_DEBIT_NOT_POSITIVE",
+            f"per-unit net debit {net_debit} <= 0 for a debit-shaped "
+            "vertical: hidden credit or incoherent declared quotes; the "
+            "structure is rejected, never repaired",
+        )
+    if net_debit >= width:
+        return _reject(
+            "VERTICAL_DEBIT_NOT_BELOW_WIDTH",
+            f"per-unit net debit {net_debit} >= width {width} (D >= W*M): "
+            "incoherent declared quotes for a debit vertical; rejected",
+        )
+    structure = "BULL_CALL_DEBIT" if right == "CALL" else "BEAR_PUT_DEBIT"
+    pairs = long_leg.quantity
+    mult = long_leg.multiplier
     return DefinedRiskResult(
         is_defined_risk=True,
         reason_code="DEFINED_RISK",
         detail=(
-            "both tails covered: net CALL+STOCK quantity on S->inf is "
-            f"{upside} >= 0 and net PUT quantity on S->0 is "
-            f"{downside_puts} >= 0; maximum loss is finite"
+            f"{structure}: {pairs} pair(s) long K={long_leg.strike} / short "
+            f"K={short_leg.strike}, multiplier {mult}; per-unit debit "
+            f"{net_debit} in (0, {width}); max loss D="
+            f"{net_debit * mult * pairs}, max gain "
+            f"{(width - net_debit) * mult * pairs} before declared costs "
+            f"(tail guard: net CALL+STOCK {upside} >= 0, net PUT "
+            f"{downside_puts} >= 0)"
         ),
     )
