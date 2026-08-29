@@ -1,0 +1,52 @@
+# =============================================================================
+# Vertex — ingress TradingView — configuration Wrangler PRÉPARÉE, NON DÉPLOYÉE.
+#
+# DÉCISION HUMAINE B-03 EN ATTENTE : aucun `wrangler deploy`, aucune création
+# de ressource Cloudflare, aucune facturation sans validation explicite.
+# Ce fichier ne contient AUCUN secret et AUCUN identifiant de compte.
+#
+# Secrets (jamais dans un fichier, jamais dans Git) :
+#   wrangler secret put ROUTE_CAPABILITY
+#     -> capacité de route à forte entropie (>= 32 caractères aléatoires),
+#        comparée en temps constant par le Worker, jamais journalisée.
+#
+# Ressources à créer le jour du déploiement (voir README.md, checklist) :
+#   wrangler queues create vertex-tv-alerts
+#   wrangler queues create vertex-tv-alerts-dlq
+#   wrangler kv namespace create VERTEX_TV_INGRESS
+# =============================================================================
+
+name = "vertex-ingress-tradingview"
+main = "src/worker.js"
+compatibility_date = "2026-08-01"
+workers_dev = false
+
+# --- Producteur Queue (le consommateur est un pull HTTP local, hors Worker) ---
+[[queues.producers]]
+queue = "vertex-tv-alerts"
+binding = "ALERT_QUEUE"
+
+# La DLQ et la politique de retry se configurent sur le consommateur pull HTTP
+# au déploiement (https://developers.cloudflare.com/queues/configuration/pull-consumers/).
+
+# --- KV : déduplication (prefixe "dedup:") et rate limit (prefixe "rate:") ---
+[[kv_namespaces]]
+binding = "INGRESS_KV"
+id = "REMPLACER_AU_DEPLOIEMENT" # renseigné par l'humain après `kv namespace create`
+
+# --- Variables non secrètes -------------------------------------------------
+[vars]
+# Fenêtre temporelle acceptée autour de `sent_at` (secondes, +/-).
+SENT_AT_WINDOW_SECONDS = "300"
+# Durée de vie du marqueur de déduplication alert_id+nonce (secondes).
+DEDUP_TTL_SECONDS = "86400"
+# Rate limit simple par IP : RATE_LIMIT_MAX requêtes par fenêtre.
+RATE_LIMIT_MAX = "60"
+RATE_LIMIT_WINDOW_SECONDS = "60"
+
+# Allowlist IPv4 des webhooks TradingView, séparée par des virgules.
+# JAMAIS en dur dans le code du Worker ; fail-closed si absente ou invalide.
+# À renseigner AU DÉPLOIEMENT après revérification de la liste officielle du
+# jour : https://www.tradingview.com/support/solutions/43000529348-how-to-configure-webhook-alerts/
+# Exemple (liste publiée au 2026-08-29, À REVÉRIFIER avant toute mise en service) :
+# TV_ALLOWED_IPS = "52.89.214.238,34.212.75.30,54.218.53.128,52.32.178.7"

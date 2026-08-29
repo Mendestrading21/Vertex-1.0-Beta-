@@ -1,0 +1,10 @@
+{
+  "name": "vertex-ingress-tradingview-worker",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Vertex TradingView ingress Worker (READY, NOT DEPLOYED - human decision B-03 pending). No runtime dependencies; tested locally with fakes.",
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/*.test.mjs"
+  }
+}
