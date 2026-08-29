@@ -1,0 +1,21 @@
+[project]
+name = "vertex-ingress-tradingview"
+version = "0.1.0"
+description = "Vertex 1.0 Beta — validation d'alertes TradingView (contrats purs, aucune autorité de verdict)."
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.7,<3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "hypothesis>=6.100",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]

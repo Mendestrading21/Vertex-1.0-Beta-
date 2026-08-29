@@ -1,4 +1,65 @@
 # Racine du monorepo Vertex 1.0 Beta — configuration outillage.
+#
+# Ce projet racine n'est PAS distribuable (`tool.uv.package = false`) : il ne
+# sert qu'à déclarer le workspace uv et à verrouiller l'ensemble des
+# dépendances Python en versions exactes + hachages (`uv.lock`), conformément
+# à `manifests/dependencies.yaml` (`pin_policy.python: uv_lock_exact`).
+#
+# ÉCART D'ENVIRONNEMENT — la cible runtime est Python 3.13 ; l'environnement de
+# développement fournit 3.11. `requires-python = ">=3.11"` garde le lock
+# universel (résolu pour toutes les versions supportées) afin que la CI puisse
+# vérifier la cible 3.13 sans casser le plancher local.
+[project]
+name = "vertex-one"
+version = "0.1.0"
+description = "Vertex 1.0 Beta — monorepo local-first, lecture seule, analyse uniquement."
+requires-python = ">=3.11"
+dependencies = [
+    "vertex-core",
+    "vertex-persistence",
+    "vertex-api",
+    "vertex-worker",
+    "vertex-edge-ibkr",
+    "vertex-ingress-tradingview",
+]
+
+[project.optional-dependencies]
+# Calcul scientifique et oracles différentiels indépendants.
+quant = [
+    "numpy>=1.26",
+    "scipy>=1.12",
+    "QuantLib>=1.36",
+]
+dev = [
+    "pytest>=8",
+    "hypothesis>=6.100",
+    "httpx>=0.27",
+    "jsonschema>=4.21",
+    "PyYAML>=6",
+    "psycopg>=3.1",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.workspace]
+members = [
+    "packages/python/vertex_core",
+    "packages/python/vertex_persistence",
+    "apps/api",
+    "apps/worker",
+    "apps/edge-ibkr",
+    "apps/ingress-tradingview",
+]
+
+[tool.uv.sources]
+vertex-core = { workspace = true }
+vertex-persistence = { workspace = true }
+vertex-api = { workspace = true }
+vertex-worker = { workspace = true }
+vertex-edge-ibkr = { workspace = true }
+vertex-ingress-tradingview = { workspace = true }
+
 # Cible runtime : Python 3.13 (uv.lock au LOT-01 sur la machine cible).
 # Plancher local de développement : 3.11 (aucune syntaxe > 3.11 dans le code).
 [tool.pytest.ini_options]
@@ -11,6 +72,7 @@ testpaths = [
     "apps/edge-ibkr/tests",
     "apps/ingress-tradingview/tests",
     "apps/worker/tests",
+    "tools/tests",
 ]
 pythonpath = [
     "apps/ingress-tradingview/src",

@@ -1,0 +1,23 @@
+[project]
+name = "vertex-edge-ibkr"
+version = "0.1.0"
+description = "Vertex 1.0 Beta — adaptateur IBKR strictement market-data (aucune capacité compte/ordre)."
+requires-python = ">=3.11"
+dependencies = [
+    "vertex-core>=0.1.0",
+    # Encapsulé derrière l'adaptateur étroit ; aucun import IBKR dans le domaine.
+    "ib_async>=2.0,<3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "hypothesis>=6.100",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]

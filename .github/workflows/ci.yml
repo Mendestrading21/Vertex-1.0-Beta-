@@ -1,0 +1,315 @@
+# Portes CI Vertex 1.0 Beta.
+#
+# Règles appliquées (.claude/rules/security.md) :
+# - chaque action est épinglée à un SHA de commit COMPLET, résolu par
+#   `git ls-remote <dépôt> refs/tags/<tag>^{}` ; le tag est en commentaire et
+#   n'a aucune autorité ;
+# - `permissions: read-all` au niveau du workflow, aucune élévation par job ;
+# - timeout obligatoire sur chaque job ;
+# - aucun secret n'est exposé à du code non fiable ; ce workflow ne déclenche
+#   rien sur `pull_request_target` et ne s'exécute jamais sur un runner
+#   auto-hébergé (jamais sur la machine TWS).
+#
+# ÉCART D'ENVIRONNEMENT ASSUMÉ : la cible runtime du programme est Python 3.13,
+# Node 24 et PostgreSQL 18. Les jobs ci-dessous exécutent la cible. Le poste de
+# développement tourne sur 3.11 / Node 22 / PostgreSQL 16 : une porte verte ici
+# est donc la SEULE preuve existante sur les versions de production.
+
+name: ci
+
+on:
+  push:
+    branches: ["main", "claude/**", "lot/**"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+permissions: read-all
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  PYTHON_VERSION: "3.13"
+  NODE_VERSION: "24"
+  PNPM_VERSION: "10.33.0"
+
+jobs:
+  # ── Porte 1 à 6 : gouvernance, frontières et compilation ────────────────
+  garde-fous:
+    name: garde-fous (rôle, blueprint, frontière, registre, verrouillage)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+
+      - name: Python ${{ env.PYTHON_VERSION }}
+        uses: actions/setup-python@e797f83bcb11b83ae66e0230d6156d7c80228e7c # v6.0.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: uv
+        uses: astral-sh/setup-uv@2ddd2b9cb38ad8efd50337e8ab201519a34c9f24 # v7.1.1
+        with:
+          enable-cache: false
+
+      - name: Porte 1 — rôle du dépôt (cible d'écriture uniquement)
+        run: python3 tools/check_repository_role.py target .
+
+      - name: Porte 2 — blueprint complet
+        run: python3 tools/verify_blueprint.py
+
+      - name: Porte 3 — frontière financière (capacités IBKR interdites)
+        run: python3 tools/check_financial_boundary.py
+
+      - name: Porte 4 — registre des calculs (autorité à jour)
+        run: python3 tools/check_calculation_registry.py
+
+      - name: Porte 5 — verrouillage supply-chain (uv.lock à jour, exact)
+        run: uv lock --check
+
+      - name: Porte 5bis — détection de secrets (arbre suivi)
+        run: uv run --no-project --with PyYAML==6.0.1 python tools/check_secrets.py
+
+      - name: Porte 6 — compilation du domaine et des applications
+        run: python3 -m compileall -q packages/python apps
+
+  # ── Porte 7 : unitaires, propriétés, oracles, contrats ─────────────────
+  python-unitaire:
+    name: python — unitaires, propriétés, oracles (cible 3.13)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+
+      - name: uv
+        uses: astral-sh/setup-uv@2ddd2b9cb38ad8efd50337e8ab201519a34c9f24 # v7.1.1
+        with:
+          enable-cache: false
+
+      - name: Installation depuis le verrou exact
+        run: uv sync --locked --all-extras --python ${{ env.PYTHON_VERSION }}
+
+      - name: Porte 7 — suite unitaire complète
+        run: uv run --no-sync python -m pytest -q
+
+  # ── Porte 8 : intégration PostgreSQL réel ───────────────────────────────
+  python-integration:
+    name: python — intégration PostgreSQL 18 (sérielle)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    services:
+      postgres:
+        # Image épinglée par digest immuable ; le tag n'a aucune autorité.
+        image: postgres:18@sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280
+        env:
+          POSTGRES_USER: vertex
+          POSTGRES_PASSWORD: vertex_ci_ephemeral
+          POSTGRES_DB: vertex_test
+        options: >-
+          --health-cmd "pg_isready -U vertex -d vertex_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+        ports:
+          - 5432:5432
+    env:
+      VERTEX_TEST_DATABASE_URL: postgresql+psycopg://vertex:vertex_ci_ephemeral@127.0.0.1:5432/vertex_test
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+
+      - name: uv
+        uses: astral-sh/setup-uv@2ddd2b9cb38ad8efd50337e8ab201519a34c9f24 # v7.1.1
+        with:
+          enable-cache: false
+
+      - name: Installation depuis le verrou exact
+        run: uv sync --locked --all-extras --python ${{ env.PYTHON_VERSION }}
+
+      # Les trois suites partagent la même base et recréent le schéma :
+      # exécution SÉRIELLE obligatoire, une invocation par suite.
+      - name: Porte 8a — persistance (migrations, outbox, append-only)
+        run: uv run --no-sync python -m pytest -q -p no:xdist packages/python/vertex_persistence/tests_integration
+
+      - name: Porte 8b — worker (chaînes d'ingestion et de publication)
+        run: uv run --no-sync python -m pytest -q -p no:xdist apps/worker/tests_integration
+
+      - name: Porte 8c — api (relais, passkey, bout en bout)
+        run: uv run --no-sync python -m pytest -q -p no:xdist apps/api/tests_integration
+
+  # ── Portes 9 à 12 : contrats web, types, tests, budget de bundle ────────
+  web:
+    name: web — types, tests, build, budget, dérive de contrat
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+
+      - name: pnpm ${{ env.PNPM_VERSION }}
+        uses: pnpm/action-setup@41ff72655975bd51cab0327fa583b6e92b6d3061 # v4.2.0
+        with:
+          version: ${{ env.PNPM_VERSION }}
+          run_install: false
+
+      - name: Node ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Installation depuis le verrou exact
+        working-directory: apps/web
+        run: pnpm install --frozen-lockfile
+
+      - name: Porte 9 — typage strict
+        working-directory: apps/web
+        run: pnpm exec tsc --noEmit
+
+      - name: Porte 10 — tests unitaires et gardes (anti-hex, anti-ordre)
+        working-directory: apps/web
+        run: pnpm exec vitest run
+
+      - name: Porte 11 — build de production et budget de bundle
+        working-directory: apps/web
+        run: pnpm build
+
+      - name: Porte 12 — aucune dérive du client généré depuis OpenAPI
+        working-directory: apps/web
+        run: |
+          pnpm gen:api
+          pnpm tokens:css
+          git diff --exit-code -- src
+
+  # ── Portes 13 et 14 : OpenAPI déterministe et parcours navigateur ───────
+  e2e:
+    name: e2e — Chromium, 3 viewports desktop, axe
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    services:
+      postgres:
+        image: postgres:18@sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280
+        env:
+          POSTGRES_USER: vertex
+          POSTGRES_PASSWORD: vertex_ci_ephemeral
+          POSTGRES_DB: vertex_e2e
+        options: >-
+          --health-cmd "pg_isready -U vertex -d vertex_e2e"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+        ports:
+          - 5432:5432
+    env:
+      VERTEX_TEST_DATABASE_URL: postgresql+psycopg://vertex:vertex_ci_ephemeral@127.0.0.1:5432/vertex_e2e
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+
+      - name: uv
+        uses: astral-sh/setup-uv@2ddd2b9cb38ad8efd50337e8ab201519a34c9f24 # v7.1.1
+        with:
+          enable-cache: false
+
+      - name: pnpm ${{ env.PNPM_VERSION }}
+        uses: pnpm/action-setup@41ff72655975bd51cab0327fa583b6e92b6d3061 # v4.2.0
+        with:
+          version: ${{ env.PNPM_VERSION }}
+          run_install: false
+
+      - name: Node ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Installation Python depuis le verrou exact
+        run: uv sync --locked --all-extras --python ${{ env.PYTHON_VERSION }}
+
+      - name: Installation web depuis le verrou exact
+        working-directory: apps/web
+        run: pnpm install --frozen-lockfile
+
+      - name: Porte 13 — OpenAPI déterministe (double export byte-identique)
+        run: |
+          uv run --no-sync python tools/export_openapi.py
+          git diff --exit-code -- apps/api/openapi.json
+
+      - name: Navigateur Chromium (version épinglée par le verrou pnpm)
+        working-directory: apps/web
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Porte 14 — parcours critiques des 13 routes
+        working-directory: apps/web
+        run: pnpm exec playwright test
+
+      - name: Artefacts d'échec (jamais de donnée réelle — tout est SYNTHETIC)
+        if: failure()
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        with:
+          name: e2e-artifacts
+          path: apps/web/e2e-artifacts/
+          retention-days: 3
+          if-no-files-found: ignore
+
+  # ── Porte 15 : audit des dépendances et nomenclature logicielle ─────────
+  supply-chain:
+    name: supply-chain — audit des dépendances, SBOM
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+
+      - name: uv
+        uses: astral-sh/setup-uv@2ddd2b9cb38ad8efd50337e8ab201519a34c9f24 # v7.1.1
+        with:
+          enable-cache: false
+
+      - name: pnpm ${{ env.PNPM_VERSION }}
+        uses: pnpm/action-setup@41ff72655975bd51cab0327fa583b6e92b6d3061 # v4.2.0
+        with:
+          version: ${{ env.PNPM_VERSION }}
+          run_install: false
+
+      - name: Node ${{ env.NODE_VERSION }}
+        uses: actions/setup-node@2028fbc5c25fe9cf00d9f06a71cc4710d4507903 # v6.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Export des dépendances Python verrouillées (versions + hachages)
+        run: uv export --locked --all-extras --no-emit-workspace --format requirements.txt --output-file requirements-locked.txt
+
+      # Une vulnérabilité critique ou haute exploitable bloque la fusion.
+      - name: Porte 15a — audit des dépendances Python
+        run: uv run --no-project --with pip-audit==2.10.1 pip-audit --strict --requirement requirements-locked.txt
+
+      - name: Porte 15b — audit des dépendances Node
+        working-directory: apps/web
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm audit --audit-level high
+
+      - name: Porte 15c — nomenclature logicielle Python (CycloneDX)
+        run: uv run --no-project --with cyclonedx-bom==7.3.1 cyclonedx-py requirements requirements-locked.txt --output-reproducible --of JSON -o sbom-python.json
+
+      - name: Publication de la nomenclature
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        with:
+          name: sbom
+          path: sbom-python.json
+          retention-days: 30
