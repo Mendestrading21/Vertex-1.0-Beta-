@@ -1,12 +1,31 @@
-"""Migration integrity: upgrade -> downgrade -> upgrade without drift."""
+"""Migration integrity: upgrade -> downgrade -> upgrade without drift.
+
+The base downgrade is DESTRUCTIVE (it drops the append-only ledger and the
+observations); it must refuse to run on a populated database unless
+``VERTEX_ALLOW_DESTRUCTIVE_DOWNGRADE=1`` is exported explicitly.
+"""
 
 from __future__ import annotations
 
+import pytest
 from alembic import command
 from alembic.config import Config
 from sqlalchemy import Engine, create_engine, text
 
 from vertex_persistence.models import Base
+
+_SYNTHETIC_OBSERVATION_SQL = (
+    "INSERT INTO observations (event_id, schema_version, source, received_at,"
+    " as_of, stale_after, quality_status, delay_status, rights, payload,"
+    " payload_hash) VALUES ('evt-guard', '1', 'SYNTHETIC_TEST', now(), now(),"
+    " now(), 'VALID', 'LIVE', 'X', '{}'::jsonb, 'sha256:0')"
+)
+_SYNTHETIC_LEDGER_SQL = (
+    "INSERT INTO portfolios (name, base_currency) VALUES ('synthetic', 'USD');"
+    "INSERT INTO ledger_transactions (portfolio_id, kind, amount, currency,"
+    " fees, effective_at, recorded_at) SELECT id, 'DEPOSIT', 1, 'USD', 0,"
+    " now(), now() FROM portfolios WHERE name = 'synthetic'"
+)
 
 _SCHEMA_SQL = {
     "columns": """
@@ -99,23 +118,80 @@ def test_upgrade_downgrade_upgrade_without_drift(
         engine.dispose()
 
 
+def _seed(engine: Engine, sql: str) -> None:
+    with engine.connect() as connection:
+        for statement in filter(None, sql.split(";")):
+            connection.execute(text(statement))
+        connection.commit()
+
+
+def test_downgrade_refuses_populated_observations(
+    migrated_engine: Engine, alembic_config: Config
+) -> None:
+    """A base downgrade on a database holding observations is refused."""
+    _seed(migrated_engine, _SYNTHETIC_OBSERVATION_SQL)
+    with pytest.raises(RuntimeError, match="observations"):
+        command.downgrade(alembic_config, "base")
+    # The refusal aborted the whole downgrade: nothing was dropped.
+    assert "observations" in _table_names(migrated_engine)
+    assert "ledger_transactions" in _table_names(migrated_engine)
+
+
+def test_downgrade_refuses_populated_ledger(
+    migrated_engine: Engine, alembic_config: Config
+) -> None:
+    """A base downgrade on a database holding ledger rows is refused."""
+    _seed(migrated_engine, _SYNTHETIC_LEDGER_SQL)
+    with pytest.raises(RuntimeError, match="ledger_transactions"):
+        command.downgrade(alembic_config, "base")
+    assert "ledger_transactions" in _table_names(migrated_engine)
+
+
+def test_downgrade_error_names_the_explicit_override(
+    migrated_engine: Engine, alembic_config: Config
+) -> None:
+    _seed(migrated_engine, _SYNTHETIC_OBSERVATION_SQL)
+    with pytest.raises(RuntimeError, match="VERTEX_ALLOW_DESTRUCTIVE_DOWNGRADE=1"):
+        command.downgrade(alembic_config, "base")
+
+
+def test_downgrade_populated_proceeds_only_with_explicit_override(
+    migrated_engine: Engine,
+    alembic_config: Config,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """VERTEX_ALLOW_DESTRUCTIVE_DOWNGRADE=1 is the only way through, and it works."""
+    _seed(migrated_engine, _SYNTHETIC_OBSERVATION_SQL)
+    monkeypatch.setenv("VERTEX_ALLOW_DESTRUCTIVE_DOWNGRADE", "1")
+    command.downgrade(alembic_config, "base")
+    assert _table_names(migrated_engine) == {"alembic_version"}
+
+
 def test_models_match_migrated_schema(migrated_engine: Engine) -> None:
-    """The ORM models and the hand-written migration describe the same schema."""
+    """The ORM models and the hand-written migrations describe the same schema.
+
+    Full Alembic autogenerate comparison (``compare_type=True``): any drift a
+    real ``alembic revision --autogenerate`` would emit — missing/extra table,
+    column, index, unique or foreign-key constraint, type or nullability
+    change, server-default change — fails this test. The assertion is
+    literally "no difference detected".
+    """
+    from alembic.autogenerate import compare_metadata
+    from alembic.migration import MigrationContext
+
     with migrated_engine.connect() as connection:
-        rows = connection.execute(
-            text(
-                "SELECT table_name, column_name, is_nullable "
-                "FROM information_schema.columns WHERE table_schema = 'public'"
-            )
+        migration_context = MigrationContext.configure(
+            connection,
+            opts={
+                "compare_type": True,
+                "compare_server_default": True,
+                # Alembic's own bookkeeping table is not an ORM model.
+                "include_name": (
+                    lambda name, type_, parent_names: not (
+                        type_ == "table" and name == "alembic_version"
+                    )
+                ),
+            },
         )
-        db_columns = {
-            (table, column): nullable == "YES"
-            for table, column, nullable in rows
-            if table != "alembic_version"
-        }
-    model_columns = {
-        (table.name, column.name): bool(column.nullable)
-        for table in Base.metadata.tables.values()
-        for column in table.columns
-    }
-    assert db_columns == model_columns
+        diffs = compare_metadata(migration_context, Base.metadata)
+    assert diffs == [], f"models and migrated schema drifted: {diffs}"

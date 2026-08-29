@@ -51,7 +51,10 @@ def database_url() -> str:
 @pytest.fixture()
 def alembic_config(database_url: str) -> Config:
     config = Config(str(_ALEMBIC_INI))
-    # Explicit programmatic URL (env.py would also find the env var itself).
+    # Explicit programmatic URL — the sanctioned path for tests. env.py no
+    # longer falls back on VERTEX_TEST_DATABASE_URL implicitly: outside this
+    # fixture, targeting the throwaway test database requires an explicit
+    # VERTEX_ALLOW_TEST_DB=1 opt-in (see vertex_persistence.dsn).
     config.attributes["sqlalchemy_url"] = database_url
     return config
 

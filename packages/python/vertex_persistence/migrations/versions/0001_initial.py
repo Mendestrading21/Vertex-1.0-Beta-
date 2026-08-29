@@ -15,10 +15,11 @@ scans ``information_schema`` to prove it.
 
 from __future__ import annotations
 
+import os
 from typing import Sequence, Union
 
 import sqlalchemy as sa
-from alembic import op
+from alembic import context, op
 from sqlalchemy.dialects.postgresql import JSONB
 
 revision: str = "0001_initial"
@@ -266,6 +267,41 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    """DESTRUCTIVE — drops the entire schema, including the append-only tables.
+
+    ``observations`` (sourced market history) and ``ledger_transactions``
+    (the user's manual ledger, protected against UPDATE/DELETE precisely so
+    it can never be silently lost) are dropped with all their rows. There is
+    no undo besides an external backup.
+
+    Fail-closed guard: when either append-only table still holds rows, this
+    downgrade raises :class:`RuntimeError` instead of destroying them. The
+    only way through is the explicit, deliberate environment opt-in
+    ``VERTEX_ALLOW_DESTRUCTIVE_DOWNGRADE=1``. An empty database (the
+    up→down→up migration-integrity cycle) downgrades without friction.
+    """
+    if os.environ.get("VERTEX_ALLOW_DESTRUCTIVE_DOWNGRADE") != "1":
+        if context.is_offline_mode():
+            raise RuntimeError(
+                "destructive downgrade refused: offline (--sql) mode cannot "
+                "verify that observations and ledger_transactions are empty; "
+                "export VERTEX_ALLOW_DESTRUCTIVE_DOWNGRADE=1 to override "
+                "explicitly"
+            )
+        bind = op.get_bind()
+        populated = [
+            table
+            for table in ("observations", "ledger_transactions")
+            if bind.execute(sa.text(f"SELECT EXISTS (SELECT 1 FROM {table})")).scalar()
+        ]
+        if populated:
+            raise RuntimeError(
+                "destructive downgrade refused: "
+                + " and ".join(populated)
+                + " still contain(s) rows that would be destroyed forever. "
+                "Back the data up first, then export "
+                "VERTEX_ALLOW_DESTRUCTIVE_DOWNGRADE=1 to override explicitly."
+            )
     for table in ("ledger_transactions", "observations"):
         op.execute(f"DROP TRIGGER {table}_append_only ON {table};")
         op.execute(f"DROP TRIGGER {table}_no_truncate ON {table};")

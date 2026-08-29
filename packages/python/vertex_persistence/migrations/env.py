@@ -1,10 +1,13 @@
 """Alembic environment for vertex_persistence.
 
-The database URL is read from the environment — ``VERTEX_DATABASE_URL`` first,
-then ``VERTEX_TEST_DATABASE_URL`` — or from ``config.attributes["sqlalchemy_url"]``
-when a caller (tests, application bootstrap) passes it programmatically.
-No DSN is ever hardcoded in the repository. Missing configuration fails
-closed with a typed error.
+The database URL comes from ``config.attributes["sqlalchemy_url"]`` when a
+caller (tests, application bootstrap) passes it programmatically, otherwise
+from ``VERTEX_DATABASE_URL``. The fallback on ``VERTEX_TEST_DATABASE_URL``
+requires an explicit ``VERTEX_ALLOW_TEST_DB=1`` opt-in — a test DSN in the
+environment never becomes a migration target silently. Resolution lives in
+``vertex_persistence.dsn.resolve_migration_url`` (unit-tested); missing or
+ambiguous configuration fails closed with a typed error. No DSN is ever
+hardcoded in the repository.
 """
 
 from __future__ import annotations
@@ -22,7 +25,7 @@ _SRC = Path(__file__).resolve().parent.parent / "src"
 if str(_SRC) not in sys.path:
     sys.path.insert(0, str(_SRC))
 
-from vertex_persistence.errors import ConfigurationError  # noqa: E402
+from vertex_persistence.dsn import resolve_migration_url  # noqa: E402
 from vertex_persistence.models import Base  # noqa: E402
 
 config = context.config
@@ -31,17 +34,8 @@ target_metadata = Base.metadata
 
 def _database_url() -> str:
     """Resolve the database URL fail-closed (attributes, then environment)."""
-    programmatic = config.attributes.get("sqlalchemy_url")
-    if programmatic:
-        return str(programmatic)
-    for variable in ("VERTEX_DATABASE_URL", "VERTEX_TEST_DATABASE_URL"):
-        value = os.environ.get(variable)
-        if value:
-            return value
-    raise ConfigurationError(
-        "no database URL configured: set VERTEX_DATABASE_URL (or "
-        "VERTEX_TEST_DATABASE_URL for tests) in the environment; DSNs are "
-        "never stored in the repository"
+    return resolve_migration_url(
+        os.environ, programmatic=config.attributes.get("sqlalchemy_url")
     )
 
 

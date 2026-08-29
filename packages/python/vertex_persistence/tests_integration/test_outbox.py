@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from vertex_persistence.backoff import DEFAULT_MAX_ATTEMPTS, compute_backoff_seconds
 from vertex_persistence.enums import OutboxStatus
-from vertex_persistence.errors import OutboxLeaseError, OutboxStateError
+from vertex_persistence.errors import OutboxLeaseError, OutboxStateError, ValidationFailedError
 from vertex_persistence.models import Observation, OutboxMessage
 from vertex_persistence.repository import (
     ack_outbox,
@@ -132,7 +132,8 @@ def test_fail_applies_exponential_backoff(db_session: Session) -> None:
     status = fail_outbox(
         db_session,
         message_id,
-        "synthetic handler error",
+        RuntimeError("synthetic handler error"),
+        code="HANDLER_ERROR",
         lease_token=claimed.lease_token,
         now=T0,
     )
@@ -142,7 +143,7 @@ def test_fail_applies_exponential_backoff(db_session: Session) -> None:
     assert row is not None
     assert row.attempts == 1
     assert row.lease_until == T0 + timedelta(seconds=5)  # first backoff step
-    assert row.last_error == "synthetic handler error"
+    assert row.last_error == "HANDLER_ERROR:RuntimeError: synthetic handler error"
     # Not claimable before its retry-not-before instant, claimable after.
     assert claim_outbox_batch(db_session, [TOPIC], 1, 60, now=T0 + timedelta(seconds=4)) == []
     assert len(claim_outbox_batch(db_session, [TOPIC], 1, 60, now=T0 + timedelta(seconds=6))) == 1
@@ -159,7 +160,8 @@ def test_max_attempts_reaches_dead_and_stops_delivery(db_session: Session) -> No
         status = fail_outbox(
             db_session,
             message_id,
-            f"synthetic failure {attempt}",
+            RuntimeError(f"synthetic failure {attempt}"),
+            code="HANDLER_ERROR",
             lease_token=claimed[0].lease_token,
             now=now,
         )
@@ -189,6 +191,61 @@ def test_ack_marks_done_and_message_stays_done(db_session: Session) -> None:
     assert claim_outbox_batch(db_session, [TOPIC], 1, 60, now=T0 + timedelta(hours=1)) == []
 
 
+def test_fail_outbox_never_stores_payload_fragments_in_last_error(db_session: Session) -> None:
+    """Adversarial: a poisoned exception message never lands verbatim in last_error."""
+    (message_id,) = _enqueue(db_session, 1)
+    db_session.commit()
+    (claimed,) = claim_outbox_batch(db_session, [TOPIC], 1, 60, now=T0)
+    poisoned = RuntimeError(
+        "handler exploded: password=SYNTH cookie=SYNTH account=SYNTH-123 "
+        "quoted 'SYNTH-QUOTED' card 1234567890 " + "padding " * 60
+    )
+    status = fail_outbox(
+        db_session,
+        message_id,
+        poisoned,
+        code="HANDLER_ERROR",
+        lease_token=claimed.lease_token,
+        now=T0,
+    )
+    db_session.commit()
+    row = db_session.get(OutboxMessage, message_id)
+    assert status == OutboxStatus.FAILED.value
+    assert row is not None and row.last_error is not None
+    assert "SYNTH" not in row.last_error  # no pseudo-secret survives, ever
+    assert "1234567890" not in row.last_error
+    assert row.last_error.startswith("HANDLER_ERROR:RuntimeError")
+    # code + exception type + a message capped at 200 redacted chars.
+    assert len(row.last_error) <= len("HANDLER_ERROR:RuntimeError: ") + 200
+
+
+def test_fail_outbox_refuses_free_form_error_inputs(db_session: Session) -> None:
+    """The safe format is imposed: no free string, no non-canonical code."""
+    (message_id,) = _enqueue(db_session, 1)
+    db_session.commit()
+    (claimed,) = claim_outbox_batch(db_session, [TOPIC], 1, 60, now=T0)
+    with pytest.raises(ValidationFailedError):
+        fail_outbox(
+            db_session,
+            message_id,
+            "free-form str(exc) is forbidden",  # type: ignore[arg-type]
+            code="HANDLER_ERROR",
+            lease_token=claimed.lease_token,
+            now=T0,
+        )
+    db_session.rollback()
+    with pytest.raises(ValidationFailedError):
+        fail_outbox(
+            db_session,
+            message_id,
+            RuntimeError("synthetic"),
+            code="not a canonical code",
+            lease_token=claimed.lease_token,
+            now=T0,
+        )
+    db_session.rollback()
+
+
 def test_ack_and_fail_require_an_owned_lease(db_session: Session) -> None:
     (message_id,) = _enqueue(db_session, 1)
     db_session.commit()
@@ -198,7 +255,12 @@ def test_ack_and_fail_require_an_owned_lease(db_session: Session) -> None:
     db_session.rollback()
     with pytest.raises(OutboxLeaseError, match="not held under this lease token"):
         fail_outbox(
-            db_session, message_id, "synthetic", lease_token="synthetic-unissued-token", now=T0
+            db_session,
+            message_id,
+            RuntimeError("synthetic"),
+            code="HANDLER_ERROR",
+            lease_token="synthetic-unissued-token",
+            now=T0,
         )
     db_session.rollback()
     with pytest.raises(OutboxStateError, match="does not exist"):

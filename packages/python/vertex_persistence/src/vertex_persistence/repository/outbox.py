@@ -16,9 +16,13 @@ attempt itself (FAILED with backoff, DEAD at ``max_attempts``), so an
 attempt is never lost and a poisoned handler that always overruns its lease
 still reaches DEAD (ADR-006: record attempt, lease and result).
 
-``last_error`` stores a short technical diagnostic only. Callers must never
-put payload fragments, secrets, personal data or account-like data in it; the
-value is truncated defensively.
+``last_error`` stores a short technical diagnostic only, in one imposed safe
+format: ``CODE:ExceptionType[: redacted message]``. ``fail_outbox`` refuses a
+free-form string — it takes the exception itself plus a canonical error code
+and renders ``last_error`` through
+:func:`vertex_persistence.redaction.format_last_error`, so payload fragments,
+secrets, SQL parameters, quoted values and long digit runs never reach the
+column. The value is additionally truncated defensively.
 """
 
 from __future__ import annotations
@@ -36,6 +40,7 @@ from vertex_persistence.enums import OutboxStatus
 from vertex_persistence.errors import OutboxLeaseError, OutboxStateError, ValidationFailedError
 from vertex_persistence.json_codec import to_jsonb_object
 from vertex_persistence.models import OutboxMessage
+from vertex_persistence.redaction import format_last_error
 from vertex_persistence.repository._validation import (
     require_non_empty_str,
     require_now,
@@ -53,10 +58,12 @@ __all__ = [
 
 _LAST_ERROR_MAX_CHARS = 500
 
-# Diagnostic recorded by the reaper. Technical only — never payload content.
+# Diagnostic recorded by the reaper — a static, payload-free string in the
+# same CODE:Type: message shape the redaction module imposes on fail_outbox.
 _LEASE_EXPIRED_ERROR = (
-    "lease expired without ack or fail (worker crash, kill, partition or "
-    "handler overrun); attempt counted by reap_expired_leases"
+    "LEASE_EXPIRED:TimeoutError: lease expired without ack or fail (worker "
+    "crash, kill, partition or handler overrun); attempt counted by "
+    "reap_expired_leases"
 )
 
 # Statuses a worker may claim from. IN_PROGRESS rows are recovered only by
@@ -225,8 +232,9 @@ def ack_outbox(
 def fail_outbox(
     session: Session,
     message_id: int,
-    error: str,
+    exc: BaseException,
     *,
+    code: str,
     lease_token: str,
     now: datetime,
     max_attempts: int = DEFAULT_MAX_ATTEMPTS,
@@ -237,14 +245,21 @@ def fail_outbox(
     ``attempts``. Below ``max_attempts`` the message becomes FAILED with
     ``lease_until = now + exponential backoff`` (its retry-not-before
     instant); at ``max_attempts`` it becomes DEAD and is never claimed again.
-    ``error`` must be a short technical diagnostic — never payload content,
-    secrets or account-like data — and is truncated to a bounded length.
+
+    ``last_error`` is never a free-form ``str(exc)``: the caller passes the
+    exception itself plus a canonical ``code`` (uppercase token), and the
+    stored value is ``f"{code}:{type(exc).__name__}"`` plus the exception
+    message passed through :func:`vertex_persistence.redaction.redact_error`
+    (quoted values, ``key=value`` values, SQL parameter tails and long digit
+    runs removed, capped at 200 chars). A non-exception ``exc`` or a
+    non-canonical ``code`` raises
+    :class:`~vertex_persistence.errors.ValidationFailedError`.
     """
     now = require_now(now)
     message_id = require_positive_int("message_id", message_id)
     lease_token = require_non_empty_str("lease_token", lease_token)
     max_attempts = require_positive_int("max_attempts", max_attempts)
-    error = require_non_empty_str("error", error)
+    error = format_last_error(code, exc)  # fail-closed before any row load
 
     row = _load_owned_in_progress(session, message_id, lease_token)
     _record_failed_attempt(row, error, now, max_attempts)

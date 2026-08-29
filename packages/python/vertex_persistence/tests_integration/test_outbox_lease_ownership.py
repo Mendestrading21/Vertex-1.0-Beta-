@@ -102,7 +102,8 @@ def test_late_fail_after_reap_is_rejected_without_double_count(db_session: Sessi
         fail_outbox(
             db_session,
             message_id,
-            "synthetic late handler failure",
+            RuntimeError("synthetic late handler failure"),
+            code="HANDLER_ERROR",
             lease_token=claimed.lease_token,
             now=T0 + timedelta(seconds=62),
         )
@@ -144,7 +145,8 @@ def test_stale_worker_cannot_touch_a_reclaimed_message(migrated_engine: Engine) 
             fail_outbox(
                 worker_a,
                 message_id,
-                "synthetic stale failure",
+                RuntimeError("synthetic stale failure"),
+                code="HANDLER_ERROR",
                 lease_token=claim_a.lease_token,
                 now=b_now,
             )
