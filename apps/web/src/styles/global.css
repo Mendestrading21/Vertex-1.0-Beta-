@@ -466,3 +466,493 @@ body {
 .vx-not-found a {
   color: var(--vx-text);
 }
+
+/* ------------------------------------------------------------------ */
+/* Pages installées — en-tête commun                                   */
+/* ------------------------------------------------------------------ */
+
+.vx-page-header {
+  margin-bottom: var(--vx-space-24);
+}
+
+.vx-page-header h1 {
+  margin: 0 0 var(--vx-space-4);
+  font-size: var(--vx-font-size-display);
+  font-weight: 600;
+}
+
+.vx-page-question {
+  margin: 0;
+  color: var(--vx-text-secondary);
+}
+
+/* ------------------------------------------------------------------ */
+/* État « session requise »                                            */
+/* ------------------------------------------------------------------ */
+
+.vx-auth-required {
+  max-width: 640px;
+  padding: var(--vx-space-24);
+  background: var(--vx-surface-1);
+  border: 1px solid var(--vx-warning);
+  border-radius: var(--vx-radius-10);
+}
+
+.vx-auth-required strong {
+  color: var(--vx-warning);
+}
+
+.vx-auth-required p {
+  margin: var(--vx-space-8) 0 0;
+  color: var(--vx-text-secondary);
+}
+
+.vx-auth-required a {
+  color: var(--vx-text);
+}
+
+/* ------------------------------------------------------------------ */
+/* Bandeau population SYNTHETIC                                        */
+/* ------------------------------------------------------------------ */
+
+.vx-synthetic-banner {
+  display: flex;
+  align-items: baseline;
+  gap: var(--vx-space-12);
+  margin: 0 0 var(--vx-space-16);
+  padding: var(--vx-space-8) var(--vx-space-16);
+  border: 1px solid var(--vx-warning);
+  border-radius: var(--vx-radius-6);
+  color: var(--vx-text-secondary);
+}
+
+.vx-synthetic-banner strong {
+  color: var(--vx-warning);
+  font-family: var(--vx-font-mono);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.vx-badge-synthetic {
+  border-color: var(--vx-warning);
+  color: var(--vx-warning);
+}
+
+.vx-badge-reason {
+  color: var(--vx-text-secondary);
+}
+
+/* ------------------------------------------------------------------ */
+/* Badges de statut de capacité                                        */
+/* ------------------------------------------------------------------ */
+
+.vx-status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--vx-space-8);
+  padding: var(--vx-space-4) var(--vx-space-12);
+  border: 1px solid var(--vx-border);
+  border-radius: var(--vx-radius-pill);
+  color: var(--vx-text-secondary);
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-meta);
+  white-space: nowrap;
+}
+
+.vx-status-badge-positive {
+  border-color: var(--vx-positive);
+  color: var(--vx-positive);
+}
+
+.vx-status-badge-warning {
+  border-color: var(--vx-warning);
+  color: var(--vx-warning);
+}
+
+.vx-status-badge-negative {
+  border-color: var(--vx-negative);
+  color: var(--vx-negative);
+}
+
+.vx-status-badge-neutral {
+  color: var(--vx-text-muted);
+}
+
+/* ------------------------------------------------------------------ */
+/* Matrice de santé des sources                                        */
+/* ------------------------------------------------------------------ */
+
+.vx-matrix {
+  margin-bottom: var(--vx-space-32);
+}
+
+.vx-matrix-filters {
+  display: flex;
+  align-items: end;
+  gap: var(--vx-space-16);
+  margin-bottom: var(--vx-space-16);
+}
+
+.vx-matrix-filters label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--vx-space-4);
+  color: var(--vx-text-secondary);
+  font-size: var(--vx-font-size-label);
+}
+
+.vx-matrix-filters select {
+  min-height: 32px;
+  padding: var(--vx-space-4) var(--vx-space-8);
+  border: 1px solid var(--vx-border);
+  border-radius: var(--vx-radius-6);
+  background: var(--vx-surface-1);
+  color: var(--vx-text);
+  font: inherit;
+}
+
+.vx-matrix-count {
+  margin: 0 0 var(--vx-space-4);
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-matrix-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--vx-border-soft);
+  border-radius: var(--vx-radius-10);
+  background: var(--vx-surface-1);
+}
+
+.vx-matrix-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--vx-font-size-body);
+}
+
+.vx-matrix-table caption {
+  padding: var(--vx-space-12) var(--vx-space-16);
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+  text-align: left;
+}
+
+.vx-matrix-table th,
+.vx-matrix-table td {
+  padding: var(--vx-space-8) var(--vx-space-16);
+  border-top: 1px solid var(--vx-border-soft);
+  text-align: left;
+  vertical-align: top;
+}
+
+.vx-matrix-table thead th {
+  color: var(--vx-text-secondary);
+  font-size: var(--vx-font-size-meta);
+  font-weight: 500;
+  letter-spacing: 0.04em;
+}
+
+.vx-matrix-table tbody th {
+  font-weight: 500;
+}
+
+.vx-matrix-table code,
+.vx-sheet-facts code {
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-matrix-table time {
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-meta);
+  white-space: nowrap;
+}
+
+.vx-cell-absent {
+  color: var(--vx-text-muted);
+}
+
+.vx-matrix-empty {
+  margin: var(--vx-space-12) 0 0;
+  color: var(--vx-text-muted);
+}
+
+/* ------------------------------------------------------------------ */
+/* Santé des composants                                                */
+/* ------------------------------------------------------------------ */
+
+.vx-health h2,
+.vx-unknown-probes h2 {
+  margin: 0 0 var(--vx-space-12);
+  font-size: var(--vx-font-size-title);
+  font-weight: 600;
+}
+
+.vx-health-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--vx-space-16);
+  margin: 0;
+}
+
+.vx-health-item {
+  padding: var(--vx-space-16);
+  background: var(--vx-surface-1);
+  border: 1px solid var(--vx-border-soft);
+  border-radius: var(--vx-radius-10);
+}
+
+.vx-health-item dt {
+  margin-bottom: var(--vx-space-4);
+  color: var(--vx-text-secondary);
+  font-size: var(--vx-font-size-label);
+}
+
+.vx-health-item dd {
+  margin: 0;
+}
+
+.vx-health-item dd[data-health='error'] {
+  color: var(--vx-negative);
+}
+
+.vx-health-method {
+  color: var(--vx-text-muted);
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-health-limitation {
+  margin: var(--vx-space-8) 0 0;
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-unknown-probes {
+  margin-top: var(--vx-space-24);
+}
+
+.vx-unknown-probes ul {
+  margin: var(--vx-space-8) 0 0;
+  padding-left: var(--vx-space-20);
+}
+
+/* ------------------------------------------------------------------ */
+/* Page Aujourd'hui — bandeau santé et file d'attention                */
+/* ------------------------------------------------------------------ */
+
+.vx-health-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--vx-space-16);
+  margin: 0 0 var(--vx-space-16);
+  padding: var(--vx-space-8) var(--vx-space-16);
+  border: 1px solid var(--vx-border-soft);
+  border-radius: var(--vx-radius-6);
+  color: var(--vx-text-secondary);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-health-strip [data-health='error'] {
+  color: var(--vx-negative);
+}
+
+.vx-queue-summary {
+  margin: 0 0 var(--vx-space-12);
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-queue-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.vx-queue-item {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: var(--vx-space-16);
+  padding: var(--vx-space-12) var(--vx-space-16);
+  background: var(--vx-surface-1);
+  border: 1px solid var(--vx-border-soft);
+  border-radius: var(--vx-radius-10);
+}
+
+.vx-queue-item + .vx-queue-item {
+  margin-top: var(--vx-space-8);
+}
+
+.vx-queue-item-main {
+  min-width: 0;
+}
+
+.vx-queue-title {
+  display: block;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--vx-text);
+  font: inherit;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+}
+
+.vx-queue-title:hover {
+  text-decoration: underline;
+}
+
+.vx-queue-sources {
+  margin: var(--vx-space-4) 0 0;
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-queue-item-meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: end;
+  gap: var(--vx-space-8);
+  flex-shrink: 0;
+  max-width: 46%;
+}
+
+/* ------------------------------------------------------------------ */
+/* Panneau latéral de détail (SideSheet)                               */
+/* ------------------------------------------------------------------ */
+
+.vx-sheet {
+  position: fixed;
+  top: 0;
+  right: 0;
+  z-index: var(--vx-z-sheet);
+  width: 420px;
+  max-width: 90vw;
+  height: 100vh;
+  overflow-y: auto;
+  padding: var(--vx-space-24);
+  background: var(--vx-surface-2);
+  border-left: 1px solid var(--vx-border-strong);
+}
+
+.vx-sheet-head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: var(--vx-space-16);
+  margin-bottom: var(--vx-space-16);
+}
+
+.vx-sheet-head h2 {
+  margin: 0;
+  font-size: var(--vx-font-size-title);
+  font-weight: 600;
+}
+
+.vx-sheet-close {
+  min-height: 32px;
+  padding: var(--vx-space-4) var(--vx-space-12);
+  border: 1px solid var(--vx-border);
+  border-radius: var(--vx-radius-6);
+  background: transparent;
+  color: var(--vx-text-secondary);
+  font: inherit;
+  cursor: pointer;
+}
+
+.vx-sheet-close:hover {
+  background: var(--vx-hover);
+  color: var(--vx-text);
+}
+
+.vx-sheet-facts {
+  margin: var(--vx-space-16) 0 0;
+}
+
+.vx-sheet-facts > div + div {
+  margin-top: var(--vx-space-12);
+  border-top: 1px solid var(--vx-border-soft);
+  padding-top: var(--vx-space-12);
+}
+
+.vx-sheet-facts dt {
+  margin-bottom: var(--vx-space-4);
+  color: var(--vx-text-secondary);
+  font-size: var(--vx-font-size-label);
+}
+
+.vx-sheet-facts dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.vx-sheet-list {
+  margin: 0;
+  padding-left: var(--vx-space-20);
+}
+
+.vx-sheet-facts time {
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-meta);
+}
+
+/* ------------------------------------------------------------------ */
+/* Page Accès                                                          */
+/* ------------------------------------------------------------------ */
+
+.vx-auth {
+  max-width: 640px;
+}
+
+.vx-auth-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--vx-space-12);
+  margin-bottom: var(--vx-space-16);
+}
+
+.vx-auth-actions button {
+  min-height: 36px;
+  padding: var(--vx-space-8) var(--vx-space-16);
+  border: 1px solid var(--vx-border-strong);
+  border-radius: var(--vx-radius-6);
+  background: var(--vx-surface-2);
+  color: var(--vx-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.vx-auth-actions button:hover:not(:disabled) {
+  background: var(--vx-hover);
+}
+
+.vx-auth-actions button:disabled {
+  color: var(--vx-text-muted);
+  cursor: default;
+}
+
+.vx-auth-message {
+  margin: 0 0 var(--vx-space-16);
+  color: var(--vx-text-secondary);
+}
+
+.vx-auth-unsupported {
+  margin: 0 0 var(--vx-space-16);
+  padding: var(--vx-space-12) var(--vx-space-16);
+  border: 1px solid var(--vx-negative);
+  border-radius: var(--vx-radius-6);
+  color: var(--vx-negative);
+}
+
+.vx-auth-note {
+  margin: 0;
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-contextbar-status a {
+  color: var(--vx-text);
+}

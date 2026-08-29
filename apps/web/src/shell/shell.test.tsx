@@ -23,11 +23,11 @@ describe('AppShell — landmarks et lien d’évitement', () => {
 });
 
 describe('ContextBar', () => {
-  it('affiche la page courante et un état API honnête « non connectée »', () => {
+  it('affiche la page courante et un état de session honnête (non vérifié tant qu’aucune réponse API n’a été vue)', () => {
     renderApp('/markets');
     const banner = screen.getByRole('banner');
     expect(within(banner).getByText('Marchés')).toBeDefined();
-    expect(within(banner).getByText('API non connectée')).toBeDefined();
+    expect(within(banner).getByText('Session non vérifiée')).toBeDefined();
   });
 });
 

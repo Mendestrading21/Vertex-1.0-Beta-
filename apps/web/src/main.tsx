@@ -7,12 +7,14 @@ import './styles/fonts.css';
 import './design/tokens.css';
 import './styles/global.css';
 
+import { installSnapshotEvents } from './api/events.ts';
 import { buildRouteObjects } from './app/routes.tsx';
 
 /**
- * Client React Query du shell. Aucune requête n'est encore déclarée : le socle
- * n'invente aucune donnée. Les pages consommeront ce client quand un backend
- * réel exposera des snapshots bornés.
+ * Client React Query du shell. Les pages installées (Aujourd'hui, Système)
+ * consomment les snapshots bornés de l'API locale ; l'abonnement SSE
+ * signal-only invalide les clés de requête ciblées quand une tête de
+ * snapshot change (le flux ne porte jamais la donnée).
  */
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -22,6 +24,9 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+// Le flux SSE ne vit que pendant une session authentifiée (sinon 401).
+installSnapshotEvents(queryClient);
 
 const rootElement = document.getElementById('root');
 if (rootElement === null) {
