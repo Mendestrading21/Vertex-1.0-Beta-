@@ -1,34 +1,28 @@
 # État courant
 
 ```yaml
-phase: foundation
-lot: fondation multi-lots sur branche de travail unique (autorisation nuit du 2026-08-28)
-folder: "00,01,02,03,04(socle),06(socle),08(noyau),10-12(socles),13-14(socle) livrés ; 07 et durcissement P2 en cours"
+phase: foundation_plus_first_pages
+lot: vague 2 terminée (auth, chaîne de données, 3 pages réelles, E2E)
+folder: "00-14 socles + pages 15 (Aujourd'hui), 17 (Marchés), 26/System livrées"
 branch: claude/vertex-connection-kgkntr
 status: paused_awaiting_human
-last_good_commit: 309df8f
+last_good_commit: b89f100
 completed:
-  - blueprint_imported
-  - parcours_complet_plan_valide
-  - dossier_00: ADR-014, enums alignées, denylist unifiée manifeste, BLOCKERS humains
-  - vertex_core_contrats_et_moteurs: 926 tests (contracts, market, portfolio/perf/risk, options, decision, data)
-  - options_durci: P0+4P1+P2 audits corrigés, oracle américain FD + 5 golden littérature
-  - fusion_noyau: dédup 5 niveaux déterministe, relevance gates+budgets sync manifeste (112 tests)
-  - persistance: observations/snapshots/outbox/ledger manuel + alembic sur PostgreSQL réel (91 tests, P1 bail outbox + unicité compensates corrigés)
-  - api_socle: FastAPI fail-closed AUTH_NOT_IMPLEMENTED, advice/preview via l'unique AdviceEngine, OpenAPI déterministe (43 tests)
-  - edge_ibkr_socle: port 13 méthodes, machine d'état epochs, pacing 38msg/s, sonde entitlement manifeste, readonly+StartupFetch(0) (93 tests)
-  - web_shell: Vite/React19/TS strict, tokens Black Glass source unique, 12 routes honnêtes, 8 états (56 tests, bundle 98.6Ko gzip)
+  - vague_1_fondation: vertex_core (contrats, 25 calculs, décision, qualité, fusion), persistance append-only + outbox, edge IBKR info-only, ingress TradingView, API fail-closed, shell web Black Glass
+  - vague_2_T1_auth: passkey WebAuthn réelle, sessions hachées, CSRF, clone sign_count révoqué (217 tests)
+  - vague_2_T2_worker: chaîne outbox->fusion->snapshot attention, générateur SYNTHETIC gardé (90 tests)
+  - vague_2_T3_api: routes attention/capabilities/SSE signal-only (107 tests)
+  - vague_2_T4T5T6_web: pages /system /today /auth réelles, client généré, E2E Playwright pipeline réel + WebAuthn virtuel (87 vitest, 29 e2e)
+  - vague_2_T7_markets: page /markets bout-en-bout, ECharts lazy, breadth fail-closed (42 e2e au total)
 checks:
-  - "python3 -m pytest -> 1251 passed (suite complète)"
-  - "tests_integration PostgreSQL 16.13 -> verts"
-  - "tsc --noEmit 0 erreur ; vitest 56/56 ; build 98584 o gzip"
-  - "check_financial_boundary OK ; verify_blueprint OK ; compileall OK"
-  - ingress_tradingview_socle: worker 50 tests node, orchestrateur 83 tests, pack Pine v6 anti-repaint (déploiement = B-03 humain)
-  - persistance_durcie_P2: 123 tests, migrations 0003/0004, dérive CHECK réelle corrigée par autogenerate
-in_progress: []
-final_night_proofs: "pytest 1355 passed ; intégration PostgreSQL verte ; node 50/50 ; vitest 56/56 ; tsc 0 erreur ; boundary OK ; blueprint OK"
-blocker: "B-01..B-05 (BLOCKERS.md) — fusion PR, revue inventaire, Cloudflare, licence options, fournisseur IA : humain"
+  - "pytest 1519 passed + 106 intégration PostgreSQL réelle"
+  - "vitest 105/105 ; tsc strict 0 erreur ; bundle initial 109,5 Ko gzip"
+  - "playwright 42/42 (1280/1440/1600 + smoke 1024, axe 0 critique/sérieuse)"
+  - "check_financial_boundary OK ; verify_blueprint OK"
+pages_reelles: [/today, /markets, /system, /auth]
+pages_non_implementees: [/calendar, /opportunities, /analysis, /options, /simulator, /portfolio, /follow-up, /performance, /ai]
+blocker: "B-01..B-05 (BLOCKERS.md) inchangés — fusion PR, revue inventaire, Cloudflare, licence options, fournisseur IA"
 environment_deviations:
-  - "Python 3.11 local (cible CI 3.13) ; PostgreSQL 16 local (cible 18 par digest) ; Node 22 (cible 24 LTS) ; CI GitHub Actions à épingler SHA sur machine cible (lookup dépôts actions hors périmètre de session)"
-next_command: "AUDITE LA PR #1 PUIS FUSIONNE (squash) — ou EXÉCUTE DOSSIER suivant sur cette branche"
+  - "Python 3.11 / PostgreSQL 16 / Node 22 locaux (cibles 3.13 / 18-digest / 24 LTS) ; CI Actions SHA à poser sur machine cible"
+next_command: "AUDITE LA PR #1 PUIS FUSIONNE (squash) — puis CONTINUE pour les pages Options/Analyse/Simulateur"
 ```
