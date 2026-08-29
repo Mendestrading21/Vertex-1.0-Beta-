@@ -31,6 +31,13 @@ from vertex_api.schemas import (
     AttentionSnapshotResponse,
     CapabilityStatusEntry,
     DbHealth,
+    MarketsBreadth,
+    MarketsCoverage,
+    MarketsDiscardedTicker,
+    MarketsOverviewResponse,
+    MarketsRejectedRecord,
+    MarketsSector,
+    MarketsTicker,
     SnapshotHealth,
     SystemCapabilitiesResponse,
     SystemHealth,
@@ -45,6 +52,7 @@ __all__ = [
     "SnapshotContentError",
     "build_attention_response",
     "build_capabilities_response",
+    "build_markets_overview_response",
     "build_system_health",
 ]
 
@@ -170,6 +178,234 @@ def build_attention_response(
             _attention_item(raw, index=index) for index, raw in enumerate(items_raw)
         ),
         rejected_count=len(rejected_raw),
+        reason=None,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Markets overview
+# ---------------------------------------------------------------------------
+
+
+def _require_str(value: Any, *, field: str) -> str:
+    if not isinstance(value, str) or not value:
+        raise SnapshotContentError(f"{field}: non-empty string required")
+    return value
+
+
+def _optional_str(value: Any, *, field: str) -> Optional[str]:
+    if value is None:
+        return None
+    return _require_str(value, field=field)
+
+
+def _require_int(value: Any, *, field: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise SnapshotContentError(f"{field}: integer required")
+    return value
+
+
+def _require_bool(value: Any, *, field: str) -> bool:
+    if not isinstance(value, bool):
+        raise SnapshotContentError(f"{field}: boolean required")
+    return value
+
+
+def _markets_ticker(raw: Any, *, field: str) -> MarketsTicker:
+    entry = _require_mapping(raw, field=field)
+    return MarketsTicker(
+        ticker=_require_str(entry.get("ticker"), field=f"{field}.ticker"),
+        sector=_require_str(entry.get("sector"), field=f"{field}.sector"),
+        trading_day=_require_str(entry.get("trading_day"), field=f"{field}.trading_day"),
+        previous_trading_day=_require_str(
+            entry.get("previous_trading_day"), field=f"{field}.previous_trading_day"
+        ),
+        last_close=_require_str(entry.get("last_close"), field=f"{field}.last_close"),
+        previous_close=_require_str(
+            entry.get("previous_close"), field=f"{field}.previous_close"
+        ),
+        currency=_optional_str(entry.get("currency"), field=f"{field}.currency"),
+        return_1d=_require_str(entry.get("return_1d"), field=f"{field}.return_1d"),
+        return_1d_pct=_require_str(
+            entry.get("return_1d_pct"), field=f"{field}.return_1d_pct"
+        ),
+        weight_in_sector=_require_str(
+            entry.get("weight_in_sector"), field=f"{field}.weight_in_sector"
+        ),
+        weight_in_sector_pct=_require_str(
+            entry.get("weight_in_sector_pct"), field=f"{field}.weight_in_sector_pct"
+        ),
+        weight_global=_require_str(
+            entry.get("weight_global"), field=f"{field}.weight_global"
+        ),
+        weight_global_pct=_require_str(
+            entry.get("weight_global_pct"), field=f"{field}.weight_global_pct"
+        ),
+        quality=_require_str(entry.get("quality"), field=f"{field}.quality"),
+        synthetic=_require_bool(entry.get("synthetic"), field=f"{field}.synthetic"),
+        calculation=dict(
+            _require_mapping(entry.get("calculation"), field=f"{field}.calculation")
+        ),
+    )
+
+
+def _markets_sector(raw: Any, *, index: int) -> MarketsSector:
+    field = f"sectors[{index}]"
+    entry = _require_mapping(raw, field=field)
+    tickers_raw = _require_list(entry.get("tickers"), field=f"{field}.tickers")
+    return MarketsSector(
+        sector=_require_str(entry.get("sector"), field=f"{field}.sector"),
+        label=_require_str(entry.get("label"), field=f"{field}.label"),
+        declared_count=_require_int(
+            entry.get("declared_count"), field=f"{field}.declared_count"
+        ),
+        covered_count=_require_int(
+            entry.get("covered_count"), field=f"{field}.covered_count"
+        ),
+        tickers=tuple(
+            _markets_ticker(ticker, field=f"{field}.tickers[{i}]")
+            for i, ticker in enumerate(tickers_raw)
+        ),
+    )
+
+
+def _markets_breadth(raw: Any) -> MarketsBreadth:
+    entry = _require_mapping(raw, field="breadth")
+    status = entry.get("status")
+    if status not in ("OK", "INVALID"):
+        raise SnapshotContentError("breadth.status: 'OK' or 'INVALID' required")
+    calculation = entry.get("calculation")
+    return MarketsBreadth(
+        status=status,
+        reason=_optional_str(entry.get("reason"), field="breadth.reason"),
+        value=_optional_str(entry.get("value"), field="breadth.value"),
+        value_pct=_optional_str(entry.get("value_pct"), field="breadth.value_pct"),
+        above_count=_require_int(entry.get("above_count"), field="breadth.above_count"),
+        covered_count=_require_int(
+            entry.get("covered_count"), field="breadth.covered_count"
+        ),
+        universe_size=_require_int(
+            entry.get("universe_size"), field="breadth.universe_size"
+        ),
+        coverage_pct=_require_str(
+            entry.get("coverage_pct"), field="breadth.coverage_pct"
+        ),
+        coverage_threshold=_require_str(
+            entry.get("coverage_threshold"), field="breadth.coverage_threshold"
+        ),
+        coverage_threshold_pct=_require_str(
+            entry.get("coverage_threshold_pct"), field="breadth.coverage_threshold_pct"
+        ),
+        calculation=(
+            None
+            if calculation is None
+            else dict(_require_mapping(calculation, field="breadth.calculation"))
+        ),
+    )
+
+
+def _markets_coverage(raw: Any) -> MarketsCoverage:
+    entry = _require_mapping(raw, field="coverage")
+    discarded_raw = _require_list(
+        entry.get("discarded_tickers"), field="coverage.discarded_tickers"
+    )
+    rejected_raw = _require_list(
+        entry.get("rejected_records"), field="coverage.rejected_records"
+    )
+    discarded = []
+    for i, item in enumerate(discarded_raw):
+        mapping = _require_mapping(item, field=f"coverage.discarded_tickers[{i}]")
+        discarded.append(
+            MarketsDiscardedTicker(
+                ticker=_require_str(
+                    mapping.get("ticker"), field=f"coverage.discarded_tickers[{i}].ticker"
+                ),
+                reason=_require_str(
+                    mapping.get("reason"), field=f"coverage.discarded_tickers[{i}].reason"
+                ),
+            )
+        )
+    rejected = []
+    for i, item in enumerate(rejected_raw):
+        mapping = _require_mapping(item, field=f"coverage.rejected_records[{i}]")
+        rejected.append(
+            MarketsRejectedRecord(
+                event_id=_require_str(
+                    mapping.get("event_id"), field=f"coverage.rejected_records[{i}].event_id"
+                ),
+                reason=_require_str(
+                    mapping.get("reason"), field=f"coverage.rejected_records[{i}].reason"
+                ),
+            )
+        )
+    return MarketsCoverage(
+        expected=_require_int(entry.get("expected"), field="coverage.expected"),
+        received=_require_int(entry.get("received"), field="coverage.received"),
+        covered=_require_int(entry.get("covered"), field="coverage.covered"),
+        discarded=_require_int(entry.get("discarded"), field="coverage.discarded"),
+        discarded_tickers=tuple(discarded),
+        rejected_records=tuple(rejected),
+        observations_considered=_require_int(
+            entry.get("observations_considered"),
+            field="coverage.observations_considered",
+        ),
+        lookback_seconds=_require_int(
+            entry.get("lookback_seconds"), field="coverage.lookback_seconds"
+        ),
+    )
+
+
+def build_markets_overview_response(
+    snapshot: Optional[CurrentSnapshot],
+) -> MarketsOverviewResponse:
+    """Render the last markets overview snapshot, or the honest empty state.
+
+    Presentation only: the persisted content is validated fail-closed into
+    the wire DTOs and relayed VERBATIM — no price, return, weight, breadth or
+    percentage is ever recomputed here. Absence of a published snapshot is a
+    NORMAL state (200 with ``state = "empty"``), never a 500 and never an
+    invented zero.
+    """
+    if snapshot is None:
+        return MarketsOverviewResponse(
+            state="empty",
+            snapshot_version=None,
+            as_of=None,
+            population=None,
+            data_state=None,
+            unit=None,
+            display_unit=None,
+            engine_version=None,
+            conclusion=None,
+            sectors=(),
+            breadth=None,
+            coverage=None,
+            reason=REASON_NO_SNAPSHOT_PUBLISHED,
+        )
+
+    content = _require_mapping(snapshot.content, field="content")
+    sectors_raw = _require_list(content.get("sectors"), field="sectors")
+    data_state = content.get("data_state")
+    if data_state not in ("ok", "partial", "stale"):
+        raise SnapshotContentError("data_state: 'ok', 'partial' or 'stale' required")
+
+    return MarketsOverviewResponse(
+        state="ok",
+        snapshot_version=snapshot.version,
+        as_of=_parse_utc(content.get("as_of"), field="as_of"),
+        population=_require_str(content.get("population"), field="population"),
+        data_state=data_state,
+        unit=_require_str(content.get("unit"), field="unit"),
+        display_unit=_require_str(content.get("display_unit"), field="display_unit"),
+        engine_version=_require_str(
+            content.get("engine_version"), field="engine_version"
+        ),
+        conclusion=_require_str(content.get("conclusion"), field="conclusion"),
+        sectors=tuple(
+            _markets_sector(raw, index=index) for index, raw in enumerate(sectors_raw)
+        ),
+        breadth=_markets_breadth(content.get("breadth")),
+        coverage=_markets_coverage(content.get("coverage")),
         reason=None,
     )
 

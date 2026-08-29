@@ -32,6 +32,13 @@ __all__ = [
     "DbHealth",
     "EngineInfoResponse",
     "HealthResponse",
+    "MarketsBreadth",
+    "MarketsCoverage",
+    "MarketsDiscardedTicker",
+    "MarketsOverviewResponse",
+    "MarketsRejectedRecord",
+    "MarketsSector",
+    "MarketsTicker",
     "SnapshotHealth",
     "SystemCapabilitiesResponse",
     "SystemHealth",
@@ -137,6 +144,128 @@ class AttentionSnapshotResponse(ContractModel):
     coverage: Optional[FrozenStrMapping]
     items: tuple[AttentionItem, ...]
     rejected_count: Optional[Annotated[int, Field(ge=0)]]
+    reason: Optional[NonEmptyStr]
+
+
+# ---------------------------------------------------------------------------
+# GET /api/v1/markets/overview — last published markets snapshot, verbatim
+# ---------------------------------------------------------------------------
+
+
+class MarketsTicker(ContractModel):
+    """One covered ticker, relayed from the worker snapshot verbatim.
+
+    Every price and ratio is a DECIMAL STRING computed server-side (the last
+    close verbatim from the observation payload, the 1-day return from
+    ``market.simple_return``, weights and display percentages rendered by the
+    worker). The API and the client format — they never recompute.
+    ``calculation`` is the preserved ``CalculationRecord`` lineage subset
+    (engine_version, input_hash, result_hash, method, status).
+    """
+
+    ticker: NonEmptyStr
+    sector: NonEmptyStr
+    trading_day: NonEmptyStr
+    previous_trading_day: NonEmptyStr
+    last_close: NonEmptyStr
+    previous_close: NonEmptyStr
+    currency: Optional[NonEmptyStr]
+    return_1d: NonEmptyStr
+    return_1d_pct: NonEmptyStr
+    weight_in_sector: NonEmptyStr
+    weight_in_sector_pct: NonEmptyStr
+    weight_global: NonEmptyStr
+    weight_global_pct: NonEmptyStr
+    quality: NonEmptyStr
+    synthetic: bool
+    calculation: FrozenStrMapping
+
+
+class MarketsSector(ContractModel):
+    """One declared sector with its covered tickers (possibly none)."""
+
+    sector: NonEmptyStr
+    label: NonEmptyStr
+    declared_count: Annotated[int, Field(ge=0)]
+    covered_count: Annotated[int, Field(ge=0)]
+    tickers: tuple[MarketsTicker, ...]
+
+
+class MarketsBreadth(ContractModel):
+    """Global breadth block — ``market.breadth`` result or an honest INVALID.
+
+    ``status = "INVALID"`` (coverage below the threshold gate) carries the
+    typed reason and NO value — a breadth computed on a sliver of the
+    universe is never presented. All percentages are server-rendered strings.
+    """
+
+    status: Literal["OK", "INVALID"]
+    reason: Optional[NonEmptyStr]
+    value: Optional[NonEmptyStr]
+    value_pct: Optional[NonEmptyStr]
+    above_count: Annotated[int, Field(ge=0)]
+    covered_count: Annotated[int, Field(ge=0)]
+    universe_size: PositiveInt
+    coverage_pct: NonEmptyStr
+    coverage_threshold: NonEmptyStr
+    coverage_threshold_pct: NonEmptyStr
+    calculation: Optional[FrozenStrMapping]
+
+
+class MarketsDiscardedTicker(ContractModel):
+    """One universe ticker excluded from the overview, with its reason.
+
+    ``missing_close``: fewer than the two required closes in the window —
+    the ticker is counted here, never interpolated.
+    """
+
+    ticker: NonEmptyStr
+    reason: NonEmptyStr
+
+
+class MarketsRejectedRecord(ContractModel):
+    """One observation refused by the deny-by-default gates, with its reason."""
+
+    event_id: NonEmptyStr
+    reason: NonEmptyStr
+
+
+class MarketsCoverage(ContractModel):
+    """Expected / received / covered / discarded account of the universe."""
+
+    expected: Annotated[int, Field(ge=0)]
+    received: Annotated[int, Field(ge=0)]
+    covered: Annotated[int, Field(ge=0)]
+    discarded: Annotated[int, Field(ge=0)]
+    discarded_tickers: tuple[MarketsDiscardedTicker, ...]
+    rejected_records: tuple[MarketsRejectedRecord, ...]
+    observations_considered: Annotated[int, Field(ge=0)]
+    lookback_seconds: PositiveInt
+
+
+class MarketsOverviewResponse(ContractModel):
+    """The last ``markets_overview/global`` snapshot — or an honest empty state.
+
+    ``state = "empty"`` means NO snapshot was ever published: every
+    snapshot-derived field is ``None`` (never zero, never invented) and
+    ``reason`` says why. ``state = "ok"`` relays the persisted content
+    verbatim: population (``SYNTHETIC`` shown as-is), the worker's own
+    ``data_state`` (``ok``/``partial``/``stale``), the deterministic French
+    conclusion sentence, sectors/tickers, breadth and the coverage account.
+    """
+
+    state: Literal["ok", "empty"]
+    snapshot_version: Optional[PositiveInt]
+    as_of: Optional[UtcDatetime]
+    population: Optional[NonEmptyStr]
+    data_state: Optional[Literal["ok", "partial", "stale"]]
+    unit: Optional[NonEmptyStr]
+    display_unit: Optional[NonEmptyStr]
+    engine_version: Optional[NonEmptyStr]
+    conclusion: Optional[NonEmptyStr]
+    sectors: tuple[MarketsSector, ...]
+    breadth: Optional[MarketsBreadth]
+    coverage: Optional[MarketsCoverage]
     reason: Optional[NonEmptyStr]
 
 

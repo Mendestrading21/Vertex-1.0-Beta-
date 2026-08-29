@@ -7,6 +7,8 @@
 - ``GET /api/v1/system/engine`` — protected; engine/contract versions only;
 - ``GET /api/v1/today/attention`` — protected; the LAST published
   ``attention/global`` snapshot verbatim, or an honest empty state;
+- ``GET /api/v1/markets/overview`` — protected; the LAST published
+  ``markets_overview/global`` snapshot verbatim, or an honest empty state;
 - ``GET /api/v1/system/capabilities`` — protected; the declared capability
   manifest crossed with the latest persisted probe snapshot, plus health;
 - ``GET /api/v1/events/stream`` — protected; signal-only SSE
@@ -33,10 +35,15 @@ from vertex_api.schemas import (
     AttentionSnapshotResponse,
     EngineInfoResponse,
     HealthResponse,
+    MarketsOverviewResponse,
     SystemCapabilitiesResponse,
 )
 from vertex_api.snapshot_reader import Clock, SnapshotReader, get_clock, get_snapshot_reader
-from vertex_api.snapshot_views import build_attention_response, build_capabilities_response
+from vertex_api.snapshot_views import (
+    build_attention_response,
+    build_capabilities_response,
+    build_markets_overview_response,
+)
 from vertex_core.contracts.decision import AdviceResult
 from vertex_core.decision import GATE_VERSIONS, AdviceEngine
 from vertex_core.version import ENGINE_VERSION
@@ -51,6 +58,7 @@ __all__ = [
 
 SNAPSHOT_KIND_ATTENTION = "attention"
 SNAPSHOT_KIND_CAPABILITIES = "capabilities"
+SNAPSHOT_KIND_MARKETS = "markets_overview"
 SNAPSHOT_KEY_GLOBAL = "global"
 
 public_router = APIRouter(prefix="/api/v1")
@@ -148,6 +156,27 @@ def get_system_engine() -> EngineInfoResponse:
         contracts_version=ENGINE_VERSION,
         gate_versions=dict(GATE_VERSIONS),
     )
+
+
+@protected_router.get(
+    "/markets/overview",
+    operation_id="get_markets_overview",
+    response_model=MarketsOverviewResponse,
+    summary="Last published markets overview snapshot (or honest empty state)",
+)
+def get_markets_overview(
+    reader: Annotated[SnapshotReader, Depends(get_snapshot_reader)],
+) -> MarketsOverviewResponse:
+    """Serve the LAST ``markets_overview/global`` snapshot exactly as persisted.
+
+    The API relays the worker's published content — population (``SYNTHETIC``
+    shown as-is), sectors/tickers with their server-computed returns and
+    weights, breadth, coverage account and the deterministic conclusion — and
+    computes nothing. With no snapshot ever published the answer is a 200
+    with ``state = "empty"``: absent stays absent, nothing is invented.
+    """
+    snapshot = reader.current(kind=SNAPSHOT_KIND_MARKETS, key=SNAPSHOT_KEY_GLOBAL)
+    return build_markets_overview_response(snapshot)
 
 
 def get_capability_manifest(request: Request) -> CapabilityManifest:

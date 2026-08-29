@@ -991,6 +991,543 @@
         "title": "LogoutResponse",
         "type": "object"
       },
+      "MarketsBreadth": {
+        "additionalProperties": false,
+        "description": "Global breadth block — ``market.breadth`` result or an honest INVALID.\n\n``status = \"INVALID\"`` (coverage below the threshold gate) carries the\ntyped reason and NO value — a breadth computed on a sliver of the\nuniverse is never presented. All percentages are server-rendered strings.",
+        "properties": {
+          "above_count": {
+            "minimum": 0.0,
+            "title": "Above Count",
+            "type": "integer"
+          },
+          "calculation": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Calculation"
+          },
+          "coverage_pct": {
+            "minLength": 1,
+            "title": "Coverage Pct",
+            "type": "string"
+          },
+          "coverage_threshold": {
+            "minLength": 1,
+            "title": "Coverage Threshold",
+            "type": "string"
+          },
+          "coverage_threshold_pct": {
+            "minLength": 1,
+            "title": "Coverage Threshold Pct",
+            "type": "string"
+          },
+          "covered_count": {
+            "minimum": 0.0,
+            "title": "Covered Count",
+            "type": "integer"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "status": {
+            "enum": [
+              "OK",
+              "INVALID"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "universe_size": {
+            "exclusiveMinimum": 0.0,
+            "title": "Universe Size",
+            "type": "integer"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          },
+          "value_pct": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value Pct"
+          }
+        },
+        "required": [
+          "status",
+          "reason",
+          "value",
+          "value_pct",
+          "above_count",
+          "covered_count",
+          "universe_size",
+          "coverage_pct",
+          "coverage_threshold",
+          "coverage_threshold_pct",
+          "calculation"
+        ],
+        "title": "MarketsBreadth",
+        "type": "object"
+      },
+      "MarketsCoverage": {
+        "additionalProperties": false,
+        "description": "Expected / received / covered / discarded account of the universe.",
+        "properties": {
+          "covered": {
+            "minimum": 0.0,
+            "title": "Covered",
+            "type": "integer"
+          },
+          "discarded": {
+            "minimum": 0.0,
+            "title": "Discarded",
+            "type": "integer"
+          },
+          "discarded_tickers": {
+            "items": {
+              "$ref": "#/components/schemas/MarketsDiscardedTicker"
+            },
+            "title": "Discarded Tickers",
+            "type": "array"
+          },
+          "expected": {
+            "minimum": 0.0,
+            "title": "Expected",
+            "type": "integer"
+          },
+          "lookback_seconds": {
+            "exclusiveMinimum": 0.0,
+            "title": "Lookback Seconds",
+            "type": "integer"
+          },
+          "observations_considered": {
+            "minimum": 0.0,
+            "title": "Observations Considered",
+            "type": "integer"
+          },
+          "received": {
+            "minimum": 0.0,
+            "title": "Received",
+            "type": "integer"
+          },
+          "rejected_records": {
+            "items": {
+              "$ref": "#/components/schemas/MarketsRejectedRecord"
+            },
+            "title": "Rejected Records",
+            "type": "array"
+          }
+        },
+        "required": [
+          "expected",
+          "received",
+          "covered",
+          "discarded",
+          "discarded_tickers",
+          "rejected_records",
+          "observations_considered",
+          "lookback_seconds"
+        ],
+        "title": "MarketsCoverage",
+        "type": "object"
+      },
+      "MarketsDiscardedTicker": {
+        "additionalProperties": false,
+        "description": "One universe ticker excluded from the overview, with its reason.\n\n``missing_close``: fewer than the two required closes in the window —\nthe ticker is counted here, never interpolated.",
+        "properties": {
+          "reason": {
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          },
+          "ticker": {
+            "minLength": 1,
+            "title": "Ticker",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ticker",
+          "reason"
+        ],
+        "title": "MarketsDiscardedTicker",
+        "type": "object"
+      },
+      "MarketsOverviewResponse": {
+        "additionalProperties": false,
+        "description": "The last ``markets_overview/global`` snapshot — or an honest empty state.\n\n``state = \"empty\"`` means NO snapshot was ever published: every\nsnapshot-derived field is ``None`` (never zero, never invented) and\n``reason`` says why. ``state = \"ok\"`` relays the persisted content\nverbatim: population (``SYNTHETIC`` shown as-is), the worker's own\n``data_state`` (``ok``/``partial``/``stale``), the deterministic French\nconclusion sentence, sectors/tickers, breadth and the coverage account.",
+        "properties": {
+          "as_of": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "As Of"
+          },
+          "breadth": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MarketsBreadth"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "conclusion": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Conclusion"
+          },
+          "coverage": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MarketsCoverage"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "data_state": {
+            "anyOf": [
+              {
+                "enum": [
+                  "ok",
+                  "partial",
+                  "stale"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data State"
+          },
+          "display_unit": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Unit"
+          },
+          "engine_version": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Engine Version"
+          },
+          "population": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Population"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "sectors": {
+            "items": {
+              "$ref": "#/components/schemas/MarketsSector"
+            },
+            "title": "Sectors",
+            "type": "array"
+          },
+          "snapshot_version": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Snapshot Version"
+          },
+          "state": {
+            "enum": [
+              "ok",
+              "empty"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "unit": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit"
+          }
+        },
+        "required": [
+          "state",
+          "snapshot_version",
+          "as_of",
+          "population",
+          "data_state",
+          "unit",
+          "display_unit",
+          "engine_version",
+          "conclusion",
+          "sectors",
+          "breadth",
+          "coverage",
+          "reason"
+        ],
+        "title": "MarketsOverviewResponse",
+        "type": "object"
+      },
+      "MarketsRejectedRecord": {
+        "additionalProperties": false,
+        "description": "One observation refused by the deny-by-default gates, with its reason.",
+        "properties": {
+          "event_id": {
+            "minLength": 1,
+            "title": "Event Id",
+            "type": "string"
+          },
+          "reason": {
+            "minLength": 1,
+            "title": "Reason",
+            "type": "string"
+          }
+        },
+        "required": [
+          "event_id",
+          "reason"
+        ],
+        "title": "MarketsRejectedRecord",
+        "type": "object"
+      },
+      "MarketsSector": {
+        "additionalProperties": false,
+        "description": "One declared sector with its covered tickers (possibly none).",
+        "properties": {
+          "covered_count": {
+            "minimum": 0.0,
+            "title": "Covered Count",
+            "type": "integer"
+          },
+          "declared_count": {
+            "minimum": 0.0,
+            "title": "Declared Count",
+            "type": "integer"
+          },
+          "label": {
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          },
+          "sector": {
+            "minLength": 1,
+            "title": "Sector",
+            "type": "string"
+          },
+          "tickers": {
+            "items": {
+              "$ref": "#/components/schemas/MarketsTicker"
+            },
+            "title": "Tickers",
+            "type": "array"
+          }
+        },
+        "required": [
+          "sector",
+          "label",
+          "declared_count",
+          "covered_count",
+          "tickers"
+        ],
+        "title": "MarketsSector",
+        "type": "object"
+      },
+      "MarketsTicker": {
+        "additionalProperties": false,
+        "description": "One covered ticker, relayed from the worker snapshot verbatim.\n\nEvery price and ratio is a DECIMAL STRING computed server-side (the last\nclose verbatim from the observation payload, the 1-day return from\n``market.simple_return``, weights and display percentages rendered by the\nworker). The API and the client format — they never recompute.\n``calculation`` is the preserved ``CalculationRecord`` lineage subset\n(engine_version, input_hash, result_hash, method, status).",
+        "properties": {
+          "calculation": {
+            "additionalProperties": true,
+            "title": "Calculation",
+            "type": "object"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "last_close": {
+            "minLength": 1,
+            "title": "Last Close",
+            "type": "string"
+          },
+          "previous_close": {
+            "minLength": 1,
+            "title": "Previous Close",
+            "type": "string"
+          },
+          "previous_trading_day": {
+            "minLength": 1,
+            "title": "Previous Trading Day",
+            "type": "string"
+          },
+          "quality": {
+            "minLength": 1,
+            "title": "Quality",
+            "type": "string"
+          },
+          "return_1d": {
+            "minLength": 1,
+            "title": "Return 1D",
+            "type": "string"
+          },
+          "return_1d_pct": {
+            "minLength": 1,
+            "title": "Return 1D Pct",
+            "type": "string"
+          },
+          "sector": {
+            "minLength": 1,
+            "title": "Sector",
+            "type": "string"
+          },
+          "synthetic": {
+            "title": "Synthetic",
+            "type": "boolean"
+          },
+          "ticker": {
+            "minLength": 1,
+            "title": "Ticker",
+            "type": "string"
+          },
+          "trading_day": {
+            "minLength": 1,
+            "title": "Trading Day",
+            "type": "string"
+          },
+          "weight_global": {
+            "minLength": 1,
+            "title": "Weight Global",
+            "type": "string"
+          },
+          "weight_global_pct": {
+            "minLength": 1,
+            "title": "Weight Global Pct",
+            "type": "string"
+          },
+          "weight_in_sector": {
+            "minLength": 1,
+            "title": "Weight In Sector",
+            "type": "string"
+          },
+          "weight_in_sector_pct": {
+            "minLength": 1,
+            "title": "Weight In Sector Pct",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ticker",
+          "sector",
+          "trading_day",
+          "previous_trading_day",
+          "last_close",
+          "previous_close",
+          "currency",
+          "return_1d",
+          "return_1d_pct",
+          "weight_in_sector",
+          "weight_in_sector_pct",
+          "weight_global",
+          "weight_global_pct",
+          "quality",
+          "synthetic",
+          "calculation"
+        ],
+        "title": "MarketsTicker",
+        "type": "object"
+      },
       "PortfolioRiskInput": {
         "additionalProperties": false,
         "description": "Facts for gate 7 (``manual_portfolio_risk_available``); declarations are user-made only.",
@@ -1689,6 +2226,28 @@
           }
         },
         "summary": "Liveness probe"
+      }
+    },
+    "/api/v1/markets/overview": {
+      "get": {
+        "description": "Serve the LAST ``markets_overview/global`` snapshot exactly as persisted.\n\nThe API relays the worker's published content — population (``SYNTHETIC``\nshown as-is), sectors/tickers with their server-computed returns and\nweights, breadth, coverage account and the deterministic conclusion — and\ncomputes nothing. With no snapshot ever published the answer is a 200\nwith ``state = \"empty\"``: absent stays absent, nothing is invented.",
+        "operationId": "get_markets_overview",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MarketsOverviewResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Authentication required: no valid WebAuthn session cookie (or missing/invalid CSRF header on a mutation). Always the same generic body with detail code AUTH_REQUIRED."
+          }
+        },
+        "summary": "Last published markets overview snapshot (or honest empty state)"
       }
     },
     "/api/v1/system/capabilities": {

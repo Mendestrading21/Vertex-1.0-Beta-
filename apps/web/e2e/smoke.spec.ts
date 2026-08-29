@@ -38,6 +38,27 @@ test.describe('Dégradation 1024×768', () => {
     });
   });
 
+  test('/markets : carte sémantique conservée, table équivalente accessible, pas de scroll horizontal', async ({
+    page,
+  }, testInfo) => {
+    await page.goto('/markets');
+    await expect(page.locator('.vx-marketmap-canvas canvas')).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText('DONNÉES SYNTHÉTIQUES', { exact: true })).toBeVisible();
+    // L'alternative tabulaire reste disponible sous la dominante (22 couverts).
+    const table = page.getByRole('table', { name: 'Table équivalente de la carte des marchés' });
+    await expect(table.locator('tbody tr')).toHaveCount(22);
+    await expectNoHorizontalPageScroll(page);
+    // Seul le conteneur de la table peut défiler horizontalement.
+    const scrollMode = await page
+      .locator('.vx-markets-table-scroll')
+      .evaluate((element) => getComputedStyle(element).overflowX);
+    expect(scrollMode).toBe('auto');
+    await page.screenshot({
+      path: screenshotPath('markets-smoke', testInfo.project.name),
+      fullPage: true,
+    });
+  });
+
   test('/today : file complète visible, bandeau SYNTHETIC non masqué, pas de scroll horizontal', async ({
     page,
   }, testInfo) => {

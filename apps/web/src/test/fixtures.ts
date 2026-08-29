@@ -7,6 +7,10 @@ import type {
   AttentionItem,
   AttentionSnapshot,
   CapabilityEntry,
+  MarketsBreadth,
+  MarketsOverview,
+  MarketsSector,
+  MarketsTicker,
   SystemCapabilities,
   SystemHealth,
 } from '../api/client.ts';
@@ -123,6 +127,163 @@ export function makeEmptyAttentionSnapshot(): AttentionSnapshot {
     coverage: null,
     items: [],
     rejected_count: null,
+    reason: 'no snapshot published',
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Marchés — snapshot markets_overview SYNTHÉTIQUE (chaînes serveur verbatim)
+// ---------------------------------------------------------------------------
+
+export function makeMarketsTicker(overrides: Partial<MarketsTicker> = {}): MarketsTicker {
+  return {
+    ticker: 'SYN-TECH-01',
+    sector: 'SYN-TECH',
+    trading_day: '2026-08-24',
+    previous_trading_day: '2026-08-23',
+    last_close: '110.00',
+    previous_close: '100.00',
+    currency: 'SYN',
+    return_1d: '0.10000000000000009',
+    return_1d_pct: '+10.00',
+    weight_in_sector: '0.709677',
+    weight_in_sector_pct: '70.97',
+    weight_global: '0.354838',
+    weight_global_pct: '35.48',
+    quality: 'VALID',
+    synthetic: true,
+    calculation: {
+      calculation_id: 'market.simple_return',
+      engine_version: 'vertex_core@0.1.0',
+      method: 'simple_return p1/p0 - 1 (1 trading day)',
+      input_hash: `sha256:${'a'.repeat(64)}`,
+      result_hash: `sha256:${'b'.repeat(64)}`,
+      status: 'OK',
+    },
+    ...overrides,
+  };
+}
+
+export function makeMarketsSectors(): MarketsSector[] {
+  return [
+    {
+      sector: 'SYN-ENER',
+      label: 'Énergie synthétique',
+      declared_count: 2,
+      covered_count: 2,
+      tickers: [
+        makeMarketsTicker({
+          ticker: 'SYN-ENER-01',
+          sector: 'SYN-ENER',
+          last_close: '45.00',
+          previous_close: '50.00',
+          return_1d: '-0.09999999999999998',
+          return_1d_pct: '-10.00',
+          weight_in_sector_pct: '60.00',
+          weight_global_pct: '14.52',
+        }),
+        makeMarketsTicker({
+          ticker: 'SYN-ENER-02',
+          sector: 'SYN-ENER',
+          last_close: '30.00',
+          previous_close: '30.00',
+          return_1d: '0',
+          return_1d_pct: '+0.00',
+          weight_in_sector_pct: '40.00',
+          weight_global_pct: '9.68',
+          quality: 'PARTIAL',
+        }),
+      ],
+    },
+    {
+      sector: 'SYN-TECH',
+      label: 'Technologie synthétique',
+      declared_count: 2,
+      covered_count: 2,
+      tickers: [
+        makeMarketsTicker(),
+        makeMarketsTicker({
+          ticker: 'SYN-TECH-02',
+          last_close: '124.00',
+          previous_close: '120.00',
+          return_1d: '0.033333333333333326',
+          return_1d_pct: '+3.33',
+          weight_in_sector_pct: '29.03',
+          weight_global_pct: '40.32',
+        }),
+      ],
+    },
+  ];
+}
+
+export function makeMarketsBreadth(overrides: Partial<MarketsBreadth> = {}): MarketsBreadth {
+  return {
+    status: 'OK',
+    reason: null,
+    value: '0.5',
+    value_pct: '50.0',
+    above_count: 2,
+    covered_count: 4,
+    universe_size: 4,
+    coverage_pct: '100.0',
+    coverage_threshold: '0.8',
+    coverage_threshold_pct: '80.0',
+    calculation: {
+      calculation_id: 'market.breadth',
+      engine_version: 'vertex_core@0.1.0',
+      method: 'participation ratio above_count / covered_count',
+      input_hash: `sha256:${'c'.repeat(64)}`,
+      result_hash: `sha256:${'d'.repeat(64)}`,
+      status: 'OK',
+    },
+    ...overrides,
+  };
+}
+
+export function makeMarketsOverview(overrides: Partial<MarketsOverview> = {}): MarketsOverview {
+  return {
+    state: 'ok',
+    snapshot_version: 5,
+    as_of: SYNTHETIC_AS_OF,
+    population: 'SYNTHETIC',
+    data_state: 'ok',
+    unit: 'return_ratio',
+    display_unit: '%',
+    engine_version: 'vertex_core@0.1.0',
+    conclusion:
+      'Sur 4 instruments synthétiques attendus, 4 sont couverts et 0 écartés ; ' +
+      '2 en hausse, 1 en baisse, 1 stables ; breadth 50.0 % (seuil de couverture 80.0 %).',
+    sectors: makeMarketsSectors(),
+    breadth: makeMarketsBreadth(),
+    coverage: {
+      expected: 4,
+      received: 4,
+      covered: 4,
+      discarded: 0,
+      discarded_tickers: [],
+      rejected_records: [],
+      observations_considered: 8,
+      lookback_seconds: 259200,
+    },
+    reason: null,
+    ...overrides,
+  };
+}
+
+export function makeEmptyMarketsOverview(): MarketsOverview {
+  return {
+    state: 'empty',
+    snapshot_version: null,
+    as_of: null,
+    population: null,
+    data_state: null,
+    unit: null,
+    display_unit: null,
+    engine_version: null,
+    conclusion: null,
+    sectors: [],
+    breadth: null,
+    coverage: null,
     reason: 'no snapshot published',
   };
 }

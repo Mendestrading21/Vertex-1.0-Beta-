@@ -44,6 +44,7 @@ class ScriptedHeadReader:
         self.versions: dict[tuple[str, str], Optional[int]] = {
             ("attention", "global"): None,
             ("capabilities", "global"): None,
+            ("markets_overview", "global"): None,
         }
         self.polls = 0
 

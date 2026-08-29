@@ -6,6 +6,11 @@ outbox message in the SAME transaction (ADR-006 atomicity: the business write
 and its job commit or roll back together). Nothing is committed here — the
 caller owns the transaction.
 
+Daily-quote envelopes additionally enqueue a ``quotes.ingested`` message
+(same transaction, same idempotence): the markets overview handler owns that
+topic (``vertex_worker.markets``), while ``observation.ingested`` stays owned
+by the attention fusion handler — one handler per topic, no overloading.
+
 A best-effort ``NOTIFY`` on :data:`OUTBOX_NOTIFY_CHANNEL` is also emitted so
 a listening worker wakes up early; PostgreSQL delivers it only when the
 surrounding transaction commits, and losing it is harmless because the
@@ -23,6 +28,8 @@ from sqlalchemy.orm import Session
 from vertex_core.contracts import DataEnvelope
 from vertex_persistence.repository.observations import insert_observation
 from vertex_persistence.repository.outbox import enqueue_outbox
+
+from vertex_worker.markets import TOPIC_QUOTES_INGESTED, is_daily_quote_schema
 
 __all__ = [
     "TOPIC_OBSERVATION_INGESTED",
@@ -96,6 +103,18 @@ def ingest_envelope(session: Session, envelope: DataEnvelope) -> IngestResult:
             "schema_version": envelope.schema_version,
         },
     )
+    if is_daily_quote_schema(envelope.schema_version):
+        # Additional markets job, same transaction and same idempotence: it is
+        # enqueued only when the observation row was actually inserted.
+        enqueue_outbox(
+            session,
+            TOPIC_QUOTES_INGESTED,
+            {
+                "event_id": envelope.event_id,
+                "source": envelope.source,
+                "schema_version": envelope.schema_version,
+            },
+        )
     # Wake-up signal only, delivered on commit; its loss is tolerated because
     # the worker polls the outbox table (ADR-006: NOTIFY is never the queue).
     session.execute(

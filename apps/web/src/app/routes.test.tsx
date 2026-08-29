@@ -5,7 +5,7 @@ import { renderApp } from '../test/render.tsx';
 import { ALL_PAGES } from './pages.ts';
 
 /** Pages réellement installées (routes + données + états + tests). */
-const INSTALLED_KEYS = new Set(['today', 'system']);
+const INSTALLED_KEYS = new Set(['today', 'markets', 'system']);
 
 describe('routes — pages non installées : « Lot non installé » honnête', () => {
   for (const page of ALL_PAGES.filter((entry) => !INSTALLED_KEYS.has(entry.key))) {
@@ -20,9 +20,12 @@ describe('routes — pages non installées : « Lot non installé » honnête', 
 
 describe('routes — pages installées : plus de façade « Lot non installé »', () => {
   for (const page of ALL_PAGES.filter((entry) => INSTALLED_KEYS.has(entry.key))) {
-    it(`${page.navPath} → ${page.title} réelle`, () => {
+    it(`${page.navPath} → ${page.title} réelle`, async () => {
       renderApp(page.navPath);
-      expect(screen.getByRole('heading', { level: 1, name: page.title })).toBeDefined();
+      // /markets est chargée paresseusement (React.lazy) : attendre le rendu.
+      expect(
+        await screen.findByRole('heading', { level: 1, name: page.title }),
+      ).toBeDefined();
       expect(screen.getByText(page.question)).toBeDefined();
       expect(screen.queryByText(`NON_IMPLÉMENTÉ — ${page.lot}`)).toBeNull();
     });

@@ -169,6 +169,32 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/markets/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Last published markets overview snapshot (or honest empty state)
+         * @description Serve the LAST ``markets_overview/global`` snapshot exactly as persisted.
+         *
+         *     The API relays the worker's published content — population (``SYNTHETIC``
+         *     shown as-is), sectors/tickers with their server-computed returns and
+         *     weights, breadth, coverage account and the deterministic conclusion — and
+         *     computes nothing. With no snapshot ever published the answer is a 200
+         *     with ``state = "empty"``: absent stays absent, nothing is invented.
+         */
+        get: operations["get_markets_overview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/system/capabilities": {
         parameters: {
             query?: never;
@@ -731,6 +757,191 @@ export interface components {
             logged_out: true;
         };
         /**
+         * MarketsBreadth
+         * @description Global breadth block — ``market.breadth`` result or an honest INVALID.
+         *
+         *     ``status = "INVALID"`` (coverage below the threshold gate) carries the
+         *     typed reason and NO value — a breadth computed on a sliver of the
+         *     universe is never presented. All percentages are server-rendered strings.
+         */
+        MarketsBreadth: {
+            /** Above Count */
+            above_count: number;
+            /** Calculation */
+            calculation: {
+                [key: string]: unknown;
+            } | null;
+            /** Coverage Pct */
+            coverage_pct: string;
+            /** Coverage Threshold */
+            coverage_threshold: string;
+            /** Coverage Threshold Pct */
+            coverage_threshold_pct: string;
+            /** Covered Count */
+            covered_count: number;
+            /** Reason */
+            reason: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "OK" | "INVALID";
+            /** Universe Size */
+            universe_size: number;
+            /** Value */
+            value: string | null;
+            /** Value Pct */
+            value_pct: string | null;
+        };
+        /**
+         * MarketsCoverage
+         * @description Expected / received / covered / discarded account of the universe.
+         */
+        MarketsCoverage: {
+            /** Covered */
+            covered: number;
+            /** Discarded */
+            discarded: number;
+            /** Discarded Tickers */
+            discarded_tickers: components["schemas"]["MarketsDiscardedTicker"][];
+            /** Expected */
+            expected: number;
+            /** Lookback Seconds */
+            lookback_seconds: number;
+            /** Observations Considered */
+            observations_considered: number;
+            /** Received */
+            received: number;
+            /** Rejected Records */
+            rejected_records: components["schemas"]["MarketsRejectedRecord"][];
+        };
+        /**
+         * MarketsDiscardedTicker
+         * @description One universe ticker excluded from the overview, with its reason.
+         *
+         *     ``missing_close``: fewer than the two required closes in the window —
+         *     the ticker is counted here, never interpolated.
+         */
+        MarketsDiscardedTicker: {
+            /** Reason */
+            reason: string;
+            /** Ticker */
+            ticker: string;
+        };
+        /**
+         * MarketsOverviewResponse
+         * @description The last ``markets_overview/global`` snapshot — or an honest empty state.
+         *
+         *     ``state = "empty"`` means NO snapshot was ever published: every
+         *     snapshot-derived field is ``None`` (never zero, never invented) and
+         *     ``reason`` says why. ``state = "ok"`` relays the persisted content
+         *     verbatim: population (``SYNTHETIC`` shown as-is), the worker's own
+         *     ``data_state`` (``ok``/``partial``/``stale``), the deterministic French
+         *     conclusion sentence, sectors/tickers, breadth and the coverage account.
+         */
+        MarketsOverviewResponse: {
+            /** As Of */
+            as_of: string | null;
+            breadth: components["schemas"]["MarketsBreadth"] | null;
+            /** Conclusion */
+            conclusion: string | null;
+            coverage: components["schemas"]["MarketsCoverage"] | null;
+            /** Data State */
+            data_state: ("ok" | "partial" | "stale") | null;
+            /** Display Unit */
+            display_unit: string | null;
+            /** Engine Version */
+            engine_version: string | null;
+            /** Population */
+            population: string | null;
+            /** Reason */
+            reason: string | null;
+            /** Sectors */
+            sectors: components["schemas"]["MarketsSector"][];
+            /** Snapshot Version */
+            snapshot_version: number | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "ok" | "empty";
+            /** Unit */
+            unit: string | null;
+        };
+        /**
+         * MarketsRejectedRecord
+         * @description One observation refused by the deny-by-default gates, with its reason.
+         */
+        MarketsRejectedRecord: {
+            /** Event Id */
+            event_id: string;
+            /** Reason */
+            reason: string;
+        };
+        /**
+         * MarketsSector
+         * @description One declared sector with its covered tickers (possibly none).
+         */
+        MarketsSector: {
+            /** Covered Count */
+            covered_count: number;
+            /** Declared Count */
+            declared_count: number;
+            /** Label */
+            label: string;
+            /** Sector */
+            sector: string;
+            /** Tickers */
+            tickers: components["schemas"]["MarketsTicker"][];
+        };
+        /**
+         * MarketsTicker
+         * @description One covered ticker, relayed from the worker snapshot verbatim.
+         *
+         *     Every price and ratio is a DECIMAL STRING computed server-side (the last
+         *     close verbatim from the observation payload, the 1-day return from
+         *     ``market.simple_return``, weights and display percentages rendered by the
+         *     worker). The API and the client format — they never recompute.
+         *     ``calculation`` is the preserved ``CalculationRecord`` lineage subset
+         *     (engine_version, input_hash, result_hash, method, status).
+         */
+        MarketsTicker: {
+            /** Calculation */
+            calculation: {
+                [key: string]: unknown;
+            };
+            /** Currency */
+            currency: string | null;
+            /** Last Close */
+            last_close: string;
+            /** Previous Close */
+            previous_close: string;
+            /** Previous Trading Day */
+            previous_trading_day: string;
+            /** Quality */
+            quality: string;
+            /** Return 1D */
+            return_1d: string;
+            /** Return 1D Pct */
+            return_1d_pct: string;
+            /** Sector */
+            sector: string;
+            /** Synthetic */
+            synthetic: boolean;
+            /** Ticker */
+            ticker: string;
+            /** Trading Day */
+            trading_day: string;
+            /** Weight Global */
+            weight_global: string;
+            /** Weight Global Pct */
+            weight_global_pct: string;
+            /** Weight In Sector */
+            weight_in_sector: string;
+            /** Weight In Sector Pct */
+            weight_in_sector_pct: string;
+        };
+        /**
          * PortfolioRiskInput
          * @description Facts for gate 7 (``manual_portfolio_risk_available``); declarations are user-made only.
          */
@@ -1176,6 +1387,33 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HealthResponse"];
                 };
+            };
+        };
+    };
+    get_markets_overview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MarketsOverviewResponse"];
+                };
+            };
+            /** @description Authentication required: no valid WebAuthn session cookie (or missing/invalid CSRF header on a mutation). Always the same generic body with detail code AUTH_REQUIRED. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

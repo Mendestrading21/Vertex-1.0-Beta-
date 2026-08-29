@@ -15,6 +15,11 @@ import type { components } from './schema.d.ts';
 
 export type AttentionSnapshot = components['schemas']['AttentionSnapshotResponse'];
 export type AttentionItem = components['schemas']['AttentionItem'];
+export type MarketsOverview = components['schemas']['MarketsOverviewResponse'];
+export type MarketsSector = components['schemas']['MarketsSector'];
+export type MarketsTicker = components['schemas']['MarketsTicker'];
+export type MarketsBreadth = components['schemas']['MarketsBreadth'];
+export type MarketsCoverage = components['schemas']['MarketsCoverage'];
 export type SystemCapabilities = components['schemas']['SystemCapabilitiesResponse'];
 export type CapabilityEntry = components['schemas']['CapabilityStatusEntry'];
 export type SourceCapabilityStatus = components['schemas']['SourceCapabilityStatus'];
@@ -165,6 +170,10 @@ export function getAttention(): Promise<AttentionSnapshot> {
 
 export function getCapabilities(): Promise<SystemCapabilities> {
   return request({ method: 'GET', path: '/v1/system/capabilities', protectedRoute: true });
+}
+
+export function getMarketsOverview(): Promise<MarketsOverview> {
+  return request({ method: 'GET', path: '/v1/markets/overview', protectedRoute: true });
 }
 
 export function postRegisterOptions(): Promise<CeremonyOptions> {

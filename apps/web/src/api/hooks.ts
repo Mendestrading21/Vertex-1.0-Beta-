@@ -10,11 +10,15 @@ import { useQuery } from '@tanstack/react-query';
 import type { UseQueryResult } from '@tanstack/react-query';
 
 import type { DataState } from '../components/DataStateBoundary.tsx';
-import { getAttention, getCapabilities, isApiError } from './client.ts';
-import type { AttentionSnapshot, SystemCapabilities } from './client.ts';
+import { getAttention, getCapabilities, getMarketsOverview, isApiError } from './client.ts';
+import type { AttentionSnapshot, MarketsOverview, SystemCapabilities } from './client.ts';
 
 /** Ressources signalées par le flux SSE signal-only. */
-export const SSE_RESOURCES = ['attention/global', 'capabilities/global'] as const;
+export const SSE_RESOURCES = [
+  'attention/global',
+  'capabilities/global',
+  'markets_overview/global',
+] as const;
 export type SseResource = (typeof SSE_RESOURCES)[number];
 
 export function queryKeyForResource(resource: SseResource): readonly [string, string] {
@@ -38,6 +42,15 @@ export function useCapabilities(): UseQueryResult<SystemCapabilities> {
   return useQuery({
     queryKey: queryKeyForResource('capabilities/global'),
     queryFn: getCapabilities,
+    retry: false,
+    staleTime: Infinity,
+  });
+}
+
+export function useMarketsOverview(): UseQueryResult<MarketsOverview> {
+  return useQuery({
+    queryKey: queryKeyForResource('markets_overview/global'),
+    queryFn: getMarketsOverview,
     retry: false,
     staleTime: Infinity,
   });

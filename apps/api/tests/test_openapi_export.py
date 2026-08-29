@@ -57,6 +57,7 @@ def test_openapi_structure_is_explicit() -> None:
         "post_advice_preview",
         "get_system_engine",
         "get_today_attention",
+        "get_markets_overview",
         "get_system_capabilities",
         "get_events_stream",
         "post_auth_register_options",

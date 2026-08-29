@@ -29,12 +29,37 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+# Generated/vendored trees are not blueprint content: third-party packages ship
+# intentionally-invalid fixtures (e.g. Redocly YAML tests) that must not fail
+# the blueprint gate. Repository source stays fully scanned.
+SKIP_PARTS = {
+    ".git",
+    ".venv",
+    "node_modules",
+    "__pycache__",
+    ".pytest_cache",
+    "dist",
+    "build",
+    "e2e-artifacts",
+}
+
+
+def scan_files(root: Path, *patterns: str) -> list[Path]:
+    paths: list[Path] = []
+    for pattern in patterns:
+        for path in root.rglob(pattern):
+            if any(part in SKIP_PARTS for part in path.relative_to(root).parts):
+                continue
+            paths.append(path)
+    return sorted(paths)
+
+
 def add_error(errors: list[str], path: Path, message: str) -> None:
     errors.append(f"{path.as_posix()}: {message}")
 
 
 def validate_json(root: Path, errors: list[str], counts: Counter[str]) -> None:
-    for path in sorted(root.rglob("*.json")):
+    for path in scan_files(root, "*.json"):
         counts["json"] += 1
         try:
             json.loads(path.read_text(encoding="utf-8"))
@@ -43,7 +68,7 @@ def validate_json(root: Path, errors: list[str], counts: Counter[str]) -> None:
 
 
 def validate_yaml(root: Path, errors: list[str], counts: Counter[str]) -> None:
-    paths = sorted([*root.rglob("*.yaml"), *root.rglob("*.yml")])
+    paths = scan_files(root, "*.yaml", "*.yml")
     if not paths:
         return
     try:
@@ -60,7 +85,7 @@ def validate_yaml(root: Path, errors: list[str], counts: Counter[str]) -> None:
 
 
 def validate_csv(root: Path, errors: list[str], counts: Counter[str]) -> None:
-    for path in sorted(root.rglob("*.csv")):
+    for path in scan_files(root, "*.csv"):
         counts["csv"] += 1
         try:
             with path.open(newline="", encoding="utf-8") as handle:
@@ -77,7 +102,7 @@ def validate_csv(root: Path, errors: list[str], counts: Counter[str]) -> None:
 
 
 def validate_svg(root: Path, errors: list[str], counts: Counter[str]) -> None:
-    for path in sorted(root.rglob("*.svg")):
+    for path in scan_files(root, "*.svg"):
         counts["svg"] += 1
         try:
             tree = ET.parse(path)
@@ -140,7 +165,7 @@ def validate_schema_examples(root: Path, errors: list[str], counts: Counter[str]
 
 
 def validate_markdown_fences(root: Path, errors: list[str], counts: Counter[str]) -> None:
-    for path in sorted(root.rglob("*.md")):
+    for path in scan_files(root, "*.md"):
         counts["markdown"] += 1
         text = path.read_text(encoding="utf-8")
         if sum(1 for line in text.splitlines() if line.startswith("```")) % 2:

@@ -36,7 +36,10 @@ import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from types import MappingProxyType
-from typing import Any, Callable, Mapping, Optional, Sequence
+from typing import TYPE_CHECKING, Any, Callable, Mapping, Optional, Sequence
+
+if TYPE_CHECKING:  # import-time cycle avoidance (ingest -> markets)
+    from vertex_worker.markets import MarketsConfig
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -572,8 +575,24 @@ class CapabilitiesSnapshotHandler:
             )
 
 
-def build_registry(*, clock: Clock, fusion_config: FusionConfig) -> HandlerRegistry:
-    """Build the worker registry with both canonical topics."""
+def build_registry(
+    *,
+    clock: Clock,
+    fusion_config: FusionConfig,
+    markets_config: Optional["MarketsConfig"] = None,
+) -> HandlerRegistry:
+    """Build the worker registry with the three canonical topics.
+
+    ``markets_config`` defaults to the development-only synthetic markets
+    registry (``DEV_SYNTHETIC_MARKETS_CONFIG``) — the same dev posture as the
+    callers passing ``DEV_SYNTHETIC_CONFIG`` here; every snapshot it produces
+    is honestly labeled ``population = "SYNTHETIC"``.
+    """
+    from vertex_worker.markets import (
+        DEV_SYNTHETIC_MARKETS_CONFIG,
+        register_markets_handler,
+    )
+
     registry = HandlerRegistry()
     registry.register(
         TOPIC_OBSERVATION_INGESTED,
@@ -581,5 +600,10 @@ def build_registry(*, clock: Clock, fusion_config: FusionConfig) -> HandlerRegis
     )
     registry.register(
         TOPIC_CAPABILITIES_REFRESH, CapabilitiesSnapshotHandler(clock=clock)
+    )
+    register_markets_handler(
+        registry,
+        clock=clock,
+        config=markets_config if markets_config is not None else DEV_SYNTHETIC_MARKETS_CONFIG,
     )
     return registry

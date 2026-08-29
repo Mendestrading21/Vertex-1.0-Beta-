@@ -28,7 +28,7 @@ from alembic.config import Config
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
 
-from vertex_core.synthetic import generate_envelopes
+from vertex_core.synthetic import generate_daily_quote_envelopes, generate_envelopes
 from vertex_persistence.repository.observations import insert_observation
 from vertex_persistence.repository.outbox import enqueue_outbox
 from vertex_persistence.repository.snapshots import get_current_snapshot
@@ -41,6 +41,7 @@ from vertex_worker.handlers import (
     build_registry,
 )
 from vertex_worker.ingest import ingest_envelope
+from vertex_worker.markets import SNAPSHOT_KIND_MARKETS
 from vertex_worker.runner import WorkerRunner
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -93,6 +94,18 @@ def main() -> int:
         with Session(engine) as session:
             inserted = sum(
                 1 for e in envelopes if ingest_envelope(session, e).inserted
+            )
+            session.commit()
+
+        # 2 bis. Quotes journalières SYNTHETIC pour la page Marchés (LOT-13) :
+        # 24 tickers / 6 secteurs, 2 clôtures, 2 tickers volontairement privés
+        # de leur clôture ancienne (chemin « écarté, jamais interpolé »).
+        quote_envelopes = generate_daily_quote_envelopes(
+            seed=SEED, base_time=now - timedelta(minutes=5)
+        )
+        with Session(engine) as session:
+            quotes_inserted = sum(
+                1 for e in quote_envelopes if ingest_envelope(session, e).inserted
             )
             session.commit()
 
@@ -157,8 +170,25 @@ def main() -> int:
             capabilities = get_current_snapshot(
                 session, kind=SNAPSHOT_KIND_CAPABILITIES, key=SNAPSHOT_KEY_GLOBAL
             )
-        if attention is None or capabilities is None:
-            print("expected both snapshots to be published", file=sys.stderr)
+            markets = get_current_snapshot(
+                session, kind=SNAPSHOT_KIND_MARKETS, key=SNAPSHOT_KEY_GLOBAL
+            )
+        if attention is None or capabilities is None or markets is None:
+            print("expected all three snapshots to be published", file=sys.stderr)
+            return 1
+        markets_coverage = markets.content["coverage"]
+        if (
+            markets.content["population"] != "SYNTHETIC"
+            or markets_coverage["expected"] != 24
+            or markets_coverage["covered"] != 22
+            or markets_coverage["discarded"] != 2
+            or markets.content["breadth"]["status"] != "OK"
+        ):
+            print(
+                f"unexpected markets snapshot: coverage={markets_coverage} "
+                f"population={markets.content['population']}",
+                file=sys.stderr,
+            )
             return 1
         items = attention.content["items"]
         if not 8 <= len(items) <= 15:
@@ -173,9 +203,13 @@ def main() -> int:
 
         print(
             "seed ok: "
-            f"envelopes={len(envelopes)} inserted={inserted} processed={processed} "
+            f"envelopes={len(envelopes)} inserted={inserted} "
+            f"quotes={len(quote_envelopes)} quotes_inserted={quotes_inserted} "
+            f"processed={processed} "
             f"attention_items={len(items)} attention_version={attention.version} "
-            f"capabilities_version={capabilities.version}"
+            f"capabilities_version={capabilities.version} "
+            f"markets_version={markets.version} "
+            f"markets_covered={markets_coverage['covered']}/{markets_coverage['expected']}"
         )
         return 0
     finally:
