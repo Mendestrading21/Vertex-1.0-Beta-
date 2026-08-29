@@ -652,19 +652,23 @@ class MarketsOverviewHandler:
 
     @staticmethod
     def _enqueue_portfolio_revaluations(session: Session) -> None:
-        """Enqueue one ``portfolio.valuation.refresh`` job per portfolio.
+        """Enqueue one revaluation AND one performance job per portfolio.
 
-        Documented topology choice (see ``vertex_worker.portfolio``): the
-        marks of every portfolio valuation are the closes of the
-        ``markets_overview/global`` snapshot, so revaluation is enqueued HERE,
-        in the same transaction as a CHANGED publication of that snapshot —
-        an unchanged snapshot (publish-if-changed no-op) changes no mark and
-        enqueues nothing. The ingest path was deliberately not used: a quote
-        that does not move a published close cannot move any valuation.
+        Documented topology choice (see ``vertex_worker.portfolio`` and
+        ``vertex_worker.performance``): the marks of every portfolio valuation
+        are the closes of the ``markets_overview/global`` snapshot, so both
+        ``portfolio.valuation.refresh`` and ``performance.refresh`` are
+        enqueued HERE, in the same transaction as a CHANGED publication of
+        that snapshot — an unchanged snapshot (publish-if-changed no-op)
+        changes no mark and enqueues nothing. The ingest path was
+        deliberately not used: a quote that does not move a published close
+        cannot move any valuation, and new daily closes exist exactly when
+        the published overview moved.
         """
         from vertex_persistence.models import Portfolio
         from vertex_persistence.repository.outbox import enqueue_outbox
 
+        from vertex_worker.performance import TOPIC_PERFORMANCE_REFRESH
         from vertex_worker.portfolio import TOPIC_PORTFOLIO_VALUATION_REFRESH
 
         portfolio_ids = session.execute(
@@ -674,6 +678,11 @@ class MarketsOverviewHandler:
             enqueue_outbox(
                 session,
                 TOPIC_PORTFOLIO_VALUATION_REFRESH,
+                {"portfolio_id": portfolio_id},
+            )
+            enqueue_outbox(
+                session,
+                TOPIC_PERFORMANCE_REFRESH,
                 {"portfolio_id": portfolio_id},
             )
 

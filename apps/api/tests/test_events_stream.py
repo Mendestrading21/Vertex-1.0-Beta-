@@ -262,3 +262,11 @@ def test_http_stream_reads_events_then_closes_cleanly(
     assert events[0][0] == "ping"
     snapshot_payloads = [json.loads(data) for event, data in events if event == "snapshot"]
     assert snapshot_payloads == [{"resource": "attention/global", "version": 7}]
+
+
+def test_review_queue_and_performance_kinds_are_watched() -> None:
+    """The stream signals review_queue/* and performance/* head changes."""
+    from vertex_api.events import WATCHED_SNAPSHOT_KINDS
+
+    assert "review_queue" in WATCHED_SNAPSHOT_KINDS
+    assert "performance" in WATCHED_SNAPSHOT_KINDS

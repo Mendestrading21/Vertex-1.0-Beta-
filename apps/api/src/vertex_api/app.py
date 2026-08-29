@@ -15,6 +15,7 @@ from fastapi.openapi.utils import get_openapi
 from vertex_api.auth import auth_router
 from vertex_api.auth.challenges import ChallengeStore
 from vertex_api.capability_manifest import load_capability_manifest
+from vertex_api.follow_up import CreateThesisRequest, ThesisRevisionRequest
 from vertex_api.portfolio import (
     CompensateTransactionRequest,
     CsvImportPreviewRequest,
@@ -65,6 +66,8 @@ def _build_openapi_schema(app: FastAPI) -> dict[str, Any]:
         ("CompensateTransactionRequest", CompensateTransactionRequest),
         ("CsvImportPreviewRequest", CsvImportPreviewRequest),
         ("ImportConfirmRequest", ImportConfirmRequest),
+        ("CreateThesisRequest", CreateThesisRequest),
+        ("ThesisRevisionRequest", ThesisRevisionRequest),
     ):
         request_schema = model.model_json_schema(
             ref_template="#/components/schemas/{model}"

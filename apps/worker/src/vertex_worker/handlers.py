@@ -601,10 +601,12 @@ def build_registry(
         DEV_SYNTHETIC_ANALYSIS_CONFIG,
         register_analysis_handler,
     )
+    from vertex_worker.follow_up import register_follow_up_handler
     from vertex_worker.options import (
         DEV_SYNTHETIC_OPTIONS_CONFIG,
         register_options_handler,
     )
+    from vertex_worker.performance import register_performance_handler
     from vertex_worker.portfolio import register_portfolio_handler
 
     registry = HandlerRegistry()
@@ -615,11 +617,10 @@ def build_registry(
     registry.register(
         TOPIC_CAPABILITIES_REFRESH, CapabilitiesSnapshotHandler(clock=clock)
     )
-    register_markets_handler(
-        registry,
-        clock=clock,
-        config=markets_config if markets_config is not None else DEV_SYNTHETIC_MARKETS_CONFIG,
+    resolved_markets_config = (
+        markets_config if markets_config is not None else DEV_SYNTHETIC_MARKETS_CONFIG
     )
+    register_markets_handler(registry, clock=clock, config=resolved_markets_config)
     register_options_handler(
         registry,
         clock=clock,
@@ -631,4 +632,8 @@ def build_registry(
         config=analysis_config if analysis_config is not None else DEV_SYNTHETIC_ANALYSIS_CONFIG,
     )
     register_portfolio_handler(registry, clock=clock)
+    # Review queue (page 09): same fusion registry as the attention handler.
+    register_follow_up_handler(registry, clock=clock, config=fusion_config)
+    # Performance (page 10): same quote registry as the markets handler.
+    register_performance_handler(registry, clock=clock, config=resolved_markets_config)
     return registry

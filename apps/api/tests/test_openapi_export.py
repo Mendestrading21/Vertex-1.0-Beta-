@@ -71,6 +71,14 @@ def test_openapi_structure_is_explicit() -> None:
         "preview_portfolio_import",
         "confirm_portfolio_import",
         "export_portfolio",
+        # Follow-up (page 09): user-written theses, append-only revisions,
+        # verbatim review-queue relay.
+        "get_follow_up_queue",
+        "create_thesis",
+        "record_thesis_revision",
+        # Performance (page 10): verbatim snapshot relay + reproducible export.
+        "get_performance",
+        "export_performance",
         "post_auth_register_options",
         "post_auth_register_verify",
         "post_auth_login_options",

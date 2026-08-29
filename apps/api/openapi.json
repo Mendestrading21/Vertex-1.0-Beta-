@@ -848,6 +848,141 @@
         "title": "ContradictionsInput",
         "type": "object"
       },
+      "CreateThesisRequest": {
+        "additionalProperties": false,
+        "description": "One user-written thesis to append (statement + mandatory falsifier).\n\n``invalidation`` is REQUIRED and non-blank: what would prove the thesis\nwrong is part of the statement, never optional. ``idempotency_key`` is\nthe CLIENT's replay token: the same key always answers with the same\nthesis, and writes at most once.",
+        "properties": {
+          "horizon": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Horizon"
+          },
+          "hypotheses": {
+            "maxLength": 5000,
+            "minLength": 1,
+            "title": "Hypotheses",
+            "type": "string"
+          },
+          "idempotency_key": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Idempotency Key",
+            "type": "string"
+          },
+          "instrument": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ThesisInstrumentInput"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          },
+          "invalidation": {
+            "maxLength": 5000,
+            "minLength": 1,
+            "title": "Invalidation",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Note"
+          },
+          "portfolio_id": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Portfolio Id"
+          },
+          "review_due_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Review Due At"
+          },
+          "title": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "title",
+          "hypotheses",
+          "invalidation",
+          "idempotency_key"
+        ],
+        "title": "CreateThesisRequest",
+        "type": "object"
+      },
+      "CreateThesisResponse": {
+        "additionalProperties": false,
+        "description": "Receipt: ``created=false`` marks an idempotent replay (nothing written).",
+        "properties": {
+          "created": {
+            "title": "Created",
+            "type": "boolean"
+          },
+          "refresh_enqueued": {
+            "title": "Refresh Enqueued",
+            "type": "boolean"
+          },
+          "revision_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Revision Id",
+            "type": "integer"
+          },
+          "thesis_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Thesis Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "thesis_id",
+          "revision_id",
+          "created",
+          "refresh_enqueued"
+        ],
+        "title": "CreateThesisResponse",
+        "type": "object"
+      },
       "CsvImportPreviewRequest": {
         "additionalProperties": false,
         "description": "Raw CSV text to preview. Nothing is written by the preview.",
@@ -939,6 +1074,77 @@
           }
         },
         "title": "EntitlementsInput",
+        "type": "object"
+      },
+      "FollowUpQueueResponse": {
+        "additionalProperties": false,
+        "description": "The last published review queue snapshot — or an honest empty state.\n\n``state = \"ok\"`` relays the persisted content VERBATIM (projected states,\ndocumented ordering, urgency flags, populations kept separate); the API\nrecomputes nothing. ``state = \"empty\"`` means the worker never published\nthe queue: nothing is invented, ``reason`` says why.",
+        "properties": {
+          "as_of": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "As Of"
+          },
+          "content": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "snapshot_version": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Snapshot Version"
+          },
+          "state": {
+            "enum": [
+              "ok",
+              "empty"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "snapshot_version",
+          "as_of",
+          "content",
+          "reason"
+        ],
+        "title": "FollowUpQueueResponse",
         "type": "object"
       },
       "GateResult": {
@@ -2603,6 +2809,129 @@
         "title": "OptionLeg",
         "type": "object"
       },
+      "PerformanceExportResponse": {
+        "additionalProperties": false,
+        "description": "Reproducible export: CSV of the daily points + JSON manifest.\n\nA pure function of one snapshot version — identical calls return\nidentical bytes; ``as_of`` is the SNAPSHOT's instant, never the request\nclock (documented). The manifest carries method, engine version and\ninput/result hashes for each kept calculation, plus the conventions and\ncoverage, so the figures can be re-derived and audited independently.",
+        "properties": {
+          "as_of": {
+            "format": "date-time",
+            "title": "As Of",
+            "type": "string"
+          },
+          "csv": {
+            "minLength": 1,
+            "title": "Csv",
+            "type": "string"
+          },
+          "manifest": {
+            "additionalProperties": true,
+            "title": "Manifest",
+            "type": "object"
+          },
+          "portfolio_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Portfolio Id",
+            "type": "integer"
+          },
+          "schema_version": {
+            "const": "vertex.performance-export/1.0",
+            "title": "Schema Version",
+            "type": "string"
+          },
+          "snapshot_version": {
+            "exclusiveMinimum": 0.0,
+            "title": "Snapshot Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "schema_version",
+          "portfolio_id",
+          "snapshot_version",
+          "as_of",
+          "csv",
+          "manifest"
+        ],
+        "title": "PerformanceExportResponse",
+        "type": "object"
+      },
+      "PerformanceSnapshotResponse": {
+        "additionalProperties": false,
+        "description": "The last published performance snapshot — or an honest empty state.\n\n``state = \"ok\"`` relays the persisted content VERBATIM (series, gates,\ngross/net metrics with their lineage, heatmap, coverage, population\n``SYNTHETIC_MARKS_REAL_LEDGER`` shown as-is); the API computes no return,\ndrawdown or ratio. ``state = \"empty\"`` means the worker never published\nfor this portfolio: nothing is invented, ``reason`` says why.",
+        "properties": {
+          "as_of": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "As Of"
+          },
+          "content": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content"
+          },
+          "portfolio_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Portfolio Id",
+            "type": "integer"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "snapshot_version": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Snapshot Version"
+          },
+          "state": {
+            "enum": [
+              "ok",
+              "empty"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "portfolio_id",
+          "snapshot_version",
+          "as_of",
+          "content",
+          "reason"
+        ],
+        "title": "PerformanceSnapshotResponse",
+        "type": "object"
+      },
       "PortfolioInfo": {
         "additionalProperties": false,
         "description": "The user-declared portfolio identity (never a broker account).",
@@ -3630,6 +3959,124 @@
         "title": "SystemHealth",
         "type": "object"
       },
+      "ThesisInstrumentInput": {
+        "additionalProperties": false,
+        "description": "Canonical instrument reference of a thesis (plain ticker for now).",
+        "properties": {
+          "ticker": {
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$",
+            "title": "Ticker",
+            "type": "string"
+          }
+        },
+        "required": [
+          "ticker"
+        ],
+        "title": "ThesisInstrumentInput",
+        "type": "object"
+      },
+      "ThesisRevisionRequest": {
+        "additionalProperties": false,
+        "description": "One append-only review-lifecycle revision of an existing thesis.\n\n``snooze_until`` is required exactly when ``action`` is SNOOZED and\nforbidden otherwise (also enforced by the repository and by CHECK).",
+        "properties": {
+          "action": {
+            "enum": [
+              "REVIEWED",
+              "SNOOZED",
+              "NOTE_UPDATED",
+              "ARCHIVED",
+              "REACTIVATED"
+            ],
+            "title": "Action",
+            "type": "string"
+          },
+          "idempotency_key": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Idempotency Key",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Note"
+          },
+          "snapshot_ref": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Snapshot Ref"
+          },
+          "snooze_until": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Snooze Until"
+          }
+        },
+        "required": [
+          "action",
+          "idempotency_key"
+        ],
+        "title": "ThesisRevisionRequest",
+        "type": "object"
+      },
+      "ThesisRevisionResponse": {
+        "additionalProperties": false,
+        "description": "Receipt: ``created=false`` marks an idempotent replay (nothing written).",
+        "properties": {
+          "created": {
+            "title": "Created",
+            "type": "boolean"
+          },
+          "refresh_enqueued": {
+            "title": "Refresh Enqueued",
+            "type": "boolean"
+          },
+          "revision_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Revision Id",
+            "type": "integer"
+          },
+          "thesis_id": {
+            "exclusiveMinimum": 0.0,
+            "title": "Thesis Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "thesis_id",
+          "revision_id",
+          "created",
+          "refresh_enqueued"
+        ],
+        "title": "ThesisRevisionResponse",
+        "type": "object"
+      },
       "ValidationError": {
         "properties": {
           "ctx": {
@@ -3968,6 +4415,28 @@
         "summary": "Signal-only SSE: snapshot head version changes and pings"
       }
     },
+    "/api/v1/follow-up/queue": {
+      "get": {
+        "description": "Serve the LAST ``review_queue/global`` snapshot exactly as persisted.\n\nThe API relays the worker's published content — projected thesis states,\nthe documented lexicographic due ordering, urgency flags and reasons, the\nper-ticker information clusters with provenance, and the two SEPARATE\npopulation labels — and computes nothing. With no snapshot ever published\nthe answer is a 200 with ``state = \"empty\"``: absent stays absent,\nnothing is invented.",
+        "operationId": "get_follow_up_queue",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FollowUpQueueResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Authentication required: no valid WebAuthn session cookie (or missing/invalid CSRF header on a mutation). Always the same generic body with detail code AUTH_REQUIRED."
+          }
+        },
+        "summary": "Last published review queue snapshot (or honest empty state)"
+      }
+    },
     "/api/v1/health": {
       "get": {
         "description": "Report process liveness and the engine version. No sensitive data.",
@@ -4051,6 +4520,97 @@
           }
         },
         "summary": "Last published option chain for one underlying (or honest empty state)"
+      }
+    },
+    "/api/v1/performance/{portfolio_id}": {
+      "get": {
+        "description": "Serve the LAST ``performance/{portfolio_id}`` snapshot as persisted.\n\nThe API relays the worker's published content — daily valuation series,\nexplicit gross/net metrics with their ``CalculationRecord`` lineage,\nhonest INSUFFICIENT_DATA / INVALID gate outcomes, monthly heatmap,\ncoverage and the ``SYNTHETIC_MARKS_REAL_LEDGER`` population shown as-is —\nand computes nothing. With no snapshot ever published the answer is a\n200 with ``state = \"empty\"``: absent stays absent, nothing is invented.",
+        "operationId": "get_performance",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "portfolio_id",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Portfolio Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PerformanceSnapshotResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Authentication required: no valid WebAuthn session cookie (or missing/invalid CSRF header on a mutation). Always the same generic body with detail code AUTH_REQUIRED."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Last published performance snapshot (or honest empty state)"
+      }
+    },
+    "/api/v1/performance/{portfolio_id}/export": {
+      "get": {
+        "description": "Export the daily points (CSV) and the audit manifest (JSON).\n\nA PURE function of the persisted snapshot: two calls over the same\nsnapshot version return byte-identical bodies; ``as_of`` is the\nsnapshot's own instant (documented), never the request clock.",
+        "operationId": "export_performance",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "portfolio_id",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Portfolio Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PerformanceExportResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Authentication required: no valid WebAuthn session cookie (or missing/invalid CSRF header on a mutation). Always the same generic body with detail code AUTH_REQUIRED."
+          },
+          "404": {
+            "description": "No performance snapshot was ever published for this portfolio (code NO_PERFORMANCE_SNAPSHOT) — there is nothing honest to export."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reproducible export: CSV points + JSON manifest (methods, versions, hashes)"
       }
     },
     "/api/v1/portfolio": {
@@ -4339,6 +4899,106 @@
           }
         },
         "summary": "Engine and contract versions"
+      }
+    },
+    "/api/v1/theses": {
+      "post": {
+        "description": "Record one thesis and enqueue the review-queue refresh, one transaction.\n\nRevisions are append-only and the review-queue refresh commits WITH the\nwrite (outbox atomicity). Replaying the same ``idempotency_key`` answers\n200 with ``created=false`` and writes nothing — never a duplicate.",
+        "operationId": "create_thesis",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateThesisRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Idempotent replay: the client's idempotency_key already names this thesis — nothing was written, created=false, the original ids are returned."
+          },
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateThesisResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Authentication required: no valid WebAuthn session cookie (or missing/invalid CSRF header on a mutation). Always the same generic body with detail code AUTH_REQUIRED."
+          },
+          "404": {
+            "description": "Unknown portfolio (code UNKNOWN_PORTFOLIO)."
+          },
+          "409": {
+            "description": "The idempotency_key already names a DIFFERENT operation (code IDEMPOTENCY_KEY_REUSED) — keys are never recycled."
+          },
+          "422": {
+            "description": "Rejected fail-closed: blank invalidation, missing idempotency_key or any other wire-contract violation."
+          }
+        },
+        "summary": "Append one user-written thesis (statement + mandatory falsifier)"
+      }
+    },
+    "/api/v1/theses/{thesis_id}/revisions": {
+      "post": {
+        "description": "Append one revision and enqueue the review-queue refresh, one transaction.\n\nHistory is append-only: nothing edits or deletes an earlier revision;\nthe projected status is recomputed by the repository, never stored.",
+        "operationId": "record_thesis_revision",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "thesis_id",
+            "required": true,
+            "schema": {
+              "minimum": 1,
+              "title": "Thesis Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ThesisRevisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Idempotent replay: the client's idempotency_key already names this exact revision — nothing was written, created=false, the original revision id is returned. Ten replays leave exactly one row."
+          },
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThesisRevisionResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Authentication required: no valid WebAuthn session cookie (or missing/invalid CSRF header on a mutation). Always the same generic body with detail code AUTH_REQUIRED."
+          },
+          "404": {
+            "description": "Unknown thesis (code UNKNOWN_THESIS)."
+          },
+          "409": {
+            "description": "The idempotency_key already names a DIFFERENT operation (code IDEMPOTENCY_KEY_REUSED) — keys are never recycled."
+          },
+          "422": {
+            "description": "Rejected fail-closed: action outside the allowlist (CREATED included), snooze_until missing on SNOOZED or present elsewhere, or any wire-contract violation."
+          }
+        },
+        "summary": "Append one review-lifecycle revision (append-only history)"
       }
     },
     "/api/v1/today/attention": {

@@ -59,6 +59,28 @@ from vertex_api.portfolio import (
     render_export_csv,
     validate_import_fields,
 )
+from vertex_api.follow_up import (
+    ERROR_IDEMPOTENCY_KEY_REUSED,
+    ERROR_UNKNOWN_PORTFOLIO,
+    ERROR_UNKNOWN_THESIS,
+    SNAPSHOT_KEY_REVIEW_QUEUE,
+    SNAPSHOT_KIND_REVIEW_QUEUE,
+    CreateThesisRequest,
+    CreateThesisResponse,
+    DbFollowUpGateway,
+    FollowUpGateway,
+    FollowUpQueueResponse,
+    ThesisRevisionRequest,
+    ThesisRevisionResponse,
+    build_follow_up_queue_response,
+)
+from vertex_api.performance import (
+    SNAPSHOT_KIND_PERFORMANCE,
+    PerformanceExportResponse,
+    PerformanceSnapshotResponse,
+    build_performance_export,
+    build_performance_response,
+)
 from vertex_api.schemas import (
     AdvicePreviewRequest,
     AnalysisResponse,
@@ -840,3 +862,297 @@ def export_portfolio(
             "X-Vertex-Export-Version": EXPORT_SCHEMA_VERSION,
         },
     )
+
+
+# ---------------------------------------------------------------------------
+# Follow-up (page 09 — theses and review queue) and performance (page 10)
+# ---------------------------------------------------------------------------
+
+
+def get_follow_up_gateway(request: Request) -> FollowUpGateway:
+    """FastAPI dependency: the real gateway (tests override with fakes)."""
+    return DbFollowUpGateway(request.app)
+
+
+async def parse_create_thesis_request(request: Request) -> CreateThesisRequest:
+    """Strict JSON-mode validation of the thesis body (fail-closed 422).
+
+    Same rationale as :func:`parse_advice_preview_request`: the DTO is a
+    strict model — a blank ``invalidation``, a missing ``idempotency_key``,
+    a naive datetime or an unknown field is rejected as 422.
+    """
+    raw_body = await request.body()
+    try:
+        return CreateThesisRequest.model_validate_json(raw_body)
+    except ValidationError as exc:
+        raise RequestValidationError(
+            exc.errors(include_url=False, include_context=False, include_input=False)
+        ) from exc
+
+
+async def parse_thesis_revision_request(request: Request) -> ThesisRevisionRequest:
+    """Strict JSON-mode validation of the revision body (fail-closed 422).
+
+    The action allowlist (REVIEWED/SNOOZED/NOTE_UPDATED/ARCHIVED/REACTIVATED
+    — never CREATED) and the snooze_until-iff-SNOOZED rule are enforced here
+    before any database work.
+    """
+    raw_body = await request.body()
+    try:
+        return ThesisRevisionRequest.model_validate_json(raw_body)
+    except ValidationError as exc:
+        raise RequestValidationError(
+            exc.errors(include_url=False, include_context=False, include_input=False)
+        ) from exc
+
+
+@protected_router.get(
+    "/follow-up/queue",
+    operation_id="get_follow_up_queue",
+    response_model=FollowUpQueueResponse,
+    summary="Last published review queue snapshot (or honest empty state)",
+)
+def get_follow_up_queue(
+    reader: Annotated[SnapshotReader, Depends(get_snapshot_reader)],
+) -> FollowUpQueueResponse:
+    """Serve the LAST ``review_queue/global`` snapshot exactly as persisted.
+
+    The API relays the worker's published content — projected thesis states,
+    the documented lexicographic due ordering, urgency flags and reasons, the
+    per-ticker information clusters with provenance, and the two SEPARATE
+    population labels — and computes nothing. With no snapshot ever published
+    the answer is a 200 with ``state = "empty"``: absent stays absent,
+    nothing is invented.
+    """
+    snapshot = reader.current(
+        kind=SNAPSHOT_KIND_REVIEW_QUEUE, key=SNAPSHOT_KEY_REVIEW_QUEUE
+    )
+    return build_follow_up_queue_response(snapshot)
+
+
+@protected_router.post(
+    "/theses",
+    operation_id="create_thesis",
+    response_model=CreateThesisResponse,
+    summary="Append one user-written thesis (statement + mandatory falsifier)",
+    status_code=201,
+    openapi_extra={
+        "requestBody": {
+            "required": True,
+            "content": {
+                "application/json": {
+                    "schema": {"$ref": "#/components/schemas/CreateThesisRequest"}
+                }
+            },
+        }
+    },
+    responses={
+        200: {
+            "description": (
+                "Idempotent replay: the client's idempotency_key already "
+                "names this thesis — nothing was written, created=false, the "
+                "original ids are returned."
+            )
+        },
+        404: {"description": "Unknown portfolio (code UNKNOWN_PORTFOLIO)."},
+        409: {
+            "description": (
+                "The idempotency_key already names a DIFFERENT operation "
+                "(code IDEMPOTENCY_KEY_REUSED) — keys are never recycled."
+            )
+        },
+        422: {
+            "description": (
+                "Rejected fail-closed: blank invalidation, missing "
+                "idempotency_key or any other wire-contract violation."
+            )
+        },
+    },
+)
+def create_thesis_route(
+    inputs: Annotated[CreateThesisRequest, Depends(parse_create_thesis_request)],
+    gateway: Annotated[FollowUpGateway, Depends(get_follow_up_gateway)],
+    clock: Annotated[Clock, Depends(get_clock)],
+    response: Response,
+) -> CreateThesisResponse:
+    """Record one thesis and enqueue the review-queue refresh, one transaction.
+
+    Revisions are append-only and the review-queue refresh commits WITH the
+    write (outbox atomicity). Replaying the same ``idempotency_key`` answers
+    200 with ``created=false`` and writes nothing — never a duplicate.
+    """
+    from vertex_persistence.errors import (
+        IdempotencyKeyReuseError,
+        UnknownPortfolioError,
+    )
+
+    try:
+        result = gateway.create(inputs, now=clock())
+    except IdempotencyKeyReuseError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={"code": ERROR_IDEMPOTENCY_KEY_REUSED, "message": str(exc)},
+        ) from exc
+    except UnknownPortfolioError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail={"code": ERROR_UNKNOWN_PORTFOLIO, "message": str(exc)},
+        ) from exc
+    if not result.created:
+        response.status_code = 200
+    return CreateThesisResponse(
+        thesis_id=result.thesis_id,
+        revision_id=result.revision_id,
+        created=result.created,
+        refresh_enqueued=result.created,
+    )
+
+
+@protected_router.post(
+    "/theses/{thesis_id}/revisions",
+    operation_id="record_thesis_revision",
+    response_model=ThesisRevisionResponse,
+    summary="Append one review-lifecycle revision (append-only history)",
+    status_code=201,
+    openapi_extra={
+        "requestBody": {
+            "required": True,
+            "content": {
+                "application/json": {
+                    "schema": {"$ref": "#/components/schemas/ThesisRevisionRequest"}
+                }
+            },
+        }
+    },
+    responses={
+        200: {
+            "description": (
+                "Idempotent replay: the client's idempotency_key already "
+                "names this exact revision — nothing was written, "
+                "created=false, the original revision id is returned. Ten "
+                "replays leave exactly one row."
+            )
+        },
+        404: {"description": "Unknown thesis (code UNKNOWN_THESIS)."},
+        409: {
+            "description": (
+                "The idempotency_key already names a DIFFERENT operation "
+                "(code IDEMPOTENCY_KEY_REUSED) — keys are never recycled."
+            )
+        },
+        422: {
+            "description": (
+                "Rejected fail-closed: action outside the allowlist "
+                "(CREATED included), snooze_until missing on SNOOZED or "
+                "present elsewhere, or any wire-contract violation."
+            )
+        },
+    },
+)
+def record_thesis_revision_route(
+    thesis_id: Annotated[int, Path(ge=1)],
+    inputs: Annotated[ThesisRevisionRequest, Depends(parse_thesis_revision_request)],
+    gateway: Annotated[FollowUpGateway, Depends(get_follow_up_gateway)],
+    clock: Annotated[Clock, Depends(get_clock)],
+    response: Response,
+) -> ThesisRevisionResponse:
+    """Append one revision and enqueue the review-queue refresh, one transaction.
+
+    History is append-only: nothing edits or deletes an earlier revision;
+    the projected status is recomputed by the repository, never stored.
+    """
+    from vertex_persistence.errors import (
+        IdempotencyKeyReuseError,
+        UnknownThesisError,
+        ValidationFailedError,
+    )
+
+    try:
+        result = gateway.record_revision(thesis_id, inputs, now=clock())
+    except IdempotencyKeyReuseError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={"code": ERROR_IDEMPOTENCY_KEY_REUSED, "message": str(exc)},
+        ) from exc
+    except UnknownThesisError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail={"code": ERROR_UNKNOWN_THESIS, "message": str(exc)},
+        ) from exc
+    except ValidationFailedError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "VALIDATION_FAILED", "message": str(exc)},
+        ) from exc
+    if not result.created:
+        response.status_code = 200
+    return ThesisRevisionResponse(
+        thesis_id=thesis_id,
+        revision_id=result.revision_id,
+        created=result.created,
+        refresh_enqueued=result.created,
+    )
+
+
+@protected_router.get(
+    "/performance/{portfolio_id}",
+    operation_id="get_performance",
+    response_model=PerformanceSnapshotResponse,
+    summary="Last published performance snapshot (or honest empty state)",
+)
+def get_performance(
+    portfolio_id: Annotated[int, Path(ge=1)],
+    reader: Annotated[SnapshotReader, Depends(get_snapshot_reader)],
+) -> PerformanceSnapshotResponse:
+    """Serve the LAST ``performance/{portfolio_id}`` snapshot as persisted.
+
+    The API relays the worker's published content — daily valuation series,
+    explicit gross/net metrics with their ``CalculationRecord`` lineage,
+    honest INSUFFICIENT_DATA / INVALID gate outcomes, monthly heatmap,
+    coverage and the ``SYNTHETIC_MARKS_REAL_LEDGER`` population shown as-is —
+    and computes nothing. With no snapshot ever published the answer is a
+    200 with ``state = "empty"``: absent stays absent, nothing is invented.
+    """
+    snapshot = reader.current(
+        kind=SNAPSHOT_KIND_PERFORMANCE, key=str(portfolio_id)
+    )
+    return build_performance_response(snapshot, portfolio_id=portfolio_id)
+
+
+@protected_router.get(
+    "/performance/{portfolio_id}/export",
+    operation_id="export_performance",
+    response_model=PerformanceExportResponse,
+    summary="Reproducible export: CSV points + JSON manifest (methods, versions, hashes)",
+    responses={
+        404: {
+            "description": (
+                "No performance snapshot was ever published for this "
+                "portfolio (code NO_PERFORMANCE_SNAPSHOT) — there is nothing "
+                "honest to export."
+            )
+        }
+    },
+)
+def export_performance(
+    portfolio_id: Annotated[int, Path(ge=1)],
+    reader: Annotated[SnapshotReader, Depends(get_snapshot_reader)],
+) -> PerformanceExportResponse:
+    """Export the daily points (CSV) and the audit manifest (JSON).
+
+    A PURE function of the persisted snapshot: two calls over the same
+    snapshot version return byte-identical bodies; ``as_of`` is the
+    snapshot's own instant (documented), never the request clock.
+    """
+    snapshot = reader.current(
+        kind=SNAPSHOT_KIND_PERFORMANCE, key=str(portfolio_id)
+    )
+    if snapshot is None:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "code": "NO_PERFORMANCE_SNAPSHOT",
+                "message": "no performance snapshot published for this portfolio",
+            },
+        )
+    return build_performance_export(snapshot, portfolio_id=portfolio_id)

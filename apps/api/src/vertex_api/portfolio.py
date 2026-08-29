@@ -91,6 +91,7 @@ __all__ = [
     "MAX_IMPORT_BYTES",
     "MAX_IMPORT_ROWS",
     "SNAPSHOT_KIND_PORTFOLIO_VALUATION",
+    "TOPIC_PERFORMANCE_REFRESH",
     "TOPIC_PORTFOLIO_VALUATION_REFRESH",
     "CompensateTransactionRequest",
     "CompensateTransactionResponse",
@@ -133,6 +134,11 @@ TOPIC_PORTFOLIO_VALUATION_REFRESH = "portfolio.valuation.refresh"
 """Outbox topic OWNED by the worker (``vertex_worker.portfolio``); the string
 is re-declared here because the API enqueues jobs but never imports worker
 code (module boundary)."""
+
+TOPIC_PERFORMANCE_REFRESH = "performance.refresh"
+"""Outbox topic OWNED by the worker (``vertex_worker.performance``), enqueued
+alongside every valuation refresh: a new declared ledger fact changes the
+daily performance series exactly like it changes the valuation."""
 
 OUTBOX_NOTIFY_CHANNEL = "vertex_outbox"
 """Best-effort wake-up channel (signal only; the outbox table is the queue)."""
@@ -977,6 +983,13 @@ class DbPortfolioGateway:
         enqueue_outbox(
             session,
             TOPIC_PORTFOLIO_VALUATION_REFRESH,
+            {"portfolio_id": portfolio_id},
+        )
+        # Same transaction, same trigger: a new declared fact changes the
+        # daily performance series exactly like it changes the valuation.
+        enqueue_outbox(
+            session,
+            TOPIC_PERFORMANCE_REFRESH,
             {"portfolio_id": portfolio_id},
         )
         # Wake-up signal only, delivered on commit; polling remains the
