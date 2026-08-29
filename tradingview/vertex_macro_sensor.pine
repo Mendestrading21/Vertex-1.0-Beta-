@@ -1,0 +1,82 @@
+// =============================================================================
+// NON TESTÉ EN PLATEFORME — VALIDATION AU DÉPLOIEMENT HUMAIN.
+// =============================================================================
+// vertex_macro_sensor.pine — publications macroéconomiques ciblées (pack
+// Vertex v1, script_version 2026-08-29.1, contrat vertex.tradingview.alert.v1).
+//
+// Rôle : signaler la PUBLICATION d'une série économique officielle exposée par
+// `request.economic` (ex. US/CPI). Timeframe recommandé : D ou M, appliqué sur
+// un graphique de référence de la watchlist Vertex. La valeur publiée est du
+// CONTEXTE : la donnée macro canonique est établie localement par les sources
+// autorisées, jamais par ce message.
+//
+// LIMITES PINE : chaque `request.*()` compte dans le plafond d'appels du plan.
+// Ce sensor n'interroge qu'UNE série par instance de script ; cibler des
+// publications importantes, pas l'ensemble du calendrier macro.
+//
+// ANTI-REPAINT — pourquoi ce script ne repeint pas :
+//  - `barmerge.gaps_on` : la série économique ne porte une valeur QUE sur la
+//    barre de publication (na ailleurs) — le signal est « nouvelle
+//    publication », jamais une re-projection du passé ;
+//  - émission uniquement sur `barstate.isconfirmed` + freq once_per_bar_close;
+//  - nonce déterministe (time d'ouverture de barre) => rejeux idempotents.
+//
+// AUCUN SECRET dans ce script ni dans le message. Modifier ce script impose
+// d'incrémenter SCRIPT_VERSION et de recréer les alertes TradingView.
+//@version=6
+indicator("Vertex Macro Sensor v1", overlay = false)
+
+string ALERT_ID = input.string("mac-sensor-v1", "Alert ID (registre Vertex)")
+string SCRIPT_VERSION = "2026-08-29.1"
+
+// Pays et champ économiques officiels TradingView (ex. "US" + "CPI").
+// Documentation : https://www.tradingview.com/pine-script-docs/concepts/other-timeframes-and-data/
+string COUNTRY = input.string("US", "Code pays (request.economic)")
+string FIELD = input.string("CPI", "Champ économique (request.economic)")
+
+// Valeur uniquement sur la barre de publication (gaps_on), sinon na.
+float econValue = request.economic(COUNTRY, FIELD, barmerge.gaps_on, ignore_invalid_symbol = true)
+
+// =============================================================================
+// Copie v1 de vertex_alert_contract.pine (library non encore publiée ; garder
+// STRICTEMENT synchronisé — la library reste la source de vérité du contrat).
+// =============================================================================
+vx_json_escape(string s) =>
+    str.replace_all(str.replace_all(s, "\\", "\\\\"), "\"", "\\\"")
+
+vx_ts_utc(int time_ms) =>
+    str.format_time(time_ms, "yyyy-MM-dd'T'HH:mm:ss'Z'", "UTC")
+
+vx_nonce() =>
+    str.tostring(time)
+
+vx_alert_json(string alert_id, string script_version, string signal_name, string price_str, string extra_values_json) =>
+    string price_json = price_str == "" ? "null" : "\"" + vx_json_escape(price_str) + "\""
+    string values_json = "{\"nonce\":\"" + vx_nonce() + "\"" + (extra_values_json == "" ? "" : "," + extra_values_json) + "}"
+    "{" +
+      "\"schema\":\"vertex.tradingview.alert.v1\"," +
+      "\"alert_id\":\"" + vx_json_escape(alert_id) + "\"," +
+      "\"script_version\":\"" + vx_json_escape(script_version) + "\"," +
+      "\"sent_at\":\"" + vx_ts_utc(timenow) + "\"," +
+      "\"bar_time\":\"" + vx_ts_utc(time) + "\"," +
+      "\"exchange\":\"" + vx_json_escape(syminfo.prefix) + "\"," +
+      "\"ticker\":\"" + vx_json_escape(syminfo.ticker) + "\"," +
+      "\"interval\":\"" + vx_json_escape(timeframe.period) + "\"," +
+      "\"signal\":\"" + vx_json_escape(signal_name) + "\"," +
+      "\"price\":" + price_json + "," +
+      "\"values\":" + values_json +
+    "}"
+// ============================== fin de la copie ==============================
+
+// --- Émission : BARRE CONFIRMÉE uniquement ------------------------------------
+// `price` est volontairement null : ce sensor ne transporte aucun prix
+// d'instrument, seulement la valeur macro publiée, en contexte.
+if barstate.isconfirmed and not na(econValue)
+    string extra =
+      "\"series_country\":\"" + vx_json_escape(COUNTRY) + "\"," +
+      "\"series_field\":\"" + vx_json_escape(FIELD) + "\"," +
+      "\"series_value\":\"" + str.tostring(econValue) + "\""
+    alert(vx_alert_json(ALERT_ID, SCRIPT_VERSION, "EVENT", "", extra), alert.freq_once_per_bar_close)
+
+// --- Visualisation de contrôle (aucun rôle dans le contrat) -------------------
+plot(econValue, "Série économique (barres de publication)", style = plot.style_histogram, color = color.new(color.silver, 0))

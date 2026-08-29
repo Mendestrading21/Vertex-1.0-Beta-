@@ -1,0 +1,108 @@
+// =============================================================================
+// NON TESTÉ EN PLATEFORME — VALIDATION AU DÉPLOIEMENT HUMAIN.
+// (Ce script ne peut pas être compilé/exécuté dans cet environnement local ;
+//  la compilation TradingView fait partie de la checklist de mise en service,
+//  voir docs/08-runbooks/TRADINGVIEW_SETUP.md.)
+// =============================================================================
+// vertex_alert_contract.pine — fonction unique de construction du message
+// JSON `vertex.tradingview.alert.v1` (contrats/json-schema/tradingview-alert-
+// v1.schema.json). Pack Pine Vertex, version 2026-08-29.1.
+//
+// RÈGLES ABSOLUES :
+//  - AUCUN SECRET dans ce script ni dans le corps du message : la capacité de
+//    route vit uniquement dans l'URL webhook configurée côté TradingView.
+//  - L'alerte est un DÉCLENCHEUR NON AUTORITAIRE : jamais une preuve de prix,
+//    jamais un verdict. Vertex revalide toujours sur une observation IBKR
+//    postérieure à la réception (ADR-005).
+//  - Toute modification de ce fichier impose d'incrémenter `script_version`
+//    (format YYYY-MM-DD.N) et de RECRÉER les alertes TradingView concernées.
+//
+// NOTE D'INTÉGRATION : TradingView n'autorise l'import d'une library qu'après
+// sa publication. Tant que cette library n'est pas publiée, chaque sensor du
+// pack embarque une COPIE SYNCHRONISÉE des fonctions ci-dessous (marquée
+// "copie v1 de vertex_alert_contract.pine"). La présente library reste la
+// source de vérité du contrat.
+//@version=6
+library("VertexAlertContract", overlay = false)
+
+// -----------------------------------------------------------------------------
+// vx_json_escape — échappe les caractères qui casseraient une chaîne JSON.
+// Les identifiants TradingView (prefix, ticker, period) ne contiennent pas de
+// guillemet en pratique ; l'échappement reste appliqué par défense en
+// profondeur (fail-closed côté Worker : un JSON cassé est rejeté, jamais
+// réparé silencieusement).
+// -----------------------------------------------------------------------------
+export vx_json_escape(string s) =>
+    str.replace_all(str.replace_all(s, "\\", "\\\\"), "\"", "\\\"")
+
+// -----------------------------------------------------------------------------
+// vx_ts_utc — formate un instant (millisecondes Unix) en ISO-8601 UTC avec le
+// suffixe explicite « Z ». Le contrat ingress rejette tout timestamp naïf :
+// le fuseau est donc TOUJOURS explicite.
+// -----------------------------------------------------------------------------
+export vx_ts_utc(int time_ms) =>
+    str.format_time(time_ms, "yyyy-MM-dd'T'HH:mm:ss'Z'", "UTC")
+
+// -----------------------------------------------------------------------------
+// vx_nonce — nonce déterministe de déduplication.
+//
+// Le nonce est l'heure d'OUVERTURE de la barre analysée (`time`, en ms Unix,
+// 13 chiffres — conforme au motif ingress ^[A-Za-z0-9._-]{8,64}$).
+// Pourquoi déterministe et pas aléatoire :
+//  - un même signal (même alerte, même barre confirmée) produit toujours le
+//    même nonce, donc la clé `alert_id + ":" + nonce` dédoublonne les
+//    relivraisons ET les redéclenchements (100 rejeux = 1 signal) ;
+//  - le schéma v1 interdit tout champ additionnel au premier niveau : le
+//    nonce voyage dans `values.nonce` (politique ingress documentée).
+// -----------------------------------------------------------------------------
+export vx_nonce() =>
+    str.tostring(time)
+
+// -----------------------------------------------------------------------------
+// vx_alert_json — construit LE message JSON v1 complet. Fonction unique du
+// pack : aucun sensor ne fabrique du JSON autrement.
+//
+// Champs (tous obligatoires sauf price/values, cf. JSON Schema) :
+//  - schema         : constante "vertex.tradingview.alert.v1" (versionnement).
+//  - alert_id       : identifiant STABLE de la configuration d'alerte, connu
+//                     du registre local (alerte inconnue => rejet auditable).
+//  - script_version : version du script Pine (YYYY-MM-DD.N). Changement de
+//                     script => nouvelle version => recréation de l'alerte.
+//  - sent_at        : instant d'émission (timenow, UTC, Z explicite). Mesure
+//                     le transport ; jamais interchangeable avec bar_time.
+//  - bar_time       : ouverture de la barre CONFIRMÉE analysée (time, UTC).
+//  - exchange       : syminfo.prefix (place de cotation TradingView).
+//  - ticker         : syminfo.ticker (symbole sans préfixe).
+//  - interval       : timeframe.period (ex. "5", "60", "D").
+//  - signal         : enum {SETUP, BREAKOUT, BREAKDOWN, REGIME_CHANGE, EVENT,
+//                     FUNDAMENTAL_UPDATE, HEARTBEAT}.
+//  - price          : close de la barre confirmée, CONTEXTE NON AUTORITAIRE
+//                     (le moteur reprend un prix IBKR frais ; ce champ n'est
+//                     jamais une donnée de marché canonique). "" => null.
+//  - values         : paires additionnelles bornées (<= 40), TOUJOURS avec
+//                     `nonce` en tête (voir vx_nonce).
+//
+// `extra_values_json` : fragment JSON déjà échappé, ex.
+//   "\"volume\":\"12800\",\"condition\":\"sma_cross_up\""
+// Passer "" s'il n'y a rien à ajouter.
+// -----------------------------------------------------------------------------
+export vx_alert_json(string alert_id, string script_version, string signal_name, string price_str, string extra_values_json) =>
+    string price_json = price_str == "" ? "null" : "\"" + vx_json_escape(price_str) + "\""
+    string values_json = "{\"nonce\":\"" + vx_nonce() + "\"" + (extra_values_json == "" ? "" : "," + extra_values_json) + "}"
+    "{" +
+      "\"schema\":\"vertex.tradingview.alert.v1\"," +
+      "\"alert_id\":\"" + vx_json_escape(alert_id) + "\"," +
+      "\"script_version\":\"" + vx_json_escape(script_version) + "\"," +
+      "\"sent_at\":\"" + vx_ts_utc(timenow) + "\"," +
+      "\"bar_time\":\"" + vx_ts_utc(time) + "\"," +
+      "\"exchange\":\"" + vx_json_escape(syminfo.prefix) + "\"," +
+      "\"ticker\":\"" + vx_json_escape(syminfo.ticker) + "\"," +
+      "\"interval\":\"" + vx_json_escape(timeframe.period) + "\"," +
+      "\"signal\":\"" + vx_json_escape(signal_name) + "\"," +
+      "\"price\":" + price_json + "," +
+      "\"values\":" + values_json +
+    "}"
+
+// La library n'émet aucune alerte elle-même : les sensors décident QUAND
+// (toujours sur barre confirmée) ; cette library décide seulement COMMENT le
+// message est construit.

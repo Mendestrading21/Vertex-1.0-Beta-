@@ -9,8 +9,10 @@ testpaths = [
     "packages/python/vertex_persistence/tests",
     "apps/api/tests",
     "apps/edge-ibkr/tests",
+    "apps/ingress-tradingview/tests",
 ]
 pythonpath = [
+    "apps/ingress-tradingview/src",
     "packages/python/vertex_core/src",
     "packages/python/vertex_persistence/src",
     "apps/api/src",
