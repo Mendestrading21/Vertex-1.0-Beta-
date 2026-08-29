@@ -1,9 +1,10 @@
 """Shared fixtures for the Vertex One API tests.
 
 Every payload here is SYNTHETIC and deterministic — no real market data, no
-network, no clock. Sessions are injected exclusively through
+network, no clock, no database. Sessions are injected through
 ``app.dependency_overrides`` with an explicit test-only ``SessionContext``;
-no production authentication path exists (LOT-09).
+the REAL authentication path (WebAuthn ceremony, database session, CSRF) is
+exercised end-to-end in ``apps/api/tests_integration`` against PostgreSQL.
 """
 
 from typing import Any, Iterator
@@ -29,7 +30,7 @@ def app() -> FastAPI:
 
 @pytest.fixture()
 def client(app: FastAPI) -> Iterator[TestClient]:
-    """Client with NO session override: exercises the fail-closed 401 path."""
+    """Client with NO session override nor cookie: the fail-closed 401 path."""
     with TestClient(app) as test_client:
         yield test_client
 

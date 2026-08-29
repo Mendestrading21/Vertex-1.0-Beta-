@@ -27,6 +27,7 @@ from sqlalchemy import (
     Identity,
     Index,
     Integer,
+    LargeBinary,
     MetaData,
     Numeric,
     Text,
@@ -53,6 +54,8 @@ __all__ = [
     "Portfolio",
     "PositionLot",
     "LedgerTransaction",
+    "WebauthnCredential",
+    "AuthSession",
     "sql_enum_check",
 ]
 
@@ -228,6 +231,63 @@ class PositionLot(Base):
         CheckConstraint(sql_enum_check("source", POSITION_LOT_SOURCES), name="source_canonical"),
         CheckConstraint(f"currency ~ '{CURRENCY_PATTERN}'", name="currency_format"),
         Index("ix_position_lots_portfolio_id", "portfolio_id"),
+    )
+
+
+class WebauthnCredential(Base):
+    """One registered WebAuthn (passkey) credential of the single local user.
+
+    Stores only what the WebAuthn verification needs: the authenticator's
+    credential id and COSE public key (both opaque bytes — never a secret of
+    the server), the monotonic signature counter used for clone detection, an
+    operator-chosen label and the revocation timestamp. No password, no
+    recoverable secret and no broker-account concept lives here.
+    """
+
+    __tablename__ = "webauthn_credentials"
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
+    credential_id: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    public_key: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    sign_count: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    transports: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    label: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    revoked_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint("credential_id"),
+        CheckConstraint("sign_count >= 0", name="sign_count_non_negative"),
+    )
+
+
+class AuthSession(Base):
+    """One server-side authenticated session bound to a WebAuthn credential.
+
+    The opaque session token handed to the browser is NEVER stored: only its
+    SHA-256 hash (``session_id_hash``) lands in the database, so a database
+    read can never be replayed as a cookie. The CSRF double-submit token is
+    stored the same way (``csrf_token_hash``). Expiry and revocation are both
+    explicit timestamps — validation fails closed on either.
+    """
+
+    __tablename__ = "auth_sessions"
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
+    session_id_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    credential_id: Mapped[int] = mapped_column(
+        BigInteger, ForeignKey("webauthn_credentials.id"), nullable=False
+    )
+    csrf_token_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    revoked_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    __table_args__ = (
+        UniqueConstraint("session_id_hash"),
+        CheckConstraint("expires_at > created_at", name="expires_after_created"),
+        Index("ix_auth_sessions_credential_id", "credential_id"),
+        Index("ix_auth_sessions_expires_at", "expires_at"),
     )
 
 

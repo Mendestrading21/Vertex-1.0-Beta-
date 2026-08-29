@@ -101,6 +101,8 @@ def test_upgrade_downgrade_upgrade_without_drift(
             "portfolios",
             "position_lots",
             "ledger_transactions",
+            "webauthn_credentials",
+            "auth_sessions",
         }
 
         command.downgrade(alembic_config, "base")

@@ -6,8 +6,9 @@
   score, no gate and no verdict of its own);
 - ``GET /api/v1/system/engine`` — protected; engine/contract versions only.
 
-Protected routes depend on :func:`vertex_api.auth.require_session`, which
-fails closed with 401 ``AUTH_NOT_IMPLEMENTED`` until WebAuthn (LOT-09) exists.
+Protected routes depend on :func:`vertex_api.auth.require_session` (LOT-09):
+a valid WebAuthn session cookie — plus the CSRF double-submit header on every
+mutation — or a generic 401 with code ``AUTH_REQUIRED``, fail-closed.
 """
 
 from typing import Annotated
@@ -37,8 +38,9 @@ protected_router = APIRouter(
     responses={
         401: {
             "description": (
-                "Authentication is not implemented yet (LOT-09): every request "
-                "fails closed with detail code AUTH_NOT_IMPLEMENTED."
+                "Authentication required: no valid WebAuthn session cookie (or "
+                "missing/invalid CSRF header on a mutation). Always the same "
+                "generic body with detail code AUTH_REQUIRED."
             )
         }
     },

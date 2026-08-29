@@ -326,6 +326,28 @@
         "title": "CalculationStatusesInput",
         "type": "object"
       },
+      "CeremonyOptionsResponse": {
+        "additionalProperties": false,
+        "description": "A pending ceremony: opaque flow id + the WebAuthn options JSON.",
+        "properties": {
+          "flow_id": {
+            "minLength": 1,
+            "title": "Flow Id",
+            "type": "string"
+          },
+          "options": {
+            "additionalProperties": true,
+            "title": "Options",
+            "type": "object"
+          }
+        },
+        "required": [
+          "flow_id",
+          "options"
+        ],
+        "title": "CeremonyOptionsResponse",
+        "type": "object"
+      },
       "ConstraintsInput": {
         "additionalProperties": false,
         "description": "Facts for gate 10 (``user_constraints_versioned``).",
@@ -514,6 +536,19 @@
         "title": "GateStatus",
         "type": "string"
       },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
       "HealthResponse": {
         "additionalProperties": false,
         "description": "Liveness payload: static status and engine version, nothing sensitive.",
@@ -640,6 +675,66 @@
         "title": "LiquidityInput",
         "type": "object"
       },
+      "LoginVerifyRequest": {
+        "additionalProperties": false,
+        "description": "Client answer to an authentication ceremony.",
+        "properties": {
+          "credential": {
+            "additionalProperties": true,
+            "title": "Credential",
+            "type": "object"
+          },
+          "flow_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Flow Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "flow_id",
+          "credential"
+        ],
+        "title": "LoginVerifyRequest",
+        "type": "object"
+      },
+      "LoginVerifyResponse": {
+        "additionalProperties": false,
+        "description": "Session established (tokens travel ONLY in cookies, never in the body).",
+        "properties": {
+          "authenticated": {
+            "const": true,
+            "title": "Authenticated",
+            "type": "boolean"
+          },
+          "expires_at": {
+            "title": "Expires At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "authenticated",
+          "expires_at"
+        ],
+        "title": "LoginVerifyResponse",
+        "type": "object"
+      },
+      "LogoutResponse": {
+        "additionalProperties": false,
+        "description": "Session revoked and cookies cleared.",
+        "properties": {
+          "logged_out": {
+            "const": true,
+            "title": "Logged Out",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "logged_out"
+        ],
+        "title": "LogoutResponse",
+        "type": "object"
+      },
       "PortfolioRiskInput": {
         "additionalProperties": false,
         "description": "Facts for gate 7 (``manual_portfolio_risk_available``); declarations are user-made only.",
@@ -740,6 +835,57 @@
         "title": "ProbabilityInput",
         "type": "object"
       },
+      "RegisterVerifyRequest": {
+        "additionalProperties": false,
+        "description": "Client answer to a registration ceremony.",
+        "properties": {
+          "credential": {
+            "additionalProperties": true,
+            "title": "Credential",
+            "type": "object"
+          },
+          "flow_id": {
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Flow Id",
+            "type": "string"
+          },
+          "label": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "flow_id",
+          "label",
+          "credential"
+        ],
+        "title": "RegisterVerifyRequest",
+        "type": "object"
+      },
+      "RegisterVerifyResponse": {
+        "additionalProperties": false,
+        "description": "Registration acknowledged. Carries no secret and no credential material.",
+        "properties": {
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "registered": {
+            "const": true,
+            "title": "Registered",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "registered",
+          "label"
+        ],
+        "title": "RegisterVerifyResponse",
+        "type": "object"
+      },
       "SessionEventInput": {
         "additionalProperties": false,
         "description": "Facts for gate 4 (``session_and_event_known``).",
@@ -827,6 +973,46 @@
         ],
         "title": "SourceCapabilityStatus",
         "type": "string"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
       }
     }
   },
@@ -863,10 +1049,160 @@
             "description": "Successful Response"
           },
           "401": {
-            "description": "Authentication is not implemented yet (LOT-09): every request fails closed with detail code AUTH_NOT_IMPLEMENTED."
+            "description": "Authentication required: no valid WebAuthn session cookie (or missing/invalid CSRF header on a mutation). Always the same generic body with detail code AUTH_REQUIRED."
           }
         },
         "summary": "Evaluate gate inputs through the single AdviceEngine"
+      }
+    },
+    "/api/v1/auth/login/options": {
+      "post": {
+        "description": "Issue authentication options restricted to the registered passkeys.",
+        "operationId": "post_auth_login_options",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CeremonyOptionsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Authentication failed. Always the same generic body (code AUTH_REQUIRED) whatever the cause."
+          }
+        },
+        "summary": "Start a passkey authentication ceremony"
+      }
+    },
+    "/api/v1/auth/login/verify": {
+      "post": {
+        "description": "Verify the assertion, enforce the sign counter, issue the session.",
+        "operationId": "post_auth_login_verify",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginVerifyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginVerifyResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Authentication failed. Always the same generic body (code AUTH_REQUIRED) whatever the cause."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Finish a passkey authentication ceremony and open a session"
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "description": "Revoke the presented session server-side (requires session + CSRF).",
+        "operationId": "post_auth_logout",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LogoutResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Authentication failed. Always the same generic body (code AUTH_REQUIRED) whatever the cause."
+          }
+        },
+        "summary": "Revoke the current session and clear its cookies"
+      }
+    },
+    "/api/v1/auth/register/options": {
+      "post": {
+        "description": "Issue registration options. Free only for the very first credential.",
+        "operationId": "post_auth_register_options",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CeremonyOptionsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Authentication failed. Always the same generic body (code AUTH_REQUIRED) whatever the cause."
+          }
+        },
+        "summary": "Start a passkey registration ceremony"
+      }
+    },
+    "/api/v1/auth/register/verify": {
+      "post": {
+        "description": "Verify the attestation response and store the credential.",
+        "operationId": "post_auth_register_verify",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterVerifyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RegisterVerifyResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Authentication failed. Always the same generic body (code AUTH_REQUIRED) whatever the cause."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Finish a passkey registration ceremony"
       }
     },
     "/api/v1/health": {
@@ -904,7 +1240,7 @@
             "description": "Successful Response"
           },
           "401": {
-            "description": "Authentication is not implemented yet (LOT-09): every request fails closed with detail code AUTH_NOT_IMPLEMENTED."
+            "description": "Authentication required: no valid WebAuthn session cookie (or missing/invalid CSRF header on a mutation). Always the same generic body with detail code AUTH_REQUIRED."
           }
         },
         "summary": "Engine and contract versions"

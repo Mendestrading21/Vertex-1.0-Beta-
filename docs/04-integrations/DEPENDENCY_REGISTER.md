@@ -14,6 +14,7 @@ Les versions exactes et hashes sont résolus au LOT-01, puis verrouillés dans `
 | Alembic | migrations | stable | MIT | https://github.com/sqlalchemy/alembic |
 | Psycopg | driver PostgreSQL | v3 | LGPL-3.0 | https://github.com/psycopg/psycopg |
 | HTTPX | client HTTP strict pour sources officielles | stable épinglée | BSD-3-Clause | https://github.com/encode/httpx |
+| py_webauthn | vérification serveur des cérémonies WebAuthn/passkey (LOT-09) ; adopter | 3.0.0 épinglée | BSD-3-Clause | https://github.com/duo-labs/py_webauthn |
 | OpenTelemetry SDK | traces/métriques corrélées | stable épinglée | Apache-2.0 | https://github.com/open-telemetry/opentelemetry-python |
 | Prometheus client | métriques locales bornées | stable épinglée | Apache-2.0 | https://github.com/prometheus/client_python |
 | PostgreSQL | vérité transactionnelle/outbox | 18 | PostgreSQL | https://www.postgresql.org/docs/current/ |

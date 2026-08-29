@@ -12,6 +12,8 @@ from typing import Any
 from fastapi import FastAPI
 from fastapi.openapi.utils import get_openapi
 
+from vertex_api.auth import auth_router
+from vertex_api.auth.challenges import ChallengeStore
 from vertex_api.routes import protected_router, public_router
 from vertex_api.schemas import AdvicePreviewRequest
 from vertex_core.version import ENGINE_VERSION
@@ -68,17 +70,19 @@ def _build_openapi_schema(app: FastAPI) -> dict[str, Any]:
 def create_app() -> FastAPI:
     """Build the Vertex One API application.
 
-    Three routes (health, advice preview, system engine), fail-closed
-    authentication on everything except ``/api/v1/health``, and a
-    deterministic OpenAPI document titled ``Vertex One API`` versioned by
-    ``vertex_core.version.ENGINE_VERSION``.
+    Health, the passkey authentication ceremonies (``/api/v1/auth``), and the
+    protected advice/system routes behind the fail-closed WebAuthn session
+    dependency. Each application carries its own in-memory challenge store;
+    no environment is read here, so the OpenAPI document stays deterministic.
     """
     app = FastAPI(
         title=_API_TITLE,
         version=ENGINE_VERSION,
         description=_API_DESCRIPTION,
     )
+    app.state.challenge_store = ChallengeStore()
     app.include_router(public_router)
+    app.include_router(auth_router)
     app.include_router(protected_router)
 
     def custom_openapi() -> dict[str, Any]:

@@ -21,6 +21,11 @@ __all__ = [
     "UnknownPortfolioError",
     "UnknownLedgerEventError",
     "AlreadyCompensatedError",
+    "AuthStorageError",
+    "UnknownCredentialError",
+    "CredentialRevokedError",
+    "DuplicateCredentialError",
+    "SignCountRegressionError",
 ]
 
 
@@ -80,3 +85,32 @@ class UnknownLedgerEventError(LedgerError):
 
 class AlreadyCompensatedError(LedgerError):
     """The referenced ledger transaction already has a compensating entry."""
+
+
+class AuthStorageError(PersistenceError):
+    """Base class of passkey credential and session storage errors.
+
+    These errors carry only technical identifiers — never a token, hash
+    preimage or any value usable to authenticate.
+    """
+
+
+class UnknownCredentialError(AuthStorageError):
+    """The referenced WebAuthn credential does not exist."""
+
+
+class CredentialRevokedError(AuthStorageError):
+    """The referenced WebAuthn credential has been revoked."""
+
+
+class DuplicateCredentialError(AuthStorageError):
+    """A credential with the same authenticator credential id already exists."""
+
+
+class SignCountRegressionError(AuthStorageError):
+    """The authenticator reported a non-increasing signature counter.
+
+    Per WebAuthn §6.1.1 this signals a cloned authenticator. The repository
+    revokes the credential and all its sessions BEFORE raising, so the caller
+    only has to commit the transaction and fail the login closed.
+    """

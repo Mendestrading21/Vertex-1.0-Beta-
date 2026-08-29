@@ -16,6 +16,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 _IMPORT_PATHS = (
     _REPO_ROOT / "apps" / "api" / "src",
     _REPO_ROOT / "packages" / "python" / "vertex_core" / "src",
+    _REPO_ROOT / "packages" / "python" / "vertex_persistence" / "src",
 )
 
 DEFAULT_TARGET = _REPO_ROOT / "apps" / "api" / "openapi.json"

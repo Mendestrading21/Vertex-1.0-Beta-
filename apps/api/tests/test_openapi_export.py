@@ -52,7 +52,16 @@ def test_openapi_structure_is_explicit() -> None:
         for path_item in schema["paths"].values()
         for operation in path_item.values()
     }
-    assert operation_ids == {"get_health", "post_advice_preview", "get_system_engine"}
+    assert operation_ids == {
+        "get_health",
+        "post_advice_preview",
+        "get_system_engine",
+        "post_auth_register_options",
+        "post_auth_register_verify",
+        "post_auth_login_options",
+        "post_auth_login_verify",
+        "post_auth_logout",
+    }
 
     components = schema["components"]["schemas"]
     assert "AdvicePreviewRequest" in components
