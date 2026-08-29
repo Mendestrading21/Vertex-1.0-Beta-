@@ -112,6 +112,7 @@ testpaths = [
     "apps/ingress-tradingview/tests",
     "apps/worker/tests",
     "tools/tests",
+    "research/tests",
 ]
 pythonpath = [
     "apps/ingress-tradingview/src",
@@ -120,6 +121,7 @@ pythonpath = [
     "apps/api/src",
     "apps/edge-ibkr/src",
     "apps/worker/src",
+    "research",
 ]
 addopts = "-q --strict-markers"
 markers = [
