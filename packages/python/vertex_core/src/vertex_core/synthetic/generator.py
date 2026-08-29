@@ -1,0 +1,334 @@
+"""Deterministic generator of clearly-synthetic development ``DataEnvelope``s.
+
+Purpose: exercising the ingestion, fusion and attention chain in development
+without touching any real market data. Every generated envelope is honest
+about its nature:
+
+- ``source`` is always ``synthetic-dev``;
+- ``rights`` is always ``SYNTHETIC``;
+- tickers are ``SYN1..SYNn`` (no real instrument is ever referenced);
+- every news title starts with ``[SYNTHETIC]``;
+- payloads carry an explicit ``"synthetic": true`` marker;
+- ``delay_status`` is ``UNKNOWN`` — synthetic data is never presented as
+  live, delayed or frozen real market data.
+
+Determinism: the generator is a pure function of ``(seed, count, base_time)``.
+The seed is mandatory (no hidden entropy, no system clock) and identical
+inputs always produce identical envelopes, byte for byte.
+
+Duplicate levels: when ``count >= 5`` the generated set is guaranteed to
+contain at least one duplicate of each level so the downstream chain can be
+tested end to end:
+
+- ``INGEST``: the exact same envelope repeated (same ``event_id``) —
+  absorbed by idempotent observation insertion;
+- ``NATIVE``: same provider native id (``source_event_id``) under a new
+  ``event_id`` — linked by fusion level 1;
+- ``URL``: same canonical URL (with tracking parameters added) under a new
+  ``event_id`` — linked by fusion level 2;
+- ``FINGERPRINT``: same normalized title and entities with a different URL —
+  linked by fusion level 3.
+"""
+
+from __future__ import annotations
+
+import random
+from dataclasses import dataclass
+from datetime import datetime, timedelta
+from typing import Optional
+
+from vertex_core.contracts import (
+    DataEnvelope,
+    DelayStatus,
+    EnvelopeQuality,
+    canonical_json_hash,
+    ensure_utc,
+)
+
+__all__ = [
+    "SYNTHETIC_RIGHTS",
+    "SYNTHETIC_SCHEMA_NEWS",
+    "SYNTHETIC_SCHEMA_QUOTE",
+    "SYNTHETIC_SOURCE",
+    "SYNTHETIC_TITLE_PREFIX",
+    "generate_envelopes",
+    "is_synthetic",
+]
+
+
+SYNTHETIC_SOURCE = "synthetic-dev"
+"""Source stamped on every generated envelope (never a real provider name)."""
+
+SYNTHETIC_RIGHTS = "SYNTHETIC"
+"""Rights label of every generated envelope; it marks a production boundary."""
+
+SYNTHETIC_TITLE_PREFIX = "[SYNTHETIC] "
+"""Mandatory prefix of every generated news title."""
+
+SYNTHETIC_SCHEMA_NEWS = "synthetic-news/1.0"
+SYNTHETIC_SCHEMA_QUOTE = "synthetic-quote/1.0"
+
+_QUALITY_CHOICES = (
+    EnvelopeQuality.VALID,
+    EnvelopeQuality.VALID,
+    EnvelopeQuality.PARTIAL,
+    EnvelopeQuality.STALE,
+)
+
+_HEADLINE_TEMPLATES = (
+    "Fictional company SYN{n} announces imaginary product line {tag}",
+    "Placeholder update {tag} on SYN{n} simulated operations",
+    "Invented market note {tag} about SYN{n} for pipeline testing",
+    "Made-up quarterly bulletin {tag} for SYN{n} development runs",
+)
+
+_STALE_GRACE = timedelta(hours=6)
+_STORY_SPACING = timedelta(minutes=3)
+_RECEIVE_LAG = timedelta(seconds=30)
+
+
+def is_synthetic(envelope: DataEnvelope) -> bool:
+    """Return ``True`` when ``envelope`` is marked synthetic.
+
+    Fail-closed on either marker: SYNTHETIC rights or the synthetic-dev
+    source each suffice — an envelope carrying one marker without the other
+    is still treated as synthetic and must never be presented as real.
+    """
+    if not isinstance(envelope, DataEnvelope):
+        raise TypeError(
+            f"envelope: expected DataEnvelope, got {type(envelope).__name__}"
+        )
+    return envelope.rights == SYNTHETIC_RIGHTS or envelope.source == SYNTHETIC_SOURCE
+
+
+@dataclass(frozen=True)
+class _Story:
+    """One synthetic news story other envelopes may duplicate."""
+
+    number: int
+    ticker: str
+    title: str
+    canonical_url: str
+    native_id: str
+    quality: EnvelopeQuality
+    event_id: str
+
+
+def _validate_inputs(seed: int, count: int, base_time: datetime) -> datetime:
+    if not isinstance(seed, int) or isinstance(seed, bool):
+        raise TypeError(f"seed: expected int, got {type(seed).__name__}")
+    if not isinstance(count, int) or isinstance(count, bool):
+        raise TypeError(f"count: expected int, got {type(count).__name__}")
+    if count < 1:
+        raise ValueError(f"count: must be >= 1, got {count}")
+    if not isinstance(base_time, datetime):
+        raise TypeError(
+            f"base_time: expected datetime, got {type(base_time).__name__}"
+        )
+    return ensure_utc(base_time)
+
+
+def _cents(rng: random.Random, low: int, high: int) -> str:
+    """Deterministic decimal string price in cents (no float ever)."""
+    cents = rng.randrange(low, high)
+    return f"{cents // 100}.{cents % 100:02d}"
+
+
+def _news_payload(title: str, canonical_url: str, ticker: str) -> dict:
+    return {
+        "type": "news",
+        "synthetic": True,
+        "title": title,
+        "canonical_url": canonical_url,
+        "entities": [ticker],
+        "body": (
+            "Synthetic development fixture generated by vertex_core.synthetic. "
+            "Not real market information; never present as live data."
+        ),
+    }
+
+
+def _make_envelope(
+    *,
+    seed: int,
+    index: int,
+    schema_version: str,
+    source_event_id: Optional[str],
+    instrument_id: str,
+    published_at: datetime,
+    quality: EnvelopeQuality,
+    payload: dict,
+) -> DataEnvelope[dict]:
+    received_at = published_at + _RECEIVE_LAG
+    stale_after = (
+        received_at if quality is EnvelopeQuality.STALE else received_at + _STALE_GRACE
+    )
+    return DataEnvelope[dict](
+        event_id=f"{SYNTHETIC_SOURCE}:{seed}:{index:04d}",
+        schema_version=schema_version,
+        source=SYNTHETIC_SOURCE,
+        source_event_id=source_event_id,
+        entitlement_id=None,
+        instrument_id=instrument_id,
+        observed_at=None,
+        published_at=published_at,
+        received_at=received_at,
+        as_of=received_at,
+        stale_after=stale_after,
+        quality_status=quality,
+        delay_status=DelayStatus.UNKNOWN,
+        connection_epoch=None,
+        rights=SYNTHETIC_RIGHTS,
+        payload_hash=canonical_json_hash(payload),
+        payload=payload,
+    )
+
+
+def generate_envelopes(
+    *, seed: int, count: int, base_time: datetime
+) -> tuple[DataEnvelope[dict], ...]:
+    """Generate ``count`` deterministic synthetic envelopes.
+
+    Pure function of ``(seed, count, base_time)``; the seed is mandatory and
+    there is no hidden randomness or clock. ``base_time`` must be a
+    timezone-aware instant; every generated timestamp lies strictly before
+    it. When ``count >= 5`` the set is guaranteed to contain at least one
+    duplicate of each level (INGEST, NATIVE, URL, FINGERPRINT) of the first
+    story — see the module docstring.
+    """
+    base_time = _validate_inputs(seed, count, base_time)
+    rng = random.Random(seed)
+
+    stories: list[_Story] = []
+    envelopes: list[DataEnvelope[dict]] = []
+    envelope_by_event_id: dict[str, DataEnvelope[dict]] = {}
+    forced_levels = ("INGEST", "NATIVE", "URL", "FINGERPRINT")
+
+    for index in range(count):
+        published_at = base_time - _STORY_SPACING * (count - index)
+
+        if index == 0 or (index > 4 and (not stories or rng.random() < 0.55)):
+            # New original item: mostly news stories, some quotes.
+            if index > 0 and rng.random() < 0.25:
+                ticker = f"SYN{rng.randrange(1, 10)}"
+                payload = {
+                    "type": "quote",
+                    "synthetic": True,
+                    "ticker": ticker,
+                    "bid": _cents(rng, 500, 45000),
+                    "ask": _cents(rng, 45000, 46000),
+                    "note": f"{SYNTHETIC_TITLE_PREFIX}fixture quote for {ticker}",
+                }
+                envelope = _make_envelope(
+                    seed=seed,
+                    index=index,
+                    schema_version=SYNTHETIC_SCHEMA_QUOTE,
+                    source_event_id=f"syn-quote-{index:04d}",
+                    instrument_id=ticker,
+                    published_at=published_at,
+                    quality=rng.choice(_QUALITY_CHOICES),
+                    payload=payload,
+                )
+            else:
+                number = len(stories) + 1
+                ticker = f"SYN{number}"
+                tag = f"S{number:03d}"
+                title = SYNTHETIC_TITLE_PREFIX + rng.choice(
+                    _HEADLINE_TEMPLATES
+                ).format(n=number, tag=tag)
+                story = _Story(
+                    number=number,
+                    ticker=ticker,
+                    title=title,
+                    canonical_url=(
+                        f"https://synthetic.invalid/news/story-{number:03d}"
+                    ),
+                    native_id=f"syn-native-{number:03d}",
+                    quality=rng.choice(_QUALITY_CHOICES),
+                    event_id=f"{SYNTHETIC_SOURCE}:{seed}:{index:04d}",
+                )
+                stories.append(story)
+                envelope = _make_envelope(
+                    seed=seed,
+                    index=index,
+                    schema_version=SYNTHETIC_SCHEMA_NEWS,
+                    source_event_id=story.native_id,
+                    instrument_id=story.ticker,
+                    published_at=published_at,
+                    quality=story.quality,
+                    payload=_news_payload(
+                        story.title, story.canonical_url, story.ticker
+                    ),
+                )
+        else:
+            # Duplicate of an existing story. Indices 1..4 force one
+            # duplicate per level of story 0 (guaranteed multi-level dups).
+            if 1 <= index <= 4:
+                story = stories[0]
+                level = forced_levels[index - 1]
+            else:
+                story = rng.choice(stories)
+                level = rng.choice(forced_levels)
+
+            if level == "INGEST":
+                # Exact repeat: same event_id, same everything.
+                envelopes.append(envelope_by_event_id[story.event_id])
+                continue
+            if level == "NATIVE":
+                title = (
+                    f"{SYNTHETIC_TITLE_PREFIX}Rewritten native wire copy "
+                    f"{index:04d} of story {story.number:03d}"
+                )
+                envelope = _make_envelope(
+                    seed=seed,
+                    index=index,
+                    schema_version=SYNTHETIC_SCHEMA_NEWS,
+                    source_event_id=story.native_id,
+                    instrument_id=story.ticker,
+                    published_at=published_at,
+                    quality=rng.choice(_QUALITY_CHOICES),
+                    payload=_news_payload(
+                        title,
+                        f"https://synthetic.invalid/wire/{index:04d}",
+                        story.ticker,
+                    ),
+                )
+            elif level == "URL":
+                title = (
+                    f"{SYNTHETIC_TITLE_PREFIX}Alternate syndicated headline "
+                    f"{index:04d} of story {story.number:03d}"
+                )
+                envelope = _make_envelope(
+                    seed=seed,
+                    index=index,
+                    schema_version=SYNTHETIC_SCHEMA_NEWS,
+                    source_event_id=f"syn-url-dup-{index:04d}",
+                    instrument_id=story.ticker,
+                    published_at=published_at,
+                    quality=rng.choice(_QUALITY_CHOICES),
+                    payload=_news_payload(
+                        title,
+                        f"{story.canonical_url}?utm_source=synthetic&utm_medium=dev",
+                        story.ticker,
+                    ),
+                )
+            else:  # FINGERPRINT
+                envelope = _make_envelope(
+                    seed=seed,
+                    index=index,
+                    schema_version=SYNTHETIC_SCHEMA_NEWS,
+                    source_event_id=f"syn-fp-dup-{index:04d}",
+                    instrument_id=story.ticker,
+                    published_at=published_at,
+                    quality=rng.choice(_QUALITY_CHOICES),
+                    payload=_news_payload(
+                        story.title,
+                        f"https://synthetic.invalid/mirror/{index:04d}",
+                        story.ticker,
+                    ),
+                )
+
+        envelopes.append(envelope)
+        envelope_by_event_id[envelope.event_id] = envelope
+
+    return tuple(envelopes)

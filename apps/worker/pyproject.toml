@@ -1,0 +1,27 @@
+# Vertex One — worker app (dossier 12) : boucle outbox et chaîne d'ingestion.
+# Cible runtime 3.13 (épinglée par uv.lock au LOT-01) ; plancher dev local 3.11.
+[project]
+name = "vertex-worker"
+version = "0.1.0"
+description = "Vertex One — outbox worker daemon: claims outbox messages (ADR-006), runs deterministic fusion/attention handlers and publishes versioned snapshots. Analysis only — no order capability, no broker account data."
+requires-python = ">=3.11"
+license = "LicenseRef-Proprietary"
+dependencies = [
+    # Both are resolved from this monorepo workspace, never from an external index.
+    "vertex-core>=0.1.0",
+    "vertex-persistence>=0.1.0",
+    "SQLAlchemy>=2.0,<3",
+    "psycopg>=3.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
