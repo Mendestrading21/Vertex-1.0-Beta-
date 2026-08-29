@@ -14,6 +14,9 @@ python3 tools/verify_blueprint.py >/dev/null && echo OK
 echo "== frontière financière =="
 python3 tools/check_financial_boundary.py >/dev/null && echo OK
 
+echo "== registre des calculs =="
+python3 tools/check_calculation_registry.py >/dev/null && echo OK
+
 echo "== compilation =="
 python3 -m compileall -q packages/python && echo OK
 

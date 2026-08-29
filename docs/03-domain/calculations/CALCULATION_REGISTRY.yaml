@@ -1,8 +1,19 @@
-schema_version: 1
-registry_status: planning_seed
+schema_version: 2
+# schema_version 2 adds the per-entry runtime approval block required by
+# activation_rule (the eight required_runtime_fields plus runtime_status).
+# Entries keep every field of schema_version 1 unchanged.
+registry_status: runtime_partially_approved
+registry_status_meaning: >-
+  Twenty-three entries carry a verified runtime block; two entries have no
+  implementation in this repository and stay NOT_IMPLEMENTED. No entry is
+  approved on documentation alone: every method, tolerance, oracle and test
+  path below was read in the code and in the test files it cites.
 activation_rule: >-
-  No entry is runtime-approved until LOT-07 adds and validates its spec_version,
-  method, assumptions, parameter_schema, tolerances, oracle, criticality and tests.
+  No entry is runtime-approved until its spec_version, method, assumptions,
+  parameter_schema, tolerances, oracle, criticality and tests are present and
+  verified against the real implementation and the real test files. A
+  production CalculationRecord may only carry an entry whose runtime_status is
+  APPROVED; tools/check_calculation_registry.py enforces this in CI.
 required_runtime_fields:
   - spec_version
   - method
@@ -12,6 +23,19 @@ required_runtime_fields:
   - oracle
   - criticality
   - tests
+runtime_status_values:
+  APPROVED: >-
+    A real implementation exists in vertex_core, the eight required runtime
+    fields are present and verified, an independent oracle or hand-derived
+    golden vectors exist, and every cited test file exists. Only an APPROVED
+    entry may appear in a production CalculationRecord.
+  RESEARCH_ONLY: >-
+    An implementation exists but at least one runtime approval condition is
+    not met. blocking_reason names the gap. Forbidden in a production
+    CalculationRecord; research and notebooks only.
+  NOT_IMPLEMENTED: >-
+    No implementation exists in this repository. blocking_reason names what is
+    missing. The entry is a declared intention, never a pending automation.
 rules:
   authority: python_only
   money_transport: decimal_string
@@ -24,90 +48,572 @@ calculations:
     output_unit: ratio
     gates: [positive_prices, same_adjustment_basis]
     invariants: [finite, composition_documented]
+    runtime_status: APPROVED
+    spec_version: "1.0.0"
+    implementation: packages/python/vertex_core/src/vertex_core/calculations/market.py::simple_return
+    method: closed_form_price_ratio_minus_one
+    assumptions:
+      - "Arithmetic return p1 / p0 - 1, computed in float64 after an explicit conversion of int/float/Decimal inputs; bool is rejected at the boundary."
+      - "Both prices must carry the same adjustment basis label; mixing bases is rejected, never silently accepted."
+      - "Dimensionless output; currency and instrument identity stay with the caller."
+      - "Negative zero is normalized to 0.0; a non-finite result raises CalculationInputError instead of returning inf or NaN."
+    parameter_schema:
+      price_t0: {type: "int | float | Decimal", unit: price, constraint: "finite and > 0"}
+      price_t1: {type: "int | float | Decimal", unit: price, constraint: "finite and > 0"}
+      adjustment_basis_t0: {type: str, unit: label, constraint: "non-empty, keyword-only"}
+      adjustment_basis_t1: {type: str, unit: label, constraint: "non-empty, must equal adjustment_basis_t0"}
+      returns: {type: float, unit: ratio}
+    tolerances:
+      float64_rel_tol: 1.0e-9
+      float64_abs_tol: 1.0e-12
+      note: >-
+        FLOAT64_REL_TOL and FLOAT64_ABS_TOL are module constants of
+        calculations/market.py. Multiplicative composition
+        (1+r(p0,p1))*(1+r(p1,p2)) == 1+r(p0,p2) is asserted with
+        rel_tol=FLOAT64_REL_TOL and abs_tol=FLOAT64_ABS_TOL on prices bounded
+        to [1e-2, 1e3] (documented in the test file).
+    oracle: hand_derived_golden_vectors
+    oracle_evidence: >-
+      Hand-derived values asserted in TestSimpleReturn (100 -> 110 == 0.10,
+      100 -> 75 == -0.25) plus the Hypothesis identities
+      test_simple_returns_compose_multiplicatively and
+      test_log_return_matches_log1p_of_simple_return.
+    oracle_limitation: >-
+      No third-party independent implementation is used; the vectors are not
+      registered under the pytest golden marker.
+    criticality: high
+    tests:
+      - packages/python/vertex_core/tests/calculations/test_market.py
+      - apps/worker/tests/test_markets_content.py
+      - apps/api/tests/test_markets_overview.py
   - id: market.log_return
     owner: market_statistics
     inputs: [price_t0, price_t1]
     output_unit: log_ratio
     gates: [strictly_positive_prices]
     invariants: [finite]
+    runtime_status: APPROVED
+    spec_version: "1.0.0"
+    implementation: packages/python/vertex_core/src/vertex_core/calculations/market.py::log_return
+    method: closed_form_log_difference
+    assumptions:
+      - "Computed as log(p1) - log(p0), never log(p1 / p0), so the ratio cannot overflow float64."
+      - "The same_adjustment_basis gate is enforced here too (fail-closed superset of the declared gate)."
+      - "Additive composition and antisymmetry hold within the documented float64 tolerance."
+    parameter_schema:
+      price_t0: {type: "int | float | Decimal", unit: price, constraint: "finite and > 0"}
+      price_t1: {type: "int | float | Decimal", unit: price, constraint: "finite and > 0"}
+      adjustment_basis_t0: {type: str, unit: label, constraint: "non-empty, keyword-only"}
+      adjustment_basis_t1: {type: str, unit: label, constraint: "non-empty, must equal adjustment_basis_t0"}
+      returns: {type: float, unit: log_ratio}
+    tolerances:
+      float64_rel_tol: 1.0e-9
+      float64_abs_tol: 1.0e-12
+      property_abs_tol: 1.0e-9
+      note: >-
+        Additive composition and antisymmetry are asserted with
+        rel_tol=FLOAT64_REL_TOL and abs_tol=1e-9 / 1e-12 in the property
+        classes of the test file.
+    oracle: independent_recomputation_in_test
+    oracle_evidence: >-
+      test_nominal asserts equality with math.log(1.1) recomputed in the test;
+      test_log_return_matches_log1p_of_simple_return cross-checks the log form
+      against the independent simple-return path.
+    oracle_limitation: >-
+      No third-party independent implementation is used.
+    criticality: high
+    tests:
+      - packages/python/vertex_core/tests/calculations/test_market.py
   - id: market.realized_volatility
     owner: market_statistics
     inputs: [returns, sampling_frequency, annualization_calendar]
     output_unit: annualized_decimal
     gates: [minimum_sample, regularized_sampling]
     invariants: [non_negative, finite]
+    runtime_status: APPROVED
+    spec_version: "1.0.0"
+    implementation: packages/python/vertex_core/src/vertex_core/calculations/market.py::realized_volatility
+    method: unbiased_sample_standard_deviation_ddof1_annualized_by_sqrt_periods
+    assumptions:
+      - "Unbiased sample standard deviation (ddof = 1) of the per-period returns supplied by the caller."
+      - "Annualization by sqrt(periods_per_year): independent increments assumed; the caller states periods_per_year consistently with the sampling frequency (for example 252 for daily bars)."
+      - "Minimum sample of 2 returns; a smaller sample is INVALID, never padded."
+      - "Sums use math.fsum; an overflowing mean or variance raises CalculationInputError instead of returning inf."
+    parameter_schema:
+      returns: {type: "list | tuple of (int | float | Decimal)", unit: ratio_per_period, constraint: "length >= 2, every element finite"}
+      periods_per_year: {type: "int | float | Decimal", unit: periods_per_year, constraint: "finite and > 0"}
+      returns_value: {type: float, unit: annualized_decimal}
+    tolerances:
+      float64_rel_tol: 1.0e-9
+      constant_series_bound: "1e-12 * max(1, |value|) * sqrt(periods_per_year)"
+      note: >-
+        The constant-series property test bounds the volatility of a constant
+        series by 1e-12 * max(1, |value|) * sqrt(ppy), the documented float64
+        mean error.
+    oracle: independent_recomputation_in_test
+    oracle_evidence: >-
+      test_nominal_four_returns recomputes the mean and the ddof=1 variance in
+      the test and compares with math.sqrt(variance * 252).
+    oracle_limitation: >-
+      No third-party independent implementation (numpy.std / statistics) is
+      used as an oracle.
+    criticality: high
+    tests:
+      - packages/python/vertex_core/tests/calculations/test_market.py
   - id: market.atr
     owner: indicators
     inputs: [bars, lookback]
     output_unit: price
     gates: [ordered_complete_bars]
     invariants: [non_negative]
+    runtime_status: APPROVED
+    spec_version: "1.0.0"
+    implementation: packages/python/vertex_core/src/vertex_core/calculations/market.py::atr
+    method: wilder_true_range_simple_arithmetic_mean
+    assumptions:
+      - "True range TR_i = max(high_i - low_i, |high_i - close_{i-1}|, |low_i - close_{i-1}|)."
+      - "Simple arithmetic mean of the last lookback true ranges; Wilder recursive exponential smoothing is deliberately NOT used (deterministic, warm-up free)."
+      - "Bar coherence is checked on exact Decimal values before any float conversion; timestamps must be strictly increasing."
+      - "len(bars) >= lookback + 1 because each true range needs the previous close; a shorter series is INVALID, never padded."
+      - "Result is expressed in the price units of the bars; currency ownership stays with the caller."
+    parameter_schema:
+      bars: {type: "list | tuple of OhlcBar", unit: price_bars, constraint: "strictly increasing UTC timestamps, high >= low, high >= max(open, close), low <= min(open, close), length >= lookback + 1"}
+      lookback: {type: int, unit: bars, constraint: ">= 1, bool rejected"}
+      returns: {type: float, unit: price}
+    tolerances:
+      float64_rel_tol: 1.0e-9
+      note: >-
+        Hand-checked true ranges are asserted with rel=FLOAT64_REL_TOL. Bar
+        coherence gates compare exact Decimal values with no tolerance.
+    oracle: hand_derived_golden_vectors
+    oracle_evidence: >-
+      The coherent_bars fixture documents each true range in a comment
+      (TR = 2 then TR = 1, ATR(2) = 1.5, ATR(1) = 1.0) and the gap case
+      asserts TR = 6.0 from an independently derived hand computation.
+    oracle_limitation: >-
+      No third-party indicator library is used as an oracle; the vectors are
+      not registered under the pytest golden marker.
+    criticality: high
+    tests:
+      - packages/python/vertex_core/tests/calculations/test_market.py
   - id: market.relative_strength
     owner: indicators
     inputs: [asset_returns, benchmark_returns, horizon]
     output_unit: ratio
     gates: [aligned_calendars]
     invariants: [finite]
+    runtime_status: APPROVED
+    spec_version: "1.0.0"
+    implementation: packages/python/vertex_core/src/vertex_core/calculations/market.py::relative_strength
+    method: compounded_simple_return_ratio_over_horizon
+    assumptions:
+      - "RS = prod(1 + r_asset) / prod(1 + r_benchmark) over the last horizon aligned periods."
+      - "Inputs are per-period SIMPLE returns, not log returns."
+      - "Calendars are aligned upstream: the two series must have exactly the same length; mismatched lengths are rejected, never truncated."
+      - "Every return must be strictly greater than -1; compounding overflow or underflow raises CalculationInputError instead of returning inf or zero."
+    parameter_schema:
+      asset_returns: {type: "list | tuple of (int | float | Decimal)", unit: ratio_per_period, constraint: "same length as benchmark_returns, each element finite and > -1"}
+      benchmark_returns: {type: "list | tuple of (int | float | Decimal)", unit: ratio_per_period, constraint: "same length as asset_returns, each element finite and > -1"}
+      horizon: {type: int, unit: periods, constraint: ">= 1 and <= len(asset_returns)"}
+      returns: {type: float, unit: ratio}
+    tolerances:
+      float64_rel_tol: 1.0e-9
+      note: >-
+        Hand-derived expectations and the identical-series identity are
+        asserted with rel=FLOAT64_REL_TOL.
+    oracle: hand_derived_golden_vectors
+    oracle_evidence: >-
+      test_nominal_outperformance asserts 1.21 (1.1 * 1.1) and
+      test_horizon_selects_trailing_window asserts 1.1, both hand derived;
+      test_identical_series_give_one is the Hypothesis identity.
+    oracle_limitation: >-
+      No third-party independent implementation is used.
+    criticality: high
+    tests:
+      - packages/python/vertex_core/tests/calculations/test_market.py
   - id: market.breadth
     owner: market_statistics
     inputs: [point_in_time_universe, returns]
     output_unit: ratio
     gates: [coverage_threshold]
     invariants: [between_minus_one_and_one]
+    runtime_status: APPROVED
+    spec_version: "1.0.0"
+    implementation: packages/python/vertex_core/src/vertex_core/calculations/market.py::breadth
+    method: participation_ratio_above_over_covered
+    assumptions:
+      - "PARTICIPATION ratio above_count / covered_count in [0, 1]; the signed advancers-minus-decliners variant in [-1, 1] is a different calculation and is not computed here."
+      - "covered_count / universe_size must reach the caller-provided coverage_threshold; no default threshold exists."
+      - "Counts are exact integers (bool rejected); a coverage below the threshold is INVALID and never presented as universe breadth."
+      - "A zero denominator is unreachable because coverage_threshold > 0 is required."
+    parameter_schema:
+      above_count: {type: int, unit: count, constraint: "0 <= above_count <= covered_count"}
+      universe_size: {type: int, unit: count, constraint: ">= 1"}
+      covered_count: {type: int, unit: count, constraint: "0 <= covered_count <= universe_size, keyword-only"}
+      coverage_threshold: {type: "int | float | Decimal", unit: ratio, constraint: "in (0, 1], keyword-only"}
+      returns: {type: float, unit: ratio}
+    tolerances:
+      float64_rel_tol: 1.0e-9
+      note: >-
+        Ratios are asserted with rel=FLOAT64_REL_TOL; the gate comparisons on
+        counts are exact integer comparisons.
+    oracle: independent_recomputation_in_test
+    oracle_evidence: >-
+      test_nominal recomputes 60 / 90 in the test and
+      test_threshold_accepts_decimal recomputes 30 / 80 = 0.375; the property
+      test re-derives the [0, 1] and [-1, 1] bounds independently.
+    criticality: high
+    tests:
+      - packages/python/vertex_core/tests/calculations/test_market.py
+      - apps/worker/tests/test_markets_content.py
+      - apps/api/tests/test_markets_overview.py
   - id: portfolio.fx_conversion
     owner: portfolio
     inputs: [money, fx_quote, quote_as_of]
     output_unit: target_currency
     gates: [fx_fresh_for_usage]
     invariants: [round_trip_within_tolerance]
+    runtime_status: RESEARCH_ONLY
+    blocking_reason: >-
+      The declared gate fx_fresh_for_usage is NOT enforced by this calculation
+      (the code states it is owned by data_quality upstream) and no production
+      caller exists, so no code path proves the freshness gate is applied
+      before a conversion is used. The arithmetic itself is implemented and
+      tested; approval requires a production caller that enforces
+      fx_fresh_for_usage.
+    spec_version: "1.0.0"
+    implementation: packages/python/vertex_core/src/vertex_core/calculations/portfolio.py::fx_conversion
+    method: exact_decimal_multiplication_in_pinned_context
+    assumptions:
+      - "fx_rate is expressed as target currency per source currency unit; the product is one Decimal multiplication in a pinned 28-significant-digit context (ROUND_HALF_EVEN)."
+      - "quote_as_of must be timezone-aware; a naive datetime is rejected so the instant of the rate is always provable."
+      - "Freshness of the quote is owned by data_quality upstream and is NOT checked here."
+      - "Negative zero is normalized to zero; money may be negative."
+    parameter_schema:
+      money: {type: Decimal, unit: source_currency, constraint: "finite Decimal instance"}
+      fx_rate: {type: Decimal, unit: target_per_source, constraint: "finite Decimal instance, > 0"}
+      quote_as_of: {type: datetime, unit: instant, constraint: "timezone-aware UTC"}
+      returns: {type: Decimal, unit: target_currency}
+    tolerances:
+      decimal_precision: 28
+      fx_round_trip_relative_tolerance: 1.0e-20
+      note: >-
+        DECIMAL_PRECISION and FX_ROUND_TRIP_RELATIVE_TOLERANCE are module
+        constants of calculations/portfolio.py; the round-trip property test
+        bounds the error by FX_ROUND_TRIP_RELATIVE_TOLERANCE * max(1, |money|).
+    oracle: independent_recomputation_in_test
+    oracle_evidence: >-
+      test_exact_multiplication asserts the hand-computed 100.00 * 0.9250 =
+      92.5 and test_round_trip_within_documented_tolerance inverts the rate at
+      28 digits in the test itself.
+    criticality: critical
+    tests:
+      - packages/python/vertex_core/tests/calculations/test_portfolio.py
   - id: portfolio.realized_pnl
     owner: portfolio
     inputs: [lots, closing_transactions, fees, fx]
     output_unit: money
     gates: [balanced_ledger]
     invariants: [lot_conservation]
+    runtime_status: APPROVED
+    spec_version: "1.0.0"
+    implementation: packages/python/vertex_core/src/vertex_core/calculations/portfolio.py::realized_pnl
+    method: explicit_lot_referenced_ledger_matching_in_decimal
+    assumptions:
+      - "Each closing transaction names the lot it closes; the cost basis uses that lot's own unit_cost. No FIFO/LIFO matching is performed here: the lot method that produced the lots is chosen and versioned upstream."
+      - "One single currency per call; FX conversion is a separate explicit step (portfolio.fx_conversion)."
+      - "Balanced ledger: every closing transaction references a declared lot, every fee references a declared transaction, ids are unique, and total_pnl == gross_proceeds - cost_basis - total_fees exactly."
+      - "Lot conservation: the summed closed quantity per lot never exceeds the open quantity."
+      - "A lot never touched by a closing transaction is ABSENT from the breakdown; no zero rows are fabricated."
+      - "All arithmetic is Decimal in a pinned 28-significant-digit context; output order follows the declaration order of the lots (deterministic)."
+    parameter_schema:
+      lots: {type: "Sequence[PositionLot]", unit: declared_lots, constraint: "non-empty, unique lot_id, one currency"}
+      closing_transactions: {type: "Sequence[ClosingTransaction]", unit: ledger_entries, constraint: "unique transaction_id, known lot_id, same currency"}
+      fees: {type: "Sequence[Fee]", unit: money, constraint: "unique fee_id, applies_to a known transaction_id, same currency, amount >= 0"}
+      returns: {type: RealizedPnlResult, unit: money, note: "currency, gross_proceeds, cost_basis, total_fees, total_pnl and the per-lot breakdown"}
+    tolerances:
+      decimal_precision: 28
+      note: >-
+        Exact Decimal arithmetic. Additions, subtractions and multiplications
+        on realistic magnitudes are exact; the ledger balance is asserted with
+        exact equality in the tests, no numeric tolerance.
+    oracle: hand_derived_golden_vectors
+    oracle_evidence: >-
+      test_golden_hand_computed_single_lot carries the marker
+      pytest.mark.golden and the provenance comment "hand computation
+      (documented 2026-08-28)"; test_ledger_balance_across_lots re-derives the
+      ledger identity independently.
+    criticality: critical
+    tests:
+      - packages/python/vertex_core/tests/calculations/test_portfolio.py
+      - apps/worker/tests/test_portfolio_content.py
   - id: portfolio.unrealized_pnl
     owner: portfolio
     inputs: [open_lots, market_snapshot, fees, fx]
     output_unit: money
     gates: [fresh_mark, balanced_ledger]
     invariants: [aggregation_linear]
+    runtime_status: APPROVED
+    spec_version: "1.0.0"
+    implementation: packages/python/vertex_core/src/vertex_core/calculations/portfolio.py::unrealized_pnl
+    method: per_lot_mark_to_market_difference_in_decimal
+    assumptions:
+      - "Per lot: quantity * (mark - unit_cost) - fees, summed in a pinned 28-significant-digit Decimal context."
+      - "A lot whose mark is ABSENT is excluded from the aggregate and reported in excluded_lot_ids; it is never valued at zero. When no lot can be valued, total_unrealized is None, never 0."
+      - "A mark that is PRESENT but invalid (non-Decimal, non-finite or negative) is corrupt input and raises MarkError."
+      - "Mark freshness (fresh_mark gate) is owned by data_quality upstream; this function only consumes the marks it is given."
+      - "One single currency per call; mark keys matching no declared lot are ignored."
+    parameter_schema:
+      open_lots: {type: "Sequence[PositionLot]", unit: declared_lots, constraint: "non-empty, unique lot_id, one currency"}
+      marks: {type: "Mapping[str, Decimal]", unit: price_per_unit, constraint: "keyed by lot_id, finite and >= 0 when present"}
+      fees: {type: "Sequence[Fee]", unit: money, constraint: "applies_to a known lot_id, amount >= 0"}
+      returns: {type: UnrealizedPnlResult, unit: money, note: "total_unrealized may be None, plus excluded_lot_ids and the per-lot breakdown"}
+    tolerances:
+      decimal_precision: 28
+      note: >-
+        Exact Decimal arithmetic; the linearity property test asserts exact
+        equality between the aggregate and the sum of the per-lot
+        contributions, with no numeric tolerance.
+    oracle: hand_derived_golden_vectors
+    oracle_evidence: >-
+      test_golden_missing_mark_excluded_never_zero carries the marker
+      pytest.mark.golden with the provenance comment "hand computation
+      (documented 2026-08-28)"; test_aggregation_is_linear recomputes the
+      aggregate from the per-lot contributions inside the test.
+    gate_ownership_note: >-
+      The fresh_mark gate is not enforced inside this function. Its production
+      caller (apps/worker/src/vertex_worker/portfolio.py) enforces mark
+      AVAILABILITY fail-closed and records a reason per excluded lot
+      (no_markets_snapshot, missing_mark, invalid_mark,
+      mark_currency_mismatch), but applies no age-based staleness threshold at
+      this boundary; freshness remains owned by data_quality upstream.
+    criticality: critical
+    tests:
+      - packages/python/vertex_core/tests/calculations/test_portfolio.py
+      - apps/worker/tests/test_portfolio_content.py
   - id: portfolio.concentration
     owner: portfolio_risk
     inputs: [marked_positions, grouping]
     output_unit: ratio
     gates: [positive_denominator]
     invariants: [weights_sum_to_one]
+    runtime_status: APPROVED
+    spec_version: "1.0.0"
+    implementation: packages/python/vertex_core/src/vertex_core/calculations/portfolio.py::concentration
+    method: normalized_group_weights_and_herfindahl_index
+    assumptions:
+      - "weights[g] = value[g] / sum(values), computed in a pinned 28-significant-digit Decimal context; herfindahl_index = sum(w^2)."
+      - "The grouping (sector, issuer, asset class, ...) is the caller's choice; values must already be marked in one common currency."
+      - "Values must be finite and non-negative; the summed value must be strictly positive (positive_denominator gate)."
+      - "Passing already-normalized weights works unchanged, since weights are values normalized by their sum."
+    parameter_schema:
+      values_by_group: {type: "Mapping[str, Decimal]", unit: money_or_weight, constraint: "non-empty, non-empty string keys, finite values >= 0, sum > 0"}
+      returns: {type: ConcentrationResult, unit: ratio, note: "total_value, weights mapping and herfindahl_index"}
+    tolerances:
+      decimal_precision: 28
+      weight_sum_tolerance: 1.0e-20
+      note: >-
+        WEIGHT_SUM_TOLERANCE is a module constant of
+        calculations/portfolio.py; the property test asserts
+        |sum(weights) - 1| <= WEIGHT_SUM_TOLERANCE.
+    oracle: hand_derived_golden_vectors
+    oracle_evidence: >-
+      test_golden_weights_and_herfindahl carries the marker
+      pytest.mark.golden with the provenance comment "hand computation
+      (documented 2026-08-28)".
+    criticality: critical
+    tests:
+      - packages/python/vertex_core/tests/calculations/test_portfolio.py
+      - apps/worker/tests/test_portfolio_content.py
   - id: performance.twr
     owner: performance
     inputs: [valuations, external_cashflows]
     output_unit: ratio
     gates: [complete_cashflow_boundaries]
     invariants: [cashflow_timing_neutrality]
+    runtime_status: APPROVED
+    spec_version: "1.0.0"
+    implementation: packages/python/vertex_core/src/vertex_core/calculations/performance.py::twr
+    method: chained_period_returns_decimal
+    assumptions:
+      - "Sub-period return r_i = V_i / (V_{i-1} + F_{i-1}) - 1; the total return is the chain-linked product minus one."
+      - "Cashflow timing convention: a flow stamped at t arrives immediately AFTER the valuation observed at t and adjusts the capital base of the period STARTING at t; a flow stamped at the final valuation starts no period."
+      - "Every external cashflow must land exactly on a valuation timestamp (complete_cashflow_boundaries); otherwise CashflowBoundaryError. Flows are netted per timestamp."
+      - "The absence of a flow at a boundary is a true zero flow (event ledger), not missing data."
+      - "Valuation timestamps must be strictly increasing; at least two valuations are required; a non-positive capital base is rejected."
+      - "All arithmetic in a pinned 28-significant-digit Decimal context; one population and one currency per call."
+    parameter_schema:
+      valuations: {type: "Sequence[Valuation]", unit: money_at_instant, constraint: "length >= 2, strictly increasing UTC timestamps, value >= 0"}
+      external_cashflows: {type: "Sequence[CashflowEvent]", unit: money, constraint: "each at exactly a valuation timestamp; positive = contribution, negative = withdrawal"}
+      returns: {type: TwrResult, unit: ratio, note: "total_return and the per-period sub-returns"}
+    tolerances:
+      decimal_precision: 28
+      note: >-
+        Division is correct to 28 significant digits; the golden vector and
+        the timing-neutrality tests assert exact Decimal equality, with no
+        numeric tolerance.
+    oracle: hand_derived_golden_vectors
+    oracle_evidence: >-
+      test_golden_two_period_hand_computed carries the marker
+      pytest.mark.golden with the provenance comment "hand computation
+      (documented 2026-08-28)"; test_cashflow_timing_neutrality re-derives the
+      invariant independently over several contributions.
+    criticality: critical
+    tests:
+      - packages/python/vertex_core/tests/calculations/test_performance.py
+      - apps/worker/tests/test_performance_content.py
+      - apps/api/tests/test_performance_routes.py
   - id: performance.xirr
     owner: performance
     inputs: [dated_cashflows]
     output_unit: annualized_decimal
     gates: [sign_change, unique_valid_root]
     invariants: [npv_near_zero]
+    runtime_status: APPROVED
+    spec_version: "1.0.0"
+    implementation: packages/python/vertex_core/src/vertex_core/calculations/performance.py::xirr
+    method: brentq_root_finding_on_npv_over_documented_rate_grid
+    assumptions:
+      - "ACT/365F year fractions measured from the earliest flow, keeping fractional days through elapsed seconds / (86400 * 365)."
+      - "float64 numerical core: Decimal amounts are converted to float64 (relative representation error <= 2**-52); NPV(r) = sum(cf * (1+r)^-t)."
+      - "Root existence and uniqueness are checked on the fixed 25-point XIRR_BRACKET_GRID only (documented limitation); zero or several sign changes return an explicit INVALID result with a reason, never a fabricated number."
+      - "scipy.optimize.brentq with xtol=1e-12 and maxiter=200 on the single bracket."
+      - "sign_change gate: at least one strictly positive and one strictly negative amount; all flows at one single instant are rejected."
+      - "Deterministic: fixed grid, fixed tolerances, no randomness, no clock; the result does not depend on input order."
+    parameter_schema:
+      dated_cashflows: {type: "Sequence[CashflowEvent]", unit: money_at_instant, constraint: "length >= 2, at least one > 0 and one < 0, not all at one instant"}
+      returns: {type: XirrResult, unit: annualized_decimal, note: "status OK or INVALID; on INVALID no rate is exposed"}
+    tolerances:
+      brentq_xtol: 1.0e-12
+      xirr_npv_tolerance_scale: 1.0e-9
+      note: >-
+        XIRR_NPV_TOLERANCE_SCALE is a module constant of
+        calculations/performance.py; a root is accepted only if
+        |NPV(root)| <= XIRR_NPV_TOLERANCE_SCALE * sum(|cashflow|). The golden
+        and oracle tests assert the rate with abs=1e-9.
+    oracle: independent_recomputation_in_test
+    oracle_evidence: >-
+      test_oracle_polynomial_root_via_numpy solves the NPV polynomial root
+      with numpy inside the test and compares with abs=1e-9;
+      test_golden_one_year_ten_percent carries the marker pytest.mark.golden
+      with the provenance comment "hand computation (documented 2026-08-28)".
+    criticality: critical
+    tests:
+      - packages/python/vertex_core/tests/calculations/test_performance.py
+      - apps/worker/tests/test_performance_content.py
   - id: performance.drawdown
     owner: performance
     inputs: [equity_curve]
     output_unit: ratio
     gates: [ordered_values]
     invariants: [non_positive]
+    runtime_status: APPROVED
+    spec_version: "1.0.0"
+    implementation: packages/python/vertex_core/src/vertex_core/calculations/performance.py::drawdown
+    method: running_maximum_ratio_decimal
+    assumptions:
+      - "Per point dd_i = V_i / running_max_i - 1 <= 0, computed in a pinned 28-significant-digit Decimal context."
+      - "max_drawdown = min(dd); peak_at is the instant where the running maximum was set and trough_at the FIRST instant reaching the maximum drawdown; both are None for a curve that never declines."
+      - "Timestamps must be strictly increasing and every value strictly positive; a non-positive value is rejected fail-closed, never silently skipped."
+    parameter_schema:
+      equity_curve: {type: "Sequence[Valuation]", unit: money_at_instant, constraint: "non-empty, strictly increasing UTC timestamps, value > 0"}
+      returns: {type: DrawdownResult, unit: ratio, note: "max_drawdown <= 0, per-point drawdowns, peak_at and trough_at"}
+    tolerances:
+      decimal_precision: 28
+      note: >-
+        Exact Decimal arithmetic; the golden vector asserts exact equality and
+        the property test asserts dd <= 0 with no numeric tolerance.
+    oracle: hand_derived_golden_vectors
+    oracle_evidence: >-
+      test_golden_hand_vector carries the marker pytest.mark.golden with the
+      provenance comment "hand computation (documented 2026-08-28)".
+    criticality: critical
+    tests:
+      - packages/python/vertex_core/tests/calculations/test_performance.py
+      - apps/worker/tests/test_performance_content.py
   - id: options.forward_price
     owner: options
     inputs: [spot, rate_curve, dividends, maturity]
     output_unit: price
     gates: [valid_curves, positive_spot]
     invariants: [finite, positive]
+    runtime_status: APPROVED
+    spec_version: "1.0.0"
+    implementation: packages/python/vertex_core/src/vertex_core/calculations/options.py::forward_price
+    method: closed_form_continuous_compounding_forward
+    assumptions:
+      - "F = S * exp((r - q) * T) with a FLAT continuously compounded rate r and a FLAT continuous dividend yield q; discrete cash dividends are not modelled."
+      - "T is an ACT/365-style year fraction."
+      - "Validated model domain: 0 < spot <= 1e12, 0 <= T <= 100, -1 <= r <= 1, -1 <= q <= 1. Negative rates are inside the domain."
+      - "float64 overflow or underflow to a non-positive value raises OptionInputError, never inf."
+    parameter_schema:
+      spot: {type: "int | float | Decimal", unit: price, constraint: "finite, in (0, 1e12]"}
+      rate: {type: "int | float | Decimal", unit: continuously_compounded_annualized_decimal, constraint: "in [-1, 1]"}
+      dividend_yield: {type: "int | float | Decimal", unit: continuously_compounded_annualized_decimal, constraint: "in [-1, 1]"}
+      maturity_years: {type: "int | float | Decimal", unit: years_act365, constraint: "in [0, 100]"}
+      returns: {type: float, unit: price}
+    tolerances:
+      float64_rel_tol: 1.0e-9
+      float64_abs_tol: 1.0e-12
+      unit_test_rel: 1.0e-12
+      note: >-
+        FLOAT64_REL_TOL and FLOAT64_ABS_TOL are module constants of
+        calculations/options.py; the nominal tests assert the closed form
+        recomputed in the test with rel=1e-12.
+    oracle: independent_recomputation_in_test
+    oracle_evidence: >-
+      TestForwardPrice recomputes 100 * math.exp(0.02), 100 * math.exp(-0.02)
+      and 100 * math.exp(0.03) inside the test and compares with rel=1e-12.
+    oracle_limitation: >-
+      No third-party independent implementation is used for the forward alone;
+      the same flat-curve convention is validated end to end by the QuantLib
+      leg of the European price oracle.
+    criticality: critical
+    tests:
+      - packages/python/vertex_core/tests/calculations/test_options.py
   - id: options.no_arbitrage_bounds
     owner: options
     inputs: [spot, strike, maturity, rate_curve, dividends, right]
     output_unit: price_interval
     gates: [valid_contract]
     invariants: [lower_not_above_upper]
+    runtime_status: APPROVED
+    spec_version: "1.0.0"
+    implementation: packages/python/vertex_core/src/vertex_core/calculations/options.py::no_arbitrage_bounds
+    method: closed_form_discounted_forward_interval
+    assumptions:
+      - "With df_r = exp(-rT) and df_q = exp(-qT): CALL lower = max(S*df_q - K*df_r, 0) and upper = S*df_q; PUT lower = max(K*df_r - S*df_q, 0) and upper = K*df_r."
+      - "European bounds under flat continuous curves; they are the bracket used by options.implied_volatility."
+      - "0 <= lower <= upper holds by construction and is re-checked fail-closed."
+      - "Same validated model domain as options.european_price."
+    parameter_schema:
+      spot: {type: "int | float | Decimal", unit: price, constraint: "finite, in (0, 1e12]"}
+      strike: {type: "int | float | Decimal", unit: price, constraint: "finite, in (0, 1e12]"}
+      maturity_years: {type: "int | float | Decimal", unit: years_act365, constraint: "in [0, 100]"}
+      rate: {type: "int | float | Decimal", unit: continuously_compounded_annualized_decimal, constraint: "in [-1, 1]"}
+      dividend_yield: {type: "int | float | Decimal", unit: continuously_compounded_annualized_decimal, constraint: "in [-1, 1]"}
+      right: {type: "OptionRight | str", unit: enum, constraint: "CALL or PUT"}
+      returns: {type: "tuple(float, float)", unit: price, note: "(lower, upper)"}
+    tolerances:
+      float64_rel_tol: 1.0e-9
+      float64_abs_tol: 1.0e-12
+      unit_test_rel: 1.0e-12
+      property_tol: "1e-9 * max(1, spot, strike)"
+      note: >-
+        The bounds formulas are asserted with rel=1e-12 against an in-test
+        recomputation; the Hypothesis test
+        test_price_respects_no_arbitrage_bounds uses
+        tol = 1e-9 * max(1, s, k).
+    oracle: independent_recomputation_in_test
+    oracle_evidence: >-
+      test_call_bounds_formula and test_put_bounds_formula recompute
+      s*exp(-qT) and k*exp(-rT) inside the test; the property test cross-checks
+      the interval against the QuantLib-validated european_price on the whole
+      strategy domain.
+    criticality: critical
+    tests:
+      - packages/python/vertex_core/tests/calculations/test_options.py
+      - packages/python/vertex_core/tests/calculations/test_options_properties.py
   - id: options.european_price
     owner: options
     reference: QuantLib
@@ -115,6 +621,49 @@ calculations:
     output_unit: price
     gates: [inside_model_domain]
     invariants: [bounds, put_call_parity, monotonicity, convexity]
+    runtime_status: APPROVED
+    spec_version: "1.0.0"
+    implementation: packages/python/vertex_core/src/vertex_core/calculations/options.py::european_price
+    method: closed_form_bsm_erf
+    assumptions:
+      - "Analytic Black-Scholes-Merton with flat continuously compounded rate r and dividend yield q; standard normal CDF via math.erf (no SciPy in the runtime pricing path)."
+      - "d1 = [ln(S/K) + (r - q + vol^2/2) T] / (vol sqrt(T)), d2 = d1 - vol sqrt(T)."
+      - "European exercise only; no discrete dividends; constant volatility."
+      - "Documented deterministic boundary cases, not fallbacks: T == 0 returns the intrinsic value; vol == 0 returns the discounted deterministic bound max(+/-(S e^{-qT} - K e^{-rT}), 0); a vol*sqrt(T) that underflows float64 returns that same exact vol->0 limit."
+      - "Validated model domain: spot and strike in (0, 1e12], T in [0, 100] years, vol in [0, 10], r and q in [-1, 1]."
+      - "Tiny negative float rounding is normalized to 0.0 (the analytic price is provably non-negative)."
+    parameter_schema:
+      spot: {type: "int | float | Decimal", unit: price, constraint: "finite, in (0, 1e12]"}
+      strike: {type: "int | float | Decimal", unit: price, constraint: "finite, in (0, 1e12]"}
+      maturity_years: {type: "int | float | Decimal", unit: years_act365, constraint: "in [0, 100]"}
+      rate: {type: "int | float | Decimal", unit: continuously_compounded_annualized_decimal, constraint: "in [-1, 1]"}
+      dividend_yield: {type: "int | float | Decimal", unit: continuously_compounded_annualized_decimal, constraint: "in [-1, 1]"}
+      volatility: {type: "int | float | Decimal", unit: annualized_decimal, constraint: "in [0, 10]"}
+      right: {type: "OptionRight | str", unit: enum, constraint: "CALL or PUT"}
+      returns: {type: float, unit: price}
+    tolerances:
+      float64_rel_tol: 1.0e-9
+      float64_abs_tol: 1.0e-12
+      oracle_tolerance: "max(1e-9 absolute, 1e-7 relative)"
+      property_tol: "1e-9 * max(1, spot, strike)"
+      note: >-
+        within_oracle_tolerance in test_options_oracle.py is
+        abs(a-b) <= max(1e-9, 1e-7 * max(|a|, |b|)); parity, monotonicity,
+        convexity and the bounds are asserted with 1e-9 * max(1, s, k) in
+        test_options_properties.py.
+    oracle: quantlib_analytic_european
+    oracle_evidence: >-
+      TestEuropeanPriceThreeWayOracle compares three independent
+      implementations on a 720-point grid per right (6 maturities x 5
+      moneyness x 4 vols x 4 rates x 3 yields): the runtime math.erf closed
+      form, QuantLib AnalyticEuropeanEngine on identical flat ACT/365F curves,
+      and a scipy.stats.norm reference written in the test.
+    criticality: critical
+    tests:
+      - packages/python/vertex_core/tests/calculations/test_options.py
+      - packages/python/vertex_core/tests/calculations/test_options_oracle.py
+      - packages/python/vertex_core/tests/calculations/test_options_properties.py
+      - apps/worker/tests/test_options_content.py
   - id: options.american_price
     owner: options
     reference: QuantLib_finite_difference
@@ -122,51 +671,361 @@ calculations:
     output_unit: price
     gates: [validated_numerical_grid]
     invariants: [bounds, american_not_below_european]
+    runtime_status: APPROVED
+    spec_version: "1.0.0"
+    implementation: packages/python/vertex_core/src/vertex_core/calculations/options.py::american_price
+    method: quantlib_fd_black_scholes
+    assumptions:
+      - "QuantLib FdBlackScholesVanillaEngine(process, tGrid=steps, xGrid=steps, dampingSteps=0) (Douglas scheme) on a BlackScholesMertonProcess with flat continuously compounded rate and dividend-yield curves, Actual365Fixed day count, NullCalendar and constant volatility."
+      - "American exercise from the anchor date to expiry; QuantLib is a hard dependency of the quant extra and there is NO analytic fallback."
+      - "Date grid: maturity_years must be an integral number of calendar days on the ACT/365F grid (a multiple of 1/365, float round-off up to FLOAT64_REL_TOL relative tolerated). An off-grid maturity is REJECTED (maturity_off_date_grid), never silently quantized; a positive maturity rounding to zero days is rejected (maturity_below_date_grid)."
+      - "steps must be an int >= AMERICAN_MIN_STEPS (50) and applies to BOTH the time grid and the space grid; the default is 800."
+      - "Discrete cash dividends are NOT_IMPLEMENTED: a non-empty discrete_dividends raises OptionNotImplementedError; they are never approximated by the continuous yield."
+      - "volatility == 0 is rejected (the numerical grid degenerates); maturity_years == 0 returns the intrinsic value."
+      - "The process-global QuantLib evaluationDate is saved and restored in a try/finally so no mutation leaks to other QuantLib users."
+    parameter_schema:
+      spot: {type: "int | float | Decimal", unit: price, constraint: "finite, in (0, 1e12]"}
+      strike: {type: "int | float | Decimal", unit: price, constraint: "finite, in (0, 1e12]"}
+      maturity_years: {type: "int | float | Decimal", unit: years_act365, constraint: "in [0, 100] and an integral multiple of 1/365"}
+      rate: {type: "int | float | Decimal", unit: continuously_compounded_annualized_decimal, constraint: "in [-1, 1]"}
+      dividend_yield: {type: "int | float | Decimal", unit: continuously_compounded_annualized_decimal, constraint: "in [-1, 1]"}
+      volatility: {type: "int | float | Decimal", unit: annualized_decimal, constraint: "in (0, 10] when T > 0"}
+      right: {type: "OptionRight | str", unit: enum, constraint: "CALL or PUT"}
+      steps: {type: int, unit: grid_nodes, constraint: ">= 50, keyword-only, default 800, applies to tGrid and xGrid"}
+      discrete_dividends: {type: Sequence, unit: money, constraint: "must be empty (NOT_IMPLEMENTED otherwise)"}
+      returns: {type: float, unit: price}
+    tolerances:
+      cross_method_tol: 5.0e-3
+      golden_tol: 2.0e-3
+      registry_conformance_abs: 1.0e-10
+      american_not_below_european_slack: "1e-3 * spot"
+      american_tol_unit_tests: 5.0e-3
+      grid_convergence: "<= 2 * 5e-3 between step counts"
+      note: >-
+        CROSS_METHOD_TOL = 5e-3 and GOLDEN_TOL = 2e-3 are constants of
+        test_options_oracle.py; AMERICAN_TOL = 5e-3 is a constant of
+        test_options.py. The runtime price must match an independently
+        constructed FdBlackScholesVanillaEngine with abs=1e-10.
+    oracle: quantlib_crr_second_method
+    oracle_evidence: >-
+      test_crr_second_numerical_method_agrees compares the runtime finite
+      differences against an independent QuantLib binomial CRR tree at 800
+      steps on an 8-point grid; test_golden_vectors_literature_american_put
+      checks 5 golden vectors whose derivation is documented above
+      AMERICAN_PUT_GOLDEN (two engines at tGrid=xGrid=4000 and CRR 8001 steps,
+      agreeing within 8e-4, with the Longstaff-Schwartz 2001 Table 1
+      cross-check at 4.48637); test_runtime_engine_is_registry_finite_difference
+      pins the runtime to the declared reference method.
+    criticality: critical
+    tests:
+      - packages/python/vertex_core/tests/calculations/test_options.py
+      - packages/python/vertex_core/tests/calculations/test_options_oracle.py
+      - packages/python/vertex_core/tests/calculations/test_options_properties.py
   - id: options.implied_volatility
     owner: options
     inputs: [observed_price, model_inputs, quote_side]
     output_unit: annualized_decimal
     gates: [price_inside_bounds, bracket_exists]
     invariants: [price_iv_price_round_trip, non_negative]
+    runtime_status: APPROVED
+    spec_version: "1.0.0"
+    implementation: packages/python/vertex_core/src/vertex_core/calculations/options.py::implied_volatility
+    method: brentq_root_finding_on_price
+    assumptions:
+      - "Inverts the SAME closed-form BSM pricer as options.european_price; the model assumptions of that entry apply unchanged."
+      - "price_inside_bounds: the observed price must lie STRICTLY inside options.no_arbitrage_bounds; at or outside the bounds raises IVNoSolutionError."
+      - "bracket_exists: the explicit bracket [IV_BRACKET_LO, IV_BRACKET_HI] = [1e-6, 5.0] is verified by evaluating the pricer at both edges; a price below the floor price or above the ceiling price raises IVNoSolutionError. No clamped or extrapolated volatility is ever returned."
+      - "scipy.optimize.brentq with xtol=1e-12 and maxiter=200; non-convergence or a root outside the bracket raises IVNoSolutionError."
+      - "maturity_years must be strictly positive: an expired option has no implied volatility."
+      - "quote_side belongs to the closed catalogue BID/ASK/MID/LAST/MODEL; it does not change the mathematics but makes the provenance of the observed price explicit."
+    parameter_schema:
+      observed_price: {type: "int | float | Decimal", unit: price, constraint: "finite, strictly inside the no-arbitrage bounds"}
+      spot: {type: "int | float | Decimal", unit: price, constraint: "finite, in (0, 1e12]"}
+      strike: {type: "int | float | Decimal", unit: price, constraint: "finite, in (0, 1e12]"}
+      maturity_years: {type: "int | float | Decimal", unit: years_act365, constraint: "in (0, 100]"}
+      rate: {type: "int | float | Decimal", unit: continuously_compounded_annualized_decimal, constraint: "in [-1, 1]"}
+      dividend_yield: {type: "int | float | Decimal", unit: continuously_compounded_annualized_decimal, constraint: "in [-1, 1]"}
+      right: {type: "OptionRight | str", unit: enum, constraint: "CALL or PUT"}
+      quote_side: {type: str, unit: enum, constraint: "BID, ASK, MID, LAST or MODEL"}
+      returns: {type: float, unit: annualized_decimal, note: "inside [1e-6, 5.0]"}
+    tolerances:
+      brentq_xtol: 1.0e-12
+      round_trip_relative: 1.0e-7
+      volatility_recovery_abs: 1.0e-4
+      unit_test_recovery_abs: 1.0e-9
+      note: >-
+        test_iv_round_trip_within_relative_tolerance asserts
+        |reprice - price| <= 1e-7 * price, and |iv - vol| <= 1e-4 only where
+        the inversion is well conditioned (price - lower >= 1e-4 * max(1, s));
+        the nominal unit tests recover the input volatility with abs=1e-9.
+    oracle: none_yet_round_trip_against_three_way_validated_pricer
+    oracle_evidence: >-
+      The objective function is options.european_price, itself validated
+      three ways against QuantLib AnalyticEuropeanEngine and a scipy
+      reference; the bracket edges come from options.no_arbitrage_bounds. The
+      price -> IV -> price round trip is asserted within 1e-7 relative over a
+      200-example Hypothesis domain.
+    oracle_limitation: >-
+      No independent IV SOLVER is used as an oracle (QuantLib
+      VanillaOption.impliedVolatility is not called). The validation is a
+      round trip through an independently validated pricer, not a comparison
+      of two independent root finders.
+    criticality: critical
+    tests:
+      - packages/python/vertex_core/tests/calculations/test_options.py
+      - packages/python/vertex_core/tests/calculations/test_options_properties.py
+      - apps/worker/tests/test_options_content.py
+      - apps/api/tests/test_option_chain.py
   - id: options.greeks
     owner: options
     inputs: [validated_pricing_problem]
     output_unit: documented_per_contract_units
     gates: [price_valid]
     invariants: [finite, delta_bounds, vanilla_gamma_vega_non_negative]
+    runtime_status: APPROVED
+    spec_version: "1.0.0"
+    implementation: packages/python/vertex_core/src/vertex_core/calculations/options.py::greeks
+    method: closed_form_bsm_sensitivities_erf
+    assumptions:
+      - "Analytic BSM sensitivities from the same d1/d2 as options.european_price, with math.erf for the CDF."
+      - "RAW units: delta per +1 unit of underlying price; gamma per +1 unit squared; vega per +1.0 of annualized volatility; theta per +1 YEAR of elapsing calendar time (dV/dt = -dV/dT); rho per +1.0 of the continuously compounded rate."
+      - "Derived views are exact transforms: vega_per_point = vega * 0.01, theta_per_calendar_day = theta / 365 (ACT/365F), rho_per_bp = rho * 0.0001; consistency is re-validated in the result model."
+      - "maturity_years > 0 AND volatility > 0 are required: at expiry or at zero volatility the distributional sensitivities are undefined and the input is rejected (no step-function fallback)."
+      - "Monetary exposures (multiplier x quantity x FX) are deliberately NOT computed here: they need the manual position declaration and a dated FX rate."
+    parameter_schema:
+      spot: {type: "int | float | Decimal", unit: price, constraint: "finite, in (0, 1e12]"}
+      strike: {type: "int | float | Decimal", unit: price, constraint: "finite, in (0, 1e12]"}
+      maturity_years: {type: "int | float | Decimal", unit: years_act365, constraint: "in (0, 100]"}
+      rate: {type: "int | float | Decimal", unit: continuously_compounded_annualized_decimal, constraint: "in [-1, 1]"}
+      dividend_yield: {type: "int | float | Decimal", unit: continuously_compounded_annualized_decimal, constraint: "in [-1, 1]"}
+      volatility: {type: "int | float | Decimal", unit: annualized_decimal, constraint: "in (0, 10]"}
+      right: {type: "OptionRight | str", unit: enum, constraint: "CALL or PUT"}
+      returns: {type: GreeksResult, unit: per_field_documented, note: "delta, gamma, vega, vega_per_point, theta, theta_per_calendar_day, rho, rho_per_bp — all finite"}
+    tolerances:
+      oracle_delta_abs: 1.0e-9
+      oracle_gamma_abs: 1.0e-9
+      oracle_vega_theta_rho: "rel=1e-9, abs=1e-9"
+      finite_difference_delta_abs: 1.0e-7
+      finite_difference_gamma_rel: 1.0e-5
+      finite_difference_vega_rel: 1.0e-6
+      finite_difference_theta: "rel=1e-5, abs=1e-8"
+      finite_difference_rho_rel: 1.0e-6
+      derived_view_consistency: "1e-12 * max(1, |expected|), enforced by the GreeksResult validator"
+      note: >-
+        The finite-difference tolerances are those of TestGreeks in
+        test_options.py; the QuantLib tolerances are those of
+        TestGreeksQuantLibOracle in test_options_oracle.py.
+    oracle: quantlib_analytic_european
+    oracle_evidence: >-
+      TestGreeksQuantLibOracle compares delta, gamma, vega, theta and rho with
+      QuantLib AnalyticEuropeanEngine over 2 rights x 3 maturities x 3
+      moneyness x 2 vols = 36 parameter sets; TestGreeks additionally
+      cross-checks each greek against a finite difference of the runtime
+      pricer computed in the test.
+    criticality: critical
+    tests:
+      - packages/python/vertex_core/tests/calculations/test_options.py
+      - packages/python/vertex_core/tests/calculations/test_options_oracle.py
+      - apps/worker/tests/test_options_content.py
   - id: options.payoff
     owner: simulation
     inputs: [legs, terminal_spot_grid, commissions]
     output_unit: money
     gates: [exact_contracts, valid_quantities]
     invariants: [leg_sum_linearity, cost_included]
+    runtime_status: APPROVED
+    spec_version: "1.0.0"
+    implementation: packages/python/vertex_core/src/vertex_core/calculations/options.py::payoff_at_expiry
+    method: exact_decimal_intrinsic_leg_sum
+    assumptions:
+      - "P&L_T(S) = sum_i q_i * M_i * [h_i(S) - p_i] - F with h_CALL(S) = max(S - K, 0), h_PUT(S) = max(K - S, 0), h_STOCK(S) = S and F = declared fees."
+      - "Entirely Decimal arithmetic under a local 60-significant-digit context: payoffs are EXACT at every strike breakpoint and leg-sum linearity is exact. Terminal spots given as float are converted by their exact binary expansion."
+      - "Expiry only; before expiry the legs are repriced by options.scenario_grid."
+      - "Any structure containing a SHORT quantity must be certified by defined_risk_check (strict closed catalogue); an uncertified structure raises undefined_risk_structure and is never priced. Strictly all-long structures pass without certification."
+      - "Every terminal spot must be finite and >= 0 (zero = bankruptcy tail); fees must be a finite non-negative Decimal (costs are declared, never defaulted)."
+      - "All legs share one underlying, one currency and one expiry by construction of the caller. No field of OptionLeg is a transmissible order ticket."
+    parameter_schema:
+      legs: {type: "Sequence[OptionLeg]", unit: declared_structure, constraint: "non-empty; quantity a non-zero signed int; right CALL/PUT/STOCK; strike required for CALL/PUT and forbidden for STOCK; premium >= 0; multiplier > 0"}
+      terminal_spot_grid: {type: "Sequence[int | float | Decimal]", unit: price, constraint: "non-empty, each finite and >= 0"}
+      fees: {type: Decimal, unit: money, constraint: "finite Decimal instance, >= 0"}
+      returns: {type: "tuple[Decimal, ...]", unit: money, note: "one exact P&L per grid point, in grid order"}
+    tolerances:
+      decimal_context_precision: 60
+      note: >-
+        Exact Decimal arithmetic: the tests assert exact equality
+        (== Decimal("...")) with NO numeric tolerance, including the leg-sum
+        linearity property. Documented bound: inputs with more than about 50
+        significant digits would round.
+    oracle: hand_derived_golden_vectors
+    oracle_evidence: >-
+      TestPayoffAtExpiry asserts hand-derived breakpoint vectors for a
+      certified bull call debit (-301.50, 198.50, 698.50 with the derivation
+      in comments), the exact breakeven at K1 + D/M, the bankruptcy tail
+      9600, and test_certified_vertical_equals_hand_computed_leg_sum
+      recomputes sum(q*M*(h(S)-p)) by hand inside the test.
+    criticality: critical
+    tests:
+      - packages/python/vertex_core/tests/calculations/test_options.py
+      - packages/python/vertex_core/tests/calculations/test_options_properties.py
+      - apps/api/tests/test_simulation_preview.py
   - id: options.scenario_grid
     owner: simulation
     inputs: [legs, spot_grid, time_grid, iv_scenarios, curves]
     output_unit: money_matrix
     gates: [consistent_snapshot]
     invariants: [deterministic, finite]
+    runtime_status: APPROVED
+    spec_version: "1.0.0"
+    implementation: packages/python/vertex_core/src/vertex_core/calculations/options.py::scenario_grid
+    method: bsm_repricing_per_cell_float64
+    assumptions:
+      - "Each cell [scenario][time][spot] reprices EVERY leg on the SAME assumption snapshot (one rate, one dividend yield, one per-leg volatility vector per scenario, one remaining maturity per time point) and sums q_i * M_i * (model_value_i(S, T, vol_i) - p_i). STOCK legs contribute q * M * (S - p)."
+      - "Fees are NOT subtracted here: the grid is P&L before declared costs."
+      - "Each scenario is a vector aligned index by index with legs: None for STOCK legs (required, fail-closed) and an annualized volatility in [0, 10] for option legs. A missing volatility for an option leg is rejected, never converted to zero."
+      - "All legs share the single expiry described by time_grid_years; calendar and diagonal structures are out of scope."
+      - "Premiums are converted to float64 here (documented conversion); exact money arithmetic stays in options.payoff."
+      - "Any structure containing a SHORT quantity must be certified by defined_risk_check before any pricing; every leg strike and premium is validated against the SAME model domain as options.european_price."
+      - "Every spot must be strictly positive and inside the domain (a zero terminal spot belongs to options.payoff)."
+    parameter_schema:
+      legs: {type: "Sequence[OptionLeg]", unit: declared_structure, constraint: "non-empty; short quantities require defined_risk_check certification"}
+      spot_grid: {type: "Sequence[int | float | Decimal]", unit: price, constraint: "non-empty, each finite and in (0, 1e12]"}
+      time_grid_years: {type: "Sequence[int | float | Decimal]", unit: years_act365, constraint: "non-empty, each in [0, 100]"}
+      iv_scenarios: {type: "Sequence[Sequence[Optional[int | float | Decimal]]]", unit: annualized_decimal, constraint: "non-empty; each scenario has exactly len(legs) entries; None exactly for STOCK legs; option-leg volatilities in [0, 10]"}
+      rate: {type: "int | float | Decimal", unit: continuously_compounded_annualized_decimal, constraint: "in [-1, 1]"}
+      dividend_yield: {type: "int | float | Decimal", unit: continuously_compounded_annualized_decimal, constraint: "in [-1, 1]"}
+      returns: {type: "tuple[tuple[tuple[float, ...], ...], ...]", unit: money, note: "indexed [scenario][time][spot], every cell finite"}
+    tolerances:
+      float64_rel_tol: 1.0e-9
+      float64_abs_tol: 1.0e-12
+      cell_vs_bsm_rel: 1.0e-12
+      convergence_to_payoff_abs: 1.0e-9
+      note: >-
+        test_single_leg_cell_equals_bsm_repricing asserts rel=1e-12 against an
+        in-test recomputation; test_converges_to_payoff_at_expiry asserts
+        abs=1e-9 against the exact Decimal payoff at T = 0.
+    oracle: independent_recomputation_in_test
+    oracle_evidence: >-
+      At T = 0 every cell is compared with options.payoff, an INDEPENDENT
+      exact-Decimal implementation (abs=1e-9); each cell is also compared with
+      an in-test recomposition q*M*(european_price(...) - premium), the pricer
+      itself being validated three ways in test_options_oracle.py.
+    oracle_limitation: >-
+      The per-cell check reuses options.european_price, so it validates the
+      grid assembly rather than the pricing model; the model itself is
+      covered by the options.european_price oracle.
+    criticality: critical
+    tests:
+      - packages/python/vertex_core/tests/calculations/test_options.py
+      - apps/worker/tests/test_analysis_content.py
+      - apps/api/tests/test_simulation_preview.py
   - id: options.gex_estimate
     owner: options_intelligence
     inputs: [gamma, open_interest, spot, multiplier, dealer_sign_assumption]
     output_unit: money_per_percent_move
     gates: [assumption_explicit, coverage_threshold]
     invariants: [aggregation_linear]
+    runtime_status: NOT_IMPLEMENTED
+    blocking_reason: >-
+      No implementation exists in this repository: no function, no module and
+      no string literal "options.gex_estimate" appears anywhere in
+      packages/python or apps. The entry is a declared intention, never a
+      pending automation, and no production CalculationRecord may carry it.
+    criticality: medium
   - id: risk.covariance
     owner: portfolio_risk
     inputs: [aligned_returns, estimator, lookback]
     output_unit: covariance_matrix
     gates: [minimum_sample, point_in_time_universe]
     invariants: [symmetric, positive_semidefinite_within_tolerance]
+    runtime_status: APPROVED
+    spec_version: "1.0.0"
+    implementation: packages/python/vertex_core/src/vertex_core/calculations/risk.py::covariance
+    method: sample_covariance_ddof1_numpy_with_exact_symmetrization
+    assumptions:
+      - "S = centered.T @ centered / (n - 1) in float64 (numpy), then the exact symmetrization (S + S.T) / 2 after checking the raw asymmetry against the documented tolerance."
+      - "aligned_returns is a complete rectangular matrix, one row per synchronous observation, one column per asset; alignment and the point-in-time universe are the caller's upstream duty. A hole is REJECTED, never replaced by zero."
+      - "Only estimator='sample' has a real implementation; any other name raises EstimatorNotImplementedError (NOT_IMPLEMENTED, never a pending capability)."
+      - "minimum_sample must be an int >= 2 because ddof = 1; Decimal input is converted to float64 with a relative error <= 2**-52."
+      - "One population per call: one real universe snapshot or one hypothetical scenario set, never mixed."
+    parameter_schema:
+      aligned_returns: {type: "Sequence[Sequence[int | float | Decimal]]", unit: ratio_per_period, constraint: "rectangular, complete, finite; rows >= minimum_sample; at least one column"}
+      estimator: {type: str, unit: enum, constraint: "only 'sample' is implemented, default 'sample'"}
+      minimum_sample: {type: int, unit: observations, constraint: ">= 2, default 2, bool rejected"}
+      returns: {type: CovarianceResult, unit: covariance, note: "estimator, n_observations, n_assets, ddof=1, matrix and min_eigenvalue"}
+    tolerances:
+      covariance_symmetry_tolerance: 1.0e-12
+      covariance_psd_tolerance: 1.0e-10
+      oracle_atol: 1.0e-15
+      note: >-
+        COVARIANCE_SYMMETRY_TOLERANCE (relative to max(1, max|S|)) and
+        COVARIANCE_PSD_TOLERANCE (relative to max(1, max|eigenvalue|), checked
+        with numpy.linalg.eigvalsh) are module constants of
+        calculations/risk.py; the oracle test uses rtol=0.0 and atol=1e-15.
+    oracle: numpy_cov_independent_implementation_in_test
+    oracle_evidence: >-
+      test_oracle_matches_numpy_cov (marker pytest.mark.oracle) compares the
+      result with numpy.cov(rowvar=False, ddof=1) at atol=1e-15;
+      test_golden_two_assets_hand_computed (marker pytest.mark.golden) carries
+      the provenance comment "hand computation (documented 2026-08-28)".
+    criticality: high
+    runtime_usage: not_called_by_production_code_yet
+    tests:
+      - packages/python/vertex_core/tests/calculations/test_risk.py
   - id: probability.calibration
     owner: calibration
     inputs: [train_predictions, calibration_set, holdout]
     output_unit: calibrated_probability
     gates: [walk_forward, no_leakage, minimum_sample]
     invariants: [between_zero_and_one, holdout_untouched]
+    runtime_status: NOT_IMPLEMENTED
+    blocking_reason: >-
+      No implementation exists in this repository: no calibration module, no
+      fitting code, no out-of-sample validation and no golden vectors. Until a
+      calibrated, out-of-sample validated and versioned implementation exists,
+      no predictive probability may be displayed (financial-safety rule) and no
+      production CalculationRecord may carry this id.
+    criticality: critical
   - id: decision.risk_reward
     owner: decision
     inputs: [entry, stop, target, multiplier, costs]
     output_unit: ratio
     gates: [ordered_levels, positive_risk, same_currency]
     invariants: [finite, costs_reduce_reward]
+    runtime_status: APPROVED
+    spec_version: "1.0.0"
+    implementation: packages/python/vertex_core/src/vertex_core/decision/risk_reward.py::risk_reward
+    method: exact_decimal_linear_risk_reward_ratio
+    assumptions:
+      - "Long directional scenario only: risk = (entry - stop) * multiplier + costs, reward = (target - entry) * multiplier - costs, ratio = reward / risk."
+      - "All money inputs are Decimal (boundary policy); arithmetic stays Decimal end to end, exact up to the default 28-significant-digit context (division only)."
+      - "A reward that is zero or negative because costs absorb the gross reward is honest information, not an error; the ratio is then <= 0."
+      - "The output is a FINANCIAL RATIO, never a 0-100 score."
+      - "An options structure must use its own payoff function; it never reuses this linear formula."
+      - "Fixed documented validation order; the first violated rule names the reason. A wrong TYPE raises RiskRewardInputError; a wrong VALUE returns status INVALID with ratio, risk and reward all None — no partial figure is ever exposed, and a missing input is never replaced by zero."
+      - "same_currency and the horizon are proven upstream and passed as explicit booleans; an unproven currency match or an undefined horizon returns INVALID."
+      - "Deterministic pure function: no randomness, no clock, no network."
+    parameter_schema:
+      entry: {type: "Optional[Decimal]", unit: price, constraint: "finite and > 0"}
+      stop: {type: "Optional[Decimal]", unit: price, constraint: "finite, > 0 and < entry"}
+      target: {type: "Optional[Decimal]", unit: price, constraint: "finite, > 0 and > entry"}
+      multiplier: {type: "Optional[int]", unit: units_per_contract, constraint: ">= 1, bool rejected"}
+      costs: {type: "Optional[Decimal]", unit: money, constraint: "finite and >= 0"}
+      currency_match: {type: "Optional[bool]", unit: flag, constraint: "must be True to compute (registry gate same_currency)"}
+      horizon_defined: {type: "Optional[bool]", unit: flag, constraint: "must be True to compute"}
+      returns: {type: RiskRewardResult, unit: ratio, note: "status OK or INVALID; on INVALID no figure is exposed"}
+    tolerances:
+      decimal_context_precision: 28
+      note: >-
+        Exact Decimal arithmetic; the golden vector asserts exact equality and
+        the cost monotonicity property asserts strict Decimal inequalities,
+        with no numeric tolerance.
+    oracle: hand_derived_golden_vectors
+    oracle_evidence: >-
+      test_hand_checked_vector (marker pytest.mark.golden) carries the
+      provenance "DECISION_ENGINE.md formula, hand-checked 2026-08-28";
+      test_costs_reduce_reward_property re-derives the costs_reduce_reward
+      invariant over a Hypothesis domain.
+    criticality: critical
+    runtime_usage: not_called_by_production_code_yet
+    tests:
+      - packages/python/vertex_core/tests/decision/test_risk_reward.py
