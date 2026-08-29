@@ -170,3 +170,42 @@ def test_input_validation_fails_closed() -> None:
         generate_calendar_event_envelopes(
             seed=1, base_time=datetime(2026, 8, 25, 12, 0, 0)
         )
+
+
+# --------------------------------------------------------------------------
+# Contract pinned by the calendar chain: the consumer (worker builder)
+# validates scope, timezone and revision dating fail-closed. These tests keep
+# the generator honest about what it promises downstream.
+# --------------------------------------------------------------------------
+
+
+def test_scope_is_always_coherent_with_the_ticker_presence(envelopes) -> None:
+    """A ticker event is TICKER-scoped, a ticker-less event is GLOBAL: the
+    scope can never promote an event's importance by contradiction."""
+    for envelope in envelopes:
+        payload = envelope.payload
+        expected = (
+            EVENT_SCOPE_GLOBAL if payload["ticker"] is None else EVENT_SCOPE_TICKER
+        )
+        assert payload["scope"] == expected
+
+
+def test_every_revision_entry_is_dated_with_an_aware_revised_at(envelopes) -> None:
+    """The business chronology of a revision is its ``revised_at``: every
+    declared entry carries one, aware and strictly before the envelope."""
+    for envelope in envelopes:
+        for entry in envelope.payload["revisions"]:
+            revised_at = datetime.fromisoformat(entry["revised_at"])
+            assert revised_at.tzinfo is not None
+            assert revised_at.utcoffset() is not None
+            assert revised_at < envelope.as_of
+
+
+def test_one_generation_shares_a_single_as_of(envelopes) -> None:
+    """All envelopes of ONE generation share one ``as_of``.
+
+    Documented on purpose: equality of ``as_of`` is the NORMAL case, so the
+    consumer must never let an arbitrary tie-break (envelope id order) decide
+    which value of a stable event id is displayed.
+    """
+    assert len({envelope.as_of for envelope in envelopes}) == 1

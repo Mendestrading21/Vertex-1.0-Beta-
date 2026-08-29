@@ -26,10 +26,12 @@ focus instrument present in the recent bars window:
   ``AdviceInputs`` built HONESTLY from the real state of the synthetic data:
   facts the worker genuinely holds are filled (identity in the declared
   universe without an IBKR con_id, snapshot quality/freshness from the bars,
-  the statuses of the calculations actually run, no portfolio-risk
-  requirement, no probability used); facts nobody holds (entitlements,
-  session/event calendar, liquidity thresholds, contradiction review, user
-  constraints) stay ``None`` and their gates BLOCK ``UNEVALUABLE`` —
+  the statuses of the calculations actually run, the portfolio-risk
+  requirement DECLARED by the caller's ``AnalysisConfig``, no probability
+  used); facts nobody holds (entitlements, session/event calendar, liquidity
+  thresholds, contradiction review, user constraints, and the manual
+  portfolio declarations when the caller requires them) stay ``None`` and
+  their gates BLOCK ``UNEVALUABLE`` —
   fail-closed. The resulting status (typically ``INSUFFICIENT_DATA`` on the
   synthetic population) is published AS IS: the worker NEVER forces a
   status, and ``direction`` stays ``UNKNOWN`` because no upstream analytical
@@ -174,6 +176,16 @@ class AnalysisConfig:
     advice_validity: timedelta = timedelta(hours=1)
     max_evidence: int = 5
     horizon: str = "1d"
+    portfolio_risk_required: bool = False
+    """Whether gate 7 must be OBSERVED for this population.
+
+    ``False`` states the honest fact of the analysis page: no strategy
+    profile requires a manual portfolio-fit here, so the gate PASSES
+    ``NOT_REQUIRED``. A caller whose profile DOES require a portfolio fit
+    (opportunities under ``equity_etf_swing_3_12m``) must set it to ``True``:
+    the gate is then evaluated on the real user declarations and BLOCKS
+    fail-closed while none exists — a required gate is never satisfied by
+    declaration."""
 
     def __post_init__(self) -> None:
         if not self.instruments:
@@ -190,6 +202,8 @@ class AnalysisConfig:
             raise ValueError("max_evidence: must be an int >= 1")
         if not self.horizon:
             raise ValueError("horizon: non-empty string required")
+        if not isinstance(self.portfolio_risk_required, bool):
+            raise ValueError("portfolio_risk_required: bool required")
 
 
 DEV_SYNTHETIC_ANALYSIS_CONFIG = AnalysisConfig(
@@ -699,12 +713,27 @@ def build_analysis_content(
         calculations=CalculationsInput(
             calculation_statuses=calculation_statuses or None
         ),
-        portfolio_risk=PortfolioRiskInput(risk_required=False),
+        # Declared by the caller's configuration, never by this builder: when
+        # the required flag is set and no user declaration exists, gate 7
+        # BLOCKS (fail-closed) instead of passing NOT_REQUIRED.
+        portfolio_risk=PortfolioRiskInput(
+            risk_required=config.portfolio_risk_required
+        ),
         probability=ProbabilityInput(probability_used=False),
     )
     advice = engine.evaluate(inputs)
 
-    population = "EMPTY" if considered == 0 else ("SYNTHETIC" if synthetic else "REAL")
+    # Population DERIVED from what was really RETAINED, never from the number
+    # of records merely considered: records rejected (source, rights, payload)
+    # retain nothing, so the dossier is honestly EMPTY instead of claiming a
+    # REAL population nothing supports.
+    retained = bool(valid_bars) or bool(evidence["clusters"])
+    if not retained:
+        population = "EMPTY"
+    elif synthetic:
+        population = "SYNTHETIC"
+    else:
+        population = "REAL"
     return {
         "schema_version": ANALYSIS_SCHEMA_VERSION,
         "as_of": now.isoformat(),

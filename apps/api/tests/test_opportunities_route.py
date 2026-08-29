@@ -3,11 +3,16 @@
 Everything here is SYNTHETIC: the fake reader is injected explicitly through
 ``dependency_overrides`` and the snapshot content mirrors the exact shape the
 worker publishes (``vertex_worker.opportunities.build_opportunities_content``).
+
+The relay guard is the API-side mirror of the worker invariant: the qualified
+group crosses status, published gates and required evidence, and every
+excluded candidate publishes WHY it is excluded.
 """
 
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from typing import Any, Optional
 
 import pytest
 from fastapi import FastAPI
@@ -22,8 +27,37 @@ from vertex_persistence.repository.snapshots import CurrentSnapshot
 
 AS_OF = datetime(2026, 8, 25, 12, 0, 0, tzinfo=timezone.utc)
 
+CLOSED_STATUSES = ("BLOCKED", "INSUFFICIENT_DATA")
+_UNSET = object()
 
-def candidate(ticker: str, status: str) -> dict:
+
+def candidate(
+    ticker: str,
+    status: str,
+    *,
+    gate_status: Optional[str] = None,
+    evidence_present: bool = True,
+    exclusion: Any = _UNSET,
+) -> dict:
+    """One candidate in the shape the worker publishes.
+
+    Defaults are the honest ones: a closed status carries its BLOCK gate and
+    its ``CLOSED_STATUS`` exclusion, an open status carries neither.
+    """
+    closed = status in CLOSED_STATUSES
+    resolved_gate = gate_status or ("BLOCK" if closed else "PASS")
+    if exclusion is _UNSET:
+        exclusion = (
+            {
+                "kind": "CLOSED_STATUS",
+                "gate_id": "entitlements_sufficient",
+                "reason_code": "UNEVALUABLE",
+                "missing_evidence": [],
+                "detail": "closed by gate entitlements_sufficient",
+            }
+            if closed
+            else None
+        )
     return {
         "ticker": ticker,
         "sector": "SYN-TECH",
@@ -31,7 +65,7 @@ def candidate(ticker: str, status: str) -> dict:
             "advice_id": "sha256:" + "b" * 64,
             "status": status,
             "direction": "UNKNOWN",
-            "horizon": "1d",
+            "horizon": "3m",
             "as_of": AS_OF.isoformat(),
             "valid_until": AS_OF.isoformat(),
             "engine_version": "vertex_core@0.1.0",
@@ -39,22 +73,28 @@ def candidate(ticker: str, status: str) -> dict:
         "gates": [
             {
                 "gate_id": "entitlements_sufficient",
-                "status": "BLOCK" if status == "INSUFFICIENT_DATA" else "PASS",
-                "reason_code": "UNEVALUABLE"
-                if status == "INSUFFICIENT_DATA"
-                else "OK",
+                "status": resolved_gate,
+                "reason_code": "UNEVALUABLE" if resolved_gate == "BLOCK" else "OK",
             }
         ],
-        "required_evidence": {"sector": {"present": True, "detail": "SYN-TECH"}},
-        "missing_evidence": [],
+        "degraded_gates": [],
+        "required_evidence": {
+            "sector": {"present": evidence_present, "detail": "SYN-TECH"}
+        },
+        "missing_evidence": [] if evidence_present else ["sector"],
         "evidence_cluster_ids": [],
         "scenario_ids": [],
         "bars_status": "OK",
         "scenarios_status": "ABSENT",
+        "population": "SYNTHETIC",
         "synthetic": True,
+        "exclusion": exclusion,
         "primary_exclusion_reason": (
-            {"gate_id": "entitlements_sufficient", "reason_code": "UNEVALUABLE"}
-            if status == "INSUFFICIENT_DATA"
+            {
+                "gate_id": "entitlements_sufficient",
+                "reason_code": "UNEVALUABLE",
+            }
+            if closed
             else None
         ),
     }
@@ -70,6 +110,24 @@ def opportunities_content(qualified: list[dict], excluded: list[dict]) -> dict:
             "id": "equity_etf_swing_3_12m",
             "version": "1.0.0",
             "source": "manifests/strategy-profiles.yaml",
+            "applied": ["required_evidence"],
+            "not_applied": [
+                {"field": "instruments", "reason": "no instrument-class source"}
+            ],
+        },
+        "calendar_ref": {
+            "kind": "calendar",
+            "key": "global",
+            "version": 1,
+            "snapshot_as_of": AS_OF.isoformat(),
+            "content_as_of": AS_OF.isoformat(),
+            "content_schema_version": "vertex.calendar/1.0",
+            "status": "USED",
+            "max_age_seconds": 259200,
+            "events_upcoming": 2,
+            "events_ignored_past": 0,
+            "events_without_ticker": 0,
+            "events_rejected": 0,
         },
         "ordering": {"method": "lexicographic", "keys": [], "note": "documented"},
         "qualified": qualified,
@@ -83,6 +141,7 @@ def opportunities_content(qualified: list[dict], excluded: list[dict]) -> dict:
             "qualified_count": len(qualified),
             "excluded_count": len(excluded),
             "status_counts": {},
+            "population_counts": {"SYNTHETIC": 24},
             "observations_considered": 4,
             "lookback_seconds": 259200,
         },
@@ -141,6 +200,7 @@ def test_relay_is_verbatim(api: TestClient, reader: FakeSnapshotReader) -> None:
     assert body["snapshot_version"] == 1
     assert body["content"] == content
     assert body["content"]["profile_ref"]["version"] == "1.0.0"
+    assert body["content"]["calendar_ref"]["version"] == 1
     assert body["content"]["exclusion_reasons"]
 
 
@@ -153,10 +213,112 @@ def test_closed_candidate_in_qualified_group_is_refused() -> None:
         build_opportunities_response(snapshot(content))
 
 
+def test_qualified_candidate_carrying_a_block_gate_is_refused() -> None:
+    # F15 (API mirror): the group is never decided by the status string
+    # alone — a published BLOCK gate excludes the candidate whatever its
+    # status claims.
+    content = opportunities_content(
+        qualified=[candidate("SYN-TECH-01", "QUALIFIED", gate_status="BLOCK")],
+        excluded=[],
+    )
+    with pytest.raises(SnapshotContentError) as excinfo:
+        build_opportunities_response(snapshot(content))
+    assert "BLOCK gate" in str(excinfo.value)
+
+
+def test_qualified_candidate_missing_a_required_evidence_is_refused() -> None:
+    # F16 (API mirror): no positive card while a required evidence is absent.
+    content = opportunities_content(
+        qualified=[candidate("SYN-TECH-01", "QUALIFIED", evidence_present=False)],
+        excluded=[],
+    )
+    with pytest.raises(SnapshotContentError) as excinfo:
+        build_opportunities_response(snapshot(content))
+    assert "not admissible" in str(excinfo.value)
+
+
+def test_qualified_candidate_contradicting_its_evidence_map_is_refused() -> None:
+    forged = candidate("SYN-TECH-01", "QUALIFIED", evidence_present=False)
+    forged["missing_evidence"] = []  # claims nothing missing, map says sector
+    content = opportunities_content(qualified=[forged], excluded=[])
+    with pytest.raises(SnapshotContentError) as excinfo:
+        build_opportunities_response(snapshot(content))
+    assert "contradicts" in str(excinfo.value)
+
+
 def test_non_canonical_excluded_status_is_refused() -> None:
     content = opportunities_content(
         qualified=[],
-        excluded=[candidate("SYN-TECH-01", "OBSERVE")],
+        excluded=[
+            candidate(
+                "SYN-TECH-01",
+                "OBSERVE",
+                exclusion={
+                    "kind": "CLOSED_STATUS",
+                    "gate_id": "entitlements_sufficient",
+                    "reason_code": "UNEVALUABLE",
+                    "missing_evidence": [],
+                    "detail": "forged",
+                },
+            )
+        ],
     )
     with pytest.raises(SnapshotContentError):
         build_opportunities_response(snapshot(content))
+
+
+def test_excluded_candidate_without_a_published_reason_is_refused() -> None:
+    content = opportunities_content(
+        qualified=[], excluded=[candidate("SYN-TECH-01", "OBSERVE")]
+    )
+    with pytest.raises(SnapshotContentError):
+        build_opportunities_response(snapshot(content))
+
+
+def test_closed_status_attributed_to_missing_evidence_is_refused() -> None:
+    content = opportunities_content(
+        qualified=[],
+        excluded=[
+            candidate(
+                "SYN-TECH-01",
+                "INSUFFICIENT_DATA",
+                evidence_present=False,
+                exclusion={
+                    "kind": "MISSING_REQUIRED_EVIDENCE",
+                    "gate_id": None,
+                    "reason_code": None,
+                    "missing_evidence": ["sector"],
+                    "detail": "forged attribution",
+                },
+            )
+        ],
+    )
+    with pytest.raises(SnapshotContentError) as excinfo:
+        build_opportunities_response(snapshot(content))
+    assert "blocking gate" in str(excinfo.value)
+
+
+def test_open_candidate_excluded_for_missing_evidence_relays(
+    api: TestClient, reader: FakeSnapshotReader
+) -> None:
+    # The admissibility exclusion is a legitimate published state: an open
+    # status may sit in the excluded group ONLY with its evidence reason.
+    excluded = candidate(
+        "SYN-TECH-01",
+        "QUALIFIED",
+        evidence_present=False,
+        exclusion={
+            "kind": "MISSING_REQUIRED_EVIDENCE",
+            "gate_id": None,
+            "reason_code": None,
+            "missing_evidence": ["sector"],
+            "detail": "required evidence absent: sector",
+        },
+    )
+    content = opportunities_content(qualified=[], excluded=[excluded])
+    reader.snapshots[("opportunities", "global")] = snapshot(content)
+    body = api.get("/api/v1/opportunities").json()
+    assert body["state"] == "ok"
+    assert body["content"]["excluded"][0]["exclusion"]["missing_evidence"] == [
+        "sector"
+    ]

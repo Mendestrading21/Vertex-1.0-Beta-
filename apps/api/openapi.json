@@ -284,7 +284,7 @@
       },
       "AiAnswer": {
         "additionalProperties": false,
-        "description": "The structured deterministic answer (never presented as a model).",
+        "description": "The structured deterministic answer (never presented as a model).\n\n``state = \"ok\"`` carries at least one grounded claim. ``state =\n\"refused\"`` is the STRUCTURED REFUSAL of an empty or unusable corpus:\nno claim, a readable ``refusal_reason`` and explicit missing data — it\nis never an empty explanation presented as complete.",
         "properties": {
           "as_of": {
             "format": "date-time",
@@ -298,6 +298,11 @@
             "title": "Claims",
             "type": "array"
           },
+          "content_hash": {
+            "minLength": 1,
+            "title": "Content Hash",
+            "type": "string"
+          },
           "contradictions": {
             "items": {
               "$ref": "#/components/schemas/AiContradiction"
@@ -310,6 +315,13 @@
               "$ref": "#/components/schemas/AiEvidenceCatalogEntry"
             },
             "title": "Evidence Catalog",
+            "type": "array"
+          },
+          "external_excerpts": {
+            "items": {
+              "$ref": "#/components/schemas/AiExternalExcerpt"
+            },
+            "title": "External Excerpts",
             "type": "array"
           },
           "limitations": {
@@ -339,10 +351,30 @@
             "title": "Provider",
             "type": "string"
           },
+          "refusal_reason": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Refusal Reason"
+          },
           "snapshot_version": {
             "exclusiveMinimum": 0.0,
             "title": "Snapshot Version",
             "type": "integer"
+          },
+          "state": {
+            "enum": [
+              "ok",
+              "refused"
+            ],
+            "title": "State",
+            "type": "string"
           },
           "subject": {
             "$ref": "#/components/schemas/AiSubject"
@@ -358,9 +390,13 @@
           "template_version",
           "subject",
           "locale",
+          "state",
+          "refusal_reason",
           "as_of",
           "snapshot_version",
+          "content_hash",
           "claims",
+          "external_excerpts",
           "contradictions",
           "missing_data",
           "limitations",
@@ -371,7 +407,7 @@
       },
       "AiClaim": {
         "additionalProperties": false,
-        "description": "One factual sentence, grounded on evidence really present.",
+        "description": "One factual sentence, grounded on evidence really present.\n\nA claim text is built ONLY from Vertex-owned canonical values; untrusted\nexternal content never enters it.",
         "properties": {
           "evidence_refs": {
             "items": {
@@ -482,6 +518,39 @@
           "locale"
         ],
         "title": "AiExplainRequest",
+        "type": "object"
+      },
+      "AiExternalExcerpt": {
+        "additionalProperties": false,
+        "description": "One excerpt of UNTRUSTED external content — never a Vertex fact.\n\nCarried in its own channel, typed ``EXTERNAL_UNVERIFIED``, escaped and\ntruncated. It is displayed as quoted source material, never as a claim.",
+        "properties": {
+          "evidence_ref": {
+            "minLength": 1,
+            "title": "Evidence Ref",
+            "type": "string"
+          },
+          "excerpt": {
+            "minLength": 1,
+            "title": "Excerpt",
+            "type": "string"
+          },
+          "label": {
+            "const": "EXTERNAL_UNVERIFIED",
+            "title": "Label",
+            "type": "string"
+          },
+          "truncated": {
+            "title": "Truncated",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "evidence_ref",
+          "label",
+          "excerpt",
+          "truncated"
+        ],
+        "title": "AiExternalExcerpt",
         "type": "object"
       },
       "AiStatusResponse": {
@@ -906,7 +975,7 @@
       },
       "CalendarResponse": {
         "additionalProperties": false,
-        "description": "The last published calendar snapshot — or an honest empty state.\n\n``state = \"ok\"`` relays the persisted agenda VERBATIM (importance from\nthe versioned rule, distinct ESTIMATED/CONFIRMED labels, revisions with\ntheir preserved previous values, exchange timezones); the API invents no\nevent and recomputes no importance. ``state = \"empty\"`` means the worker\nnever published: nothing is invented, ``reason`` says why.",
+        "description": "The last published calendar snapshot — or an honest empty state.\n\n``state = \"ok\"`` relays the persisted agenda VERBATIM (importance from\nthe versioned rule, distinct ESTIMATED/CONFIRMED labels, revisions and\nprevious values, freshness, exchange timezones); the API invents no event\nand recomputes no importance. ``state = \"empty\"`` means nothing to show\n(never published, or nothing observed), ``state = \"not_entitled\"`` that\nthe considered records were rejected for missing rights and\n``state = \"rejected\"`` that they were all invalid. Every non-ok state\ncarries its ``reason``: an empty agenda never passes for a success.",
         "properties": {
           "agenda": {
             "items": {
@@ -1003,7 +1072,9 @@
           "state": {
             "enum": [
               "ok",
-              "empty"
+              "empty",
+              "not_entitled",
+              "rejected"
             ],
             "title": "State",
             "type": "string"
@@ -1042,11 +1113,16 @@
       },
       "CalendarWindow": {
         "additionalProperties": false,
-        "description": "Echo of the applied (or absent) display window.",
+        "description": "Echo of the applied (or absent) display window.\n\n``categories`` and ``statuses`` count the events REALLY displayed, so the\ncounters never contradict the served list; the snapshot-wide totals stay\npublished beside them in ``categories``/``statuses``/``coverage``.",
         "properties": {
           "applied": {
             "title": "Applied",
             "type": "boolean"
+          },
+          "categories": {
+            "additionalProperties": true,
+            "title": "Categories",
+            "type": "object"
           },
           "events_in_window": {
             "title": "Events In Window",
@@ -1073,6 +1149,11 @@
             "title": "Max Days",
             "type": "integer"
           },
+          "statuses": {
+            "additionalProperties": true,
+            "title": "Statuses",
+            "type": "object"
+          },
           "to_utc": {
             "anyOf": [
               {
@@ -1092,7 +1173,9 @@
           "to_utc",
           "max_days",
           "events_total",
-          "events_in_window"
+          "events_in_window",
+          "categories",
+          "statuses"
         ],
         "title": "CalendarWindow",
         "type": "object"
@@ -2798,7 +2881,7 @@
       },
       "OpportunitiesResponse": {
         "additionalProperties": false,
-        "description": "The last published opportunities snapshot — or an honest empty state.\n\n``state = \"ok\"`` relays the persisted content VERBATIM: profile\nreference (id + version), documented lexicographic ordering, qualified\nand excluded candidates with their gates and honest evidence checks, and\nthe distribution of exclusion reasons (the page's honest empty state on\nsynthetic data). ``state = \"empty\"`` means the worker never published.",
+        "description": "The last published opportunities snapshot — or an honest empty state.\n\n``state = \"ok\"`` relays the persisted content VERBATIM: profile\nreference (id + version + what is really applied), calendar provenance,\ndocumented lexicographic ordering, qualified and excluded candidates with\ntheir gates, honest evidence checks and published exclusion reasons (the\npage's honest empty state on synthetic data). ``state = \"empty\"`` means\nthe worker never published.",
         "properties": {
           "as_of": {
             "anyOf": [

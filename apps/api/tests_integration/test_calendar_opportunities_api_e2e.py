@@ -129,6 +129,9 @@ class TestCalendarRoute:
         assert body["statuses"] is None
         assert body["coverage"] is None
         assert body["reason"] == "no snapshot published"
+        # ``categories``/``statuses`` count the list ACTUALLY served (F13 fix):
+        # with no snapshot the served list is empty, so no category is claimed
+        # and every status counter is zero.
         assert body["window"] == {
             "applied": False,
             "from_utc": None,
@@ -136,7 +139,10 @@ class TestCalendarRoute:
             "max_days": MAX_WINDOW_DAYS,
             "events_total": 0,
             "events_in_window": 0,
+            "categories": {},
+            "statuses": {"ESTIMATED": 0, "CONFIRMED": 0},
         }
+        assert not any(body["window"]["statuses"].values())
 
     def test_served_agenda_is_the_published_snapshot_verbatim(
         self, authenticated: TestClient, published: dict[str, Any]

@@ -7,10 +7,12 @@ applications always render byte-identical OpenAPI output (see
 ``vertex_api.openapi_export``).
 """
 
+import logging
 from typing import Any
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.openapi.utils import get_openapi
+from fastapi.responses import JSONResponse
 
 from vertex_api.ai_explain import AiExplainRequest
 from vertex_api.auth import auth_router
@@ -26,6 +28,7 @@ from vertex_api.portfolio import (
 from vertex_api.routes import protected_router, public_router
 from vertex_api.schemas import AdvicePreviewRequest
 from vertex_api.simulation import SimulationPreviewRequest
+from vertex_api.snapshot_views import SnapshotContentError
 from vertex_core.version import ENGINE_VERSION
 
 __all__ = ["OpenApiComponentCollisionError", "create_app"]
@@ -116,6 +119,32 @@ def create_app() -> FastAPI:
     app.include_router(public_router)
     app.include_router(auth_router)
     app.include_router(protected_router)
+
+    @app.exception_handler(SnapshotContentError)
+    async def _snapshot_content_rejected(
+        request: Request, exc: SnapshotContentError
+    ) -> JSONResponse:
+        """Refuse a stored snapshot whose content breaks its published schema.
+
+        Serving such content would present an unverified payload as a
+        canonical result, so the relay fails closed. The client receives a
+        stable code it can render as an honest error state; the reason (field
+        names only, never the stored values) stays in the server log so no
+        payload fragment can leak through the response.
+        """
+        logging.getLogger("vertex_api.snapshot").error(
+            "snapshot content rejected on %s: %s", request.url.path, exc
+        )
+        return JSONResponse(
+            status_code=500,
+            content={
+                "code": "SNAPSHOT_CONTENT_INVALID",
+                "detail": (
+                    "a published snapshot cannot be served: its stored content "
+                    "does not match the published schema"
+                ),
+            },
+        )
 
     def custom_openapi() -> dict[str, Any]:
         if app.openapi_schema is None:

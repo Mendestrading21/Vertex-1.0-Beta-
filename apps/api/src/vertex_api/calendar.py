@@ -6,13 +6,25 @@ The only presentation operation is the OPTIONAL ``from``/``to`` window
 filter over ``event_time_utc`` — a pure selection of already-published
 events, bounded to :data:`MAX_WINDOW_DAYS` days, requiring BOTH bounds and
 aware datetimes (fail-closed 422 otherwise). Estimated/confirmed labels,
-revisions and exchange timezones are conserved exactly as published.
+revisions, previous values, freshness and exchange timezones are conserved
+exactly as published.
+
+Two honesty rules govern the relayed state:
+
+- the ``state`` comes from the worker's published ``agenda_state`` (single
+  authority). An agenda emptied by a rights rejection is served as
+  ``not_entitled`` WITH its reason — page 02 forbids the misleading empty
+  agenda — and an unknown state fails closed instead of being shown ``ok``;
+- every relayed event is shape-checked IDENTICALLY with and without a
+  window (``event_time_utc`` included), so one snapshot always yields ONE
+  behaviour; and the counters of what is really displayed travel in
+  ``window`` beside the published snapshot-wide totals.
 """
 
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
-from typing import Any, Literal, Mapping, Optional
+from typing import Any, Literal, Mapping, Optional, Sequence
 
 from fastapi import HTTPException
 
@@ -34,6 +46,7 @@ from vertex_api.snapshot_views import (
 )
 
 __all__ = [
+    "AGENDA_STATE_TO_RESPONSE_STATE",
     "ERROR_WINDOW_INCOMPLETE",
     "ERROR_WINDOW_INVERTED",
     "ERROR_WINDOW_NAIVE_DATETIME",
@@ -52,6 +65,15 @@ SNAPSHOT_KEY_GLOBAL = "global"
 
 REASON_NO_SNAPSHOT_PUBLISHED = "no snapshot published"
 
+AGENDA_STATE_TO_RESPONSE_STATE: Mapping[str, str] = {
+    "OK": "ok",
+    "EMPTY": "empty",
+    "NOT_ENTITLED": "not_entitled",
+    "REJECTED": "rejected",
+}
+"""Published worker state -> served state. The worker OWNS the verdict; an
+``agenda_state`` outside this mapping is refused, never downgraded to ok."""
+
 MAX_WINDOW_DAYS = 90
 """Hard bound of the from/to query window (inclusive bounds)."""
 
@@ -62,7 +84,12 @@ ERROR_WINDOW_NAIVE_DATETIME = "WINDOW_NAIVE_DATETIME"
 
 
 class CalendarWindow(ContractModel):
-    """Echo of the applied (or absent) display window."""
+    """Echo of the applied (or absent) display window.
+
+    ``categories`` and ``statuses`` count the events REALLY displayed, so the
+    counters never contradict the served list; the snapshot-wide totals stay
+    published beside them in ``categories``/``statuses``/``coverage``.
+    """
 
     applied: bool
     from_utc: Optional[UtcDatetime]
@@ -70,19 +97,24 @@ class CalendarWindow(ContractModel):
     max_days: PositiveInt
     events_total: int
     events_in_window: int
+    categories: FrozenStrMapping
+    statuses: FrozenStrMapping
 
 
 class CalendarResponse(ContractModel):
     """The last published calendar snapshot — or an honest empty state.
 
     ``state = "ok"`` relays the persisted agenda VERBATIM (importance from
-    the versioned rule, distinct ESTIMATED/CONFIRMED labels, revisions with
-    their preserved previous values, exchange timezones); the API invents no
-    event and recomputes no importance. ``state = "empty"`` means the worker
-    never published: nothing is invented, ``reason`` says why.
+    the versioned rule, distinct ESTIMATED/CONFIRMED labels, revisions and
+    previous values, freshness, exchange timezones); the API invents no event
+    and recomputes no importance. ``state = "empty"`` means nothing to show
+    (never published, or nothing observed), ``state = "not_entitled"`` that
+    the considered records were rejected for missing rights and
+    ``state = "rejected"`` that they were all invalid. Every non-ok state
+    carries its ``reason``: an empty agenda never passes for a success.
     """
 
-    state: Literal["ok", "empty"]
+    state: Literal["ok", "empty", "not_entitled", "rejected"]
     snapshot_version: Optional[PositiveInt]
     as_of: Optional[UtcDatetime]
     population: Optional[NonEmptyStr]
@@ -136,12 +168,35 @@ def validate_window(
     return start, end
 
 
-def _event_in_window(
-    event: Mapping[str, Any], start: datetime, end: datetime
-) -> bool:
-    raw = event.get("event_time_utc")
-    instant = _parse_utc(raw, field="agenda[].event_time_utc")
-    return start <= instant <= end
+def _counters(events: Sequence[Mapping[str, Any]]) -> tuple[dict, dict]:
+    """Category and status counters of the events REALLY served."""
+    categories: dict[str, int] = {}
+    statuses: dict[str, int] = {"ESTIMATED": 0, "CONFIRMED": 0}
+    for event in events:
+        category = event.get("category")
+        if isinstance(category, str) and category:
+            categories[category] = categories.get(category, 0) + 1
+        statuses[str(event["status"])] += 1
+    return dict(sorted(categories.items())), statuses
+
+
+def _window_echo(
+    window: Optional[tuple[datetime, datetime]],
+    *,
+    events_total: int,
+    selected: Sequence[Mapping[str, Any]],
+) -> CalendarWindow:
+    categories, statuses = _counters(selected)
+    return CalendarWindow(
+        applied=window is not None,
+        from_utc=None if window is None else window[0],
+        to_utc=None if window is None else window[1],
+        max_days=MAX_WINDOW_DAYS,
+        events_total=events_total,
+        events_in_window=len(selected),
+        categories=categories,
+        statuses=statuses,
+    )
 
 
 def build_calendar_response(
@@ -167,14 +222,7 @@ def build_calendar_response(
             categories=None,
             statuses=None,
             coverage=None,
-            window=CalendarWindow(
-                applied=window is not None,
-                from_utc=None if window is None else window[0],
-                to_utc=None if window is None else window[1],
-                max_days=MAX_WINDOW_DAYS,
-                events_total=0,
-                events_in_window=0,
-            ),
+            window=_window_echo(window, events_total=0, selected=()),
             reason=REASON_NO_SNAPSHOT_PUBLISHED,
         )
 
@@ -185,6 +233,7 @@ def build_calendar_response(
     )
     _require_str(importance_rule.get("version"), field="importance_rule.version")
     events: list[Mapping[str, Any]] = []
+    instants: list[datetime] = []
     for index, raw in enumerate(agenda_raw):
         event = _require_mapping(raw, field=f"agenda[{index}]")
         status = event.get("status")
@@ -207,18 +256,51 @@ def build_calendar_response(
             raise SnapshotContentError(
                 f"agenda[{index}].revisions: list required"
             )
+        if not isinstance(event.get("previous_values"), list):
+            raise SnapshotContentError(
+                f"agenda[{index}].previous_values: list required"
+            )
+        # Checked for EVERY event, window or not: one snapshot, ONE
+        # behaviour. An unusable instant can never be served as valid.
+        instant = _parse_utc(
+            event.get("event_time_utc"), field=f"agenda[{index}].event_time_utc"
+        )
+        instants.append(instant)
         events.append(event)
+
+    agenda_state = _require_str(
+        content.get("agenda_state"), field="agenda_state"
+    )
+    if agenda_state not in AGENDA_STATE_TO_RESPONSE_STATE:
+        raise SnapshotContentError(
+            "agenda_state: one of "
+            + ", ".join(sorted(AGENDA_STATE_TO_RESPONSE_STATE))
+            + " required"
+        )
+    reason = content.get("agenda_state_reason")
+    if reason is not None and (not isinstance(reason, str) or not reason):
+        raise SnapshotContentError(
+            "agenda_state_reason: non-empty string or null required"
+        )
+    if agenda_state != "OK" and reason is None:
+        # A non-ok state without its cause would be an unexplained empty
+        # agenda: refuse it rather than serve it.
+        raise SnapshotContentError(
+            "agenda_state_reason: required for a non-OK agenda_state"
+        )
 
     if window is None:
         selected = events
     else:
         start, end = window
         selected = [
-            event for event in events if _event_in_window(event, start, end)
+            event
+            for event, instant in zip(events, instants)
+            if start <= instant <= end
         ]
 
     return CalendarResponse(
-        state="ok",
+        state=AGENDA_STATE_TO_RESPONSE_STATE[agenda_state],
         snapshot_version=snapshot.version,
         as_of=_parse_utc(content.get("as_of"), field="as_of"),
         population=_require_str(content.get("population"), field="population"),
@@ -233,13 +315,8 @@ def build_calendar_response(
         coverage=dict(
             _require_mapping(content.get("coverage"), field="coverage")
         ),
-        window=CalendarWindow(
-            applied=window is not None,
-            from_utc=None if window is None else window[0],
-            to_utc=None if window is None else window[1],
-            max_days=MAX_WINDOW_DAYS,
-            events_total=len(events),
-            events_in_window=len(selected),
+        window=_window_echo(
+            window, events_total=len(events), selected=selected
         ),
-        reason=None,
+        reason=reason,
     )
