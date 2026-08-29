@@ -31,6 +31,7 @@ from vertex_api.snapshot_reader import SnapshotReader
 
 __all__ = [
     "WATCHED_SNAPSHOTS",
+    "WATCHED_SNAPSHOT_KINDS",
     "StreamSettings",
     "format_sse_event",
     "get_stream_settings",
@@ -43,6 +44,18 @@ WATCHED_SNAPSHOTS: tuple[tuple[str, str], ...] = (
     ("markets_overview", "global"),
 )
 """(kind, key) heads whose version changes are signalled on the stream."""
+
+WATCHED_SNAPSHOT_KINDS: tuple[str, ...] = ("analysis", "option_chain")
+"""Kinds watched BY PREFIX: every published key of these kinds is signalled
+as ``<kind>/<key>`` (e.g. ``option_chain/SYN-TECH-01``).
+
+Documented semantics choice: rather than hard-coding the current list of
+synthetic underlyings, the stream polls the head table for ALL keys of a
+watched kind (``SnapshotReader.heads_for_kind``) — ``option_chain/*``. A new
+underlying published by the worker therefore starts signalling without any
+API change; a key never published emits nothing (absence stays silent, it is
+never invented). A key appearing for the first time during a connection is
+signalled as a change."""
 
 
 @dataclass(frozen=True)
@@ -81,6 +94,10 @@ async def _poll_versions(reader: SnapshotReader) -> Dict[str, Optional[int]]:
         versions[_resource_name(kind, key)] = await run_in_threadpool(
             reader.head_version, kind=kind, key=key
         )
+    for kind in WATCHED_SNAPSHOT_KINDS:
+        heads = await run_in_threadpool(reader.heads_for_kind, kind=kind)
+        for key in sorted(heads):
+            versions[_resource_name(kind, key)] = heads[key]
     return versions
 
 
@@ -104,7 +121,7 @@ async def snapshot_event_stream(
         changed = [
             resource
             for resource, version in current.items()
-            if version is not None and version != last[resource]
+            if version is not None and version != last.get(resource)
         ]
         if changed:
             # Coalescence: let an in-flight burst land, then re-read once so
@@ -112,8 +129,8 @@ async def snapshot_event_stream(
             await asyncio.sleep(settings.coalesce_seconds)
             current = await _poll_versions(reader)
             for resource in sorted(changed):
-                version = current[resource]
-                if version is not None and version != last[resource]:
+                version = current.get(resource)
+                if version is not None and version != last.get(resource):
                     yield format_sse_event(
                         "snapshot", {"resource": resource, "version": version}
                     )

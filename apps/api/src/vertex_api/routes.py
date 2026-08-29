@@ -22,28 +22,40 @@ mutation — or a generic 401 with code ``AUTH_REQUIRED``, fail-closed.
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Path, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import StreamingResponse
 from pydantic import ValidationError
+from starlette.concurrency import run_in_threadpool
 
 from vertex_api.auth import require_session
 from vertex_api.capability_manifest import CapabilityManifest
 from vertex_api.events import StreamSettings, get_stream_settings, snapshot_event_stream
 from vertex_api.schemas import (
     AdvicePreviewRequest,
+    AnalysisResponse,
     AttentionSnapshotResponse,
     EngineInfoResponse,
     HealthResponse,
     MarketsOverviewResponse,
+    OptionChainResponse,
     SystemCapabilitiesResponse,
+)
+from vertex_api.simulation import (
+    SimulationPreviewRequest,
+    SimulationPreviewResponse,
+    SimulationRejectedError,
+    run_simulation_preview,
 )
 from vertex_api.snapshot_reader import Clock, SnapshotReader, get_clock, get_snapshot_reader
 from vertex_api.snapshot_views import (
+    build_analysis_response,
     build_attention_response,
     build_capabilities_response,
     build_markets_overview_response,
+    build_option_chain_response,
 )
+from vertex_core.calculations.options import OptionInputError
 from vertex_core.contracts.decision import AdviceResult
 from vertex_core.decision import GATE_VERSIONS, AdviceEngine
 from vertex_core.version import ENGINE_VERSION
@@ -59,7 +71,13 @@ __all__ = [
 SNAPSHOT_KIND_ATTENTION = "attention"
 SNAPSHOT_KIND_CAPABILITIES = "capabilities"
 SNAPSHOT_KIND_MARKETS = "markets_overview"
+SNAPSHOT_KIND_OPTION_CHAIN = "option_chain"
+SNAPSHOT_KIND_ANALYSIS = "analysis"
 SNAPSHOT_KEY_GLOBAL = "global"
+
+UNDERLYING_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+"""Accepted shape of an underlying snapshot key (path parameter): a plain
+canonical ticker identifier — anything else is rejected before any lookup."""
 
 public_router = APIRouter(prefix="/api/v1")
 
@@ -143,6 +161,80 @@ def post_advice_preview(
     return engine.evaluate(inputs)
 
 
+async def parse_simulation_preview_request(
+    request: Request,
+) -> SimulationPreviewRequest:
+    """Validate the raw JSON body in pydantic JSON mode (fail-closed 422).
+
+    Same rationale as :func:`parse_advice_preview_request`: the simulation
+    contracts are strict models whose wire form carries decimal strings —
+    ``model_validate_json`` accepts exactly the canonical JSON encoding and
+    rejects every deviation (missing strike, zero quantity, oversized grid,
+    non-finite decimal, unknown field) as 422.
+    """
+    raw_body = await request.body()
+    try:
+        return SimulationPreviewRequest.model_validate_json(raw_body)
+    except ValidationError as exc:
+        raise RequestValidationError(
+            exc.errors(include_url=False, include_context=False, include_input=False)
+        ) from exc
+
+
+@protected_router.post(
+    "/simulations/preview",
+    operation_id="post_simulations_preview",
+    response_model=SimulationPreviewResponse,
+    summary="THEORETICAL preview of one declared structure (no persistence)",
+    openapi_extra={
+        "requestBody": {
+            "required": True,
+            "content": {
+                "application/json": {
+                    "schema": {
+                        "$ref": "#/components/schemas/SimulationPreviewRequest"
+                    }
+                }
+            },
+        }
+    },
+    responses={
+        422: {
+            "description": (
+                "Rejected fail-closed with the exact machine-readable reason: "
+                "either a wire-contract violation, or the defined-risk "
+                "verifier's code (e.g. OUTSIDE_CLOSED_CATALOG, "
+                "UNCOVERED_SHORT_UPSIDE_TAIL, VERTICAL_DEBIT_NOT_BELOW_WIDTH), "
+                "or a typed calculation-domain violation from vertex_core."
+            )
+        }
+    },
+)
+async def post_simulations_preview(
+    inputs: Annotated[
+        SimulationPreviewRequest, Depends(parse_simulation_preview_request)
+    ],
+    clock: Annotated[Clock, Depends(get_clock)],
+) -> SimulationPreviewResponse:
+    """Run one THEORETICAL simulation preview through vertex_core.
+
+    Orchestration only: the mandatory ``defined_risk_check``, the exact
+    ``payoff_at_expiry``, the authority-certified breakevens and the bounded
+    ``scenario_grid`` all run inside ``vertex_core.calculations.options`` on
+    a worker thread (``run_in_threadpool`` — the event loop never computes).
+    Nothing is persisted; nothing here is, or ever becomes, an order.
+    """
+    try:
+        return await run_in_threadpool(
+            run_simulation_preview, inputs, now=clock()
+        )
+    except (SimulationRejectedError, OptionInputError) as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": exc.reason, "message": exc.detail},
+        ) from exc
+
+
 @protected_router.get(
     "/system/engine",
     operation_id="get_system_engine",
@@ -177,6 +269,54 @@ def get_markets_overview(
     """
     snapshot = reader.current(kind=SNAPSHOT_KIND_MARKETS, key=SNAPSHOT_KEY_GLOBAL)
     return build_markets_overview_response(snapshot)
+
+
+@protected_router.get(
+    "/analysis/{instrument}",
+    operation_id="get_analysis",
+    response_model=AnalysisResponse,
+    summary="Last published analysis dossier for one instrument (or honest empty state)",
+)
+def get_analysis(
+    instrument: Annotated[str, Path(pattern=UNDERLYING_PATTERN)],
+    reader: Annotated[SnapshotReader, Depends(get_snapshot_reader)],
+) -> AnalysisResponse:
+    """Serve the LAST ``analysis/{instrument}`` snapshot exactly as persisted.
+
+    The API relays the worker's published dossier — the canonical
+    ``AdviceResult`` of the single ``AdviceEngine`` with its ten gates and
+    reason codes, the validated OHLCV bars, the fusion evidence rail and the
+    ``THEORETICAL`` scenario block (or its typed absence reason) — and
+    computes nothing. With no snapshot ever published for this instrument
+    the answer is a 200 with ``state = "empty"``: absent stays absent,
+    nothing is invented.
+    """
+    snapshot = reader.current(kind=SNAPSHOT_KIND_ANALYSIS, key=instrument)
+    return build_analysis_response(snapshot, instrument=instrument)
+
+
+@protected_router.get(
+    "/options/{underlying}/chain",
+    operation_id="get_option_chain",
+    response_model=OptionChainResponse,
+    summary="Last published option chain for one underlying (or honest empty state)",
+)
+def get_option_chain(
+    underlying: Annotated[str, Path(pattern=UNDERLYING_PATTERN)],
+    reader: Annotated[SnapshotReader, Depends(get_snapshot_reader)],
+) -> OptionChainResponse:
+    """Serve the LAST ``option_chain/{underlying}`` snapshot exactly as persisted.
+
+    The API relays the worker's published content — per-(expiration,
+    trading_class) groups with complete contract identities, verbatim quotes
+    and their quality, the worker's Vertex IV/Greeks (``THEORETICAL``, with
+    their ``CalculationRecord`` lineage) or their typed refusal reasons, the
+    coverage account and the displayed row budget — and computes nothing.
+    With no snapshot ever published for this underlying the answer is a 200
+    with ``state = "empty"``: absent stays absent, nothing is invented.
+    """
+    snapshot = reader.current(kind=SNAPSHOT_KIND_OPTION_CHAIN, key=underlying)
+    return build_option_chain_response(snapshot, underlying=underlying)
 
 
 def get_capability_manifest(request: Request) -> CapabilityManifest:

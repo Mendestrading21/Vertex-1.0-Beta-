@@ -56,6 +56,16 @@ class SnapshotReader(Protocol):
         """Head version number only (no content), or ``None`` if never published."""
         ...
 
+    def heads_for_kind(self, *, kind: str) -> dict[str, int]:
+        """Every published head of ``kind`` as ``{key: version}`` (no content).
+
+        Empty when nothing of this kind was ever published. This is the
+        light query behind the prefix-watched SSE resources
+        (``option_chain/*``): any key published under a watched kind is
+        picked up without redeploying the API.
+        """
+        ...
+
     def ping(self) -> bool:
         """``SELECT 1`` health probe: ``True`` only when the database answers."""
         ...
@@ -78,6 +88,15 @@ class DbSnapshotReader:
                     SnapshotHead.kind == kind, SnapshotHead.key == key
                 )
             ).scalar_one_or_none()
+
+    def heads_for_kind(self, *, kind: str) -> dict[str, int]:
+        with open_db_session(self._app) as session:
+            rows = session.execute(
+                select(SnapshotHead.key, SnapshotHead.version).where(
+                    SnapshotHead.kind == kind
+                )
+            ).all()
+        return {key: version for key, version in rows}
 
     def ping(self) -> bool:
         try:

@@ -282,6 +282,161 @@
         "title": "AdviceStatus",
         "type": "string"
       },
+      "AnalysisResponse": {
+        "additionalProperties": false,
+        "description": "The last ``analysis/{instrument}`` snapshot — or an honest empty state.\n\n``state = \"empty\"`` means NO dossier was ever published for this\ninstrument: every snapshot-derived field is ``None`` (never invented)\nand ``reason`` says why. ``state = \"ok\"`` relays the persisted content\nverbatim:\n\n- ``advice`` is the canonical ``AdviceResult`` produced by THE single\n  ``AdviceEngine`` — status, direction, the ten gates with their reason\n  codes, limitations — exactly as published; the API neither recomputes\n  nor softens it;\n- ``bars`` carries the validated synthetic OHLCV series (decimal\n  strings) with its per-bar discard account;\n- ``evidence`` is the fusion-cluster rail of the instrument;\n- ``scenarios`` is either the ``THEORETICAL`` scenario grid with its\n  ``CalculationRecord`` lineage or an honest ``ABSENT`` block with its\n  typed reason.",
+        "properties": {
+          "advice": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Advice"
+          },
+          "as_of": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "As Of"
+          },
+          "bars": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bars"
+          },
+          "coverage": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coverage"
+          },
+          "engine_version": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Engine Version"
+          },
+          "evidence": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence"
+          },
+          "instrument": {
+            "minLength": 1,
+            "title": "Instrument",
+            "type": "string"
+          },
+          "population": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Population"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "scenarios": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scenarios"
+          },
+          "snapshot_version": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Snapshot Version"
+          },
+          "state": {
+            "enum": [
+              "ok",
+              "empty"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "snapshot_version",
+          "as_of",
+          "population",
+          "instrument",
+          "engine_version",
+          "bars",
+          "evidence",
+          "scenarios",
+          "advice",
+          "coverage",
+          "reason"
+        ],
+        "title": "AnalysisResponse",
+        "type": "object"
+      },
       "AssetClass": {
         "description": "Canonical asset class of an identified instrument.",
         "enum": [
@@ -1528,6 +1683,469 @@
         "title": "MarketsTicker",
         "type": "object"
       },
+      "OptionChainContract": {
+        "additionalProperties": false,
+        "description": "One option contract row, relayed from the worker snapshot verbatim.\n\nThe COMPLETE contract identity (synthetic ``con_id``, trading class,\nstrike, right, multiplier, currency, exchange, style, settlement,\nexpiration) travels with every row. ``quote`` is the verbatim observed\nquote plus its quality status (``OK``/``CROSSED``/``STALE``/``MISSING``);\n``iv`` and ``greeks`` are the worker's Vertex results — present ONLY when\nthe quote was sane, labeled ``value_nature = \"THEORETICAL\"`` with their\npreserved ``CalculationRecord`` lineage, otherwise honestly ``ABSENT``\nwith the typed refusal reason. The API recomputes nothing.",
+        "properties": {
+          "con_id": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Con Id"
+          },
+          "currency": {
+            "minLength": 1,
+            "title": "Currency",
+            "type": "string"
+          },
+          "exchange": {
+            "minLength": 1,
+            "title": "Exchange",
+            "type": "string"
+          },
+          "expiration": {
+            "minLength": 1,
+            "title": "Expiration",
+            "type": "string"
+          },
+          "greeks": {
+            "additionalProperties": true,
+            "title": "Greeks",
+            "type": "object"
+          },
+          "iv": {
+            "additionalProperties": true,
+            "title": "Iv",
+            "type": "object"
+          },
+          "multiplier": {
+            "exclusiveMinimum": 0.0,
+            "title": "Multiplier",
+            "type": "integer"
+          },
+          "open_interest": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Open Interest"
+          },
+          "open_interest_status": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Open Interest Status"
+          },
+          "quote": {
+            "additionalProperties": true,
+            "title": "Quote",
+            "type": "object"
+          },
+          "right": {
+            "anyOf": [
+              {
+                "enum": [
+                  "CALL",
+                  "PUT"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Right"
+          },
+          "settlement": {
+            "minLength": 1,
+            "title": "Settlement",
+            "type": "string"
+          },
+          "strike": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Strike"
+          },
+          "style": {
+            "minLength": 1,
+            "title": "Style",
+            "type": "string"
+          },
+          "synthetic": {
+            "title": "Synthetic",
+            "type": "boolean"
+          },
+          "trading_class": {
+            "minLength": 1,
+            "title": "Trading Class",
+            "type": "string"
+          },
+          "volume": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Volume"
+          }
+        },
+        "required": [
+          "con_id",
+          "strike",
+          "right",
+          "expiration",
+          "trading_class",
+          "multiplier",
+          "currency",
+          "exchange",
+          "style",
+          "settlement",
+          "quote",
+          "volume",
+          "open_interest",
+          "open_interest_status",
+          "iv",
+          "greeks",
+          "synthetic"
+        ],
+        "title": "OptionChainContract",
+        "type": "object"
+      },
+      "OptionChainExpiration": {
+        "additionalProperties": false,
+        "description": "One ``(expiration, trading_class)`` group — never merged by date.\n\nTwo trading classes at the same expiration date are two distinct groups\n(distinct identities). ``coverage`` is the worker's honest account:\nexpected/received/valid/resolved contracts and the per-contract discard\nreasons.",
+        "properties": {
+          "contracts": {
+            "items": {
+              "$ref": "#/components/schemas/OptionChainContract"
+            },
+            "title": "Contracts",
+            "type": "array"
+          },
+          "coverage": {
+            "additionalProperties": true,
+            "title": "Coverage",
+            "type": "object"
+          },
+          "currency": {
+            "minLength": 1,
+            "title": "Currency",
+            "type": "string"
+          },
+          "exchange": {
+            "minLength": 1,
+            "title": "Exchange",
+            "type": "string"
+          },
+          "expiration": {
+            "minLength": 1,
+            "title": "Expiration",
+            "type": "string"
+          },
+          "maturity_years": {
+            "minLength": 1,
+            "title": "Maturity Years",
+            "type": "string"
+          },
+          "multiplier": {
+            "exclusiveMinimum": 0.0,
+            "title": "Multiplier",
+            "type": "integer"
+          },
+          "quality": {
+            "minLength": 1,
+            "title": "Quality",
+            "type": "string"
+          },
+          "settlement": {
+            "minLength": 1,
+            "title": "Settlement",
+            "type": "string"
+          },
+          "source_event_id": {
+            "minLength": 1,
+            "title": "Source Event Id",
+            "type": "string"
+          },
+          "style": {
+            "minLength": 1,
+            "title": "Style",
+            "type": "string"
+          },
+          "trading_class": {
+            "minLength": 1,
+            "title": "Trading Class",
+            "type": "string"
+          }
+        },
+        "required": [
+          "expiration",
+          "trading_class",
+          "exchange",
+          "style",
+          "settlement",
+          "multiplier",
+          "currency",
+          "maturity_years",
+          "quality",
+          "source_event_id",
+          "contracts",
+          "coverage"
+        ],
+        "title": "OptionChainExpiration",
+        "type": "object"
+      },
+      "OptionChainResponse": {
+        "additionalProperties": false,
+        "description": "The last ``option_chain/{underlying}`` snapshot — or an honest empty.\n\n``state = \"empty\"`` means NO snapshot was ever published for this\nunderlying: every snapshot-derived field is ``None`` (never invented) and\n``reason`` says why. ``state = \"ok\"`` relays the persisted content\nverbatim: population (``SYNTHETIC`` shown as-is), the synthetic spot,\nthe pricing assumptions, the per-(expiration, trading_class) groups and\nthe displayed row budget.",
+        "properties": {
+          "as_of": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "As Of"
+          },
+          "assumptions": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assumptions"
+          },
+          "coverage": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coverage"
+          },
+          "engine_version": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Engine Version"
+          },
+          "expirations": {
+            "items": {
+              "$ref": "#/components/schemas/OptionChainExpiration"
+            },
+            "title": "Expirations",
+            "type": "array"
+          },
+          "population": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Population"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "row_budget": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Row Budget"
+          },
+          "snapshot_version": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Snapshot Version"
+          },
+          "spot": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Spot"
+          },
+          "state": {
+            "enum": [
+              "ok",
+              "empty"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "underlying": {
+            "minLength": 1,
+            "title": "Underlying",
+            "type": "string"
+          },
+          "value_nature": {
+            "anyOf": [
+              {
+                "const": "THEORETICAL",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value Nature"
+          }
+        },
+        "required": [
+          "state",
+          "snapshot_version",
+          "as_of",
+          "population",
+          "underlying",
+          "engine_version",
+          "value_nature",
+          "spot",
+          "assumptions",
+          "expirations",
+          "row_budget",
+          "coverage",
+          "reason"
+        ],
+        "title": "OptionChainResponse",
+        "type": "object"
+      },
+      "OptionLeg": {
+        "additionalProperties": false,
+        "description": "One declared leg of a manually stated structure (strict, frozen).\n\nFields:\n\n- ``quantity``: signed integer number of contracts/shares; positive =\n  long, negative = short; zero is rejected (a leg must exist);\n- ``right``: ``\"CALL\"``, ``\"PUT\"`` or ``\"STOCK\"`` (the linear underlying\n  leg, intrinsic ``h(S) = S``);\n- ``strike``: strictly positive ``Decimal``; REQUIRED for CALL/PUT and\n  FORBIDDEN for STOCK (fail-closed both ways);\n- ``premium``: non-negative ``Decimal`` unit premium actually declared\n  for the leg (for STOCK, the declared unit reference price);\n- ``multiplier``: strictly positive int contract multiplier.\n\nLegs describe a manually declared analytic structure only: same\nunderlying, currency and expiry by construction of the caller. No field\nof this model is, or ever becomes, a transmissible ticket of any kind.",
+        "properties": {
+          "multiplier": {
+            "exclusiveMinimum": 0,
+            "title": "Multiplier",
+            "type": "integer"
+          },
+          "premium": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "title": "Premium"
+          },
+          "quantity": {
+            "title": "Quantity",
+            "type": "integer"
+          },
+          "right": {
+            "enum": [
+              "CALL",
+              "PUT",
+              "STOCK"
+            ],
+            "title": "Right",
+            "type": "string"
+          },
+          "strike": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null,
+            "title": "Strike"
+          }
+        },
+        "required": [
+          "quantity",
+          "right",
+          "premium",
+          "multiplier"
+        ],
+        "title": "OptionLeg",
+        "type": "object"
+      },
       "PortfolioRiskInput": {
         "additionalProperties": false,
         "description": "Facts for gate 7 (``manual_portfolio_risk_available``); declarations are user-made only.",
@@ -1709,6 +2327,318 @@
           }
         },
         "title": "SessionEventInput",
+        "type": "object"
+      },
+      "SimulationAssumptions": {
+        "additionalProperties": false,
+        "description": "Declared assumptions of one preview (decimal strings on the wire).\n\n``spot`` is the declared underlying reference of the snapshot the user\ncomposed against (echoed back); ``volatility`` is the single annualized\ndecimal volatility applied to every option leg of the scenario grid\n(``0.25`` = 25%/yr); ``rate`` / ``dividend_yield`` are continuously\ncompounded annualized decimals; ``fees`` groups the positive declared\ncosts of the expiry payoff. The grids are BOUNDED by the wire contract.",
+        "properties": {
+          "dividend_yield": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "title": "Dividend Yield"
+          },
+          "fees": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "default": "0",
+            "title": "Fees"
+          },
+          "rate": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "title": "Rate"
+          },
+          "spot": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "title": "Spot"
+          },
+          "spot_grid": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                  "type": "string"
+                }
+              ]
+            },
+            "maxItems": 41,
+            "minItems": 1,
+            "title": "Spot Grid",
+            "type": "array"
+          },
+          "time_grid_years": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "number"
+                },
+                {
+                  "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                  "type": "string"
+                }
+              ]
+            },
+            "maxItems": 8,
+            "minItems": 1,
+            "title": "Time Grid Years",
+            "type": "array"
+          },
+          "volatility": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d*$",
+                "type": "string"
+              }
+            ],
+            "title": "Volatility"
+          }
+        },
+        "required": [
+          "spot",
+          "volatility",
+          "rate",
+          "dividend_yield",
+          "spot_grid",
+          "time_grid_years"
+        ],
+        "title": "SimulationAssumptions",
+        "type": "object"
+      },
+      "SimulationBreakeven": {
+        "additionalProperties": false,
+        "description": "One certified expiry breakeven.\n\n``payoff_at_spot`` is the authority's own re-evaluation of\n``options.payoff`` at the reported spot (exact ``Decimal``; non-zero only\nthrough decimal quantization of the crossing point). ``bracket_low`` /\n``bracket_high`` are the two authoritative evaluation points whose sign\nchange pinned the crossing.",
+        "properties": {
+          "bracket_high": {
+            "minLength": 1,
+            "title": "Bracket High",
+            "type": "string"
+          },
+          "bracket_low": {
+            "minLength": 1,
+            "title": "Bracket Low",
+            "type": "string"
+          },
+          "payoff_at_spot": {
+            "minLength": 1,
+            "title": "Payoff At Spot",
+            "type": "string"
+          },
+          "spot": {
+            "minLength": 1,
+            "title": "Spot",
+            "type": "string"
+          }
+        },
+        "required": [
+          "spot",
+          "payoff_at_spot",
+          "bracket_low",
+          "bracket_high"
+        ],
+        "title": "SimulationBreakeven",
+        "type": "object"
+      },
+      "SimulationExtreme": {
+        "additionalProperties": false,
+        "description": "Best/worst expiry P&L over the evaluation grid, with its spot.",
+        "properties": {
+          "at_spot": {
+            "minLength": 1,
+            "title": "At Spot",
+            "type": "string"
+          },
+          "pnl": {
+            "minLength": 1,
+            "title": "Pnl",
+            "type": "string"
+          }
+        },
+        "required": [
+          "pnl",
+          "at_spot"
+        ],
+        "title": "SimulationExtreme",
+        "type": "object"
+      },
+      "SimulationPayoffPoint": {
+        "additionalProperties": false,
+        "description": "Exact expiry P&L at one evaluated terminal spot (decimal strings).",
+        "properties": {
+          "pnl": {
+            "minLength": 1,
+            "title": "Pnl",
+            "type": "string"
+          },
+          "spot": {
+            "minLength": 1,
+            "title": "Spot",
+            "type": "string"
+          }
+        },
+        "required": [
+          "spot",
+          "pnl"
+        ],
+        "title": "SimulationPayoffPoint",
+        "type": "object"
+      },
+      "SimulationPreviewRequest": {
+        "additionalProperties": false,
+        "description": "One declared structure plus its assumptions.\n\nLegs ARE the engine's own :class:`OptionLeg` contract (strict: signed\nnon-zero quantity, strike required on CALL/PUT and forbidden on STOCK,\nnon-negative decimal premium, positive integer multiplier) — the wire\nnever redefines the calculation contract.",
+        "properties": {
+          "assumptions": {
+            "$ref": "#/components/schemas/SimulationAssumptions"
+          },
+          "legs": {
+            "items": {
+              "$ref": "#/components/schemas/OptionLeg"
+            },
+            "maxItems": 8,
+            "minItems": 1,
+            "title": "Legs",
+            "type": "array"
+          }
+        },
+        "required": [
+          "legs",
+          "assumptions"
+        ],
+        "title": "SimulationPreviewRequest",
+        "type": "object"
+      },
+      "SimulationPreviewResponse": {
+        "additionalProperties": false,
+        "description": "The full preview result (nothing persisted, nothing transactional).",
+        "properties": {
+          "assumptions": {
+            "additionalProperties": true,
+            "title": "Assumptions",
+            "type": "object"
+          },
+          "breakevens": {
+            "items": {
+              "$ref": "#/components/schemas/SimulationBreakeven"
+            },
+            "title": "Breakevens",
+            "type": "array"
+          },
+          "calculations": {
+            "additionalProperties": true,
+            "title": "Calculations",
+            "type": "object"
+          },
+          "defined_risk": {
+            "additionalProperties": true,
+            "title": "Defined Risk",
+            "type": "object"
+          },
+          "max_gain_on_grid": {
+            "$ref": "#/components/schemas/SimulationExtreme"
+          },
+          "max_loss_on_grid": {
+            "$ref": "#/components/schemas/SimulationExtreme"
+          },
+          "payoff_points": {
+            "items": {
+              "$ref": "#/components/schemas/SimulationPayoffPoint"
+            },
+            "title": "Payoff Points",
+            "type": "array"
+          },
+          "scenario_grid": {
+            "items": {
+              "items": {
+                "items": {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "type": "array"
+            },
+            "title": "Scenario Grid",
+            "type": "array"
+          },
+          "scenario_spot_grid": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "title": "Scenario Spot Grid",
+            "type": "array"
+          },
+          "scenario_time_grid_years": {
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "title": "Scenario Time Grid Years",
+            "type": "array"
+          },
+          "value_nature": {
+            "const": "THEORETICAL",
+            "title": "Value Nature",
+            "type": "string"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "value_nature",
+          "defined_risk",
+          "payoff_points",
+          "breakevens",
+          "max_gain_on_grid",
+          "max_loss_on_grid",
+          "scenario_spot_grid",
+          "scenario_time_grid_years",
+          "scenario_grid",
+          "calculations",
+          "assumptions",
+          "warnings"
+        ],
+        "title": "SimulationPreviewResponse",
         "type": "object"
       },
       "SnapshotHealth": {
@@ -2037,6 +2967,50 @@
         "summary": "Evaluate gate inputs through the single AdviceEngine"
       }
     },
+    "/api/v1/analysis/{instrument}": {
+      "get": {
+        "description": "Serve the LAST ``analysis/{instrument}`` snapshot exactly as persisted.\n\nThe API relays the worker's published dossier — the canonical\n``AdviceResult`` of the single ``AdviceEngine`` with its ten gates and\nreason codes, the validated OHLCV bars, the fusion evidence rail and the\n``THEORETICAL`` scenario block (or its typed absence reason) — and\ncomputes nothing. With no snapshot ever published for this instrument\nthe answer is a 200 with ``state = \"empty\"``: absent stays absent,\nnothing is invented.",
+        "operationId": "get_analysis",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "instrument",
+            "required": true,
+            "schema": {
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$",
+              "title": "Instrument",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalysisResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Authentication required: no valid WebAuthn session cookie (or missing/invalid CSRF header on a mutation). Always the same generic body with detail code AUTH_REQUIRED."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Last published analysis dossier for one instrument (or honest empty state)"
+      }
+    },
     "/api/v1/auth/login/options": {
       "post": {
         "description": "Issue authentication options restricted to the registered passkeys.",
@@ -2248,6 +3222,85 @@
           }
         },
         "summary": "Last published markets overview snapshot (or honest empty state)"
+      }
+    },
+    "/api/v1/options/{underlying}/chain": {
+      "get": {
+        "description": "Serve the LAST ``option_chain/{underlying}`` snapshot exactly as persisted.\n\nThe API relays the worker's published content — per-(expiration,\ntrading_class) groups with complete contract identities, verbatim quotes\nand their quality, the worker's Vertex IV/Greeks (``THEORETICAL``, with\ntheir ``CalculationRecord`` lineage) or their typed refusal reasons, the\ncoverage account and the displayed row budget — and computes nothing.\nWith no snapshot ever published for this underlying the answer is a 200\nwith ``state = \"empty\"``: absent stays absent, nothing is invented.",
+        "operationId": "get_option_chain",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "underlying",
+            "required": true,
+            "schema": {
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$",
+              "title": "Underlying",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OptionChainResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Authentication required: no valid WebAuthn session cookie (or missing/invalid CSRF header on a mutation). Always the same generic body with detail code AUTH_REQUIRED."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Last published option chain for one underlying (or honest empty state)"
+      }
+    },
+    "/api/v1/simulations/preview": {
+      "post": {
+        "description": "Run one THEORETICAL simulation preview through vertex_core.\n\nOrchestration only: the mandatory ``defined_risk_check``, the exact\n``payoff_at_expiry``, the authority-certified breakevens and the bounded\n``scenario_grid`` all run inside ``vertex_core.calculations.options`` on\na worker thread (``run_in_threadpool`` — the event loop never computes).\nNothing is persisted; nothing here is, or ever becomes, an order.",
+        "operationId": "post_simulations_preview",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SimulationPreviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimulationPreviewResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Authentication required: no valid WebAuthn session cookie (or missing/invalid CSRF header on a mutation). Always the same generic body with detail code AUTH_REQUIRED."
+          },
+          "422": {
+            "description": "Rejected fail-closed with the exact machine-readable reason: either a wire-contract violation, or the defined-risk verifier's code (e.g. OUTSIDE_CLOSED_CATALOG, UNCOVERED_SHORT_UPSIDE_TAIL, VERTICAL_DEBIT_NOT_BELOW_WIDTH), or a typed calculation-domain violation from vertex_core."
+          }
+        },
+        "summary": "THEORETICAL preview of one declared structure (no persistence)"
       }
     },
     "/api/v1/system/capabilities": {

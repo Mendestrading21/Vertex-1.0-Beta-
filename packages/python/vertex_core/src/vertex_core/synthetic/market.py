@@ -34,11 +34,15 @@ from vertex_core.synthetic.generator import SYNTHETIC_RIGHTS, SYNTHETIC_SOURCE
 
 __all__ = [
     "SYNTHETIC_ADJUSTMENT_BASIS",
+    "SYNTHETIC_BAR_COUNT",
+    "SYNTHETIC_FOCUS_TICKERS",
     "SYNTHETIC_MARKET_CURRENCY",
+    "SYNTHETIC_SCHEMA_DAILY_BARS",
     "SYNTHETIC_SCHEMA_DAILY_QUOTE",
     "SYNTHETIC_SECTOR_LABELS_FR",
     "SYNTHETIC_SECTOR_TICKERS",
     "SYNTHETIC_SECTORS",
+    "generate_daily_bar_envelopes",
     "generate_daily_quote_envelopes",
 ]
 
@@ -103,6 +107,21 @@ _STALE_GRACE = timedelta(hours=6)
 _LATEST_OFFSET = timedelta(hours=2)
 _DAY_SPACING = timedelta(hours=24)
 _DEGRADED_PER_QUALITY = 2  # PARTIAL x2 and STALE x2 on the latest day
+
+SYNTHETIC_SCHEMA_DAILY_BARS = "synthetic-daily-bars/1.0"
+"""Schema version of every generated daily-OHLCV-bars envelope."""
+
+SYNTHETIC_FOCUS_TICKERS: tuple[str, ...] = (
+    "SYN-ENER-01",
+    "SYN-FINL-01",
+    "SYN-TECH-01",
+    "SYN-TECH-02",
+)
+"""The 4 focus tickers of the analysis/options development pages — a fixed
+subset of the declared 24-ticker synthetic universe."""
+
+SYNTHETIC_BAR_COUNT = 60
+"""Number of daily OHLCV bars generated per focus ticker."""
 
 
 def _cents_to_decimal_string(cents: int) -> str:
@@ -263,4 +282,100 @@ def generate_daily_quote_envelopes(
                 )
             )
             index += 1
+    return tuple(envelopes)
+
+
+def generate_daily_bar_envelopes(
+    *, seed: int, base_time: datetime, tickers: tuple[str, ...] = SYNTHETIC_FOCUS_TICKERS
+) -> tuple[DataEnvelope[dict], ...]:
+    """Generate one deterministic daily-OHLCV-bars envelope per focus ticker.
+
+    SEPARATE function from :func:`generate_daily_quote_envelopes` (whose
+    envelope stream stays byte-stable). Pure function of its inputs: the seed
+    is mandatory, ``base_time`` must be timezone-aware and every generated
+    timestamp lies strictly before it.
+
+    Per ticker: :data:`SYNTHETIC_BAR_COUNT` consecutive synthetic trading
+    days ending the day before ``base_time``, each bar carrying EXACT decimal
+    strings (integer-cent arithmetic, never floats) with the invariants
+    ``high >= max(open, close)``, ``low <= min(open, close)``, ``low >= 0.01``
+    and a non-negative integer volume. One envelope per ticker carries the
+    whole series (``source = synthetic-dev``, ``rights = SYNTHETIC``).
+    """
+    base = _validate_inputs(seed, base_time, 0)
+    if not isinstance(tickers, tuple) or not tickers:
+        raise TypeError("tickers: a non-empty tuple of ticker strings is required")
+    declared = set(_all_tickers())
+    unknown = [ticker for ticker in tickers if ticker not in declared]
+    if unknown:
+        raise ValueError(f"tickers: not in the declared synthetic universe: {unknown}")
+
+    rng = random.Random(seed)
+    sector_of = {
+        ticker: sector
+        for sector in SYNTHETIC_SECTORS
+        for ticker in SYNTHETIC_SECTOR_TICKERS[sector]
+    }
+    published_at = base - _LATEST_OFFSET
+    received_at = published_at + _RECEIVE_LAG
+    last_day = (base - timedelta(days=1)).date()
+
+    envelopes: list[DataEnvelope[dict]] = []
+    for index, ticker in enumerate(tickers):
+        low_band, high_band = _SECTOR_PRICE_BANDS_CENTS[sector_of[ticker]]
+        close_cents = rng.randrange(low_band, high_band)
+        bars: list[dict] = []
+        for day_index in range(SYNTHETIC_BAR_COUNT):
+            trading_day = last_day - timedelta(days=SYNTHETIC_BAR_COUNT - 1 - day_index)
+            open_cents = close_cents
+            move_bp = rng.randrange(-250, 251)
+            close_cents = max(2, open_cents * (10_000 + move_bp) // 10_000)
+            hi_wiggle = rng.randrange(0, max(2, open_cents // 100))
+            lo_wiggle = rng.randrange(0, max(2, open_cents // 100))
+            high_cents = max(open_cents, close_cents) + hi_wiggle
+            low_cents = max(1, min(open_cents, close_cents) - lo_wiggle)
+            bars.append(
+                {
+                    "trading_day": trading_day.isoformat(),
+                    "open": _cents_to_decimal_string(open_cents),
+                    "high": _cents_to_decimal_string(high_cents),
+                    "low": _cents_to_decimal_string(low_cents),
+                    "close": _cents_to_decimal_string(close_cents),
+                    "volume": rng.randrange(10_000, 2_000_000),
+                }
+            )
+        payload = {
+            "type": "daily_bars",
+            "synthetic": True,
+            "ticker": ticker,
+            "sector": sector_of[ticker],
+            "currency": SYNTHETIC_MARKET_CURRENCY,
+            "adjustment_basis": SYNTHETIC_ADJUSTMENT_BASIS,
+            "bars": bars,
+            "note": (
+                f"[SYNTHETIC] fixture daily OHLCV bars for {ticker}; generated "
+                "data, never real market information."
+            ),
+        }
+        envelopes.append(
+            DataEnvelope[dict](
+                event_id=f"{SYNTHETIC_SOURCE}:{seed}:db{index:04d}",
+                schema_version=SYNTHETIC_SCHEMA_DAILY_BARS,
+                source=SYNTHETIC_SOURCE,
+                source_event_id=f"syn-db-{ticker}-{last_day.isoformat()}",
+                entitlement_id=None,
+                instrument_id=ticker,
+                observed_at=published_at,
+                published_at=published_at,
+                received_at=received_at,
+                as_of=received_at,
+                stale_after=received_at + _STALE_GRACE,
+                quality_status=EnvelopeQuality.VALID,
+                delay_status=DelayStatus.UNKNOWN,
+                connection_epoch=None,
+                rights=SYNTHETIC_RIGHTS,
+                payload_hash=canonical_json_hash(payload),
+                payload=payload,
+            )
+        )
     return tuple(envelopes)

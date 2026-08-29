@@ -55,6 +55,13 @@ class ScriptedHeadReader:
         self.polls += 1
         return self.versions[(kind, key)]
 
+    def heads_for_kind(self, *, kind: str) -> dict[str, int]:
+        return {
+            key: version
+            for (head_kind, key), version in self.versions.items()
+            if head_kind == kind and version is not None
+        }
+
     def ping(self) -> bool:  # pragma: no cover - not used here
         return True
 
@@ -148,6 +155,35 @@ def test_pings_keep_flowing_without_any_change() -> None:
 
     frames = asyncio.run(asyncio.wait_for(read_pings(), timeout=5.0))
     assert [event for event, _ in frames] == ["ping", "ping", "ping"]
+
+
+def test_option_chain_keys_are_watched_by_kind_prefix() -> None:
+    """``option_chain/*``: a key that APPEARS while streaming is signalled.
+
+    Documented semantics: the stream watches the whole ``option_chain`` kind
+    (every published key), so a brand-new underlying — never listed anywhere
+    in the API — starts signalling as soon as the worker publishes its head.
+    """
+    reader = ScriptedHeadReader()
+
+    async def run() -> list[tuple[str, dict]]:
+        frames: list[tuple[str, dict]] = []
+        stream = snapshot_event_stream(reader, FAST)
+        async for frame in stream:
+            frames.extend(parse_frames(frame))
+            event = frames[-1][0]
+            if event == "ping" and ("option_chain", "SYN-TECH-01") not in reader.versions:
+                reader.versions[("option_chain", "SYN-TECH-01")] = 5
+            if event == "snapshot":
+                break
+        await stream.aclose()
+        return frames
+
+    frames = asyncio.run(asyncio.wait_for(run(), timeout=5.0))
+    snapshot_frames = [data for event, data in frames if event == "snapshot"]
+    assert snapshot_frames == [
+        {"resource": "option_chain/SYN-TECH-01", "version": 5}
+    ]
 
 
 def test_format_sse_event_is_canonical() -> None:

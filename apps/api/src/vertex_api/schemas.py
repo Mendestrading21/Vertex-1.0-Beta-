@@ -25,6 +25,7 @@ from vertex_core.decision import AdviceInputs, CalculationsInput
 
 __all__ = [
     "AdvicePreviewRequest",
+    "AnalysisResponse",
     "AttentionItem",
     "AttentionSnapshotResponse",
     "CalculationStatusesInput",
@@ -39,6 +40,9 @@ __all__ = [
     "MarketsRejectedRecord",
     "MarketsSector",
     "MarketsTicker",
+    "OptionChainContract",
+    "OptionChainExpiration",
+    "OptionChainResponse",
     "SnapshotHealth",
     "SystemCapabilitiesResponse",
     "SystemHealth",
@@ -266,6 +270,131 @@ class MarketsOverviewResponse(ContractModel):
     sectors: tuple[MarketsSector, ...]
     breadth: Optional[MarketsBreadth]
     coverage: Optional[MarketsCoverage]
+    reason: Optional[NonEmptyStr]
+
+
+# ---------------------------------------------------------------------------
+# GET /api/v1/analysis/{instrument} — last published dossier, verbatim
+# ---------------------------------------------------------------------------
+
+
+class AnalysisResponse(ContractModel):
+    """The last ``analysis/{instrument}`` snapshot — or an honest empty state.
+
+    ``state = "empty"`` means NO dossier was ever published for this
+    instrument: every snapshot-derived field is ``None`` (never invented)
+    and ``reason`` says why. ``state = "ok"`` relays the persisted content
+    verbatim:
+
+    - ``advice`` is the canonical ``AdviceResult`` produced by THE single
+      ``AdviceEngine`` — status, direction, the ten gates with their reason
+      codes, limitations — exactly as published; the API neither recomputes
+      nor softens it;
+    - ``bars`` carries the validated synthetic OHLCV series (decimal
+      strings) with its per-bar discard account;
+    - ``evidence`` is the fusion-cluster rail of the instrument;
+    - ``scenarios`` is either the ``THEORETICAL`` scenario grid with its
+      ``CalculationRecord`` lineage or an honest ``ABSENT`` block with its
+      typed reason.
+    """
+
+    state: Literal["ok", "empty"]
+    snapshot_version: Optional[PositiveInt]
+    as_of: Optional[UtcDatetime]
+    population: Optional[NonEmptyStr]
+    instrument: NonEmptyStr
+    engine_version: Optional[NonEmptyStr]
+    bars: Optional[FrozenStrMapping]
+    evidence: Optional[FrozenStrMapping]
+    scenarios: Optional[FrozenStrMapping]
+    advice: Optional[FrozenStrMapping]
+    coverage: Optional[FrozenStrMapping]
+    reason: Optional[NonEmptyStr]
+
+
+# ---------------------------------------------------------------------------
+# GET /api/v1/options/{underlying}/chain — last published chain, verbatim
+# ---------------------------------------------------------------------------
+
+
+class OptionChainContract(ContractModel):
+    """One option contract row, relayed from the worker snapshot verbatim.
+
+    The COMPLETE contract identity (synthetic ``con_id``, trading class,
+    strike, right, multiplier, currency, exchange, style, settlement,
+    expiration) travels with every row. ``quote`` is the verbatim observed
+    quote plus its quality status (``OK``/``CROSSED``/``STALE``/``MISSING``);
+    ``iv`` and ``greeks`` are the worker's Vertex results — present ONLY when
+    the quote was sane, labeled ``value_nature = "THEORETICAL"`` with their
+    preserved ``CalculationRecord`` lineage, otherwise honestly ``ABSENT``
+    with the typed refusal reason. The API recomputes nothing.
+    """
+
+    con_id: Optional[PositiveInt]
+    strike: Optional[NonEmptyStr]
+    right: Optional[Literal["CALL", "PUT"]]
+    expiration: NonEmptyStr
+    trading_class: NonEmptyStr
+    multiplier: PositiveInt
+    currency: NonEmptyStr
+    exchange: NonEmptyStr
+    style: NonEmptyStr
+    settlement: NonEmptyStr
+    quote: FrozenStrMapping
+    volume: Optional[Annotated[int, Field(ge=0)]]
+    open_interest: Optional[Annotated[int, Field(ge=0)]]
+    open_interest_status: Optional[NonEmptyStr]
+    iv: FrozenStrMapping
+    greeks: FrozenStrMapping
+    synthetic: bool
+
+
+class OptionChainExpiration(ContractModel):
+    """One ``(expiration, trading_class)`` group — never merged by date.
+
+    Two trading classes at the same expiration date are two distinct groups
+    (distinct identities). ``coverage`` is the worker's honest account:
+    expected/received/valid/resolved contracts and the per-contract discard
+    reasons.
+    """
+
+    expiration: NonEmptyStr
+    trading_class: NonEmptyStr
+    exchange: NonEmptyStr
+    style: NonEmptyStr
+    settlement: NonEmptyStr
+    multiplier: PositiveInt
+    currency: NonEmptyStr
+    maturity_years: NonEmptyStr
+    quality: NonEmptyStr
+    source_event_id: NonEmptyStr
+    contracts: tuple[OptionChainContract, ...]
+    coverage: FrozenStrMapping
+
+
+class OptionChainResponse(ContractModel):
+    """The last ``option_chain/{underlying}`` snapshot — or an honest empty.
+
+    ``state = "empty"`` means NO snapshot was ever published for this
+    underlying: every snapshot-derived field is ``None`` (never invented) and
+    ``reason`` says why. ``state = "ok"`` relays the persisted content
+    verbatim: population (``SYNTHETIC`` shown as-is), the synthetic spot,
+    the pricing assumptions, the per-(expiration, trading_class) groups and
+    the displayed row budget.
+    """
+
+    state: Literal["ok", "empty"]
+    snapshot_version: Optional[PositiveInt]
+    as_of: Optional[UtcDatetime]
+    population: Optional[NonEmptyStr]
+    underlying: NonEmptyStr
+    engine_version: Optional[NonEmptyStr]
+    value_nature: Optional[Literal["THEORETICAL"]]
+    spot: Optional[FrozenStrMapping]
+    assumptions: Optional[FrozenStrMapping]
+    expirations: tuple[OptionChainExpiration, ...]
+    row_budget: Optional[FrozenStrMapping]
+    coverage: Optional[FrozenStrMapping]
     reason: Optional[NonEmptyStr]
 
 

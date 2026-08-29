@@ -39,7 +39,9 @@ from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Callable, Mapping, Optional, Sequence
 
 if TYPE_CHECKING:  # import-time cycle avoidance (ingest -> markets)
+    from vertex_worker.analysis import AnalysisConfig
     from vertex_worker.markets import MarketsConfig
+    from vertex_worker.options import OptionsConfig
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -580,17 +582,28 @@ def build_registry(
     clock: Clock,
     fusion_config: FusionConfig,
     markets_config: Optional["MarketsConfig"] = None,
+    options_config: Optional["OptionsConfig"] = None,
+    analysis_config: Optional["AnalysisConfig"] = None,
 ) -> HandlerRegistry:
-    """Build the worker registry with the three canonical topics.
+    """Build the worker registry with the canonical topics.
 
-    ``markets_config`` defaults to the development-only synthetic markets
-    registry (``DEV_SYNTHETIC_MARKETS_CONFIG``) — the same dev posture as the
-    callers passing ``DEV_SYNTHETIC_CONFIG`` here; every snapshot it produces
-    is honestly labeled ``population = "SYNTHETIC"``.
+    ``markets_config`` and ``options_config`` default to the development-only
+    synthetic registries (``DEV_SYNTHETIC_MARKETS_CONFIG`` /
+    ``DEV_SYNTHETIC_OPTIONS_CONFIG``) — the same dev posture as the callers
+    passing ``DEV_SYNTHETIC_CONFIG`` here; every snapshot they produce is
+    honestly labeled ``population = "SYNTHETIC"``.
     """
     from vertex_worker.markets import (
         DEV_SYNTHETIC_MARKETS_CONFIG,
         register_markets_handler,
+    )
+    from vertex_worker.analysis import (
+        DEV_SYNTHETIC_ANALYSIS_CONFIG,
+        register_analysis_handler,
+    )
+    from vertex_worker.options import (
+        DEV_SYNTHETIC_OPTIONS_CONFIG,
+        register_options_handler,
     )
 
     registry = HandlerRegistry()
@@ -605,5 +618,15 @@ def build_registry(
         registry,
         clock=clock,
         config=markets_config if markets_config is not None else DEV_SYNTHETIC_MARKETS_CONFIG,
+    )
+    register_options_handler(
+        registry,
+        clock=clock,
+        config=options_config if options_config is not None else DEV_SYNTHETIC_OPTIONS_CONFIG,
+    )
+    register_analysis_handler(
+        registry,
+        clock=clock,
+        config=analysis_config if analysis_config is not None else DEV_SYNTHETIC_ANALYSIS_CONFIG,
     )
     return registry

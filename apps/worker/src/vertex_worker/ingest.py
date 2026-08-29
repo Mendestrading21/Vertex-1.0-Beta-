@@ -29,7 +29,12 @@ from vertex_core.contracts import DataEnvelope
 from vertex_persistence.repository.observations import insert_observation
 from vertex_persistence.repository.outbox import enqueue_outbox
 
+from vertex_worker.analysis import TOPIC_ANALYSIS_INGESTED, is_daily_bars_schema
 from vertex_worker.markets import TOPIC_QUOTES_INGESTED, is_daily_quote_schema
+from vertex_worker.options import (
+    TOPIC_OPTION_CHAINS_INGESTED,
+    is_option_chain_schema,
+)
 
 __all__ = [
     "TOPIC_OBSERVATION_INGESTED",
@@ -109,6 +114,34 @@ def ingest_envelope(session: Session, envelope: DataEnvelope) -> IngestResult:
         enqueue_outbox(
             session,
             TOPIC_QUOTES_INGESTED,
+            {
+                "event_id": envelope.event_id,
+                "source": envelope.source,
+                "schema_version": envelope.schema_version,
+            },
+        )
+    if is_option_chain_schema(envelope.schema_version):
+        # Additional option-chain job (same transaction, same idempotence):
+        # the option-chain handler owns that topic (vertex_worker.options).
+        enqueue_outbox(
+            session,
+            TOPIC_OPTION_CHAINS_INGESTED,
+            {
+                "event_id": envelope.event_id,
+                "source": envelope.source,
+                "schema_version": envelope.schema_version,
+            },
+        )
+    if is_daily_bars_schema(envelope.schema_version) or is_option_chain_schema(
+        envelope.schema_version
+    ):
+        # Analysis dossier job: bars change the series, a chain changes the
+        # scenario basis. For a chain envelope this message is enqueued
+        # AFTER its option-chain job, so a drained outbox recomputes the
+        # chain snapshot before the dossier reads it.
+        enqueue_outbox(
+            session,
+            TOPIC_ANALYSIS_INGESTED,
             {
                 "event_id": envelope.event_id,
                 "source": envelope.source,
