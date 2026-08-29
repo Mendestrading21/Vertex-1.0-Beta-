@@ -2,7 +2,14 @@
 #
 # INVARIANTS TENUS ICI
 # - toutes les images sont épinglées par digest immuable, jamais par tag seul ;
-# - tous les services tournent en utilisateur non privilégié ;
+# - les services applicatifs (api, worker, web) tournent en utilisateur non
+#   privilégié, déclaré dans leurs Dockerfiles (USER 10001 / 65532) ;
+# - le service `db` démarre en root : l'entrypoint officiel de l'image
+#   PostgreSQL a besoin de root pour préparer /var/lib/postgresql avant de
+#   dégrader le processus serveur vers l'utilisateur `postgres`. `user: "999"`
+#   le casserait au premier démarrage sur volume vide. Il est donc laissé tel
+#   quel, avec le minimum de capacités restantes déclaré ci-dessous — et cette
+#   exception est ÉCRITE, pas passée sous silence ;
 # - chaque port est publié sur 127.0.0.1 UNIQUEMENT : rien n'écoute sur 0.0.0.0,
 #   rien n'est joignable depuis le LAN ou un téléphone ;
 # - aucun secret n'est écrit ici : les variables sans valeur par défaut font
@@ -26,6 +33,11 @@ services:
   db:
     image: postgres:18@sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280
     security_opt: ["no-new-privileges:true"]
+    # Démarre en root (voir l'exception écrite en tête de fichier), mais sans
+    # aucune capacité au-delà de celles dont l'entrypoint a besoin pour changer
+    # de propriétaire et d'utilisateur.
+    cap_drop: ["ALL"]
+    cap_add: ["CHOWN", "DAC_OVERRIDE", "FOWNER", "SETGID", "SETUID"]
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${VERTEX_DB_USER:?VERTEX_DB_USER requis}

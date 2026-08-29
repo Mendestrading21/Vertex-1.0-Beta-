@@ -33,6 +33,7 @@ from typing import Optional
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
+from vertex_persistence.dsn import database_name
 from vertex_worker.handlers import DEV_SYNTHETIC_CONFIG, build_registry
 from vertex_worker.ingest import OUTBOX_NOTIFY_CHANNEL
 from vertex_worker.runner import (
@@ -68,7 +69,11 @@ def _require_database_url() -> str:
             "VERTEX_DATABASE_URL porte une valeur d'exemple. Refus de démarrer "
             "sur une configuration fictive."
         )
-    database = url.rsplit("/", 1)[-1].split("?", 1)[0]
+    # Le nom de la base vient de l'analyseur d'URL, PAS d'un découpage de
+    # chaîne : `postgresql+psycopg://…:5432/?dbname=vertex_test` désigne bien
+    # `vertex_test` — libpq honore la query — alors qu'un `rsplit("/")` y lit
+    # une chaîne vide et laissait passer le garde-fou.
+    database = database_name(url)
     looks_like_test = any(marker in database for marker in _TEST_DATABASE_MARKERS)
     if looks_like_test and os.environ.get("VERTEX_ALLOW_TEST_DB") != "1":
         raise SystemExit(

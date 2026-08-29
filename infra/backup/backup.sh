@@ -20,9 +20,28 @@ set -euo pipefail
 : "${VERTEX_BACKUP_DIR:?VERTEX_BACKUP_DIR requis}"
 : "${VERTEX_BACKUP_PASSPHRASE:?VERTEX_BACKUP_PASSPHRASE requis (jamais dans Git)}"
 
-for tool in pg_dump gpg sha256sum; do
+for tool in pg_dump psql gpg sha256sum python3; do
   command -v "$tool" >/dev/null 2>&1 || { echo "ERREUR: $tool absent" >&2; exit 2; }
 done
+
+# `VERTEX_DATABASE_URL` est en forme SQLAlchemy (`postgresql+psycopg://…`),
+# celle qu'exige le runtime. Les outils libpq ne la comprennent pas — et ils
+# n'échouent PAS dessus : `pg_dump` la prend pour un nom de base, se rabat sur
+# la socket locale et sauvegarderait une AUTRE base sans rien dire. La
+# conversion passe par l'autorité unique `vertex_persistence.dsn`.
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+libpq_url="$(python3 "$repo_root/tools/db_url.py" libpq "$VERTEX_DATABASE_URL")"
+intended_db="$(python3 "$repo_root/tools/db_url.py" dbname "$VERTEX_DATABASE_URL")"
+
+# Ceinture ET bretelles : on demande à la base elle-même son nom. Si un
+# repli silencieux se produisait quand même, il est attrapé ici.
+connected_db="$(psql "$libpq_url" -tAc 'SELECT current_database()' | tr -d '[:space:]')"
+if [[ "$connected_db" != "$intended_db" ]]; then
+  echo "REFUS: connecté à « $connected_db » alors que l'URL désigne « $intended_db »." >&2
+  echo "Une sauvegarde de la mauvaise base est pire que pas de sauvegarde." >&2
+  exit 1
+fi
+echo "base visée et base jointe concordent : $intended_db"
 
 stamp="$(date -u +%Y%m%dT%H%M%SZ)"
 umask 077                      # les fichiers créés ne sont lisibles que par le propriétaire
@@ -37,7 +56,7 @@ echo "== pg_dump (format custom, compressé) =="
 # --no-privileges/--no-owner : la sauvegarde est restaurable dans une base
 # vide appartenant à un autre rôle, ce qu'exige la vérification mensuelle.
 pg_dump --format=custom --compress=9 --no-owner --no-privileges \
-        --file="$plain" "$VERTEX_DATABASE_URL"
+        --file="$plain" "$libpq_url"
 
 plain_sha="$(sha256sum "$plain" | cut -d' ' -f1)"
 plain_size="$(stat -c%s "$plain")"

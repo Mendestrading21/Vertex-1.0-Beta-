@@ -13,15 +13,20 @@ set -euo pipefail
 : "${VERTEX_RESTORE_DATABASE_URL:?VERTEX_RESTORE_DATABASE_URL requis (base jetable)}"
 : "${VERTEX_BACKUP_PASSPHRASE:?VERTEX_BACKUP_PASSPHRASE requis}"
 
-for tool in pg_restore psql gpg sha256sum; do
+for tool in pg_restore psql gpg sha256sum python3; do
   command -v "$tool" >/dev/null 2>&1 || { echo "ERREUR: $tool absent" >&2; exit 2; }
 done
+
+# Même conversion que `backup.sh`, et pour la même raison : passée telle quelle
+# à pg_restore, une URL SQLAlchemy ferait restaurer AILLEURS sans le dire.
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+restore_url="$(python3 "$repo_root/tools/db_url.py" libpq "$VERTEX_RESTORE_DATABASE_URL")"
+target_db="$(python3 "$repo_root/tools/db_url.py" dbname "$VERTEX_RESTORE_DATABASE_URL")"
 
 manifest="$VERTEX_BACKUP_ARTIFACT.manifest.json"
 [[ -f "$VERTEX_BACKUP_ARTIFACT" ]] || { echo "ERREUR: artefact introuvable" >&2; exit 2; }
 [[ -f "$manifest" ]] || { echo "ERREUR: manifeste introuvable" >&2; exit 2; }
 
-target_db="${VERTEX_RESTORE_DATABASE_URL##*/}"; target_db="${target_db%%\?*}"
 case "$target_db" in
   *restore*|*verify*|*scratch*) ;;
   *) echo "REFUS: « $target_db » ne porte aucun marqueur de restauration." >&2
@@ -29,7 +34,7 @@ case "$target_db" in
      exit 2 ;;
 esac
 
-existing="$(psql "$VERTEX_RESTORE_DATABASE_URL" -tAc \
+existing="$(psql "$restore_url" -tAc \
   "SELECT count(*) FROM information_schema.tables WHERE table_schema NOT IN ('pg_catalog','information_schema')")"
 if [[ "$existing" != "0" ]]; then
   echo "REFUS: la base cible contient $existing table(s). La vérification exige une base VIDE." >&2
@@ -57,12 +62,12 @@ echo "== restauration dans la base vide =="
 # --exit-on-error : une seule erreur invalide la vérification. Pas de « surtout
 # ça a presque marché ».
 pg_restore --exit-on-error --no-owner --no-privileges \
-           --dbname="$VERTEX_RESTORE_DATABASE_URL" "$plain"
+           --dbname="$restore_url" "$plain"
 
 echo "== contrôles de cohérence sur la base restaurée =="
 fail=0
 check() {  # nom, requête, attendu
-  local got; got="$(psql "$VERTEX_RESTORE_DATABASE_URL" -tAc "$2" | tr -d '[:space:]')"
+  local got; got="$(psql "$restore_url" -tAc "$2" | tr -d '[:space:]')"
   if [[ "$got" == "$3" ]]; then printf '  OK   %s\n' "$1"
   else printf '  ÉCHEC %s : attendu %s, obtenu %s\n' "$1" "$3" "$got"; fail=1; fi
 }
@@ -80,7 +85,7 @@ check "déclencheurs append-only restaurés" \
 # PAS un invariant à vérifier mais une remise en état à faire — un bail hérité
 # désigne un processus qui n'existe plus et bloquerait son message jusqu'à
 # expiration. On les relâche explicitement, puis on vérifie le résultat.
-released="$(psql "$VERTEX_RESTORE_DATABASE_URL" -tAc \
+released="$(psql "$restore_url" -tAc \
   "UPDATE outbox SET lease_token = NULL, lease_until = NULL
    WHERE lease_token IS NOT NULL RETURNING 1" | grep -c 1 || true)"
 echo "  INFO baux hérités relâchés : $released"

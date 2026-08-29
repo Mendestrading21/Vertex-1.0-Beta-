@@ -73,35 +73,67 @@ RULES: tuple[Rule, ...] = (
 )
 
 # Identifiants qui, affectés à une valeur à forte entropie, dénoncent un secret.
-ASSIGNMENT = re.compile(
-    r"""(?ix)
-    \b(?P<name>[A-Za-z0-9_.-]*
+#
+# Le motif couvre les syntaxes RÉELLEMENT présentes dans ce dépôt, et pas
+# seulement l'affectation Python : le nom peut être lui-même entre guillemets
+# (JSON, YAML à clés quotées) et la valeur peut être NON quotée (YAML, TOML,
+# `.env`, ligne de commande). Un détecteur qui n'attrape que `NOM = "valeur"`
+# laisse passer `manifests/*.yaml`, `infra/compose/*.yaml`, `.env` et tout
+# fichier JSON du dépôt — c'est-à-dire ses propres formats de configuration.
+# Un nom qui désigne l'EMPLACEMENT d'un secret (`secret_location`), son
+# IDENTIFIANT (`credential_id`) ou son EMPREINTE (`csrf_token_hash`) ne désigne
+# pas le secret lui-même : le signaler serait un faux positif systématique, et
+# un détecteur qui crie tout le temps n'est plus lu.
+_NOT_THE_SECRET = r"(?!.*(?:_location|_path|_file|_dir|_name|_env|_var|_ref|_id|_hash|_digest)\b)"
+
+_SECRET_NAME = _NOT_THE_SECRET + r"""[A-Za-z0-9_.-]*
         (?:secret|token|password|passwd|passphrase|api[_-]?key|private[_-]?key|
            credential|client[_-]?secret|access[_-]?key|auth[_-]?key)
-     [A-Za-z0-9_.-]*)
-    \s*[:=]\s*
-    (?P<quote>["'])(?P<value>[^"'\n]{16,200})(?P=quote)
+     [A-Za-z0-9_.-]*"""
+
+ASSIGNMENT = re.compile(
+    r"""(?ix)
+    (?P<nq>["\']?)(?P<name>""" + _SECRET_NAME + r""")(?P=nq)
+    # `:?` n'est PAS une affectation : c'est l'expansion shell « valeur requise »
+    # (`${VAR:?message}`). La traiter comme telle faisait signaler les messages
+    # d'erreur des garde-fous eux-mêmes.
+    \s*[:=](?!\?)\s*
+    (?:
+        (?P<quote>["\'])(?P<quoted>[^"\'\n]{16,200})(?P=quote)
+      | (?P<bare>[^\s"\',;{}\[\]#]{16,200})
+    )
     """
 )
 
-# Une valeur d'affectation qui est manifestement une référence, un exemple ou
-# un gabarit n'est pas un secret : elle ne contient aucune donnée.
 PLACEHOLDER = re.compile(
     r"""(?ix)
     ^(?:
         \$\{?[A-Za-z0-9_]+\}?           # ${VAR} / $VAR
+      | \$\{[A-Za-z0-9_]+[:-].*         # ${VAR:?message} / ${VAR:-défaut}
+      | [A-Za-z0-9_]+\s+requis\b.*      # message du garde-fou « VAR requis … »
       | \{\{.*\}\}                      # {{ ... }} (gabarit)
       | \{[A-Za-z0-9_]+\}               # {var} (format Python)
       | <[^>]+>                         # <à remplacer>
       | os\.environ.*
       | process\.env.*
-      | .*\b(?:example|exemple|placeholder|change[_-]?me|redacted|fictif|dummy|
-              fake|sample|synthetic|xxx+|todo|à-définir|a-definir)\b.*
+      | (?:example|exemple|placeholder|change[_-]?me|redacted|fictif|dummy|
+           fake|sample|synthetic|xxx+|todo|à-définir|a-definir)
+        [A-Za-z0-9_.-]{0,24}
+      | [A-Za-z0-9_.-]{0,24}
+        (?:example|exemple|placeholder|change[_-]?me|redacted|fictif|dummy|
+           fake|sample|synthetic|todo)
     )$
     """
 )
 
-MIN_ENTROPY_BITS = 3.6
+# Deux seuils, parce qu'un seul ne suffit pas. L'entropie PAR CARACTÈRE seule
+# laisse passer une phrase de passe en mots ordinaires
+# (« correcthorsebatterystaple » : 3,36 bits/caractère, sous tout seuil
+# raisonnable) alors qu'elle vaut 84 bits au total — un vrai secret. On exige
+# donc un plancher par caractère, qui écarte la répétition pure, ET un total
+# suffisant, qui attrape les valeurs longues à alphabet réduit.
+MIN_ENTROPY_BITS = 2.6
+MIN_TOTAL_ENTROPY_BITS = 60.0
 
 
 def shannon_bits_per_char(value: str) -> float:
@@ -157,31 +189,77 @@ class Finding(NamedTuple):
         return f"{self.path}:{self.line}: {self.code} ({self.label}) — empreinte {digest}"
 
 
+# Découpage des lignes très longues. On ne tronque PAS : une ligne d'un seul
+# tenant (JSON minifié, artefact généré) est exactement l'endroit où un secret
+# passerait inaperçu. Les tranches se chevauchent pour qu'aucun motif ne soit
+# coupé en deux à la frontière.
+_MAX_LINE = 4000
+_OVERLAP = 400
+
+
+# Une valeur NON quotée n'est une donnée littérale que dans un format de
+# configuration. Dans un fichier de code (`.py`, `.ts`, `.tsx`…),
+# `token = build_session_token()` est une EXPRESSION, pas un secret : y
+# appliquer la même règle produit des dizaines de faux positifs et rend la
+# porte inutilisable. La valeur QUOTÉE, elle, est examinée partout.
+_CONFIG_SUFFIXES = frozenset(
+    {".yaml", ".yml", ".env", ".toml", ".ini", ".cfg", ".conf", ".properties", ".sh", ".bash"}
+)
+
+
+def _bare_values_are_data(path: str) -> bool:
+    name = path.rsplit("/", 1)[-1]
+    if name.startswith(".env"):
+        return True
+    return any(name.endswith(suffix) for suffix in _CONFIG_SUFFIXES)
+
+
+def _scan_line(path: str, number: int, line: str) -> Iterable[Finding]:
+    for rule in RULES:
+        for found in rule.pattern.finditer(line):
+            captured = found.group(1) if found.groups() else found.group(0)
+            if found.groups() and PLACEHOLDER.match(captured.strip()):
+                # Valeur capturée manifestement fictive (``CHANGE_ME``,
+                # ``${VAR}``…) : la forme du secret est là, la donnée non.
+                continue
+            yield Finding(path, number, rule.code, rule.label, captured)
+    for found in ASSIGNMENT.finditer(line):
+        bare = found.group("bare")
+        if bare is not None and not _bare_values_are_data(path):
+            continue
+        value = (found.group("quoted") or bare or "").strip()
+        if PLACEHOLDER.match(value):
+            continue
+        per_char = shannon_bits_per_char(value)
+        if per_char < MIN_ENTROPY_BITS or per_char * len(value) < MIN_TOTAL_ENTROPY_BITS:
+            continue
+        yield Finding(
+            path,
+            number,
+            "HIGH_ENTROPY_ASSIGNMENT",
+            f"valeur à forte entropie affectée à « {found.group('name')} »",
+            value,
+        )
+
+
 def scan_text(path: str, text: str) -> Iterable[Finding]:
+    seen: set[tuple[int, str, str]] = set()
     for number, line in enumerate(text.splitlines(), start=1):
-        if len(line) > 4000:
-            line = line[:4000]
-        for rule in RULES:
-            for found in rule.pattern.finditer(line):
-                captured = found.group(1) if found.groups() else found.group(0)
-                if found.groups() and PLACEHOLDER.match(captured.strip()):
-                    # Valeur capturée manifestement fictive (``CHANGE_ME``,
-                    # ``${VAR}``…) : la forme du secret est là, la donnée non.
+        if len(line) > _MAX_LINE:
+            chunks = [
+                line[start : start + _MAX_LINE]
+                for start in range(0, len(line), _MAX_LINE - _OVERLAP)
+            ]
+        else:
+            chunks = [line]
+        for chunk in chunks:
+            for finding in _scan_line(path, number, chunk):
+                # Le recouvrement peut faire voir deux fois le même motif.
+                marker = (finding.line, finding.code, finding.match)
+                if marker in seen:
                     continue
-                yield Finding(path, number, rule.code, rule.label, captured)
-        for found in ASSIGNMENT.finditer(line):
-            value = found.group("value")
-            if PLACEHOLDER.match(value.strip()):
-                continue
-            if shannon_bits_per_char(value) < MIN_ENTROPY_BITS:
-                continue
-            yield Finding(
-                path,
-                number,
-                "HIGH_ENTROPY_ASSIGNMENT",
-                f"valeur à forte entropie affectée à « {found.group('name')} »",
-                value,
-            )
+                seen.add(marker)
+                yield finding
 
 
 def main() -> int:

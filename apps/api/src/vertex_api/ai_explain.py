@@ -70,7 +70,13 @@ Grounding contract (ADR-008 / AI_GATEWAY.md, enforced by code and tests):
   not a canonical token becomes an ANONYMOUS contradiction plus a
   ``missing_data`` entry, and the completeness invariant counts it. The
   invariant is checked on the finished answer and fails closed with a typed
-  :class:`AiGroundingError`;
+  :class:`AiGroundingError`. It counts by ORIGIN, never by string equality: a
+  contradiction reference carries its :class:`_ReferenceNamespace`, and only
+  :func:`_gate_parts` mints a ``GATE`` one. A STORED value that merely equals
+  a ``gate_id`` — a ``coverage.invalid_positions[].ticker``, say — used to
+  satisfy the invariant on its own, so a closed gate disappeared from the
+  answer while an unrelated contradiction stating the OPPOSITE took its
+  place; the namespace is what makes that unrepresentable;
 - a value read from the snapshot is restituted only as a CANONICAL TOKEN
   (:func:`_token`, a ``fullmatch`` — a trailing newline is NOT a token): a
   source field carrying markup, spaces or invisible characters is reported as
@@ -100,6 +106,7 @@ import html
 import re
 import unicodedata
 from dataclasses import dataclass
+from enum import Enum
 from typing import Any, Literal, Mapping, NamedTuple, Optional, Sequence, Union
 
 from pydantic import Field, model_validator
@@ -778,19 +785,116 @@ class _DraftClaim(_Draft):
         return AiClaim(text=self.text, kind="FACT", evidence_refs=self.refs)
 
 
+class _ReferenceNamespace(Enum):
+    """WHERE a contradiction's reference comes from — its namespace.
+
+    A contradiction reference used to be a BARE STRING, and the completeness
+    invariant of :func:`build_ai_answer` compared the published ``BLOCK``
+    gate ids to those strings by simple equality. A contradiction built from
+    ``coverage.invalid_positions`` carries a STORED ``ticker``: a snapshot
+    whose ticker copied a ``gate_id`` made the invariant believe the gate had
+    been restituted, and the closed gate silently disappeared from the answer
+    while an unrelated contradiction — saying the OPPOSITE — took its place.
+
+    Values from different origins are not comparable. The namespace is
+    therefore carried by the reference itself and the invariant only ever
+    looks at :data:`GATE` references, which ONLY :func:`_gate_parts` mints.
+    """
+
+    GATE = "gate"
+    """Reference minted from an advice ``gates[].gate_id`` (a Vertex gate)."""
+
+    POSITION = "position"
+    """Reference minted from a STORED position identifier (a ticker)."""
+
+
+@dataclass(frozen=True)
+class _Reference:
+    """A contradiction reference AND its namespace — never a bare string.
+
+    ``value`` is ``None`` when the origin is known but its identifier is not
+    relayable (an anonymous ``BLOCK`` gate): the contradiction is still
+    published, anonymously, and still counted by the invariant.
+    """
+
+    namespace: _ReferenceNamespace
+    value: Optional[str]
+
+
+def _gate_ref(gate_id: Optional[str]) -> _Reference:
+    """Mint the ONLY kind of reference the completeness invariant accepts."""
+    return _Reference(_ReferenceNamespace.GATE, gate_id)
+
+
+def _position_ref(ticker: Optional[str]) -> _Reference:
+    """Mint a reference to a STORED position — never comparable to a gate."""
+    return _Reference(_ReferenceNamespace.POSITION, ticker)
+
+
 @dataclass(frozen=True)
 class _DraftContradiction(_Draft):
     code: str = "UNKNOWN"
-    reference: Optional[str] = None
+    reference: Optional[_Reference] = None
+
+    @property
+    def restitutes_a_gate(self) -> bool:
+        """True only for a contradiction MINTED FROM A GATE.
+
+        The default (``reference is None``) is fail-closed: a contradiction
+        source added later that forgets to declare its namespace can never
+        satisfy the gate completeness invariant — it can only make the answer
+        fail closed, never make a closed gate disappear.
+        """
+        return (
+            self.reference is not None
+            and self.reference.namespace is _ReferenceNamespace.GATE
+        )
+
+    @property
+    def restituted_gate_id(self) -> Optional[str]:
+        """The gate id this contradiction restitutes, else ``None``.
+
+        ``None`` also means « an anonymous gate » when
+        :attr:`restitutes_a_gate` is true — the two cases are told apart by
+        reading both properties, never by the string alone.
+        """
+        return self.reference.value if self.restitutes_a_gate else None
 
     def contradiction(self) -> "AiContradiction":
         return AiContradiction(
-            code=self.code, reference=self.reference, text=self.text
+            code=self.code,
+            reference=None if self.reference is None else self.reference.value,
+            text=self.text,
         )
 
 
 def _note(value: _Composable) -> _Draft:
     return _Draft(_segments(value))
+
+
+_CITATION_LABELS: Mapping[tuple[Optional[_ReferenceNamespace], bool], str] = {
+    (_ReferenceNamespace.GATE, True): "identifiant de porte cité",
+    (_ReferenceNamespace.GATE, False): "porte non identifiable",
+    (_ReferenceNamespace.POSITION, True): "identifiant de position cité",
+    (_ReferenceNamespace.POSITION, False): "position non identifiable",
+    (None, False): "contradiction sans référence",
+}
+"""How a REFUSAL NOTE names what it refused: the ORIGIN and the SHAPE only.
+
+Every label is a constant of this module. The note never echoes the refused
+reference or reason code — quoting them would re-publish, inside
+``missing_data``, the very stored value the screen had just rejected. The
+namespace is named because « porte » and « position » are not the same
+refusal: the previous wording called every refused contradiction a « porte ».
+"""
+
+
+def _citation(draft: "_DraftContradiction") -> str:
+    """Name the origin and shape of a refused contradiction's reference."""
+    reference = draft.reference
+    if reference is None:
+        return _CITATION_LABELS[(None, False)]
+    return _CITATION_LABELS[(reference.namespace, reference.value is not None)]
 
 
 def _screen(draft: _Draft) -> Optional[str]:
@@ -983,8 +1087,13 @@ def _claim(text: _Composable, *refs: str) -> _DraftClaim:
 
 
 def _contradiction(
-    code: str, reference: Optional[str], text: _Composable
+    code: str, reference: Optional[_Reference], text: _Composable
 ) -> _DraftContradiction:
+    """Build a contradiction draft.
+
+    ``reference`` is a NAMESPACED :class:`_Reference`, never a bare string:
+    the type is what stops a stored value from standing in for a gate id.
+    """
     return _DraftContradiction(_segments(text), code, reference)
 
 
@@ -1093,7 +1202,7 @@ def _gate_parts(
             contradictions.append(
                 _contradiction(
                     reason,
-                    None,
+                    _gate_ref(None),
                     (
                         _prose("Gate fermée non identifiable ("),
                         _ident(reason),
@@ -1112,7 +1221,7 @@ def _gate_parts(
         contradictions.append(
             _contradiction(
                 reason,
-                gate_id,
+                _gate_ref(gate_id),
                 (
                     _prose("Gate "),
                     _ident(gate_id),
@@ -1588,7 +1697,7 @@ def _portfolio_parts(content: Mapping[str, Any], self_ref: str) -> _Parts:
             contradictions.append(
                 _contradiction(
                     reason,
-                    ticker,
+                    _position_ref(ticker),
                     (
                         _prose("Position contradictoire sur "),
                         _ident(ticker),
@@ -1878,7 +1987,10 @@ def build_ai_answer(
     # output. A canonical identifier is a typed field, never prose: it is
     # never screened, so no lexical rule can delete a safety statement.
     kept_claims: list[AiClaim] = []
-    kept_contradictions: list[AiContradiction] = []
+    # The DRAFTS are kept, not only the published models: the completeness
+    # invariant below needs the reference NAMESPACE, which the wire contract
+    # does not carry.
+    kept_contradiction_drafts: list[_DraftContradiction] = []
     kept_missing: list[str] = []
     kept_limitations: list[str] = []
     kept_excerpts: list[AiExternalExcerpt] = []
@@ -1902,16 +2014,11 @@ def build_ai_answer(
     for index, draft_contradiction in enumerate(contradictions):
         category = _screen(draft_contradiction)
         if category is None:
-            kept_contradictions.append(draft_contradiction.contradiction())
+            kept_contradiction_drafts.append(draft_contradiction)
         else:
-            citation = (
-                "identifiant de porte cité"
-                if draft_contradiction.reference is not None
-                else "porte non identifiable"
-            )
             reports.append(
-                f"contradiction n°{index} ({citation}) refusée par la "
-                f"détection de langage interdit ({category})"
+                f"contradiction n°{index} ({_citation(draft_contradiction)}) "
+                f"refusée par la détection de langage interdit ({category})"
             )
     for index, draft in enumerate(missing):
         category = _screen(draft)
@@ -1952,17 +2059,31 @@ def build_ai_answer(
     # contradiction, and those are COUNTED here: they used to sit outside
     # the invariant, so a refused anonymous contradiction vanished silently.
     published = _blocked_gates(content)
+    # ONLY the gate-namespaced references count. Comparing bare strings let a
+    # STORED value (a ``coverage.invalid_positions[].ticker``) that merely
+    # equalled a ``gate_id`` satisfy the invariant, so the closed gate
+    # vanished from the answer while an unrelated contradiction — the OPPOSITE
+    # statement — stood in its place. A reference now carries its namespace,
+    # and only :func:`_gate_parts` mints a GATE one.
     restituted = {
-        contradiction.reference for contradiction in kept_contradictions
+        draft.restituted_gate_id
+        for draft in kept_contradiction_drafts
+        if draft.restituted_gate_id is not None
     }
     unrestituted = sorted(published.named - restituted)
     anonymous_kept = sum(
-        1 for contradiction in kept_contradictions if contradiction.reference is None
+        1
+        for draft in kept_contradiction_drafts
+        if draft.restitutes_a_gate and draft.restituted_gate_id is None
     )
     if unrestituted or anonymous_kept < published.anonymous:
         raise AiGroundingError(
             AI_ERROR_INCOMPLETE_ANSWER, references=unrestituted
         )
+
+    kept_contradictions = [
+        draft.contradiction() for draft in kept_contradiction_drafts
+    ]
 
     catalog_entries: dict[str, AiEvidenceCatalogEntry] = {
         self_entry.evidence_id: self_entry

@@ -244,8 +244,15 @@ jobs:
         working-directory: apps/web
         run: pnpm install --frozen-lockfile
 
+      # Deux exports successifs comparés octet à octet, PUIS comparaison au
+      # fichier commité. Le libellé précédent promettait le double export sans
+      # l'exécuter : un seul export suivi d'un `git diff` prouve l'absence de
+      # dérive, pas le déterminisme.
       - name: Porte 13 — OpenAPI déterministe (double export byte-identique)
         run: |
+          uv run --no-sync python tools/export_openapi.py /tmp/openapi-1.json
+          uv run --no-sync python tools/export_openapi.py /tmp/openapi-2.json
+          cmp /tmp/openapi-1.json /tmp/openapi-2.json
           uv run --no-sync python tools/export_openapi.py
           git diff --exit-code -- apps/api/openapi.json
 

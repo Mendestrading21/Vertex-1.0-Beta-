@@ -9,6 +9,7 @@ a clean 404, and the whole surface stays behind the session dependency.
 
 from __future__ import annotations
 
+import logging
 import re
 from datetime import datetime, timezone
 
@@ -1792,3 +1793,310 @@ def test_a_title_the_blacklist_misses_is_still_contained_structurally(
 
     # 3. Une limite visible dit au lecteur que ce n'est pas un fait Vertex.
     assert any("non vérifié" in item for item in answer.limitations)
+
+
+# ---------------------------------------------------------------------------
+# QUATRIÈME ré-audit adversarial — reproducteur P1-2.
+#
+# L'invariant de complétude comparait les ``gate_id`` publiés BLOCK aux
+# ``reference`` de TOUTES les contradictions retenues, par simple égalité de
+# CHAÎNE. Or une contradiction issue de ``coverage.invalid_positions`` porte
+# comme référence un ``ticker`` STOCKÉ, arbitraire. Il suffisait qu'un ticker
+# coïncide avec un ``gate_id`` pour que l'invariant soit satisfait par une
+# contradiction SANS AUCUN RAPPORT : la porte fermée disparaissait de la
+# réponse et le 200 était servi comme une explication complète — exactement ce
+# que le commentaire de ``build_ai_answer`` interdit (« an output filter must
+# never be able to do that »).
+#
+# Cause racine : les références de contradiction n'appartenaient pas à un
+# ESPACE DE NOMS. Une référence de porte et une référence de position n'ont
+# aucune raison d'être comparables par une chaîne nue.
+# ---------------------------------------------------------------------------
+
+
+#: Le ``reason_code`` de la porte déclenche la détection de langage interdit
+#: (il n'est pas canonique, donc il est screené comme de la prose) : la
+#: contradiction de porte est REFUSÉE. C'est le seul scénario où l'invariant
+#: est la dernière ligne de défense.
+REFUSED_GATE_REASON = "ACHETEZ"
+
+#: Le ``reason`` de la position masquante est bénin : sa contradiction, elle,
+#: est retenue. Elle dit le SENS INVERSE de la porte fermée.
+MASKING_POSITION_REASON = "RESOLVED"
+
+
+def portfolio_content_with_gate_and_position(
+    gate_id: str, ticker: str | None
+) -> dict:
+    """Snapshot ``portfolio_valuation`` SYNTHÉTIQUE du vecteur P1-2.
+
+    ``ticker=None`` produit le CONTRÔLE : la même porte, sans l'entrée
+    masquante. Le comportement correct y est déjà observé (500 fermé) ; c'est
+    la comparaison des deux qui prouve le défaut.
+    """
+    content = portfolio_content()
+    content["advice"] = {
+        "advice_id": ADVICE_ID,
+        "status": "BLOCKED",
+        "gates": [gate(gate_id, "BLOCK", REFUSED_GATE_REASON)],
+    }
+    content["coverage"] = {
+        "invalid_positions": (
+            [{"ticker": ticker, "reason": MASKING_POSITION_REASON}]
+            if ticker is not None
+            else []
+        )
+    }
+    return content
+
+
+def _explain_portfolio(api: TestClient, reader: FakeSnapshotReader, content: dict):
+    reader.snapshots[("portfolio_valuation", "1")] = snapshot(
+        "portfolio_valuation", "1", content
+    )
+    return api.post(
+        "/api/v1/ai/explain",
+        json={"subject": {"kind": "portfolio_valuation", "key": "1"}, "locale": "fr"},
+    )
+
+
+#: Formes variées d'identifiants de porte : la collision ne dépend pas de
+#: « GATE1 ». Tout ``gate_id`` relayable qu'un ``ticker`` stocké peut copier
+#: satisfait l'invariant de la même manière.
+COLLIDING_IDENTIFIERS = (
+    "GATE1",
+    "entitlements_sufficient",
+    "session_and_event_known",
+    "freshness_within_budget",
+    "SYN-FINL-01",
+    "a",
+    "sha256:" + "7" * 64,
+    "gate.with.dots",
+    "GATE_1-x/y",
+)
+
+
+@pytest.mark.parametrize("identifier", COLLIDING_IDENTIFIERS)
+def test_a_stored_ticker_cannot_satisfy_the_gate_completeness_invariant(
+    api: TestClient, reader: FakeSnapshotReader, identifier: str
+) -> None:
+    """P1-2 : une position ne restitue JAMAIS une porte fermée.
+
+    La contradiction retenue vient de ``coverage.invalid_positions`` ; elle ne
+    dit rien de la porte. Servir 200 reviendrait à faire disparaître la porte
+    BLOCK de la réponse.
+    """
+    response = _explain_portfolio(
+        api,
+        reader,
+        portfolio_content_with_gate_and_position(identifier, identifier),
+    )
+
+    assert response.status_code == 500, response.text
+    assert response.json()["code"] == "AI_ANSWER_INCOMPLETE"
+
+
+@pytest.mark.parametrize("identifier", COLLIDING_IDENTIFIERS)
+def test_the_control_without_the_masking_entry_still_fails_closed(
+    api: TestClient, reader: FakeSnapshotReader, identifier: str
+) -> None:
+    """CONTRÔLE — comportement déjà correct, qui ne doit pas régresser."""
+    response = _explain_portfolio(
+        api, reader, portfolio_content_with_gate_and_position(identifier, None)
+    )
+
+    assert response.status_code == 500, response.text
+    assert response.json()["code"] == "AI_ANSWER_INCOMPLETE"
+
+
+def test_a_block_gate_normally_restituted_still_passes(
+    api: TestClient, reader: FakeSnapshotReader
+) -> None:
+    """NON-RÉGRESSION — une porte restituable reste un 200 complet.
+
+    Le ticker masquant est présent ET porte la même valeur que la porte : la
+    correction ne doit pas transformer une réponse saine en échec.
+    """
+    content = portfolio_content_with_gate_and_position(
+        "entitlements_sufficient", "entitlements_sufficient"
+    )
+    content["advice"]["gates"] = [
+        gate("entitlements_sufficient", "BLOCK", "UNEVALUABLE")
+    ]
+
+    response = _explain_portfolio(api, reader, content)
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    references = [c["reference"] for c in body["contradictions"]]
+    # La porte EST restituée, et la position aussi : deux contradictions
+    # distinctes qui portent la même valeur de référence.
+    assert references.count("entitlements_sufficient") == 2
+    codes = {(c["reference"], c["code"]) for c in body["contradictions"]}
+    assert ("entitlements_sufficient", "UNEVALUABLE") in codes
+    assert ("entitlements_sufficient", MASKING_POSITION_REASON) in codes
+
+
+def test_the_masked_gate_refusal_leaks_no_stored_value(
+    api: TestClient, reader: FakeSnapshotReader, caplog
+) -> None:
+    """Ni la réponse HTTP ni le log ne relaient une valeur stockée."""
+    marker = "SYN-MARKER-01"
+    with caplog.at_level(logging.DEBUG):
+        response = _explain_portfolio(
+            api,
+            reader,
+            portfolio_content_with_gate_and_position(marker, marker),
+        )
+
+    assert response.status_code == 500
+    assert marker not in response.text
+    assert REFUSED_GATE_REASON not in response.text
+    logged = "\n".join(record.getMessage() for record in caplog.records)
+    assert marker not in logged
+    assert REFUSED_GATE_REASON not in logged
+    assert MASKING_POSITION_REASON not in logged
+
+
+# --- P1-2 bis : fermer la CLASSE, pas le seul vecteur -----------------------
+#
+# Le ticker de ``coverage.invalid_positions`` était le vecteur ATTEIGNABLE
+# aujourd'hui. Ce qui doit tenir est plus large : AUCUNE source de
+# contradiction autre que le constructeur de portes ne peut produire une
+# référence que l'invariant de complétude accepte, quelle que soit la valeur
+# stockée. Les tests ci-dessous vérifient cette propriété sur les TROIS
+# constructeurs réels, en saturant chaque feuille de chaîne du snapshot avec
+# une valeur qui collisionne.
+
+
+def _saturate(value, token: str, preserve: tuple[str, ...]):
+    """Remplace RÉCURSIVEMENT chaque chaîne stockée par ``token``.
+
+    ``preserve`` garde les discriminants structurels (``status``,
+    ``schema_version``) pour que les branches des constructeurs soient
+    réellement parcourues ; sans eux le snapshot saturé serait inerte.
+    """
+    if isinstance(value, dict):
+        return {
+            key: (
+                item
+                if key in preserve
+                else _saturate(item, token, preserve)
+            )
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [_saturate(item, token, preserve) for item in value]
+    if isinstance(value, str):
+        return token
+    return value
+
+
+def _parts_builders():
+    import vertex_api.ai_explain as module
+
+    return (
+        ("analysis", module._analysis_parts, analysis_content()),
+        ("portfolio_valuation", module._portfolio_parts, portfolio_content()),
+        ("performance", module._performance_parts, performance_content()),
+    )
+
+
+@pytest.mark.parametrize("identifier", COLLIDING_IDENTIFIERS)
+@pytest.mark.parametrize(
+    "preserve", [(), ("status", "schema_version")], ids=["all", "keep-status"]
+)
+def test_no_builder_but_the_gate_builder_mints_a_gate_reference(
+    identifier: str, preserve: tuple[str, ...]
+) -> None:
+    """Sans bloc d'avis, AUCUNE contradiction n'est comptée comme une porte.
+
+    Quelle que soit la valeur stockée — ticker, raison, lot, devise, unité,
+    population — la référence produite appartient à un autre espace de noms,
+    donc elle ne peut pas satisfaire l'invariant à la place d'une porte.
+    """
+    for kind, builder, content in _parts_builders():
+        saturated = _saturate(content, identifier, preserve)
+        saturated.pop("advice", None)
+
+        _, contradictions, _, _, _, _ = builder(saturated, "snapshot:x/1/v3")
+
+        gate_drafts = [d for d in contradictions if d.restitutes_a_gate]
+        assert gate_drafts == [], (kind, identifier, preserve)
+
+
+@pytest.mark.parametrize("identifier", COLLIDING_IDENTIFIERS)
+def test_the_gate_builder_mints_exactly_one_reference_per_block_gate(
+    identifier: str,
+) -> None:
+    """Contrepartie : la porte, elle, DOIT produire une référence comptée."""
+    import vertex_api.ai_explain as module
+
+    advice = {
+        "advice_id": ADVICE_ID,
+        "status": "BLOCKED",
+        "gates": [
+            gate(identifier, "BLOCK", "UNEVALUABLE"),
+            gate("gate with space", "BLOCK", "UNEVALUABLE"),
+            gate(identifier + "-ok", "PASS", "OK"),
+        ],
+    }
+
+    _, contradictions, _ = module._gate_parts(advice)
+
+    assert [d.restitutes_a_gate for d in contradictions] == [True, True]
+    assert {d.restituted_gate_id for d in contradictions} == {identifier, None}
+
+
+def test_a_contradiction_without_a_declared_namespace_fails_closed() -> None:
+    """Le défaut d'une source future est FERMÉ, jamais ouvert.
+
+    Une source de contradiction ajoutée plus tard qui oublierait de déclarer
+    son origine produit ``reference=None`` : elle ne peut alors QUE faire
+    échouer l'invariant, jamais faire disparaître une porte fermée.
+    """
+    import vertex_api.ai_explain as module
+
+    orphan = module._contradiction("UNKNOWN", None, "texte neutre")
+    assert orphan.restitutes_a_gate is False
+    assert orphan.restituted_gate_id is None
+    assert orphan.contradiction().reference is None
+
+
+def test_a_position_reference_is_never_equal_to_a_gate_reference() -> None:
+    """La collision de VALEUR n'est plus une collision de RÉFÉRENCE."""
+    import vertex_api.ai_explain as module
+
+    for identifier in COLLIDING_IDENTIFIERS:
+        assert module._gate_ref(identifier) != module._position_ref(identifier)
+        assert module._gate_ref(identifier) == module._gate_ref(identifier)
+        assert (
+            module._gate_ref(identifier).value
+            == module._position_ref(identifier).value
+        )
+
+
+def test_a_refused_position_contradiction_is_not_reported_as_a_gate(
+    api: TestClient, reader: FakeSnapshotReader
+) -> None:
+    """La note de refus nomme l'ORIGINE ; elle n'appelle plus tout « porte ».
+
+    Elle ne relaie toujours aucune valeur stockée.
+    """
+    content = portfolio_content()
+    content.pop("advice", None)
+    content["coverage"] = {
+        "invalid_positions": [{"ticker": "SYN-FINL-01", "reason": "ACHETEZ"}]
+    }
+
+    response = _explain_portfolio(api, reader, content)
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    reports = [
+        item for item in body["missing_data"] if "contradiction n°" in item
+    ]
+    assert reports, body["missing_data"]
+    assert any("identifiant de position cité" in item for item in reports)
+    assert not any("porte" in item for item in reports)
+    assert "ACHETEZ" not in response.text

@@ -28,10 +28,13 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Callable, Optional, Sequence
 
-from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session
 
 from vertex_persistence.backoff import DEFAULT_MAX_ATTEMPTS
+# Autorité unique de la conversion SQLAlchemy -> libpq : elle appartient à
+# la persistance, pas au worker, et les outils d'exploitation doivent
+# pouvoir l'utiliser sans importer le worker.
+from vertex_persistence.dsn import sqlalchemy_url_to_conninfo
 from vertex_persistence.enums import OutboxStatus
 from vertex_persistence.errors import OutboxLeaseError
 from vertex_persistence.repository.outbox import (
@@ -355,15 +358,6 @@ class WorkerRunner:
                     self._wake.wait(timeout=self._poll_interval)
         finally:
             log.info("worker loop stopped; stats=%s", self.stats())
-
-
-def sqlalchemy_url_to_conninfo(url: str) -> str:
-    """Render a SQLAlchemy PostgreSQL URL as a plain libpq/psycopg conninfo."""
-    return (
-        make_url(url)
-        .set(drivername="postgresql")
-        .render_as_string(hide_password=False)
-    )
 
 
 class PostgresNotifyListener:

@@ -143,3 +143,58 @@ def test_l_allowlist_ne_peut_pas_servir_de_cachette(
     # `main` compare les exemptions déclarées aux exemptions réellement
     # consommées ; ici aucune ne l'est.
     assert gate.main() == 1
+
+
+# ── Contournements reproduits par le 4e audit adversarial ─────────────────
+#
+# Le détecteur ne couvrait que `NOM = "valeur"` : il ratait les formats de
+# configuration DU DÉPÔT LUI-MÊME (JSON, YAML à clé quotée, valeur non quotée,
+# `.env`, TOML), le suffixe `-sample` accolé à un vrai secret, la ligne longue
+# et la phrase de passe en mots ordinaires. Ces tests figent leur fermeture.
+
+_PROBE = "9f3Kd2Lm8Qz7Xv4Bn1Rt6Yw0Hs5Jp"  # SYNTHETIC, n'ouvre rien
+
+
+@pytest.mark.parametrize(
+    ("label", "path", "text"),
+    [
+        ("json clé quotée", "conf.json", f'  "api_key": "{_PROBE}",'),
+        ("json compact", "conf.json", f'{{"client_secret":"{_PROBE}"}}'),
+        ("yaml clé quotée", "conf.yaml", f'  "password": "{_PROBE}"'),
+        ("yaml valeur nue", "conf.yaml", "password: R7h!qZ2mPx9Lw4Tv0Ab"),
+        ("env valeur nue", ".env", "VERTEX_API_TOKEN=R7hqZ2mPx9Lw4Tv0AbCd"),
+        ("toml valeur nue", "conf.toml", "client_secret = R7hqZ2mPx9Lw4Tv0AbCd"),
+        ("suffixe -sample sur un vrai secret", "a.py", f'CLIENT_SECRET = "{_PROBE}-sample"'),
+        ("au-delà de la colonne 4000", "a.py", "x" * 4200 + f' API_KEY = "{_PROBE}"'),
+        ("phrase de passe en mots", "a.py", 'TWS_PASSWORD = "correcthorsebatterystaple"'),
+    ],
+)
+def test_les_contournements_du_4e_audit_sont_fermes(label: str, path: str, text: str) -> None:
+    codes = {finding.code for finding in gate.scan_text(path, text)}
+    assert codes, label
+
+
+@pytest.mark.parametrize(
+    ("label", "path", "text"),
+    [
+        # Une valeur NUE dans du CODE est une expression, pas un secret.
+        ("appel de fonction Python", "a.py", "session_token = build_session_token(user)"),
+        ("attribut TypeScript", "a.ts", "const credential = await navigator.credentials.get()"),
+        # Expansion shell « valeur requise » : c'est un message, pas un secret.
+        ("garde-fou shell", "s.sh", ': "${VERTEX_BACKUP_PASSPHRASE:?VERTEX_BACKUP_PASSPHRASE requis}"'),
+        ("référence compose", "compose.yaml", "  POSTGRES_PASSWORD: ${VERTEX_DB_PASSWORD:?requis}"),
+        # Le nom désigne l'emplacement, l'identifiant ou l'empreinte, pas le secret.
+        ("emplacement d'un secret", "m.yaml", "  secret_location: env:VERTEX_NEWS_API_TOKEN_PRIMARY"),
+        ("identifiant", "a.py", 'credential_id = "0123456789abcdef0123456789abcdef"'),
+        ("empreinte", "a.py", 'csrf_token_hash = "3b1f9c2e8d7a6b5c4d3e2f1a0b9c8d7e"'),
+    ],
+)
+def test_aucun_faux_positif_sur_ces_formes(label: str, path: str, text: str) -> None:
+    assert {f.code for f in gate.scan_text(path, text)} == set(), label
+
+
+def test_une_ligne_longue_n_est_pas_signalee_deux_fois() -> None:
+    """Le découpage avec recouvrement ne doit pas dupliquer un signalement."""
+    line = "y" * 3900 + f' API_KEY = "{_PROBE}" ' + "y" * 3900
+    findings = [f for f in gate.scan_text("a.py", line) if f.code == "HIGH_ENTROPY_ASSIGNMENT"]
+    assert len(findings) == 1

@@ -28,7 +28,13 @@ téléphone — l'exposition de l'application reste `LATER`
 
 - toutes les images sont épinglées par **digest immuable**, jamais par tag seul,
   jamais `latest` ;
-- tous les services tournent en **utilisateur non privilégié** ;
+- les services applicatifs (`api`, `worker`, `web`) tournent en **utilisateur
+  non privilégié** (`USER 10001` / `USER 65532` dans leurs Dockerfiles) ;
+- **exception assumée et écrite** : le service `db` démarre en root, parce que
+  l'entrypoint officiel de l'image PostgreSQL en a besoin pour préparer son
+  volume avant de dégrader le serveur vers l'utilisateur `postgres`. Il tourne
+  avec `cap_drop: ALL` et seulement les cinq capacités que cette préparation
+  exige ;
 - les ports ne sont publiés que sur `127.0.0.1` : rien n'écoute sur `0.0.0.0` ;
 - aucun secret n'est écrit dans un fichier suivi par Git ; `compose.yaml` ne
   lit que des variables d'environnement, et démarre en échec si l'une manque ;
