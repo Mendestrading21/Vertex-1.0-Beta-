@@ -29,6 +29,53 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/ai/explain": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Deterministic template explanation of one persisted snapshot
+         * @description Explain ONE persisted snapshot through the DETERMINISTIC template.
+         *
+         *     Pure presentation of already-certified data: no network, no model, no
+         *     financial computation, no clock beyond the snapshot's own ``as_of``.
+         *     Every claim cites evidence really present in the snapshot (validated
+         *     fail-closed); the answer is labeled ``DETERMINISTIC_TEMPLATE`` and its
+         *     limitations always carry the B-05 notice. An absent snapshot is a clean
+         *     404 — never an invented explanation.
+         */
+        post: operations["post_ai_explain"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/ai/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * AI provider state: DISABLED pending human decision B-05
+         * @description Report the honest AI state: no provider, deterministic template only.
+         */
+        get: operations["get_ai_status"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/analysis/{instrument}": {
         parameters: {
             query?: never;
@@ -157,6 +204,34 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/calendar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Last published calendar snapshot (or honest empty state)
+         * @description Serve the LAST ``calendar/global`` snapshot exactly as persisted.
+         *
+         *     The API relays the worker's published agenda — importance from the
+         *     versioned rule, distinct ESTIMATED/CONFIRMED labels, revisions with
+         *     their preserved previous values, conserved exchange timezones and the
+         *     position/thesis event context — and computes nothing. The optional
+         *     ``from``/``to`` query window (both bounds, aware datetimes, at most 90
+         *     days) SELECTS events without altering any. With no snapshot ever
+         *     published the answer is a 200 with ``state = "empty"``.
+         */
+        get: operations["get_calendar"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/events/stream": {
         parameters: {
             query?: never;
@@ -242,6 +317,34 @@ export interface paths {
          *     with ``state = "empty"``: absent stays absent, nothing is invented.
          */
         get: operations["get_markets_overview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/opportunities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Last published opportunities snapshot (or honest empty state)
+         * @description Serve the LAST ``opportunities/global`` snapshot exactly as persisted.
+         *
+         *     The API relays the worker's published candidates — the single
+         *     ``AdviceEngine``'s statuses under the manifest profile (id + version),
+         *     the documented lexicographic ordering, the honest evidence-presence
+         *     checks and the exclusion-reason distribution — and computes nothing. A
+         *     relay guard refuses a snapshot carrying a closed candidate in the
+         *     qualified group. With no snapshot ever published the answer is a 200
+         *     with ``state = "empty"``.
+         */
+        get: operations["get_opportunities"];
         put?: never;
         post?: never;
         delete?: never;
@@ -767,6 +870,169 @@ export interface components {
          */
         AdviceStatus: "BLOCKED" | "INSUFFICIENT_DATA" | "OBSERVE" | "REVIEW" | "QUALIFIED";
         /**
+         * AiAnswer
+         * @description The structured deterministic answer (never presented as a model).
+         *
+         *     ``state = "ok"`` carries at least one grounded claim. ``state =
+         *     "refused"`` is the STRUCTURED REFUSAL of an empty or unusable corpus:
+         *     no claim, a readable ``refusal_reason`` and explicit missing data — it
+         *     is never an empty explanation presented as complete.
+         */
+        AiAnswer: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /** Claims */
+            claims: components["schemas"]["AiClaim"][];
+            /** Content Hash */
+            content_hash: string;
+            /** Contradictions */
+            contradictions: components["schemas"]["AiContradiction"][];
+            /** Evidence Catalog */
+            evidence_catalog: components["schemas"]["AiEvidenceCatalogEntry"][];
+            /** External Excerpts */
+            external_excerpts: components["schemas"]["AiExternalExcerpt"][];
+            /** Limitations */
+            limitations: string[];
+            /**
+             * Locale
+             * @constant
+             */
+            locale: "fr";
+            /** Missing Data */
+            missing_data: string[];
+            /**
+             * Provider
+             * @constant
+             */
+            provider: "DETERMINISTIC_TEMPLATE";
+            /** Refusal Reason */
+            refusal_reason: string | null;
+            /** Snapshot Version */
+            snapshot_version: number;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "ok" | "refused";
+            subject: components["schemas"]["AiSubject"];
+            /**
+             * Template Version
+             * @constant
+             */
+            template_version: "vertex.ai-deterministic-template/1.0";
+        };
+        /**
+         * AiClaim
+         * @description One factual sentence, grounded on evidence really present.
+         *
+         *     A claim text is built ONLY from Vertex-owned canonical values; untrusted
+         *     external content never enters it.
+         */
+        AiClaim: {
+            /** Evidence Refs */
+            evidence_refs: string[];
+            /**
+             * Kind
+             * @constant
+             */
+            kind: "FACT";
+            /** Text */
+            text: string;
+        };
+        /**
+         * AiContradiction
+         * @description One contradiction carried by the snapshot (e.g. a closed gate).
+         */
+        AiContradiction: {
+            /** Code */
+            code: string;
+            /** Reference */
+            reference: string | null;
+            /** Text */
+            text: string;
+        };
+        /**
+         * AiEvidenceCatalogEntry
+         * @description One resolvable evidence id of the source snapshot (server catalog).
+         */
+        AiEvidenceCatalogEntry: {
+            /** Evidence Id */
+            evidence_id: string;
+            /** Evidence Type */
+            evidence_type: string;
+            /** Path */
+            path: string;
+        };
+        /**
+         * AiExplainRequest
+         * @description Wire contract of ``POST /api/v1/ai/explain``.
+         */
+        AiExplainRequest: {
+            /**
+             * Locale
+             * @constant
+             */
+            locale: "fr";
+            subject: components["schemas"]["AiSubject"];
+        };
+        /**
+         * AiExternalExcerpt
+         * @description One excerpt of UNTRUSTED external content — never a Vertex fact.
+         *
+         *     Carried in its own channel, typed ``EXTERNAL_UNVERIFIED``, escaped and
+         *     truncated. It is displayed as quoted source material, never as a claim.
+         */
+        AiExternalExcerpt: {
+            /** Evidence Ref */
+            evidence_ref: string;
+            /** Excerpt */
+            excerpt: string;
+            /**
+             * Label
+             * @constant
+             */
+            label: "EXTERNAL_UNVERIFIED";
+            /** Truncated */
+            truncated: boolean;
+        };
+        /**
+         * AiStatusResponse
+         * @description State of the AI provider: disabled until human decision B-05.
+         */
+        AiStatusResponse: {
+            /**
+             * Deterministic Template Available
+             * @constant
+             */
+            deterministic_template_available: true;
+            /**
+             * Provider
+             * @constant
+             */
+            provider: "DISABLED";
+            /**
+             * Reason
+             * @constant
+             */
+            reason: "B-05_HUMAN_DECISION_PENDING";
+        };
+        /**
+         * AiSubject
+         * @description What the template explains: one persisted snapshot.
+         */
+        AiSubject: {
+            /** Key */
+            key: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "analysis" | "portfolio_valuation" | "performance";
+        };
+        /**
          * AnalysisResponse
          * @description The last ``analysis/{instrument}`` snapshot — or an honest empty state.
          *
@@ -918,6 +1184,90 @@ export interface components {
             calculation_statuses: {
                 [key: string]: components["schemas"]["CalculationStatus"];
             } | null;
+        };
+        /**
+         * CalendarResponse
+         * @description The last published calendar snapshot — or an honest empty state.
+         *
+         *     ``state = "ok"`` relays the persisted agenda VERBATIM (importance from
+         *     the versioned rule, distinct ESTIMATED/CONFIRMED labels, revisions and
+         *     previous values, freshness, exchange timezones); the API invents no event
+         *     and recomputes no importance. ``state = "empty"`` means nothing to show
+         *     (never published, or nothing observed), ``state = "not_entitled"`` that
+         *     the considered records were rejected for missing rights,
+         *     ``state = "rejected"`` that they were all invalid, ``state = "stale"``
+         *     that every displayed event is past its freshness bound,
+         *     ``state = "empty_window"`` that the REQUESTED window selects none of the
+         *     published events, and ``state = "degraded"`` that the snapshot predates
+         *     the ``agenda_state`` contract and its state is therefore unknown. Every
+         *     non-ok state carries its ``reason``: an empty agenda never passes for a
+         *     success.
+         */
+        CalendarResponse: {
+            /** Agenda */
+            agenda: {
+                [key: string]: unknown;
+            }[];
+            /** As Of */
+            as_of: string | null;
+            /** Categories */
+            categories: {
+                [key: string]: unknown;
+            } | null;
+            /** Coverage */
+            coverage: {
+                [key: string]: unknown;
+            } | null;
+            /** Importance Rule */
+            importance_rule: {
+                [key: string]: unknown;
+            } | null;
+            /** Population */
+            population: string | null;
+            /** Reason */
+            reason: string | null;
+            /** Snapshot Version */
+            snapshot_version: number | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "ok" | "empty" | "not_entitled" | "rejected" | "stale" | "empty_window" | "degraded";
+            /** Statuses */
+            statuses: {
+                [key: string]: unknown;
+            } | null;
+            window: components["schemas"]["CalendarWindow"];
+        };
+        /**
+         * CalendarWindow
+         * @description Echo of the applied (or absent) display window.
+         *
+         *     ``categories`` and ``statuses`` count the events REALLY displayed, so the
+         *     counters never contradict the served list; the snapshot-wide totals stay
+         *     published beside them in ``categories``/``statuses``/``coverage``.
+         */
+        CalendarWindow: {
+            /** Applied */
+            applied: boolean;
+            /** Categories */
+            categories: {
+                [key: string]: unknown;
+            };
+            /** Events In Window */
+            events_in_window: number;
+            /** Events Total */
+            events_total: number;
+            /** From Utc */
+            from_utc: string | null;
+            /** Max Days */
+            max_days: number;
+            /** Statuses */
+            statuses: {
+                [key: string]: unknown;
+            };
+            /** To Utc */
+            to_utc: string | null;
         };
         /**
          * CapabilityStatusEntry
@@ -1617,6 +1967,41 @@ export interface components {
             weight_in_sector: string;
             /** Weight In Sector Pct */
             weight_in_sector_pct: string;
+        };
+        /**
+         * OpportunitiesResponse
+         * @description The last published opportunities snapshot — or an honest empty state.
+         *
+         *     ``state = "ok"`` relays the persisted content VERBATIM: profile
+         *     reference (id + version + what is really applied), calendar provenance,
+         *     documented lexicographic ordering, qualified and excluded candidates with
+         *     their gates, honest evidence checks and published exclusion reasons (the
+         *     page's honest empty state on synthetic data). ``state = "stale"`` relays
+         *     the SAME content, but says it is past its freshness budget and publishes
+         *     why — an old verdict is never presented as current. ``state = "empty"``
+         *     means the worker never published.
+         *
+         *     ``age_seconds`` is published in every served state (server timestamps
+         *     only), so the interface can always show how old the verdict is.
+         */
+        OpportunitiesResponse: {
+            /** Age Seconds */
+            age_seconds: number | null;
+            /** As Of */
+            as_of: string | null;
+            /** Content */
+            content: {
+                [key: string]: unknown;
+            } | null;
+            /** Reason */
+            reason: string | null;
+            /** Snapshot Version */
+            snapshot_version: number | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "ok" | "stale" | "empty";
         };
         /**
          * OptionChainContract
@@ -2404,6 +2789,71 @@ export interface operations {
             };
         };
     };
+    post_ai_explain: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AiExplainRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiAnswer"];
+                };
+            };
+            /** @description Authentication required: no valid WebAuthn session cookie (or missing/invalid CSRF header on a mutation). Always the same generic body with detail code AUTH_REQUIRED. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No snapshot was ever published for this subject (code NO_SNAPSHOT_FOR_SUBJECT) — there is nothing honest to explain. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_ai_status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AiStatusResponse"];
+                };
+            };
+            /** @description Authentication required: no valid WebAuthn session cookie (or missing/invalid CSRF header on a mutation). Always the same generic body with detail code AUTH_REQUIRED. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     get_analysis: {
         parameters: {
             query?: never;
@@ -2603,6 +3053,43 @@ export interface operations {
             };
         };
     };
+    get_calendar: {
+        parameters: {
+            query?: {
+                from?: string | null;
+                to?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CalendarResponse"];
+                };
+            };
+            /** @description Authentication required: no valid WebAuthn session cookie (or missing/invalid CSRF header on a mutation). Always the same generic body with detail code AUTH_REQUIRED. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Rejected fail-closed window: WINDOW_INCOMPLETE (one bound without the other), WINDOW_NAIVE_DATETIME, WINDOW_INVERTED or WINDOW_TOO_LARGE (bounded to 90 days). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     get_events_stream: {
         parameters: {
             query?: never;
@@ -2693,6 +3180,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["MarketsOverviewResponse"];
+                };
+            };
+            /** @description Authentication required: no valid WebAuthn session cookie (or missing/invalid CSRF header on a mutation). Always the same generic body with detail code AUTH_REQUIRED. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_opportunities: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OpportunitiesResponse"];
                 };
             };
             /** @description Authentication required: no valid WebAuthn session cookie (or missing/invalid CSRF header on a mutation). Always the same generic body with detail code AUTH_REQUIRED. */

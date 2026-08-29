@@ -4,6 +4,7 @@
  * d'une horloge : tous les instants sont des constantes.
  */
 import type {
+  AiAnswer,
   AnalysisResponse,
   AttentionItem,
   AttentionSnapshot,
@@ -15,6 +16,8 @@ import type {
   OptionChainContract,
   OptionChainExpiration,
   OptionChainResponse,
+  CalendarResponse,
+  OpportunitiesResponse,
   SimulationPreviewResponse,
   SystemCapabilities,
   SystemHealth,
@@ -1115,4 +1118,353 @@ export function makePerformanceSnapshot(
     content: makePerformanceContent(),
     ...overrides,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Vague finale — Calendrier, Opportunités, Vertex IA
+// ---------------------------------------------------------------------------
+
+const SYNTHETIC_EVENT_UTC = '2026-09-06T15:30:00+00:00';
+const SYNTHETIC_EVENT_LOCAL = '2026-09-06T17:30:00+02:00';
+const SYNTHETIC_PREVIOUS_UTC = '2026-09-05T15:30:00+00:00';
+
+/** Un événement d'agenda SYNTHÉTIQUE, forme exacte du worker. */
+export function makeCalendarEvent(
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return {
+    event_id: 'syn-ev-earnings-SYN-TECH-01',
+    category: 'EARNINGS',
+    status: 'CONFIRMED',
+    title: '[SYNTHETIC] Fictional quarterly results of SYN-TECH-01',
+    ticker: 'SYN-TECH-01',
+    scope: 'TICKER',
+    event_time_utc: SYNTHETIC_EVENT_UTC,
+    event_time_local: SYNTHETIC_EVENT_LOCAL,
+    exchange_timezone: 'Europe/Zurich',
+    importance: { rank: 2, code: 'EARNINGS_POSITION_OR_THESIS', rule_version: 'importance_rule/1.1' },
+    revisions: [],
+    rejected_revisions: [],
+    previous_values: [],
+    revised: false,
+    version_state: 'RESOLVED',
+    conflicting_versions: [],
+    event_context: { positions: [], theses: [], links: [] },
+    synthetic: true,
+    quality: 'VALID',
+    fresh: true,
+    stale_after: '2026-08-30T01:00:00+00:00',
+    delay_status: 'UNKNOWN',
+    source: 'synthetic-dev',
+    rights: 'SYNTHETIC',
+    source_event_id: 'synthetic-dev:1234:ev0000',
+    ...overrides,
+  };
+}
+
+/** Un événement RÉVISÉ : valeurs antérieures conservées et lisibles. */
+export function makeRevisedCalendarEvent(
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return makeCalendarEvent({
+    event_id: 'syn-ev-earnings-SYN-ENER-01',
+    ticker: 'SYN-ENER-01',
+    revised: true,
+    revisions: [
+      {
+        revised_at: '2026-08-28T19:00:00+00:00',
+        previous_status: 'ESTIMATED',
+        previous_event_time_utc: SYNTHETIC_PREVIOUS_UTC,
+        reason: 'synthetic confirmation of the estimated date',
+      },
+    ],
+    previous_values: [
+      {
+        source_event_id: 'synthetic-dev:1235:ev0000',
+        source: 'synthetic-dev',
+        as_of: '2026-08-28T19:01:59+00:00',
+        status: 'ESTIMATED',
+        event_time_utc: SYNTHETIC_PREVIOUS_UTC,
+      },
+    ],
+    event_context: {
+      positions: [{ portfolio_id: 1 }],
+      theses: [{ thesis_id: 7, title: '[SYNTHETIC] These due', status: 'ACTIVE' }],
+      links: [
+        { rel: 'analysis', resource: 'analysis/SYN-ENER-01' },
+        { rel: 'option_chain', resource: 'option_chain/SYN-ENER-01' },
+      ],
+    },
+    ...overrides,
+  });
+}
+
+export function makeEstimatedCalendarEvent(
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return makeCalendarEvent({
+    event_id: 'syn-ev-earnings-SYN-FINL-01',
+    ticker: 'SYN-FINL-01',
+    status: 'ESTIMATED',
+    importance: { rank: 3, code: 'EARNINGS_WATCHLIST', rule_version: 'importance_rule/1.1' },
+    ...overrides,
+  });
+}
+
+export function makeCalendarResponse(
+  overrides: Partial<CalendarResponse> = {},
+): CalendarResponse {
+  const agenda = [makeRevisedCalendarEvent(), makeEstimatedCalendarEvent()];
+  return {
+    state: 'ok',
+    snapshot_version: 21,
+    as_of: SYNTHETIC_AS_OF,
+    population: 'SYNTHETIC',
+    importance_rule: {
+      version: 'importance_rule/1.1',
+      ranks: [
+        { rank: 1, code: 'MACRO_GLOBAL', description: 'evenement macro global' },
+        { rank: 2, code: 'EARNINGS_POSITION_OR_THESIS', description: 'position ou these' },
+        { rank: 3, code: 'EARNINGS_WATCHLIST', description: 'watchlist declaree' },
+      ],
+    },
+    agenda,
+    categories: { EARNINGS: 2 },
+    statuses: { CONFIRMED: 1, ESTIMATED: 1 },
+    coverage: {
+      observations_considered: 3,
+      events_displayed: 2,
+      events_superseded: 1,
+      events_stale: 0,
+      rejected_records: [],
+      rejected_reasons: {},
+      window_truncated: false,
+    },
+    window: {
+      applied: false,
+      from_utc: null,
+      to_utc: null,
+      max_days: 90,
+      events_total: 2,
+      events_in_window: 2,
+      categories: { EARNINGS: 2 },
+      statuses: { CONFIRMED: 1, ESTIMATED: 1 },
+    },
+    reason: null,
+    ...overrides,
+  };
+}
+
+export function makeNotEntitledCalendarResponse(): CalendarResponse {
+  return makeCalendarResponse({
+    state: 'not_entitled',
+    agenda: [],
+    categories: {},
+    statuses: { CONFIRMED: 0, ESTIMATED: 0 },
+    coverage: {
+      observations_considered: 4,
+      events_displayed: 0,
+      events_superseded: 0,
+      events_stale: 0,
+      rejected_records: [],
+      rejected_reasons: { rights_not_usable: 4 },
+      window_truncated: false,
+    },
+    window: {
+      applied: false,
+      from_utc: null,
+      to_utc: null,
+      max_days: 90,
+      events_total: 0,
+      events_in_window: 0,
+      categories: {},
+      statuses: { CONFIRMED: 0, ESTIMATED: 0 },
+    },
+    reason: 'every considered record was rejected: rights not usable',
+  });
+}
+
+/** Un candidat exclu SYNTHÉTIQUE (statut fermé, gate bloquante publiée). */
+export function makeExcludedCandidate(
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return {
+    ticker: 'SYN-ENER-01',
+    sector: 'SYN-ENER',
+    advice: {
+      advice_id: 'sha256:0db1',
+      status: 'INSUFFICIENT_DATA',
+      direction: 'UNKNOWN',
+      horizon: '3m',
+      as_of: SYNTHETIC_AS_OF,
+      valid_until: '2026-08-25T13:00:00+00:00',
+      engine_version: 'vertex_core@0.1.0',
+    },
+    gates: [
+      { gate_id: 'instrument_resolved', status: 'DEGRADE', reason_code: 'RESOLVED_WITHOUT_CONID' },
+      { gate_id: 'entitlements_sufficient', status: 'BLOCK', reason_code: 'UNEVALUABLE' },
+    ],
+    degraded_gates: ['instrument_resolved'],
+    required_evidence: {
+      regime: { present: false, detail: 'no regime assessment exists for this population' },
+      sector: { present: true, detail: 'SYN-ENER' },
+      price_volume: { present: true, detail: 'validated daily bars present' },
+    },
+    missing_evidence: ['regime'],
+    evidence_cluster_ids: [],
+    scenario_ids: ['sha256:4fa4'],
+    bars_status: 'OK',
+    scenarios_status: 'OK',
+    population: 'SYNTHETIC',
+    synthetic: true,
+    primary_exclusion_reason: {
+      gate_id: 'entitlements_sufficient',
+      reason_code: 'UNEVALUABLE',
+    },
+    exclusion: {
+      kind: 'CLOSED_STATUS',
+      gate_id: 'entitlements_sufficient',
+      reason_code: 'UNEVALUABLE',
+      missing_evidence: ['regime'],
+      detail: 'closed by gate entitlements_sufficient (UNEVALUABLE)',
+    },
+    ...overrides,
+  };
+}
+
+export function makeOpportunitiesContent(
+  overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return {
+    schema_version: 'vertex.opportunities/1.0',
+    as_of: SYNTHETIC_AS_OF,
+    population: 'SYNTHETIC',
+    engine_version: 'vertex_core@0.1.0',
+    profile_ref: {
+      id: 'equity_etf_swing_3_12m',
+      version: '1.0.0',
+      source: 'manifests/strategy-profiles.yaml',
+      applied: ['required_evidence (admissibility of every candidate)'],
+      not_applied: [{ field: 'instruments', reason: 'no instrument-class source exists' }],
+    },
+    calendar_ref: {
+      kind: 'calendar',
+      key: 'global',
+      version: 21,
+      snapshot_as_of: SYNTHETIC_AS_OF,
+      content_as_of: SYNTHETIC_AS_OF,
+      content_schema_version: 'vertex.calendar/1.0',
+      status: 'USED',
+      max_age_seconds: 259200,
+      events_upcoming: 14,
+      events_ignored_past: 0,
+      events_without_ticker: 3,
+      events_rejected: 0,
+    },
+    ordering: {
+      method: 'lexicographic',
+      keys: ['status_rank asc', 'degraded_gates_count asc', 'ticker asc'],
+      note: 'aucun score opaque',
+    },
+    qualified: [],
+    excluded: [makeExcludedCandidate()],
+    exclusion_reasons: { 'entitlements_sufficient:UNEVALUABLE': 1 },
+    limitations: ['SYNTHETIC development population'],
+    coverage: {
+      universe_size: 24,
+      qualified_count: 0,
+      excluded_count: 1,
+      status_counts: { INSUFFICIENT_DATA: 1 },
+      population_counts: { SYNTHETIC: 1 },
+      observations_considered: 4,
+      lookback_seconds: 259200,
+    },
+    ...overrides,
+  };
+}
+
+export function makeOpportunities(
+  overrides: Partial<OpportunitiesResponse> = {},
+): OpportunitiesResponse {
+  return {
+    state: 'ok',
+    snapshot_version: 37,
+    as_of: SYNTHETIC_AS_OF,
+    age_seconds: 12,
+    content: makeOpportunitiesContent(),
+    reason: null,
+    ...overrides,
+  };
+}
+
+export function makeAiAnswer(overrides: Partial<AiAnswer> = {}): AiAnswer {
+  return {
+    provider: 'DETERMINISTIC_TEMPLATE',
+    template_version: 'vertex.ai-deterministic-template/1.0',
+    subject: { kind: 'analysis', key: 'SYN-TECH-01' },
+    locale: 'fr',
+    state: 'ok',
+    refusal_reason: null,
+    as_of: SYNTHETIC_AS_OF,
+    snapshot_version: 16,
+    content_hash: 'sha256:dcd5',
+    claims: [
+      {
+        text: 'Population des données : SYNTHETIC.',
+        kind: 'FACT',
+        evidence_refs: ['snapshot:analysis/SYN-TECH-01/v16'],
+      },
+    ],
+    external_excerpts: [
+      {
+        evidence_ref: 'sha256:b41f',
+        label: 'EXTERNAL_UNVERIFIED',
+        excerpt: '[SYNTHETIC] &lt;script&gt;alert(1)&lt;/script&gt; titre de source',
+        truncated: false,
+      },
+    ],
+    contradictions: [
+      {
+        code: 'UNEVALUABLE',
+        reference: 'entitlements_sufficient',
+        text: 'Gate entitlements_sufficient fermée : UNEVALUABLE.',
+      },
+    ],
+    missing_data: ['gate entitlements_sufficient : donnée requise absente (UNEVALUABLE)'],
+    limitations: [
+      'Fournisseur IA désactivé — décision B-05 en attente ; explication par gabarit déterministe',
+      'SYNTHETIC development population',
+    ],
+    evidence_catalog: [
+      {
+        evidence_id: 'snapshot:analysis/SYN-TECH-01/v16',
+        evidence_type: 'snapshot',
+        path: 'analysis/SYN-TECH-01',
+      },
+      { evidence_id: 'sha256:b41f', evidence_type: 'news_cluster', path: 'evidence.clusters[]' },
+    ],
+    ...overrides,
+  };
+}
+
+export function makeRefusedAiAnswer(): AiAnswer {
+  return makeAiAnswer({
+    state: 'refused',
+    refusal_reason: 'empty or unusable corpus: nothing to explain',
+    claims: [],
+    external_excerpts: [],
+    contradictions: [],
+    missing_data: ['contenu du snapshot vide ou illisible'],
+    limitations: [
+      'Fournisseur IA désactivé — décision B-05 en attente ; explication par gabarit déterministe',
+      'Réponse refusée : aucune affirmation produite',
+    ],
+    evidence_catalog: [
+      {
+        evidence_id: 'snapshot:analysis/SYN-TECH-01/v16',
+        evidence_type: 'snapshot',
+        path: 'analysis/SYN-TECH-01',
+      },
+    ],
+  });
 }

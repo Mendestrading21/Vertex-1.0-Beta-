@@ -161,6 +161,63 @@ test.describe('Dégradation 1024×768', () => {
     });
   });
 
+  test('/calendar : agenda complet et compteurs présents, pas de scroll horizontal', async ({
+    page,
+  }, testInfo) => {
+    await page.goto('/calendar');
+    await expect(page.getByTestId('cal-agenda')).toBeVisible({ timeout: 20_000 });
+    // Aucune donnée masquée : chaque événement servi porte sa carte.
+    const response = await page.request.get('/api/v1/calendar');
+    const body = (await response.json()) as { agenda: { event_id: string }[] };
+    await expect(page.locator('.vx-cal-event')).toHaveCount(body.agenda.length);
+    await expect(page.getByTestId('cal-counters')).toBeVisible();
+    await expect(page.getByText('DONNÉES SYNTHÉTIQUES')).toBeVisible();
+    await expectNoHorizontalPageScroll(page);
+    // Seul le conteneur des compteurs (et lui seul) peut défiler.
+    const scrollMode = await page
+      .locator('.vx-cal-counters .vx-cal-scroll')
+      .evaluate((element) => getComputedStyle(element).overflowX);
+    expect(scrollMode).toBe('auto');
+    await page.screenshot({
+      path: screenshotPath('calendar-smoke', testInfo.project.name),
+      fullPage: true,
+    });
+  });
+
+  test('/opportunities : deux groupes séparés et tables dans leur conteneur, pas de scroll horizontal', async ({
+    page,
+  }, testInfo) => {
+    await page.goto('/opportunities');
+    await expect(page.getByTestId('opp-group-excluded')).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId('opp-group-qualified')).toBeVisible();
+    await expect(page.getByTestId('opp-empty-qualified')).toBeVisible();
+    await expectNoHorizontalPageScroll(page);
+    const scrollMode = await page
+      .locator('.vx-opp-group[data-group="excluded"] .vx-matrix-scroll')
+      .first()
+      .evaluate((element) => getComputedStyle(element).overflowX);
+    expect(scrollMode).toBe('auto');
+    await page.screenshot({
+      path: screenshotPath('opportunities-smoke', testInfo.project.name),
+      fullPage: true,
+    });
+  });
+
+  test('/ai : bandeau B-05, affirmations et extraits externes séparés, pas de scroll horizontal', async ({
+    page,
+  }, testInfo) => {
+    await page.goto('/ai');
+    await expect(page.getByTestId('ai-provider-banner')).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId('ai-claims')).toBeVisible();
+    await expect(page.getByTestId('ai-external')).toBeVisible();
+    await expect(page.getByTestId('ai-note')).toContainText('NON_IMPLÉMENTÉ');
+    await expectNoHorizontalPageScroll(page);
+    await page.screenshot({
+      path: screenshotPath('ai-smoke', testInfo.project.name),
+      fullPage: true,
+    });
+  });
+
   test('/performance : bandeau population, métriques et table quotidienne présents, pas de scroll horizontal', async ({
     page,
   }, testInfo) => {

@@ -20,14 +20,21 @@ import type { PageDef } from './pages.ts';
  * Analyse (/analysis/:instrument?), Simulateur (/simulator) et Système
  * (/system), plus la page d'accès /auth (hors rail — elle n'est pas une page
  * produit du blueprint). Vague 4 : Portefeuille (/portfolio), Suivi
- * (/follow-up) et Performance (/performance) sont réelles ; seules
- * /calendar, /opportunities et /ai restent NON_IMPLÉMENTÉ.
+ * (/follow-up) et Performance (/performance). Vague finale : Calendrier
+ * (/calendar), Opportunités (/opportunities) et Vertex IA (/ai) — les 12
+ * pages du blueprint sont désormais réelles.
  *
  * /markets, /options, /analysis et /simulator sont chargées PARESSEUSEMENT
  * (React.lazy) : leurs chunks — et les chunks moteurs qu'elles importent
  * dynamiquement (ECharts pour /markets et /simulator, Lightweight Charts
  * pour /analysis) — ne grossissent pas le bundle initial (CHART_STANDARD :
  * un moteur de graphique par route, jamais dans le bundle initial).
+ *
+ * Vague finale : Calendrier (/calendar), Opportunités (/opportunities) et
+ * Vertex IA (/ai) sont réelles et chargées paresseusement elles aussi. Les
+ * 12 pages du blueprint (13 routes avec /auth) sont donc installées ;
+ * `NotInstalledPage` ne sert plus aucune page du rail, mais reste le rendu
+ * par défaut de toute page future non encore livrée.
  */
 
 const LazyMarketsPage = lazy(async () => {
@@ -63,6 +70,21 @@ const LazyFollowUpPage = lazy(async () => {
 const LazyPerformancePage = lazy(async () => {
   const module = await import('../pages/performance/PerformancePage.tsx');
   return { default: module.PerformancePage };
+});
+
+const LazyCalendarPage = lazy(async () => {
+  const module = await import('../pages/calendar/CalendarPage.tsx');
+  return { default: module.CalendarPage };
+});
+
+const LazyOpportunitiesPage = lazy(async () => {
+  const module = await import('../pages/opportunities/OpportunitiesPage.tsx');
+  return { default: module.OpportunitiesPage };
+});
+
+const LazyAiPage = lazy(async () => {
+  const module = await import('../pages/ai/AiPage.tsx');
+  return { default: module.AiPage };
 });
 
 function MarketsRoute() {
@@ -121,6 +143,30 @@ function PerformanceRoute() {
   );
 }
 
+function CalendarRoute() {
+  return (
+    <Suspense fallback={<DataStateBoundary state="loading" />}>
+      <LazyCalendarPage />
+    </Suspense>
+  );
+}
+
+function OpportunitiesRoute() {
+  return (
+    <Suspense fallback={<DataStateBoundary state="loading" />}>
+      <LazyOpportunitiesPage />
+    </Suspense>
+  );
+}
+
+function AiRoute() {
+  return (
+    <Suspense fallback={<DataStateBoundary state="loading" />}>
+      <LazyAiPage />
+    </Suspense>
+  );
+}
+
 const INSTALLED_PAGES: Readonly<Record<string, () => React.JSX.Element>> = {
   today: TodayPage,
   markets: MarketsRoute,
@@ -131,6 +177,9 @@ const INSTALLED_PAGES: Readonly<Record<string, () => React.JSX.Element>> = {
   portfolio: PortfolioRoute,
   'follow-up': FollowUpRoute,
   performance: PerformanceRoute,
+  calendar: CalendarRoute,
+  opportunities: OpportunitiesRoute,
+  ai: AiRoute,
 };
 
 /** Définition de la page d'accès (hors navigation, hors blueprint des 12). */

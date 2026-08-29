@@ -64,6 +64,17 @@ export type CreateThesisResponse = components['schemas']['CreateThesisResponse']
 export type ThesisRevisionRequest = components['schemas']['ThesisRevisionRequest'];
 export type ThesisRevisionResponse = components['schemas']['ThesisRevisionResponse'];
 export type PerformanceSnapshotResponse = components['schemas']['PerformanceSnapshotResponse'];
+export type CalendarResponse = components['schemas']['CalendarResponse'];
+export type CalendarWindowEcho = components['schemas']['CalendarWindow'];
+export type OpportunitiesResponse = components['schemas']['OpportunitiesResponse'];
+export type AiAnswer = components['schemas']['AiAnswer'];
+export type AiClaim = components['schemas']['AiClaim'];
+export type AiContradiction = components['schemas']['AiContradiction'];
+export type AiEvidenceCatalogEntry = components['schemas']['AiEvidenceCatalogEntry'];
+export type AiExternalExcerpt = components['schemas']['AiExternalExcerpt'];
+export type AiExplainRequest = components['schemas']['AiExplainRequest'];
+export type AiStatusResponse = components['schemas']['AiStatusResponse'];
+export type AiSubject = components['schemas']['AiSubject'];
 export type PerformanceExportResponse = components['schemas']['PerformanceExportResponse'];
 
 export const API_BASE = '/api';

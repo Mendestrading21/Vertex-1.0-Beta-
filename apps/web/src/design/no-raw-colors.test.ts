@@ -132,6 +132,24 @@ describe("interdiction du vocabulaire d'ordre boursier", () => {
     }
   });
 
+  it('les nouveaux fichiers V5 (calendrier, opportunités, Vertex IA) sont bien balayés', () => {
+    const files = scannedFiles().map((file) => relative(APP_ROOT, file));
+    for (const expected of [
+      join('src', 'api', 'decisionApi.ts'),
+      join('src', 'pages', 'calendar', 'CalendarPage.tsx'),
+      join('src', 'pages', 'calendar', 'EventAgenda.tsx'),
+      join('src', 'pages', 'calendar', 'calendarView.ts'),
+      join('src', 'pages', 'opportunities', 'OpportunitiesPage.tsx'),
+      join('src', 'pages', 'opportunities', 'OpportunityTable.tsx'),
+      join('src', 'pages', 'opportunities', 'opportunitiesView.ts'),
+      join('src', 'pages', 'ai', 'AiPage.tsx'),
+      join('src', 'pages', 'ai', 'AiAnswerView.tsx'),
+      join('src', 'pages', 'ai', 'aiView.ts'),
+    ]) {
+      expect(files, `${expected} doit être couvert par les gardes`).toContain(expected);
+    }
+  });
+
   it('les nouveaux fichiers V4 (portefeuille, suivi, performance) sont bien balayés', () => {
     const files = scannedFiles().map((file) => relative(APP_ROOT, file));
     for (const expected of [

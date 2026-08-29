@@ -2496,3 +2496,612 @@ body {
      jamais déborder la colonne fixe de la barre ni créer un scroll de page. */
   word-break: break-all;
 }
+
+/* ------------------------------------------------------------------ */
+/* Vague finale — Calendrier (/calendar)                               */
+/* ------------------------------------------------------------------ */
+
+.vx-cal-window {
+  margin-bottom: var(--vx-space-24);
+  padding: var(--vx-space-16);
+  background: var(--vx-surface-1);
+  border: 1px solid var(--vx-border-soft);
+  border-radius: var(--vx-radius-10);
+}
+
+.vx-cal-window h2 {
+  margin: 0 0 var(--vx-space-4);
+  font-size: var(--vx-font-size-title);
+  font-weight: 600;
+}
+
+.vx-cal-window-note {
+  margin: 0 0 var(--vx-space-12);
+  color: var(--vx-text-secondary);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-cal-window input[type='text'] {
+  min-height: 32px;
+  min-width: 0;
+  width: 220px;
+  max-width: 100%;
+  padding: var(--vx-space-4) var(--vx-space-8);
+  border: 1px solid var(--vx-border);
+  border-radius: var(--vx-radius-6);
+  background: var(--vx-surface-0);
+  color: var(--vx-text);
+  font: inherit;
+  font-family: var(--vx-font-mono);
+}
+
+.vx-cal-window-error {
+  display: flex;
+  flex-direction: column;
+  gap: var(--vx-space-4);
+  margin: var(--vx-space-12) 0 0;
+  padding: var(--vx-space-12);
+  border: 1px solid var(--vx-negative);
+  border-radius: var(--vx-radius-6);
+  background: var(--vx-surface-2);
+}
+
+.vx-cal-window-error strong {
+  color: var(--vx-negative);
+}
+
+.vx-cal-window-error-raw {
+  color: var(--vx-text-muted);
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-meta);
+  overflow-wrap: anywhere;
+}
+
+.vx-cal-blocked {
+  max-width: 760px;
+  padding: var(--vx-space-24);
+  background: var(--vx-surface-1);
+  border: 1px solid var(--vx-warning);
+  border-radius: var(--vx-radius-10);
+}
+
+.vx-cal-blocked h2 {
+  margin: var(--vx-space-8) 0 var(--vx-space-12);
+  font-size: var(--vx-font-size-title);
+  font-weight: 600;
+}
+
+.vx-cal-blocked-reason {
+  color: var(--vx-text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.vx-cal-provenance,
+.vx-opp-provenance {
+  margin: 0 0 var(--vx-space-16);
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+  overflow-wrap: anywhere;
+}
+
+.vx-cal-rule,
+.vx-cal-counters {
+  margin-bottom: var(--vx-space-24);
+}
+
+.vx-cal-rule > summary {
+  cursor: pointer;
+  color: var(--vx-text-secondary);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-cal-agenda {
+  display: flex;
+  flex-direction: column;
+  gap: var(--vx-space-24);
+}
+
+.vx-cal-group-title {
+  margin: 0 0 var(--vx-space-12);
+  padding-bottom: var(--vx-space-4);
+  border-bottom: 1px solid var(--vx-border-soft);
+  font-size: var(--vx-font-size-title);
+  font-weight: 600;
+}
+
+.vx-cal-group-count {
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+  font-weight: 400;
+}
+
+.vx-cal-event-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr));
+  gap: var(--vx-space-16);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.vx-cal-event {
+  padding: var(--vx-space-16);
+  background: var(--vx-surface-1);
+  border: 1px solid var(--vx-border-soft);
+  border-radius: var(--vx-radius-10);
+}
+
+.vx-cal-event-head {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: var(--vx-space-12);
+}
+
+.vx-cal-event-title {
+  margin: 0;
+  font-size: var(--vx-font-size-body);
+  font-weight: 600;
+}
+
+.vx-cal-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--vx-space-4);
+  padding: 2px var(--vx-space-8);
+  border: 1px solid var(--vx-border-strong);
+  border-radius: var(--vx-radius-pill);
+  color: var(--vx-text-secondary);
+  font-size: var(--vx-font-size-meta);
+  white-space: nowrap;
+}
+
+.vx-cal-status[data-status='CONFIRMED'] {
+  border-color: var(--vx-positive);
+  color: var(--vx-positive);
+}
+
+.vx-cal-status[data-status='ESTIMATED'] {
+  border-color: var(--vx-warning);
+  color: var(--vx-warning);
+}
+
+.vx-cal-event-meta,
+.vx-cal-event-status-note,
+.vx-cal-freshness,
+.vx-cal-event-extra {
+  margin: var(--vx-space-8) 0 0;
+  color: var(--vx-text-secondary);
+  font-size: var(--vx-font-size-meta);
+  overflow-wrap: anywhere;
+}
+
+.vx-cal-category {
+  color: var(--vx-text);
+}
+
+.vx-cal-category[data-category='MACRO'] {
+  color: var(--vx-macro);
+}
+
+.vx-cal-category[data-category='OPTION_EXPIRATION'] {
+  color: var(--vx-option);
+}
+
+.vx-cal-times {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+  gap: var(--vx-space-8);
+  margin: var(--vx-space-12) 0 0;
+}
+
+.vx-cal-times dt {
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-cal-times dd {
+  margin: 0;
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-meta);
+  overflow-wrap: anywhere;
+}
+
+.vx-cal-tz {
+  display: block;
+  color: var(--vx-text-muted);
+}
+
+.vx-cal-revision {
+  margin-top: var(--vx-space-12);
+  padding: var(--vx-space-8);
+  border: 1px solid var(--vx-border);
+  border-radius: var(--vx-radius-6);
+}
+
+.vx-cal-revision > summary {
+  cursor: pointer;
+  color: var(--vx-warning);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-cal-revision-table {
+  margin-top: var(--vx-space-8);
+}
+
+.vx-cal-norevision,
+.vx-cal-context {
+  margin: var(--vx-space-12) 0 0;
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-cal-context ul {
+  margin: var(--vx-space-4) 0 0;
+  padding-left: var(--vx-space-20);
+}
+
+.vx-cal-context-title {
+  margin: 0;
+  color: var(--vx-text-secondary);
+}
+
+/* ------------------------------------------------------------------ */
+/* Vague finale — Opportunités (/opportunities)                         */
+/* ------------------------------------------------------------------ */
+
+.vx-opp-group {
+  margin-bottom: var(--vx-space-32);
+  padding: var(--vx-space-16);
+  border: 1px solid var(--vx-border);
+  border-radius: var(--vx-radius-10);
+  background: var(--vx-surface-0);
+}
+
+.vx-opp-group[data-group='qualified'] {
+  border-left: 3px solid var(--vx-positive);
+}
+
+.vx-opp-group[data-group='excluded'] {
+  border-left: 3px solid var(--vx-warning);
+}
+
+.vx-opp-group-title {
+  margin: 0 0 var(--vx-space-12);
+  font-size: var(--vx-font-size-title);
+  font-weight: 600;
+}
+
+.vx-opp-group-count {
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+  font-weight: 400;
+}
+
+.vx-opp-group-empty {
+  margin: 0;
+  padding: var(--vx-space-16);
+  background: var(--vx-surface-1);
+  border: 1px dashed var(--vx-border-strong);
+  border-radius: var(--vx-radius-6);
+  color: var(--vx-text-secondary);
+}
+
+.vx-opp-list {
+  margin: 0;
+  padding-left: var(--vx-space-16);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-opp-exclusion p {
+  margin: 0 0 var(--vx-space-4);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-opp-exclusion-detail {
+  color: var(--vx-text-muted);
+  overflow-wrap: anywhere;
+}
+
+.vx-opp-contradictory {
+  outline: 1px solid var(--vx-negative);
+}
+
+.vx-opp-sector {
+  display: block;
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-opp-profile,
+.vx-opp-calref,
+.vx-opp-reasons,
+.vx-opp-limitations {
+  margin-bottom: var(--vx-space-32);
+}
+
+.vx-opp-profile h2,
+.vx-opp-calref h2,
+.vx-opp-reasons h2,
+.vx-opp-limitations h2 {
+  margin: 0 0 var(--vx-space-12);
+  font-size: var(--vx-font-size-title);
+  font-weight: 600;
+}
+
+.vx-opp-profile h3,
+.vx-opp-reasons h3 {
+  margin: var(--vx-space-16) 0 var(--vx-space-8);
+  font-size: var(--vx-font-size-label);
+  font-weight: 600;
+}
+
+.vx-opp-profile-lists {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr));
+  gap: var(--vx-space-16);
+}
+
+.vx-opp-profile-lists > div {
+  padding: var(--vx-space-12);
+  background: var(--vx-surface-1);
+  border: 1px solid var(--vx-border-soft);
+  border-radius: var(--vx-radius-6);
+}
+
+.vx-opp-profile-id,
+.vx-opp-profile-note,
+.vx-opp-calref-status,
+.vx-opp-ordering {
+  margin: 0 0 var(--vx-space-8);
+  color: var(--vx-text-secondary);
+  font-size: var(--vx-font-size-meta);
+  overflow-wrap: anywhere;
+}
+
+.vx-opp-calref-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr));
+  gap: var(--vx-space-12);
+  margin: 0;
+}
+
+.vx-opp-calref-facts dt {
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-opp-calref-facts dd {
+  margin: 0;
+  font-size: var(--vx-font-size-meta);
+  overflow-wrap: anywhere;
+}
+
+/* ------------------------------------------------------------------ */
+/* Vague finale — Vertex IA (/ai)                                      */
+/* ------------------------------------------------------------------ */
+
+.vx-ai-provider {
+  margin-bottom: var(--vx-space-24);
+  padding: var(--vx-space-16);
+  background: var(--vx-surface-1);
+  border: 1px solid var(--vx-warning);
+  border-radius: var(--vx-radius-10);
+}
+
+.vx-ai-provider-facts,
+.vx-ai-provider-note,
+.vx-ai-subject-note {
+  margin: var(--vx-space-8) 0 0;
+  color: var(--vx-text-secondary);
+  font-size: var(--vx-font-size-meta);
+  overflow-wrap: anywhere;
+}
+
+.vx-ai-subject {
+  margin-bottom: var(--vx-space-24);
+}
+
+.vx-ai-subject h2,
+.vx-ai-claims h2,
+.vx-ai-external h2,
+.vx-ai-contradictions h2,
+.vx-ai-missing h2,
+.vx-ai-limitations h2,
+.vx-ai-catalog h2,
+.vx-ai-note h2,
+.vx-ai-refusal h2 {
+  margin: 0 0 var(--vx-space-12);
+  font-size: var(--vx-font-size-title);
+  font-weight: 600;
+}
+
+.vx-ai-refusal {
+  margin-bottom: var(--vx-space-24);
+  padding: var(--vx-space-24);
+  background: var(--vx-surface-1);
+  border: 1px solid var(--vx-negative);
+  border-radius: var(--vx-radius-10);
+}
+
+.vx-ai-refusal-reason {
+  color: var(--vx-negative);
+  overflow-wrap: anywhere;
+}
+
+.vx-ai-claims,
+.vx-ai-contradictions,
+.vx-ai-missing,
+.vx-ai-limitations,
+.vx-ai-catalog,
+.vx-ai-note {
+  margin-bottom: var(--vx-space-24);
+}
+
+.vx-ai-claim-list {
+  margin: 0;
+  padding-left: var(--vx-space-20);
+}
+
+.vx-ai-claim {
+  margin-bottom: var(--vx-space-12);
+}
+
+.vx-ai-claim-text {
+  margin: 0;
+}
+
+.vx-ai-claim-refs {
+  margin: var(--vx-space-4) 0 0;
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+  overflow-wrap: anywhere;
+}
+
+.vx-ai-claim-ref {
+  color: var(--vx-silver);
+}
+
+.vx-ai-external {
+  margin-bottom: var(--vx-space-24);
+  padding: var(--vx-space-16);
+  background: var(--vx-surface-3);
+  border: 1px dashed var(--vx-warning);
+  border-radius: var(--vx-radius-10);
+}
+
+.vx-ai-external-note {
+  margin: 0 0 var(--vx-space-12);
+  color: var(--vx-text-secondary);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-ai-external-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.vx-ai-external-item + .vx-ai-external-item {
+  margin-top: var(--vx-space-12);
+  padding-top: var(--vx-space-12);
+  border-top: 1px solid var(--vx-border-soft);
+}
+
+.vx-ai-external-label,
+.vx-ai-external-ref {
+  margin: 0;
+  color: var(--vx-warning);
+  font-size: var(--vx-font-size-meta);
+  overflow-wrap: anywhere;
+}
+
+.vx-ai-external-ref {
+  color: var(--vx-text-muted);
+}
+
+.vx-ai-external-quote {
+  margin: var(--vx-space-8) 0;
+  padding: var(--vx-space-8) var(--vx-space-12);
+  border-left: 3px solid var(--vx-warning);
+  background: var(--vx-surface-0);
+  color: var(--vx-text-secondary);
+  font-style: italic;
+  overflow-wrap: anywhere;
+}
+
+.vx-ai-trace {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(240px, 100%), 1fr));
+  gap: var(--vx-space-12);
+  margin: 0 0 var(--vx-space-24);
+  padding: var(--vx-space-16);
+  background: var(--vx-surface-1);
+  border: 1px solid var(--vx-border-soft);
+  border-radius: var(--vx-radius-10);
+}
+
+.vx-ai-trace dt {
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-ai-trace dd {
+  margin: 0;
+  font-size: var(--vx-font-size-meta);
+  overflow-wrap: anywhere;
+}
+
+.vx-ai-note {
+  padding: var(--vx-space-16);
+  background: var(--vx-surface-1);
+  border: 1px dashed var(--vx-border-strong);
+  border-radius: var(--vx-radius-10);
+}
+
+.vx-ai-catalog code,
+.vx-ai-claim-refs code,
+.vx-ai-trace code {
+  word-break: break-all;
+}
+
+.vx-cal-version {
+  margin-top: var(--vx-space-8);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-cal-version-state {
+  margin: 0;
+  color: var(--vx-text-secondary);
+}
+
+.vx-cal-version-state[data-version-state='CONFLICTING_VERSIONS'] {
+  color: var(--vx-warning);
+}
+
+.vx-cal-version-list {
+  margin: var(--vx-space-4) 0 0;
+  padding-left: var(--vx-space-20);
+  color: var(--vx-text-muted);
+}
+
+/* Dégradation 1024 px — aucune donnée masquée, aucun défilement horizontal
+   de PAGE : les grilles se replient, les filtres passent à la ligne et les
+   contenus larges (tables de compteurs, de règle et de révisions) défilent
+   dans LEUR conteneur. */
+.vx-calendar,
+.vx-opportunities,
+.vx-ai {
+  min-width: 0;
+}
+
+.vx-cal-window .vx-matrix-filters,
+.vx-ai-subject .vx-matrix-filters {
+  flex-wrap: wrap;
+}
+
+.vx-cal-event,
+.vx-cal-group,
+.vx-cal-agenda,
+.vx-opp-group,
+.vx-ai-external-item {
+  min-width: 0;
+}
+
+.vx-cal-scroll {
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+.vx-cal-revision-table,
+.vx-cal-counters .vx-matrix-table,
+.vx-cal-rule .vx-matrix-table,
+.vx-cal-blocked .vx-matrix-table,
+.vx-opp-reasons .vx-matrix-table {
+  min-width: max-content;
+}
+
+.vx-cal-event-title,
+.vx-cal-group-title {
+  overflow-wrap: anywhere;
+}

@@ -15,17 +15,19 @@ const INSTALLED_KEYS = new Set([
   'portfolio',
   'follow-up',
   'performance',
+  'calendar',
+  'opportunities',
+  'ai',
 ]);
 
-describe('routes — pages non installées : « Lot non installé » honnête', () => {
-  for (const page of ALL_PAGES.filter((entry) => !INSTALLED_KEYS.has(entry.key))) {
-    it(`${page.navPath} → ${page.title} (${page.lot})`, () => {
-      renderApp(page.navPath);
-      expect(screen.getByRole('heading', { level: 1, name: page.title })).toBeDefined();
-      expect(screen.getByText(`NON_IMPLÉMENTÉ — ${page.lot}`)).toBeDefined();
-      expect(screen.getByText(page.question)).toBeDefined();
-    });
-  }
+describe('routes — couverture du blueprint', () => {
+  it('les 12 pages du rail sont installées : plus aucune façade « Lot non installé »', () => {
+    const missing = ALL_PAGES.filter((entry) => !INSTALLED_KEYS.has(entry.key)).map(
+      (entry) => entry.key,
+    );
+    expect(missing).toEqual([]);
+    expect(ALL_PAGES.length).toBe(12);
+  });
 });
 
 describe('routes — pages installées : plus de façade « Lot non installé »', () => {
