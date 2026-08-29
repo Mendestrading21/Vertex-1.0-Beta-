@@ -1,23 +1,32 @@
 # État courant
 
 ```yaml
-phase: groupes_decider_et_piloter_livres
-lot: vague 4 terminée (Portefeuille, Suivi, Performance)
-branch: claude/vertex-connection-kgkntr (PR #2 brouillon)
-status: paused_awaiting_human
-last_good_commit: HEAD
+phase: douze_pages_livrees_qualification_a_venir
+lot: vague 5 terminée (Calendrier, Opportunités, Vertex IA) — 13 routes sur 13 réelles
+branch: claude/vertex-connection-kgkntr
+status: awaiting_third_audit_verdict
+last_good_commit: e704b62
 completed:
-  - vague_4_T1: thèses/revues append-only, projection pure (migration 0006)
-  - vague_4_T2: valorisation FIFO fail-closed, journal, compensation net-nul, import CSV signé par hash
-  - vague_4_T3: review_queue sans écriture de thèse, TWR/XIRR/drawdown quotidiens brut/net, population SYNTHETIC_MARKS_REAL_LEDGER
-  - vague_4_web: /portfolio /follow-up /performance réelles + 60 E2E
-  - incident_resolu: faux positifs scanner sur commentaires (reformulés, scan non affaibli)
+  - vagues_1_a_4: fondation, sources, décision, 10 routes (PR #1 et #2 fusionnées)
+  - vague_5_backend: calendrier (révisions estimé/confirmé), opportunités (AdviceEngine + profil versionné), Vertex IA (gabarit déterministe, fournisseur désactivé B-05)
+  - vague_5_audits: TROIS audits adversariaux ; 4 P0 et une vingtaine de P1/P2 corrigés avec reproducteur rouge d'abord
+  - vague_5_web: /calendar /opportunities /ai réelles
+  - registre_calculs: 23 entrées complétées, 22 APPROVED, garde-fou branché dans run_checks
 checks:
-  - "pytest 1740 passed + intégrations vertes ; vitest 200/200 ; tsc 0 erreur"
-  - "playwright 156/156 ; bundle initial 110,2 Ko gzip ; axe 0 critique/sérieuse"
-  - "boundary OK (0 finding) ; blueprint OK"
-pages_reelles: [/today, /markets, /system, /auth, /options, /analysis, /simulator, /portfolio, /follow-up, /performance]
-pages_non_implementees: [/calendar, /opportunities, /ai]
-blocker: "B-02..B-05 inchangés (BLOCKERS.md)"
-next_command: "AUDITE LA PR #2 PUIS FUSIONNE — ou CONTINUE pour Calendrier/Opportunités/Vertex IA (vague finale)"
+  - "pytest 2059 passed"
+  - "integration PostgreSQL 166 passed (execution SERIELLE obligatoire — base partagee)"
+  - "vitest 254 passed ; tsc 0 erreur ; bundle initial 110,35 Ko gzip"
+  - "playwright 234 passed (3 viewports + smoke 1024, axe 0 critique/serieuse)"
+  - "run_checks.sh TOUT VERT ; OpenAPI et client TS coherents (aucun diff apres regeneration)"
+pages_reelles: [/today, /markets, /system, /auth, /options, /analysis, /simulator, /portfolio, /follow-up, /performance, /calendar, /opportunities, /ai]
+pages_non_implementees: []
+reste_a_faire:
+  - "CI GitHub Actions : AUCUN workflow n'existe — les 15 portes du blueprint ne tournent nulle part"
+  - "infra/ : compose, sauvegarde, restauration — absent"
+  - "research/ (dossier 05) : walk-forward, calibration — absent"
+  - "LOT-23 qualification : mutation, charge, chaos, supply-chain (SBOM, signature, scans), Firefox/WebKit"
+  - "LOT-24 release : installation machine cible, TWS reel, restauration, rollback, soak 5 seances"
+  - "AUCUNE donnee reelle n'a jamais ete vue : tout est SYNTHETIC etiquete, IBKR jamais contacte"
+blocker: "B-02..B-05 (BLOCKERS.md) : inventaire donneur, Cloudflare, licence options, fournisseur IA"
+next_command: "AUDITE PUIS FUSIONNE LA VAGUE 5 — ou CONTINUE pour CI + infrastructure"
 ```
