@@ -59,6 +59,57 @@ test.describe('Dégradation 1024×768', () => {
     });
   });
 
+  test('/options : chaîne complète, table dans son conteneur défilant, pas de scroll horizontal de page', async ({
+    page,
+  }, testInfo) => {
+    await page.goto('/options/SYN-TECH-01');
+    const table = page.getByRole('table', { name: /Chaîne d'options/ });
+    await expect(table).toBeVisible();
+    await expect(table.locator('tbody tr')).toHaveCount(12); // 12 strikes appariés
+    await expect(page.getByText('DONNÉES SYNTHÉTIQUES', { exact: true })).toBeVisible();
+    await expectNoHorizontalPageScroll(page);
+    const scrollMode = await page
+      .locator('.vx-chain-table-scroll')
+      .evaluate((element) => getComputedStyle(element).overflowX);
+    expect(scrollMode).toBe('auto');
+    await page.screenshot({
+      path: screenshotPath('options-smoke', testInfo.project.name),
+      fullPage: true,
+    });
+  });
+
+  test('/analysis : chandeliers + attribution + table OHLCV présents, pas de scroll horizontal', async ({
+    page,
+  }, testInfo) => {
+    await page.goto('/analysis/SYN-TECH-01');
+    await expect(page.locator('.vx-candles-canvas canvas').first()).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(page.getByRole('link', { name: 'TradingView' }).first()).toBeVisible();
+    await expect(
+      page.getByRole('table', { name: 'Table OHLCV équivalente des chandeliers' }).locator('tbody tr'),
+    ).toHaveCount(60);
+    await expectNoHorizontalPageScroll(page);
+    await page.screenshot({
+      path: screenshotPath('analysis-smoke', testInfo.project.name),
+      fullPage: true,
+    });
+  });
+
+  test('/simulator : composeur et action unique présents, honnêteté sauvegarde, pas de scroll horizontal', async ({
+    page,
+  }, testInfo) => {
+    await page.goto('/simulator');
+    await expect(page.getByRole('heading', { level: 1, name: 'Simulateur' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Calculer' })).toBeVisible();
+    await expect(page.getByText(/NON_IMPLÉMENTÉ/)).toBeVisible();
+    await expectNoHorizontalPageScroll(page);
+    await page.screenshot({
+      path: screenshotPath('simulator-smoke', testInfo.project.name),
+      fullPage: true,
+    });
+  });
+
   test('/today : file complète visible, bandeau SYNTHETIC non masqué, pas de scroll horizontal', async ({
     page,
   }, testInfo) => {

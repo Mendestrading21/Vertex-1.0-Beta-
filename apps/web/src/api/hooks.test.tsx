@@ -90,5 +90,24 @@ describe('hooks API (fetch factice)', () => {
       'snapshot',
       'capabilities/global',
     ]);
+    expect(queryKeyForResource('option_chain/SYN-TECH-01')).toEqual([
+      'snapshot',
+      'option_chain/SYN-TECH-01',
+    ]);
+    expect(queryKeyForResource('analysis/SYN-TECH-01')).toEqual([
+      'snapshot',
+      'analysis/SYN-TECH-01',
+    ]);
+  });
+
+  it('ressources par préfixe : option_chain/* et analysis/* suivies, le reste ignoré', async () => {
+    const { isKnownResource } = await import('./hooks.ts');
+    expect(isKnownResource('option_chain/SYN-TECH-01')).toBe(true);
+    expect(isKnownResource('analysis/SYN-ENER-01')).toBe(true);
+    // Un préfixe SEUL (sans clé) n'est pas une ressource : ignoré.
+    expect(isKnownResource('option_chain/')).toBe(false);
+    expect(isKnownResource('analysis/')).toBe(false);
+    // Famille inconnue : jamais d'invalidation globale.
+    expect(isKnownResource('portfolio/global')).toBe(false);
   });
 });

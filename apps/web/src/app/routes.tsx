@@ -16,18 +16,36 @@ import type { PageDef } from './pages.ts';
  * Table de routes du shell. Une page réelle ne remplace l'entrée « Lot non
  * installé » que lorsque ses routes, données, états et tests existent
  * (docs/07-delivery/FOLDER_BY_FOLDER_PROGRAM.md). Pages réelles installées :
- * Aujourd'hui (/today), Marchés (/markets) et Système (/system), plus la page
- * d'accès /auth (hors rail — elle n'est pas une page produit du blueprint).
+ * Aujourd'hui (/today), Marchés (/markets), Options (/options/:underlying?),
+ * Analyse (/analysis/:instrument?), Simulateur (/simulator) et Système
+ * (/system), plus la page d'accès /auth (hors rail — elle n'est pas une page
+ * produit du blueprint).
  *
- * /markets est chargée PARESSEUSEMENT (React.lazy) : son chunk — et le chunk
- * ECharts qu'elle importe dynamiquement — ne grossissent pas le bundle
- * initial (CHART_STANDARD : un moteur de graphique par route, jamais dans le
- * bundle initial).
+ * /markets, /options, /analysis et /simulator sont chargées PARESSEUSEMENT
+ * (React.lazy) : leurs chunks — et les chunks moteurs qu'elles importent
+ * dynamiquement (ECharts pour /markets et /simulator, Lightweight Charts
+ * pour /analysis) — ne grossissent pas le bundle initial (CHART_STANDARD :
+ * un moteur de graphique par route, jamais dans le bundle initial).
  */
 
 const LazyMarketsPage = lazy(async () => {
   const module = await import('../pages/markets/MarketsPage.tsx');
   return { default: module.MarketsPage };
+});
+
+const LazyOptionsPage = lazy(async () => {
+  const module = await import('../pages/options/OptionsPage.tsx');
+  return { default: module.OptionsPage };
+});
+
+const LazyAnalysisPage = lazy(async () => {
+  const module = await import('../pages/analysis/AnalysisPage.tsx');
+  return { default: module.AnalysisPage };
+});
+
+const LazySimulatorPage = lazy(async () => {
+  const module = await import('../pages/simulator/SimulatorPage.tsx');
+  return { default: module.SimulatorPage };
 });
 
 function MarketsRoute() {
@@ -38,10 +56,37 @@ function MarketsRoute() {
   );
 }
 
+function OptionsRoute() {
+  return (
+    <Suspense fallback={<DataStateBoundary state="loading" />}>
+      <LazyOptionsPage />
+    </Suspense>
+  );
+}
+
+function AnalysisRoute() {
+  return (
+    <Suspense fallback={<DataStateBoundary state="loading" />}>
+      <LazyAnalysisPage />
+    </Suspense>
+  );
+}
+
+function SimulatorRoute() {
+  return (
+    <Suspense fallback={<DataStateBoundary state="loading" />}>
+      <LazySimulatorPage />
+    </Suspense>
+  );
+}
+
 const INSTALLED_PAGES: Readonly<Record<string, () => React.JSX.Element>> = {
   today: TodayPage,
   markets: MarketsRoute,
   system: SystemPage,
+  options: OptionsRoute,
+  analysis: AnalysisRoute,
+  simulator: SimulatorRoute,
 };
 
 /** Définition de la page d'accès (hors navigation, hors blueprint des 12). */

@@ -10,23 +10,50 @@ import { useQuery } from '@tanstack/react-query';
 import type { UseQueryResult } from '@tanstack/react-query';
 
 import type { DataState } from '../components/DataStateBoundary.tsx';
-import { getAttention, getCapabilities, getMarketsOverview, isApiError } from './client.ts';
-import type { AttentionSnapshot, MarketsOverview, SystemCapabilities } from './client.ts';
+import {
+  getAnalysis,
+  getAttention,
+  getCapabilities,
+  getMarketsOverview,
+  getOptionChain,
+  isApiError,
+} from './client.ts';
+import type {
+  AnalysisResponse,
+  AttentionSnapshot,
+  MarketsOverview,
+  OptionChainResponse,
+  SystemCapabilities,
+} from './client.ts';
 
-/** Ressources signalées par le flux SSE signal-only. */
+/** Ressources signalées par le flux SSE signal-only (têtes fixes). */
 export const SSE_RESOURCES = [
   'attention/global',
   'capabilities/global',
   'markets_overview/global',
 ] as const;
-export type SseResource = (typeof SSE_RESOURCES)[number];
+
+/**
+ * Familles de ressources signalées PAR PRÉFIXE : le serveur publie une clé
+ * par instrument (`option_chain/SYN-…`, `analysis/SYN-…`). Le suivi par
+ * préfixe reflète la sémantique serveur (`WATCHED_SNAPSHOT_KINDS`) : une clé
+ * jamais interrogée localement n'a simplement aucun cache à invalider.
+ */
+export const SSE_RESOURCE_PREFIXES = ['option_chain/', 'analysis/'] as const;
+
+export type SseResource = string;
 
 export function queryKeyForResource(resource: SseResource): readonly [string, string] {
   return ['snapshot', resource] as const;
 }
 
 export function isKnownResource(resource: string): resource is SseResource {
-  return (SSE_RESOURCES as readonly string[]).includes(resource);
+  return (
+    (SSE_RESOURCES as readonly string[]).includes(resource) ||
+    SSE_RESOURCE_PREFIXES.some(
+      (prefix) => resource.startsWith(prefix) && resource.length > prefix.length,
+    )
+  );
 }
 
 export function useAttention(): UseQueryResult<AttentionSnapshot> {
@@ -51,6 +78,24 @@ export function useMarketsOverview(): UseQueryResult<MarketsOverview> {
   return useQuery({
     queryKey: queryKeyForResource('markets_overview/global'),
     queryFn: getMarketsOverview,
+    retry: false,
+    staleTime: Infinity,
+  });
+}
+
+export function useOptionChain(underlying: string): UseQueryResult<OptionChainResponse> {
+  return useQuery({
+    queryKey: queryKeyForResource(`option_chain/${underlying}`),
+    queryFn: () => getOptionChain(underlying),
+    retry: false,
+    staleTime: Infinity,
+  });
+}
+
+export function useAnalysis(instrument: string): UseQueryResult<AnalysisResponse> {
+  return useQuery({
+    queryKey: queryKeyForResource(`analysis/${instrument}`),
+    queryFn: () => getAnalysis(instrument),
     retry: false,
     staleTime: Infinity,
   });

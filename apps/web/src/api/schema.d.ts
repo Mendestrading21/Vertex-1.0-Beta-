@@ -29,6 +29,34 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/analysis/{instrument}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Last published analysis dossier for one instrument (or honest empty state)
+         * @description Serve the LAST ``analysis/{instrument}`` snapshot exactly as persisted.
+         *
+         *     The API relays the worker's published dossier — the canonical
+         *     ``AdviceResult`` of the single ``AdviceEngine`` with its ten gates and
+         *     reason codes, the validated OHLCV bars, the fusion evidence rail and the
+         *     ``THEORETICAL`` scenario block (or its typed absence reason) — and
+         *     computes nothing. With no snapshot ever published for this instrument
+         *     the answer is a 200 with ``state = "empty"``: absent stays absent,
+         *     nothing is invented.
+         */
+        get: operations["get_analysis"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/login/options": {
         parameters: {
             query?: never;
@@ -189,6 +217,60 @@ export interface paths {
         get: operations["get_markets_overview"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/options/{underlying}/chain": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Last published option chain for one underlying (or honest empty state)
+         * @description Serve the LAST ``option_chain/{underlying}`` snapshot exactly as persisted.
+         *
+         *     The API relays the worker's published content — per-(expiration,
+         *     trading_class) groups with complete contract identities, verbatim quotes
+         *     and their quality, the worker's Vertex IV/Greeks (``THEORETICAL``, with
+         *     their ``CalculationRecord`` lineage) or their typed refusal reasons, the
+         *     coverage account and the displayed row budget — and computes nothing.
+         *     With no snapshot ever published for this underlying the answer is a 200
+         *     with ``state = "empty"``: absent stays absent, nothing is invented.
+         */
+        get: operations["get_option_chain"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/simulations/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * THEORETICAL preview of one declared structure (no persistence)
+         * @description Run one THEORETICAL simulation preview through vertex_core.
+         *
+         *     Orchestration only: the mandatory ``defined_risk_check``, the exact
+         *     ``payoff_at_expiry``, the authority-certified breakevens and the bounded
+         *     ``scenario_grid`` all run inside ``vertex_core.calculations.options`` on
+         *     a worker thread (``run_in_threadpool`` — the event loop never computes).
+         *     Nothing is persisted; nothing here is, or ever becomes, an order.
+         */
+        post: operations["post_simulations_preview"];
         delete?: never;
         options?: never;
         head?: never;
@@ -414,6 +496,65 @@ export interface components {
          * @enum {string}
          */
         AdviceStatus: "BLOCKED" | "INSUFFICIENT_DATA" | "OBSERVE" | "REVIEW" | "QUALIFIED";
+        /**
+         * AnalysisResponse
+         * @description The last ``analysis/{instrument}`` snapshot — or an honest empty state.
+         *
+         *     ``state = "empty"`` means NO dossier was ever published for this
+         *     instrument: every snapshot-derived field is ``None`` (never invented)
+         *     and ``reason`` says why. ``state = "ok"`` relays the persisted content
+         *     verbatim:
+         *
+         *     - ``advice`` is the canonical ``AdviceResult`` produced by THE single
+         *       ``AdviceEngine`` — status, direction, the ten gates with their reason
+         *       codes, limitations — exactly as published; the API neither recomputes
+         *       nor softens it;
+         *     - ``bars`` carries the validated synthetic OHLCV series (decimal
+         *       strings) with its per-bar discard account;
+         *     - ``evidence`` is the fusion-cluster rail of the instrument;
+         *     - ``scenarios`` is either the ``THEORETICAL`` scenario grid with its
+         *       ``CalculationRecord`` lineage or an honest ``ABSENT`` block with its
+         *       typed reason.
+         */
+        AnalysisResponse: {
+            /** Advice */
+            advice: {
+                [key: string]: unknown;
+            } | null;
+            /** As Of */
+            as_of: string | null;
+            /** Bars */
+            bars: {
+                [key: string]: unknown;
+            } | null;
+            /** Coverage */
+            coverage: {
+                [key: string]: unknown;
+            } | null;
+            /** Engine Version */
+            engine_version: string | null;
+            /** Evidence */
+            evidence: {
+                [key: string]: unknown;
+            } | null;
+            /** Instrument */
+            instrument: string;
+            /** Population */
+            population: string | null;
+            /** Reason */
+            reason: string | null;
+            /** Scenarios */
+            scenarios: {
+                [key: string]: unknown;
+            } | null;
+            /** Snapshot Version */
+            snapshot_version: number | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "ok" | "empty";
+        };
         /**
          * AssetClass
          * @description Canonical asset class of an identified instrument.
@@ -942,6 +1083,186 @@ export interface components {
             weight_in_sector_pct: string;
         };
         /**
+         * OptionChainContract
+         * @description One option contract row, relayed from the worker snapshot verbatim.
+         *
+         *     The COMPLETE contract identity (synthetic ``con_id``, trading class,
+         *     strike, right, multiplier, currency, exchange, style, settlement,
+         *     expiration) travels with every row. ``quote`` is the verbatim observed
+         *     quote plus its quality status (``OK``/``CROSSED``/``STALE``/``MISSING``);
+         *     ``iv`` and ``greeks`` are the worker's Vertex results — present ONLY when
+         *     the quote was sane, labeled ``value_nature = "THEORETICAL"`` with their
+         *     preserved ``CalculationRecord`` lineage, otherwise honestly ``ABSENT``
+         *     with the typed refusal reason. The API recomputes nothing.
+         */
+        OptionChainContract: {
+            /** Con Id */
+            con_id: number | null;
+            /** Currency */
+            currency: string;
+            /** Exchange */
+            exchange: string;
+            /** Expiration */
+            expiration: string;
+            /** Greeks */
+            greeks: {
+                [key: string]: unknown;
+            };
+            /** Iv */
+            iv: {
+                [key: string]: unknown;
+            };
+            /** Multiplier */
+            multiplier: number;
+            /** Open Interest */
+            open_interest: number | null;
+            /** Open Interest Status */
+            open_interest_status: string | null;
+            /** Quote */
+            quote: {
+                [key: string]: unknown;
+            };
+            /** Right */
+            right: ("CALL" | "PUT") | null;
+            /** Settlement */
+            settlement: string;
+            /** Strike */
+            strike: string | null;
+            /** Style */
+            style: string;
+            /** Synthetic */
+            synthetic: boolean;
+            /** Trading Class */
+            trading_class: string;
+            /** Volume */
+            volume: number | null;
+        };
+        /**
+         * OptionChainExpiration
+         * @description One ``(expiration, trading_class)`` group — never merged by date.
+         *
+         *     Two trading classes at the same expiration date are two distinct groups
+         *     (distinct identities). ``coverage`` is the worker's honest account:
+         *     expected/received/valid/resolved contracts and the per-contract discard
+         *     reasons.
+         */
+        OptionChainExpiration: {
+            /** Contracts */
+            contracts: components["schemas"]["OptionChainContract"][];
+            /** Coverage */
+            coverage: {
+                [key: string]: unknown;
+            };
+            /** Currency */
+            currency: string;
+            /** Exchange */
+            exchange: string;
+            /** Expiration */
+            expiration: string;
+            /** Maturity Years */
+            maturity_years: string;
+            /** Multiplier */
+            multiplier: number;
+            /** Quality */
+            quality: string;
+            /** Settlement */
+            settlement: string;
+            /** Source Event Id */
+            source_event_id: string;
+            /** Style */
+            style: string;
+            /** Trading Class */
+            trading_class: string;
+        };
+        /**
+         * OptionChainResponse
+         * @description The last ``option_chain/{underlying}`` snapshot — or an honest empty.
+         *
+         *     ``state = "empty"`` means NO snapshot was ever published for this
+         *     underlying: every snapshot-derived field is ``None`` (never invented) and
+         *     ``reason`` says why. ``state = "ok"`` relays the persisted content
+         *     verbatim: population (``SYNTHETIC`` shown as-is), the synthetic spot,
+         *     the pricing assumptions, the per-(expiration, trading_class) groups and
+         *     the displayed row budget.
+         */
+        OptionChainResponse: {
+            /** As Of */
+            as_of: string | null;
+            /** Assumptions */
+            assumptions: {
+                [key: string]: unknown;
+            } | null;
+            /** Coverage */
+            coverage: {
+                [key: string]: unknown;
+            } | null;
+            /** Engine Version */
+            engine_version: string | null;
+            /** Expirations */
+            expirations: components["schemas"]["OptionChainExpiration"][];
+            /** Population */
+            population: string | null;
+            /** Reason */
+            reason: string | null;
+            /** Row Budget */
+            row_budget: {
+                [key: string]: unknown;
+            } | null;
+            /** Snapshot Version */
+            snapshot_version: number | null;
+            /** Spot */
+            spot: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "ok" | "empty";
+            /** Underlying */
+            underlying: string;
+            /** Value Nature */
+            value_nature: "THEORETICAL" | null;
+        };
+        /**
+         * OptionLeg
+         * @description One declared leg of a manually stated structure (strict, frozen).
+         *
+         *     Fields:
+         *
+         *     - ``quantity``: signed integer number of contracts/shares; positive =
+         *       long, negative = short; zero is rejected (a leg must exist);
+         *     - ``right``: ``"CALL"``, ``"PUT"`` or ``"STOCK"`` (the linear underlying
+         *       leg, intrinsic ``h(S) = S``);
+         *     - ``strike``: strictly positive ``Decimal``; REQUIRED for CALL/PUT and
+         *       FORBIDDEN for STOCK (fail-closed both ways);
+         *     - ``premium``: non-negative ``Decimal`` unit premium actually declared
+         *       for the leg (for STOCK, the declared unit reference price);
+         *     - ``multiplier``: strictly positive int contract multiplier.
+         *
+         *     Legs describe a manually declared analytic structure only: same
+         *     underlying, currency and expiry by construction of the caller. No field
+         *     of this model is, or ever becomes, a transmissible ticket of any kind.
+         */
+        OptionLeg: {
+            /** Multiplier */
+            multiplier: number;
+            /** Premium */
+            premium: number | string;
+            /** Quantity */
+            quantity: number;
+            /**
+             * Right
+             * @enum {string}
+             */
+            right: "CALL" | "PUT" | "STOCK";
+            /**
+             * Strike
+             * @default null
+             */
+            strike: number | string | null;
+        };
+        /**
          * PortfolioRiskInput
          * @description Facts for gate 7 (``manual_portfolio_risk_available``); declarations are user-made only.
          */
@@ -1030,6 +1351,127 @@ export interface components {
              * @default null
              */
             session_known: boolean | null;
+        };
+        /**
+         * SimulationAssumptions
+         * @description Declared assumptions of one preview (decimal strings on the wire).
+         *
+         *     ``spot`` is the declared underlying reference of the snapshot the user
+         *     composed against (echoed back); ``volatility`` is the single annualized
+         *     decimal volatility applied to every option leg of the scenario grid
+         *     (``0.25`` = 25%/yr); ``rate`` / ``dividend_yield`` are continuously
+         *     compounded annualized decimals; ``fees`` groups the positive declared
+         *     costs of the expiry payoff. The grids are BOUNDED by the wire contract.
+         */
+        SimulationAssumptions: {
+            /** Dividend Yield */
+            dividend_yield: number | string;
+            /**
+             * Fees
+             * @default 0
+             */
+            fees: number | string;
+            /** Rate */
+            rate: number | string;
+            /** Spot */
+            spot: number | string;
+            /** Spot Grid */
+            spot_grid: (number | string)[];
+            /** Time Grid Years */
+            time_grid_years: (number | string)[];
+            /** Volatility */
+            volatility: number | string;
+        };
+        /**
+         * SimulationBreakeven
+         * @description One certified expiry breakeven.
+         *
+         *     ``payoff_at_spot`` is the authority's own re-evaluation of
+         *     ``options.payoff`` at the reported spot (exact ``Decimal``; non-zero only
+         *     through decimal quantization of the crossing point). ``bracket_low`` /
+         *     ``bracket_high`` are the two authoritative evaluation points whose sign
+         *     change pinned the crossing.
+         */
+        SimulationBreakeven: {
+            /** Bracket High */
+            bracket_high: string;
+            /** Bracket Low */
+            bracket_low: string;
+            /** Payoff At Spot */
+            payoff_at_spot: string;
+            /** Spot */
+            spot: string;
+        };
+        /**
+         * SimulationExtreme
+         * @description Best/worst expiry P&L over the evaluation grid, with its spot.
+         */
+        SimulationExtreme: {
+            /** At Spot */
+            at_spot: string;
+            /** Pnl */
+            pnl: string;
+        };
+        /**
+         * SimulationPayoffPoint
+         * @description Exact expiry P&L at one evaluated terminal spot (decimal strings).
+         */
+        SimulationPayoffPoint: {
+            /** Pnl */
+            pnl: string;
+            /** Spot */
+            spot: string;
+        };
+        /**
+         * SimulationPreviewRequest
+         * @description One declared structure plus its assumptions.
+         *
+         *     Legs ARE the engine's own :class:`OptionLeg` contract (strict: signed
+         *     non-zero quantity, strike required on CALL/PUT and forbidden on STOCK,
+         *     non-negative decimal premium, positive integer multiplier) — the wire
+         *     never redefines the calculation contract.
+         */
+        SimulationPreviewRequest: {
+            assumptions: components["schemas"]["SimulationAssumptions"];
+            /** Legs */
+            legs: components["schemas"]["OptionLeg"][];
+        };
+        /**
+         * SimulationPreviewResponse
+         * @description The full preview result (nothing persisted, nothing transactional).
+         */
+        SimulationPreviewResponse: {
+            /** Assumptions */
+            assumptions: {
+                [key: string]: unknown;
+            };
+            /** Breakevens */
+            breakevens: components["schemas"]["SimulationBreakeven"][];
+            /** Calculations */
+            calculations: {
+                [key: string]: unknown;
+            };
+            /** Defined Risk */
+            defined_risk: {
+                [key: string]: unknown;
+            };
+            max_gain_on_grid: components["schemas"]["SimulationExtreme"];
+            max_loss_on_grid: components["schemas"]["SimulationExtreme"];
+            /** Payoff Points */
+            payoff_points: components["schemas"]["SimulationPayoffPoint"][];
+            /** Scenario Grid */
+            scenario_grid: string[][][];
+            /** Scenario Spot Grid */
+            scenario_spot_grid: string[];
+            /** Scenario Time Grid Years */
+            scenario_time_grid_years: string[];
+            /**
+             * Value Nature
+             * @constant
+             */
+            value_nature: "THEORETICAL";
+            /** Warnings */
+            warnings: string[];
         };
         /**
          * SnapshotHealth
@@ -1179,6 +1621,44 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    get_analysis: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                instrument: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnalysisResponse"];
+                };
+            };
+            /** @description Authentication required: no valid WebAuthn session cookie (or missing/invalid CSRF header on a mutation). Always the same generic body with detail code AUTH_REQUIRED. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
             };
         };
     };
@@ -1410,6 +1890,82 @@ export interface operations {
             };
             /** @description Authentication required: no valid WebAuthn session cookie (or missing/invalid CSRF header on a mutation). Always the same generic body with detail code AUTH_REQUIRED. */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_option_chain: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                underlying: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OptionChainResponse"];
+                };
+            };
+            /** @description Authentication required: no valid WebAuthn session cookie (or missing/invalid CSRF header on a mutation). Always the same generic body with detail code AUTH_REQUIRED. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_simulations_preview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SimulationPreviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SimulationPreviewResponse"];
+                };
+            };
+            /** @description Authentication required: no valid WebAuthn session cookie (or missing/invalid CSRF header on a mutation). Always the same generic body with detail code AUTH_REQUIRED. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Rejected fail-closed with the exact machine-readable reason: either a wire-contract violation, or the defined-risk verifier's code (e.g. OUTSIDE_CLOSED_CATALOG, UNCOVERED_SHORT_UPSIDE_TAIL, VERTICAL_DEBIT_NOT_BELOW_WIDTH), or a typed calculation-domain violation from vertex_core. */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

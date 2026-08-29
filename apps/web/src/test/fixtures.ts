@@ -4,6 +4,7 @@
  * d'une horloge : tous les instants sont des constantes.
  */
 import type {
+  AnalysisResponse,
   AttentionItem,
   AttentionSnapshot,
   CapabilityEntry,
@@ -11,6 +12,10 @@ import type {
   MarketsOverview,
   MarketsSector,
   MarketsTicker,
+  OptionChainContract,
+  OptionChainExpiration,
+  OptionChainResponse,
+  SimulationPreviewResponse,
   SystemCapabilities,
   SystemHealth,
 } from '../api/client.ts';
@@ -285,5 +290,361 @@ export function makeEmptyMarketsOverview(): MarketsOverview {
     breadth: null,
     coverage: null,
     reason: 'no snapshot published',
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Options — snapshot option_chain SYNTHÉTIQUE (chaînes serveur verbatim)
+// ---------------------------------------------------------------------------
+
+function makeCalculationMeta(id: string): Record<string, unknown> {
+  return {
+    calculation_id: id,
+    engine_version: 'vertex_core@0.1.0',
+    method: `SYNTHETIC — méthode de test ${id}`,
+    input_hash: `sha256:${'e'.repeat(64)}`,
+    result_hash: `sha256:${'f'.repeat(64)}`,
+    status: 'OK',
+  };
+}
+
+export function makeChainContract(
+  overrides: Partial<OptionChainContract> = {},
+): OptionChainContract {
+  return {
+    con_id: 900000101,
+    strike: '100.00',
+    right: 'CALL',
+    expiration: '2026-09-26',
+    trading_class: 'SYN-TECH-01',
+    multiplier: 100,
+    currency: 'SYN',
+    exchange: 'SYNTH',
+    style: 'EUROPEAN',
+    settlement: 'CASH',
+    quote: {
+      bid: '4.10',
+      ask: '4.30',
+      bid_size: 10,
+      ask_size: 12,
+      observed_at: '2026-08-25T11:30:00+00:00',
+      age_seconds: 1800,
+      status: 'OK',
+    },
+    volume: 120,
+    open_interest: 900,
+    open_interest_status: 'OI_DELAYED',
+    iv: {
+      status: 'OK',
+      value: '0.24500000000000001',
+      quote_side: 'MID',
+      value_nature: 'THEORETICAL',
+      calculation: makeCalculationMeta('options.implied_volatility'),
+    },
+    greeks: {
+      status: 'OK',
+      delta: '0.52',
+      gamma: '0.031',
+      vega: '0.181',
+      vega_per_point: '0.00181',
+      theta: '-9.2',
+      theta_per_calendar_day: '-0.0252',
+      rho: '0.11',
+      rho_per_bp: '0.000011',
+      value_nature: 'THEORETICAL',
+      calculation: makeCalculationMeta('options.greeks'),
+    },
+    synthetic: true,
+    ...overrides,
+  };
+}
+
+/** Contrat SANS IV : quote croisée → raison typée, jamais un zéro. */
+export function makeAbsentIvContract(
+  overrides: Partial<OptionChainContract> = {},
+): OptionChainContract {
+  return makeChainContract({
+    con_id: 900000102,
+    strike: '105.00',
+    quote: {
+      bid: '4.40',
+      ask: '4.20',
+      bid_size: 5,
+      ask_size: 4,
+      observed_at: '2026-08-25T11:30:00+00:00',
+      age_seconds: 1800,
+      status: 'CROSSED',
+    },
+    iv: { status: 'ABSENT', reason: 'crossed_quote' },
+    greeks: { status: 'ABSENT', reason: 'iv_unresolved' },
+    ...overrides,
+  });
+}
+
+export function makeChainGroup(
+  overrides: Partial<OptionChainExpiration> = {},
+): OptionChainExpiration {
+  const contracts = overrides.contracts ?? [
+    makeChainContract(),
+    makeChainContract({ con_id: 900000111, right: 'PUT', strike: '100.00' }),
+    makeAbsentIvContract(),
+  ];
+  return {
+    expiration: '2026-09-26',
+    trading_class: 'SYN-TECH-01',
+    exchange: 'SYNTH',
+    style: 'EUROPEAN',
+    settlement: 'CASH',
+    multiplier: 100,
+    currency: 'SYN',
+    maturity_years: '0.0767',
+    quality: 'VALID',
+    source_event_id: 'synthetic-dev:1234:oc0000',
+    coverage: {
+      expected: contracts.length,
+      quotes_received: contracts.length,
+      quotes_valid: contracts.length - 1,
+      iv_resolved: contracts.length - 1,
+      discarded: [{ con_id: 900000102, strike: '105.00', right: 'CALL', reason: 'crossed_quote' }],
+    },
+    contracts,
+    ...overrides,
+  };
+}
+
+export function makeOptionChain(
+  overrides: Partial<OptionChainResponse> = {},
+): OptionChainResponse {
+  const expirations = overrides.expirations ?? [
+    makeChainGroup(),
+    // MÊME date, AUTRE trading class : deux groupes distincts, jamais fusionnés.
+    makeChainGroup({
+      trading_class: 'SYN-TECH-01W',
+      source_event_id: 'synthetic-dev:1234:oc0001',
+      contracts: [
+        makeChainContract({ con_id: 900000121, iv: { status: 'OK', value: '0.27', quote_side: 'MID', value_nature: 'THEORETICAL', calculation: makeCalculationMeta('options.implied_volatility') } }),
+      ],
+      coverage: { expected: 1, quotes_received: 1, quotes_valid: 1, iv_resolved: 1, discarded: [] },
+    }),
+    makeChainGroup({
+      expiration: '2026-10-24',
+      source_event_id: 'synthetic-dev:1234:oc0002',
+      contracts: [makeChainContract({ con_id: 900000131 })],
+      coverage: { expected: 1, quotes_received: 1, quotes_valid: 1, iv_resolved: 1, discarded: [] },
+    }),
+  ];
+  return {
+    state: 'ok',
+    snapshot_version: 12,
+    as_of: SYNTHETIC_AS_OF,
+    population: 'SYNTHETIC',
+    underlying: 'SYN-TECH-01',
+    engine_version: 'vertex_core@0.1.0',
+    value_nature: 'THEORETICAL',
+    spot: {
+      value: '102.50',
+      currency: 'SYN',
+      observed_at: '2026-08-25T11:30:00+00:00',
+      source_event_id: 'synthetic-dev:1234:oc0000',
+    },
+    assumptions: {
+      rate: '0.02',
+      dividend_yield: '0.00',
+      quote_side_for_iv: 'MID',
+      max_quote_age_seconds: 21600,
+    },
+    expirations,
+    row_budget: { max_rows: 240, total_rows: 5, published_rows: 5, truncated_rows: 0 },
+    coverage: {
+      observations_considered: 3,
+      groups_published: expirations.length,
+      rejected_records: [],
+      lookback_seconds: 259200,
+    },
+    reason: null,
+    ...overrides,
+  };
+}
+
+export function makeEmptyOptionChain(): OptionChainResponse {
+  return {
+    state: 'empty',
+    snapshot_version: null,
+    as_of: null,
+    population: null,
+    underlying: 'SYN-TECH-01',
+    engine_version: null,
+    value_nature: null,
+    spot: null,
+    assumptions: null,
+    expirations: [],
+    row_budget: null,
+    coverage: null,
+    reason: 'no snapshot published',
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Analyse — dossier analysis SYNTHÉTIQUE
+// ---------------------------------------------------------------------------
+
+export function makeAnalysisBars(count = 3): Record<string, unknown> {
+  const bars = Array.from({ length: count }, (_, index) => ({
+    trading_day: `2026-08-${String(20 + index).padStart(2, '0')}`,
+    open: `100.${String(10 + index)}`,
+    high: `101.${String(10 + index)}`,
+    low: `99.${String(10 + index)}`,
+    close: `100.${String(50 + index)}`,
+    volume: 10000 + index,
+  }));
+  return {
+    status: 'OK',
+    count,
+    currency: 'SYN',
+    adjustment_basis: 'synthetic-unadjusted',
+    first_trading_day: bars[0]!.trading_day,
+    last_trading_day: bars[bars.length - 1]!.trading_day,
+    last_close: bars[bars.length - 1]!.close,
+    quality: 'VALID',
+    fresh: true,
+    source_event_id: 'synthetic-dev:1234:db0002',
+    observed_as_of: SYNTHETIC_AS_OF,
+    discarded: [],
+    bars,
+  };
+}
+
+export function makeAnalysisAdvice(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    advice_id: `sha256:${'a'.repeat(64)}`,
+    instrument_id: 'SYN-TECH-01',
+    as_of: SYNTHETIC_AS_OF,
+    valid_until: '2026-08-25T13:00:00+00:00',
+    input_snapshot_id: 'synthetic-dev:1234:db0002',
+    engine_version: 'vertex_core@0.1.0',
+    status: 'INSUFFICIENT_DATA',
+    direction: 'UNKNOWN',
+    horizon: '1d',
+    risk_summary: 'SYNTHETIC development data; deterministic fixtures',
+    gates: [
+      {
+        gate_id: 'instrument_resolved',
+        version: '1.0.0',
+        status: 'DEGRADE',
+        reason_code: 'RESOLVED_WITHOUT_CONID',
+        message: 'identity resolved without an IBKR con_id confirmation',
+      },
+      {
+        gate_id: 'entitlements_sufficient',
+        version: '1.0.0',
+        status: 'BLOCK',
+        reason_code: 'UNEVALUABLE',
+        message: 'capability_status is missing or invalid',
+      },
+      {
+        gate_id: 'snapshot_fresh_and_coherent',
+        version: '1.0.0',
+        status: 'PASS',
+        reason_code: 'FRESH_AND_COHERENT',
+        message: 'snapshot is fresh and coherent',
+      },
+    ],
+    limitations: ['SYNTHETIC development population'],
+    explanation_facts: ['3 synthetic daily bars from 2026-08-20 to 2026-08-22'],
+    evidence_ids: [],
+    scenario_ids: [],
+    probability_evidence: null,
+    supersedes: null,
+    ...overrides,
+  };
+}
+
+export function makeAnalysis(overrides: Partial<AnalysisResponse> = {}): AnalysisResponse {
+  return {
+    state: 'ok',
+    snapshot_version: 16,
+    as_of: SYNTHETIC_AS_OF,
+    population: 'SYNTHETIC',
+    instrument: 'SYN-TECH-01',
+    engine_version: 'vertex_core@0.1.0',
+    bars: makeAnalysisBars(),
+    evidence: {
+      source: 'fusion',
+      ruleset_version: '1.0.0',
+      considered: 0,
+      clusters_total: 0,
+      clusters: [],
+    },
+    scenarios: { status: 'ABSENT', reason: 'no_healthy_contract' },
+    advice: makeAnalysisAdvice(),
+    coverage: { observations_considered: 1, rejected_records: [], lookback_seconds: 259200 },
+    reason: null,
+    ...overrides,
+  };
+}
+
+export function makeEmptyAnalysis(): AnalysisResponse {
+  return {
+    state: 'empty',
+    snapshot_version: null,
+    as_of: null,
+    population: null,
+    instrument: 'SYN-TECH-01',
+    engine_version: null,
+    bars: null,
+    evidence: null,
+    scenarios: null,
+    advice: null,
+    coverage: null,
+    reason: 'no snapshot published',
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Simulateur — réponse de prévisualisation THÉORIQUE
+// ---------------------------------------------------------------------------
+
+export function makeSimulationPreview(
+  overrides: Partial<SimulationPreviewResponse> = {},
+): SimulationPreviewResponse {
+  return {
+    value_nature: 'THEORETICAL',
+    defined_risk: {
+      is_defined_risk: true,
+      reason_code: 'DEFINED_RISK',
+      detail: 'BULL_CALL_DEBIT: 1 pair(s) long K=100.00 / short K=110.00, multiplier 100',
+    },
+    payoff_points: [
+      { spot: '0', pnl: '-400.00' },
+      { spot: '90', pnl: '-400.00' },
+      { spot: '100.00', pnl: '-400.00' },
+      { spot: '110.00', pnl: '600.00' },
+      { spot: '120', pnl: '600.00' },
+    ],
+    breakevens: [
+      { spot: '104.00', payoff_at_spot: '0.00', bracket_low: '100.00', bracket_high: '110.00' },
+    ],
+    max_gain_on_grid: { pnl: '600.00', at_spot: '110.00' },
+    max_loss_on_grid: { pnl: '-400.00', at_spot: '100.00' },
+    scenario_spot_grid: ['90', '100', '110', '120'],
+    scenario_time_grid_years: ['0.0767', '0'],
+    scenario_grid: [[['-120.5', '-40.2', '210.8', '590.1'], ['-400.00', '-400.00', '600.00', '600.00']]],
+    calculations: {
+      payoff: makeCalculationMeta('options.payoff'),
+      scenario_grid: makeCalculationMeta('options.scenario_grid'),
+    },
+    assumptions: {
+      spot: '102.50',
+      volatility: '0.25',
+      rate: '0.02',
+      dividend_yield: '0.00',
+      fees: '0',
+      spot_grid: ['90', '100', '110', '120'],
+      time_grid_years: ['0.0767', '0'],
+    },
+    warnings: [
+      'THEORETICAL values from declared assumptions; never quotes, never executable prices, no transaction capability exists',
+    ],
+    ...overrides,
   };
 }

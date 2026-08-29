@@ -9,11 +9,18 @@ production modules (nothing is reimplemented here):
    via ``vertex_worker.ingest.ingest_envelope`` (idempotent + outbox);
    60 rather than "~40" because the deterministic generator needs ~60 raw
    envelopes (duplicates included) to publish 8..15 attention items;
+2 ter. ingest the 12 SYNTHETIC option-chain-slice envelopes (4 underlyings x
+   3 slices, one near expiration under TWO trading classes) and the 4
+   SYNTHETIC daily-bars envelopes (60 OHLCV bars per focus ticker) — the
+   ingestion path itself enqueues ``option_chains.ingested`` and
+   ``analysis.ingested``;
 3. insert a handful of DEMO capability-probe observations (labeled rights
    ``DEMO``) and enqueue ``capabilities.refresh``;
-4. drain the real ``WorkerRunner`` (bounded) so both snapshots are published;
-5. verify the published attention snapshot carries 8..15 SYNTHETIC items —
-   anything else fails the setup loudly (no silent degradation).
+4. drain the real ``WorkerRunner`` (bounded) so every snapshot is published;
+5. verify the REALLY published snapshots: attention (8..15 SYNTHETIC items),
+   markets, one ``option_chain/{u}`` per declared underlying (never-merged
+   groups, SYNTHETIC population) and one ``analysis/{i}`` per focus ticker
+   (60 bars, advice present) — anything else fails the setup loudly.
 """
 
 from __future__ import annotations
@@ -28,7 +35,13 @@ from alembic.config import Config
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
 
-from vertex_core.synthetic import generate_daily_quote_envelopes, generate_envelopes
+from vertex_core.synthetic import (
+    SYNTHETIC_FOCUS_TICKERS,
+    generate_daily_bar_envelopes,
+    generate_daily_quote_envelopes,
+    generate_envelopes,
+    generate_option_chain_envelopes,
+)
 from vertex_persistence.repository.observations import insert_observation
 from vertex_persistence.repository.outbox import enqueue_outbox
 from vertex_persistence.repository.snapshots import get_current_snapshot
@@ -40,8 +53,10 @@ from vertex_worker.handlers import (
     TOPIC_CAPABILITIES_REFRESH,
     build_registry,
 )
+from vertex_worker.analysis import SNAPSHOT_KIND_ANALYSIS
 from vertex_worker.ingest import ingest_envelope
 from vertex_worker.markets import SNAPSHOT_KIND_MARKETS
+from vertex_worker.options import SNAPSHOT_KIND_OPTION_CHAIN
 from vertex_worker.runner import WorkerRunner
 
 _REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -106,6 +121,26 @@ def main() -> int:
         with Session(engine) as session:
             quotes_inserted = sum(
                 1 for e in quote_envelopes if ingest_envelope(session, e).inserted
+            )
+            session.commit()
+
+        # 2 ter. Chaînes d'options + barres journalières SYNTHETIC (LOT V3) :
+        # 12 tranches de chaîne (4 sous-jacents x 3, dont UNE expiration sous
+        # DEUX trading_class distinctes) et 4 séries de 60 barres OHLCV.
+        # L'ingestion enqueue elle-même ``option_chains.ingested`` et
+        # ``analysis.ingested`` — rien n'est réimplémenté ici.
+        chain_envelopes = generate_option_chain_envelopes(
+            seed=SEED, base_time=now - timedelta(minutes=5)
+        )
+        bar_envelopes = generate_daily_bar_envelopes(
+            seed=SEED, base_time=now - timedelta(minutes=5)
+        )
+        with Session(engine) as session:
+            chains_inserted = sum(
+                1 for e in chain_envelopes if ingest_envelope(session, e).inserted
+            )
+            bars_inserted = sum(
+                1 for e in bar_envelopes if ingest_envelope(session, e).inserted
             )
             session.commit()
 
@@ -201,6 +236,60 @@ def main() -> int:
             print("population must be SYNTHETIC in the E2E pipeline", file=sys.stderr)
             return 1
 
+        # 5 bis. Option chains: one snapshot per declared focus underlying,
+        # SYNTHETIC population, 3 never-merged (expiration, trading_class)
+        # groups of which TWO share the same near expiration date.
+        chain_versions: dict[str, int] = {}
+        analysis_versions: dict[str, int] = {}
+        with Session(engine) as session:
+            for underlying in SYNTHETIC_FOCUS_TICKERS:
+                chain = get_current_snapshot(
+                    session, kind=SNAPSHOT_KIND_OPTION_CHAIN, key=underlying
+                )
+                if chain is None:
+                    print(f"option_chain/{underlying} not published", file=sys.stderr)
+                    return 1
+                content = chain.content
+                groups = content["expirations"]
+                group_keys = [
+                    (group["expiration"], group["trading_class"]) for group in groups
+                ]
+                expirations_seen = [key[0] for key in group_keys]
+                if (
+                    content["population"] != "SYNTHETIC"
+                    or len(groups) != 3
+                    or len(set(group_keys)) != 3
+                    or len(set(expirations_seen)) != 2
+                ):
+                    print(
+                        f"unexpected option_chain/{underlying}: "
+                        f"population={content['population']} groups={group_keys}",
+                        file=sys.stderr,
+                    )
+                    return 1
+                chain_versions[underlying] = chain.version
+                analysis = get_current_snapshot(
+                    session, kind=SNAPSHOT_KIND_ANALYSIS, key=underlying
+                )
+                if analysis is None:
+                    print(f"analysis/{underlying} not published", file=sys.stderr)
+                    return 1
+                dossier = analysis.content
+                if (
+                    dossier["population"] != "SYNTHETIC"
+                    or dossier["bars"]["count"] != 60
+                    or not isinstance(dossier.get("advice"), dict)
+                    or "status" not in dossier["advice"]
+                ):
+                    print(
+                        f"unexpected analysis/{underlying}: "
+                        f"population={dossier['population']} "
+                        f"bars={dossier['bars']['count']}",
+                        file=sys.stderr,
+                    )
+                    return 1
+                analysis_versions[underlying] = analysis.version
+
         print(
             "seed ok: "
             f"envelopes={len(envelopes)} inserted={inserted} "
@@ -209,7 +298,10 @@ def main() -> int:
             f"attention_items={len(items)} attention_version={attention.version} "
             f"capabilities_version={capabilities.version} "
             f"markets_version={markets.version} "
-            f"markets_covered={markets_coverage['covered']}/{markets_coverage['expected']}"
+            f"markets_covered={markets_coverage['covered']}/{markets_coverage['expected']} "
+            f"chains={len(chain_envelopes)} chains_inserted={chains_inserted} "
+            f"bars_envelopes={len(bar_envelopes)} bars_inserted={bars_inserted} "
+            f"chain_versions={chain_versions} analysis_versions={analysis_versions}"
         )
         return 0
     finally:

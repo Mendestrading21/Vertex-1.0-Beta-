@@ -5,7 +5,7 @@ import { renderApp } from '../test/render.tsx';
 import { ALL_PAGES } from './pages.ts';
 
 /** Pages réellement installées (routes + données + états + tests). */
-const INSTALLED_KEYS = new Set(['today', 'markets', 'system']);
+const INSTALLED_KEYS = new Set(['today', 'markets', 'system', 'options', 'analysis', 'simulator']);
 
 describe('routes — pages non installées : « Lot non installé » honnête', () => {
   for (const page of ALL_PAGES.filter((entry) => !INSTALLED_KEYS.has(entry.key))) {
@@ -47,19 +47,26 @@ describe('routes — pages installées : plus de façade « Lot non installé »
 });
 
 describe('routes — paramètres optionnels arbitrés', () => {
-  it('/analysis/:instrument? accepte un identifiant opaque', () => {
+  // Les trois pages sont chargées paresseusement (React.lazy) : attendre.
+  it('/analysis/:instrument? accepte un identifiant opaque', async () => {
     renderApp('/analysis/vx-instr-0000');
-    expect(screen.getByRole('heading', { level: 1, name: 'Analyse' })).toBeDefined();
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'Analyse' }),
+    ).toBeDefined();
   });
 
-  it('/options/:underlying? accepte un identifiant opaque', () => {
+  it('/options/:underlying? accepte un identifiant opaque', async () => {
     renderApp('/options/vx-under-0000');
-    expect(screen.getByRole('heading', { level: 1, name: 'Options' })).toBeDefined();
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'Options' }),
+    ).toBeDefined();
   });
 
-  it('/simulator/:id? accepte un identifiant de brouillon', () => {
+  it('/simulator/:id? accepte un identifiant de brouillon', async () => {
     renderApp('/simulator/vx-draft-0000');
-    expect(screen.getByRole('heading', { level: 1, name: 'Simulateur' })).toBeDefined();
+    expect(
+      await screen.findByRole('heading', { level: 1, name: 'Simulateur' }),
+    ).toBeDefined();
   });
 });
 
