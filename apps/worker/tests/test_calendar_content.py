@@ -17,6 +17,7 @@ from vertex_core.synthetic import (
     generate_calendar_event_envelopes,
 )
 from vertex_worker.calendar import (
+    CONFLICT_ELECTION_RULE_VERSION,
     DEV_SYNTHETIC_CALENDAR_CONFIG,
     IMPORTANCE_RULE_VERSION,
     REASON_INVALID_CATEGORY,
@@ -1210,3 +1211,231 @@ def test_a_local_instant_contradicting_the_declared_zone_is_rejected(
 
     assert "event_time_local" in (calendar_module.__doc__ or "")
     assert "exchange_timezone" in (calendar_module.__doc__ or "")
+
+
+# --------------------------------------------------------------------------
+# Regression tests of the THIRD adversarial audit (P2-L, P2-M).
+# --------------------------------------------------------------------------
+
+
+def tied_pair(records, *, first_changes: dict, second_changes: dict):
+    """Two records of ONE stable id tied on BOTH business instants.
+
+    Same ``as_of`` (one generation) and same usable ``revised_at``: the
+    business chronology cannot rank them, so only the DISPLAYED value may
+    decide — never an alphabet, never an envelope id.
+    """
+    original = estimated_earnings(records)
+    return (
+        original.payload["event_id"],
+        sibling(original, event_id="aa", payload_changes=first_changes),
+        sibling(original, event_id="zz", payload_changes=second_changes),
+    )
+
+
+def entry_of(content, stable_id):
+    return next(e for e in content["agenda"] if e["event_id"] == stable_id)
+
+
+REVISED_AT = (NOW - timedelta(hours=3)).isoformat()
+
+
+def test_a_revision_detail_that_is_never_displayed_creates_no_conflict(
+    records,
+) -> None:
+    """P2-L — the conflict is about the DISPLAYED value. Two records of one
+    generation whose displayed value is strictly identical, differing only by
+    a revision key nobody displays, must not be published as a conflict: the
+    user would read ``CONFLICTING_VERSIONS`` with two versions identical
+    field for field."""
+    revision = {"revised_at": REVISED_AT, "previous_status": "ESTIMATED"}
+    stable_id, first, second = tied_pair(
+        records,
+        first_changes={"revisions": [dict(revision)]},
+        second_changes={"revisions": [{**revision, "note": "typo in the label"}]},
+    )
+
+    content = build([first, second])
+    entry = entry_of(content, stable_id)
+
+    assert entry["version_state"] == "RESOLVED"
+    assert entry["conflicting_versions"] == []
+    assert content["coverage"]["events_conflicting"] == 0
+    # The value really displayed stays invariant under a permutation of the
+    # envelope ids, revisions included.
+    permuted = build(
+        [
+            sibling(
+                estimated_earnings(records),
+                event_id="zz",
+                payload_changes={"revisions": [dict(revision)]},
+            ),
+            sibling(
+                estimated_earnings(records),
+                event_id="aa",
+                payload_changes={
+                    "revisions": [{**revision, "note": "typo in the label"}]
+                },
+            ),
+        ]
+    )
+    other = entry_of(permuted, stable_id)
+    assert other["status"] == entry["status"]
+    assert other["event_time_utc"] == entry["event_time_utc"]
+    assert other["revisions"] == entry["revisions"]
+
+
+def test_a_real_value_disagreement_is_still_published_as_a_conflict(
+    records,
+) -> None:
+    """P2-L — the narrowed fingerprint must not hide a REAL disagreement:
+    two tied records that differ on a displayed field stay conflicting."""
+    revision = {"revised_at": REVISED_AT, "previous_status": "ESTIMATED"}
+    confirmed_utc = "2026-09-05T15:30:00+00:00"
+    stable_id, first, second = tied_pair(
+        records,
+        first_changes={"revisions": [dict(revision)]},
+        second_changes={
+            "revisions": [dict(revision)],
+            "status": "CONFIRMED",
+            "event_time_utc": confirmed_utc,
+            "event_time_local": confirmed_utc,
+            "exchange_timezone": "UTC",
+        },
+    )
+    entry = entry_of(build([first, second]), stable_id)
+    assert entry["version_state"] == "CONFLICTING_VERSIONS"
+    assert len(entry["conflicting_versions"]) == 2
+
+
+def test_a_conflict_never_displays_an_unconfirmed_upgrade(records) -> None:
+    """P2-M — at a real conflict the displayed value must come from a
+    DOCUMENTED business rule, not from the lexicographic maximum of a JSON
+    blob. The blob compares ``event_time_local`` before ``status``, so a
+    CONFIRMED record carrying a LATER instant used to win and Vertex
+    displayed ``CONFIRMED`` while a record just as recent said ``ESTIMATED``.
+    The conservative version is displayed: a contested date is never
+    presented as confirmed."""
+    revision = {"revised_at": REVISED_AT, "previous_status": "ESTIMATED"}
+    estimated_utc = "2026-09-05T15:30:00+00:00"
+    confirmed_utc = "2026-09-06T15:30:00+00:00"
+    stable_id, first, second = tied_pair(
+        records,
+        first_changes={
+            "revisions": [dict(revision)],
+            "status": "ESTIMATED",
+            "event_time_utc": estimated_utc,
+            "event_time_local": estimated_utc,
+            "exchange_timezone": "UTC",
+        },
+        second_changes={
+            "revisions": [dict(revision)],
+            "status": "CONFIRMED",
+            "event_time_utc": confirmed_utc,
+            "event_time_local": confirmed_utc,
+            "exchange_timezone": "UTC",
+        },
+    )
+
+    entry = entry_of(build([first, second]), stable_id)
+
+    assert entry["version_state"] == "CONFLICTING_VERSIONS"
+    assert entry["status"] == "ESTIMATED"
+    assert entry["event_time_utc"] == estimated_utc
+    # The election rule is NAMED and versioned in the published event, so the
+    # displayed value is readable as a contested choice, not as the truth.
+    assert entry["conflict_election_rule"] == CONFLICT_ELECTION_RULE_VERSION
+    # Both versions stay readable.
+    assert {
+        (version["status"], version["event_time_utc"])
+        for version in entry["conflicting_versions"]
+    } == {("ESTIMATED", estimated_utc), ("CONFIRMED", confirmed_utc)}
+
+
+def test_a_conflict_on_the_instant_alone_displays_the_earliest(records) -> None:
+    """P2-M — at equal status the contested event is displayed at the
+    EARLIEST declared instant: a contested event is never announced later
+    than one of its own declared instants. The lexicographic maximum used to
+    display the LATEST one."""
+    revision = {"revised_at": REVISED_AT, "previous_status": "ESTIMATED"}
+    early_utc = "2026-09-05T15:30:00+00:00"
+    late_utc = "2026-09-08T15:30:00+00:00"
+    stable_id, first, second = tied_pair(
+        records,
+        first_changes={
+            "revisions": [dict(revision)],
+            "event_time_utc": late_utc,
+            "event_time_local": late_utc,
+            "exchange_timezone": "UTC",
+        },
+        second_changes={
+            "revisions": [dict(revision)],
+            "event_time_utc": early_utc,
+            "event_time_local": early_utc,
+            "exchange_timezone": "UTC",
+        },
+    )
+    entry = entry_of(build([first, second]), stable_id)
+    assert entry["version_state"] == "CONFLICTING_VERSIONS"
+    assert entry["event_time_utc"] == early_utc
+
+
+def test_the_conflict_election_is_invariant_under_every_permutation(
+    records,
+) -> None:
+    """P2-M — the documented rule keeps a TOTAL, id-independent order: the
+    six permutations of three tied versions elect the same value."""
+    import itertools
+
+    revision = {"revised_at": REVISED_AT, "previous_status": "ESTIMATED"}
+    original = estimated_earnings(records)
+    stable_id = original.payload["event_id"]
+    variants = [
+        {
+            "revisions": [dict(revision)],
+            "status": "CONFIRMED",
+            "event_time_utc": "2026-09-05T15:30:00+00:00",
+            "event_time_local": "2026-09-05T15:30:00+00:00",
+            "exchange_timezone": "UTC",
+        },
+        {
+            "revisions": [dict(revision)],
+            "status": "ESTIMATED",
+            "event_time_utc": "2026-09-07T15:30:00+00:00",
+            "event_time_local": "2026-09-07T15:30:00+00:00",
+            "exchange_timezone": "UTC",
+        },
+        {
+            "revisions": [dict(revision)],
+            "status": "ESTIMATED",
+            "event_time_utc": "2026-09-09T15:30:00+00:00",
+            "event_time_local": "2026-09-09T15:30:00+00:00",
+            "exchange_timezone": "UTC",
+        },
+    ]
+    elected = set()
+    for permutation in itertools.permutations(range(3)):
+        built = build(
+            [
+                sibling(
+                    original,
+                    event_id=f"ev-{position}",
+                    payload_changes=variants[index],
+                )
+                for position, index in enumerate(permutation)
+            ]
+        )
+        entry = entry_of(built, stable_id)
+        assert entry["version_state"] == "CONFLICTING_VERSIONS"
+        elected.add((entry["status"], entry["event_time_utc"]))
+    # The conservative rule: ESTIMATED first, then the earliest instant.
+    assert elected == {("ESTIMATED", "2026-09-07T15:30:00+00:00")}
+
+
+def test_a_resolved_event_publishes_no_election_rule(records) -> None:
+    """P2-M — the election rule is EXCEPTIONAL: a normal event elects
+    nothing and says so."""
+    content = build(records)
+    assert content["agenda"]
+    for entry in content["agenda"]:
+        assert entry["conflict_election_rule"] is None

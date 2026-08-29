@@ -15,7 +15,7 @@ from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
-from vertex_api.ai_explain import AiExplainRequest
+from vertex_api.ai_explain import AiExplainRequest, AiGroundingError
 from vertex_api.auth import auth_router
 from vertex_api.auth.challenges import ChallengeStore
 from vertex_api.capability_manifest import load_capability_manifest
@@ -99,6 +99,12 @@ def _build_openapi_schema(app: FastAPI) -> dict[str, Any]:
     return schema
 
 
+_AI_ANSWER_REFUSED_DETAIL = (
+    "the deterministic explanation of this snapshot breaks a grounding or "
+    "completeness invariant and is refused"
+)
+
+
 def _snapshot_content_response() -> JSONResponse:
     """The single fail-closed answer of a snapshot that cannot be served.
 
@@ -159,6 +165,37 @@ def create_app() -> FastAPI:
             exc.field or "unknown",
         )
         return _snapshot_content_response()
+
+    @app.exception_handler(AiGroundingError)
+    async def _ai_answer_rejected(
+        request: Request, exc: AiGroundingError
+    ) -> JSONResponse:
+        """Refuse an AI answer that breaks a grounding/completeness invariant.
+
+        Without this handler ``AiGroundingError`` reached the default one:
+        an UNTYPED ``500 "Internal Server Error"``, indistinguishable from a
+        crash, plus a stack trace whose message quoted ``claim.text`` — a
+        fragment of PERSISTED CONTENT in the server log
+        (``.claude/rules/security.md``). The client now gets the exception's
+        typed ``code`` (``AI_ANSWER_UNGROUNDED`` or ``AI_ANSWER_INCOMPLETE``)
+        and a static detail.
+
+        The trace keeps the ROUTE, the typed code and a COUNT of the
+        canonical references involved — deliberately not the references
+        themselves: an evidence id or a gate id is still a value read from a
+        snapshot, and a count is enough to tell a total failure from a
+        partial one.
+        """
+        logging.getLogger("vertex_api.ai").error(
+            "ai answer refused on %s: %s (%d canonical reference(s))",
+            request.url.path,
+            exc.code,
+            len(exc.references),
+        )
+        return JSONResponse(
+            status_code=500,
+            content={"code": exc.code, "detail": _AI_ANSWER_REFUSED_DETAIL},
+        )
 
     @app.exception_handler(ValidationError)
     async def _snapshot_content_validation_rejected(

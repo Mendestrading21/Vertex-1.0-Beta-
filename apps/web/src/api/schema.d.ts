@@ -1196,12 +1196,15 @@ export interface components {
          *     (never published, or nothing observed), ``state = "not_entitled"`` that
          *     the considered records were rejected for missing rights,
          *     ``state = "rejected"`` that they were all invalid, ``state = "stale"``
-         *     that every displayed event is past its freshness bound,
+         *     that the agenda is no longer current — the worker published ``STALE``,
+         *     the snapshot is past :data:`CALENDAR_MAX_AGE`, or every served event has
+         *     passed its published ``stale_after`` at the relay clock —,
          *     ``state = "empty_window"`` that the REQUESTED window selects none of the
          *     published events, and ``state = "degraded"`` that the snapshot predates
-         *     the ``agenda_state`` contract and its state is therefore unknown. Every
+         *     a field of the current contract and is therefore incomplete. Every
          *     non-ok state carries its ``reason``: an empty agenda never passes for a
-         *     success.
+         *     success, and a relayed ``fresh`` flag is recomputed against the server
+         *     clock — never a frozen boolean.
          */
         CalendarResponse: {
             /** Agenda */
@@ -1979,10 +1982,16 @@ export interface components {
          *     page's honest empty state on synthetic data). ``state = "stale"`` relays
          *     the SAME content, but says it is past its freshness budget and publishes
          *     why — an old verdict is never presented as current. ``state = "empty"``
-         *     means the worker never published.
+         *     means the worker never published. ``state = "clock_inconsistent"`` means
+         *     the snapshot is dated further ahead of the relay clock than the declared
+         *     drift tolerance: the verdict cannot be dated, so the content is WITHHELD
+         *     (``content = None``) and ``reason`` names the clock — the fault is
+         *     server-side, not in the persisted payload.
          *
-         *     ``age_seconds`` is published in every served state (server timestamps
-         *     only), so the interface can always show how old the verdict is.
+         *     ``age_seconds`` is published in every DATABLE state (server timestamps
+         *     only), so the interface can always show how old the verdict is; it stays
+         *     ``None`` exactly when no honest age exists (``empty``,
+         *     ``clock_inconsistent``).
          */
         OpportunitiesResponse: {
             /** Age Seconds */
@@ -2001,7 +2010,7 @@ export interface components {
              * State
              * @enum {string}
              */
-            state: "ok" | "stale" | "empty";
+            state: "ok" | "stale" | "empty" | "clock_inconsistent";
         };
         /**
          * OptionChainContract

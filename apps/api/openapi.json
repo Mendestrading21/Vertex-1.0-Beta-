@@ -975,7 +975,7 @@
       },
       "CalendarResponse": {
         "additionalProperties": false,
-        "description": "The last published calendar snapshot — or an honest empty state.\n\n``state = \"ok\"`` relays the persisted agenda VERBATIM (importance from\nthe versioned rule, distinct ESTIMATED/CONFIRMED labels, revisions and\nprevious values, freshness, exchange timezones); the API invents no event\nand recomputes no importance. ``state = \"empty\"`` means nothing to show\n(never published, or nothing observed), ``state = \"not_entitled\"`` that\nthe considered records were rejected for missing rights,\n``state = \"rejected\"`` that they were all invalid, ``state = \"stale\"``\nthat every displayed event is past its freshness bound,\n``state = \"empty_window\"`` that the REQUESTED window selects none of the\npublished events, and ``state = \"degraded\"`` that the snapshot predates\nthe ``agenda_state`` contract and its state is therefore unknown. Every\nnon-ok state carries its ``reason``: an empty agenda never passes for a\nsuccess.",
+        "description": "The last published calendar snapshot — or an honest empty state.\n\n``state = \"ok\"`` relays the persisted agenda VERBATIM (importance from\nthe versioned rule, distinct ESTIMATED/CONFIRMED labels, revisions and\nprevious values, freshness, exchange timezones); the API invents no event\nand recomputes no importance. ``state = \"empty\"`` means nothing to show\n(never published, or nothing observed), ``state = \"not_entitled\"`` that\nthe considered records were rejected for missing rights,\n``state = \"rejected\"`` that they were all invalid, ``state = \"stale\"``\nthat the agenda is no longer current — the worker published ``STALE``,\nthe snapshot is past :data:`CALENDAR_MAX_AGE`, or every served event has\npassed its published ``stale_after`` at the relay clock —,\n``state = \"empty_window\"`` that the REQUESTED window selects none of the\npublished events, and ``state = \"degraded\"`` that the snapshot predates\na field of the current contract and is therefore incomplete. Every\nnon-ok state carries its ``reason``: an empty agenda never passes for a\nsuccess, and a relayed ``fresh`` flag is recomputed against the server\nclock — never a frozen boolean.",
         "properties": {
           "agenda": {
             "items": {
@@ -2884,7 +2884,7 @@
       },
       "OpportunitiesResponse": {
         "additionalProperties": false,
-        "description": "The last published opportunities snapshot — or an honest empty state.\n\n``state = \"ok\"`` relays the persisted content VERBATIM: profile\nreference (id + version + what is really applied), calendar provenance,\ndocumented lexicographic ordering, qualified and excluded candidates with\ntheir gates, honest evidence checks and published exclusion reasons (the\npage's honest empty state on synthetic data). ``state = \"stale\"`` relays\nthe SAME content, but says it is past its freshness budget and publishes\nwhy — an old verdict is never presented as current. ``state = \"empty\"``\nmeans the worker never published.\n\n``age_seconds`` is published in every served state (server timestamps\nonly), so the interface can always show how old the verdict is.",
+        "description": "The last published opportunities snapshot — or an honest empty state.\n\n``state = \"ok\"`` relays the persisted content VERBATIM: profile\nreference (id + version + what is really applied), calendar provenance,\ndocumented lexicographic ordering, qualified and excluded candidates with\ntheir gates, honest evidence checks and published exclusion reasons (the\npage's honest empty state on synthetic data). ``state = \"stale\"`` relays\nthe SAME content, but says it is past its freshness budget and publishes\nwhy — an old verdict is never presented as current. ``state = \"empty\"``\nmeans the worker never published. ``state = \"clock_inconsistent\"`` means\nthe snapshot is dated further ahead of the relay clock than the declared\ndrift tolerance: the verdict cannot be dated, so the content is WITHHELD\n(``content = None``) and ``reason`` names the clock — the fault is\nserver-side, not in the persisted payload.\n\n``age_seconds`` is published in every DATABLE state (server timestamps\nonly), so the interface can always show how old the verdict is; it stays\n``None`` exactly when no honest age exists (``empty``,\n``clock_inconsistent``).",
         "properties": {
           "age_seconds": {
             "anyOf": [
@@ -2950,7 +2950,8 @@
             "enum": [
               "ok",
               "stale",
-              "empty"
+              "empty",
+              "clock_inconsistent"
             ],
             "title": "State",
             "type": "string"

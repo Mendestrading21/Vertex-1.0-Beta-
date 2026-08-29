@@ -16,6 +16,16 @@ requires) and the published horizon (checked worker-side only). Re-audit
 (P1-9): the relay had no freshness bound at all, so a worker that refused to
 publish (fail-closed ``RuntimeError`` -> retry -> DEAD) left the page serving
 ``state = "ok"`` with an arbitrarily old verdict and no signal.
+
+Third re-audit (P2-I): the guard checked the gate VOCABULARY but neither the
+gate IDENTITY nor the COMPLETENESS of the evaluation, and never the identity
+of the candidates themselves — so a ``QUALIFIED`` card vouched for by a
+single made-up gate, a gate absent from ``vertex_core``'s ``GATE_CATALOG``,
+and one candidate sitting in the qualified AND the excluded group at once
+were all relayed as ``ok``. (P2-J): a snapshot ONE SECOND in the future —
+the worker and the API are distinct processes, so a small drift is normal —
+answered ``500 SNAPSHOT_CONTENT_INVALID``, blaming the persisted content for
+a CLOCK problem.
 """
 
 from __future__ import annotations
@@ -31,11 +41,13 @@ from snapshot_fakes import FakeSnapshotReader, synthetic_session
 from vertex_api import opportunities as opportunities_module
 from vertex_api.auth import require_session
 from vertex_api.opportunities import (
+    OPPORTUNITIES_CLOCK_DRIFT_TOLERANCE,
     OPPORTUNITIES_MAX_AGE,
     build_opportunities_response,
 )
 from vertex_api.snapshot_reader import get_snapshot_reader
 from vertex_api.snapshot_views import SnapshotContentError
+from vertex_core.decision.gates import GATE_CATALOG
 from vertex_persistence.repository.snapshots import CurrentSnapshot
 
 AS_OF = datetime(2026, 8, 25, 12, 0, 0, tzinfo=timezone.utc)
@@ -60,7 +72,34 @@ PROFILE_EVIDENCE = (
 )
 PROFILE_HORIZON = "3m"
 
+#: The canonical decision gates of ``vertex_core`` — the SAME catalog the
+#: worker evaluates for every dossier. A published card is vouched for by the
+#: whole catalog or by nothing (P2-I).
+CATALOG_GATE_IDS: tuple[str, ...] = tuple(spec.gate_id for spec in GATE_CATALOG)
+
+#: The gate the fixtures below use to carry the interesting status.
+FOCUS_GATE = "entitlements_sufficient"
+
 _UNSET = object()
+
+
+def full_gates(focus_status: str = "PASS", *, focus: str = FOCUS_GATE) -> list[dict]:
+    """Every catalog gate evaluated — what the worker really publishes.
+
+    ``focus_status`` is carried by ``focus`` alone; every other gate passes.
+    """
+    return [
+        {
+            "gate_id": gate_id,
+            "status": focus_status if gate_id == focus else "PASS",
+            "reason_code": (
+                "UNEVALUABLE"
+                if gate_id == focus and focus_status == "BLOCK"
+                else "OK"
+            ),
+        }
+        for gate_id in CATALOG_GATE_IDS
+    ]
 
 
 def candidate(
@@ -107,13 +146,7 @@ def candidate(
             "valid_until": AS_OF.isoformat(),
             "engine_version": "vertex_core@0.1.0",
         },
-        "gates": [
-            {
-                "gate_id": "entitlements_sufficient",
-                "status": resolved_gate,
-                "reason_code": "UNEVALUABLE" if resolved_gate == "BLOCK" else "OK",
-            }
-        ],
+        "gates": full_gates(resolved_gate),
         "degraded_gates": [],
         "required_evidence": {
             name: {
@@ -398,8 +431,9 @@ def _qualified_with(**overrides: Any) -> dict:
 
 
 _ONE_GATE = [
-    {"gate_id": "entitlements_sufficient", "status": "PASS", "reason_code": "OK"}
+    {"gate_id": FOCUS_GATE, "status": "PASS", "reason_code": "OK"}
 ]
+"""A single published gate — never a complete evaluation (P2-I)."""
 
 _REFUSED_QUALIFIED = (
     pytest.param(
@@ -457,13 +491,10 @@ def test_a_gate_status_outside_the_vocabulary_is_refused_in_both_groups() -> Non
 def test_exclusion_gate_id_names_a_published_BLOCK_gate() -> None:
     """An exclusion attributed to a gate that is NOT blocking is refused."""
     forged = candidate("SYN-TECH-01", "BLOCKED")
-    forged["gates"] = [
-        {"gate_id": "freshness_ok", "status": "PASS", "reason_code": "OK"},
-        {"gate_id": "entitlements_sufficient", "status": "BLOCK", "reason_code": "U"},
-    ]
+    forged["gates"] = full_gates("BLOCK")
     forged["exclusion"] = {
         "kind": "CLOSED_STATUS",
-        "gate_id": "freshness_ok",  # a PASS gate, not the blocking one
+        "gate_id": "instrument_resolved",  # a PASS gate, not the blocking one
         "reason_code": "U",
         "missing_evidence": [],
         "detail": "forged attribution",
@@ -476,10 +507,7 @@ def test_exclusion_gate_id_names_a_published_BLOCK_gate() -> None:
 
 def test_the_exclusion_gate_id_of_the_real_blocking_gate_relays() -> None:
     forged = candidate("SYN-TECH-01", "BLOCKED")
-    forged["gates"] = [
-        {"gate_id": "freshness_ok", "status": "PASS", "reason_code": "OK"},
-        {"gate_id": "entitlements_sufficient", "status": "BLOCK", "reason_code": "U"},
-    ]
+    forged["gates"] = full_gates("BLOCK")
     content = opportunities_content(qualified=[], excluded=[forged])
     assert relay(content).state == "ok"
 
@@ -564,8 +592,198 @@ def test_a_stale_snapshot_is_served_as_stale_over_http(
     assert "budget" in body["reason"]
 
 
-def test_a_snapshot_dated_in_the_future_is_refused() -> None:
-    content = opportunities_content(qualified=[], excluded=[])
+# ---------------------------------------------------------------------------
+# P2-I — the guard checks the IDENTITY and the COMPLETENESS of the gates
+# ---------------------------------------------------------------------------
+
+
+def test_a_qualified_candidate_vouched_by_a_single_gate_is_refused() -> None:
+    """P2-I: one PASS gate is not an evaluation, it is an assertion.
+
+    ``AdviceEngine`` evaluates the WHOLE catalog for every dossier; a card
+    published with one gate hides the nine that were never run.
+    """
+    forged = candidate("SYN-TECH-01", "QUALIFIED")
+    forged["gates"] = list(_ONE_GATE)
+    content = opportunities_content(qualified=[forged], excluded=[])
+
     with pytest.raises(SnapshotContentError) as excinfo:
-        relay(content, as_of=NOW + timedelta(seconds=1), now=NOW)
-    assert "future" in str(excinfo.value)
+        relay(content)
+    assert "catalog" in str(excinfo.value)
+
+
+def test_a_qualified_candidate_missing_one_catalog_gate_is_refused() -> None:
+    """The completeness check is exact: nine gates out of ten still fails."""
+    forged = candidate("SYN-TECH-01", "QUALIFIED")
+    forged["gates"] = [
+        gate for gate in full_gates() if gate["gate_id"] != "minimum_liquidity"
+    ]
+    content = opportunities_content(qualified=[forged], excluded=[])
+
+    with pytest.raises(SnapshotContentError) as excinfo:
+        relay(content)
+    assert "catalog" in str(excinfo.value)
+
+
+@pytest.mark.parametrize("group", ["qualified", "excluded"])
+def test_a_gate_id_absent_from_the_catalog_is_refused_in_both_groups(
+    group: str,
+) -> None:
+    """P2-I: a made-up gate can vouch for nothing, whatever its status says."""
+    status = "QUALIFIED" if group == "qualified" else "BLOCKED"
+    forged = candidate("SYN-TECH-01", status)
+    gates = full_gates("BLOCK" if group == "excluded" else "PASS")
+    gates.append({"gate_id": "no_such_gate", "status": "PASS", "reason_code": "OK"})
+    forged["gates"] = gates
+    content = opportunities_content(
+        qualified=[forged] if group == "qualified" else [],
+        excluded=[] if group == "qualified" else [forged],
+    )
+
+    with pytest.raises(SnapshotContentError) as excinfo:
+        relay(content)
+    assert "catalog" in str(excinfo.value)
+
+
+def test_a_gate_published_twice_is_refused() -> None:
+    """A duplicated gate can fake completeness while hiding a real one."""
+    forged = candidate("SYN-TECH-01", "QUALIFIED")
+    gates = [gate for gate in full_gates() if gate["gate_id"] != "minimum_liquidity"]
+    gates.append(dict(gates[0]))
+    forged["gates"] = gates
+    content = opportunities_content(qualified=[forged], excluded=[])
+
+    with pytest.raises(SnapshotContentError) as excinfo:
+        relay(content)
+    assert "twice" in str(excinfo.value)
+
+
+def test_a_candidate_sitting_in_both_groups_is_refused() -> None:
+    """P2-I: one candidate is qualified OR excluded, never both at once.
+
+    Serving both cards would show the same instrument as admissible and as
+    closed on the same page, with no way to tell which verdict holds.
+    """
+    content = opportunities_content(
+        qualified=[candidate("SYN-TECH-01", "QUALIFIED")],
+        excluded=[candidate("SYN-TECH-01", "INSUFFICIENT_DATA")],
+    )
+
+    with pytest.raises(SnapshotContentError) as excinfo:
+        relay(content)
+    assert "twice" in str(excinfo.value)
+
+
+@pytest.mark.parametrize("group", ["qualified", "excluded"])
+def test_the_same_candidate_published_twice_in_one_group_is_refused(
+    group: str,
+) -> None:
+    status = "QUALIFIED" if group == "qualified" else "INSUFFICIENT_DATA"
+    twins = [candidate("SYN-TECH-01", status), candidate("SYN-TECH-01", status)]
+    content = opportunities_content(
+        qualified=twins if group == "qualified" else [],
+        excluded=[] if group == "qualified" else twins,
+    )
+
+    with pytest.raises(SnapshotContentError) as excinfo:
+        relay(content)
+    assert "twice" in str(excinfo.value)
+
+
+def test_two_distinct_candidates_in_the_two_groups_still_relay() -> None:
+    """Guard against a vacuous identity check: distinct tickers are fine."""
+    content = opportunities_content(
+        qualified=[candidate("SYN-TECH-01", "QUALIFIED")],
+        excluded=[candidate("SYN-TECH-02", "INSUFFICIENT_DATA")],
+    )
+
+    assert relay(content).state == "ok"
+
+
+# ---------------------------------------------------------------------------
+# P2-J — a clock drift is a CLOCK problem, never "invalid stored content"
+# ---------------------------------------------------------------------------
+
+
+def test_a_one_second_clock_drift_is_absorbed_by_the_declared_tolerance() -> None:
+    """P2-J: worker and API are distinct processes; 1 s ahead is normal.
+
+    It used to answer ``500 SNAPSHOT_CONTENT_INVALID`` — a server clock
+    problem reported as a defect of the persisted payload.
+    """
+    content = opportunities_content(qualified=[], excluded=[])
+
+    response = relay(content, as_of=NOW + timedelta(seconds=1), now=NOW)
+
+    assert response.state == "ok"
+    assert response.age_seconds == 0  # never a negative age on the wire
+    assert response.reason is None
+    assert response.content == content
+
+
+def test_a_drift_at_the_declared_tolerance_is_still_absorbed() -> None:
+    content = opportunities_content(qualified=[], excluded=[])
+
+    response = relay(
+        content, as_of=NOW + OPPORTUNITIES_CLOCK_DRIFT_TOLERANCE, now=NOW
+    )
+
+    assert response.state == "ok"
+    assert response.age_seconds == 0
+
+
+def test_a_drift_beyond_the_tolerance_is_named_a_clock_inconsistency() -> None:
+    """Past the tolerance the state says CLOCK, and no verdict is served.
+
+    A snapshot the relay cannot date cannot be presented as current
+    (``financial-safety.md``: a future input closes the gate), so the content
+    is withheld — but the reason names the real cause, the clock, and the
+    answer is not a 500 blaming the stored content.
+    """
+    content = opportunities_content(
+        qualified=[candidate("SYN-TECH-01", "OBSERVE")], excluded=[]
+    )
+    drift = OPPORTUNITIES_CLOCK_DRIFT_TOLERANCE + timedelta(seconds=1)
+
+    response = relay(content, as_of=NOW + drift, now=NOW)
+
+    assert response.state == "clock_inconsistent"
+    assert response.content is None
+    assert response.as_of is None
+    assert response.age_seconds is None
+    assert response.reason is not None
+    assert "clock" in response.reason
+    assert "tolerance" in response.reason
+
+
+def test_a_clock_inconsistency_is_served_as_200_not_500(
+    api: TestClient, reader: FakeSnapshotReader
+) -> None:
+    """Over HTTP: an honest degraded state, never SNAPSHOT_CONTENT_INVALID."""
+    content = opportunities_content(qualified=[], excluded=[])
+    ahead = NOW + OPPORTUNITIES_CLOCK_DRIFT_TOLERANCE + timedelta(minutes=5)
+    reader.snapshots[("opportunities", "global")] = snapshot(content, as_of=ahead)
+
+    response = api.get("/api/v1/opportunities")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["state"] == "clock_inconsistent"
+    assert body["content"] is None
+    assert "clock" in body["reason"]
+
+
+def test_a_one_second_drift_is_served_ok_over_http(
+    api: TestClient, reader: FakeSnapshotReader
+) -> None:
+    content = opportunities_content(qualified=[], excluded=[])
+    reader.snapshots[("opportunities", "global")] = snapshot(
+        content, as_of=NOW + timedelta(seconds=1)
+    )
+
+    response = api.get("/api/v1/opportunities")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["state"] == "ok"
+    assert body["age_seconds"] == 0

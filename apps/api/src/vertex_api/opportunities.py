@@ -10,12 +10,16 @@ That invariant crosses the PUBLISHED FACTS, never the status string alone
 
 1. a qualified candidate carries an open status;
 2. every published gate carries a CANONICAL status (``PASS``/``DEGRADE``/
-   ``BLOCK``) and a candidate publishes at least one gate — a verdict
-   vouched by no gate, or a gate closed under another label (``block``,
-   ``CLOSED``...), is refused instead of read as harmless;
-3. a qualified candidate publishes NO ``BLOCK`` gate — a blocking gate can
-   never coexist with membership of the qualified group, whatever the status
-   says;
+   ``BLOCK``), a CANONICAL identity (its ``gate_id`` belongs to
+   :data:`~vertex_core.decision.gates.GATE_CATALOG`, read here, never
+   redefined) and appears at most once — a verdict vouched by no gate, by a
+   made-up gate, by the same gate twice, or by a gate closed under another
+   label (``block``, ``CLOSED``...), is refused instead of read as harmless;
+3. a qualified candidate publishes the COMPLETE catalog — ``AdviceEngine``
+   evaluates every gate of the catalog for every dossier, so a positive card
+   vouched for by a subset hides the gates that were never run — and NO
+   ``BLOCK`` gate: a blocking gate can never coexist with membership of the
+   qualified group, whatever the status says;
 4. a qualified candidate holds every required evidence of the profile
    (``missing_evidence`` empty and every ``required_evidence`` entry
    present);
@@ -26,8 +30,10 @@ That invariant crosses the PUBLISHED FACTS, never the status string alone
 
 Symmetrically, every excluded candidate must publish WHY it is excluded: a
 canonical closed status attributed to a gate that is REALLY ``BLOCK``, or the
-missing required evidence of the profile. A snapshot that fails any of these
-is refused instead of displayed.
+missing required evidence of the profile. Finally, a candidate is identified
+by its ``ticker`` and belongs to EXACTLY ONE group: the same instrument shown
+as admissible and as closed on the same page is a contradiction, not two
+cards. A snapshot that fails any of these is refused instead of displayed.
 
 Two facts about the referenced profile cannot be checked against the snapshot
 alone, so the relay reads the SAME committed manifest the worker reads
@@ -48,6 +54,16 @@ serves ``state = "stale"`` with the age and the reason — never ``ok``. The
 age is measured on SERVER timestamps (the persisted ``as_of`` COLUMN and the
 relay clock), never on the ``as_of`` string inside the content, which is
 persisted data like any other.
+
+CLOCK DRIFT (P2-J). The worker and the API are DISTINCT PROCESSES reading
+their own clock, so a snapshot dated slightly ahead of the relay is a normal
+scheduling artefact, not a forged payload. Up to
+:data:`OPPORTUNITIES_CLOCK_DRIFT_TOLERANCE` the drift is absorbed (the age is
+clamped to zero — a negative age never reaches the wire). BEYOND it the relay
+answers ``state = "clock_inconsistent"``: the snapshot cannot be dated, so no
+verdict is served, and the reason names the CLOCK — never "invalid snapshot
+content", which would blame the persisted payload for a server-side clock
+problem.
 """
 
 from __future__ import annotations
@@ -69,6 +85,7 @@ from vertex_core.contracts.types import (
     UtcDatetime,
 )
 from vertex_core.data.freshness import get_freshness_policy
+from vertex_core.decision.gates import GATE_CATALOG
 from vertex_persistence.repository.snapshots import CurrentSnapshot
 
 from vertex_api.snapshot_views import (
@@ -85,10 +102,13 @@ __all__ = [
     "DEFAULT_PROFILES_PATH",
     "EXCLUSION_KIND_CLOSED_STATUS",
     "EXCLUSION_KIND_MISSING_EVIDENCE",
+    "GATE_CATALOG_IDS",
     "GATE_STATUSES",
+    "OPPORTUNITIES_CLOCK_DRIFT_TOLERANCE",
     "OPPORTUNITIES_FRESHNESS_POLICY",
     "OPPORTUNITIES_MAX_AGE",
     "QUALIFIED_STATUSES",
+    "REASON_CLOCK_INCONSISTENT",
     "REASON_NO_SNAPSHOT_PUBLISHED",
     "REASON_SNAPSHOT_STALE",
     "SNAPSHOT_KIND_OPPORTUNITIES",
@@ -119,6 +139,16 @@ how a closed gate used to walk into the qualified group.
 """
 
 GATE_STATUS_BLOCK = "BLOCK"
+
+GATE_CATALOG_IDS: frozenset[str] = frozenset(spec.gate_id for spec in GATE_CATALOG)
+"""Canonical decision-gate identities, READ from ``vertex_core`` (P2-I).
+
+The relay never redefines, extends or shortens this set: ``vertex_core`` is
+the single authority of the decision gates (``architecture.md``). A published
+``gate_id`` outside it names a gate NO engine of this system evaluates, so it
+vouches for nothing; and the qualified group must publish this set ENTIRELY,
+since ``AdviceEngine`` evaluates the whole catalog for every dossier.
+"""
 
 EXCLUSION_KIND_CLOSED_STATUS = "CLOSED_STATUS"
 EXCLUSION_KIND_MISSING_EVIDENCE = "MISSING_REQUIRED_EVIDENCE"
@@ -159,6 +189,30 @@ REASON_SNAPSHOT_STALE = (
     "nothing newer"
 )
 """Served instead of ``reason = None`` when the budget is exceeded."""
+
+OPPORTUNITIES_CLOCK_DRIFT_TOLERANCE = timedelta(seconds=5)
+"""Accepted lead of the persisted ``as_of`` over the relay clock (P2-J).
+
+The worker and the API are distinct processes: each stamps its own clock
+reading, and the snapshot row can legitimately carry an instant a fraction of
+a second — occasionally a few seconds, under load or right after an NTP step
+— AHEAD of the instant the relay reads. That is a scheduling artefact of two
+processes, never a statement about the content, so it is absorbed here and
+the published age is clamped to zero.
+
+The bound is deliberately SMALL and named: it covers process skew, not a
+misconfigured clock. Beyond it the relay stops guessing and says so (see
+:data:`REASON_CLOCK_INCONSISTENT`) rather than dating a verdict it cannot
+date, or blaming the stored content for a clock problem.
+"""
+
+REASON_CLOCK_INCONSISTENT = (
+    "server clock inconsistency: the snapshot is dated {drift} s ahead of the "
+    "relay clock, beyond the declared drift tolerance of {tolerance} s. The "
+    "verdict cannot be dated, so it is not served. This is a CLOCK problem "
+    "between the worker and the API, NOT an invalid snapshot content"
+)
+"""Served with ``state = "clock_inconsistent"`` past the drift tolerance."""
 
 _ZERO = timedelta(0)
 
@@ -305,13 +359,19 @@ class OpportunitiesResponse(ContractModel):
     page's honest empty state on synthetic data). ``state = "stale"`` relays
     the SAME content, but says it is past its freshness budget and publishes
     why — an old verdict is never presented as current. ``state = "empty"``
-    means the worker never published.
+    means the worker never published. ``state = "clock_inconsistent"`` means
+    the snapshot is dated further ahead of the relay clock than the declared
+    drift tolerance: the verdict cannot be dated, so the content is WITHHELD
+    (``content = None``) and ``reason`` names the clock — the fault is
+    server-side, not in the persisted payload.
 
-    ``age_seconds`` is published in every served state (server timestamps
-    only), so the interface can always show how old the verdict is.
+    ``age_seconds`` is published in every DATABLE state (server timestamps
+    only), so the interface can always show how old the verdict is; it stays
+    ``None`` exactly when no honest age exists (``empty``,
+    ``clock_inconsistent``).
     """
 
-    state: Literal["ok", "stale", "empty"]
+    state: Literal["ok", "stale", "empty", "clock_inconsistent"]
     snapshot_version: Optional[PositiveInt]
     as_of: Optional[UtcDatetime]
     age_seconds: Optional[Annotated[int, Field(ge=0)]]
@@ -322,11 +382,16 @@ class OpportunitiesResponse(ContractModel):
 def _published_gates(
     candidate: Mapping[str, Any], *, field: str
 ) -> tuple[tuple[str, str], ...]:
-    """Every published gate as ``(gate_id, status)``, vocabulary enforced.
+    """Every published gate as ``(gate_id, status)``, vocabulary and identity
+    enforced.
 
-    Fail-closed on two counts: an unknown gate status is refused (never read
-    as "not BLOCK, hence harmless"), and a candidate publishing NO gate is
-    refused too — its verdict would then be vouched for by nothing.
+    Fail-closed on four counts: an unknown gate STATUS is refused (never read
+    as "not BLOCK, hence harmless"); a gate IDENTITY outside the canonical
+    :data:`GATE_CATALOG_IDS` is refused, because a gate no engine of this
+    system evaluates vouches for nothing (P2-I); the same gate published
+    TWICE is refused, since a duplicate can pad an evaluation while a real
+    gate stays missing; and a candidate publishing NO gate is refused too —
+    its verdict would then be vouched for by nothing.
     """
     gates = _require_list(candidate.get("gates"), field=f"{field}.gates")
     if not gates:
@@ -336,6 +401,7 @@ def _published_gates(
             field=f"{field}.gates",
         )
     published: list[tuple[str, str]] = []
+    seen: set[str] = set()
     for index, raw in enumerate(gates):
         gate = _require_mapping(raw, field=f"{field}.gates[{index}]")
         gate_id = _require_str(
@@ -350,6 +416,21 @@ def _published_gates(
                 "PASS/DEGRADE/BLOCK required",
                 field=f"{field}.gates[{index}].status",
             )
+        if gate_id not in GATE_CATALOG_IDS:
+            raise SnapshotContentError(
+                f"{field}.gates[{index}].gate_id: gate absent from the "
+                "canonical decision-gate catalog of vertex_core "
+                "(GATE_CATALOG); it vouches for nothing",
+                field=f"{field}.gates[{index}].gate_id",
+            )
+        if gate_id in seen:
+            raise SnapshotContentError(
+                f"{field}.gates[{index}].gate_id: this gate is published "
+                "twice; a duplicate can pad an evaluation while a real gate "
+                "stays missing",
+                field=f"{field}.gates[{index}].gate_id",
+            )
+        seen.add(gate_id)
         published.append((gate_id, status))
     return tuple(published)
 
@@ -432,9 +513,16 @@ def _check_qualified(
             field=f"{field}.advice.status",
         )
     _checked_horizon(advice, field=field, profile=profile)
-    if GATE_STATUS_BLOCK in {
-        status for _, status in _published_gates(candidate, field=field)
-    }:
+    gates = _published_gates(candidate, field=field)
+    if frozenset(gate_id for gate_id, _ in gates) != GATE_CATALOG_IDS:
+        raise SnapshotContentError(
+            f"{field}.gates: the published gates are not the complete "
+            "canonical decision-gate catalog of vertex_core; a verdict "
+            "vouched for by a partial evaluation may never sit in the "
+            "qualified group",
+            field=f"{field}.gates",
+        )
+    if GATE_STATUS_BLOCK in {status for _, status in gates}:
         raise SnapshotContentError(
             f"{field}: a candidate carrying a BLOCK gate may never sit in "
             "the qualified group",
@@ -503,6 +591,26 @@ def _check_excluded(
         )
 
 
+def _register_identity(
+    candidate: Mapping[str, Any], *, field: str, seen: set[str]
+) -> None:
+    """One candidate = one ticker = ONE group (P2-I).
+
+    The same instrument published as admissible AND as closed on the same
+    page is a contradiction, not two cards: nothing lets the interface — or
+    the reader — tell which verdict holds. Refused rather than displayed.
+    """
+    ticker = _require_str(candidate.get("ticker"), field=f"{field}.ticker")
+    if ticker in seen:
+        raise SnapshotContentError(
+            f"{field}.ticker: this candidate is published twice across the "
+            "qualified and excluded groups; a candidate belongs to exactly "
+            "one group",
+            field=f"{field}.ticker",
+        )
+    seen.add(ticker)
+
+
 def _referenced_profile(
     content: Mapping[str, Any], *, profiles_path: Optional[Path]
 ) -> RelayStrategyProfile:
@@ -528,7 +636,14 @@ def _referenced_profile(
 
 
 def _snapshot_age(snapshot: CurrentSnapshot, *, now: datetime) -> timedelta:
-    """Age measured on SERVER timestamps only (never on stored content)."""
+    """Signed age measured on SERVER timestamps only (never on content).
+
+    The result is NEGATIVE when the snapshot row is dated ahead of the relay
+    clock. That is a two-process reality, not a content defect, so it is
+    returned as-is and interpreted by the caller against
+    :data:`OPPORTUNITIES_CLOCK_DRIFT_TOLERANCE` (P2-J). Only a genuinely
+    unusable stamp — absent, not a datetime, or naive — is a content defect.
+    """
     as_of = snapshot.as_of
     if not isinstance(as_of, datetime):
         raise SnapshotContentError(
@@ -538,13 +653,7 @@ def _snapshot_age(snapshot: CurrentSnapshot, *, now: datetime) -> timedelta:
         raise SnapshotContentError(
             "snapshot.as_of: naive datetime rejected", field="snapshot.as_of"
         )
-    age = now.astimezone(timezone.utc) - as_of.astimezone(timezone.utc)
-    if age < _ZERO:
-        raise SnapshotContentError(
-            "snapshot.as_of: a snapshot dated in the future cannot be served",
-            field="snapshot.as_of",
-        )
-    return age
+    return now.astimezone(timezone.utc) - as_of.astimezone(timezone.utc)
 
 
 def build_opportunities_response(
@@ -563,8 +672,16 @@ def build_opportunities_response(
     its exclusion, attributed to a gate that is really ``BLOCK``. A snapshot
     violating any of this is refused instead of displayed.
 
+    Every candidate is identified by its ``ticker`` and may appear in exactly
+    one group: a candidate published twice is refused, never shown as two
+    contradictory cards.
+
     Past :data:`OPPORTUNITIES_MAX_AGE` the (still valid) content is served
-    with ``state = "stale"``, its age and its reason — never ``ok``.
+    with ``state = "stale"``, its age and its reason — never ``ok``. A
+    snapshot dated ahead of the relay clock beyond
+    :data:`OPPORTUNITIES_CLOCK_DRIFT_TOLERANCE` is answered
+    ``state = "clock_inconsistent"`` WITHOUT content: a clock problem is
+    reported as a clock problem, never as invalid stored content.
     """
     if snapshot is None:
         return OpportunitiesResponse(
@@ -580,15 +697,40 @@ def build_opportunities_response(
     profile = _referenced_profile(content, profiles_path=profiles_path)
     qualified = _require_list(content.get("qualified"), field="qualified")
     excluded = _require_list(content.get("excluded"), field="excluded")
+    seen_candidates: set[str] = set()
     for index, raw in enumerate(qualified):
         candidate = _require_mapping(raw, field=f"qualified[{index}]")
         _check_qualified(candidate, field=f"qualified[{index}]", profile=profile)
+        _register_identity(
+            candidate, field=f"qualified[{index}]", seen=seen_candidates
+        )
     for index, raw in enumerate(excluded):
         candidate = _require_mapping(raw, field=f"excluded[{index}]")
         _check_excluded(candidate, field=f"excluded[{index}]", profile=profile)
+        _register_identity(
+            candidate, field=f"excluded[{index}]", seen=seen_candidates
+        )
     _require_mapping(content.get("exclusion_reasons"), field="exclusion_reasons")
 
     age = _snapshot_age(snapshot, now=_utc_now() if now is None else now)
+    if age < -OPPORTUNITIES_CLOCK_DRIFT_TOLERANCE:
+        # The snapshot is dated further ahead than two processes can drift:
+        # its age is unknown, so no verdict is served — and the reason names
+        # the CLOCK, never the persisted content (P2-J).
+        return OpportunitiesResponse(
+            state="clock_inconsistent",
+            snapshot_version=snapshot.version,
+            as_of=None,
+            age_seconds=None,
+            content=None,
+            reason=REASON_CLOCK_INCONSISTENT.format(
+                drift=int(-age.total_seconds()),
+                tolerance=int(OPPORTUNITIES_CLOCK_DRIFT_TOLERANCE.total_seconds()),
+            ),
+        )
+    if age < _ZERO:
+        # Tolerated process skew: the age is clamped, never published negative.
+        age = _ZERO
     stale = age > OPPORTUNITIES_MAX_AGE
     return OpportunitiesResponse(
         state="stale" if stale else "ok",

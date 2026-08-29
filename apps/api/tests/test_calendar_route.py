@@ -7,7 +7,7 @@ worker publishes (``vertex_worker.calendar.build_calendar_content``).
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from fastapi import FastAPI
@@ -15,12 +15,19 @@ from fastapi.testclient import TestClient
 
 from snapshot_fakes import FakeSnapshotReader, synthetic_session
 from vertex_api.auth import require_session
-from vertex_api.calendar import build_calendar_response
+from vertex_api import calendar as calendar_module
+from vertex_api.calendar import (
+    CALENDAR_FRESHNESS_POLICY,
+    CALENDAR_MAX_AGE,
+    build_calendar_response,
+)
 from vertex_api.snapshot_reader import get_snapshot_reader
 from vertex_api.snapshot_views import SnapshotContentError
 from vertex_persistence.repository.snapshots import CurrentSnapshot
 
 AS_OF = datetime(2026, 8, 25, 12, 0, 0, tzinfo=timezone.utc)
+NOW = AS_OF + timedelta(minutes=5)
+"""Relay instant of every test: no assertion here depends on real time."""
 
 RULE = {
     "version": "importance_rule/1.0",
@@ -127,9 +134,14 @@ def reader() -> FakeSnapshotReader:
 
 
 @pytest.fixture()
-def api(app: FastAPI, reader: FakeSnapshotReader) -> TestClient:
+def api(
+    app: FastAPI, reader: FakeSnapshotReader, monkeypatch: pytest.MonkeyPatch
+) -> TestClient:
     app.dependency_overrides[require_session] = synthetic_session
     app.dependency_overrides[get_snapshot_reader] = lambda: reader
+    # The route owns no clock dependency: the relay's own clock seam is
+    # replaced by a FIXED instant so no test depends on the real time.
+    monkeypatch.setattr(calendar_module, "_utc_now", lambda: NOW)
     with TestClient(app) as client:
         yield client
     app.dependency_overrides.clear()
@@ -232,14 +244,14 @@ def test_window_violations_are_typed_422(
 def test_invalid_status_in_snapshot_is_refused() -> None:
     broken = snapshot([event("syn-ev-1", status="TENTATIVE")])
     with pytest.raises(SnapshotContentError):
-        build_calendar_response(broken, window=None)
+        build_calendar_response(broken, window=None, now=NOW)
 
 
 def test_missing_rule_version_is_refused() -> None:
     broken = snapshot([event("syn-ev-1")])
     broken.content["importance_rule"] = {"ranks": []}
     with pytest.raises(SnapshotContentError):
-        build_calendar_response(broken, window=None)
+        build_calendar_response(broken, window=None, now=NOW)
 
 
 # --------------------------------------------------------------------------
@@ -317,7 +329,7 @@ def test_an_unknown_agenda_state_is_refused() -> None:
     broken = snapshot([event("syn-ev-1")])
     broken.content["agenda_state"] = "PROBABLY_FINE"
     with pytest.raises(SnapshotContentError):
-        build_calendar_response(broken, window=None)
+        build_calendar_response(broken, window=None, now=NOW)
 
 
 def test_a_naive_event_time_is_refused_with_and_without_window() -> None:
@@ -329,9 +341,9 @@ def test_a_naive_event_time_is_refused_with_and_without_window() -> None:
         datetime(2026, 10, 1, tzinfo=timezone.utc),
     )
     with pytest.raises(SnapshotContentError):
-        build_calendar_response(broken, window=None)
+        build_calendar_response(broken, window=None, now=NOW)
     with pytest.raises(SnapshotContentError):
-        build_calendar_response(broken, window=window)
+        build_calendar_response(broken, window=window, now=NOW)
 
 
 def test_window_counters_do_not_contradict_the_displayed_list(
@@ -424,7 +436,7 @@ def test_a_legacy_snapshot_keeps_failing_closed_on_its_events(
     legacy = snapshot([event("syn-ev-1", status="TENTATIVE")])
     legacy.content.pop("agenda_state")
     with pytest.raises(SnapshotContentError):
-        build_calendar_response(legacy, window=None)
+        build_calendar_response(legacy, window=None, now=NOW)
 
 
 def test_a_window_that_selects_nothing_is_not_reported_ok(
@@ -484,6 +496,9 @@ def test_a_wholly_stale_agenda_is_relayed_as_stale(
     relayed as ``stale`` with its reason, never flattened into ``ok``."""
     stale_event = event("syn-ev-1")
     stale_event["fresh"] = False
+    # The fixture is COHERENT with the verdict it publishes: the event is
+    # really past its ``stale_after`` at the relay instant.
+    stale_event["stale_after"] = (NOW - timedelta(minutes=1)).isoformat()
     reader.snapshots[("calendar", "global")] = snapshot(
         [stale_event],
         agenda_state="STALE",
@@ -493,6 +508,7 @@ def test_a_wholly_stale_agenda_is_relayed_as_stale(
     assert body["state"] == "stale"
     assert body["reason"] == "every displayed event is stale (1/1)"
     assert [entry["event_id"] for entry in body["agenda"]] == ["syn-ev-1"]
+    assert body["agenda"][0]["fresh"] is False
 
 
 def test_every_state_the_worker_can_publish_is_mapped() -> None:
@@ -504,3 +520,209 @@ def test_every_state_the_worker_can_publish_is_mapped() -> None:
     from vertex_api.calendar import AGENDA_STATE_TO_RESPONSE_STATE
 
     assert set(AGENDA_STATES) == set(AGENDA_STATE_TO_RESPONSE_STATE)
+
+
+# --------------------------------------------------------------------------
+# Regression tests of the THIRD adversarial audit (P1-F, P1-E).
+# --------------------------------------------------------------------------
+
+
+def legacy_event(event_id: str, **kwargs) -> dict:
+    """One agenda entry in the FIRST published worker format (dafadb9).
+
+    That builder published neither ``previous_values`` (its trace of the
+    superseded records did not exist yet) nor the freshness triplet
+    (``fresh``/``stale_after``/``delay_status``) nor the version state; only
+    ``revisions`` and the value fields existed. Snapshots in that exact shape
+    are still the CURRENT row of a deployment that has not observed a new
+    calendar event since, because publication is publish-if-changed.
+    """
+    entry = event(event_id, **kwargs)
+    for absent in (
+        "previous_values",
+        "fresh",
+        "stale_after",
+        "delay_status",
+    ):
+        entry.pop(absent, None)
+    return entry
+
+
+def test_a_snapshot_in_the_first_worker_format_is_served_degraded_not_500(
+    api: TestClient, reader: FakeSnapshotReader
+) -> None:
+    """P1-F — the snapshot the FIRST calendar worker published carries no
+    ``agenda_state`` and no ``previous_values``. Publication being
+    publish-if-changed, refusing it leaves page 02 in a PERMANENT 500 until
+    the next calendar observation. It is served degraded, with its cause."""
+    legacy = snapshot([legacy_event("syn-ev-1"), legacy_event("syn-ev-2")])
+    legacy.content.pop("agenda_state")
+    legacy.content.pop("agenda_state_reason")
+    reader.snapshots[("calendar", "global")] = legacy
+
+    response = api.get("/api/v1/calendar")
+    assert response.status_code == 200
+    body = response.json()
+
+    assert body["state"] == "degraded"
+    assert [entry["event_id"] for entry in body["agenda"]] == [
+        "syn-ev-1",
+        "syn-ev-2",
+    ]
+    assert body["window"]["events_total"] == 2
+    # Both causes are NAMED, never silently swallowed.
+    assert "agenda_state" in body["reason"]
+    assert "previous_values" in body["reason"]
+
+
+@pytest.mark.parametrize("field", ["previous_values", "revisions"])
+def test_an_absent_event_field_is_degraded_never_a_500(
+    api: TestClient, reader: FakeSnapshotReader, field: str
+) -> None:
+    """P1-F — absence is a KNOWN older contract: the readable agenda is
+    served degraded with its cause, exactly like an absent ``agenda_state``,
+    instead of taking the page down."""
+    entry = event("syn-ev-1")
+    entry.pop(field)
+    reader.snapshots[("calendar", "global")] = snapshot([entry])
+
+    response = api.get("/api/v1/calendar")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["state"] == "degraded"
+    assert field in body["reason"]
+    assert [e["event_id"] for e in body["agenda"]] == ["syn-ev-1"]
+
+
+@pytest.mark.parametrize("field", ["previous_values", "revisions"])
+@pytest.mark.parametrize("value", ["", 0, {}, "[]"])
+def test_an_invalid_event_field_value_is_still_refused(
+    field: str, value: object
+) -> None:
+    """P1-F — the symmetric half of the rule: a PRESENT but unreadable value
+    is a claim the relay cannot verify, and keeps failing closed."""
+    broken = snapshot([event("syn-ev-1")])
+    broken.content["agenda"][0][field] = value
+    with pytest.raises(SnapshotContentError):
+        build_calendar_response(broken, window=None, now=NOW)
+
+
+def test_an_agenda_past_its_budget_is_served_stale_not_ok(
+    reader: FakeSnapshotReader,
+) -> None:
+    """P1-E — ``fresh`` and ``agenda_state`` are computed at CONSTRUCTION and
+    frozen in the snapshot; publish-if-changed means no recomputation ever
+    happens. Without a relay-side budget a three-day-old agenda is served
+    ``ok``. Past the budget the relay serves ``stale`` with age and cause."""
+    published = snapshot([event("syn-ev-1")])
+    late = AS_OF + CALENDAR_MAX_AGE + timedelta(seconds=1)
+
+    response = build_calendar_response(published, window=None, now=late)
+
+    assert response.state == "stale"
+    assert response.state != "ok"
+    assert response.reason is not None
+    assert str(int((late - AS_OF).total_seconds())) in response.reason
+    assert str(int(CALENDAR_MAX_AGE.total_seconds())) in response.reason
+    assert CALENDAR_FRESHNESS_POLICY in response.reason
+    # The content stays AVAILABLE: the budget qualifies it, it never hides it.
+    assert [entry["event_id"] for entry in response.agenda] == ["syn-ev-1"]
+
+
+def test_a_snapshot_inside_its_budget_stays_ok() -> None:
+    """P1-E — the bound is not a trap: at EXACTLY the budget a snapshot whose
+    events are still inside their own ``stale_after`` is served ok."""
+    limit = AS_OF + CALENDAR_MAX_AGE
+    entry = event("syn-ev-1")
+    entry["stale_after"] = (limit + timedelta(hours=1)).isoformat()
+    response = build_calendar_response(snapshot([entry]), window=None, now=limit)
+    assert response.state == "ok"
+    assert response.reason is None
+    assert response.agenda[0]["fresh"] is True
+
+
+def test_the_fresh_flag_is_never_a_frozen_lie() -> None:
+    """P1-E — ``fresh`` is a claim ABOUT THE RELAY CLOCK. Relayed verbatim it
+    keeps asserting ``true`` days after its ``stale_after``. It is recomputed
+    at the relay from ``stale_after`` and the server clock."""
+    entry = event("syn-ev-1")
+    entry["fresh"] = True
+    entry["stale_after"] = "2026-08-25T18:00:00+00:00"
+    published = snapshot([entry])
+
+    before = build_calendar_response(
+        published,
+        window=None,
+        now=datetime(2026, 8, 25, 17, 0, tzinfo=timezone.utc),
+    )
+    assert before.agenda[0]["fresh"] is True
+
+    after = build_calendar_response(
+        published,
+        window=None,
+        now=datetime(2026, 8, 25, 19, 0, tzinfo=timezone.utc),
+    )
+    assert after.agenda[0]["fresh"] is False
+    # ...and the published ``stale_after`` stays relayed verbatim beside it.
+    assert after.agenda[0]["stale_after"] == "2026-08-25T18:00:00+00:00"
+
+
+def test_an_event_without_stale_after_never_claims_freshness() -> None:
+    """P1-E — an older contract publishes no ``stale_after``: the relay
+    cannot verify ``fresh``, so it REMOVES the unverifiable claim instead of
+    relaying it."""
+    entry = event("syn-ev-1")
+    entry["fresh"] = True
+    entry.pop("stale_after")
+    published = snapshot([entry])
+
+    response = build_calendar_response(published, window=None, now=NOW)
+    assert "fresh" not in response.agenda[0]
+    assert response.state == "degraded"
+    assert "stale_after" in (response.reason or "")
+
+
+def test_an_agenda_whose_every_served_event_is_stale_is_not_ok() -> None:
+    """P1-E — the worker's ``STALE`` verdict is frozen too: an agenda
+    published ``OK`` whose events have ALL passed their ``stale_after`` since
+    is served ``stale``, never ``ok`` with false ``fresh`` flags."""
+    entry = event("syn-ev-1")
+    entry["stale_after"] = "2026-08-25T18:00:00+00:00"
+    published = snapshot([entry])
+
+    response = build_calendar_response(
+        published,
+        window=None,
+        now=datetime(2026, 8, 25, 19, 0, tzinfo=timezone.utc),
+    )
+    assert response.state == "stale"
+    assert response.agenda[0]["fresh"] is False
+    assert response.reason is not None
+
+
+def test_a_snapshot_dated_in_the_future_is_refused() -> None:
+    """P1-E — a negative age is a temporal incoherence, never 'very fresh'."""
+    published = snapshot([event("syn-ev-1")])
+    with pytest.raises(SnapshotContentError):
+        build_calendar_response(
+            published, window=None, now=AS_OF - timedelta(seconds=1)
+        )
+
+
+def test_the_freshness_budget_comes_from_the_versioned_registry() -> None:
+    """P1-E — the bound is the registry's own versioned value, not a number
+    invented in the relay."""
+    from vertex_core.data.freshness import get_freshness_policy
+
+    policy = get_freshness_policy(CALENDAR_FRESHNESS_POLICY)
+    assert CALENDAR_MAX_AGE == timedelta(seconds=policy.ttl_closed_seconds)
+
+
+def test_a_naive_relay_clock_is_refused() -> None:
+    """P1-E — a naive clock would be read as local time and silently shift
+    every age and every recomputed ``fresh`` flag."""
+    published = snapshot([event("syn-ev-1")])
+    with pytest.raises(ValueError):
+        build_calendar_response(
+            published, window=None, now=datetime(2026, 8, 25, 12, 5)
+        )

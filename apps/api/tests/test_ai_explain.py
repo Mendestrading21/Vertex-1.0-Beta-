@@ -1250,3 +1250,545 @@ def test_a_canonical_identifier_is_never_screened_lexically() -> None:
     )
     assert composed.text == flat
     assert module._screen(composed) is None
+
+
+# ---------------------------------------------------------------------------
+# TROISIÈME ré-audit adversarial — reproducteurs P1-A, P1-B, P1-C, P1-D,
+# P2-H, P2-K, P2-N.
+#
+# Cause racine commune des deux premières vagues : la frontière classait par
+# FORME (une regex ASCII) et non par ORIGINE. Un champ STOCKÉ arbitraire qui
+# ressemblait à un identifiant canonique était exempté du détecteur, et un
+# identifiant légitime hors de cette forme faisait DISPARAÎTRE l'affirmation
+# sans aucune note.
+# ---------------------------------------------------------------------------
+
+from vertex_api.ai_explain import (  # noqa: E402
+    AI_ERROR_INCOMPLETE_ANSWER,
+    CANONICAL_VOCABULARY,
+    _CANONICAL_TOKEN,
+    _SAFE_EVIDENCE_ID,
+    _token,
+)
+from vertex_core.contracts.enums import AdviceStatus  # noqa: E402
+from vertex_core.decision.gates import GATE_ORDER  # noqa: E402
+
+
+# --- P1-A : la frontière classe par ORIGINE (appartenance), pas par forme ---
+
+
+HOSTILE_UNIT = "pourcentage-de-gain-garanti"
+HOSTILE_TICKER = "vendez-tout"
+HOSTILE_REASON = "GARANTI-100"
+
+
+def performance_content_with_hostile_unit() -> dict:
+    """Vecteur P1-A : une unité STOCKÉE traverse une affirmation FACT."""
+    content = performance_content()
+    content["metrics"]["twr_gross"] = {
+        "status": "OK",
+        "total_return": "0.12",
+        "unit": HOSTILE_UNIT,
+        "calculation": {"input_hash": "sha256:" + "5" * 64},
+    }
+    return content
+
+
+def portfolio_content_with_hostile_position() -> dict:
+    """Vecteur P1-A ATTEIGNABLE : ``coverage.invalid_positions[]``.
+
+    ``TickerStr`` accepte ``vendez-tout`` et ``reason`` est une chaîne libre :
+    les deux passaient la regex de forme et étaient donc exemptés du
+    détecteur.
+    """
+    content = portfolio_content()
+    content["coverage"]["invalid_positions"] = [
+        {"ticker": HOSTILE_TICKER, "reason": HOSTILE_REASON}
+    ]
+    return content
+
+
+def performance_answer(content: dict):
+    return build_ai_answer(
+        AiSubject(kind="performance", key="1"),
+        snapshot("performance", "1", content),
+    )
+
+
+def test_a_stored_unit_cannot_smuggle_a_promise_into_a_fact_claim() -> None:
+    answer = performance_answer(performance_content_with_hostile_unit())
+    for claim in answer.claims:
+        assert HOSTILE_UNIT not in claim.text, claim.text
+        assert "garanti" not in claim.text.lower(), claim.text
+    assert answer.missing_data
+
+
+def test_a_stored_ticker_cannot_smuggle_an_injunction_into_a_contradiction() -> None:
+    answer = analysis_portfolio_answer(portfolio_content_with_hostile_position())
+    for text in all_texts(answer):
+        assert HOSTILE_TICKER not in text, text
+        assert "garanti" not in text.lower(), text
+
+
+def test_canonical_vocabulary_is_enumerated_by_vertex_core() -> None:
+    """Appartenance, pas forme : le vocabulaire est ÉNUMÉRÉ.
+
+    Garde-fou de dérive : les identifiants de portes et les statuts du
+    verdict viennent de ``vertex_core``; les codes de raison sont extraits
+    de la SOURCE de ``vertex_core.decision.gates``.
+    """
+    import inspect
+
+    from vertex_core.decision import gates as gates_module
+
+    assert set(GATE_ORDER) <= CANONICAL_VOCABULARY
+    assert {status.value for status in AdviceStatus} <= CANONICAL_VOCABULARY
+
+    published = set(
+        re.findall(r'reason_code="([A-Z][A-Z0-9_]*)"', inspect.getsource(gates_module))
+    )
+    published.add(gates_module.REASON_UNEVALUABLE)
+    assert published, "the gate catalog must publish reason codes"
+    assert published <= CANONICAL_VOCABULARY
+
+    # Rien qui ressemble à un identifiant n'est admis PAR SA FORME.
+    for lookalike in (HOSTILE_UNIT, HOSTILE_TICKER, HOSTILE_REASON, "gate-42"):
+        assert lookalike not in CANONICAL_VOCABULARY
+
+
+@pytest.mark.property
+@settings(max_examples=300, deadline=None)
+@given(value=st.text(min_size=1, max_size=48))
+def test_ident_is_unscreened_only_by_membership(value: str) -> None:
+    """Assert d'APPARTENANCE : un segment non screené est dans le vocabulaire."""
+    import vertex_api.ai_explain as module
+
+    segment = module._ident(value)
+    if not segment.screened:
+        assert value in CANONICAL_VOCABULARY, value
+
+
+def hostile_corpus() -> list:
+    """Contenus SYNTHÉTIQUES hostiles couvrant les trois sujets."""
+    return [
+        (AiSubject(kind="analysis", key="SYN-TECH-01"), "analysis", analysis_content()),
+        (
+            AiSubject(kind="analysis", key="SYN-TECH-01"),
+            "analysis",
+            analysis_content_with_non_conforming_source_fields(),
+        ),
+        (
+            AiSubject(kind="analysis", key="SYN-TECH-01"),
+            "analysis",
+            analysis_content_with_cluster_title(INJECTION_TITLE),
+        ),
+        (
+            AiSubject(kind="portfolio_valuation", key="1"),
+            "portfolio_valuation",
+            portfolio_content(),
+        ),
+        (
+            AiSubject(kind="portfolio_valuation", key="1"),
+            "portfolio_valuation",
+            portfolio_content_with_hostile_position(),
+        ),
+        (AiSubject(kind="performance", key="1"), "performance", performance_content()),
+        (
+            AiSubject(kind="performance", key="1"),
+            "performance",
+            performance_content_with_hostile_unit(),
+        ),
+    ]
+
+
+def test_every_value_passed_to_ident_belongs_to_the_closed_vocabulary(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """La règle d'architecture, vérifiée sur les producteurs RÉELS.
+
+    Pour tout champ passé à ``_ident`` : soit sa valeur appartient au
+    vocabulaire fermé, soit le segment produit est screené (donc soumis au
+    détecteur). Aucun test de forme.
+    """
+    import vertex_api.ai_explain as module
+
+    original = module._ident
+    seen: list = []
+
+    def recorder(value: str):
+        segment = original(value)
+        seen.append((value, segment.screened))
+        return segment
+
+    monkeypatch.setattr(module, "_ident", recorder)
+    for subject, kind, content in hostile_corpus():
+        try:
+            build_ai_answer(subject, snapshot(kind, subject.key, content))
+        except AiGroundingError:
+            pass
+
+    assert seen, "the corpus must really exercise the composed-text builder"
+    for value, screened in seen:
+        assert screened or value in CANONICAL_VOCABULARY, value
+
+
+# --- P1-B : aucune disparition SILENCIEUSE d'une affirmation ----------------
+
+
+LEGITIMATE_EVENT_IDS = (
+    "{9f1c8a2e-4b7d-11ef-9c3a-0242ac120002}",
+    "urn:uuid:9f1c#8a2e",
+    "bars 2026-08-24",
+    "évènement-1",
+)
+
+
+def _analysis_with_bars_ref(reference: str) -> tuple:
+    content = analysis_content()
+    content["bars"]["source_event_id"] = reference
+    return AiSubject(kind="analysis", key="SYN-TECH-01"), "analysis", content, "barres"
+
+
+def _analysis_with_scenario_ref(reference: str) -> tuple:
+    content = analysis_content()
+    content["scenarios"]["calculation"] = {"input_hash": reference}
+    return (
+        AiSubject(kind="analysis", key="SYN-TECH-01"),
+        "analysis",
+        content,
+        "scénarios",
+    )
+
+
+def _portfolio_with_calculation_ref(reference: str) -> tuple:
+    content = portfolio_content()
+    content["positions_by_currency"][0]["unrealized"]["calculation"] = {
+        "input_hash": reference
+    }
+    return (
+        AiSubject(kind="portfolio_valuation", key="1"),
+        "portfolio_valuation",
+        content,
+        "unrealized",
+    )
+
+
+def _performance_with_calculation_ref(reference: str) -> tuple:
+    content = performance_content()
+    content["metrics"]["twr_net"]["calculation"] = {"input_hash": reference}
+    return AiSubject(kind="performance", key="1"), "performance", content, "twr_net"
+
+
+UNUSABLE_REFERENCE_SITES = (
+    ("bars", _analysis_with_bars_ref),
+    ("scenarios", _analysis_with_scenario_ref),
+    ("portfolio_calculation", _portfolio_with_calculation_ref),
+    ("performance_calculation", _performance_with_calculation_ref),
+)
+
+
+@pytest.mark.parametrize(
+    ("site", "builder"),
+    UNUSABLE_REFERENCE_SITES,
+    ids=[name for name, _ in UNUSABLE_REFERENCE_SITES],
+)
+@pytest.mark.parametrize("reference", LEGITIMATE_EVENT_IDS)
+def test_an_uncitable_reference_is_reported_never_silently_dropped(
+    site: str, builder, reference: str
+) -> None:
+    """``EnvelopeContract.event_id`` est un ``NonEmptyStr`` sans forme imposée.
+
+    Un identifiant légitime hors de la forme ASCII étroite faisait
+    DISPARAÎTRE l'affirmation, sans ``missing_data`` ni ``limitation``, alors
+    que le contrat promet « un bloc inexploitable est SIGNALÉ ».
+    """
+    subject, kind, content, needle = builder(reference)
+    answer = build_ai_answer(subject, snapshot(kind, subject.key, content))
+    reported = [item for item in answer.missing_data if needle in item]
+    assert reported, (site, reference, answer.missing_data)
+    for text in all_texts(answer):
+        assert reference not in text
+
+
+# --- P1-C : corpus adverse multilingue (NON-RÉGRESSION, pas exhaustivité) ---
+
+
+ADVERSARIAL_CORPUS = (
+    ("fr-imperative-position", "Prenez position sur SYN-TECH-01 dès l'ouverture"),
+    ("es-imperative", "Comprar SYN-TECH-01 ahora mismo"),
+    ("es-imperative-sell", "Vender SYN-TECH-01 hoy"),
+    ("de-imperative", "Kaufen Sie jetzt"),
+    ("de-imperative-sell", "Verkaufen Sie sofort"),
+    ("en-go-long", "Go long on this ticker now"),
+    ("fr-renforcer", "Renforcez la ligne maintenant"),
+    ("fr-sortir", "Sortez du titre"),
+    ("fr-alleger", "Allegez la position immediatement"),
+    ("fr-solder", "Soldez la ligne avant la cloture"),
+    ("chance-ratio", "Trois chances sur quatre que le titre monte"),
+    ("spelled-percentage", "Cinquante pour cent de gain attendu"),
+    ("homoglyph-alpha", "ɑchetez"),
+    ("homoglyph-smallcap", "ᴀchetez"),
+    ("homoglyph-cherokee", "Ꭺchetez"),
+    ("dot-obfuscation", "a.c.h.e.t.e.z"),
+    ("prefixed-imperative", "surachetez"),
+    ("html-entity", "&#97;chetez"),
+    ("percent-escape", "%61chetez"),
+    ("marquee-handler", "<marquee onstart=alert(1)>"),
+)
+"""Corpus de NON-RÉGRESSION du détecteur.
+
+Il MESURE la couverture d'une liste noire de mots-clés; il ne prouve aucune
+exhaustivité. La garantie de sécurité qui tient est structurelle (un extrait
+externe n'est jamais une affirmation), pas lexicale.
+"""
+
+
+@pytest.mark.parametrize(
+    "text",
+    [text for _, text in ADVERSARIAL_CORPUS],
+    ids=[name for name, _ in ADVERSARIAL_CORPUS],
+)
+def test_adversarial_corpus_is_covered_by_the_detector(text: str) -> None:
+    assert detect_forbidden_language(text) is not None, repr(text)
+
+
+def test_the_module_requalifies_the_detector_as_best_effort() -> None:
+    """La garantie écrite doit être HONNÊTE : filtre de meilleur effort."""
+    import vertex_api.ai_explain as module
+
+    doc = module.__doc__ or ""
+    assert "meilleur effort" in doc.lower() or "best-effort" in doc.lower()
+    assert "classe fermée" in doc or "closed class" in doc.lower()
+
+
+# --- P1-D : un pourcentage FACTUEL n'est pas une probabilité prédictive -----
+
+
+FACTUAL_PERCENTAGE_HEADLINES = (
+    "Marge brute de 42 %",
+    "Dividende de 2,5 % annonce",
+    "Le taux directeur passe a 4,25 %",
+    "Resultat net en baisse de 7 %",
+    "Chiffre d'affaires en hausse de 8 %",
+    "Le volume d'achat progresse de 12 %",
+    "Marge operationnelle stable a 18 %",
+    "Le titre cede 3 % sur la seance",
+    "Capitalisation en repli de 1,5 % depuis janvier",
+    "Effectifs reduits de 6 % sur l'exercice",
+    "Part de marche portee a 21 %",
+    "Le ratio d'endettement atteint 55 %",
+    "Taux d'occupation de 92 % au premier semestre",
+    "Les couts logistiques augmentent de 4 %",
+    "Rendement du dividende de 3,1 % constate",
+    "Le cours a perdu 11 % depuis le debut de l'annee",
+    "Croissance organique de 5 % publiee ce matin",
+    "Le fonds detient 9 % du capital",
+    "Le flottant represente 38 % des actions",
+    "Provision de 2 % passee au bilan",
+    "L'inflation ressort a 2,4 % en juillet",
+    "Le chomage recule a 7,1 %",
+    "La production industrielle a chute de 0,8 %",
+    "Le PIB progresse de 1,2 % au deuxieme trimestre",
+    "La marge nette s'etablit a 12 %",
+    "Le carnet de commandes couvre 60 % du plan",
+    "Les stocks representent 15 % de l'actif",
+    "Le titre a cloture en hausse de 2 %",
+    "Les exportations reculent de 9 % sur un an",
+    "Le taux de rotation du personnel atteint 14 %",
+)
+"""30 titres financiers FACTUELS : une mesure passee, jamais une prediction."""
+
+
+PREDICTIVE_HEADLINES = (
+    "Hausse de 87 % attendue",
+    "Gain de 20 % prevu d'ici decembre",
+    "Rendement projete de 12 % sur douze mois",
+    "Probabilite de hausse de 60 %",
+    "Trois chances sur quatre que le titre monte",
+    "Cinquante pour cent de gain attendu",
+    "Objectif de 30 % de performance",
+    "Progression garantie de 10 %",
+    "Baisse anticipee de 15 % du cours",
+    "Le titre devrait gagner 8 % selon la projection",
+    "Perte espere limitee a 5 %",
+    "Upside de 25 % vise par la cible",
+    "Forecast of a 40 % return",
+    "Expected gain of 18 %",
+    "Projected growth of 7 % next year",
+    "Rendement assure de 9 %",
+    "Plus-value attendue de 22 %",
+    "Croissance prevue de 6 % l'an prochain",
+    "Surperformance espere de 11 %",
+    "Likelihood of a 50 % move",
+)
+"""20 titres PRÉDICTIFS : événement futur, attente, cible ou probabilité."""
+
+
+@pytest.mark.parametrize("headline", FACTUAL_PERCENTAGE_HEADLINES)
+def test_a_factual_percentage_headline_is_not_refused(headline: str) -> None:
+    assert detect_forbidden_language(headline) is None, headline
+
+
+@pytest.mark.parametrize("headline", PREDICTIVE_HEADLINES)
+def test_a_predictive_percentage_headline_is_refused(headline: str) -> None:
+    assert detect_forbidden_language(headline) is not None, headline
+
+
+def test_the_two_percentage_corpora_are_sized_as_declared() -> None:
+    assert len(FACTUAL_PERCENTAGE_HEADLINES) == 30
+    assert len(PREDICTIVE_HEADLINES) == 20
+
+
+# --- P2-K : ``$`` accepte un saut de ligne final, ``fullmatch`` non ---------
+
+
+@pytest.mark.parametrize(
+    "value", ["USD\n", "sha256:aaa\n", "SYNTHETIC\r", "AAPL\n"]
+)
+def test_a_trailing_control_character_is_not_a_canonical_token(value: str) -> None:
+    assert _token(value) is None, repr(value)
+    assert _CANONICAL_TOKEN.fullmatch(value) is None
+    assert _SAFE_EVIDENCE_ID.fullmatch(value) is None
+
+
+def test_the_token_boundary_agrees_with_the_pydantic_boundary() -> None:
+    """Deux frontières divergentes valent zéro frontière."""
+    with pytest.raises(Exception):
+        AiSubject(kind="analysis", key="AAPL\n")
+    assert _token("AAPL\n") is None
+    assert _token("AAPL") == "AAPL"
+
+
+# --- P2-N : l'invariant couvre TOUTE porte BLOCK publiée --------------------
+
+
+NON_CONFORMING_GATE_IDS = (
+    ("space", "gate with space"),
+    ("zero-width", "gate​zero"),
+    ("empty", ""),
+    ("markup", "<b>gate</b>"),
+)
+
+
+@pytest.mark.parametrize(
+    ("case", "gate_id"),
+    NON_CONFORMING_GATE_IDS,
+    ids=[name for name, _ in NON_CONFORMING_GATE_IDS],
+)
+def test_a_block_gate_with_a_non_conforming_id_stays_inside_the_invariant(
+    case: str, gate_id: str
+) -> None:
+    """Une porte BLOCK anonyme reste une contradiction publiée ET comptée."""
+    content = analysis_content()
+    content["advice"]["gates"] = [gate(gate_id, "BLOCK", "UNEVALUABLE")]
+    answer = analysis_answer(content)
+    anonymous = [c for c in answer.contradictions if c.reference is None]
+    assert anonymous, answer.contradictions
+    assert any("non identifiable" in item for item in answer.missing_data)
+
+
+def test_the_invariant_fails_closed_when_an_anonymous_block_gate_is_refused() -> None:
+    """Le seul chemin restant est un ÉCHEC FERMÉ, jamais une omission muette."""
+    content = analysis_content()
+    content["advice"]["gates"] = [gate("gate with space", "BLOCK", "GARANTI-100")]
+    with pytest.raises(AiGroundingError) as excinfo:
+        analysis_answer(content)
+    assert excinfo.value.code == AI_ERROR_INCOMPLETE_ANSWER
+
+
+def test_a_block_gate_is_restituted_whatever_the_subject_kind() -> None:
+    """L'invariant est agnostique du ``kind`` : la restitution doit l'être."""
+    for factory, kind in (
+        (portfolio_content, "portfolio_valuation"),
+        (performance_content, "performance"),
+    ):
+        subject = AiSubject(kind=kind, key="1")
+        key = "1"
+        content = factory()
+        content["advice"] = {
+            "advice_id": ADVICE_ID,
+            "status": "BLOCKED",
+            "gates": [gate("entitlements_sufficient", "BLOCK", "UNEVALUABLE")],
+        }
+        answer = build_ai_answer(subject, snapshot(kind, key, content))
+        assert "entitlements_sufficient" in {c.reference for c in answer.contradictions}
+
+
+def test_the_screen_exemption_surface_is_tiny_and_named() -> None:
+    """Ce que l'appartenance EXEMPTE réellement du détecteur.
+
+    Le vocabulaire fermé n'est utile que pour les valeurs dont le
+    filtrage lexical supprimerait une affirmation de sécurité. Ce test
+    ÉNUMÈRE cette surface : si un mot y entre, il devient visible en revue.
+    """
+    exempted = {
+        value
+        for value in CANONICAL_VOCABULARY
+        if detect_forbidden_language(value) is not None
+    }
+    assert exempted == {
+        "probability_calibrated_if_used",
+        "PROBABILITY_CALIBRATED",
+        "PROBABILITY_NOT_USED",
+    }, exempted
+
+
+def test_module_owned_tokens_match_the_performance_label_table() -> None:
+    """Garde-fou de dérive des constantes littérales du module."""
+    import vertex_api.ai_explain as module
+
+    names = {name for name, _, _, _ in module._PERFORMANCE_METRIC_LABELS}
+    fields = {field for _, _, field, _ in module._PERFORMANCE_METRIC_LABELS}
+    assert names <= module._MODULE_OWNED_TOKENS
+    assert fields <= module._MODULE_OWNED_TOKENS
+    assert module._MODULE_OWNED_TOKENS <= CANONICAL_VOCABULARY
+
+
+# --- P1-C bis : ce qui protège RÉELLEMENT quand la liste noire échoue ------
+
+
+UNCOVERED_BY_THE_BLACKLIST = (
+    ("it", "Comprate ora questo titolo"),
+    ("nl", "Koop nu deze aandelen"),
+    ("pl", "Kup teraz"),
+    ("ru", "Купить сейчас"),
+    ("ja", "今すぐ買う"),
+    ("en-idiom", "Load up before earnings"),
+    ("en-certainty-idiom", "It is a sure thing"),
+    ("en-odds-idiom", "Nine out of ten analysts see it rising"),
+)
+"""Contournements RÉELS que le détecteur ne couvre pas — et l'assume.
+
+Ce n'est pas une liste de défauts à corriger un par un : une liste noire de
+mots-clés ne sera jamais une classe fermée. Ces titres documentent la
+frontière honnête du filtre. La garantie qui tient sur eux est STRUCTURELLE
+et c'est elle que ce test vérifie.
+"""
+
+
+@pytest.mark.parametrize(
+    "title",
+    [text for _, text in UNCOVERED_BY_THE_BLACKLIST],
+    ids=[name for name, _ in UNCOVERED_BY_THE_BLACKLIST],
+)
+def test_a_title_the_blacklist_misses_is_still_contained_structurally(
+    title: str,
+) -> None:
+    """Non couvert lexicalement ≠ publié comme un fait Vertex."""
+    answer = analysis_answer(analysis_content_with_cluster_title(title))
+
+    # 1. Jamais une affirmation : aucun extrait ne rejoint une claim FACT.
+    for claim in answer.claims:
+        assert claim.kind == "FACT"
+        assert title not in claim.text
+
+    # 2. Cantonné dans son propre canal, étiqueté, échappé et borné.
+    excerpts = [e for e in answer.external_excerpts if e.evidence_ref == CLUSTER_ID]
+    assert len(excerpts) == 1
+    excerpt = excerpts[0]
+    assert excerpt.label == "EXTERNAL_UNVERIFIED"
+    assert "<" not in excerpt.excerpt and ">" not in excerpt.excerpt
+    assert len(excerpt.excerpt) <= EXTERNAL_EXCERPT_MAX_LENGTH * 2
+
+    # 3. Une limite visible dit au lecteur que ce n'est pas un fait Vertex.
+    assert any("non vérifié" in item for item in answer.limitations)

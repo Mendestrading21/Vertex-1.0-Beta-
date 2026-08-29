@@ -25,24 +25,60 @@ Grounding contract (ADR-008 / AI_GATEWAY.md, enforced by code and tests):
   shown at all, travels in the separate :class:`AiExternalExcerpt` channel,
   labeled ``EXTERNAL_UNVERIFIED``, neutralized (markup escaped, control
   characters stripped) and truncated;
-- a produced statement is COMPOSED of typed segments: free prose (template
-  wording and source-derived values) and CANONICAL VERTEX IDENTIFIERS (gate
-  id, reason code, verdict status, population, calculation hash). Only the
-  free prose goes through the forbidden-language detection step of
+- a produced statement is COMPOSED of typed segments: free prose and
+  CANONICAL VERTEX IDENTIFIERS. **The boundary classifies by ORIGIN, not by
+  shape.** A segment escapes the forbidden-language screen only when its
+  value BELONGS to :data:`CANONICAL_VOCABULARY` — a CLOSED set ENUMERATED
+  by ``vertex_core`` (the gate ids of ``GATE_CATALOG``, the members of the
+  canonical enums, the reason codes of the gate catalog) plus this module's
+  own literal constants. Membership, never a regular expression: a snapshot
+  field whose origin is not proven (a population label, a ticker, a lot id,
+  a declared unit, a news-cluster id, a horizon, a decimal string) is FREE
+  PROSE and IS screened, however much it looks like an identifier. This is
+  what stops a stored string such as a ``unit`` reading
+  ``pourcentage-de-gain-garanti`` or a ``ticker`` reading ``vendez-tout``
+  from crossing into a ``FACT`` claim;
+- only the free prose goes through the forbidden-language detection step of
   AI_GATEWAY.md (« détection de langage interdit ») — transactional
   injunction, unsupported certainty, uncalibrated probability and executable
   markup, all decided on the Unicode-normalized form (NFKC, no control or
-  format character, no homoglyph, no diacritic). A text that triggers it is
-  REFUSED, never silently cleaned: it is replaced by an explicit
-  ``missing_data`` entry naming what was refused, plus a visible limitation.
-  A lexical rule can therefore NEVER delete a statement because of an
-  identifier — in particular the ``probability_calibrated_if_used`` gate,
-  whose disappearance would hide the very rule forbidding an uncalibrated
-  probability. Every gate the snapshot publishes as ``BLOCK`` is restituted:
-  the invariant is checked on the finished answer and fails closed;
+  format character, no homoglyph, no diacritic, HTML entities and percent
+  escapes decoded). A text that triggers it is REFUSED, never silently
+  cleaned: it is replaced by an explicit ``missing_data`` entry naming what
+  was refused, plus a visible limitation. A lexical rule can therefore NEVER
+  delete a statement because of a CANONICAL identifier — in particular the
+  ``probability_calibrated_if_used`` gate, whose disappearance would hide the
+  very rule forbidding an uncalibrated probability;
+- HONEST QUALIFICATION OF THAT DETECTOR (do not read more into it than it
+  gives): :func:`detect_forbidden_language` is a **filtre de meilleur
+  effort** — a best-effort keyword blacklist (French, English, and a few
+  Spanish/German imperatives) over external content that is ALREADY
+  cantoned. It is **jamais une classe fermée** / never a closed class: an
+  unlisted language, an unlisted verb or a new obfuscation passes it. The
+  guarantee that actually holds is STRUCTURAL, not lexical: an external
+  excerpt is never a claim, it travels labeled ``EXTERNAL_UNVERIFIED``,
+  escaped, truncated and carrying a visible limitation. The adversarial
+  corpus in ``apps/api/tests/test_ai_explain.py`` MEASURES the blacklist's
+  coverage; it proves no exhaustiveness;
+- a percentage is refused only when it is FORWARD-LOOKING (a prediction, an
+  expectation, a target, a stated probability). A measured, accounting or
+  past percentage — « Marge brute de 42 % », « Résultat net en baisse de
+  7 % » — is a fact and is kept: refusing it would turn the information
+  rail into a wall of refusal notices;
+- every gate the snapshot publishes as ``BLOCK`` is restituted, WHATEVER the
+  shape of its identifier and whatever the subject kind: a gate whose id is
+  not a canonical token becomes an ANONYMOUS contradiction plus a
+  ``missing_data`` entry, and the completeness invariant counts it. The
+  invariant is checked on the finished answer and fails closed with a typed
+  :class:`AiGroundingError`;
 - a value read from the snapshot is restituted only as a CANONICAL TOKEN
-  (:func:`_token`): a source field carrying markup, spaces or invisible
-  characters is reported as non-conforming instead of being relayed;
+  (:func:`_token`, a ``fullmatch`` — a trailing newline is NOT a token): a
+  source field carrying markup, spaces or invisible characters is reported as
+  non-conforming instead of being relayed. Symmetrically, a legitimate
+  identifier that this narrow ASCII shape refuses NEVER makes a statement
+  disappear silently: the block it would have carried is named in
+  ``missing_data`` (fail-closed reporting, never a mute availability
+  regression);
 - an empty or malformed corpus produces a STRUCTURED REFUSAL
   (``state = "refused"`` with a readable ``refusal_reason``), never an empty
   explanation presented as complete;
@@ -68,17 +104,22 @@ from typing import Any, Literal, Mapping, NamedTuple, Optional, Sequence, Union
 
 from pydantic import Field, model_validator
 
+from vertex_core.contracts import enums as canonical_enums
 from vertex_core.contracts.types import (
     ContractModel,
     NonEmptyStr,
     PositiveInt,
     UtcDatetime,
 )
+from vertex_core.decision.gates import GATE_ORDER, REASON_UNEVALUABLE
 from vertex_persistence.repository.snapshots import CurrentSnapshot
 
 __all__ = [
+    "AI_ERROR_INCOMPLETE_ANSWER",
+    "AI_ERROR_UNGROUNDED_CLAIM",
     "AI_STATUS_PROVIDER",
     "AI_STATUS_REASON",
+    "CANONICAL_VOCABULARY",
     "ERROR_NO_SNAPSHOT_FOR_SUBJECT",
     "EXTERNAL_CONTENT_LABEL",
     "EXTERNAL_EXCERPT_MAX_LENGTH",
@@ -164,17 +205,132 @@ SUBJECT_SNAPSHOT_KINDS: Mapping[str, str] = {
 }
 """Subject kind -> persisted snapshot kind (identity today, explicit map)."""
 
-_SAFE_EVIDENCE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9:._@/+-]{0,127}$")
-"""Shape an identifier coming from external content must have to be cited."""
+AI_ERROR_UNGROUNDED_CLAIM = "AI_ANSWER_UNGROUNDED"
+"""Typed code: a finished claim cites evidence absent from the catalog."""
 
-_CANONICAL_TOKEN = re.compile(r"^[-+]?[A-Za-z0-9][A-Za-z0-9:._@/+-]{0,127}$")
-"""Shape of a CANONICAL VALUE TOKEN restituted as a typed field.
+AI_ERROR_INCOMPLETE_ANSWER = "AI_ANSWER_INCOMPLETE"
+"""Typed code: a gate published as ``BLOCK`` is missing from the answer."""
 
-A gate id, a reason code, a status, a currency, a trading day, a decimal
-string or a calculation hash has this ASCII shape. Anything else — markup,
-spaces, invisible characters, homoglyphs, punctuation prose — is NOT a token:
-it never crosses into a produced sentence (fail-closed), it is reported as
-non-conforming instead.
+_SAFE_EVIDENCE_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9:._@/+-]{0,127}")
+"""Shape an identifier coming from external content must have to be cited.
+
+Matched with ``fullmatch``: ``$`` alone would accept a trailing newline, so
+``"sha256:aaa\n"`` used to pass a boundary that ``NonEmptyStr`` refuses.
+"""
+
+_CANONICAL_TOKEN = re.compile(r"[-+]?[A-Za-z0-9][A-Za-z0-9:._@/+-]{0,127}")
+"""Shape a value must have to be restituted VERBATIM at all (``fullmatch``).
+
+This is a SANITY control on the characters of a relayed value — never a proof
+of origin. A value carrying markup, spaces, invisible characters, homoglyphs
+or a trailing control character is not relayed: it is reported as
+non-conforming. Whether the relayed value may ALSO escape the
+forbidden-language screen is a separate question, decided by MEMBERSHIP in
+:data:`CANONICAL_VOCABULARY` — never by this shape.
+"""
+
+
+# ---------------------------------------------------------------------------
+# CLOSED CANONICAL VOCABULARY — the origin test of the segment boundary
+# ---------------------------------------------------------------------------
+
+_GATE_REASON_CODES: frozenset[str] = frozenset(
+    {
+        REASON_UNEVALUABLE,
+        "ALL_CALCULATIONS_VALID",
+        "AMBIGUOUS_IDENTITY",
+        "CALIBRATION_AGING",
+        "CONSTRAINTS_VERSIONED",
+        "CONTRADICTORY_SNAPSHOT",
+        "DELAYED_DATA_ENTITLEMENT",
+        "DELAYED_LIQUIDITY_OBSERVATION",
+        "ENTITLED",
+        "EVENT_CALENDAR_INCOMPLETE",
+        "EXPLICIT_CONTRADICTIONS_PRESENT",
+        "FRESH_AND_COHERENT",
+        "INVALID_CALCULATION",
+        "LIQUIDITY_BELOW_MINIMUM",
+        "LIQUIDITY_SUFFICIENT",
+        "MANUAL_EXPORT_SOURCE",
+        "MISSING_CALCULATIONS",
+        "MISSING_PORTFOLIO_RISK",
+        "MISSING_SNAPSHOT",
+        "NOT_IMPLEMENTED_CALCULATION",
+        "NOT_REQUIRED",
+        "NO_CRITICAL_CONTRADICTION",
+        "NO_OUT_OF_SAMPLE_VALIDATION",
+        "OUTDATED_CONSTRAINTS_ACKNOWLEDGEMENT",
+        "PORTFOLIO_RISK_AVAILABLE",
+        "PROBABILITY_CALIBRATED",
+        "PROBABILITY_NOT_USED",
+        "RESOLVED",
+        "RESOLVED_WITHOUT_CONID",
+        "SESSION_AND_EVENT_KNOWN",
+        "SESSION_UNKNOWN",
+        "STALE_PORTFOLIO_DECLARATIONS",
+        "STALE_SNAPSHOT",
+        "UNCALIBRATED_PROBABILITY",
+        "UNRESOLVED_CRITICAL_CONTRADICTION",
+        "UNRESOLVED_IDENTITY",
+        "UNVERSIONED_CONSTRAINTS",
+    }
+)
+"""The reason codes ``vertex_core.decision.gates`` really publishes.
+
+``vertex_core`` does not export this vocabulary as a symbol (the codes are
+literals inside the ten evaluators), so it is MIRRORED here and pinned by a
+drift test that re-extracts them from the gate module's own source. A code
+absent from this set is prose and is screened like any other free text.
+"""
+
+_MODULE_OWNED_TOKENS: frozenset[str] = frozenset(
+    {
+        # Forbidden-language categories named in a refusal note.
+        "TRANSACTIONAL_LANGUAGE",
+        "UNSUPPORTED_CERTAINTY",
+        "UNCALIBRATED_PROBABILITY",
+        "EXECUTABLE_MARKUP",
+        # Advice fields this module restitutes BY NAME.
+        "status",
+        "direction",
+        "horizon",
+        # Performance metric keys and value fields (pinned by a drift test).
+        "twr_gross",
+        "twr_net",
+        "xirr_gross",
+        "xirr_net",
+        "drawdown_gross",
+        "drawdown_net",
+        "total_return",
+        "rate",
+        "max_drawdown",
+        # Portfolio sub-blocks restituted BY NAME.
+        "unrealized",
+        "realized",
+    }
+)
+"""Literal constants OF THIS MODULE — never a value read from a snapshot.
+
+They are enumerated, so they are as closed as the ``vertex_core`` vocabulary;
+they are listed apart so the origin of every unscreened value stays legible.
+"""
+
+CANONICAL_VOCABULARY: frozenset[str] = frozenset(
+    set(GATE_ORDER)
+    | {
+        member.value
+        for name in canonical_enums.__all__
+        for member in getattr(canonical_enums, name)
+    }
+    | _GATE_REASON_CODES
+    | _MODULE_OWNED_TOKENS
+)
+"""The CLOSED set of values a produced statement may carry UNSCREENED.
+
+Origin, not shape: a value belongs to it because ``vertex_core`` (or this
+module) ENUMERATES it, never because it looks like an identifier. Everything
+else read from a snapshot is free prose and goes through the
+forbidden-language screen.
 """
 
 
@@ -213,8 +369,25 @@ _HOMOGLYPHS: tuple[tuple[str, str], ...] = (
     ("\u03b9", "i"), ("\u0399", "I"), ("\u03ba", "k"), ("\u039a", "K"),
     ("\u03c5", "u"), ("\u03a5", "Y"), ("\u03c7", "x"), ("\u03a7", "X"),
     ("\u0392", "B"), ("\u0396", "Z"), ("\u0397", "H"), ("\u039c", "M"),
+    # IPA / phonetic letters drawn like Latin ones (U+0251 « \u0251 »...).
+    ("\u0251", "a"), ("\u0261", "g"), ("\u026a", "i"), ("\u0269", "i"),
+    ("\u0254", "c"), ("\u0299", "b"), ("\u0280", "r"), ("\u029c", "h"),
+    # Latin small-capital letters (U+1D00 block).
+    ("\u1d00", "a"), ("\u1d04", "c"), ("\u1d05", "d"), ("\u1d07", "e"),
+    ("\u1d0a", "j"), ("\u1d0b", "k"), ("\u1d0f", "o"), ("\u1d18", "p"),
+    ("\u1d1b", "t"), ("\u1d1c", "u"), ("\u1d20", "v"), ("\u1d21", "w"),
+    ("\u1d22", "z"),
+    # Cherokee syllabary letters drawn like Latin capitals.
+    ("\u13aa", "A"), ("\u13a0", "D"), ("\u13c0", "G"), ("\u13ac", "S"),
+    ("\u13a1", "R"), ("\u13ce", "P"), ("\u13a9", "Z"), ("\u13b3", "W"),
+    ("\u13de", "L"), ("\u13df", "C"), ("\u13e2", "B"), ("\u13ef", "J"),
 )
-"""Cyrillic/Greek letters drawn like the frequent Latin ones."""
+"""Letters of other scripts drawn like the frequent Latin ones.
+
+Cyrillic, Greek, IPA/phonetic, Latin small capitals and Cherokee. The table
+is a BEST-EFFORT list: Unicode holds far more lookalikes than any table can
+enumerate, which is one reason the detector is not a closed class.
+"""
 
 _FOLDING_TABLE = str.maketrans(
     {
@@ -224,6 +397,40 @@ _FOLDING_TABLE = str.maketrans(
 )
 
 _INTRA_WORD_HYPHEN = re.compile(r"(?<=\w)[-\u2010-\u2015](?=\w)")
+
+_INTRA_WORD_SEPARATOR = re.compile(
+    r"(?<=\w)[-.\u2010-\u2015_*+~/\\|:;'\u2019\u00b7\u2022](?=\w)"
+)
+"""Intra-word separators used to break a word out of a lexical scan.
+
+``a.c.h.e.t.e.z`` and ``a_c_h_e_t_e_z`` are the reproduced bypasses. The
+de-separated form is an ADDITIONAL candidate: it can only add a detection,
+never remove one.
+"""
+
+_PERCENT_ESCAPE = re.compile(r"%([0-9A-Fa-f]{2})")
+
+
+def _decode_escapes(text: str) -> tuple[str, ...]:
+    """Return ``text`` plus its HTML-entity and percent-decoded variants.
+
+    ``&#97;chetez`` and ``%61chetez`` reach the detector as ``achetez``.
+    Decoding is done FOR DETECTION ONLY: the excerpt actually published is
+    the escaped, truncated one produced by :func:`_neutralize_external_text`.
+    """
+    variants = [text]
+    unescaped = html.unescape(text)
+    if unescaped != text:
+        variants.append(unescaped)
+    try:
+        decoded = _PERCENT_ESCAPE.sub(
+            lambda match: chr(int(match.group(1), 16)), variants[-1]
+        )
+    except ValueError:  # pragma: no cover - the pattern guarantees hex pairs
+        decoded = variants[-1]
+    if decoded != variants[-1]:
+        variants.append(decoded)
+    return tuple(variants)
 
 
 def _fold(text: str) -> str:
@@ -287,6 +494,32 @@ _TRANSACTIONAL_ORDER = re.compile(
 """An ORDER GIVEN. « ordres de grandeur » or « volume d'achat » are
 descriptive financial vocabulary and stay allowed."""
 
+_TRANSACTIONAL_INJUNCTION = re.compile(
+    # French position injunctions (2nd person / infinitive imperative form).
+    r"\b(?:renforc(?:ez|er|ons)|alleg(?:ez|er|eons)|sold(?:ez|er|ons)|"
+    r"coup(?:ez|er)\s+(?:la\s+|votre\s+|vos\s+)?(?:position|ligne|titre)s?|"
+    r"sort(?:ez|ir)\s+(?:du|de\s+la|des)\b|arbitr(?:ez|er)|"
+    r"encaiss(?:ez|er)|empoch(?:ez|er)|position(?:nez|ner)\s+vous|"
+    r"surachet(?:ez|ons)|survend(?:ez|ons))\b"
+    # « prenez position », « prendre position ».
+    r"|\b(?:pren(?:ez|ons|ds)|prendre)\s+"
+    r"(?:(?:une|des|vos|votre|ta|sa)\s+)?positions?\b"
+    # English directional injunctions.
+    r"|\bgo\s+(?:long|short)\b"
+    r"|\b(?:take|build|trim|exit|unwind|close)\s+"
+    r"(?:(?:a|an|the|your)\s+)?positions?\b"
+    # Spanish and German transaction verbs (imperative/infinitive).
+    r"|\b(?:comprar|compra|compre|compren|compremos|"
+    r"vender|venda|vende|vendan|vendamos)\b"
+    r"|\b(?:kaufen|kaufe|kauft|verkaufen|verkaufe|verkauft)\b"
+)
+"""Transaction injunctions the base verb list does not reach.
+
+Explicitly a BEST-EFFORT extension covering the bypasses the third audit
+reproduced (French position imperatives, Spanish, German, « go long »). An
+unlisted language or verb still passes: see the module docstring.
+"""
+
 _CERTAINTY = re.compile(
     r"\b(?:garanti(?:e|s|es)?|garantit|garantissent|guarantee(?:d|s)?|"
     r"infaillible|certitude|certain(?:e|s|es)?|certainly|"
@@ -300,6 +533,11 @@ _CHANCE_OF_OUTCOME = re.compile(
     r"\bchances?\s+(?:de|d['\u2019]|sur|of)\s*(?:[a-z]+\s+)?"
     r"(?:gain|gains|profit|profits|hausse|baisse|succes|reussite|rendement|"
     r"perte|pertes|progression|croissance|surperformance)\b"
+    # « trois chances sur quatre », « une chance sur deux ».
+    r"|\bchances?\s+sur\s+(?:\d+|une?|deux|trois|quatre|cinq|six|sept|huit|"
+    r"neuf|dix|vingt|cent)\b"
+    # « chances que le titre monte » — an outcome stated as a clause.
+    r"|\bchances?\s+(?:que|qu['\u2019])\b"
 )
 """A PREDICTIVE chance. « aucune chance de recalcul » is not one."""
 
@@ -307,47 +545,76 @@ _PERCENTAGE = re.compile(
     r"\d+(?:[.,]\d+)?\s*(?:%|pour\s*cents?|percent|per\s*cent)"
 )
 
-_PREDICTIVE_CUE = re.compile(
-    r"\b(?:hausse|baisse|gain|gains|profit|profits|rendement|rendements|"
-    r"perte|pertes|succes|reussite|croissance|progression|surperformance|"
-    r"probabilit\w*|chance|chances|odds|likelihood|prevision\w*|prevu\w*|"
-    r"projet(?:e|ee|es|ees)|attendu(?:e|s|es)?|esper\w*|garanti\w*|"
-    r"cible|objectif|upside|downside|return|returns|yield)\b"
+_FORWARD_MARKER = (
+    r"(?:attendue?s?|prevue?s?|previsions?|projetee?s?|esperee?s?|"
+    r"anticipee?s?|garantie?s?|assuree?s?|visee?s?|ciblee?s?|"
+    r"objectifs?|cibles?|devrait|devraient|pourrait|pourraient|"
+    r"d['\u2019]ici|prochaine?s?|a\s+venir|"
+    r"expected|forecasts?|forecasted|projected|targets?|targeted|"
+    r"anticipated|guaranteed|upcoming|should|could|will)"
+)
+"""FORWARD-LOOKING markers: an expectation, a target, a coming event.
+
+They are what turns a figure into a PREDICTION. They are deliberately NOT
+the directional nouns (« hausse », « baisse », « gain »): those describe a
+MEASURED variation just as often as a predicted one.
+"""
+
+_FORWARD_LOOKING = re.compile(
+    rf"\b{_FORWARD_MARKER}\b"
+    r"|\b(?:probabilit\w*|likelihood|odds|chances?)\b"
 )
 
-_MEASUREMENT_CUE = re.compile(
-    r"\b(?:couverture|couvert(?:e|s|es)?|seuil|seuils|part|parts|portion|"
-    r"proportion|fraction|completude|disponibilite|echantillon|population|"
-    r"effectif|effectifs|quota|quantile|tolerance|ratio|densite|"
-    r"marge\s+d['\u2019]erreur|taux\s+de\s+rejet)\b"
+_OUTCOME_NOUN = (
+    r"(?:gains?|profits?|rendements?|plus-values?|plus\s+values?|hausses?|"
+    r"baisses?|pertes?|performances?|progressions?|croissances?|"
+    r"surperformances?|returns?|upsides?|downsides?|yields?|growth)"
 )
-"""A percentage of MEASUREMENT (coverage, threshold, share) is a fact of
-data quality, not a predictive probability."""
+
+_PREDICTED_OUTCOME = re.compile(
+    rf"\b{_OUTCOME_NOUN}\b[^.!?]{{0,40}}?\b{_FORWARD_MARKER}\b"
+    rf"|\b{_FORWARD_MARKER}\b[^.!?]{{0,40}}?\b{_OUTCOME_NOUN}\b"
+)
+"""A gain/return announced as EXPECTED, TARGETED or GUARANTEED.
+
+Catches the predictions a percentage rule cannot see because the figure is
+spelled out (« cinquante pour cent de gain attendu ») or simply absent
+(« plus-value attendue »).
+"""
 
 _EXECUTABLE_MARKUP = re.compile(
     r"</?\s*(?:script|iframe|object|embed|applet|svg|img|image|link|meta|"
-    r"style|form|input|button|base|template|audio|video|source)\b"
+    r"style|form|input|button|base|template|audio|video|source|marquee|"
+    r"frame|frameset|html|body|math|animate|set|foreignobject|portal|"
+    r"noscript|dialog|details|slot)\b"
     r"|javascript\s*:|vbscript\s*:|data\s*:[^,]*(?:html|script)"
-    r"|\bon(?:error|load|click|mouseover|focus|submit|toggle|"
-    r"animationstart)\s*="
+    # ANY inline event handler, not a hand-listed few.
+    r"|\bon[a-z]{3,20}\s*="
     r"|&lt;\s*/?\s*script"
 )
 
 
 def _uncalibrated_percentage(folded: str) -> bool:
-    """A percentage is refused unless it is explicitly a MEASUREMENT one."""
+    """A percentage is refused ONLY when it is FORWARD-LOOKING.
+
+    Distinguishes a FACTUAL percentage — a measured, accounting or past
+    magnitude (« Marge brute de 42 % », « Résultat net en baisse de 7 % ») —
+    from a PREDICTIVE probability (a future event, « chances de », « attendu
+    », « probabilité de »). Refusing every percentage, as the previous
+    deny-by-default rule did, refused the majority of legitimate financial
+    headlines and turned the information rail into refusal notices.
+    """
     if _PERCENTAGE.search(folded) is None:
         return False
-    if _PREDICTIVE_CUE.search(folded) is not None:
-        return True
-    return _MEASUREMENT_CUE.search(folded) is None
+    return _FORWARD_LOOKING.search(folded) is not None
 
 
 _FORBIDDEN_LANGUAGE_RULES: tuple[tuple[str, Any], ...] = (
     (
         FORBIDDEN_LANGUAGE_TRANSACTIONAL,
         lambda folded: _TRANSACTIONAL_VERB.search(folded) is not None
-        or _TRANSACTIONAL_ORDER.search(folded) is not None,
+        or _TRANSACTIONAL_ORDER.search(folded) is not None
+        or _TRANSACTIONAL_INJUNCTION.search(folded) is not None,
     ),
     (
         FORBIDDEN_LANGUAGE_CERTAINTY,
@@ -357,6 +624,7 @@ _FORBIDDEN_LANGUAGE_RULES: tuple[tuple[str, Any], ...] = (
         FORBIDDEN_LANGUAGE_PROBABILITY,
         lambda folded: _PROBABILITY_WORD.search(folded) is not None
         or _CHANCE_OF_OUTCOME.search(folded) is not None
+        or _PREDICTED_OUTCOME.search(folded) is not None
         or _uncalibrated_percentage(folded),
     ),
     (
@@ -375,18 +643,38 @@ def detect_forbidden_language(text: str) -> Optional[str]:
     executable markup. The caller REFUSES the offending text (fail-closed) —
     it never rewrites it.
 
-    The scan runs on the NORMALIZED form (:func:`_fold`) and on its
-    de-hyphenated variant, so invisible characters, BIDI overrides,
-    homoglyphs, full-width letters, spelled-out percent signs and missing
-    diacritics do not hide a forbidden formulation.
+    HONEST QUALIFICATION — this is a **filtre de meilleur effort** (a
+    best-effort keyword blacklist), **jamais une classe fermée**. It covers
+    French and English plus a few Spanish/German imperatives, a homoglyph
+    table that cannot enumerate Unicode, and the obfuscations reproduced by
+    audit. An unlisted language, verb or trick passes it. It is a
+    defence-in-depth layer over content that is ALREADY cantoned: the
+    guarantee that holds is that an external excerpt is never a claim (it is
+    labeled ``EXTERNAL_UNVERIFIED``, escaped, truncated and carries a visible
+    limitation). Never present this function as a proof of safety.
+
+    The scan runs on the NORMALIZED form (:func:`_fold`) of the text and of
+    its HTML-entity / percent-decoded variants, plus de-hyphenated and
+    de-separated forms — so invisible characters, BIDI overrides, homoglyphs,
+    full-width letters, spelled-out percent signs, missing diacritics,
+    ``a.c.h.e.t.e.z`` and ``&#97;chetez`` do not hide a forbidden
+    formulation.
 
     It is NEVER applied to a canonical Vertex identifier (gate id, reason
     code, status, calculation hash): such an identifier is a typed field, and
     filtering it lexically would delete a safety statement — for instance the
     ``probability_calibrated_if_used`` gate.
     """
-    folded = _fold(text)
-    candidates = (folded, _INTRA_WORD_HYPHEN.sub("", folded))
+    candidates: list[str] = []
+    for variant in _decode_escapes(text):
+        folded = _fold(variant)
+        for candidate in (
+            folded,
+            _INTRA_WORD_HYPHEN.sub("", folded),
+            _INTRA_WORD_SEPARATOR.sub("", folded),
+        ):
+            if candidate not in candidates:
+                candidates.append(candidate)
     for category, rule in _FORBIDDEN_LANGUAGE_RULES:
         for candidate in candidates:
             if rule(candidate):
@@ -425,11 +713,12 @@ def _neutralize_external_text(value: str) -> tuple[str, bool]:
 class _Segment(NamedTuple):
     """One piece of a produced text.
 
-    ``screened`` marks FREE PROSE — template wording and source-derived
-    values — which the forbidden-language detector reads. A segment with
-    ``screened = False`` is a CANONICAL VERTEX IDENTIFIER (gate id, reason
-    code, verdict status, population, calculation hash): a typed field, never
-    prose, so a lexical rule can never delete the statement carrying it.
+    ``screened`` marks FREE PROSE — template wording and every value whose
+    ORIGIN is not proven — which the forbidden-language detector reads. A
+    segment with ``screened = False`` carries a value BELONGING to
+    :data:`CANONICAL_VOCABULARY`, so a lexical rule can never delete the
+    statement carrying it (the ``probability_calibrated_if_used`` gate above
+    all).
     """
 
     value: str
@@ -441,7 +730,16 @@ def _prose(value: str) -> _Segment:
 
 
 def _ident(value: str) -> _Segment:
-    return _Segment(value, False)
+    """Return an UNSCREENED segment only for a CLOSED-VOCABULARY value.
+
+    The origin test of the whole boundary, and deliberately a MEMBERSHIP
+    test: ``value in CANONICAL_VOCABULARY``. A value that merely LOOKS like a
+    canonical identifier — a stored ``unit``, a ``ticker``, a population
+    label, a lot id, a news-cluster id — degrades to free prose and is
+    screened like any other untrusted text. Fail-closed by construction: the
+    exemption is granted by an enumeration, never by a regular expression.
+    """
+    return _Segment(value, value not in CANONICAL_VOCABULARY)
 
 
 _Composable = Union[str, Sequence[_Segment]]
@@ -506,10 +804,25 @@ def _screen(draft: _Draft) -> Optional[str]:
 class AiGroundingError(ValueError):
     """The finished answer breaks a grounding or completeness invariant.
 
-    Either a claim references evidence absent from the snapshot, or a gate
-    the snapshot publishes as ``BLOCK`` is missing from the answer. Both are
-    fail-closed errors: nothing partial is served instead.
+    Either a claim references evidence absent from the snapshot
+    (:data:`AI_ERROR_UNGROUNDED_CLAIM`), or a gate the snapshot publishes as
+    ``BLOCK`` is missing from the answer
+    (:data:`AI_ERROR_INCOMPLETE_ANSWER`). Both are fail-closed: nothing
+    partial is served instead.
+
+    The exception carries a TYPED ``code`` and, at most, canonical
+    ``references`` (evidence ids and gate ids, already reduced to canonical
+    tokens). It NEVER carries a fragment of stored content — quoting the
+    offending claim text, as the previous message did, published persisted
+    payload into the server log (``.claude/rules/security.md``). ``str(exc)``
+    is the code alone, so even a careless ``logging.exception`` leaks
+    nothing.
     """
+
+    def __init__(self, code: str, *, references: Sequence[str] = ()) -> None:
+        self.code = code
+        self.references = tuple(references)
+        super().__init__(code)
 
 
 class AiSubject(ContractModel):
@@ -631,13 +944,18 @@ def validate_claims(
     cite des evidence_ids réellement présents »; :func:`build_ai_answer`
     runs it as the LAST-LINE guard on the finished answer.
     """
-    for claim in claims:
-        for reference in claim.evidence_refs:
-            if reference not in catalog_ids:
-                raise AiGroundingError(
-                    f"claim cites unknown evidence {reference!r}: "
-                    f"{claim.text[:80]!r}"
-                )
+    unknown = [
+        reference
+        for claim in claims
+        for reference in claim.evidence_refs
+        if reference not in catalog_ids
+    ]
+    if unknown:
+        # References only — never ``claim.text``: a claim text is built from
+        # stored content and must not travel into a trace.
+        raise AiGroundingError(
+            AI_ERROR_UNGROUNDED_CLAIM, references=sorted(set(unknown))
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -679,16 +997,22 @@ def _text(value: Any) -> Optional[str]:
 
 
 def _token(value: Any) -> Optional[str]:
-    """Return ``value`` when it is a CANONICAL VALUE TOKEN, else ``None``.
+    """Return ``value`` when its characters are relayable, else ``None``.
 
     Applied to every value read from the snapshot before it is restituted:
     an identifier, a code, a status, a currency, a trading day or a decimal
-    string. A value carrying markup, spaces, invisible characters or
-    homoglyphs is not a token — it is reported as non-conforming instead of
-    being relayed into a sentence.
+    string. A value carrying markup, spaces, invisible characters, homoglyphs
+    or a trailing control character is not relayed — it is reported as
+    non-conforming instead. ``fullmatch``, not ``match``: ``$`` accepts a
+    final newline, which would let a control character travel inside a
+    « canonical token » while ``NonEmptyStr`` refuses the very same value.
+
+    Passing this control does NOT exempt the value from the
+    forbidden-language screen; only membership in
+    :data:`CANONICAL_VOCABULARY` does (see :func:`_ident`).
     """
     text = _text(value)
-    if text is None or _CANONICAL_TOKEN.match(text) is None:
+    if text is None or _CANONICAL_TOKEN.fullmatch(text) is None:
         return None
     return text
 
@@ -716,14 +1040,101 @@ def _gate_blocks(advice: Mapping[str, Any]) -> list[Mapping[str, Any]]:
     ]
 
 
-def _blocked_gate_ids(content: Mapping[str, Any]) -> set[str]:
-    """Canonical ids of the gates the snapshot publishes as ``BLOCK``."""
-    identifiers: set[str] = set()
+class _BlockedGates(NamedTuple):
+    """Every gate published as ``BLOCK``, split by CITABILITY of its id.
+
+    ``anonymous`` counts the BLOCK gates whose ``gate_id`` is not a relayable
+    token (a space, an invisible character, markup, an empty string). They
+    used to fall OUTSIDE the completeness invariant: an anonymous
+    contradiction could be deleted by the output screen and nobody noticed.
+    """
+
+    named: frozenset[str]
+    anonymous: int
+
+
+def _blocked_gates(content: Mapping[str, Any]) -> _BlockedGates:
+    """Split the ``BLOCK`` gates of the snapshot, WHATEVER their id shape."""
+    named: set[str] = set()
+    anonymous = 0
     for gate in _gate_blocks(_mapping(content.get("advice"))):
         gate_id = _token(gate.get("gate_id"))
-        if gate_id is not None:
-            identifiers.add(gate_id)
-    return identifiers
+        if gate_id is None:
+            anonymous += 1
+        else:
+            named.add(gate_id)
+    return _BlockedGates(frozenset(named), anonymous)
+
+
+def _gate_parts(
+    advice: Mapping[str, Any],
+) -> tuple[list[str], list[_DraftContradiction], list[_Draft]]:
+    """Restitute EVERY ``BLOCK`` gate of an advice block.
+
+    Shared by the three subject kinds on purpose: the completeness invariant
+    is agnostic of the subject kind, so the restitution must be too. A
+    portfolio or performance snapshot carrying an advice block used to raise
+    :class:`AiGroundingError` for the sole reason that its builder ignored
+    the gates — a mute availability regression dressed as fail-closed.
+
+    Gate texts are built from CANONICAL identifiers whenever the snapshot
+    provides them, so the output screen cannot delete a BLOCK gate published
+    by the engine. A gate whose id or reason is NOT canonical degrades to
+    prose, is screened like any other untrusted value, and its disappearance
+    is then caught by the invariant (typed failure, never silence).
+    """
+    blocked_ids: list[str] = []
+    contradictions: list[_DraftContradiction] = []
+    missing: list[_Draft] = []
+    for gate in _gate_blocks(advice):
+        gate_id = _token(gate.get("gate_id"))
+        reason = _token(gate.get("reason_code")) or "UNKNOWN"
+        if gate_id is None:
+            contradictions.append(
+                _contradiction(
+                    reason,
+                    None,
+                    (
+                        _prose("Gate fermée non identifiable ("),
+                        _ident(reason),
+                        _prose(")."),
+                    ),
+                )
+            )
+            missing.append(
+                _note(
+                    "gate fermée non identifiable : identifiant absent ou non "
+                    "conforme au format canonique"
+                )
+            )
+            continue
+        blocked_ids.append(gate_id)
+        contradictions.append(
+            _contradiction(
+                reason,
+                gate_id,
+                (
+                    _prose("Gate "),
+                    _ident(gate_id),
+                    _prose(" fermée : "),
+                    _ident(reason),
+                    _prose("."),
+                ),
+            )
+        )
+        if reason == "UNEVALUABLE" or reason.startswith("MISSING"):
+            missing.append(
+                _note(
+                    (
+                        _prose("gate "),
+                        _ident(gate_id),
+                        _prose(" : donnée requise absente ("),
+                        _ident(reason),
+                        _prose(")"),
+                    )
+                )
+            )
+    return blocked_ids, contradictions, missing
 
 
 _Parts = tuple[
@@ -804,58 +1215,11 @@ def _analysis_parts(content: Mapping[str, Any], self_ref: str) -> _Parts:
         limitations.append(_note(LIMITATION_UNUSABLE_ADVICE))
 
     # Closed gates cite the gate itself: they stay visible even when the
-    # advice block carries no citable identifier. Their text is built from
-    # CANONICAL IDENTIFIERS ONLY, so the output screen can never delete a
-    # BLOCK gate (see the invariant enforced in :func:`build_ai_answer`).
-    blocked_ids: list[str] = []
-    for gate in _gate_blocks(advice):
-        gate_id = _token(gate.get("gate_id"))
-        reason = _token(gate.get("reason_code")) or "UNKNOWN"
-        if gate_id is None:
-            contradictions.append(
-                _contradiction(
-                    reason,
-                    None,
-                    (
-                        _prose("Gate fermée non identifiable ("),
-                        _ident(reason),
-                        _prose(")."),
-                    ),
-                )
-            )
-            missing.append(
-                _note(
-                    "gate fermée non identifiable : identifiant absent ou non "
-                    "conforme au format canonique"
-                )
-            )
-            continue
-        blocked_ids.append(gate_id)
-        contradictions.append(
-            _contradiction(
-                reason,
-                gate_id,
-                (
-                    _prose("Gate "),
-                    _ident(gate_id),
-                    _prose(" fermée : "),
-                    _ident(reason),
-                    _prose("."),
-                ),
-            )
-        )
-        if reason == "UNEVALUABLE" or reason.startswith("MISSING"):
-            missing.append(
-                _note(
-                    (
-                        _prose("gate "),
-                        _ident(gate_id),
-                        _prose(" : donnée requise absente ("),
-                        _ident(reason),
-                        _prose(")"),
-                    )
-                )
-            )
+    # advice block carries no citable identifier (see :func:`_gate_parts`
+    # and the invariant enforced in :func:`build_ai_answer`).
+    blocked_ids, gate_contradictions, gate_missing = _gate_parts(advice)
+    contradictions.extend(gate_contradictions)
+    missing.extend(gate_missing)
     if status == "INSUFFICIENT_DATA" and blocked_ids and advice_id is not None:
         segments: list[_Segment] = [
             _prose("Le statut "),
@@ -873,7 +1237,17 @@ def _analysis_parts(content: Mapping[str, Any], self_ref: str) -> _Parts:
 
     bars = _mapping(content.get("bars"))
     bars_ref = _token(bars.get("source_event_id"))
-    if bars.get("status") == "OK" and bars_ref is not None:
+    if bars.get("status") == "OK" and bars_ref is None:
+        # ``EnvelopeContract.event_id`` is a ``NonEmptyStr`` with NO imposed
+        # shape: a legitimate id outside this narrow ASCII form must NOT make
+        # the whole block vanish without a word (fail-closed REPORTING).
+        missing.append(
+            _note(
+                "bloc de barres annoncé OK sans identifiant d'observation "
+                "citable : dernière clôture non restituée"
+            )
+        )
+    elif bars.get("status") == "OK" and bars_ref is not None:
         catalog.append(_entry(bars_ref, "observation", "bars.source_event_id"))
         # SOURCE fields: admitted only as canonical tokens, and screened as
         # free text afterwards — they never travel as trusted identifiers.
@@ -940,7 +1314,14 @@ def _analysis_parts(content: Mapping[str, Any], self_ref: str) -> _Parts:
     if scenarios.get("status") == "OK":
         calculation = _mapping(scenarios.get("calculation"))
         scenario_ref = _token(calculation.get("input_hash"))
-        if scenario_ref is not None:
+        if scenario_ref is None:
+            missing.append(
+                _note(
+                    "grille de scénarios annoncée OK sans empreinte de calcul "
+                    "citable : elle n'est pas restituée"
+                )
+            )
+        else:
             catalog.append(
                 _entry(scenario_ref, "calculation", "scenarios.calculation")
             )
@@ -982,7 +1363,10 @@ def _analysis_parts(content: Mapping[str, Any], self_ref: str) -> _Parts:
         for index, cluster in enumerate(clusters):
             cluster_map = _mapping(cluster)
             cluster_id = _text(cluster_map.get("cluster_id"))
-            if cluster_id is None or _SAFE_EVIDENCE_ID.match(cluster_id) is None:
+            if (
+                cluster_id is None
+                or _SAFE_EVIDENCE_ID.fullmatch(cluster_id) is None
+            ):
                 missing.append(
                     _note(
                         f"regroupement d'information n°{index} ignoré : "
@@ -1068,6 +1452,15 @@ def _portfolio_parts(content: Mapping[str, Any], self_ref: str) -> _Parts:
     limitations: list[_Draft] = []
     catalog: list[AiEvidenceCatalogEntry] = []
 
+    # A portfolio snapshot is not supposed to carry an advice block; when a
+    # stored one does, its BLOCK gates are restituted like anywhere else
+    # (the completeness invariant is kind-agnostic, so this must be too).
+    _, gate_contradictions, gate_missing = _gate_parts(
+        _mapping(content.get("advice"))
+    )
+    contradictions.extend(gate_contradictions)
+    missing.extend(gate_missing)
+
     mark_population = _token(content.get("mark_population"))
     if mark_population is not None:
         claims.append(
@@ -1118,7 +1511,21 @@ def _portfolio_parts(content: Mapping[str, Any], self_ref: str) -> _Parts:
                         "total_unrealized" if name == "unrealized" else "total_pnl"
                     )
                 )
-                if sub.get("status") == "OK" and ref is not None:
+                if sub.get("status") == "OK" and ref is None:
+                    missing.append(
+                        _note(
+                            (
+                                _ident(name),
+                                _prose(" annoncé OK en "),
+                                _prose(currency),
+                                _prose(
+                                    " sans empreinte de calcul citable : "
+                                    "non restitué"
+                                ),
+                            )
+                        )
+                    )
+                elif sub.get("status") == "OK" and ref is not None:
                     catalog.append(
                         _entry(
                             ref,
@@ -1255,6 +1662,14 @@ def _performance_parts(content: Mapping[str, Any], self_ref: str) -> _Parts:
     limitations: list[_Draft] = []
     catalog: list[AiEvidenceCatalogEntry] = []
 
+    # Same rule as the portfolio builder: a stored advice block's BLOCK
+    # gates are restituted whatever the subject kind.
+    _, gate_contradictions, gate_missing = _gate_parts(
+        _mapping(content.get("advice"))
+    )
+    contradictions.extend(gate_contradictions)
+    missing.extend(gate_missing)
+
     population = _token(content.get("population"))
     if population is not None:
         claims.append(
@@ -1283,7 +1698,20 @@ def _performance_parts(content: Mapping[str, Any], self_ref: str) -> _Parts:
         status = block.get("status")
         calculation = _mapping(block.get("calculation"))
         ref = _token(calculation.get("input_hash"))
-        if status == "OK" and ref is not None:
+        if status == "OK" and ref is None:
+            missing.append(
+                _note(
+                    (
+                        _prose("métrique "),
+                        _ident(name),
+                        _prose(
+                            " annoncée OK sans empreinte de calcul citable : "
+                            "non restituée"
+                        ),
+                    )
+                )
+            )
+        elif status == "OK" and ref is not None:
             catalog.append(
                 _entry(ref, "calculation", f"metrics.{name}.calculation")
             )
@@ -1455,26 +1883,35 @@ def build_ai_answer(
     kept_limitations: list[str] = []
     kept_excerpts: list[AiExternalExcerpt] = []
     reports: list[str] = []
+    # A REFUSAL NOTE NEVER ECHOES WHAT IT REFUSED. Quoting the offending
+    # reference or reason code re-published, inside ``missing_data``, the very
+    # value the screen had just rejected (« vendez-tout », « GARANTI-100 »):
+    # the report names the position, the category and the shape of the
+    # citation only. ``category`` is a constant of this module, never a
+    # snapshot value.
     for index, draft_claim in enumerate(claims):
         category = _screen(draft_claim)
         if category is None:
             kept_claims.append(draft_claim.claim())
         else:
-            sources = ", ".join(draft_claim.refs) or "aucune"
             reports.append(
                 f"affirmation n°{index} refusée par la détection de langage "
-                f"interdit ({category}) — sources citées : {sources}"
+                f"interdit ({category}) — {len(draft_claim.refs)} source(s) "
+                "citée(s), aucune valeur refusée n'est relayée"
             )
     for index, draft_contradiction in enumerate(contradictions):
         category = _screen(draft_contradiction)
         if category is None:
             kept_contradictions.append(draft_contradiction.contradiction())
         else:
-            named = draft_contradiction.reference or "sans référence"
+            citation = (
+                "identifiant de porte cité"
+                if draft_contradiction.reference is not None
+                else "porte non identifiable"
+            )
             reports.append(
-                f"contradiction n°{index} ({named}, code "
-                f"{draft_contradiction.code}) refusée par la détection de "
-                f"langage interdit ({category})"
+                f"contradiction n°{index} ({citation}) refusée par la "
+                f"détection de langage interdit ({category})"
             )
     for index, draft in enumerate(missing):
         category = _screen(draft)
@@ -1500,24 +1937,31 @@ def build_ai_answer(
             kept_excerpts.append(excerpt)
         else:
             reports.append(
-                f"extrait externe n°{index} ({excerpt.evidence_ref}) refusé "
-                f"par la détection de langage interdit ({category})"
+                f"extrait externe n°{index} refusé par la détection de "
+                f"langage interdit ({category})"
             )
     if reports:
         kept_missing.extend(reports)
         kept_limitations.append(LIMITATION_FORBIDDEN_LANGUAGE)
 
-    # (3 bis) Completeness invariant: every gate the snapshot publishes as
-    # BLOCK is restituted. Deleting one would hide the very reason of the
-    # verdict — an output filter must never be able to do that.
+    # (3 bis) Completeness invariant: EVERY gate the snapshot publishes as
+    # BLOCK is restituted — whatever the shape of its identifier and whatever
+    # the subject kind. Deleting one would hide the very reason of the
+    # verdict; an output filter must never be able to do that. A gate whose
+    # id is not a relayable token is restituted as an ANONYMOUS
+    # contradiction, and those are COUNTED here: they used to sit outside
+    # the invariant, so a refused anonymous contradiction vanished silently.
+    published = _blocked_gates(content)
     restituted = {
         contradiction.reference for contradiction in kept_contradictions
     }
-    unrestituted = _blocked_gate_ids(content) - restituted
-    if unrestituted:
+    unrestituted = sorted(published.named - restituted)
+    anonymous_kept = sum(
+        1 for contradiction in kept_contradictions if contradiction.reference is None
+    )
+    if unrestituted or anonymous_kept < published.anonymous:
         raise AiGroundingError(
-            "closed gates missing from the answer: "
-            f"{', '.join(sorted(unrestituted))}"
+            AI_ERROR_INCOMPLETE_ANSWER, references=unrestituted
         )
 
     catalog_entries: dict[str, AiEvidenceCatalogEntry] = {

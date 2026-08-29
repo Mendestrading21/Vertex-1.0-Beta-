@@ -18,12 +18,27 @@ The handler recomputes ONE ``calendar/global`` snapshot:
   (status, instant, source, ``as_of``) beside the ``revisions`` the source
   declares, and an event whose state changed is flagged ``revised``;
 - when those two business instants TIE and the tied records disagree on the
-  displayed value, no lexicographic tie-break may choose a business value:
+  DISPLAYED value, no lexicographic tie-break may choose a business value:
   the event is published ``version_state = "CONFLICTING_VERSIONS"`` with
-  every tied version readable in ``conflicting_versions``, and the displayed
-  one is selected by a stable VALUE-derived order, so permuting the envelope
-  ids cannot change what is shown. The envelope ``event_id`` only ever
-  separates records carrying an IDENTICAL business value;
+  every tied version readable in ``conflicting_versions``. What counts as a
+  disagreement is the value REALLY DISPLAYED (:data:`_VALUE_FIELDS` and the
+  published extras): two records whose displayed value is identical and that
+  differ only by a declared revision detail nobody displays are NOT a
+  conflict — a reader must never be shown two "conflicting versions"
+  identical field for field. Among such records the order is closed by a
+  full record signature, then by the envelope ``event_id``, so the displayed
+  value stays invariant under any permutation;
+- at a REAL conflict the displayed value comes from the documented, versioned
+  election rule :data:`CONFLICT_ELECTION_RULE_VERSION` — never from the
+  lexicographic maximum of a serialized blob, which made the displayed value
+  an artefact of the alphabet. The rule is conservative on the two facts the
+  conflict publishes: an ``ESTIMATED`` version is displayed over a
+  ``CONFIRMED`` one (a contested date is never presented as confirmed) and,
+  at equal status, the EARLIEST declared instant (a contested event is never
+  announced later than one of its own declared instants). Any residual tie
+  is closed by a stable id-independent order, and the event publishes
+  ``conflict_election_rule`` beside ``version_state`` so the value reads as a
+  contested election, not as the truth;
 - every event is validated FAIL-CLOSED (declared source/rights, known
   category, canonical ``ESTIMATED``/``CONFIRMED`` status, aware UTC instant,
   allowlisted ``scope`` coherent with the ticker presence, RESOLVABLE IANA
@@ -114,6 +129,7 @@ from vertex_worker.registry import HandlerRegistry
 __all__ = [
     "CALENDAR_EVENT_SCHEMA_PREFIXES",
     "CALENDAR_SCHEMA_VERSION",
+    "CONFLICT_ELECTION_RULE_VERSION",
     "DEV_SYNTHETIC_CALENDAR_CONFIG",
     "IMPORTANCE_RULE_RANKS",
     "IMPORTANCE_RULE_VERSION",
@@ -531,22 +547,44 @@ _VALUE_FIELDS: tuple[str, ...] = (
 """The published fields that MAKE the displayed value of an event."""
 
 
-def _value_fingerprint(event: Mapping[str, Any]) -> str:
-    """A canonical, envelope-INDEPENDENT signature of the displayed value.
-
-    Two records of one stable id share a fingerprint exactly when they would
-    be displayed identically. It is what separates tied records, so the
-    displayed value never depends on an envelope id.
-    """
+def _canonical_json(payload: Mapping[str, Any]) -> str:
     return json.dumps(
+        payload, sort_keys=True, separators=(",", ":"), default=str
+    )
+
+
+def _value_fingerprint(event: Mapping[str, Any]) -> str:
+    """A canonical, envelope-INDEPENDENT signature of the DISPLAYED value.
+
+    It carries the displayed fields and the published extras, and NOTHING
+    else: a declared revision detail nobody displays (a free ``note``, a
+    reworded label) must not make two identical events look like conflicting
+    versions. Two records of one stable id share this fingerprint exactly
+    when a reader would see the same event.
+    """
+    return _canonical_json(
         {
             **{field: event[field] for field in _VALUE_FIELDS},
             "extra": event["extra"],
+        }
+    )
+
+
+def _record_fingerprint(event: Mapping[str, Any]) -> str:
+    """A canonical signature of the WHOLE published record.
+
+    Beyond the displayed value it carries the declared revisions (accepted
+    and rejected). It never decides a conflict — only the order between
+    records whose DISPLAYED value is identical, where no value can be chosen
+    wrongly and where the envelope id must not decide which declaration set
+    is published.
+    """
+    return _canonical_json(
+        {
+            "value": event["value_fingerprint"],
             "revisions": event["revisions"],
-        },
-        sort_keys=True,
-        separators=(",", ":"),
-        default=str,
+            "rejected_revisions": event["rejected_revisions"],
+        }
     )
 
 
@@ -635,6 +673,7 @@ def _validate_event(
         },
     }
     validated["value_fingerprint"] = _value_fingerprint(validated)
+    validated["record_fingerprint"] = _record_fingerprint(validated)
     return validated, None
 
 
@@ -731,20 +770,72 @@ def _business_instants(
     )
 
 
+CONFLICT_ELECTION_RULE_VERSION = "calendar_conflict_election/1.0"
+"""Versioned rule electing the DISPLAYED value of a contested event.
+
+It applies ONLY when the business chronology cannot rank two records of one
+stable id (equal ``as_of`` AND equal usable ``revised_at``) and they
+disagree on the displayed value. It is deliberately conservative on the two
+facts ``conflicting_versions`` publishes, and it elects nothing outside them:
+
+1. status — an ``ESTIMATED`` version is displayed over a ``CONFIRMED`` one:
+   a date contested by an equally recent record is never presented as
+   confirmed (no unverified upgrade);
+2. instant — at equal status the EARLIEST declared ``event_time_utc``: a
+   contested event is never announced later than one of its own declared
+   instants;
+3. any residual tie (records agreeing on status AND instant but differing on
+   another displayed field) is closed by the stable, id-independent value
+   signature. That last step is an ORDER, not a business claim: the event
+   stays published ``CONFLICTING_VERSIONS`` and carries this rule id, so the
+   displayed value reads as a contested election rather than as the truth.
+"""
+
+_CONSERVATIVE_STATUS_RANK: Mapping[str, int] = {
+    EVENT_STATUS_CONFIRMED: 0,
+    EVENT_STATUS_ESTIMATED: 1,
+}
+"""Higher rank = displayed first at a conflict (rule 1 above)."""
+
+_INSTANT_ORDER_ORIGIN = datetime.max.replace(tzinfo=timezone.utc)
+"""Origin inverting the instant order EXACTLY (rule 2 above): the earliest
+declared instant yields the largest key, with no float conversion."""
+
+
+def _conflict_election_key(
+    event: Mapping[str, Any],
+) -> tuple[int, timedelta, str]:
+    """Key of :data:`CONFLICT_ELECTION_RULE_VERSION` (max = displayed)."""
+    return (
+        _CONSERVATIVE_STATUS_RANK[event["status"]],
+        _INSTANT_ORDER_ORIGIN - event["event_time_utc_parsed"],
+        event["value_fingerprint"],
+    )
+
+
 def _business_order_key(
     record: CalendarEventRecord, event: Mapping[str, Any]
-) -> tuple[datetime, datetime, str, str]:
+) -> tuple[datetime, datetime, tuple[int, timedelta, str], str, str]:
     """Total, id-agnostic ordering of the records of one stable id.
 
-    After the two business instants comes the VALUE fingerprint: it makes the
-    order total WITHOUT letting the envelope id choose a displayed value, and
-    the envelope ``event_id`` closes the order only between records whose
-    business value is IDENTICAL (where no value can be chosen wrongly). A
-    remaining tie on the business instants with DIFFERENT values is published
-    as a conflict, never silently arbitrated.
+    After the two business instants comes the documented ELECTION key
+    (:data:`CONFLICT_ELECTION_RULE_VERSION`), which decides the displayed
+    value of a contested event by a business rule instead of an alphabet.
+    Then the full record signature separates records whose DISPLAYED value is
+    identical but whose declarations differ, and the envelope ``event_id``
+    closes the order only between records that are identical throughout
+    (where nothing can be chosen wrongly). A remaining tie on the business
+    instants with DIFFERENT displayed values is still published as a
+    conflict, never silently arbitrated.
     """
     as_of, revised_at = _business_instants(record, event)
-    return (as_of, revised_at, event["value_fingerprint"], record.event_id)
+    return (
+        as_of,
+        revised_at,
+        _conflict_election_key(event),
+        event["record_fingerprint"],
+        record.event_id,
+    )
 
 
 def _previous_value(
@@ -833,7 +924,9 @@ def build_calendar_content(
     rejected_revisions_count = 0
     rejected_revision_reasons: dict[str, int] = {}
     Candidate = tuple[
-        tuple[datetime, datetime, str, str], CalendarEventRecord, dict[str, Any]
+        tuple[datetime, datetime, tuple[int, timedelta, str], str, str],
+        CalendarEventRecord,
+        dict[str, Any],
     ]
     by_stable_id: dict[str, list[Candidate]] = {}
     for record in records:
@@ -965,6 +1058,11 @@ def build_calendar_content(
                 else VERSION_STATE_RESOLVED
             ),
             "conflicting_versions": conflicting_versions,
+            # Named ONLY when a value was really elected among contested
+            # versions: a resolved event elects nothing and says so.
+            "conflict_election_rule": (
+                CONFLICT_ELECTION_RULE_VERSION if conflicting_versions else None
+            ),
             "revised": revised,
             "event_context": _event_context(
                 event["ticker"],
