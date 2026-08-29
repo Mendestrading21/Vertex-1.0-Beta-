@@ -1,0 +1,29 @@
+# Racine du monorepo Vertex 1.0 Beta — configuration outillage.
+# Cible runtime : Python 3.13 (uv.lock au LOT-01 sur la machine cible).
+# Plancher local de développement : 3.11 (aucune syntaxe > 3.11 dans le code).
+[tool.pytest.ini_options]
+# tests_integration/ (PostgreSQL réel) s'exécute explicitement :
+#   bash tools/run_checks.sh --integration
+testpaths = [
+    "packages/python/vertex_core/tests",
+    "packages/python/vertex_persistence/tests",
+    "apps/api/tests",
+    "apps/edge-ibkr/tests",
+    "apps/ingress-tradingview/tests",
+    "apps/worker/tests",
+]
+pythonpath = [
+    "apps/ingress-tradingview/src",
+    "packages/python/vertex_core/src",
+    "packages/python/vertex_persistence/src",
+    "apps/api/src",
+    "apps/edge-ibkr/src",
+    "apps/worker/src",
+]
+addopts = "-q --strict-markers"
+markers = [
+    "property: tests de propriétés Hypothesis",
+    "oracle: tests différentiels contre un oracle indépendant (QuantLib/SciPy)",
+    "golden: vecteurs de référence versionnés avec provenance",
+]
+filterwarnings = ["error::RuntimeWarning"]

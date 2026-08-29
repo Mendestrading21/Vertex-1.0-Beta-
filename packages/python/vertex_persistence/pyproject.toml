@@ -1,0 +1,30 @@
+# Vertex One — persistence package (dossier 11).
+# Cible runtime 3.13 (épinglée par uv.lock au LOT-01) ; plancher dev local 3.11.
+[project]
+name = "vertex-persistence"
+version = "0.1.0"
+description = "Vertex One — PostgreSQL persistence: SQLAlchemy models, Alembic migrations, transactional outbox and manual ledger storage. Storage only — no financial rules, no decision logic, no broker account data."
+requires-python = ">=3.11"
+license = "LicenseRef-Proprietary"
+dependencies = [
+    # vertex-core is resolved from this monorepo workspace (packages/python/vertex_core),
+    # never from an external index. Persistence imports its canonical contracts
+    # (enums, hashing) and must not redefine them.
+    "vertex-core>=0.1.0",
+    "SQLAlchemy>=2.0,<3",
+    "alembic>=1.13",
+    "psycopg>=3.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "hypothesis>=6.100",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]

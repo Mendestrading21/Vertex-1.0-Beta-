@@ -1,0 +1,647 @@
+schema_version: 1
+policy_id: vertex-one-news-social-sources
+reviewed_at: "2026-08-28"
+policy_owner: data_governance
+status_values: [ACTIVE, OPTIONAL, UNSUPPORTED]
+runtime_availability_values:
+  - AVAILABLE
+  - DELAYED
+  - NOT_ENTITLED
+  - UNSUPPORTED
+  - STALE
+  - ERROR
+
+global_rules:
+  official_interfaces_only: true
+  scraping: forbidden
+  browser_sessions_as_data_source: forbidden
+  undocumented_endpoints: forbidden
+  entitlement_bypass: forbidden
+  private_social_data: forbidden
+  social_write_actions: forbidden
+  ai_training_on_source_content: forbidden
+  secrets_in_logs_or_database: forbidden
+  stricter_contract_wins: true
+  unknown_rights_action: disable_and_purge_content
+  social_context_only: true
+  social_can_qualify_decision: false
+  social_can_set_direction: false
+  raw_social_in_long_term_backups: false
+  licensed_article_bodies_in_long_term_backups: false
+
+cross_source_policy:
+  primary_confirmation_tiers: [P0_REGULATORY_PRIMARY, P1_SUBSCRIBED_STRUCTURED]
+  social_tier: P3_PUBLIC_CONVERSATION
+  social_plus_social_is_primary_confirmation: false
+  syndication_counts_as_one_source: true
+  entity_resolution_requires_canonical_id: true
+  ticker_alone_is_sufficient_identity: false
+  unresolved_conflict_action: BLOCK_RELEVANT_GATE
+  allowed_cluster_states:
+    - UNVERIFIED_SOCIAL
+    - CORROBORATED
+    - PRIMARY_CONFIRMED
+    - CONTRADICTED
+
+bot_spam_policy:
+  purpose: corpus_quality_only
+  labels_people_as_bots: false
+  allowed_output: [LOW, MEDIUM, HIGH, UNKNOWN]
+  allowed_signals:
+    - exact_or_near_duplicate_content
+    - temporal_burstiness
+    - shared_link_concentration
+    - author_and_domain_concentration
+    - engagement_anomaly_if_contract_allows
+    - cross_source_divergence
+  prohibited_signals:
+    - sensitive_attribute_inference
+    - cross_platform_identity_linking
+    - private_data
+  x_specific_rule: "Ne jamais identifier publiquement bot, spam ou violation sans permission écrite de X."
+
+sources:
+  - id: ibkr_news
+    name: IBKR News API
+    category: [news, company, etf]
+    evidence_tier: P1_SUBSCRIBED_STRUCTURED
+    default_status: ACTIVE
+    activation_gate: "reqNewsProviders retourne au moins un fournisseur autorisé et ses conditions sont enregistrées."
+    scope:
+      - subscribed_provider_codes
+      - contract_specific_live_headlines
+      - broad_tape_headlines
+      - historical_headlines
+      - article_on_demand
+    auth:
+      type: tws_local_authenticated_session
+      secret_location: operating_system_secret_store
+      permissions: read_only_information
+      prohibited_permissions: [account, portfolio, positions, pnl, orders, executions]
+    rights:
+      basis: provider_specific_api_subscription
+      entitlement_probe: reqNewsProviders
+      commercial_use: contract_dependent
+      redistribution: forbidden_by_default
+      article_body_storage: forbidden_by_default
+      ai_processing: forbidden_without_explicit_written_right
+      attribution: provider_required
+    human_cost:
+      setup: "Vérifier et sélectionner manuellement les abonnements API dans le portail IBKR."
+      monetary: variable_free_or_paid_by_provider_and_user
+      recurring: quarterly_terms_and_entitlement_review
+    freshness:
+      mode: event_stream_and_on_demand_history
+      expected: provider_defined
+      sla: none
+      required_timestamps: [provider_published_at, received_at]
+      pacing: ibkr_documented_limits
+    retention:
+      raw_article_body_ttl: NONE_BY_DEFAULT
+      encrypted_display_cache_ttl: PT24H
+      headline_ttl: PT24H
+      native_id_and_provenance_ttl: P30D
+      derived_cluster_ttl: P90D_IF_PROVIDER_TERMS_ALLOW
+      deletion_deadline: CONTRACT_OR_ENTITLEMENT_END
+      backup_policy: exclude_licensed_content
+    derived_fields:
+      - entity_links
+      - event_category
+      - novelty
+      - watchlist_relevance
+      - duplicate_cluster_id
+      - independent_provider_count
+      - freshness_state
+    safeguards:
+      - no_news_method_outside_documented_api
+      - no_content_in_logs_fixtures_screenshots_or_exports
+      - no_provider_content_sent_to_ai_without_written_right
+      - no_fallback_when_not_entitled
+      - provider_sentiment_never_becomes_vertex_verdict
+    official_links:
+      - label: Current TWS API documentation
+        url: https://www.interactivebrokers.com/campus/ibkr-api-page/twsapi-doc/
+      - label: Official News API reference
+        url: https://interactivebrokers.github.io/tws-api/news.html
+      - label: Subscription management
+        url: https://www.interactivebrokers.com/campus/trading-lessons/subscribing-to-data/
+      - label: Research and News offerings
+        url: https://www.interactivebrokers.com/en/pricing/research-news-services.php
+
+  - id: ibkr_wsh
+    name: IBKR Wall Street Horizon
+    category: [corporate_calendar, company, options, etf]
+    evidence_tier: P1_SUBSCRIBED_STRUCTURED
+    default_status: ACTIVE
+    activation_gate: "L'entitlement WSH est disponible et la politique fournisseur est enregistrée."
+    scope:
+      - earnings_dates
+      - dividend_dates
+      - splits_and_spinoffs
+      - options_expirations
+      - investor_conferences
+      - other_documented_corporate_events
+    auth:
+      type: tws_local_authenticated_session
+      permissions: read_only_information
+      prohibited_options: [fillPortfolio]
+      universe_source: canonical_vertex_instrument_ids
+    rights:
+      basis: provider_specific_entitlement_via_ibkr
+      commercial_use: contract_dependent
+      redistribution: forbidden_by_default
+      storage: contract_dependent
+      ai_processing: forbidden_without_explicit_written_right
+    human_cost:
+      setup: "Vérifier manuellement l'entitlement et les frais WSH dans IBKR."
+      monetary: variable_subscription
+      recurring: quarterly_terms_and_entitlement_review
+    freshness:
+      mode: request_response_with_revisions
+      expected: provider_defined
+      sla: none
+      refresh: bounded_schedule_respecting_ibkr_pacing
+    retention:
+      raw_payload_ttl: PT24H
+      normalized_event_ttl: P30D_AFTER_EVENT
+      revision_evidence_ttl: P1Y_IF_PROVIDER_TERMS_ALLOW
+      deletion_deadline: CONTRACT_OR_ENTITLEMENT_END
+      backup_policy: exclude_raw_payload
+    derived_fields:
+      - days_to_event
+      - event_risk_window
+      - date_change
+      - certainty_state
+      - cross_source_conflict
+      - related_instrument_ids
+    safeguards:
+      - fillPortfolio_is_always_false
+      - no_account_position_or_watchlist_inference
+      - estimated_date_never_rendered_as_confirmed
+      - no_calendar_redistribution
+      - no_silent_fallback_when_not_entitled
+    official_links:
+      - label: Current TWS API documentation
+        url: https://www.interactivebrokers.com/campus/ibkr-api-page/twsapi-doc/
+      - label: WSH corporate events
+        url: https://interactivebrokers.github.io/tws-api/fundamentals.html
+      - label: WSH filters
+        url: https://interactivebrokers.github.io/tws-api/wshe_filters.html
+
+  - id: sec_edgar
+    name: SEC EDGAR
+    category: [regulatory_filings, company, fundamentals, etf]
+    evidence_tier: P0_REGULATORY_PRIMARY
+    default_status: ACTIVE
+    activation_gate: "User-Agent déclaré, contact valide, rate limiter et correction hebdomadaire testés."
+    scope:
+      - submissions_history
+      - filing_metadata
+      - company_identity
+      - xbrl_company_facts
+      - xbrl_company_concepts
+      - official_company_and_etf_filings
+    auth:
+      type: none
+      required_headers:
+        User-Agent: "VertexOne contact@example.invalid"
+        Accept-Encoding: gzip
+      note: "Le contact d'exemple doit être remplacé localement avant activation."
+    rights:
+      basis: public_regulatory_access
+      access_cost: free
+      redistribution: link_and_facts_with_provenance
+      personal_data: minimize
+      correction_obligation: post_acceptance_corrections_and_deletions
+      attribution: SEC_EDGAR_and_accession
+    human_cost:
+      setup: "Configurer un contact réel et valider les formulaires/faits utilisés."
+      monetary: none
+      recurring: weekly_correction_sync_and_quarterly_scope_review
+    freshness:
+      submissions_typical_delay: LT1S_NOT_SLA
+      xbrl_typical_delay: LT1M_NOT_SLA
+      bulk_refresh: nightly_approximately_0300_ET
+      hard_rate_limit: 10_requests_per_second
+      internal_rate_limit: lower_than_official_maximum
+    retention:
+      raw_api_response_ttl: PT24H
+      accession_and_filing_metadata_ttl: INDEFINITE_WITH_PROVENANCE
+      validated_xbrl_facts_ttl: INDEFINITE_WITH_PROVENANCE
+      derived_facts_ttl: INDEFINITE_WITH_CALCULATION_VERSION
+      correction_check: P7D
+      backup_policy: permitted_for_validated_public_facts
+    derived_fields:
+      - filing_event
+      - xbrl_fact_delta
+      - fiscal_period
+      - xbrl_quality_state
+      - company_name_and_ticker_change
+      - canonical_entity_links
+    safeguards:
+      - use_data_sec_gov_indexes_or_official_archives_only
+      - no_html_search_scraping
+      - preserve_units_period_taxonomy_amendment_and_accession
+      - weekly_post_acceptance_correction_sync
+      - no_individual_profiling
+      - ratios_only_in_python_vertex_core
+    official_links:
+      - label: EDGAR APIs
+        url: https://www.sec.gov/search-filings/edgar-application-programming-interfaces
+      - label: Accessing EDGAR and Fair Access
+        url: https://www.sec.gov/search-filings/edgar-search-assistance/accessing-edgar-data
+      - label: SEC developer resources
+        url: https://www.sec.gov/about/developer-resources
+
+  - id: fred_alfred
+    name: FRED and ALFRED
+    category: [macro, economic_calendar, vintages]
+    evidence_tier: P0_REGULATORY_PRIMARY
+    default_status: ACTIVE
+    activation_gate: "Clé API présente et chaque series_id figure dans l'allowlist de droits."
+    scope:
+      - series_metadata
+      - observations
+      - release_dates
+      - realtime_periods
+      - vintage_observations
+    auth:
+      type: api_key
+      registration: fred_account
+      secret_location: operating_system_secret_store
+      key_policy: distinct_key_per_application_or_user_as_required
+    rights:
+      basis: fred_api_terms_plus_series_owner_terms
+      access_cost: free_registration
+      redistribution: per_series_only
+      copyrighted_series: personal_use_only_unless_owner_permission
+      attribution: FRED_and_original_data_owner
+      endorsement_claim: forbidden
+    human_cost:
+      setup: "Créer la clé et auditer propriétaire/copyright/attribution de chaque série."
+      monetary: none_for_api_key
+      recurring: quarterly_series_rights_review
+    freshness:
+      mode: release_specific
+      expected: source_series_defined
+      release_date_is_availability_time: false
+      rate_limit: dynamic_respect_http_429
+      required_fields: [last_updated, realtime_start, realtime_end, vintage_date]
+    retention:
+      raw_api_response_ttl: PT24H
+      permitted_series_observations_ttl: INDEFINITE_IF_SERIES_RIGHTS_ALLOW
+      copyrighted_series_cache_ttl: PT24H_PERSONAL_USE_ONLY
+      derived_macro_ttl: SAME_AS_SOURCE_SERIES_RIGHTS
+      backup_policy: permitted_only_for_allowlisted_series
+    derived_fields:
+      - point_in_time_change
+      - point_in_time_zscore
+      - macro_regime_context
+      - revision_size
+      - observation_age
+      - time_to_release
+    safeguards:
+      - allowlist_series_with_owner_and_rights
+      - alfred_vintage_required_for_backtests
+      - no_consensus_surprise_without_separate_authorized_consensus
+      - no_export_of_copyrighted_series_by_default
+      - preserve_units_frequency_and_source
+    official_links:
+      - label: FRED API
+        url: https://fred.stlouisfed.org/docs/api/fred/
+      - label: ALFRED vintages
+        url: https://fred.stlouisfed.org/docs/api/fred/alfred.html
+      - label: API terms
+        url: https://fred.stlouisfed.org/docs/api/terms_of_use.html
+      - label: Legal notices and attribution
+        url: https://fred.stlouisfed.org/legal/
+      - label: API keys
+        url: https://fred.stlouisfed.org/docs/api/fred/v2/api_key.html
+
+  - id: gdelt
+    name: GDELT Project
+    category: [global_news_discovery, media_coverage, multilingual_context]
+    evidence_tier: P2_OPEN_AGGREGATOR
+    default_status: ACTIVE
+    activation_gate: "Attribution GDELT visible et récupération du contenu éditeur techniquement impossible."
+    scope:
+      - doc_2_api_metadata
+      - canonical_article_urls
+      - gdelt_themes_and_events
+      - source_country_and_language
+      - gdelt_tone_as_vendor_field
+    auth:
+      type: none
+      transport: https
+    rights:
+      basis: gdelt_open_dataset_terms
+      access_cost: free
+      academic_commercial_government_use: allowed_for_gdelt_datasets
+      redistribution: allowed_with_gdelt_citation_and_link
+      publisher_article_content: excluded_and_not_licensed_by_gdelt
+      attribution: GDELT_Project_with_link
+    human_cost:
+      setup: "Définir requêtes bornées, attribution et tests de non-récupération des articles."
+      monetary: none_for_gdelt_api
+      recurring: quarterly_api_and_attribution_review
+    freshness:
+      update_cadence: PT15M_ANNOUNCED_NOT_SLA
+      doc_search_window: up_to_last_three_months
+      completeness_guarantee: none
+    retention:
+      raw_api_response_ttl: PT24H
+      gdelt_metadata_ttl: P1Y
+      publisher_article_text_ttl: NONE
+      non_personal_aggregate_ttl: P5Y
+      backup_policy: metadata_only_with_attribution
+    derived_fields:
+      - coverage_velocity
+      - domain_country_language_diversity
+      - publisher_concentration
+      - novelty
+      - gdelt_theme_set
+      - gdelt_tone_labeled_as_vendor_field
+      - primary_source_corroboration_state
+    safeguards:
+      - no_publisher_article_download
+      - no_paywall_access
+      - syndicated_story_counts_once
+      - publisher_and_gdelt_roles_remain_distinct
+      - gdelt_tone_is_not_investor_sentiment
+      - never_qualifies_decision_alone
+    official_links:
+      - label: GDELT terms and project
+        url: https://www.gdeltproject.org/about.html
+      - label: GDELT data
+        url: https://www.gdeltproject.org/data.html
+      - label: DOC 2.0 API
+        url: https://blog.gdeltproject.org/gdelt-doc-2-0-api-debuts/
+      - label: GDELT 2.0 cadence
+        url: https://blog.gdeltproject.org/gdelt-2-0-our-global-world-in-realtime/
+
+  - id: bluesky_atproto
+    name: Bluesky AT Protocol
+    category: [public_social_context]
+    evidence_tier: P3_PUBLIC_CONVERSATION
+    default_status: OPTIONAL
+    activation_gate: "AppView public allowlisté, purge des deletes/account states testée et revue vie privée acceptée."
+    scope:
+      - narrow_public_post_queries
+      - public_posts_matching_allowlisted_entities
+      - jetstream_or_firehose_only_after_need_is_measured
+    excluded_scope:
+      - direct_messages
+      - full_profiles
+      - media_blobs
+      - global_social_graph
+      - write_actions
+    auth:
+      type: none_for_public_appview
+      preferred_host: https://public.api.bsky.app
+      oauth: not_required_for_vertex_read_only_scope
+    rights:
+      basis: at_protocol_public_data_plus_bluesky_terms
+      content_owner: user
+      public_does_not_mean_unrestricted_republication: true
+      redistribution: prohibited_by_vertex_default
+      ai_training: forbidden
+      deletion_and_account_state: must_be_honored
+    human_cost:
+      setup: "Définir allowlist, modération, suppression et limites de service."
+      monetary: none_published_for_public_endpoints
+      recurring: moderation_and_deletion_operations
+    freshness:
+      mode: appview_query_or_event_stream
+      expected: near_realtime_not_sla
+      rate_limit: service_published_limits_and_response_headers
+    retention:
+      raw_text_ttl: PT24H
+      uri_cid_did_metadata_ttl: P7D
+      reversible_aggregate_ttl: P30D
+      media_ttl: NONE
+      deletion_deadline: PT24H_VERTEX_MAXIMUM
+      backup_policy: exclude_raw_content
+    derived_fields:
+      - entity_mentions
+      - language
+      - volume
+      - velocity
+      - disagreement
+      - duplicate_rate
+      - content_automation_risk
+    safeguards:
+      - no_cross_platform_identity_linking
+      - no_sensitive_attribute_inference
+      - verify_active_account_state_before_display
+      - honor_moderation_labels
+      - purge_record_account_and_all_derived_data_on_delete_or_takedown
+      - context_only_never_qualifies_decision
+    official_links:
+      - label: API hosts and auth
+        url: https://docs.bsky.app/docs/advanced-guides/api-directory
+      - label: Rate limits
+        url: https://docs.bsky.app/docs/advanced-guides/rate-limits
+      - label: Firehose
+        url: https://docs.bsky.app/docs/advanced-guides/firehose
+      - label: Account lifecycle
+        url: https://atproto.com/specs/account
+      - label: Repository and record deletion
+        url: https://atproto.com/specs/repository
+      - label: Bluesky terms
+        url: https://bsky.social/about/support/tos
+
+  - id: reddit_data_api
+    name: Reddit Data API
+    category: [public_social_context]
+    evidence_tier: P3_PUBLIC_CONVERSATION
+    default_status: OPTIONAL
+    activation_gate: "Approbation Reddit écrite pour le cas d'usage exact, OAuth, User-Agent et purge < 48 h validés."
+    scope:
+      - allowlisted_public_finance_communities
+      - public_posts
+      - public_comments
+    excluded_scope:
+      - private_messages
+      - votes
+      - moderation_actions
+      - write_actions
+      - academic_research_outside_official_program
+    auth:
+      type: oauth_registered_approved_client
+      user_agent_format: "<platform>:<app_id>:<version> (by /u/<contact>)"
+      unidentified_traffic: forbidden
+    rights:
+      basis: reddit_approval_plus_data_api_terms_and_responsible_builder_policy
+      approval_required: true
+      commercial_use: written_permission_and_contract_required
+      broader_access: may_be_paid
+      ai_training: forbidden_without_explicit_reddit_consent
+      redistribution: forbidden_by_vertex_default
+      deleted_content_retention: forbidden_even_if_deidentified
+    human_cost:
+      setup: "Soumettre et maintenir l'approbation Reddit du cas d'usage."
+      monetary: free_or_paid_depending_on_approved_access
+      recurring: approval_terms_privacy_and_deletion_review
+    freshness:
+      mode: listings_and_search_on_demand
+      completeness_guarantee: none
+      free_access_limit: 100_queries_per_minute_per_oauth_client
+      averaging_window: PT10M
+      rate_headers:
+        - X-Ratelimit-Used
+        - X-Ratelimit-Remaining
+        - X-Ratelimit-Reset
+    retention:
+      raw_text_author_metadata_ttl: PT24H
+      hard_global_purge_deadline: PT48H
+      reversible_aggregate_ttl: PT24H_DEFAULT
+      deletion_deadline: IMMEDIATE_ON_DETECTION_AND_BEFORE_PT48H
+      backup_policy: exclude_all_reddit_content
+    derived_fields:
+      - community_volume
+      - apparent_author_diversity
+      - duplicate_rate
+      - velocity
+      - experimental_polarity
+      - disagreement
+      - coordination_risk
+    safeguards:
+      - no_scraping
+      - no_multiple_apps_to_bypass_limits
+      - no_cross_platform_identity_linking
+      - no_sensitive_attribute_inference
+      - no_ai_training
+      - delete_all_content_and_author_references_on_source_deletion
+      - context_only_never_qualifies_decision
+    official_links:
+      - label: Data API Wiki
+        url: https://support.reddithelp.com/hc/en-us/articles/16160319875092-Reddit-Data-API-Wiki
+      - label: Access commercial use and fees
+        url: https://support.reddithelp.com/hc/en-us/articles/14945211791892-Developer-Platform-Accessing-Reddit-Data
+      - label: Responsible Builder Policy
+        url: https://support.reddithelp.com/hc/en-us/articles/42728983564564-Responsible-Builder-Policy
+      - label: Data API Terms
+        url: https://redditinc.com/policies/data-api-terms
+      - label: API reference
+        url: https://www.reddit.com/dev/api/
+
+  - id: x_api
+    name: X API
+    category: [public_social_context]
+    evidence_tier: P3_PUBLIC_CONVERSATION
+    default_status: OPTIONAL
+    activation_gate: "Compte approuvé, cas d'usage déclaré, crédits plafonnés et conformité suppression < 24 h testée."
+    scope:
+      - recent_search_allowlisted_queries
+      - filtered_stream_allowlisted_rules
+      - public_posts_only
+    excluded_scope:
+      - direct_messages
+      - private_metrics
+      - protected_users
+      - write_actions
+      - individual_profiling
+    auth:
+      type: oauth2_app_only_bearer
+      developer_account: required
+      project_and_app: required
+      secret_location: operating_system_secret_store
+    rights:
+      basis: approved_use_case_plus_developer_agreement_and_policy
+      use_case_changes_require_approval: true
+      commercial_use: plan_and_agreement_dependent
+      redistribution: policy_and_agreement_dependent
+      content_must_remain_current: true
+      bot_spam_public_classification: written_permission_required
+      ai_training: forbidden_by_vertex
+    human_cost:
+      setup: "Créer le projet/app, déclarer le cas d'usage et acheter des crédits si nécessaire."
+      monetary: pay_per_usage_credits
+      budget_control: human_monthly_cap_and_automatic_cutoff
+      recurring: monthly_cost_and_quarterly_policy_review
+    freshness:
+      recent_search_window: P7D
+      filtered_stream: realtime_not_sla
+      rate_limits_and_billing_are_separate: true
+      completeness_guarantee: none
+    retention:
+      raw_content_ttl: PT24H
+      post_ids_ttl: P30D_IF_APPROVED_USE_CASE_ALLOWS
+      reversible_aggregate_ttl: P30D_IF_APPROVED_USE_CASE_ALLOWS
+      deletion_or_modification_deadline: PT24H_MAX_AFTER_NOTICE
+      backup_policy: exclude_raw_content
+    derived_fields:
+      - volume
+      - velocity
+      - shared_link_diversity
+      - apparent_author_diversity
+      - duplicate_rate
+      - disagreement
+      - corpus_quality_score
+    safeguards:
+      - no_public_bot_spam_or_policy_violation_label_without_written_permission
+      - no_cross_platform_identity_linking
+      - no_sensitive_attribute_inference
+      - no_targeting_or_profiling
+      - refresh_current_content_before_display
+      - remove_or_modify_within_policy_deadline
+      - context_only_never_qualifies_decision
+    official_links:
+      - label: X API introduction
+        url: https://docs.x.com/x-api/introduction
+      - label: Search Posts
+        url: https://docs.x.com/x-api/posts/search/introduction
+      - label: Filtered Stream
+        url: https://docs.x.com/x-api/posts/filtered-stream/introduction
+      - label: Pricing
+        url: https://docs.x.com/x-api/getting-started/pricing
+      - label: Rate limits
+        url: https://docs.x.com/x-api/fundamentals/rate-limits
+      - label: Developer Policy
+        url: https://docs.x.com/developer-terms/policy
+      - label: Developer Agreement
+        url: https://docs.x.com/developer-terms/agreement
+
+  - id: stocktwits
+    name: Stocktwits
+    category: [specialized_social_sentiment]
+    evidence_tier: P3_PUBLIC_CONVERSATION
+    default_status: UNSUPPORTED
+    activation_gate: "Contrat ou autorisation écrite, compte Firestream autorisé, coût, limites et rétention approuvés par ADR."
+    scope: []
+    auth:
+      type: unavailable_for_new_public_registration
+      documented_firestream_auth: http_basic_for_authorized_account
+      credentials_present: false
+    rights:
+      basis: no_vertex_right_established
+      new_public_app_registration: closed_during_api_review
+      redistribution: forbidden
+      storage: forbidden
+      ai_training: forbidden
+    human_cost:
+      setup: "Contacter Stocktwits et obtenir des conditions écrites avant toute conception."
+      monetary: unknown_contractual
+      recurring: none_while_unsupported
+    freshness:
+      mode: unavailable
+      completeness_guarantee: none
+    retention:
+      raw_content_ttl: NONE
+      metadata_ttl: NONE
+      derived_ttl: NONE
+      backup_policy: none
+    derived_fields: []
+    safeguards:
+      - no_collection
+      - no_scraping
+      - no_undocumented_endpoint
+      - no_browser_network_inspection_as_api
+      - no_status_change_without_human_approved_adr
+    official_links:
+      - label: Developer registration status
+        url: https://api.stocktwits.com/developers
+      - label: Firestream documentation
+        url: https://firestream-portal.stocktwits.com/
+      - label: Official API documentation
+        url: https://api-docs.stocktwits.com/

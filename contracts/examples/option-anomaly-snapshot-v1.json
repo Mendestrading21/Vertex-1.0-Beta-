@@ -1,0 +1,207 @@
+{
+  "schema": "vertex.option_anomaly_snapshot.v1",
+  "snapshot_id": "oas_fixture_xyz_call_20260828T143502Z",
+  "generated_at": "2026-08-28T14:35:03Z",
+  "as_of": "2026-08-28T14:35:02Z",
+  "environment": "SYNTHETIC",
+  "fixture": true,
+  "underlying": {
+    "instrument_id": "ins_xyz_fixture_usd",
+    "canonical_symbol": "XYZ_FIXTURE",
+    "ibkr_con_id": 900000001,
+    "exchange": "SMART",
+    "currency": "USD",
+    "price": "101.25",
+    "observed_at": "2026-08-28T14:35:02Z",
+    "market_data_type": "LIVE",
+    "connection_epoch": "ibkr_epoch_fixture_17"
+  },
+  "option_contract": {
+    "option_contract_id": "opt_xyz_fixture_20261218_c_100_tc_xyz",
+    "ibkr_con_id": 900000101,
+    "underlying_instrument_id": "ins_xyz_fixture_usd",
+    "trading_class": "XYZ",
+    "expiry": "2026-12-18",
+    "strike": "100",
+    "right": "CALL",
+    "multiplier": "100",
+    "currency": "USD",
+    "exchange": "SMART",
+    "exercise_style": "AMERICAN",
+    "settlement": "PHYSICAL",
+    "adjustment_code": null,
+    "deliverable_resolved": true
+  },
+  "quote": {
+    "bid": "8.10",
+    "ask": "8.40",
+    "last": "8.25",
+    "bid_size": "12",
+    "ask_size": "9",
+    "observed_at": "2026-08-28T14:35:02Z",
+    "market_data_type": "LIVE",
+    "connection_epoch": "ibkr_epoch_fixture_17",
+    "is_locked": false,
+    "is_crossed": false,
+    "is_stale": false
+  },
+  "activity_observations": [
+    {
+      "metric": "CONTRACT_VOLUME",
+      "value": "1840",
+      "scope": "EXACT_OPTION_CONTRACT",
+      "tick_type": 8,
+      "generic_tick_requested": null,
+      "observed_at": "2026-08-28T14:35:02Z",
+      "effective_as_of": "2026-08-28T14:35:02Z",
+      "market_data_type": "LIVE",
+      "update_semantics": "SESSION_CUMULATIVE"
+    },
+    {
+      "metric": "CALL_OPEN_INTEREST",
+      "value": "920",
+      "scope": "PROVIDER_DEFINED",
+      "tick_type": 27,
+      "generic_tick_requested": 101,
+      "observed_at": "2026-08-28T14:35:02Z",
+      "effective_as_of": null,
+      "market_data_type": "LIVE",
+      "update_semantics": "PROVIDER_DEFINED"
+    }
+  ],
+  "provider_computations": [
+    {
+      "source": "IBKR",
+      "tick_type": 10,
+      "price_basis": "BID",
+      "market_data_type": "LIVE",
+      "observed_at": "2026-08-28T14:35:02Z",
+      "implied_volatility": "0.2841",
+      "delta": "0.5920",
+      "gamma": "0.0214",
+      "vega": "0.1820",
+      "theta": "-0.0310",
+      "option_price": "8.10",
+      "present_value_dividends": "0.72",
+      "underlying_price": "101.25"
+    },
+    {
+      "source": "IBKR",
+      "tick_type": 11,
+      "price_basis": "ASK",
+      "market_data_type": "LIVE",
+      "observed_at": "2026-08-28T14:35:02Z",
+      "implied_volatility": "0.2960",
+      "delta": "0.5951",
+      "gamma": "0.0208",
+      "vega": "0.1831",
+      "theta": "-0.0324",
+      "option_price": "8.40",
+      "present_value_dividends": "0.72",
+      "underlying_price": "101.25"
+    },
+    {
+      "source": "IBKR",
+      "tick_type": 13,
+      "price_basis": "MODEL",
+      "market_data_type": "LIVE",
+      "observed_at": "2026-08-28T14:35:02Z",
+      "implied_volatility": "0.2901",
+      "delta": "0.5937",
+      "gamma": "0.0211",
+      "vega": "0.1826",
+      "theta": "-0.0317",
+      "option_price": "8.25",
+      "present_value_dividends": "0.72",
+      "underlying_price": "101.25"
+    }
+  ],
+  "anomaly": {
+    "status": "PARTIAL",
+    "direction_hypothesis": "UNKNOWN",
+    "detectors": [
+      {
+        "detector_id": "contract_volume_percentile",
+        "status": "OK",
+        "score": "2.41",
+        "percentile": "0.982",
+        "population": "same contract moneyness-DTE bucket synthetic history",
+        "window": "60_sessions",
+        "coverage_ratio": "0.95",
+        "reason_codes": ["VOLUME_RELATIVE_HIGH"]
+      },
+      {
+        "detector_id": "volume_open_interest_ratio",
+        "status": "WARMING_UP",
+        "score": null,
+        "percentile": null,
+        "population": "same option contract synthetic history",
+        "window": "20_sessions",
+        "coverage_ratio": "0.60",
+        "reason_codes": ["OI_EFFECTIVE_AS_OF_UNKNOWN", "REFERENCE_WINDOW_INCOMPLETE"]
+      }
+    ],
+    "final_score": null,
+    "model_version": "options_anomaly_v1_0_0"
+  },
+  "coverage": {
+    "expected": 5,
+    "received": 5,
+    "valid": 4,
+    "delayed": 0,
+    "stale": 0,
+    "missing": 0,
+    "coverage_ratio": "0.80",
+    "max_age_seconds": 1
+  },
+  "entitlement_evidence": [
+    {
+      "capability_id": "option_top_of_book",
+      "status": "AVAILABLE",
+      "market_data_type": "LIVE",
+      "tested_at": "2026-08-28T14:30:00Z",
+      "expires_at": "2026-08-28T20:30:00Z",
+      "reason_code": "LIVE_TICKS_OBSERVED"
+    },
+    {
+      "capability_id": "option_computations_live",
+      "status": "AVAILABLE",
+      "market_data_type": "LIVE",
+      "tested_at": "2026-08-28T14:30:01Z",
+      "expires_at": "2026-08-28T20:30:01Z",
+      "reason_code": "LIVE_OPTION_COMPUTATIONS_OBSERVED"
+    },
+    {
+      "capability_id": "option_open_interest",
+      "status": "AVAILABLE",
+      "market_data_type": "LIVE",
+      "tested_at": "2026-08-28T14:30:02Z",
+      "expires_at": "2026-08-28T20:30:02Z",
+      "reason_code": "OPEN_INTEREST_TICK_OBSERVED"
+    }
+  ],
+  "quality_status": "PARTIAL",
+  "quality_flags": [
+    "OI_EFFECTIVE_AS_OF_UNKNOWN",
+    "NO_TRADE_SIDE_INFORMATION",
+    "NO_OPENING_CLOSING_INFORMATION"
+  ],
+  "source_event_ids": [
+    "evt_fixture_option_quote_001",
+    "evt_fixture_option_activity_001",
+    "evt_fixture_option_computation_001"
+  ],
+  "limitations": [
+    "Données entièrement synthétiques : aucune valeur ne représente un marché réel.",
+    "Le volume et l'open interest ne prouvent ni le sens du trade ni une ouverture de position.",
+    "L'open interest ne possède pas ici d'instant effectif confirmé ; le score combiné reste absent.",
+    "Les Greeks sont des observations fournisseur IBKR distinctes des calculs Vertex."
+  ],
+  "safety": {
+    "information_only": true,
+    "no_order_capability": true,
+    "portfolio_source": "MANUAL_VERTEX_ONLY",
+    "trade_side_inference_allowed": false,
+    "opening_closing_inference_allowed": false
+  }
+}

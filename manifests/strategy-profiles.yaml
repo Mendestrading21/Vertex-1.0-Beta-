@@ -1,0 +1,99 @@
+schema_version: 1
+authority: vertex_core.strategy_profiles
+repository_contains_personal_values: false
+# États canoniques — ADR-014 (REJECT→BLOCKED, WATCH→OBSERVE, RESEARCH→REVIEW)
+output_states:
+  - BLOCKED
+  - INSUFFICIENT_DATA
+  - OBSERVE
+  - REVIEW
+  - QUALIFIED
+forbidden_outputs:
+  - BUY
+  - SELL
+  - EXECUTE
+common_gates:
+  - instrument_identity
+  - source_rights
+  - freshness
+  - data_quality
+  - market_state
+  - liquidity
+  - catalyst_window
+  - thesis_and_invalidation
+  - manual_portfolio_risk
+  - calibration_or_abstention
+profiles:
+  - id: equity_etf_swing_3_12m
+    version: 1.0.0
+    default_state: DRAFT
+    instruments: [STOCK, ETF]
+    decision_horizons_months: [3, 6, 12]
+    review_cadence: WEEKLY_AND_EVENT
+    option_constraints: null
+    required_evidence:
+      - regime
+      - sector
+      - price_volume
+      - fundamentals
+      - catalysts
+      - thesis
+      - invalidation
+      - manual_portfolio_fit
+  - id: long_option_tactical_2_12w
+    version: 1.0.0
+    default_state: DRAFT
+    instruments: [LONG_CALL, LONG_PUT]
+    intended_holding_weeks:
+      minimum: 2
+      checkpoints: [2, 4, 6]
+      maximum: 12
+    entry_dte_days:
+      preferred_minimum: 120
+      preferred_target: 180
+      preferred_maximum: 240
+      hard_limits: LOCAL_CONFIG_REQUIRED
+    max_loss: PREMIUM_PAID_PLUS_FEES
+    required_evidence:
+      - underlying_thesis
+      - underlying_liquidity
+      - option_identity
+      - option_liquidity
+      - implied_volatility
+      - skew_and_term
+      - greeks_quality
+      - event_overlap
+      - payoff_and_scenarios
+  - id: long_leaps_directional
+    version: 1.0.0
+    default_state: DRAFT
+    instruments: [LONG_CALL, LONG_PUT]
+    entry_dte_days:
+      minimum: 180
+      maximum: 540
+    absolute_delta:
+      minimum: 0.70
+      maximum: 0.90
+    max_loss: PREMIUM_PAID_PLUS_FEES
+    required_evidence:
+      - underlying_thesis
+      - option_identity
+      - option_liquidity
+      - time_value
+      - implied_volatility
+      - breakeven
+      - greeks_quality
+      - event_overlap
+      - opportunity_cost
+global_forbidden:
+  - broker_order
+  - paper_order
+  - naked_short_option
+  - account_read
+  - broker_position_read
+  - automatic_execution
+  - uncalibrated_probability
+  - social_only_qualification
+  - unusual_call_equals_bullish
+  - unusual_put_equals_bearish
+

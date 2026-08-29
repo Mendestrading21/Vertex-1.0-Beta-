@@ -1,0 +1,17 @@
+{
+  "schema": "vertex.tradingview.alert.v1",
+  "alert_id": "spy-regime-v1",
+  "script_version": "2026-08-28.1",
+  "sent_at": "{{timenow}}",
+  "bar_time": "{{time}}",
+  "exchange": "{{exchange}}",
+  "ticker": "{{ticker}}",
+  "interval": "{{interval}}",
+  "signal": "REGIME_CHANGE",
+  "price": "{{close}}",
+  "values": {
+    "volume": "{{volume}}"
+  }
+}
+
+Ce fichier est un modèle TradingView et n'est pas une instance JSON Schema valide avant substitution des placeholders. `tradingview-alert-v1.json` est l'exemple canonique validable après livraison.

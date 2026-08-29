@@ -1,0 +1,61 @@
+schema_version: 1
+authority: vertex_core.options_anomaly
+direction_is_separate_from_anomaly: true
+direction_states: [UP, DOWN, VOLATILITY, HEDGE_LIKELY, MIXED, UNKNOWN]
+warmup_state: WARMING_UP
+features:
+  - id: contract_volume_percentile
+    family: activity
+    inputs: [contract_volume, point_in_time_history]
+    required_labels: [window, population, coverage]
+  - id: underlying_call_put_volume_relative
+    family: activity
+    inputs: [today_call_volume, today_put_volume, average_call_volume, average_put_volume]
+    required_labels: [source, timestamp, averaging_window]
+  - id: volume_open_interest_ratio
+    family: activity
+    inputs: [volume, open_interest]
+    required_labels: [open_interest_as_of, open_interest_is_delayed]
+  - id: strike_expiry_concentration
+    family: structure
+    inputs: [volume, open_interest, strike, expiry, delta_bucket]
+    required_labels: [coverage, missing_contracts]
+  - id: implied_volatility_shift
+    family: volatility
+    inputs: [iv, point_in_time_iv_history]
+    required_labels: [iv_tick_kind, annualization, window]
+  - id: skew_term_break
+    family: volatility
+    inputs: [iv_surface, prior_surface]
+    required_labels: [surface_coverage, interpolation_method]
+  - id: quote_integrity
+    family: data_quality
+    inputs: [bid, ask, last, sizes, timestamps]
+    required_labels: [locked, crossed, stale, last_outside_spread]
+  - id: liquidity_cost
+    family: microstructure
+    inputs: [bid, ask, sizes, multiplier, premium]
+    required_labels: [spread_absolute, spread_relative, estimated_slippage]
+  - id: catalyst_overlap
+    family: context
+    inputs: [expiry, intended_review_date, earnings, dividends, macro_events]
+    required_labels: [confirmed_events, unknown_events]
+  - id: cross_source_novelty
+    family: context
+    inputs: [news_clusters, social_clusters]
+    required_labels: [source_diversity, novelty, rights]
+hard_gates:
+  - contract_identity_resolved
+  - rights_allowed
+  - timestamps_resolved
+  - units_resolved
+  - quote_quality_acceptable
+  - reference_population_sufficient
+forbidden_interpretations:
+  - smart_money_detected
+  - call_is_automatically_bullish
+  - put_is_automatically_bearish
+  - volume_proves_opening_trade
+  - volume_proves_trade_side
+  - open_interest_is_intraday
+

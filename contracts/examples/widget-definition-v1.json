@@ -1,0 +1,15 @@
+{
+  "schema_version": "1.0.0",
+  "id": "options_flow_anomaly",
+  "version": "1.0.0",
+  "family": "OPTIONS",
+  "question": "Quelle activité options est réellement inhabituelle et pourquoi ?",
+  "dominant_visual": "HEATMAP",
+  "data_contracts": ["OptionAnomalySnapshot@v1"],
+  "states": ["LOADING", "LIVE", "DELAYED", "PARTIAL", "STALE", "OFFLINE", "EMPTY", "ERROR", "NOT_ENTITLED"],
+  "accessibility": {"text_equivalent": true, "keyboard": true, "color_independent": true},
+  "performance": {"initial_payload_kb_max": 80, "render_budget_ms": 100, "virtualize_after_rows": 100},
+  "icon_id": "calls-flow",
+  "allowed_pages": ["options", "analysis"]
+}
+

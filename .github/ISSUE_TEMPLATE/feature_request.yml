@@ -1,0 +1,106 @@
+name: Proposer une évolution
+description: Proposer un besoin utilisateur mesurable sans contourner les autorités ni les droits de données.
+title: "[Évolution] "
+labels: ["enhancement", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Vertex reste un système d’analyse information-only. Toute capacité d’ordre, compte, position, P&L ou exécution IBKR est hors périmètre.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problème utilisateur
+      description: Quelle décision ou tâche est aujourd’hui difficile ? Ne proposez pas encore de solution.
+    validations:
+      required: true
+
+  - type: textarea
+    id: outcome
+    attributes:
+      label: Résultat mesurable attendu
+      placeholder: "L’utilisateur doit pouvoir comprendre … en moins de … sans …"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: page
+    attributes:
+      label: Page principale concernée
+      options:
+        - Aujourd’hui
+        - Calendrier
+        - Marchés
+        - Opportunités
+        - Analyse
+        - Options
+        - Simulateur
+        - Portefeuille manuel
+        - Suivi
+        - Performance
+        - Vertex AI
+        - Système
+        - Architecture transverse
+    validations:
+      required: true
+
+  - type: textarea
+    id: information
+    attributes:
+      label: Informations et provenance nécessaires
+      description: Précisez source officielle, droit/abonnement, fréquence, fraîcheur, unités et comportement si indisponible.
+      placeholder: |
+        Source officielle :
+        Entitlement/licence :
+        Live/delayed/manual :
+        Comportement fail-closed :
+    validations:
+      required: true
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Critères d’acceptation
+      description: Incluez données, erreurs, accessibilité, responsive, performance et tests.
+      placeholder: |
+        - Étant donné… quand… alors…
+        - Les huit états UI sont…
+        - Le budget mesuré est…
+    validations:
+      required: true
+
+  - type: textarea
+    id: non_goals
+    attributes:
+      label: Non-objectifs
+      description: Ce que cette évolution ne doit explicitement pas faire.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: architecture
+    attributes:
+      label: Impact structurant supposé
+      options:
+        - Aucun — utilise contrats et dépendances existants
+        - Possible — nécessite benchmark et ADR avant code
+        - Inconnu — analyse requise
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: constraints
+    attributes:
+      label: Contraintes non négociables
+      options:
+        - label: Aucune capacité IBKR d’ordre, compte, position, P&L ou exécution.
+          required: true
+        - label: Aucun calcul financier ni verdict autoritaire en TypeScript, Pine ou IA.
+          required: true
+        - label: Aucun scraping ni contournement de droit, abonnement ou licence.
+          required: true
+        - label: Une donnée requise invalide ou absente doit échouer fermée.
+          required: true
+        - label: Aucun mock, fallback ou résultat théorique ne sera présenté comme réel/live.
+          required: true

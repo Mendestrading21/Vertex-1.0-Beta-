@@ -1,0 +1,351 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="900" viewBox="0 0 1440 900" role="img" aria-labelledby="vertex-ui-title vertex-ui-desc">
+  <title id="vertex-ui-title">Laboratoire d'interface Vertex Black Glass — page Analyse</title>
+  <desc id="vertex-ui-desc">Composition desktop sobre avec rail de navigation, jauges factuelles de couverture, fraîcheur, régime, confiance et risque, graphique prix-volume dominant, aperçu options et surface IV, preuves, contradiction et trois scénarios.</desc>
+  <defs>
+    <linearGradient id="selected" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#c9cdd4" stop-opacity="0.16"/>
+      <stop offset="1" stop-color="#9c79d0" stop-opacity="0.14"/>
+    </linearGradient>
+    <linearGradient id="primary" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#b99cdf"/>
+      <stop offset="1" stop-color="#8e69c5"/>
+    </linearGradient>
+    <linearGradient id="area" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#9c79d0" stop-opacity="0.18"/>
+      <stop offset="1" stop-color="#9c79d0" stop-opacity="0"/>
+    </linearGradient>
+    <clipPath id="plot-clip">
+      <rect x="24" y="70" width="728" height="326" rx="4"/>
+    </clipPath>
+  </defs>
+
+  <rect width="1440" height="900" fill="#08090b"/>
+  <rect x="0" y="0" width="220" height="900" fill="#0b0c0f"/>
+  <path d="M219.5 0v900" stroke="#dee3ed" stroke-opacity="0.1"/>
+
+  <g font-family="Geist Sans, Arial, sans-serif">
+    <g transform="translate(26 27)">
+      <rect x="0" y="0" width="34" height="34" rx="10" fill="#15171c" stroke="#dee3ed" stroke-opacity="0.18"/>
+      <path d="M9 23 16.5 9 25 23M12 18h10" fill="none" stroke="#f3f5f8" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"/>
+      <text x="47" y="18" fill="#f3f5f8" font-size="17" font-weight="650" letter-spacing="0.6">VERTEX</text>
+      <text x="47" y="34" fill="#828892" font-size="10" letter-spacing="1.4">BLACK GLASS 1.0</text>
+    </g>
+
+    <text x="26" y="94" fill="#6f7580" font-size="10" font-weight="650" letter-spacing="1.6">DÉCIDER</text>
+    <g font-size="13.5" fill="#aeb4bd" stroke-linecap="round" stroke-linejoin="round">
+      <g transform="translate(16 108)">
+        <path d="M11 7v10M6 12h10" stroke="#828892" fill="none"/>
+        <text x="42" y="17" fill="#aeb4bd" stroke="none">Aujourd'hui</text>
+      </g>
+      <g transform="translate(16 150)">
+        <circle cx="11" cy="12" r="6" fill="none" stroke="#828892"/>
+        <path d="m15.5 16.5 3 3" stroke="#828892"/>
+        <text x="42" y="17" fill="#aeb4bd" stroke="none">Opportunités</text>
+      </g>
+      <g transform="translate(8 190)">
+        <rect width="204" height="38" rx="9" fill="url(#selected)" stroke="#b99cdf" stroke-opacity="0.22"/>
+        <rect x="0" y="7" width="2.5" height="24" rx="1.25" fill="#b99cdf"/>
+        <path d="M19 9v20M14 17h10M14 24h10" stroke="#d7c6ee" fill="none"/>
+        <path d="M16 13v8M22 20v7" stroke="#d7c6ee"/>
+        <text x="50" y="24" fill="#f3f5f8" stroke="none" font-weight="600">Analyse</text>
+      </g>
+      <g transform="translate(16 234)">
+        <path d="M4 6h14v14H4zM9 6v14M14 6v14" fill="none" stroke="#828892"/>
+        <text x="42" y="17" fill="#aeb4bd" stroke="none">Options</text>
+      </g>
+      <g transform="translate(16 276)">
+        <path d="M7 5h8M9 5v5l-4 7a2 2 0 0 0 2 3h10a2 2 0 0 0 2-3l-4-7V5" fill="none" stroke="#828892"/>
+        <text x="42" y="17" fill="#aeb4bd" stroke="none">Simulateur</text>
+      </g>
+    </g>
+
+    <text x="26" y="342" fill="#6f7580" font-size="10" font-weight="650" letter-spacing="1.6">OBSERVER</text>
+    <g font-size="13.5">
+      <g transform="translate(16 354)">
+        <rect x="4" y="6" width="15" height="14" rx="2" fill="none" stroke="#828892"/>
+        <path d="M7 3v6M16 3v6M4 10h15" stroke="#828892"/>
+        <text x="42" y="18" fill="#aeb4bd">Calendrier</text>
+      </g>
+      <g transform="translate(16 396)">
+        <path d="M4 19V5M4 19h16M7 15l4-5 3 2 5-7" fill="none" stroke="#828892" stroke-linecap="round" stroke-linejoin="round"/>
+        <text x="42" y="18" fill="#aeb4bd">Marchés</text>
+      </g>
+    </g>
+
+    <text x="26" y="464" fill="#6f7580" font-size="10" font-weight="650" letter-spacing="1.6">PILOTER</text>
+    <g font-size="13.5">
+      <g transform="translate(16 476)">
+        <path d="M4 8h16v11H4zM8 8V5h8v3" fill="none" stroke="#828892"/>
+        <text x="42" y="18" fill="#aeb4bd">Portefeuille</text>
+      </g>
+      <g transform="translate(16 518)">
+        <path d="M5 5h14v15H5zM8 9h8M8 13h6M8 17h4" fill="none" stroke="#828892"/>
+        <text x="42" y="18" fill="#aeb4bd">Suivi</text>
+      </g>
+      <g transform="translate(16 560)">
+        <path d="M4 19V5M4 19h16M7 15l3-4 3 2 5-7" fill="none" stroke="#828892"/>
+        <text x="42" y="18" fill="#aeb4bd">Performance</text>
+      </g>
+    </g>
+
+    <text x="26" y="628" fill="#6f7580" font-size="10" font-weight="650" letter-spacing="1.6">ASSISTANCE</text>
+    <g font-size="13.5">
+      <g transform="translate(16 640)">
+        <rect x="5" y="7" width="14" height="12" rx="4" fill="none" stroke="#828892"/>
+        <path d="M9 12h.1M15 12h.1M9 16h6M12 4v3" stroke="#828892"/>
+        <text x="42" y="18" fill="#aeb4bd">Vertex AI</text>
+      </g>
+      <g transform="translate(16 682)">
+        <circle cx="12" cy="12" r="3" fill="none" stroke="#828892"/>
+        <path d="M12 4v2M12 18v2M4 12h2M18 12h2M6.3 6.3l1.4 1.4M16.3 16.3l1.4 1.4M17.7 6.3l-1.4 1.4M7.7 16.3l-1.4 1.4" stroke="#828892"/>
+        <text x="42" y="18" fill="#aeb4bd">Système</text>
+      </g>
+    </g>
+
+    <g transform="translate(16 818)">
+      <rect width="188" height="58" rx="12" fill="#101216" stroke="#dee3ed" stroke-opacity="0.1"/>
+      <circle cx="20" cy="20" r="4" fill="#36c889"/>
+      <text x="34" y="24" fill="#d7dae0" font-size="12" font-weight="600">Sources disponibles</text>
+      <text x="16" y="44" fill="#828892" font-size="10.5">IBKR live · TV reçu 09:41:08</text>
+    </g>
+
+    <path d="M220 64h1220" stroke="#dee3ed" stroke-opacity="0.09"/>
+    <g transform="translate(244 0)">
+      <circle cx="18" cy="32" r="5" fill="#36c889"/>
+      <text x="31" y="36" fill="#b7bcc4" font-size="12">Système sain</text>
+      <path d="M132 20v24" stroke="#dee3ed" stroke-opacity="0.1"/>
+      <text x="151" y="36" fill="#828892" font-size="12">Snapshot</text>
+      <text x="211" y="36" fill="#d6dae0" font-family="Geist Mono, monospace" font-size="11.5">28 AOÛT · 09:41:08 UTC</text>
+      <path d="M423 20v24" stroke="#dee3ed" stroke-opacity="0.1"/>
+      <text x="442" y="36" fill="#828892" font-size="12">Couverture</text>
+      <text x="514" y="36" fill="#f3f5f8" font-family="Geist Mono, monospace" font-size="11.5">97,8 %</text>
+      <rect x="563" y="27" width="72" height="9" rx="4.5" fill="#1b1e23"/>
+      <rect x="564" y="28" width="68" height="7" rx="3.5" fill="#36c889"/>
+      <path d="M655 20v24" stroke="#dee3ed" stroke-opacity="0.1"/>
+      <text x="674" y="36" fill="#828892" font-size="12">Régime</text>
+      <rect x="728" y="27" width="24" height="9" rx="3" fill="#1b1e23" stroke="#dee3ed" stroke-opacity="0.12"/>
+      <rect x="756" y="27" width="24" height="9" rx="3" fill="#9c79d0" fill-opacity="0.5" stroke="#b99cdf" stroke-opacity="0.5"/>
+      <rect x="784" y="27" width="24" height="9" rx="3" fill="#36c889" fill-opacity="0.9"/>
+      <text x="818" y="36" fill="#d7dae0" font-size="11">Tendance</text>
+    </g>
+    <g transform="translate(1190 17)">
+      <rect width="226" height="30" rx="8" fill="#101216" stroke="#dee3ed" stroke-opacity="0.14"/>
+      <circle cx="18" cy="15" r="4" fill="#36c889"/>
+      <text x="31" y="19" fill="#d7dae0" font-size="11">Fraîcheur 12 s / TTL 30 s</text>
+      <rect x="160" y="11" width="49" height="8" rx="4" fill="#1b1e23"/>
+      <rect x="161" y="12" width="29" height="6" rx="3" fill="#36c889"/>
+    </g>
+
+    <text x="252" y="102" fill="#828892" font-size="11" font-weight="650" letter-spacing="1.4">ANALYSE · SPY · ARCA · USD</text>
+    <text x="252" y="134" fill="#f3f5f8" font-size="25" font-weight="650">Que disent les données certifiées ?</text>
+    <text x="252" y="158" fill="#aeb4bd" font-size="13">Le prix confirme la tendance, mais l'événement macro de 14:30 limite la validité du scénario.</text>
+    <g transform="translate(1210 102)">
+      <rect width="198" height="40" rx="10" fill="url(#primary)"/>
+      <path d="M18 12v16M12 20h12" stroke="#100f14" stroke-width="1.6" stroke-linecap="round"/>
+      <text x="36" y="25" fill="#100f14" font-size="12.5" font-weight="700">Mettre à jour la thèse</text>
+    </g>
+
+    <g transform="translate(252 184)">
+      <rect width="780" height="74" rx="13" fill="#101216" stroke="#dee3ed" stroke-opacity="0.14"/>
+      <rect x="16" y="15" width="86" height="24" rx="12" fill="#dda23b" fill-opacity="0.12" stroke="#dda23b" stroke-opacity="0.34"/>
+      <circle cx="31" cy="27" r="4" fill="#dda23b"/>
+      <text x="42" y="31" fill="#efc476" font-size="11" font-weight="700">REVIEW</text>
+      <text x="16" y="57" fill="#828892" font-size="10.5">Haussière · 1–5 séances · 4/5 portes</text>
+      <path d="M124 13v48" stroke="#dee3ed" stroke-opacity="0.1"/>
+      <text x="145" y="25" fill="#828892" font-size="10.5">Confiance calibrée · OOS n=842</text>
+      <text x="145" y="47" fill="#f3f5f8" font-size="13" font-weight="650">68 %</text>
+      <rect x="188" y="39" width="112" height="9" rx="4.5" fill="#1b1e23"/>
+      <rect x="189" y="40" width="75" height="7" rx="3.5" fill="#9c79d0"/>
+      <path d="M273 37v13" stroke="#c9cdd4" stroke-width="1"/>
+      <text x="326" y="25" fill="#828892" font-size="10.5">Risque événement · seuil v1.2</text>
+      <text x="326" y="47" fill="#dda23b" font-size="12" font-weight="650">ÉLEVÉ</text>
+      <rect x="378" y="40" width="30" height="7" rx="3" fill="#36c889" fill-opacity="0.55"/>
+      <rect x="412" y="40" width="30" height="7" rx="3" fill="#dda23b" fill-opacity="0.9"/>
+      <rect x="446" y="40" width="30" height="7" rx="3" fill="#ed655c" fill-opacity="0.28"/>
+      <text x="501" y="25" fill="#828892" font-size="10.5">Limite principale</text>
+      <text x="501" y="47" fill="#dda23b" font-size="12.5">CPI 14:30 · gate événement</text>
+    </g>
+
+    <g transform="translate(252 274)">
+      <rect width="780" height="448" rx="14" fill="#0b0c0f" stroke="#dee3ed" stroke-opacity="0.14"/>
+      <text x="20" y="29" fill="#f3f5f8" font-size="14" font-weight="650">Prix &amp; volume</text>
+      <text x="20" y="48" fill="#828892" font-size="10.5">SPY · 15 min · USD · IBKR · 09:41:08 UTC</text>
+      <g transform="translate(557 16)">
+        <rect width="54" height="28" rx="7" fill="#15171c" stroke="#dee3ed" stroke-opacity="0.12"/>
+        <text x="15" y="18" fill="#d7dae0" font-size="10.5">1J</text>
+        <rect x="62" width="64" height="28" rx="7" fill="#15171c" stroke="#dee3ed" stroke-opacity="0.12"/>
+        <text x="76" y="18" fill="#d7dae0" font-size="10.5">15 min</text>
+        <rect x="134" width="54" height="28" rx="7" fill="#15171c" stroke="#dee3ed" stroke-opacity="0.12"/>
+        <text x="148" y="18" fill="#d7dae0" font-size="10.5">OHLC</text>
+      </g>
+      <g transform="translate(24 70)">
+        <path d="M0 0h728M0 64h728M0 128h728M0 192h728M0 256h728M0 326h728" stroke="#dee3ed" stroke-opacity="0.065"/>
+        <path d="M0 0v326M104 0v326M208 0v326M312 0v326M416 0v326M520 0v326M624 0v326M728 0v326" stroke="#dee3ed" stroke-opacity="0.045"/>
+      </g>
+      <g clip-path="url(#plot-clip)">
+        <g transform="translate(-252 -227.2) scale(1 .9588)">
+        <path d="M276 532 C330 520 356 526 402 493 S476 470 514 481 S584 452 622 444 S688 457 730 422 S792 406 836 392 S916 368 1004 344 L1004 650 L276 650 Z" fill="url(#area)"/>
+        <path d="M276 532 C330 520 356 526 402 493 S476 470 514 481 S584 452 622 444 S688 457 730 422 S792 406 836 392 S916 368 1004 344" fill="none" stroke="#b99cdf" stroke-width="1.4" opacity="0.75"/>
+
+        <g stroke-width="1.2">
+          <path d="M302 524v50" stroke="#36c889"/><rect x="297" y="538" width="10" height="20" rx="1" fill="#36c889"/>
+          <path d="M329 514v47" stroke="#ed655c"/><rect x="324" y="528" width="10" height="22" rx="1" fill="#ed655c"/>
+          <path d="M356 500v52" stroke="#36c889"/><rect x="351" y="514" width="10" height="25" rx="1" fill="#36c889"/>
+          <path d="M383 492v38" stroke="#36c889"/><rect x="378" y="503" width="10" height="19" rx="1" fill="#36c889"/>
+          <path d="M410 480v48" stroke="#ed655c"/><rect x="405" y="493" width="10" height="22" rx="1" fill="#ed655c"/>
+          <path d="M437 466v45" stroke="#36c889"/><rect x="432" y="481" width="10" height="20" rx="1" fill="#36c889"/>
+          <path d="M464 448v46" stroke="#36c889"/><rect x="459" y="462" width="10" height="22" rx="1" fill="#36c889"/>
+          <path d="M491 452v49" stroke="#ed655c"/><rect x="486" y="465" width="10" height="23" rx="1" fill="#ed655c"/>
+          <path d="M518 458v44" stroke="#ed655c"/><rect x="513" y="471" width="10" height="20" rx="1" fill="#ed655c"/>
+          <path d="M545 446v48" stroke="#36c889"/><rect x="540" y="461" width="10" height="20" rx="1" fill="#36c889"/>
+          <path d="M572 426v52" stroke="#36c889"/><rect x="567" y="443" width="10" height="24" rx="1" fill="#36c889"/>
+          <path d="M599 414v48" stroke="#36c889"/><rect x="594" y="429" width="10" height="20" rx="1" fill="#36c889"/>
+          <path d="M626 421v48" stroke="#ed655c"/><rect x="621" y="436" width="10" height="21" rx="1" fill="#ed655c"/>
+          <path d="M653 430v44" stroke="#ed655c"/><rect x="648" y="442" width="10" height="20" rx="1" fill="#ed655c"/>
+          <path d="M680 409v55" stroke="#36c889"/><rect x="675" y="426" width="10" height="27" rx="1" fill="#36c889"/>
+          <path d="M707 390v54" stroke="#36c889"/><rect x="702" y="406" width="10" height="25" rx="1" fill="#36c889"/>
+          <path d="M734 394v46" stroke="#ed655c"/><rect x="729" y="407" width="10" height="22" rx="1" fill="#ed655c"/>
+          <path d="M761 380v52" stroke="#36c889"/><rect x="756" y="396" width="10" height="23" rx="1" fill="#36c889"/>
+          <path d="M788 363v52" stroke="#36c889"/><rect x="783" y="379" width="10" height="25" rx="1" fill="#36c889"/>
+          <path d="M815 352v48" stroke="#36c889"/><rect x="810" y="366" width="10" height="22" rx="1" fill="#36c889"/>
+          <path d="M842 357v49" stroke="#ed655c"/><rect x="837" y="371" width="10" height="23" rx="1" fill="#ed655c"/>
+          <path d="M869 345v52" stroke="#36c889"/><rect x="864" y="361" width="10" height="24" rx="1" fill="#36c889"/>
+          <path d="M896 330v51" stroke="#36c889"/><rect x="891" y="346" width="10" height="23" rx="1" fill="#36c889"/>
+          <path d="M923 334v47" stroke="#ed655c"/><rect x="918" y="348" width="10" height="21" rx="1" fill="#ed655c"/>
+          <path d="M950 319v53" stroke="#36c889"/><rect x="945" y="336" width="10" height="24" rx="1" fill="#36c889"/>
+          <path d="M977 310v49" stroke="#36c889"/><rect x="972" y="325" width="10" height="22" rx="1" fill="#36c889"/>
+        </g>
+
+        <g opacity="0.45">
+          <rect x="297" y="620" width="10" height="25" fill="#36c889"/>
+          <rect x="324" y="612" width="10" height="33" fill="#ed655c"/>
+          <rect x="351" y="616" width="10" height="29" fill="#36c889"/>
+          <rect x="378" y="625" width="10" height="20" fill="#36c889"/>
+          <rect x="405" y="606" width="10" height="39" fill="#ed655c"/>
+          <rect x="432" y="618" width="10" height="27" fill="#36c889"/>
+          <rect x="459" y="603" width="10" height="42" fill="#36c889"/>
+          <rect x="486" y="610" width="10" height="35" fill="#ed655c"/>
+          <rect x="513" y="622" width="10" height="23" fill="#ed655c"/>
+          <rect x="540" y="616" width="10" height="29" fill="#36c889"/>
+          <rect x="567" y="595" width="10" height="50" fill="#36c889"/>
+          <rect x="594" y="607" width="10" height="38" fill="#36c889"/>
+          <rect x="621" y="614" width="10" height="31" fill="#ed655c"/>
+          <rect x="648" y="620" width="10" height="25" fill="#ed655c"/>
+          <rect x="675" y="600" width="10" height="45" fill="#36c889"/>
+          <rect x="702" y="586" width="10" height="59" fill="#36c889"/>
+          <rect x="729" y="610" width="10" height="35" fill="#ed655c"/>
+          <rect x="756" y="599" width="10" height="46" fill="#36c889"/>
+          <rect x="783" y="579" width="10" height="66" fill="#36c889"/>
+          <rect x="810" y="594" width="10" height="51" fill="#36c889"/>
+          <rect x="837" y="607" width="10" height="38" fill="#ed655c"/>
+          <rect x="864" y="596" width="10" height="49" fill="#36c889"/>
+          <rect x="891" y="572" width="10" height="73" fill="#36c889"/>
+          <rect x="918" y="604" width="10" height="41" fill="#ed655c"/>
+          <rect x="945" y="580" width="10" height="65" fill="#36c889"/>
+          <rect x="972" y="589" width="10" height="56" fill="#36c889"/>
+        </g>
+        </g>
+      </g>
+      <g font-family="Geist Mono, monospace" font-size="9.5" fill="#6f7580">
+        <text x="704" y="87">650</text>
+        <text x="704" y="151">648</text>
+        <text x="704" y="215">646</text>
+        <text x="704" y="279">644</text>
+        <text x="20" y="416">08:00</text>
+        <text x="196" y="416">08:30</text>
+        <text x="372" y="416">09:00</text>
+        <text x="548" y="416">09:30</text>
+      </g>
+      <path d="M24 382h728" stroke="#dee3ed" stroke-opacity="0.08"/>
+      <text x="20" y="435" fill="#737984" font-size="9.5">TradingView Lightweight Charts™ · tableau OHLCV disponible</text>
+    </g>
+
+    <g transform="translate(1048 184)">
+      <rect width="360" height="538" rx="14" fill="#101216" stroke="#dee3ed" stroke-opacity="0.14"/>
+      <text x="20" y="29" fill="#f3f5f8" font-size="14" font-weight="650">Preuves &amp; contradictions</text>
+      <text x="20" y="49" fill="#828892" font-size="10.5">7 preuves · 4 sources · couverture 94 %</text>
+      <path d="M20 66h320" stroke="#dee3ed" stroke-opacity="0.1"/>
+
+      <g transform="translate(20 84)">
+        <circle cx="8" cy="8" r="8" fill="#53b9ad" fill-opacity="0.13" stroke="#53b9ad" stroke-opacity="0.36"/>
+        <path d="M8 4v8M4 8h8" stroke="#76c9c0" stroke-width="1.2"/>
+        <text x="28" y="6" fill="#828892" font-size="9.5" font-weight="650">MACRO · CONFIRMÉ</text>
+        <text x="28" y="25" fill="#e7e9ed" font-size="12">CPI US publié à 14:30</text>
+        <text x="28" y="43" fill="#8e949e" font-size="10.5">FRED · révision conservée · UTC</text>
+      </g>
+      <path d="M20 144h320" stroke="#dee3ed" stroke-opacity="0.08"/>
+
+      <g transform="translate(20 161)">
+        <circle cx="8" cy="8" r="8" fill="#9c79d0" fill-opacity="0.13" stroke="#9c79d0" stroke-opacity="0.4"/>
+        <path d="M4 10h8M4 6h5" stroke="#c5ade5" stroke-width="1.2"/>
+        <text x="28" y="6" fill="#828892" font-size="9.5" font-weight="650">TECHNIQUE · PINE v4.2</text>
+        <text x="28" y="25" fill="#e7e9ed" font-size="12">Signal de tendance confirmé</text>
+        <text x="28" y="43" fill="#8e949e" font-size="10.5">Barre 09:30 · non repaint · secondaire</text>
+      </g>
+      <path d="M20 221h320" stroke="#dee3ed" stroke-opacity="0.08"/>
+
+      <g transform="translate(20 238)">
+        <circle cx="8" cy="8" r="8" fill="#c9cdd4" fill-opacity="0.1" stroke="#c9cdd4" stroke-opacity="0.3"/>
+        <path d="M4 5h8M4 8h8M4 11h5" stroke="#c9cdd4" stroke-width="1.2"/>
+        <text x="28" y="6" fill="#828892" font-size="9.5" font-weight="650">ACTUALITÉS · CLUSTER 3</text>
+        <text x="28" y="25" fill="#e7e9ed" font-size="12">Flux ETF soutenus avant ouverture</text>
+        <text x="28" y="43" fill="#8e949e" font-size="10.5">IBKR News · 3 articles dédupliqués</text>
+      </g>
+      <path d="M20 298h320" stroke="#dee3ed" stroke-opacity="0.08"/>
+
+      <g transform="translate(20 310)">
+        <text x="0" y="8" fill="#828892" font-size="9.5" font-weight="650">OPTIONS · CHAÎNE / SURFACE IV</text>
+        <rect x="0" y="18" width="320" height="59" rx="8" fill="#0b0c0f" stroke="#dee3ed" stroke-opacity="0.1"/>
+        <text x="12" y="35" fill="#8e949e" font-size="8.5">CALLS</text>
+        <text x="58" y="35" fill="#8e949e" font-size="8.5">STRIKE</text>
+        <text x="105" y="35" fill="#8e949e" font-size="8.5">PUTS</text>
+        <text x="12" y="53" fill="#c5ade5" font-family="Geist Mono, monospace" font-size="9.5">2.14</text>
+        <text x="60" y="53" fill="#f3f5f8" font-family="Geist Mono, monospace" font-size="9.5">650</text>
+        <text x="105" y="53" fill="#c5ade5" font-family="Geist Mono, monospace" font-size="9.5">1.87</text>
+        <path d="M151 62V30M151 62h151" stroke="#dee3ed" stroke-opacity="0.22"/>
+        <path d="M160 37c18 30 43 30 64 2s45-18 70-9" fill="none" stroke="#9c79d0" stroke-width="1.5"/>
+        <path d="M160 45c24 18 46 18 65 0s42-12 69-5" fill="none" stroke="#53b9ad" stroke-width="1.2" opacity="0.8"/>
+        <circle cx="224" cy="39" r="2" fill="#9c79d0"/>
+        <text x="248" y="55" fill="#737984" font-size="8">30j / 60j</text>
+      </g>
+
+      <g transform="translate(16 391)">
+        <rect width="328" height="92" rx="11" fill="#dda23b" fill-opacity="0.07" stroke="#dda23b" stroke-opacity="0.26"/>
+        <path d="M20 19v18M11 28h18" stroke="#dda23b" stroke-width="1.5" stroke-linecap="round"/>
+        <text x="43" y="25" fill="#efc476" font-size="11" font-weight="700">CONTRADICTION ACTIVE</text>
+        <text x="16" y="53" fill="#e5e7eb" font-size="11.5">L'événement macro dépasse l'horizon</text>
+        <text x="16" y="71" fill="#e5e7eb" font-size="11.5">de validité du signal technique.</text>
+      </g>
+      <text x="20" y="517" fill="#8e949e" font-size="10.5">Voir les 7 preuves, sources et révisions</text>
+      <path d="M316 511h18m-5-5 5 5-5 5" stroke="#b99cdf" stroke-width="1.3" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    </g>
+
+    <g transform="translate(252 738)">
+      <text x="0" y="14" fill="#828892" font-size="10" font-weight="650" letter-spacing="1.3">SCÉNARIOS · HYPOTHÈSES SERVEUR</text>
+      <g transform="translate(0 28)">
+        <rect width="368" height="104" rx="12" fill="#101216" stroke="#ed655c" stroke-opacity="0.2"/>
+        <path d="M18 20v22h24M20 24l8 6 5-2 7 10" fill="none" stroke="#ed655c" stroke-width="1.4"/>
+        <text x="58" y="27" fill="#ef8d86" font-size="11" font-weight="700">BAISSIER</text>
+        <text x="58" y="46" fill="#f3f5f8" font-size="12.5">Rejet sous le niveau de confirmation</text>
+        <text x="18" y="76" fill="#8e949e" font-size="10.5">Invalidation : reprise confirmée · horizon 3 séances</text>
+        <text x="18" y="92" fill="#737984" font-size="9.5">Aucune probabilité implicite</text>
+      </g>
+      <g transform="translate(384 28)">
+        <rect width="368" height="104" rx="12" fill="#101216" stroke="#dee3ed" stroke-opacity="0.14"/>
+        <path d="M18 20v22h24M20 32l8-1 4-3 4 3 6-1" fill="none" stroke="#c9cdd4" stroke-width="1.4"/>
+        <text x="58" y="27" fill="#c9cdd4" font-size="11" font-weight="700">NEUTRE</text>
+        <text x="58" y="46" fill="#f3f5f8" font-size="12.5">Consolidation avant l'événement macro</text>
+        <text x="18" y="76" fill="#8e949e" font-size="10.5">Invalidation : rupture de la zone · horizon 1 séance</text>
+        <text x="18" y="92" fill="#737984" font-size="9.5">Aucune probabilité implicite</text>
+      </g>
+      <g transform="translate(768 28)">
+        <rect width="388" height="104" rx="12" fill="#101216" stroke="#36c889" stroke-opacity="0.2"/>
+        <path d="M18 42V20h24M20 38l8-6 5 2 7-10M37 24h3v3" fill="none" stroke="#36c889" stroke-width="1.4"/>
+        <text x="58" y="27" fill="#66d7a5" font-size="11" font-weight="700">HAUSSIER</text>
+        <text x="58" y="46" fill="#f3f5f8" font-size="12.5">Continuation après confirmation volume</text>
+        <text x="18" y="76" fill="#8e949e" font-size="10.5">Invalidation : clôture sous support · horizon 5 séances</text>
+        <text x="18" y="92" fill="#737984" font-size="9.5">Aucune probabilité implicite</text>
+      </g>
+    </g>
+  </g>
+</svg>

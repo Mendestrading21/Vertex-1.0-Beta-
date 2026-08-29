@@ -1,0 +1,15 @@
+{
+  "schema_version": "1.0.0",
+  "id": "long_option_tactical_2_12w",
+  "version": "1.0.0",
+  "state": "DRAFT",
+  "instruments": ["LONG_CALL", "LONG_PUT"],
+  "horizon": {"unit": "WEEKS", "minimum": 2, "maximum": 12},
+  "entry_dte_days": {"minimum": 120, "target": 180, "maximum": 240},
+  "absolute_delta": null,
+  "required_evidence": ["underlying_thesis", "option_identity", "option_liquidity", "implied_volatility", "event_overlap"],
+  "hard_gates": ["data_quality", "freshness", "max_loss_defined"],
+  "forbidden": ["broker_order", "naked_short_option", "uncalibrated_probability"],
+  "notes": ["configuration générique sans montant personnel"]
+}
+

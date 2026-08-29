@@ -1,0 +1,103 @@
+// =============================================================================
+// NON TESTÉ EN PLATEFORME — VALIDATION AU DÉPLOIEMENT HUMAIN.
+// =============================================================================
+// vertex_market_sensor.pine — signaux techniques de marché (pack Vertex v1,
+// script_version 2026-08-29.1, contrat vertex.tradingview.alert.v1).
+//
+// Rôle : détecter sur la watchlist Vertex des changements de régime (croisement
+// SMA) et des cassures de canal (Donchian), puis émettre une alerte JSON v1.
+// L'alerte est un DÉCLENCHEUR NON AUTORITAIRE : le prix transporté est du
+// contexte, jamais une preuve — Vertex revalide sur une quote IBKR fraîche.
+//
+// ANTI-REPAINT — pourquoi ce script ne repeint pas :
+//  - toute émission exige `barstate.isconfirmed` : le signal est évalué une
+//    seule fois, sur la barre CLÔTURÉE ; aucune valeur intrabar provisoire
+//    (susceptible de changer avant la clôture) ne déclenche d'alerte ;
+//  - aucun appel `request.security()` : aucune fuite de timeframe supérieur,
+//    aucun lookahead ;
+//  - les bornes Donchian utilisent la barre précédente (`[1]`) : la cassure
+//    est mesurée contre un niveau figé avant la barre courante ;
+//  - `alert.freq_once_per_bar_close` borne l'émission à une par clôture ;
+//  - le nonce (= time d'ouverture de barre) rend tout redéclenchement
+//    idempotent côté ingress (clé alert_id + nonce).
+//
+// AUCUN SECRET dans ce script ni dans le message. Modifier ce script impose
+// d'incrémenter SCRIPT_VERSION et de recréer les alertes TradingView.
+//@version=6
+indicator("Vertex Market Sensor v1", overlay = true)
+
+// --- Identité du contrat ------------------------------------------------------
+// alert_id : doit exister dans le registre local Vertex (sinon rejet auditable).
+string ALERT_ID = input.string("mkt-sensor-v1", "Alert ID (registre Vertex)")
+string SCRIPT_VERSION = "2026-08-29.1"
+
+// --- Paramètres techniques ----------------------------------------------------
+int smaFastLen = input.int(50, "SMA rapide", minval = 2)
+int smaSlowLen = input.int(200, "SMA lente", minval = 5)
+int donchianLen = input.int(20, "Canal Donchian", minval = 5)
+
+// --- Calculs (au scope global, chaque barre, pour la cohérence des séries) ----
+float smaFast = ta.sma(close, smaFastLen)
+float smaSlow = ta.sma(close, smaSlowLen)
+bool regimeUp = ta.crossover(smaFast, smaSlow)
+bool regimeDown = ta.crossunder(smaFast, smaSlow)
+// Niveaux figés AVANT la barre courante (barre précédente) : pas de repaint.
+float donchianHigh = ta.highest(high, donchianLen)[1]
+float donchianLow = ta.lowest(low, donchianLen)[1]
+bool breakout = not na(donchianHigh) and close > donchianHigh
+bool breakdown = not na(donchianLow) and close < donchianLow
+
+// =============================================================================
+// Copie v1 de vertex_alert_contract.pine (library non encore publiée ; garder
+// STRICTEMENT synchronisé — la library reste la source de vérité du contrat).
+// =============================================================================
+vx_json_escape(string s) =>
+    str.replace_all(str.replace_all(s, "\\", "\\\\"), "\"", "\\\"")
+
+vx_ts_utc(int time_ms) =>
+    str.format_time(time_ms, "yyyy-MM-dd'T'HH:mm:ss'Z'", "UTC")
+
+vx_nonce() =>
+    str.tostring(time)
+
+vx_alert_json(string alert_id, string script_version, string signal_name, string price_str, string extra_values_json) =>
+    string price_json = price_str == "" ? "null" : "\"" + vx_json_escape(price_str) + "\""
+    string values_json = "{\"nonce\":\"" + vx_nonce() + "\"" + (extra_values_json == "" ? "" : "," + extra_values_json) + "}"
+    "{" +
+      "\"schema\":\"vertex.tradingview.alert.v1\"," +
+      "\"alert_id\":\"" + vx_json_escape(alert_id) + "\"," +
+      "\"script_version\":\"" + vx_json_escape(script_version) + "\"," +
+      "\"sent_at\":\"" + vx_ts_utc(timenow) + "\"," +
+      "\"bar_time\":\"" + vx_ts_utc(time) + "\"," +
+      "\"exchange\":\"" + vx_json_escape(syminfo.prefix) + "\"," +
+      "\"ticker\":\"" + vx_json_escape(syminfo.ticker) + "\"," +
+      "\"interval\":\"" + vx_json_escape(timeframe.period) + "\"," +
+      "\"signal\":\"" + vx_json_escape(signal_name) + "\"," +
+      "\"price\":" + price_json + "," +
+      "\"values\":" + values_json +
+    "}"
+// ============================== fin de la copie ==============================
+
+// --- Émission : BARRE CONFIRMÉE uniquement ------------------------------------
+// `values` : contexte descriptif borné ; le prix reste non autoritaire.
+vx_emit(string signal_name, string condition_name) =>
+    string extra =
+      "\"condition\":\"" + condition_name + "\"," +
+      "\"volume\":\"" + str.tostring(volume, "#") + "\"," +
+      "\"sma_fast\":\"" + str.tostring(smaFast, format.mintick) + "\"," +
+      "\"sma_slow\":\"" + str.tostring(smaSlow, format.mintick) + "\""
+    alert(vx_alert_json(ALERT_ID, SCRIPT_VERSION, signal_name, str.tostring(close, format.mintick), extra), alert.freq_once_per_bar_close)
+
+if barstate.isconfirmed
+    if regimeUp
+        vx_emit("REGIME_CHANGE", "sma_cross_up")
+    if regimeDown
+        vx_emit("REGIME_CHANGE", "sma_cross_down")
+    if breakout
+        vx_emit("BREAKOUT", "donchian_breakout_up")
+    if breakdown
+        vx_emit("BREAKDOWN", "donchian_breakdown")
+
+// --- Visualisation de contrôle (aucun rôle dans le contrat) -------------------
+plot(smaFast, "SMA rapide", color = color.new(color.silver, 30))
+plot(smaSlow, "SMA lente", color = color.new(color.gray, 30))

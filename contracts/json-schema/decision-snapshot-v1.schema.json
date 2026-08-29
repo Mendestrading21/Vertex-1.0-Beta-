@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://vertex.local/schemas/decision-snapshot-v1.schema.json",
+  "title": "Vertex Decision Snapshot v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "decision_id",
+    "evidence_snapshot_id",
+    "profile_ref",
+    "generated_at",
+    "engine_version",
+    "status",
+    "direction",
+    "gates",
+    "reasons",
+    "contradictions",
+    "invalidation",
+    "probability"
+  ],
+  "properties": {
+    "schema_version": {"const": "1.0.0"},
+    "decision_id": {"type": "string", "pattern": "^ds_[A-Za-z0-9_-]{12,}$"},
+    "evidence_snapshot_id": {"type": "string", "pattern": "^ev_[A-Za-z0-9_-]{12,}$"},
+    "profile_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "version"],
+      "properties": {
+        "id": {"type": "string"},
+        "version": {"type": "string"}
+      }
+    },
+    "generated_at": {"type": "string", "format": "date-time"},
+    "engine_version": {"type": "string", "minLength": 1},
+    "status": {"enum": ["BLOCKED", "INSUFFICIENT_DATA", "OBSERVE", "REVIEW", "QUALIFIED"]},
+    "direction": {"enum": ["BULLISH", "BEARISH", "NEUTRAL", "MIXED", "UNKNOWN"]},
+    "gates": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["gate_id", "status", "reasons"],
+        "properties": {
+          "gate_id": {"type": "string"},
+          "status": {"enum": ["PASS", "DEGRADE", "BLOCK"]},
+          "reasons": {"type": "array", "items": {"type": "string"}}
+        }
+      }
+    },
+    "reasons": {"type": "array", "items": {"type": "string"}},
+    "contradictions": {"type": "array", "items": {"type": "string"}},
+    "invalidation": {"type": "array", "minItems": 1, "items": {"type": "string"}},
+    "probability": {
+      "oneOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["event", "value", "lower", "upper", "calibration_ref", "population", "sample_size"],
+          "properties": {
+            "event": {"type": "string"},
+            "value": {"type": "number", "minimum": 0, "maximum": 1},
+            "lower": {"type": "number", "minimum": 0, "maximum": 1},
+            "upper": {"type": "number", "minimum": 0, "maximum": 1},
+            "calibration_ref": {"type": "string"},
+            "population": {"type": "string"},
+            "sample_size": {"type": "integer", "minimum": 1}
+          }
+        }
+      ]
+    },
+    "abstention_reasons": {"type": "array", "items": {"type": "string"}},
+    "content_hash": {"type": "string", "pattern": "^sha256:[a-f0-9]{64}$"}
+  }
+}
+

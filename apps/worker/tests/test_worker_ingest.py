@@ -1,0 +1,115 @@
+"""Unit tests of ``ingest_envelope`` (repository calls monkeypatched).
+
+The full transactional behavior runs against real PostgreSQL in
+``tests_integration``; here we verify the atomicity contract shape: same
+session for insert and enqueue, no enqueue on duplicate, no commit inside.
+"""
+
+from __future__ import annotations
+
+from datetime import datetime, timezone
+
+import pytest
+
+import vertex_worker.ingest as ingest_module
+from vertex_core.synthetic import generate_envelopes
+from vertex_worker.ingest import TOPIC_OBSERVATION_INGESTED, ingest_envelope
+
+BASE_TIME = datetime(2026, 8, 25, 12, 0, 0, tzinfo=timezone.utc)
+
+
+class RecordingSession:
+    def __init__(self) -> None:
+        self.committed = 0
+        self.executed: list[tuple] = []
+
+    def commit(self) -> None:  # pragma: no cover - must never be called
+        self.committed += 1
+
+    def execute(self, statement, params=None):
+        self.executed.append((statement, params))
+
+
+@pytest.fixture()
+def envelope():
+    return generate_envelopes(seed=1, count=1, base_time=BASE_TIME)[0]
+
+
+def test_insert_and_enqueue_share_the_session(monkeypatch, envelope) -> None:
+    calls: dict[str, object] = {}
+
+    def fake_insert(session, **kwargs):
+        calls["insert_session"] = session
+        calls["insert_kwargs"] = kwargs
+        return True
+
+    def fake_enqueue(session, topic, payload):
+        calls["enqueue_session"] = session
+        calls["topic"] = topic
+        calls["payload"] = payload
+        return 42
+
+    monkeypatch.setattr(ingest_module, "insert_observation", fake_insert)
+    monkeypatch.setattr(ingest_module, "enqueue_outbox", fake_enqueue)
+    session = RecordingSession()
+
+    result = ingest_envelope(session, envelope)
+
+    assert calls["insert_session"] is session
+    assert calls["enqueue_session"] is session
+    assert calls["topic"] == TOPIC_OBSERVATION_INGESTED
+    assert calls["payload"] == {
+        "event_id": envelope.event_id,
+        "source": envelope.source,
+        "schema_version": envelope.schema_version,
+    }
+    assert result.inserted is True
+    assert result.outbox_message_id == 42
+    assert result.event_id == envelope.event_id
+    # The caller owns the transaction: ingest never commits.
+    assert session.committed == 0
+    # A NOTIFY wake-up signal is emitted inside the same transaction.
+    assert len(session.executed) == 1
+
+
+def test_envelope_fields_are_forwarded_exactly(monkeypatch, envelope) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_insert(session, **kwargs):
+        captured.update(kwargs)
+        return True
+
+    monkeypatch.setattr(ingest_module, "insert_observation", fake_insert)
+    monkeypatch.setattr(ingest_module, "enqueue_outbox", lambda *a, **k: 1)
+
+    ingest_envelope(RecordingSession(), envelope)
+
+    assert captured["event_id"] == envelope.event_id
+    assert captured["source"] == envelope.source
+    assert captured["instrument_ref"] == envelope.instrument_id
+    assert captured["rights"] == envelope.rights
+    assert captured["quality_status"] == envelope.quality_status.value
+    assert captured["delay_status"] == envelope.delay_status.value
+    assert captured["payload"] == envelope.payload
+
+
+def test_duplicate_event_id_enqueues_nothing(monkeypatch, envelope) -> None:
+    monkeypatch.setattr(ingest_module, "insert_observation", lambda s, **k: False)
+
+    def fail_enqueue(*args, **kwargs):  # pragma: no cover - must not run
+        raise AssertionError("enqueue_outbox must not be called for a duplicate")
+
+    monkeypatch.setattr(ingest_module, "enqueue_outbox", fail_enqueue)
+    session = RecordingSession()
+
+    result = ingest_envelope(session, envelope)
+
+    assert result.inserted is False
+    assert result.outbox_message_id is None
+    # No NOTIFY either: nothing new was written.
+    assert session.executed == []
+
+
+def test_non_envelope_rejected() -> None:
+    with pytest.raises(TypeError):
+        ingest_envelope(RecordingSession(), {"event_id": "x"})  # type: ignore[arg-type]

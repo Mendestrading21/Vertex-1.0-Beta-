@@ -1,0 +1,84 @@
+// =============================================================================
+// NON TESTÉ EN PLATEFORME — VALIDATION AU DÉPLOIEMENT HUMAIN.
+// =============================================================================
+// vertex_company_sensor.pine — faits d'entreprise (pack Vertex v1,
+// script_version 2026-08-29.1, contrat vertex.tradingview.alert.v1).
+//
+// Rôle : signaler la PUBLICATION d'un fait d'entreprise (résultat, dividende,
+// split) via les fonctions officielles `request.earnings` / `request.dividends`
+// / `request.splits`. Timeframe recommandé : D (quotidien) sur la watchlist
+// Vertex. L'alerte transporte la valeur publiée comme CONTEXTE : la vérité
+// fondamentale canonique est établie en local par les sources autorisées,
+// jamais par ce message.
+//
+// ANTI-REPAINT — pourquoi ce script ne repeint pas :
+//  - `barmerge.gaps_on` : la série ne porte une valeur QUE sur la barre où le
+//    fait est publié (na partout ailleurs) ; le signal est donc « nouvelle
+//    publication », jamais une valeur passée re-projetée ;
+//  - `barmerge.lookahead_off` sur request.earnings : aucune fuite du futur —
+//    la valeur n'apparaît pas avant sa date de publication historique ;
+//  - émission uniquement sur `barstate.isconfirmed` + freq once_per_bar_close;
+//  - nonce déterministe (time d'ouverture de barre) => rejeux idempotents.
+//
+// AUCUN SECRET dans ce script ni dans le message. Modifier ce script impose
+// d'incrémenter SCRIPT_VERSION et de recréer les alertes TradingView.
+//@version=6
+indicator("Vertex Company Sensor v1", overlay = false)
+
+string ALERT_ID = input.string("cmp-sensor-v1", "Alert ID (registre Vertex)")
+string SCRIPT_VERSION = "2026-08-29.1"
+
+// --- Séries officielles : valeur uniquement sur la barre de publication -------
+float earnActual = request.earnings(syminfo.tickerid, earnings.actual, barmerge.gaps_on, barmerge.lookahead_off, ignore_invalid_symbol = true)
+float divGross = request.dividends(syminfo.tickerid, dividends.gross, barmerge.gaps_on, barmerge.lookahead_off, ignore_invalid_symbol = true)
+float splitNum = request.splits(syminfo.tickerid, splits.numerator, barmerge.gaps_on, barmerge.lookahead_off, ignore_invalid_symbol = true)
+float splitDen = request.splits(syminfo.tickerid, splits.denominator, barmerge.gaps_on, barmerge.lookahead_off, ignore_invalid_symbol = true)
+
+// =============================================================================
+// Copie v1 de vertex_alert_contract.pine (library non encore publiée ; garder
+// STRICTEMENT synchronisé — la library reste la source de vérité du contrat).
+// =============================================================================
+vx_json_escape(string s) =>
+    str.replace_all(str.replace_all(s, "\\", "\\\\"), "\"", "\\\"")
+
+vx_ts_utc(int time_ms) =>
+    str.format_time(time_ms, "yyyy-MM-dd'T'HH:mm:ss'Z'", "UTC")
+
+vx_nonce() =>
+    str.tostring(time)
+
+vx_alert_json(string alert_id, string script_version, string signal_name, string price_str, string extra_values_json) =>
+    string price_json = price_str == "" ? "null" : "\"" + vx_json_escape(price_str) + "\""
+    string values_json = "{\"nonce\":\"" + vx_nonce() + "\"" + (extra_values_json == "" ? "" : "," + extra_values_json) + "}"
+    "{" +
+      "\"schema\":\"vertex.tradingview.alert.v1\"," +
+      "\"alert_id\":\"" + vx_json_escape(alert_id) + "\"," +
+      "\"script_version\":\"" + vx_json_escape(script_version) + "\"," +
+      "\"sent_at\":\"" + vx_ts_utc(timenow) + "\"," +
+      "\"bar_time\":\"" + vx_ts_utc(time) + "\"," +
+      "\"exchange\":\"" + vx_json_escape(syminfo.prefix) + "\"," +
+      "\"ticker\":\"" + vx_json_escape(syminfo.ticker) + "\"," +
+      "\"interval\":\"" + vx_json_escape(timeframe.period) + "\"," +
+      "\"signal\":\"" + vx_json_escape(signal_name) + "\"," +
+      "\"price\":" + price_json + "," +
+      "\"values\":" + values_json +
+    "}"
+// ============================== fin de la copie ==============================
+
+// --- Émission : BARRE CONFIRMÉE uniquement ------------------------------------
+vx_emit(string signal_name, string fact_name, string fact_value) =>
+    string extra =
+      "\"fact\":\"" + fact_name + "\"," +
+      "\"fact_value\":\"" + vx_json_escape(fact_value) + "\""
+    alert(vx_alert_json(ALERT_ID, SCRIPT_VERSION, signal_name, str.tostring(close, format.mintick), extra), alert.freq_once_per_bar_close)
+
+if barstate.isconfirmed
+    if not na(earnActual)
+        vx_emit("FUNDAMENTAL_UPDATE", "earnings_actual", str.tostring(earnActual))
+    if not na(divGross)
+        vx_emit("FUNDAMENTAL_UPDATE", "dividend_gross", str.tostring(divGross))
+    if not na(splitNum) and not na(splitDen)
+        vx_emit("EVENT", "split_ratio", str.tostring(splitNum) + ":" + str.tostring(splitDen))
+
+// --- Visualisation de contrôle (aucun rôle dans le contrat) -------------------
+plot(na(earnActual) ? na : 1, "Publication earnings", style = plot.style_histogram, color = color.new(color.silver, 0))

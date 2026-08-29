@@ -1,0 +1,43 @@
+{
+  "schema_version": "1.0.0",
+  "snapshot_id": "ev_demo_000000000001",
+  "instrument": {
+    "canonical_id": "demo:stock:XYZ:USD",
+    "symbol": "XYZ",
+    "asset_type": "STOCK",
+    "currency": "USD"
+  },
+  "observed_at": "2026-08-28T20:00:00Z",
+  "knowledge_cutoff": "2026-08-28T19:59:59Z",
+  "sources": [
+    {
+      "source_id": "src_demo_quote",
+      "provider": "synthetic_test_fixture",
+      "capability": "quote",
+      "rights": "ALLOWED",
+      "as_of": "2026-08-28T19:59:58Z",
+      "received_at": "2026-08-28T19:59:59Z",
+      "freshness": "LIVE",
+      "license_ref": null
+    }
+  ],
+  "features": [
+    {
+      "feature_id": "mid_price",
+      "value": 100.25,
+      "unit": "USD_PER_SHARE",
+      "source_ids": ["src_demo_quote"],
+      "as_of": "2026-08-28T19:59:58Z",
+      "quality": "GOOD",
+      "method_version": "mid_price@1.0.0",
+      "limitations": ["synthetic fixture"]
+    }
+  ],
+  "contradictions": [],
+  "quality": {
+    "status": "GOOD",
+    "coverage": 1.0,
+    "blocking_reasons": []
+  }
+}
+

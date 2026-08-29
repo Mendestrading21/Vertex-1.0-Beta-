@@ -1,0 +1,26 @@
+{
+  "schema_version": "1.0.0",
+  "decision_id": "ds_demo_000000000001",
+  "evidence_snapshot_id": "ev_demo_000000000001",
+  "profile_ref": {
+    "id": "equity_etf_swing_3_12m",
+    "version": "1.0.0"
+  },
+  "generated_at": "2026-08-28T20:00:01Z",
+  "engine_version": "advice_engine@0.0.0-planning",
+  "status": "INSUFFICIENT_DATA",
+  "direction": "UNKNOWN",
+  "gates": [
+    {
+      "gate_id": "fundamentals",
+      "status": "BLOCK",
+      "reasons": ["UNEVALUABLE: fixture sans fondamentaux"]
+    }
+  ],
+  "reasons": ["données insuffisantes pour qualifier l'idée"],
+  "contradictions": [],
+  "invalidation": ["aucune thèse active tant que les données restent incomplètes"],
+  "probability": null,
+  "abstention_reasons": ["couverture incomplète"]
+}
+

@@ -1,0 +1,105 @@
+name: Signaler un défaut
+description: Décrire un comportement incorrect avec des données exclusivement synthétiques et expurgées.
+title: "[Bug] "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        N’incluez aucun secret, identifiant de compte, payload IBKR/TradingView réel, donnée personnelle ou capture sensible.
+        Une vulnérabilité exploitable ne doit pas être publiée ici : utilisez le canal privé défini dans `SECURITY.md`.
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Gravité constatée
+      options:
+        - Critique — sécurité, corruption ou verdict fail-open
+        - Haute — parcours principal bloqué ou résultat incorrect
+        - Moyenne — fonction dégradée avec contournement sûr
+        - Basse — défaut visuel ou mineur
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Zone
+      options:
+        - Contrats / identité / temps
+        - IBKR information-only
+        - TradingView / ingress
+        - Data Fusion
+        - Calculs / gates / AdviceEngine
+        - API / worker / stockage
+        - Interface / graphique / accessibilité
+        - IA explicative
+        - Installation / sécurité / exploitation
+        - Inconnue
+    validations:
+      required: true
+
+  - type: textarea
+    id: observed
+    attributes:
+      label: Comportement observé
+      description: Décrivez le résultat, le statut de donnée et l’impact. N’insérez que des exemples synthétiques.
+      placeholder: "Avec une cotation SYNTHETIC périmée, la page…"
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Comportement attendu
+      placeholder: "La gate doit être fermée et la raison STALE affichée…"
+    validations:
+      required: true
+
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction minimale
+      description: Listez des étapes déterministes, la route et la fixture synthétique utilisée.
+      placeholder: |
+        1. Démarrer avec fixtures/synthetic/…
+        2. Ouvrir /…
+        3. Observer…
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version exacte
+      description: Commit SHA, lot et version de l’artefact ; jamais `latest`.
+      placeholder: "commit abcdef… / LOT-NN"
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environnement expurgé
+      description: OS, navigateur, versions Python/Node/PostgreSQL/TWS, viewport et type live/delayed ; aucun compte ni secret.
+    validations:
+      required: true
+
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Preuves expurgées
+      description: Tests, trace_id fictif, logs allowlistés ou capture synthétique. Supprimez tokens, URLs signées et données réelles.
+
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Contrôles avant envoi
+      options:
+        - label: Je confirme que ce rapport ne contient aucun secret, compte, position, P&L, ordre, exécution, payload réel ni donnée personnelle.
+          required: true
+        - label: Je confirme que ce rapport ne décrit pas publiquement une vulnérabilité exploitable.
+          required: true
+        - label: J’ai vérifié qu’un mock ou une démonstration n’a pas été confondu avec une donnée réelle.
+          required: true
+

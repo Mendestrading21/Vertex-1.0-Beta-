@@ -1,0 +1,172 @@
+schema_version: 1
+registry_status: planning_seed
+activation_rule: >-
+  No entry is runtime-approved until LOT-07 adds and validates its spec_version,
+  method, assumptions, parameter_schema, tolerances, oracle, criticality and tests.
+required_runtime_fields:
+  - spec_version
+  - method
+  - assumptions
+  - parameter_schema
+  - tolerances
+  - oracle
+  - criticality
+  - tests
+rules:
+  authority: python_only
+  money_transport: decimal_string
+  numerical_core: float64_with_documented_tolerance
+  javascript_financial_calculation: forbidden
+calculations:
+  - id: market.simple_return
+    owner: market_statistics
+    inputs: [price_t0, price_t1]
+    output_unit: ratio
+    gates: [positive_prices, same_adjustment_basis]
+    invariants: [finite, composition_documented]
+  - id: market.log_return
+    owner: market_statistics
+    inputs: [price_t0, price_t1]
+    output_unit: log_ratio
+    gates: [strictly_positive_prices]
+    invariants: [finite]
+  - id: market.realized_volatility
+    owner: market_statistics
+    inputs: [returns, sampling_frequency, annualization_calendar]
+    output_unit: annualized_decimal
+    gates: [minimum_sample, regularized_sampling]
+    invariants: [non_negative, finite]
+  - id: market.atr
+    owner: indicators
+    inputs: [bars, lookback]
+    output_unit: price
+    gates: [ordered_complete_bars]
+    invariants: [non_negative]
+  - id: market.relative_strength
+    owner: indicators
+    inputs: [asset_returns, benchmark_returns, horizon]
+    output_unit: ratio
+    gates: [aligned_calendars]
+    invariants: [finite]
+  - id: market.breadth
+    owner: market_statistics
+    inputs: [point_in_time_universe, returns]
+    output_unit: ratio
+    gates: [coverage_threshold]
+    invariants: [between_minus_one_and_one]
+  - id: portfolio.fx_conversion
+    owner: portfolio
+    inputs: [money, fx_quote, quote_as_of]
+    output_unit: target_currency
+    gates: [fx_fresh_for_usage]
+    invariants: [round_trip_within_tolerance]
+  - id: portfolio.realized_pnl
+    owner: portfolio
+    inputs: [lots, closing_transactions, fees, fx]
+    output_unit: money
+    gates: [balanced_ledger]
+    invariants: [lot_conservation]
+  - id: portfolio.unrealized_pnl
+    owner: portfolio
+    inputs: [open_lots, market_snapshot, fees, fx]
+    output_unit: money
+    gates: [fresh_mark, balanced_ledger]
+    invariants: [aggregation_linear]
+  - id: portfolio.concentration
+    owner: portfolio_risk
+    inputs: [marked_positions, grouping]
+    output_unit: ratio
+    gates: [positive_denominator]
+    invariants: [weights_sum_to_one]
+  - id: performance.twr
+    owner: performance
+    inputs: [valuations, external_cashflows]
+    output_unit: ratio
+    gates: [complete_cashflow_boundaries]
+    invariants: [cashflow_timing_neutrality]
+  - id: performance.xirr
+    owner: performance
+    inputs: [dated_cashflows]
+    output_unit: annualized_decimal
+    gates: [sign_change, unique_valid_root]
+    invariants: [npv_near_zero]
+  - id: performance.drawdown
+    owner: performance
+    inputs: [equity_curve]
+    output_unit: ratio
+    gates: [ordered_values]
+    invariants: [non_positive]
+  - id: options.forward_price
+    owner: options
+    inputs: [spot, rate_curve, dividends, maturity]
+    output_unit: price
+    gates: [valid_curves, positive_spot]
+    invariants: [finite, positive]
+  - id: options.no_arbitrage_bounds
+    owner: options
+    inputs: [spot, strike, maturity, rate_curve, dividends, right]
+    output_unit: price_interval
+    gates: [valid_contract]
+    invariants: [lower_not_above_upper]
+  - id: options.european_price
+    owner: options
+    reference: QuantLib
+    inputs: [spot, strike, maturity, rate_curve, dividends, volatility, right]
+    output_unit: price
+    gates: [inside_model_domain]
+    invariants: [bounds, put_call_parity, monotonicity, convexity]
+  - id: options.american_price
+    owner: options
+    reference: QuantLib_finite_difference
+    inputs: [spot, strike, maturity, curves, volatility, right, calendar]
+    output_unit: price
+    gates: [validated_numerical_grid]
+    invariants: [bounds, american_not_below_european]
+  - id: options.implied_volatility
+    owner: options
+    inputs: [observed_price, model_inputs, quote_side]
+    output_unit: annualized_decimal
+    gates: [price_inside_bounds, bracket_exists]
+    invariants: [price_iv_price_round_trip, non_negative]
+  - id: options.greeks
+    owner: options
+    inputs: [validated_pricing_problem]
+    output_unit: documented_per_contract_units
+    gates: [price_valid]
+    invariants: [finite, delta_bounds, vanilla_gamma_vega_non_negative]
+  - id: options.payoff
+    owner: simulation
+    inputs: [legs, terminal_spot_grid, commissions]
+    output_unit: money
+    gates: [exact_contracts, valid_quantities]
+    invariants: [leg_sum_linearity, cost_included]
+  - id: options.scenario_grid
+    owner: simulation
+    inputs: [legs, spot_grid, time_grid, iv_scenarios, curves]
+    output_unit: money_matrix
+    gates: [consistent_snapshot]
+    invariants: [deterministic, finite]
+  - id: options.gex_estimate
+    owner: options_intelligence
+    inputs: [gamma, open_interest, spot, multiplier, dealer_sign_assumption]
+    output_unit: money_per_percent_move
+    gates: [assumption_explicit, coverage_threshold]
+    invariants: [aggregation_linear]
+  - id: risk.covariance
+    owner: portfolio_risk
+    inputs: [aligned_returns, estimator, lookback]
+    output_unit: covariance_matrix
+    gates: [minimum_sample, point_in_time_universe]
+    invariants: [symmetric, positive_semidefinite_within_tolerance]
+  - id: probability.calibration
+    owner: calibration
+    inputs: [train_predictions, calibration_set, holdout]
+    output_unit: calibrated_probability
+    gates: [walk_forward, no_leakage, minimum_sample]
+    invariants: [between_zero_and_one, holdout_untouched]
+  - id: decision.risk_reward
+    owner: decision
+    inputs: [entry, stop, target, multiplier, costs]
+    output_unit: ratio
+    gates: [ordered_levels, positive_risk, same_currency]
+    invariants: [finite, costs_reduce_reward]

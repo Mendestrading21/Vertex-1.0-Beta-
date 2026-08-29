@@ -1,0 +1,23 @@
+/*
+ * Geist Sans / Geist Mono — variables, OFL-1.1.
+ * Auto-hébergées depuis le paquet npm `geist` (source Vercel vérifiée) :
+ * aucun téléchargement manuel de binaire, Vite emporte les woff2 dans le build.
+ * Les piles de secours système sont définies dans les tokens (--vx-font-sans/mono).
+ */
+@font-face {
+  font-family: 'Geist';
+  src: url('../../node_modules/geist/dist/fonts/geist-sans/Geist-Variable.woff2')
+    format('woff2-variations');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Geist Mono';
+  src: url('../../node_modules/geist/dist/fonts/geist-mono/GeistMono-Variable.woff2')
+    format('woff2-variations');
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}

@@ -1,0 +1,76 @@
+/* GÉNÉRÉ — ne pas éditer. Source : src/design/tokens.ts — régénérer via `pnpm tokens:css`. */
+
+:root {
+  /* Couleurs — Black Glass, Signal Light */
+  --vx-black: #040504;
+  --vx-app: #08090b;
+  --vx-surface-0: #0b0c0f;
+  --vx-surface-1: #101216;
+  --vx-surface-2: #15171c;
+  --vx-surface-3: #1b1e23;
+  --vx-hover: #232830;
+  --vx-border-soft: rgba(222, 227, 237, 0.09);
+  --vx-border: rgba(222, 227, 237, 0.14);
+  --vx-border-strong: rgba(222, 227, 237, 0.22);
+  --vx-text: #f3f5f8;
+  --vx-text-secondary: #b7bcc4;
+  --vx-text-muted: #828892;
+  --vx-silver: #c9cdd4;
+  --vx-positive: #36c889;
+  --vx-negative: #ed655c;
+  --vx-warning: #dda23b;
+  --vx-option: #9c79d0;
+  --vx-macro: #53b9ad;
+
+  /* Espacements — grille 4 px */
+  --vx-space-4: 4px;
+  --vx-space-8: 8px;
+  --vx-space-12: 12px;
+  --vx-space-16: 16px;
+  --vx-space-20: 20px;
+  --vx-space-24: 24px;
+  --vx-space-32: 32px;
+  --vx-space-40: 40px;
+  --vx-space-48: 48px;
+
+  /* Rayons */
+  --vx-radius-6: 6px;
+  --vx-radius-10: 10px;
+  --vx-radius-14: 14px;
+  --vx-radius-pill: 999px;
+
+  /* Mouvements */
+  --vx-motion-90: 90ms;
+  --vx-motion-140: 140ms;
+  --vx-motion-180: 180ms;
+  --vx-motion-220: 220ms;
+  --vx-ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --vx-ease-decelerate: cubic-bezier(0, 0, 0.2, 1);
+
+  /* Plans z nommés */
+  --vx-z-base: 0;
+  --vx-z-sticky: 100;
+  --vx-z-popover: 200;
+  --vx-z-sheet: 300;
+  --vx-z-dialog: 400;
+  --vx-z-toast: 500;
+
+  /* Typographie */
+  --vx-font-sans: 'Geist', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --vx-font-mono: 'Geist Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
+  --vx-font-size-meta: 13px;
+  --vx-font-size-body: 14px;
+  --vx-font-size-label: 13px;
+  --vx-font-size-title: 16px;
+  --vx-font-size-display: 22px;
+}
+
+/* Reduced motion : toutes les durées tombent à 0 ms. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --vx-motion-90: 0ms;
+    --vx-motion-140: 0ms;
+    --vx-motion-180: 0ms;
+    --vx-motion-220: 0ms;
+  }
+}

@@ -1,0 +1,16 @@
+# Propriétaire par défaut : toute modification exige la revue du propriétaire du dépôt.
+* @Mendestrading21
+
+# Surfaces critiques : maintenir une revue humaine explicite même si l'équipe grandit.
+/.github/ @Mendestrading21
+/.claude/ @Mendestrading21
+/contracts/ @Mendestrading21
+/manifests/ @Mendestrading21
+/packages/python/vertex_core/ @Mendestrading21
+/apps/edge-ibkr/ @Mendestrading21
+/apps/ingress-tradingview/ @Mendestrading21
+/infra/ @Mendestrading21
+/docs/03-domain/ @Mendestrading21
+/docs/09-adr/ @Mendestrading21
+/SECURITY.md @Mendestrading21
+

@@ -1,0 +1,43 @@
+schema_version: 1
+product:
+  target: desktop_web_only
+  supported_desktop_widths: [1280, 1440, 1600]
+  mobile_ui: deferred
+  phone_orchestration: claude_code_remote_control_outside_product_ui
+pin_policy:
+  python: uv_lock_exact
+  javascript: pnpm_lock_exact_and_save_exact
+  containers: immutable_digest
+  github_actions: full_commit_sha
+  external_skills: review_then_commit_sha
+runtime:
+  python: "3.13"
+  node: "24-LTS"
+  postgresql: "18"
+  web: [react-19.2, typescript-strict, vite-8]
+adopt:
+  python: [uv, fastapi, pydantic-v2, sqlalchemy-v2, alembic, psycopg-v3, httpx, opentelemetry-sdk, prometheus-client, numpy, scipy, polars, pyarrow, pandas, duckdb, exchange-calendars, quantlib, scikit-learn, statsmodels, cvxpy, pyportfolioopt, ib_async]
+  web: [pnpm, tanstack-query, tanstack-table, tanstack-virtual, radix-primitives, lucide-react, echarts, lightweight-charts, openapi-typescript, openapi-fetch]
+  fonts: [geist-sans, geist-mono]
+  test: [ruff, mypy, pytest, hypothesis, testcontainers-python, biome, vitest, storybook, playwright, axe-core, mutmut, locust, lighthouse-ci]
+  security: [gitleaks-cli, pip-audit, osv-scanner, syft, grype, cosign]
+dependency_roles:
+  polars: production_hot_paths
+  pyarrow: production_columnar_interchange
+  pandas: production_interop_not_default_hot_path
+  duckdb: local_research_query_engine_not_transactional_truth
+  river: shadow_research_no_decision_authority
+  ruptures: research_only
+  arch: research_only
+  mapie: research_only
+shadow_research: [river]
+research_only: [ruptures, arch, mapie]
+reference_only: [quantconnect-lean, nautilus-trader, qlib, riskfolio-lib]
+defer: [timescaledb, redis, celery, kubernetes, graphql, nextjs, desktop-wrapper, tailscale-serve, mobile-pwa, mobile-responsive-ui]
+exclude:
+  - vectorbt-runtime
+  - quantum-computing-libraries
+  - unpinned-github-actions
+  - browser-scraping-tws
+  - browser-scraping-tradingview
+  - vendored-third-party-repositories
