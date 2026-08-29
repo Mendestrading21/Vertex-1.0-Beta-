@@ -605,6 +605,7 @@ def build_registry(
         DEV_SYNTHETIC_OPTIONS_CONFIG,
         register_options_handler,
     )
+    from vertex_worker.portfolio import register_portfolio_handler
 
     registry = HandlerRegistry()
     registry.register(
@@ -629,4 +630,5 @@ def build_registry(
         clock=clock,
         config=analysis_config if analysis_config is not None else DEV_SYNTHETIC_ANALYSIS_CONFIG,
     )
+    register_portfolio_handler(registry, clock=clock)
     return registry

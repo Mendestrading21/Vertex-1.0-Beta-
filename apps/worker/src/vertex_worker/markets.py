@@ -648,6 +648,34 @@ class MarketsOverviewHandler:
                 published.version,
                 message.id,
             )
+            self._enqueue_portfolio_revaluations(session)
+
+    @staticmethod
+    def _enqueue_portfolio_revaluations(session: Session) -> None:
+        """Enqueue one ``portfolio.valuation.refresh`` job per portfolio.
+
+        Documented topology choice (see ``vertex_worker.portfolio``): the
+        marks of every portfolio valuation are the closes of the
+        ``markets_overview/global`` snapshot, so revaluation is enqueued HERE,
+        in the same transaction as a CHANGED publication of that snapshot —
+        an unchanged snapshot (publish-if-changed no-op) changes no mark and
+        enqueues nothing. The ingest path was deliberately not used: a quote
+        that does not move a published close cannot move any valuation.
+        """
+        from vertex_persistence.models import Portfolio
+        from vertex_persistence.repository.outbox import enqueue_outbox
+
+        from vertex_worker.portfolio import TOPIC_PORTFOLIO_VALUATION_REFRESH
+
+        portfolio_ids = session.execute(
+            select(Portfolio.id).order_by(Portfolio.id)
+        ).scalars().all()
+        for portfolio_id in portfolio_ids:
+            enqueue_outbox(
+                session,
+                TOPIC_PORTFOLIO_VALUATION_REFRESH,
+                {"portfolio_id": portfolio_id},
+            )
 
 
 def register_markets_handler(
