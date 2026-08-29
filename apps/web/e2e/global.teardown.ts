@@ -24,4 +24,5 @@ function stop(pidText: string | undefined, label: string): void {
 export default function globalTeardown(): void {
   stop(process.env['VX_E2E_PREVIEW_PID'], 'vite preview');
   stop(process.env['VX_E2E_API_PID'], 'uvicorn');
+  stop(process.env['VX_E2E_WORKER_PID'], 'worker');
 }

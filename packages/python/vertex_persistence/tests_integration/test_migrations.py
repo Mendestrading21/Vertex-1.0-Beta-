@@ -103,6 +103,8 @@ def test_upgrade_downgrade_upgrade_without_drift(
             "ledger_transactions",
             "webauthn_credentials",
             "auth_sessions",
+            "theses",
+            "thesis_revisions",
         }
 
         command.downgrade(alembic_config, "base")
@@ -147,6 +149,25 @@ def test_downgrade_refuses_populated_ledger(
     with pytest.raises(RuntimeError, match="ledger_transactions"):
         command.downgrade(alembic_config, "base")
     assert "ledger_transactions" in _table_names(migrated_engine)
+
+
+def test_downgrade_refuses_populated_thesis_revisions(
+    migrated_engine: Engine, alembic_config: Config
+) -> None:
+    """A downgrade through 0006 on a database holding thesis revisions is refused."""
+    _seed(
+        migrated_engine,
+        "INSERT INTO theses (title, hypotheses, invalidation, created_at)"
+        " VALUES ('synthetic thesis', 'synthetic hypothesis', 'synthetic invalidation', now());"
+        "INSERT INTO thesis_revisions (thesis_id, action, content_hash,"
+        " idempotency_key, recorded_at) SELECT id, 'CREATED', 'sha256:0',"
+        " 'synthetic-key-1', now() FROM theses",
+    )
+    with pytest.raises(RuntimeError, match="thesis_revisions"):
+        command.downgrade(alembic_config, "base")
+    # The refusal aborted the whole downgrade: nothing was dropped.
+    assert "thesis_revisions" in _table_names(migrated_engine)
+    assert "theses" in _table_names(migrated_engine)
 
 
 def test_downgrade_error_names_the_explicit_override(

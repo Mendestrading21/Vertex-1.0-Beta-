@@ -30,8 +30,43 @@ export type LoginVerifyResponse = components['schemas']['LoginVerifyResponse'];
 export type RegisterVerifyRequest = components['schemas']['RegisterVerifyRequest'];
 export type RegisterVerifyResponse = components['schemas']['RegisterVerifyResponse'];
 export type LogoutResponse = components['schemas']['LogoutResponse'];
+export type OptionChainResponse = components['schemas']['OptionChainResponse'];
+export type OptionChainExpiration = components['schemas']['OptionChainExpiration'];
+export type OptionChainContract = components['schemas']['OptionChainContract'];
+export type AnalysisResponse = components['schemas']['AnalysisResponse'];
+export type SimulationPreviewRequest = components['schemas']['SimulationPreviewRequest'];
+export type SimulationPreviewResponse = components['schemas']['SimulationPreviewResponse'];
+export type SimulationOptionLeg = components['schemas']['OptionLeg'];
+export type SimulationAssumptions = components['schemas']['SimulationAssumptions'];
+export type SimulationBreakeven = components['schemas']['SimulationBreakeven'];
+export type SimulationExtreme = components['schemas']['SimulationExtreme'];
+export type SimulationPayoffPoint = components['schemas']['SimulationPayoffPoint'];
+export type PortfolioResponse = components['schemas']['PortfolioResponse'];
+export type PortfolioInfo = components['schemas']['PortfolioInfo'];
+export type PortfolioLotEntry = components['schemas']['PortfolioLotEntry'];
+export type PortfolioValuationView = components['schemas']['PortfolioValuationView'];
+export type LedgerTransactionEntry = components['schemas']['LedgerTransactionEntry'];
+export type LedgerEventKind = components['schemas']['LedgerEventKind'];
+export type RecordTransactionRequest = components['schemas']['RecordTransactionRequest'];
+export type RecordTransactionResponse = components['schemas']['RecordTransactionResponse'];
+export type CompensateTransactionRequest = components['schemas']['CompensateTransactionRequest'];
+export type CompensateTransactionResponse = components['schemas']['CompensateTransactionResponse'];
+export type CsvImportPreviewRequest = components['schemas']['CsvImportPreviewRequest'];
+export type ImportPreviewResponse = components['schemas']['ImportPreviewResponse'];
+export type ImportRowEcho = components['schemas']['ImportRowEcho'];
+export type ImportRowError = components['schemas']['ImportRowError'];
+export type ImportRowDuplicate = components['schemas']['ImportRowDuplicate'];
+export type ImportConfirmRequest = components['schemas']['ImportConfirmRequest'];
+export type ImportConfirmResponse = components['schemas']['ImportConfirmResponse'];
+export type FollowUpQueueResponse = components['schemas']['FollowUpQueueResponse'];
+export type CreateThesisRequest = components['schemas']['CreateThesisRequest'];
+export type CreateThesisResponse = components['schemas']['CreateThesisResponse'];
+export type ThesisRevisionRequest = components['schemas']['ThesisRevisionRequest'];
+export type ThesisRevisionResponse = components['schemas']['ThesisRevisionResponse'];
+export type PerformanceSnapshotResponse = components['schemas']['PerformanceSnapshotResponse'];
+export type PerformanceExportResponse = components['schemas']['PerformanceExportResponse'];
 
-const API_BASE = '/api';
+export const API_BASE = '/api';
 
 export const CSRF_COOKIE_NAME = 'vertex_csrf';
 export const CSRF_HEADER_NAME = 'X-Vertex-CSRF';
@@ -42,12 +77,27 @@ export type ApiErrorKind = 'AUTH_REQUIRED' | 'HTTP' | 'NETWORK' | 'INVALID_BODY'
 export class ApiError extends Error {
   readonly kind: ApiErrorKind;
   readonly status: number | null;
+  /**
+   * Corps JSON de la réponse d'erreur, RELAYÉ verbatim quand le serveur en a
+   * fourni un (ex. 422 : `{"detail": {"code": ..., "message": ...}}` ou la
+   * liste d'erreurs de validation). `undefined` si absent ou illisible —
+   * jamais un détail fabriqué côté client.
+   */
+  readonly detail?: unknown;
 
-  constructor(kind: ApiErrorKind, message: string, status: number | null = null) {
+  constructor(
+    kind: ApiErrorKind,
+    message: string,
+    status: number | null = null,
+    detail?: unknown,
+  ) {
     super(message);
     this.name = 'ApiError';
     this.kind = kind;
     this.status = status;
+    if (detail !== undefined) {
+      this.detail = detail;
+    }
   }
 }
 
@@ -110,7 +160,7 @@ export function readCsrfCookie(): string | null {
   return null;
 }
 
-interface RequestSpec {
+export interface RequestSpec {
   readonly method: 'GET' | 'POST';
   readonly path: string;
   readonly body?: unknown;
@@ -118,7 +168,12 @@ interface RequestSpec {
   readonly protectedRoute: boolean;
 }
 
-async function request<T>(spec: RequestSpec): Promise<T> {
+/**
+ * Transport partagé, EXPORTÉ pour les modules de routes chargés paresseusement
+ * (vague 4 : `portfolioApi.ts`, hors bundle initial). Un seul transport, une
+ * seule discipline CSRF/session — jamais un second client concurrent.
+ */
+export async function request<T>(spec: RequestSpec): Promise<T> {
   const headers: Record<string, string> = { Accept: 'application/json' };
   const init: RequestInit = {
     method: spec.method,
@@ -148,7 +203,16 @@ async function request<T>(spec: RequestSpec): Promise<T> {
     throw new ApiError('AUTH_REQUIRED', 'authentication required', 401);
   }
   if (!response.ok) {
-    throw new ApiError('HTTP', `unexpected status ${response.status}`, response.status);
+    // Le corps d'erreur du serveur (s'il existe et se lit) est conservé
+    // verbatim sur l'erreur : une page peut afficher la raison EXACTE d'un
+    // 422 sans jamais l'inventer. Un corps illisible reste `undefined`.
+    let detail: unknown;
+    try {
+      detail = await response.json();
+    } catch {
+      detail = undefined;
+    }
+    throw new ApiError('HTTP', `unexpected status ${response.status}`, response.status, detail);
   }
   if (spec.protectedRoute) {
     setSessionState('authenticated');
@@ -174,6 +238,38 @@ export function getCapabilities(): Promise<SystemCapabilities> {
 
 export function getMarketsOverview(): Promise<MarketsOverview> {
   return request({ method: 'GET', path: '/v1/markets/overview', protectedRoute: true });
+}
+
+export function getOptionChain(underlying: string): Promise<OptionChainResponse> {
+  return request({
+    method: 'GET',
+    path: `/v1/options/${encodeURIComponent(underlying)}/chain`,
+    protectedRoute: true,
+  });
+}
+
+export function getAnalysis(instrument: string): Promise<AnalysisResponse> {
+  return request({
+    method: 'GET',
+    path: `/v1/analysis/${encodeURIComponent(instrument)}`,
+    protectedRoute: true,
+  });
+}
+
+/**
+ * Prévisualisation THÉORIQUE d'une structure déclarée — analyse uniquement,
+ * rien n'est persisté ni transmis à un courtier ; le serveur calcule tout.
+ * L'en-tête CSRF double-submit est posé par `request` (mutation POST).
+ */
+export function postSimulationPreview(
+  body: SimulationPreviewRequest,
+): Promise<SimulationPreviewResponse> {
+  return request({
+    method: 'POST',
+    path: '/v1/simulations/preview',
+    body,
+    protectedRoute: true,
+  });
 }
 
 export function postRegisterOptions(): Promise<CeremonyOptions> {

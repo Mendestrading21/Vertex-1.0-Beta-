@@ -79,7 +79,8 @@ describe('NavRail — groupes et liens', () => {
     renderApp('/today');
     const nav = screen.getByRole('navigation', { name: 'Navigation principale' });
     await user.click(within(nav).getByRole('link', { name: 'Options' }));
-    expect(screen.getByRole('heading', { level: 1, name: 'Options' })).toBeDefined();
+    // /options est chargée paresseusement (React.lazy) : attendre le rendu.
+    expect(await screen.findByRole('heading', { level: 1, name: 'Options' })).toBeDefined();
   });
 });
 

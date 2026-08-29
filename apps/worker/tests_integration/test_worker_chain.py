@@ -92,15 +92,18 @@ def test_full_ingestion_chain(session_factory) -> None:
             .where(OutboxMessage.status == OutboxStatus.PENDING.value)
         ).scalar_one()
     assert observation_count == len(unique_event_ids)
-    assert pending == len(inserted)
+    # Every inserted observation enqueues its fusion job AND one
+    # review_queue.refresh job (page 09: new information may change urgency)
+    # in the same transaction.
+    assert pending == 2 * len(inserted)
 
     # --- Bounded worker run (no infinite loop in tests) --------------------
     clock = MutableClock(NOW)
     runner = make_runner(session_factory, clock)
     processed = runner.drain(max_batches=10)
-    assert processed == len(inserted)
+    assert processed == 2 * len(inserted)
     stats = runner.stats()
-    assert stats.acked == len(inserted)
+    assert stats.acked == 2 * len(inserted)
     assert stats.failed == 0 and stats.dead == 0 and stats.lease_lost == 0
 
     with session_factory() as session:

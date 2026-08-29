@@ -90,5 +90,39 @@ describe('hooks API (fetch factice)', () => {
       'snapshot',
       'capabilities/global',
     ]);
+    expect(queryKeyForResource('option_chain/SYN-TECH-01')).toEqual([
+      'snapshot',
+      'option_chain/SYN-TECH-01',
+    ]);
+    expect(queryKeyForResource('analysis/SYN-TECH-01')).toEqual([
+      'snapshot',
+      'analysis/SYN-TECH-01',
+    ]);
+  });
+
+  it('ressources par préfixe : option_chain/* et analysis/* suivies, le reste ignoré', async () => {
+    const { isKnownResource } = await import('./hooks.ts');
+    expect(isKnownResource('option_chain/SYN-TECH-01')).toBe(true);
+    expect(isKnownResource('analysis/SYN-ENER-01')).toBe(true);
+    // Un préfixe SEUL (sans clé) n'est pas une ressource : ignoré.
+    expect(isKnownResource('option_chain/')).toBe(false);
+    expect(isKnownResource('analysis/')).toBe(false);
+    // Famille inconnue : jamais d'invalidation globale.
+    expect(isKnownResource('portfolio/global')).toBe(false);
+  });
+
+  it('vague 4 : ressources portefeuille/suivi/performance suivies et traduites', async () => {
+    const { isKnownResource } = await import('./hooks.ts');
+    expect(isKnownResource('review_queue/global')).toBe(true);
+    expect(isKnownResource('portfolio_valuation/1')).toBe(true);
+    expect(isKnownResource('performance/1')).toBe(true);
+    expect(isKnownResource('portfolio_valuation/')).toBe(false);
+    expect(isKnownResource('performance/')).toBe(false);
+    // La valorisation vit dans GET /portfolio — une seule clé de cache : tout
+    // signal portfolio_valuation/<id> invalide cette clé unique.
+    expect(queryKeyForResource('portfolio_valuation/1')).toEqual(['snapshot', 'portfolio']);
+    expect(queryKeyForResource('portfolio_valuation/42')).toEqual(['snapshot', 'portfolio']);
+    expect(queryKeyForResource('performance/1')).toEqual(['snapshot', 'performance/1']);
+    expect(queryKeyForResource('review_queue/global')).toEqual(['snapshot', 'review_queue/global']);
   });
 });

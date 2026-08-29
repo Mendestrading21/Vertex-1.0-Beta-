@@ -19,20 +19,21 @@ from vertex_persistence.enums import (
     OBSERVATION_QUALITY_STATUSES,
     OUTBOX_STATUSES,
     POSITION_LOT_SOURCES,
+    THESIS_REVISION_ACTIONS,
     LedgerEventKind,
     OutboxStatus,
     PositionLotSource,
+    ThesisRevisionAction,
     validate_enum_value,
 )
 from vertex_persistence.errors import EnumValidationError
 
-_MIGRATION_PATH = (
-    Path(__file__).resolve().parent.parent / "migrations" / "versions" / "0001_initial.py"
-)
+_VERSIONS_DIR = Path(__file__).resolve().parent.parent / "migrations" / "versions"
+_MIGRATION_PATH = _VERSIONS_DIR / "0001_initial.py"
 
 
-def _load_migration():
-    spec = importlib.util.spec_from_file_location("migration_0001_initial", _MIGRATION_PATH)
+def _load_migration(path: Path = _MIGRATION_PATH):
+    spec = importlib.util.spec_from_file_location(f"migration_{path.stem}", path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -71,8 +72,19 @@ def test_position_lot_sources() -> None:
     assert POSITION_LOT_SOURCES == {"MANUAL", "IMPORT_CONFIRMED"}
 
 
+def test_thesis_revision_actions_complete() -> None:
+    assert THESIS_REVISION_ACTIONS == {
+        "CREATED",
+        "REVIEWED",
+        "SNOOZED",
+        "NOTE_UPDATED",
+        "ARCHIVED",
+        "REACTIVATED",
+    }
+
+
 def test_values_equal_names_serialize_canonically() -> None:
-    for enum_type in (OutboxStatus, LedgerEventKind, PositionLotSource):
+    for enum_type in (OutboxStatus, LedgerEventKind, PositionLotSource, ThesisRevisionAction):
         for member in enum_type:
             assert member.value == member.name
 
@@ -95,3 +107,8 @@ def test_migration_check_lists_match_canonical_vocabularies() -> None:
     assert frozenset(migration.OUTBOX_STATUSES) == OUTBOX_STATUSES
     assert frozenset(migration.LEDGER_EVENT_KINDS) == LEDGER_EVENT_KINDS
     assert frozenset(migration.POSITION_LOT_SOURCES) == POSITION_LOT_SOURCES
+
+
+def test_migration_0006_action_list_matches_canonical_vocabulary() -> None:
+    migration = _load_migration(_VERSIONS_DIR / "0006_theses.py")
+    assert frozenset(migration.THESIS_REVISION_ACTIONS) == THESIS_REVISION_ACTIONS

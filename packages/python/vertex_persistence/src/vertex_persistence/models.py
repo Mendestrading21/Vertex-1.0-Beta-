@@ -43,6 +43,7 @@ from vertex_persistence.enums import (
     OBSERVATION_QUALITY_STATUSES,
     OUTBOX_STATUSES,
     POSITION_LOT_SOURCES,
+    THESIS_REVISION_ACTIONS,
 )
 
 __all__ = [
@@ -56,6 +57,8 @@ __all__ = [
     "LedgerTransaction",
     "WebauthnCredential",
     "AuthSession",
+    "Thesis",
+    "ThesisRevision",
     "sql_enum_check",
 ]
 
@@ -288,6 +291,84 @@ class AuthSession(Base):
         CheckConstraint("expires_at > created_at", name="expires_after_created"),
         Index("ix_auth_sessions_credential_id", "credential_id"),
         Index("ix_auth_sessions_expires_at", "expires_at"),
+    )
+
+
+class Thesis(Base):
+    """One user-written investment thesis (page 09 — follow-up queue).
+
+    The immutable statement of the thesis: what the user believes
+    (``hypotheses``) and, mandatorily, what would prove it wrong
+    (``invalidation`` — a thesis without an invalidation criterion is refused
+    by CHECK). There is deliberately NO mutable status column here: the
+    current status (ACTIVE / SNOOZED / ARCHIVED) and the effective review-due
+    instant are a pure projection of the append-only ``thesis_revisions``
+    history, recomputed by
+    :func:`vertex_persistence.repository.theses.project_thesis_state`.
+    """
+
+    __tablename__ = "theses"
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
+    portfolio_id: Mapped[Optional[int]] = mapped_column(
+        BigInteger, ForeignKey("portfolios.id"), nullable=True
+    )
+    instrument: Mapped[Optional[dict[str, Any]]] = mapped_column(JSONB, nullable=True)
+    title: Mapped[str] = mapped_column(Text, nullable=False)
+    hypotheses: Mapped[str] = mapped_column(Text, nullable=False)
+    invalidation: Mapped[str] = mapped_column(Text, nullable=False)
+    horizon: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    review_due_at: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    __table_args__ = (
+        # A thesis without a non-blank invalidation criterion is refused.
+        CheckConstraint("length(btrim(invalidation)) > 0", name="invalidation_not_blank"),
+        Index("ix_theses_portfolio_id", "portfolio_id"),
+    )
+
+
+class ThesisRevision(Base):
+    """One immutable revision of a thesis's review lifecycle (append-only).
+
+    Records what the user did (reviewed, snoozed, archived, ...), never what
+    the system decided. UPDATE/DELETE/TRUNCATE are forbidden by the same SQL
+    triggers that protect ``observations`` and ``ledger_transactions``.
+    ``idempotency_key`` is UNIQUE: replaying the same recording writes
+    nothing new. ``snooze_until`` is present exactly on SNOOZED revisions
+    (CHECK) — a snooze without a wake-up instant is meaningless, and a
+    wake-up instant on any other action would be contradictory.
+    """
+
+    __tablename__ = "thesis_revisions"
+
+    id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
+    thesis_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("theses.id"), nullable=False)
+    action: Mapped[str] = mapped_column(Text, nullable=False)
+    note: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    snapshot_ref: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    content_hash: Mapped[str] = mapped_column(Text, nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(Text, nullable=False)
+    author: Mapped[str] = mapped_column(
+        Text, nullable=False, server_default=text("'local-user'")
+    )
+    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    snooze_until: Mapped[Optional[datetime]] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+    __table_args__ = (
+        UniqueConstraint("idempotency_key"),
+        CheckConstraint(
+            sql_enum_check("action", THESIS_REVISION_ACTIONS), name="action_canonical"
+        ),
+        CheckConstraint(
+            "(action = 'SNOOZED') = (snooze_until IS NOT NULL)",
+            name="snooze_until_only_when_snoozed",
+        ),
+        Index("ix_thesis_revisions_thesis_id", "thesis_id"),
     )
 
 

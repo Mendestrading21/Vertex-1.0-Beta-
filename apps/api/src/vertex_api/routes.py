@@ -22,28 +22,90 @@ mutation — or a generic 401 with code ``AUTH_REQUIRED``, fail-closed.
 
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends, HTTPException, Path, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import StreamingResponse
 from pydantic import ValidationError
+from starlette.concurrency import run_in_threadpool
+
+from fastapi.responses import Response
 
 from vertex_api.auth import require_session
 from vertex_api.capability_manifest import CapabilityManifest
 from vertex_api.events import StreamSettings, get_stream_settings, snapshot_event_stream
+from vertex_api.portfolio import (
+    ERROR_ALREADY_COMPENSATED,
+    ERROR_ECHO_HASH_MISMATCH,
+    ERROR_EFFECTIVE_AT_IN_FUTURE,
+    ERROR_IMPORT_ROW_INVALID,
+    ERROR_UNKNOWN_TRANSACTION,
+    EXPORT_SCHEMA_VERSION,
+    CompensateTransactionRequest,
+    CompensateTransactionResponse,
+    CsvImportError,
+    CsvImportPreviewRequest,
+    DbPortfolioGateway,
+    ImportConfirmRequest,
+    ImportConfirmResponse,
+    ImportPreviewResponse,
+    PortfolioGateway,
+    PortfolioResponse,
+    RecordTransactionRequest,
+    RecordTransactionResponse,
+    build_portfolio_response,
+    detect_potential_duplicates,
+    import_row_hash,
+    parse_import_csv,
+    render_export_csv,
+    validate_import_fields,
+)
+from vertex_api.follow_up import (
+    ERROR_IDEMPOTENCY_KEY_REUSED,
+    ERROR_UNKNOWN_PORTFOLIO,
+    ERROR_UNKNOWN_THESIS,
+    SNAPSHOT_KEY_REVIEW_QUEUE,
+    SNAPSHOT_KIND_REVIEW_QUEUE,
+    CreateThesisRequest,
+    CreateThesisResponse,
+    DbFollowUpGateway,
+    FollowUpGateway,
+    FollowUpQueueResponse,
+    ThesisRevisionRequest,
+    ThesisRevisionResponse,
+    build_follow_up_queue_response,
+)
+from vertex_api.performance import (
+    SNAPSHOT_KIND_PERFORMANCE,
+    PerformanceExportResponse,
+    PerformanceSnapshotResponse,
+    build_performance_export,
+    build_performance_response,
+)
 from vertex_api.schemas import (
     AdvicePreviewRequest,
+    AnalysisResponse,
     AttentionSnapshotResponse,
     EngineInfoResponse,
     HealthResponse,
     MarketsOverviewResponse,
+    OptionChainResponse,
     SystemCapabilitiesResponse,
+)
+from vertex_api.simulation import (
+    SimulationPreviewRequest,
+    SimulationPreviewResponse,
+    SimulationRejectedError,
+    run_simulation_preview,
 )
 from vertex_api.snapshot_reader import Clock, SnapshotReader, get_clock, get_snapshot_reader
 from vertex_api.snapshot_views import (
+    build_analysis_response,
     build_attention_response,
     build_capabilities_response,
     build_markets_overview_response,
+    build_option_chain_response,
 )
+from vertex_core.calculations.options import OptionInputError
 from vertex_core.contracts.decision import AdviceResult
 from vertex_core.decision import GATE_VERSIONS, AdviceEngine
 from vertex_core.version import ENGINE_VERSION
@@ -59,7 +121,13 @@ __all__ = [
 SNAPSHOT_KIND_ATTENTION = "attention"
 SNAPSHOT_KIND_CAPABILITIES = "capabilities"
 SNAPSHOT_KIND_MARKETS = "markets_overview"
+SNAPSHOT_KIND_OPTION_CHAIN = "option_chain"
+SNAPSHOT_KIND_ANALYSIS = "analysis"
 SNAPSHOT_KEY_GLOBAL = "global"
+
+UNDERLYING_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
+"""Accepted shape of an underlying snapshot key (path parameter): a plain
+canonical ticker identifier — anything else is rejected before any lookup."""
 
 public_router = APIRouter(prefix="/api/v1")
 
@@ -143,6 +211,80 @@ def post_advice_preview(
     return engine.evaluate(inputs)
 
 
+async def parse_simulation_preview_request(
+    request: Request,
+) -> SimulationPreviewRequest:
+    """Validate the raw JSON body in pydantic JSON mode (fail-closed 422).
+
+    Same rationale as :func:`parse_advice_preview_request`: the simulation
+    contracts are strict models whose wire form carries decimal strings —
+    ``model_validate_json`` accepts exactly the canonical JSON encoding and
+    rejects every deviation (missing strike, zero quantity, oversized grid,
+    non-finite decimal, unknown field) as 422.
+    """
+    raw_body = await request.body()
+    try:
+        return SimulationPreviewRequest.model_validate_json(raw_body)
+    except ValidationError as exc:
+        raise RequestValidationError(
+            exc.errors(include_url=False, include_context=False, include_input=False)
+        ) from exc
+
+
+@protected_router.post(
+    "/simulations/preview",
+    operation_id="post_simulations_preview",
+    response_model=SimulationPreviewResponse,
+    summary="THEORETICAL preview of one declared structure (no persistence)",
+    openapi_extra={
+        "requestBody": {
+            "required": True,
+            "content": {
+                "application/json": {
+                    "schema": {
+                        "$ref": "#/components/schemas/SimulationPreviewRequest"
+                    }
+                }
+            },
+        }
+    },
+    responses={
+        422: {
+            "description": (
+                "Rejected fail-closed with the exact machine-readable reason: "
+                "either a wire-contract violation, or the defined-risk "
+                "verifier's code (e.g. OUTSIDE_CLOSED_CATALOG, "
+                "UNCOVERED_SHORT_UPSIDE_TAIL, VERTICAL_DEBIT_NOT_BELOW_WIDTH), "
+                "or a typed calculation-domain violation from vertex_core."
+            )
+        }
+    },
+)
+async def post_simulations_preview(
+    inputs: Annotated[
+        SimulationPreviewRequest, Depends(parse_simulation_preview_request)
+    ],
+    clock: Annotated[Clock, Depends(get_clock)],
+) -> SimulationPreviewResponse:
+    """Run one THEORETICAL simulation preview through vertex_core.
+
+    Orchestration only: the mandatory ``defined_risk_check``, the exact
+    ``payoff_at_expiry``, the authority-certified breakevens and the bounded
+    ``scenario_grid`` all run inside ``vertex_core.calculations.options`` on
+    a worker thread (``run_in_threadpool`` — the event loop never computes).
+    Nothing is persisted; nothing here is, or ever becomes, an order.
+    """
+    try:
+        return await run_in_threadpool(
+            run_simulation_preview, inputs, now=clock()
+        )
+    except (SimulationRejectedError, OptionInputError) as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": exc.reason, "message": exc.detail},
+        ) from exc
+
+
 @protected_router.get(
     "/system/engine",
     operation_id="get_system_engine",
@@ -177,6 +319,54 @@ def get_markets_overview(
     """
     snapshot = reader.current(kind=SNAPSHOT_KIND_MARKETS, key=SNAPSHOT_KEY_GLOBAL)
     return build_markets_overview_response(snapshot)
+
+
+@protected_router.get(
+    "/analysis/{instrument}",
+    operation_id="get_analysis",
+    response_model=AnalysisResponse,
+    summary="Last published analysis dossier for one instrument (or honest empty state)",
+)
+def get_analysis(
+    instrument: Annotated[str, Path(pattern=UNDERLYING_PATTERN)],
+    reader: Annotated[SnapshotReader, Depends(get_snapshot_reader)],
+) -> AnalysisResponse:
+    """Serve the LAST ``analysis/{instrument}`` snapshot exactly as persisted.
+
+    The API relays the worker's published dossier — the canonical
+    ``AdviceResult`` of the single ``AdviceEngine`` with its ten gates and
+    reason codes, the validated OHLCV bars, the fusion evidence rail and the
+    ``THEORETICAL`` scenario block (or its typed absence reason) — and
+    computes nothing. With no snapshot ever published for this instrument
+    the answer is a 200 with ``state = "empty"``: absent stays absent,
+    nothing is invented.
+    """
+    snapshot = reader.current(kind=SNAPSHOT_KIND_ANALYSIS, key=instrument)
+    return build_analysis_response(snapshot, instrument=instrument)
+
+
+@protected_router.get(
+    "/options/{underlying}/chain",
+    operation_id="get_option_chain",
+    response_model=OptionChainResponse,
+    summary="Last published option chain for one underlying (or honest empty state)",
+)
+def get_option_chain(
+    underlying: Annotated[str, Path(pattern=UNDERLYING_PATTERN)],
+    reader: Annotated[SnapshotReader, Depends(get_snapshot_reader)],
+) -> OptionChainResponse:
+    """Serve the LAST ``option_chain/{underlying}`` snapshot exactly as persisted.
+
+    The API relays the worker's published content — per-(expiration,
+    trading_class) groups with complete contract identities, verbatim quotes
+    and their quality, the worker's Vertex IV/Greeks (``THEORETICAL``, with
+    their ``CalculationRecord`` lineage) or their typed refusal reasons, the
+    coverage account and the displayed row budget — and computes nothing.
+    With no snapshot ever published for this underlying the answer is a 200
+    with ``state = "empty"``: absent stays absent, nothing is invented.
+    """
+    snapshot = reader.current(kind=SNAPSHOT_KIND_OPTION_CHAIN, key=underlying)
+    return build_option_chain_response(snapshot, underlying=underlying)
 
 
 def get_capability_manifest(request: Request) -> CapabilityManifest:
@@ -260,3 +450,709 @@ async def get_events_stream(
         media_type="text/event-stream",
         headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"},
     )
+
+
+# ---------------------------------------------------------------------------
+# Manual portfolio journal (accounting semantics — records of PAST facts
+# executed outside Vertex; nothing here is, or ever becomes, an order)
+# ---------------------------------------------------------------------------
+
+
+def get_portfolio_gateway(request: Request) -> PortfolioGateway:
+    """FastAPI dependency: the real gateway (tests override with fakes)."""
+    return DbPortfolioGateway(request.app)
+
+
+async def parse_record_transaction_request(
+    request: Request,
+) -> RecordTransactionRequest:
+    """Validate the raw JSON body in pydantic JSON mode (fail-closed 422).
+
+    Same rationale as :func:`parse_advice_preview_request`: the journal DTO
+    is a strict model whose wire form carries decimal strings and ISO
+    datetimes — any deviation (naive datetime, non-finite decimal, missing
+    instrument on a position fact, unknown field) is rejected as 422.
+    """
+    raw_body = await request.body()
+    try:
+        return RecordTransactionRequest.model_validate_json(raw_body)
+    except ValidationError as exc:
+        raise RequestValidationError(
+            exc.errors(include_url=False, include_context=False, include_input=False)
+        ) from exc
+
+
+async def parse_compensate_request(request: Request) -> CompensateTransactionRequest:
+    """Strict JSON-mode validation of the compensation body (fail-closed 422)."""
+    raw_body = await request.body()
+    try:
+        return CompensateTransactionRequest.model_validate_json(raw_body)
+    except ValidationError as exc:
+        raise RequestValidationError(
+            exc.errors(include_url=False, include_context=False, include_input=False)
+        ) from exc
+
+
+async def parse_import_preview_request(request: Request) -> CsvImportPreviewRequest:
+    """Strict JSON-mode validation of the CSV preview body (fail-closed 422)."""
+    raw_body = await request.body()
+    try:
+        return CsvImportPreviewRequest.model_validate_json(raw_body)
+    except ValidationError as exc:
+        raise RequestValidationError(
+            exc.errors(include_url=False, include_context=False, include_input=False)
+        ) from exc
+
+
+async def parse_import_confirm_request(request: Request) -> ImportConfirmRequest:
+    """Strict JSON-mode validation of the CSV confirm body (fail-closed 422)."""
+    raw_body = await request.body()
+    try:
+        return ImportConfirmRequest.model_validate_json(raw_body)
+    except ValidationError as exc:
+        raise RequestValidationError(
+            exc.errors(include_url=False, include_context=False, include_input=False)
+        ) from exc
+
+
+@protected_router.get(
+    "/portfolio",
+    operation_id="get_portfolio",
+    response_model=PortfolioResponse,
+    summary="Manual journal, declared lots and last published valuation",
+)
+def get_portfolio(
+    gateway: Annotated[PortfolioGateway, Depends(get_portfolio_gateway)],
+) -> PortfolioResponse:
+    """Serve the manual ledger verbatim plus the LAST valuation snapshot.
+
+    The default portfolio ``main`` is created on first use (documented
+    get-or-create). The valuation block relays the worker's snapshot exactly
+    as persisted (``mark_population = "SYNTHETIC"`` shown as-is) or an honest
+    empty state — the API computes no P&L, mark, weight or total.
+    """
+    return build_portfolio_response(gateway.overview())
+
+
+@protected_router.post(
+    "/portfolio/transactions",
+    operation_id="record_transaction",
+    response_model=RecordTransactionResponse,
+    summary="Record one past transaction already executed outside Vertex",
+    status_code=201,
+    openapi_extra={
+        "requestBody": {
+            "required": True,
+            "content": {
+                "application/json": {
+                    "schema": {
+                        "$ref": "#/components/schemas/RecordTransactionRequest"
+                    }
+                }
+            },
+        }
+    },
+    responses={
+        422: {
+            "description": (
+                "Rejected fail-closed: wire-contract violation or "
+                "EFFECTIVE_AT_IN_FUTURE (a fact that has not happened yet "
+                "cannot be recorded)."
+            )
+        }
+    },
+)
+def record_transaction(
+    inputs: Annotated[
+        RecordTransactionRequest, Depends(parse_record_transaction_request)
+    ],
+    gateway: Annotated[PortfolioGateway, Depends(get_portfolio_gateway)],
+    clock: Annotated[Clock, Depends(get_clock)],
+) -> RecordTransactionResponse:
+    """Append one accounting-journal fact and enqueue the revaluation.
+
+    The ledger write and the ``portfolio.valuation.refresh`` outbox message
+    commit in the SAME transaction (outbox atomicity). This endpoint records
+    what already happened outside Vertex — it never transmits anything to a
+    broker and no such capability exists.
+    """
+    now = clock()
+    if inputs.effective_at > now:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": ERROR_EFFECTIVE_AT_IN_FUTURE,
+                "message": "effective_at must not be in the future",
+            },
+        )
+    transaction_id = gateway.record_transaction(
+        kind=inputs.kind.value,
+        instrument=(
+            {"ticker": inputs.instrument.ticker} if inputs.instrument else None
+        ),
+        quantity=inputs.quantity,
+        price=inputs.price,
+        amount=inputs.amount,
+        currency=inputs.currency,
+        fees=inputs.fees,
+        effective_at=inputs.effective_at,
+        note=inputs.note,
+        now=now,
+    )
+    return RecordTransactionResponse(
+        transaction_id=transaction_id, refresh_enqueued=True
+    )
+
+
+@protected_router.post(
+    "/portfolio/transactions/{transaction_id}/compensate",
+    operation_id="compensate_transaction",
+    response_model=CompensateTransactionResponse,
+    summary="Correct one recorded fact by appending its compensating row",
+    status_code=201,
+    openapi_extra={
+        "requestBody": {
+            "required": True,
+            "content": {
+                "application/json": {
+                    "schema": {
+                        "$ref": "#/components/schemas/CompensateTransactionRequest"
+                    }
+                }
+            },
+        }
+    },
+    responses={
+        404: {"description": "Unknown transaction (code UNKNOWN_TRANSACTION)."},
+        409: {
+            "description": (
+                "The transaction already has a compensating row (code "
+                "ALREADY_COMPENSATED) — history is append-only, a fact is "
+                "corrected at most once."
+            )
+        },
+    },
+)
+def compensate_transaction(
+    transaction_id: Annotated[int, Path(ge=1)],
+    inputs: Annotated[CompensateTransactionRequest, Depends(parse_compensate_request)],
+    gateway: Annotated[PortfolioGateway, Depends(get_portfolio_gateway)],
+    clock: Annotated[Clock, Depends(get_clock)],
+) -> CompensateTransactionResponse:
+    """Append the compensating row of one recorded fact (never an edit).
+
+    The original row stays untouched forever; the compensating row negates
+    amount, fees and quantity and carries the mandatory reason note. A second
+    compensation of the same row is a clean 409 conflict.
+    """
+    from vertex_persistence.errors import (
+        AlreadyCompensatedError,
+        UnknownLedgerEventError,
+    )
+
+    now = clock()
+    try:
+        compensation_id = gateway.compensate_transaction(
+            event_id=transaction_id, note=inputs.note, now=now
+        )
+    except AlreadyCompensatedError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={"code": ERROR_ALREADY_COMPENSATED, "message": str(exc)},
+        ) from exc
+    except UnknownLedgerEventError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail={"code": ERROR_UNKNOWN_TRANSACTION, "message": str(exc)},
+        ) from exc
+    return CompensateTransactionResponse(
+        compensation_id=compensation_id,
+        compensates=transaction_id,
+        refresh_enqueued=True,
+    )
+
+
+@protected_router.post(
+    "/portfolio/import/preview",
+    operation_id="preview_portfolio_import",
+    response_model=ImportPreviewResponse,
+    summary="Typed CSV preview: rows, per-row errors, duplicates — NO write",
+    openapi_extra={
+        "requestBody": {
+            "required": True,
+            "content": {
+                "application/json": {
+                    "schema": {
+                        "$ref": "#/components/schemas/CsvImportPreviewRequest"
+                    }
+                }
+            },
+        }
+    },
+    responses={
+        422: {
+            "description": (
+                "Whole-input rejection: CSV_TOO_LARGE (256 KiB), "
+                "CSV_TOO_MANY_ROWS (500 data rows) or CSV_HEADER_INVALID."
+            )
+        }
+    },
+)
+def preview_portfolio_import(
+    inputs: Annotated[CsvImportPreviewRequest, Depends(parse_import_preview_request)],
+    gateway: Annotated[PortfolioGateway, Depends(get_portfolio_gateway)],
+    clock: Annotated[Clock, Depends(get_clock)],
+) -> ImportPreviewResponse:
+    """Validate a CSV import WITHOUT writing anything.
+
+    Every data row becomes either a typed, hash-stamped echo (to be sent
+    back verbatim to the confirm endpoint) or a per-row error list. Valid
+    rows matching already-recorded facts are flagged as potential duplicates
+    — information for the user, never a silent drop.
+    """
+    from vertex_api.portfolio import ImportRowEcho, MAX_IMPORT_BYTES, MAX_IMPORT_ROWS
+
+    now = clock()
+    try:
+        valid, invalid = parse_import_csv(inputs.csv, now=now)
+    except CsvImportError as exc:
+        raise HTTPException(
+            status_code=422, detail={"code": exc.code, "message": str(exc)}
+        ) from exc
+    ledger = gateway.overview().transactions
+    duplicates = detect_potential_duplicates(valid, ledger)
+    return ImportPreviewResponse(
+        rows_total=len(valid) + len(invalid),
+        rows_valid=tuple(
+            ImportRowEcho(
+                row_number=row.row_number,
+                kind=row.canonical_fields["kind"],
+                ticker=row.canonical_fields["ticker"],
+                quantity=row.canonical_fields["quantity"],
+                price=row.canonical_fields["price"],
+                amount=row.canonical_fields["amount"],
+                currency=row.canonical_fields["currency"],
+                fees=row.canonical_fields["fees"],
+                effective_at=row.canonical_fields["effective_at"],
+                note=row.canonical_fields["note"],
+                row_hash=row.row_hash,
+            )
+            for row in valid
+        ),
+        rows_invalid=tuple(invalid),
+        potential_duplicates=tuple(duplicates),
+        max_rows=MAX_IMPORT_ROWS,
+        max_bytes=MAX_IMPORT_BYTES,
+    )
+
+
+@protected_router.post(
+    "/portfolio/import/confirm",
+    operation_id="confirm_portfolio_import",
+    response_model=ImportConfirmResponse,
+    summary="Record the previewed rows (validation replayed, hash verified)",
+    status_code=201,
+    openapi_extra={
+        "requestBody": {
+            "required": True,
+            "content": {
+                "application/json": {
+                    "schema": {"$ref": "#/components/schemas/ImportConfirmRequest"}
+                }
+            },
+        }
+    },
+    responses={
+        422: {
+            "description": (
+                "Rejected fail-closed: IMPORT_ROW_INVALID (a row no longer "
+                "passes the replayed validation) or ECHO_HASH_MISMATCH (an "
+                "echoed row was altered after the preview). Nothing is "
+                "written on rejection."
+            )
+        }
+    },
+)
+def confirm_portfolio_import(
+    inputs: Annotated[ImportConfirmRequest, Depends(parse_import_confirm_request)],
+    gateway: Annotated[PortfolioGateway, Depends(get_portfolio_gateway)],
+    clock: Annotated[Clock, Depends(get_clock)],
+) -> ImportConfirmResponse:
+    """Record ONLY rows that re-pass the full validation with intact hashes.
+
+    The confirm never trusts the echo: each row's fields are re-validated
+    exactly like at preview time and its integrity hash is recomputed; any
+    divergence rejects the WHOLE request before any write. Accepted rows are
+    recorded with source ``IMPORT_CONFIRMED`` and one revaluation is
+    enqueued in the same transaction.
+    """
+    now = clock()
+    validated = []
+    for echo in inputs.rows:
+        fields = {
+            "kind": echo.kind,
+            "ticker": echo.ticker,
+            "quantity": echo.quantity,
+            "price": echo.price,
+            "amount": echo.amount,
+            "currency": echo.currency,
+            "fees": echo.fees,
+            "effective_at": echo.effective_at,
+            "note": echo.note,
+        }
+        row, errors = validate_import_fields(
+            fields, row_number=echo.row_number, now=now
+        )
+        if row is None:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": ERROR_IMPORT_ROW_INVALID,
+                    "message": f"row {echo.row_number} failed the replayed validation",
+                    "errors": errors,
+                },
+            )
+        if row.row_hash != echo.row_hash:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "code": ERROR_ECHO_HASH_MISMATCH,
+                    "message": (
+                        f"row {echo.row_number}: the echoed content does not "
+                        "match its integrity hash"
+                    ),
+                },
+            )
+        validated.append(row)
+    recorded = gateway.record_import(validated, now=now)
+    return ImportConfirmResponse(
+        recorded_transaction_ids=tuple(recorded),
+        source="IMPORT_CONFIRMED",
+        refresh_enqueued=True,
+    )
+
+
+@protected_router.get(
+    "/portfolio/export",
+    operation_id="export_portfolio",
+    summary="CSV export of the manual ledger (version stamp, ledger only)",
+    response_class=Response,
+    responses={
+        200: {
+            "description": (
+                "text/csv: one version-stamp comment line, the header row and "
+                "the ledger rows — no other data. Cells starting with "
+                "'=', '+', '-' or '@' are neutralized with a leading "
+                "apostrophe against spreadsheet formula injection."
+            ),
+            "content": {"text/csv": {"schema": {"type": "string"}}},
+        }
+    },
+)
+def export_portfolio(
+    gateway: Annotated[PortfolioGateway, Depends(get_portfolio_gateway)],
+) -> Response:
+    """Export the journal as CSV. Nothing but the ledger leaves the server."""
+    overview = gateway.overview()
+    return Response(
+        content=render_export_csv(overview.transactions),
+        media_type="text/csv",
+        headers={
+            "Content-Disposition": 'attachment; filename="vertex-portfolio-ledger.csv"',
+            "X-Vertex-Export-Version": EXPORT_SCHEMA_VERSION,
+        },
+    )
+
+
+# ---------------------------------------------------------------------------
+# Follow-up (page 09 — theses and review queue) and performance (page 10)
+# ---------------------------------------------------------------------------
+
+
+def get_follow_up_gateway(request: Request) -> FollowUpGateway:
+    """FastAPI dependency: the real gateway (tests override with fakes)."""
+    return DbFollowUpGateway(request.app)
+
+
+async def parse_create_thesis_request(request: Request) -> CreateThesisRequest:
+    """Strict JSON-mode validation of the thesis body (fail-closed 422).
+
+    Same rationale as :func:`parse_advice_preview_request`: the DTO is a
+    strict model — a blank ``invalidation``, a missing ``idempotency_key``,
+    a naive datetime or an unknown field is rejected as 422.
+    """
+    raw_body = await request.body()
+    try:
+        return CreateThesisRequest.model_validate_json(raw_body)
+    except ValidationError as exc:
+        raise RequestValidationError(
+            exc.errors(include_url=False, include_context=False, include_input=False)
+        ) from exc
+
+
+async def parse_thesis_revision_request(request: Request) -> ThesisRevisionRequest:
+    """Strict JSON-mode validation of the revision body (fail-closed 422).
+
+    The action allowlist (REVIEWED/SNOOZED/NOTE_UPDATED/ARCHIVED/REACTIVATED
+    — never CREATED) and the snooze_until-iff-SNOOZED rule are enforced here
+    before any database work.
+    """
+    raw_body = await request.body()
+    try:
+        return ThesisRevisionRequest.model_validate_json(raw_body)
+    except ValidationError as exc:
+        raise RequestValidationError(
+            exc.errors(include_url=False, include_context=False, include_input=False)
+        ) from exc
+
+
+@protected_router.get(
+    "/follow-up/queue",
+    operation_id="get_follow_up_queue",
+    response_model=FollowUpQueueResponse,
+    summary="Last published review queue snapshot (or honest empty state)",
+)
+def get_follow_up_queue(
+    reader: Annotated[SnapshotReader, Depends(get_snapshot_reader)],
+) -> FollowUpQueueResponse:
+    """Serve the LAST ``review_queue/global`` snapshot exactly as persisted.
+
+    The API relays the worker's published content — projected thesis states,
+    the documented lexicographic due ordering, urgency flags and reasons, the
+    per-ticker information clusters with provenance, and the two SEPARATE
+    population labels — and computes nothing. With no snapshot ever published
+    the answer is a 200 with ``state = "empty"``: absent stays absent,
+    nothing is invented.
+    """
+    snapshot = reader.current(
+        kind=SNAPSHOT_KIND_REVIEW_QUEUE, key=SNAPSHOT_KEY_REVIEW_QUEUE
+    )
+    return build_follow_up_queue_response(snapshot)
+
+
+@protected_router.post(
+    "/theses",
+    operation_id="create_thesis",
+    response_model=CreateThesisResponse,
+    summary="Append one user-written thesis (statement + mandatory falsifier)",
+    status_code=201,
+    openapi_extra={
+        "requestBody": {
+            "required": True,
+            "content": {
+                "application/json": {
+                    "schema": {"$ref": "#/components/schemas/CreateThesisRequest"}
+                }
+            },
+        }
+    },
+    responses={
+        200: {
+            "description": (
+                "Idempotent replay: the client's idempotency_key already "
+                "names this thesis — nothing was written, created=false, the "
+                "original ids are returned."
+            )
+        },
+        404: {"description": "Unknown portfolio — code UNKNOWN_PORTFOLIO."},
+        409: {
+            "description": (
+                "The idempotency_key already names a DIFFERENT operation "
+                "(code IDEMPOTENCY_KEY_REUSED) — keys are never recycled."
+            )
+        },
+        422: {
+            "description": (
+                "Rejected fail-closed: blank invalidation, missing "
+                "idempotency_key or any other wire-contract violation."
+            )
+        },
+    },
+)
+def create_thesis_route(
+    inputs: Annotated[CreateThesisRequest, Depends(parse_create_thesis_request)],
+    gateway: Annotated[FollowUpGateway, Depends(get_follow_up_gateway)],
+    clock: Annotated[Clock, Depends(get_clock)],
+    response: Response,
+) -> CreateThesisResponse:
+    """Record one thesis and enqueue the review-queue refresh, one transaction.
+
+    Revisions are append-only and the review-queue refresh commits WITH the
+    write (outbox atomicity). Replaying the same ``idempotency_key`` answers
+    200 with ``created=false`` and writes nothing — never a duplicate.
+    """
+    from vertex_persistence.errors import (
+        IdempotencyKeyReuseError,
+        UnknownPortfolioError,
+    )
+
+    try:
+        result = gateway.create(inputs, now=clock())
+    except IdempotencyKeyReuseError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={"code": ERROR_IDEMPOTENCY_KEY_REUSED, "message": str(exc)},
+        ) from exc
+    except UnknownPortfolioError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail={"code": ERROR_UNKNOWN_PORTFOLIO, "message": str(exc)},
+        ) from exc
+    if not result.created:
+        response.status_code = 200
+    return CreateThesisResponse(
+        thesis_id=result.thesis_id,
+        revision_id=result.revision_id,
+        created=result.created,
+        refresh_enqueued=result.created,
+    )
+
+
+@protected_router.post(
+    "/theses/{thesis_id}/revisions",
+    operation_id="record_thesis_revision",
+    response_model=ThesisRevisionResponse,
+    summary="Append one review-lifecycle revision (append-only history)",
+    status_code=201,
+    openapi_extra={
+        "requestBody": {
+            "required": True,
+            "content": {
+                "application/json": {
+                    "schema": {"$ref": "#/components/schemas/ThesisRevisionRequest"}
+                }
+            },
+        }
+    },
+    responses={
+        200: {
+            "description": (
+                "Idempotent replay: the client's idempotency_key already "
+                "names this exact revision — nothing was written, "
+                "created=false, the original revision id is returned. Ten "
+                "replays leave exactly one row."
+            )
+        },
+        404: {"description": "Unknown thesis (code UNKNOWN_THESIS)."},
+        409: {
+            "description": (
+                "The idempotency_key already names a DIFFERENT operation "
+                "(code IDEMPOTENCY_KEY_REUSED) — keys are never recycled."
+            )
+        },
+        422: {
+            "description": (
+                "Rejected fail-closed: action outside the allowlist "
+                "(CREATED included), snooze_until missing on SNOOZED or "
+                "present elsewhere, or any wire-contract violation."
+            )
+        },
+    },
+)
+def record_thesis_revision_route(
+    thesis_id: Annotated[int, Path(ge=1)],
+    inputs: Annotated[ThesisRevisionRequest, Depends(parse_thesis_revision_request)],
+    gateway: Annotated[FollowUpGateway, Depends(get_follow_up_gateway)],
+    clock: Annotated[Clock, Depends(get_clock)],
+    response: Response,
+) -> ThesisRevisionResponse:
+    """Append one revision and enqueue the review-queue refresh, one transaction.
+
+    History is append-only: nothing edits or deletes an earlier revision;
+    the projected status is recomputed by the repository, never stored.
+    """
+    from vertex_persistence.errors import (
+        IdempotencyKeyReuseError,
+        UnknownThesisError,
+        ValidationFailedError,
+    )
+
+    try:
+        result = gateway.record_revision(thesis_id, inputs, now=clock())
+    except IdempotencyKeyReuseError as exc:
+        raise HTTPException(
+            status_code=409,
+            detail={"code": ERROR_IDEMPOTENCY_KEY_REUSED, "message": str(exc)},
+        ) from exc
+    except UnknownThesisError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail={"code": ERROR_UNKNOWN_THESIS, "message": str(exc)},
+        ) from exc
+    except ValidationFailedError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "VALIDATION_FAILED", "message": str(exc)},
+        ) from exc
+    if not result.created:
+        response.status_code = 200
+    return ThesisRevisionResponse(
+        thesis_id=thesis_id,
+        revision_id=result.revision_id,
+        created=result.created,
+        refresh_enqueued=result.created,
+    )
+
+
+@protected_router.get(
+    "/performance/{portfolio_id}",
+    operation_id="get_performance",
+    response_model=PerformanceSnapshotResponse,
+    summary="Last published performance snapshot (or honest empty state)",
+)
+def get_performance(
+    portfolio_id: Annotated[int, Path(ge=1)],
+    reader: Annotated[SnapshotReader, Depends(get_snapshot_reader)],
+) -> PerformanceSnapshotResponse:
+    """Serve the LAST ``performance/{portfolio_id}`` snapshot as persisted.
+
+    The API relays the worker's published content — daily valuation series,
+    explicit gross/net metrics with their ``CalculationRecord`` lineage,
+    honest INSUFFICIENT_DATA / INVALID gate outcomes, monthly heatmap,
+    coverage and the ``SYNTHETIC_MARKS_REAL_LEDGER`` population shown as-is —
+    and computes nothing. With no snapshot ever published the answer is a
+    200 with ``state = "empty"``: absent stays absent, nothing is invented.
+    """
+    snapshot = reader.current(
+        kind=SNAPSHOT_KIND_PERFORMANCE, key=str(portfolio_id)
+    )
+    return build_performance_response(snapshot, portfolio_id=portfolio_id)
+
+
+@protected_router.get(
+    "/performance/{portfolio_id}/export",
+    operation_id="export_performance",
+    response_model=PerformanceExportResponse,
+    summary="Reproducible export: CSV points + JSON manifest (methods, versions, hashes)",
+    responses={
+        404: {
+            "description": (
+                "No performance snapshot was ever published for this "
+                "portfolio — code NO_PERFORMANCE_SNAPSHOT — there is nothing "
+                "honest to export."
+            )
+        }
+    },
+)
+def export_performance(
+    portfolio_id: Annotated[int, Path(ge=1)],
+    reader: Annotated[SnapshotReader, Depends(get_snapshot_reader)],
+) -> PerformanceExportResponse:
+    """Export the daily points (CSV) and the audit manifest (JSON).
+
+    A PURE function of the persisted snapshot: two calls over the same
+    snapshot version return byte-identical bodies; ``as_of`` is the
+    snapshot's own instant (documented), never the request clock.
+    """
+    snapshot = reader.current(
+        kind=SNAPSHOT_KIND_PERFORMANCE, key=str(portfolio_id)
+    )
+    if snapshot is None:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "code": "NO_PERFORMANCE_SNAPSHOT",
+                "message": "no performance snapshot published for this portfolio",
+            },
+        )
+    return build_performance_export(snapshot, portfolio_id=portfolio_id)

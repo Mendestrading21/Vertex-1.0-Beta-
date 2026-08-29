@@ -29,6 +29,34 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/analysis/{instrument}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Last published analysis dossier for one instrument (or honest empty state)
+         * @description Serve the LAST ``analysis/{instrument}`` snapshot exactly as persisted.
+         *
+         *     The API relays the worker's published dossier — the canonical
+         *     ``AdviceResult`` of the single ``AdviceEngine`` with its ten gates and
+         *     reason codes, the validated OHLCV bars, the fusion evidence rail and the
+         *     ``THEORETICAL`` scenario block (or its typed absence reason) — and
+         *     computes nothing. With no snapshot ever published for this instrument
+         *     the answer is a 200 with ``state = "empty"``: absent stays absent,
+         *     nothing is invented.
+         */
+        get: operations["get_analysis"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/login/options": {
         parameters: {
             query?: never;
@@ -149,6 +177,33 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/follow-up/queue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Last published review queue snapshot (or honest empty state)
+         * @description Serve the LAST ``review_queue/global`` snapshot exactly as persisted.
+         *
+         *     The API relays the worker's published content — projected thesis states,
+         *     the documented lexicographic due ordering, urgency flags and reasons, the
+         *     per-ticker information clusters with provenance, and the two SEPARATE
+         *     population labels — and computes nothing. With no snapshot ever published
+         *     the answer is a 200 with ``state = "empty"``: absent stays absent,
+         *     nothing is invented.
+         */
+        get: operations["get_follow_up_queue"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/health": {
         parameters: {
             query?: never;
@@ -195,6 +250,256 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/options/{underlying}/chain": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Last published option chain for one underlying (or honest empty state)
+         * @description Serve the LAST ``option_chain/{underlying}`` snapshot exactly as persisted.
+         *
+         *     The API relays the worker's published content — per-(expiration,
+         *     trading_class) groups with complete contract identities, verbatim quotes
+         *     and their quality, the worker's Vertex IV/Greeks (``THEORETICAL``, with
+         *     their ``CalculationRecord`` lineage) or their typed refusal reasons, the
+         *     coverage account and the displayed row budget — and computes nothing.
+         *     With no snapshot ever published for this underlying the answer is a 200
+         *     with ``state = "empty"``: absent stays absent, nothing is invented.
+         */
+        get: operations["get_option_chain"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/performance/{portfolio_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Last published performance snapshot (or honest empty state)
+         * @description Serve the LAST ``performance/{portfolio_id}`` snapshot as persisted.
+         *
+         *     The API relays the worker's published content — daily valuation series,
+         *     explicit gross/net metrics with their ``CalculationRecord`` lineage,
+         *     honest INSUFFICIENT_DATA / INVALID gate outcomes, monthly heatmap,
+         *     coverage and the ``SYNTHETIC_MARKS_REAL_LEDGER`` population shown as-is —
+         *     and computes nothing. With no snapshot ever published the answer is a
+         *     200 with ``state = "empty"``: absent stays absent, nothing is invented.
+         */
+        get: operations["get_performance"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/performance/{portfolio_id}/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Reproducible export: CSV points + JSON manifest (methods, versions, hashes)
+         * @description Export the daily points (CSV) and the audit manifest (JSON).
+         *
+         *     A PURE function of the persisted snapshot: two calls over the same
+         *     snapshot version return byte-identical bodies; ``as_of`` is the
+         *     snapshot's own instant (documented), never the request clock.
+         */
+        get: operations["export_performance"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portfolio": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Manual journal, declared lots and last published valuation
+         * @description Serve the manual ledger verbatim plus the LAST valuation snapshot.
+         *
+         *     The default portfolio ``main`` is created on first use (documented
+         *     get-or-create). The valuation block relays the worker's snapshot exactly
+         *     as persisted (``mark_population = "SYNTHETIC"`` shown as-is) or an honest
+         *     empty state — the API computes no P&L, mark, weight or total.
+         */
+        get: operations["get_portfolio"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portfolio/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * CSV export of the manual ledger (version stamp, ledger only)
+         * @description Export the journal as CSV. Nothing but the ledger leaves the server.
+         */
+        get: operations["export_portfolio"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portfolio/import/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Record the previewed rows (validation replayed, hash verified)
+         * @description Record ONLY rows that re-pass the full validation with intact hashes.
+         *
+         *     The confirm never trusts the echo: each row's fields are re-validated
+         *     exactly like at preview time and its integrity hash is recomputed; any
+         *     divergence rejects the WHOLE request before any write. Accepted rows are
+         *     recorded with source ``IMPORT_CONFIRMED`` and one revaluation is
+         *     enqueued in the same transaction.
+         */
+        post: operations["confirm_portfolio_import"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portfolio/import/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Typed CSV preview: rows, per-row errors, duplicates — NO write
+         * @description Validate a CSV import WITHOUT writing anything.
+         *
+         *     Every data row becomes either a typed, hash-stamped echo (to be sent
+         *     back verbatim to the confirm endpoint) or a per-row error list. Valid
+         *     rows matching already-recorded facts are flagged as potential duplicates
+         *     — information for the user, never a silent drop.
+         */
+        post: operations["preview_portfolio_import"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portfolio/transactions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Record one past transaction already executed outside Vertex
+         * @description Append one accounting-journal fact and enqueue the revaluation.
+         *
+         *     The ledger write and the ``portfolio.valuation.refresh`` outbox message
+         *     commit in the SAME transaction (outbox atomicity). This endpoint records
+         *     what already happened outside Vertex — it never transmits anything to a
+         *     broker and no such capability exists.
+         */
+        post: operations["record_transaction"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/portfolio/transactions/{transaction_id}/compensate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Correct one recorded fact by appending its compensating row
+         * @description Append the compensating row of one recorded fact (never an edit).
+         *
+         *     The original row stays untouched forever; the compensating row negates
+         *     amount, fees and quantity and carries the mandatory reason note. A second
+         *     compensation of the same row is a clean 409 conflict.
+         */
+        post: operations["compensate_transaction"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/simulations/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * THEORETICAL preview of one declared structure (no persistence)
+         * @description Run one THEORETICAL simulation preview through vertex_core.
+         *
+         *     Orchestration only: the mandatory ``defined_risk_check``, the exact
+         *     ``payoff_at_expiry``, the authority-certified breakevens and the bounded
+         *     ``scenario_grid`` all run inside ``vertex_core.calculations.options`` on
+         *     a worker thread (``run_in_threadpool`` — the event loop never computes).
+         *     Nothing is persisted; nothing here is, or ever becomes, an order.
+         */
+        post: operations["post_simulations_preview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/system/capabilities": {
         parameters: {
             query?: never;
@@ -234,6 +539,53 @@ export interface paths {
         get: operations["get_system_engine"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/theses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Append one user-written thesis (statement + mandatory falsifier)
+         * @description Record one thesis and enqueue the review-queue refresh, one transaction.
+         *
+         *     Revisions are append-only and the review-queue refresh commits WITH the
+         *     write (outbox atomicity). Replaying the same ``idempotency_key`` answers
+         *     200 with ``created=false`` and writes nothing — never a duplicate.
+         */
+        post: operations["create_thesis"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/theses/{thesis_id}/revisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Append one review-lifecycle revision (append-only history)
+         * @description Append one revision and enqueue the review-queue refresh, one transaction.
+         *
+         *     History is append-only: nothing edits or deletes an earlier revision;
+         *     the projected status is recomputed by the repository, never stored.
+         */
+        post: operations["record_thesis_revision"];
         delete?: never;
         options?: never;
         head?: never;
@@ -415,6 +767,65 @@ export interface components {
          */
         AdviceStatus: "BLOCKED" | "INSUFFICIENT_DATA" | "OBSERVE" | "REVIEW" | "QUALIFIED";
         /**
+         * AnalysisResponse
+         * @description The last ``analysis/{instrument}`` snapshot — or an honest empty state.
+         *
+         *     ``state = "empty"`` means NO dossier was ever published for this
+         *     instrument: every snapshot-derived field is ``None`` (never invented)
+         *     and ``reason`` says why. ``state = "ok"`` relays the persisted content
+         *     verbatim:
+         *
+         *     - ``advice`` is the canonical ``AdviceResult`` produced by THE single
+         *       ``AdviceEngine`` — status, direction, the ten gates with their reason
+         *       codes, limitations — exactly as published; the API neither recomputes
+         *       nor softens it;
+         *     - ``bars`` carries the validated synthetic OHLCV series (decimal
+         *       strings) with its per-bar discard account;
+         *     - ``evidence`` is the fusion-cluster rail of the instrument;
+         *     - ``scenarios`` is either the ``THEORETICAL`` scenario grid with its
+         *       ``CalculationRecord`` lineage or an honest ``ABSENT`` block with its
+         *       typed reason.
+         */
+        AnalysisResponse: {
+            /** Advice */
+            advice: {
+                [key: string]: unknown;
+            } | null;
+            /** As Of */
+            as_of: string | null;
+            /** Bars */
+            bars: {
+                [key: string]: unknown;
+            } | null;
+            /** Coverage */
+            coverage: {
+                [key: string]: unknown;
+            } | null;
+            /** Engine Version */
+            engine_version: string | null;
+            /** Evidence */
+            evidence: {
+                [key: string]: unknown;
+            } | null;
+            /** Instrument */
+            instrument: string;
+            /** Population */
+            population: string | null;
+            /** Reason */
+            reason: string | null;
+            /** Scenarios */
+            scenarios: {
+                [key: string]: unknown;
+            } | null;
+            /** Snapshot Version */
+            snapshot_version: number | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "ok" | "empty";
+        };
+        /**
          * AssetClass
          * @description Canonical asset class of an identified instrument.
          * @enum {string}
@@ -544,6 +955,26 @@ export interface components {
             };
         };
         /**
+         * CompensateTransactionRequest
+         * @description Correction by compensation: the mandatory reason of the new row.
+         */
+        CompensateTransactionRequest: {
+            /** Note */
+            note: string;
+        };
+        /**
+         * CompensateTransactionResponse
+         * @description Receipt of one compensating row (the original stays untouched).
+         */
+        CompensateTransactionResponse: {
+            /** Compensates */
+            compensates: number;
+            /** Compensation Id */
+            compensation_id: number;
+            /** Refresh Enqueued */
+            refresh_enqueued: boolean;
+        };
+        /**
          * ConstraintsInput
          * @description Facts for gate 10 (``user_constraints_versioned``).
          */
@@ -574,6 +1005,69 @@ export interface components {
              * @default null
              */
             unresolved_critical_count: number | null;
+        };
+        /**
+         * CreateThesisRequest
+         * @description One user-written thesis to append (statement + mandatory falsifier).
+         *
+         *     ``invalidation`` is REQUIRED and non-blank: what would prove the thesis
+         *     wrong is part of the statement, never optional. ``idempotency_key`` is
+         *     the CLIENT's replay token: the same key always answers with the same
+         *     thesis, and writes at most once.
+         */
+        CreateThesisRequest: {
+            /**
+             * Horizon
+             * @default null
+             */
+            horizon: string | null;
+            /** Hypotheses */
+            hypotheses: string;
+            /** Idempotency Key */
+            idempotency_key: string;
+            /** @default null */
+            instrument: components["schemas"]["ThesisInstrumentInput"] | null;
+            /** Invalidation */
+            invalidation: string;
+            /**
+             * Note
+             * @default null
+             */
+            note: string | null;
+            /**
+             * Portfolio Id
+             * @default null
+             */
+            portfolio_id: number | null;
+            /**
+             * Review Due At
+             * @default null
+             */
+            review_due_at: string | null;
+            /** Title */
+            title: string;
+        };
+        /**
+         * CreateThesisResponse
+         * @description Receipt: ``created=false`` marks an idempotent replay (nothing written).
+         */
+        CreateThesisResponse: {
+            /** Created */
+            created: boolean;
+            /** Refresh Enqueued */
+            refresh_enqueued: boolean;
+            /** Revision Id */
+            revision_id: number;
+            /** Thesis Id */
+            thesis_id: number;
+        };
+        /**
+         * CsvImportPreviewRequest
+         * @description Raw CSV text to preview. Nothing is written by the preview.
+         */
+        CsvImportPreviewRequest: {
+            /** Csv */
+            csv: string;
         };
         /**
          * DbHealth
@@ -617,6 +1111,32 @@ export interface components {
         EntitlementsInput: {
             /** @default null */
             capability_status: components["schemas"]["SourceCapabilityStatus"] | null;
+        };
+        /**
+         * FollowUpQueueResponse
+         * @description The last published review queue snapshot — or an honest empty state.
+         *
+         *     ``state = "ok"`` relays the persisted content VERBATIM (projected states,
+         *     documented ordering, urgency flags, populations kept separate); the API
+         *     recomputes nothing. ``state = "empty"`` means the worker never published
+         *     the queue: nothing is invented, ``reason`` says why.
+         */
+        FollowUpQueueResponse: {
+            /** As Of */
+            as_of: string | null;
+            /** Content */
+            content: {
+                [key: string]: unknown;
+            } | null;
+            /** Reason */
+            reason: string | null;
+            /** Snapshot Version */
+            snapshot_version: number | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "ok" | "empty";
         };
         /**
          * GateResult
@@ -685,6 +1205,111 @@ export interface components {
          */
         IdentityStatus: "RESOLVED" | "AMBIGUOUS" | "UNRESOLVED";
         /**
+         * ImportConfirmRequest
+         * @description The rows to record: the preview echo, unmodified, hash included.
+         */
+        ImportConfirmRequest: {
+            /** Rows */
+            rows: components["schemas"]["ImportRowEcho"][];
+        };
+        /**
+         * ImportConfirmResponse
+         * @description Receipt of one confirmed import (source ``IMPORT_CONFIRMED``).
+         */
+        ImportConfirmResponse: {
+            /** Recorded Transaction Ids */
+            recorded_transaction_ids: number[];
+            /** Refresh Enqueued */
+            refresh_enqueued: boolean;
+            /**
+             * Source
+             * @constant
+             */
+            source: "IMPORT_CONFIRMED";
+        };
+        /**
+         * ImportPreviewResponse
+         * @description Typed preview of one CSV import — NO write happened.
+         */
+        ImportPreviewResponse: {
+            /** Max Bytes */
+            max_bytes: number;
+            /** Max Rows */
+            max_rows: number;
+            /** Potential Duplicates */
+            potential_duplicates: components["schemas"]["ImportRowDuplicate"][];
+            /** Rows Invalid */
+            rows_invalid: components["schemas"]["ImportRowError"][];
+            /** Rows Total */
+            rows_total: number;
+            /** Rows Valid */
+            rows_valid: components["schemas"]["ImportRowEcho"][];
+        };
+        /**
+         * ImportRowDuplicate
+         * @description One valid row that matches already-recorded ledger transactions.
+         */
+        ImportRowDuplicate: {
+            /** Matching Transaction Ids */
+            matching_transaction_ids: number[];
+            /** Row Number */
+            row_number: number;
+        };
+        /**
+         * ImportRowEcho
+         * @description One VALIDATED import row echoed with its integrity hash.
+         *
+         *     The confirm endpoint replays the validation on these fields and
+         *     recomputes ``row_hash``; any divergence rejects the whole request.
+         *     Optional fields are empty strings in the canonical hashed form.
+         */
+        ImportRowEcho: {
+            /** Amount */
+            amount: string;
+            /** Currency */
+            currency: string;
+            /** Effective At */
+            effective_at: string;
+            /** Fees */
+            fees: string;
+            /** Kind */
+            kind: string;
+            /** Note */
+            note: string;
+            /** Price */
+            price: string;
+            /** Quantity */
+            quantity: string;
+            /** Row Hash */
+            row_hash: string;
+            /** Row Number */
+            row_number: number;
+            /** Ticker */
+            ticker: string;
+        };
+        /**
+         * ImportRowError
+         * @description One rejected import row with its machine-readable error codes.
+         */
+        ImportRowError: {
+            /** Errors */
+            errors: string[];
+            /** Row Number */
+            row_number: number;
+        };
+        /**
+         * InstrumentRefInput
+         * @description Canonical instrument reference of a recorded position fact.
+         *
+         *     ``ticker`` only for now: the synthetic universe identifies instruments by
+         *     plain ticker. Extending the identity (options, con_id, trading class) is a
+         *     contract change, never an implicit field.
+         */
+        InstrumentRefInput: {
+            /** Ticker */
+            ticker: string;
+        };
+        /**
          * InstrumentResolutionInput
          * @description Facts for gate 1 (``instrument_resolved``).
          */
@@ -696,6 +1321,58 @@ export interface components {
              * @default null
              */
             resolved_with_conid: boolean | null;
+        };
+        /**
+         * LedgerEventKind
+         * @description Kind of one manually recorded ledger fact.
+         *
+         *     Every kind names a **past fact typed in by the user** after it happened
+         *     outside Vertex (``docs/03-domain/PORTFOLIO_MANUAL.md``). None of these is
+         *     an instruction, an order or a transmissible ticket.
+         * @enum {string}
+         */
+        LedgerEventKind: "BUY_RECORDED" | "SELL_RECORDED" | "OPTION_OPEN" | "OPTION_CLOSE" | "DIVIDEND" | "INTEREST" | "FEE" | "TAX" | "DEPOSIT" | "WITHDRAWAL" | "FX_CONVERSION" | "CORPORATE_ACTION" | "ADJUSTMENT";
+        /**
+         * LedgerTransactionEntry
+         * @description One journal row, verbatim (decimal strings, UTC instants).
+         */
+        LedgerTransactionEntry: {
+            /** Amount */
+            amount: string;
+            /** Compensated By */
+            compensated_by: number | null;
+            /** Compensates */
+            compensates: number | null;
+            /** Currency */
+            currency: string;
+            /**
+             * Effective At
+             * Format: date-time
+             */
+            effective_at: string;
+            /** Fees */
+            fees: string;
+            /** Id */
+            id: number;
+            /** Instrument */
+            instrument: {
+                [key: string]: unknown;
+            } | null;
+            /** Kind */
+            kind: string;
+            /** Note */
+            note: string | null;
+            /** Price */
+            price: string | null;
+            /** Quantity */
+            quantity: string | null;
+            /**
+             * Recorded At
+             * Format: date-time
+             */
+            recorded_at: string;
+            /** Source */
+            source: string;
         };
         /**
          * LiquidityInput
@@ -942,6 +1619,298 @@ export interface components {
             weight_in_sector_pct: string;
         };
         /**
+         * OptionChainContract
+         * @description One option contract row, relayed from the worker snapshot verbatim.
+         *
+         *     The COMPLETE contract identity (synthetic ``con_id``, trading class,
+         *     strike, right, multiplier, currency, exchange, style, settlement,
+         *     expiration) travels with every row. ``quote`` is the verbatim observed
+         *     quote plus its quality status (``OK``/``CROSSED``/``STALE``/``MISSING``);
+         *     ``iv`` and ``greeks`` are the worker's Vertex results — present ONLY when
+         *     the quote was sane, labeled ``value_nature = "THEORETICAL"`` with their
+         *     preserved ``CalculationRecord`` lineage, otherwise honestly ``ABSENT``
+         *     with the typed refusal reason. The API recomputes nothing.
+         */
+        OptionChainContract: {
+            /** Con Id */
+            con_id: number | null;
+            /** Currency */
+            currency: string;
+            /** Exchange */
+            exchange: string;
+            /** Expiration */
+            expiration: string;
+            /** Greeks */
+            greeks: {
+                [key: string]: unknown;
+            };
+            /** Iv */
+            iv: {
+                [key: string]: unknown;
+            };
+            /** Multiplier */
+            multiplier: number;
+            /** Open Interest */
+            open_interest: number | null;
+            /** Open Interest Status */
+            open_interest_status: string | null;
+            /** Quote */
+            quote: {
+                [key: string]: unknown;
+            };
+            /** Right */
+            right: ("CALL" | "PUT") | null;
+            /** Settlement */
+            settlement: string;
+            /** Strike */
+            strike: string | null;
+            /** Style */
+            style: string;
+            /** Synthetic */
+            synthetic: boolean;
+            /** Trading Class */
+            trading_class: string;
+            /** Volume */
+            volume: number | null;
+        };
+        /**
+         * OptionChainExpiration
+         * @description One ``(expiration, trading_class)`` group — never merged by date.
+         *
+         *     Two trading classes at the same expiration date are two distinct groups
+         *     (distinct identities). ``coverage`` is the worker's honest account:
+         *     expected/received/valid/resolved contracts and the per-contract discard
+         *     reasons.
+         */
+        OptionChainExpiration: {
+            /** Contracts */
+            contracts: components["schemas"]["OptionChainContract"][];
+            /** Coverage */
+            coverage: {
+                [key: string]: unknown;
+            };
+            /** Currency */
+            currency: string;
+            /** Exchange */
+            exchange: string;
+            /** Expiration */
+            expiration: string;
+            /** Maturity Years */
+            maturity_years: string;
+            /** Multiplier */
+            multiplier: number;
+            /** Quality */
+            quality: string;
+            /** Settlement */
+            settlement: string;
+            /** Source Event Id */
+            source_event_id: string;
+            /** Style */
+            style: string;
+            /** Trading Class */
+            trading_class: string;
+        };
+        /**
+         * OptionChainResponse
+         * @description The last ``option_chain/{underlying}`` snapshot — or an honest empty.
+         *
+         *     ``state = "empty"`` means NO snapshot was ever published for this
+         *     underlying: every snapshot-derived field is ``None`` (never invented) and
+         *     ``reason`` says why. ``state = "ok"`` relays the persisted content
+         *     verbatim: population (``SYNTHETIC`` shown as-is), the synthetic spot,
+         *     the pricing assumptions, the per-(expiration, trading_class) groups and
+         *     the displayed row budget.
+         */
+        OptionChainResponse: {
+            /** As Of */
+            as_of: string | null;
+            /** Assumptions */
+            assumptions: {
+                [key: string]: unknown;
+            } | null;
+            /** Coverage */
+            coverage: {
+                [key: string]: unknown;
+            } | null;
+            /** Engine Version */
+            engine_version: string | null;
+            /** Expirations */
+            expirations: components["schemas"]["OptionChainExpiration"][];
+            /** Population */
+            population: string | null;
+            /** Reason */
+            reason: string | null;
+            /** Row Budget */
+            row_budget: {
+                [key: string]: unknown;
+            } | null;
+            /** Snapshot Version */
+            snapshot_version: number | null;
+            /** Spot */
+            spot: {
+                [key: string]: unknown;
+            } | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "ok" | "empty";
+            /** Underlying */
+            underlying: string;
+            /** Value Nature */
+            value_nature: "THEORETICAL" | null;
+        };
+        /**
+         * OptionLeg
+         * @description One declared leg of a manually stated structure (strict, frozen).
+         *
+         *     Fields:
+         *
+         *     - ``quantity``: signed integer number of contracts/shares; positive =
+         *       long, negative = short; zero is rejected (a leg must exist);
+         *     - ``right``: ``"CALL"``, ``"PUT"`` or ``"STOCK"`` (the linear underlying
+         *       leg, intrinsic ``h(S) = S``);
+         *     - ``strike``: strictly positive ``Decimal``; REQUIRED for CALL/PUT and
+         *       FORBIDDEN for STOCK (fail-closed both ways);
+         *     - ``premium``: non-negative ``Decimal`` unit premium actually declared
+         *       for the leg (for STOCK, the declared unit reference price);
+         *     - ``multiplier``: strictly positive int contract multiplier.
+         *
+         *     Legs describe a manually declared analytic structure only: same
+         *     underlying, currency and expiry by construction of the caller. No field
+         *     of this model is, or ever becomes, a transmissible ticket of any kind.
+         */
+        OptionLeg: {
+            /** Multiplier */
+            multiplier: number;
+            /** Premium */
+            premium: number | string;
+            /** Quantity */
+            quantity: number;
+            /**
+             * Right
+             * @enum {string}
+             */
+            right: "CALL" | "PUT" | "STOCK";
+            /**
+             * Strike
+             * @default null
+             */
+            strike: number | string | null;
+        };
+        /**
+         * PerformanceExportResponse
+         * @description Reproducible export: CSV of the daily points + JSON manifest.
+         *
+         *     A pure function of one snapshot version — identical calls return
+         *     identical bytes; ``as_of`` is the SNAPSHOT's instant, never the request
+         *     clock (documented). The manifest carries method, engine version and
+         *     input/result hashes for each kept calculation, plus the conventions and
+         *     coverage, so the figures can be re-derived and audited independently.
+         */
+        PerformanceExportResponse: {
+            /**
+             * As Of
+             * Format: date-time
+             */
+            as_of: string;
+            /** Csv */
+            csv: string;
+            /** Manifest */
+            manifest: {
+                [key: string]: unknown;
+            };
+            /** Portfolio Id */
+            portfolio_id: number;
+            /**
+             * Schema Version
+             * @constant
+             */
+            schema_version: "vertex.performance-export/1.0";
+            /** Snapshot Version */
+            snapshot_version: number;
+        };
+        /**
+         * PerformanceSnapshotResponse
+         * @description The last published performance snapshot — or an honest empty state.
+         *
+         *     ``state = "ok"`` relays the persisted content VERBATIM (series, gates,
+         *     gross/net metrics with their lineage, heatmap, coverage, population
+         *     ``SYNTHETIC_MARKS_REAL_LEDGER`` shown as-is); the API computes no return,
+         *     drawdown or ratio. ``state = "empty"`` means the worker never published
+         *     for this portfolio: nothing is invented, ``reason`` says why.
+         */
+        PerformanceSnapshotResponse: {
+            /** As Of */
+            as_of: string | null;
+            /** Content */
+            content: {
+                [key: string]: unknown;
+            } | null;
+            /** Portfolio Id */
+            portfolio_id: number;
+            /** Reason */
+            reason: string | null;
+            /** Snapshot Version */
+            snapshot_version: number | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "ok" | "empty";
+        };
+        /**
+         * PortfolioInfo
+         * @description The user-declared portfolio identity (never a broker account).
+         */
+        PortfolioInfo: {
+            /** Base Currency */
+            base_currency: string;
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+        };
+        /**
+         * PortfolioLotEntry
+         * @description One user-declared position lot, verbatim from the repository.
+         */
+        PortfolioLotEntry: {
+            /** Currency */
+            currency: string;
+            /** Id */
+            id: number;
+            /** Instrument */
+            instrument: {
+                [key: string]: unknown;
+            };
+            /** Note */
+            note: string | null;
+            /**
+             * Opened At
+             * Format: date-time
+             */
+            opened_at: string;
+            /** Quantity */
+            quantity: string;
+            /** Source */
+            source: string;
+            /** Unit Cost */
+            unit_cost: string;
+        };
+        /**
+         * PortfolioResponse
+         * @description The manual portfolio: journal, declared lots, last valuation.
+         */
+        PortfolioResponse: {
+            /** Lots */
+            lots: components["schemas"]["PortfolioLotEntry"][];
+            portfolio: components["schemas"]["PortfolioInfo"];
+            /** Transactions */
+            transactions: components["schemas"]["LedgerTransactionEntry"][];
+            valuation: components["schemas"]["PortfolioValuationView"];
+        };
+        /**
          * PortfolioRiskInput
          * @description Facts for gate 7 (``manual_portfolio_risk_available``); declarations are user-made only.
          */
@@ -961,6 +1930,32 @@ export interface components {
              * @default null
              */
             risk_required: boolean | null;
+        };
+        /**
+         * PortfolioValuationView
+         * @description The last published valuation snapshot — or an honest empty state.
+         *
+         *     ``state = "empty"`` means the worker never published a valuation for this
+         *     portfolio: nothing is invented, ``reason`` says why. ``state = "ok"``
+         *     relays the persisted snapshot content VERBATIM (``mark_population``
+         *     ``SYNTHETIC`` shown as-is); the API computes no P&L, weight or total.
+         */
+        PortfolioValuationView: {
+            /** As Of */
+            as_of: string | null;
+            /** Content */
+            content: {
+                [key: string]: unknown;
+            } | null;
+            /** Reason */
+            reason: string | null;
+            /** Snapshot Version */
+            snapshot_version: number | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "ok" | "empty";
         };
         /**
          * ProbabilityInput
@@ -987,6 +1982,59 @@ export interface components {
              * @default null
              */
             probability_used: boolean | null;
+        };
+        /**
+         * RecordTransactionRequest
+         * @description One past fact to append to the accounting journal.
+         *
+         *     This RECORDS a transaction the user already executed outside Vertex; it
+         *     is never an instruction. ``amount`` is the signed cash impact declared by
+         *     the user (exact decimal string on the wire); ``effective_at`` must not be
+         *     in the future (a fact that has not happened yet cannot be recorded).
+         */
+        RecordTransactionRequest: {
+            /** Amount */
+            amount: number | string;
+            /** Currency */
+            currency: string;
+            /**
+             * Effective At
+             * Format: date-time
+             */
+            effective_at: string;
+            /**
+             * Fees
+             * @default 0
+             */
+            fees: number | string;
+            /** @default null */
+            instrument: components["schemas"]["InstrumentRefInput"] | null;
+            kind: components["schemas"]["LedgerEventKind"];
+            /**
+             * Note
+             * @default null
+             */
+            note: string | null;
+            /**
+             * Price
+             * @default null
+             */
+            price: number | string | null;
+            /**
+             * Quantity
+             * @default null
+             */
+            quantity: number | string | null;
+        };
+        /**
+         * RecordTransactionResponse
+         * @description Receipt of one recorded journal fact.
+         */
+        RecordTransactionResponse: {
+            /** Refresh Enqueued */
+            refresh_enqueued: boolean;
+            /** Transaction Id */
+            transaction_id: number;
         };
         /**
          * RegisterVerifyRequest
@@ -1030,6 +2078,127 @@ export interface components {
              * @default null
              */
             session_known: boolean | null;
+        };
+        /**
+         * SimulationAssumptions
+         * @description Declared assumptions of one preview (decimal strings on the wire).
+         *
+         *     ``spot`` is the declared underlying reference of the snapshot the user
+         *     composed against (echoed back); ``volatility`` is the single annualized
+         *     decimal volatility applied to every option leg of the scenario grid
+         *     (``0.25`` = 25%/yr); ``rate`` / ``dividend_yield`` are continuously
+         *     compounded annualized decimals; ``fees`` groups the positive declared
+         *     costs of the expiry payoff. The grids are BOUNDED by the wire contract.
+         */
+        SimulationAssumptions: {
+            /** Dividend Yield */
+            dividend_yield: number | string;
+            /**
+             * Fees
+             * @default 0
+             */
+            fees: number | string;
+            /** Rate */
+            rate: number | string;
+            /** Spot */
+            spot: number | string;
+            /** Spot Grid */
+            spot_grid: (number | string)[];
+            /** Time Grid Years */
+            time_grid_years: (number | string)[];
+            /** Volatility */
+            volatility: number | string;
+        };
+        /**
+         * SimulationBreakeven
+         * @description One certified expiry breakeven.
+         *
+         *     ``payoff_at_spot`` is the authority's own re-evaluation of
+         *     ``options.payoff`` at the reported spot (exact ``Decimal``; non-zero only
+         *     through decimal quantization of the crossing point). ``bracket_low`` /
+         *     ``bracket_high`` are the two authoritative evaluation points whose sign
+         *     change pinned the crossing.
+         */
+        SimulationBreakeven: {
+            /** Bracket High */
+            bracket_high: string;
+            /** Bracket Low */
+            bracket_low: string;
+            /** Payoff At Spot */
+            payoff_at_spot: string;
+            /** Spot */
+            spot: string;
+        };
+        /**
+         * SimulationExtreme
+         * @description Best/worst expiry P&L over the evaluation grid, with its spot.
+         */
+        SimulationExtreme: {
+            /** At Spot */
+            at_spot: string;
+            /** Pnl */
+            pnl: string;
+        };
+        /**
+         * SimulationPayoffPoint
+         * @description Exact expiry P&L at one evaluated terminal spot (decimal strings).
+         */
+        SimulationPayoffPoint: {
+            /** Pnl */
+            pnl: string;
+            /** Spot */
+            spot: string;
+        };
+        /**
+         * SimulationPreviewRequest
+         * @description One declared structure plus its assumptions.
+         *
+         *     Legs ARE the engine's own :class:`OptionLeg` contract (strict: signed
+         *     non-zero quantity, strike required on CALL/PUT and forbidden on STOCK,
+         *     non-negative decimal premium, positive integer multiplier) — the wire
+         *     never redefines the calculation contract.
+         */
+        SimulationPreviewRequest: {
+            assumptions: components["schemas"]["SimulationAssumptions"];
+            /** Legs */
+            legs: components["schemas"]["OptionLeg"][];
+        };
+        /**
+         * SimulationPreviewResponse
+         * @description The full preview result (nothing persisted, nothing transactional).
+         */
+        SimulationPreviewResponse: {
+            /** Assumptions */
+            assumptions: {
+                [key: string]: unknown;
+            };
+            /** Breakevens */
+            breakevens: components["schemas"]["SimulationBreakeven"][];
+            /** Calculations */
+            calculations: {
+                [key: string]: unknown;
+            };
+            /** Defined Risk */
+            defined_risk: {
+                [key: string]: unknown;
+            };
+            max_gain_on_grid: components["schemas"]["SimulationExtreme"];
+            max_loss_on_grid: components["schemas"]["SimulationExtreme"];
+            /** Payoff Points */
+            payoff_points: components["schemas"]["SimulationPayoffPoint"][];
+            /** Scenario Grid */
+            scenario_grid: string[][][];
+            /** Scenario Spot Grid */
+            scenario_spot_grid: string[];
+            /** Scenario Time Grid Years */
+            scenario_time_grid_years: string[];
+            /**
+             * Value Nature
+             * @constant
+             */
+            value_nature: "THEORETICAL";
+            /** Warnings */
+            warnings: string[];
         };
         /**
          * SnapshotHealth
@@ -1110,6 +2279,59 @@ export interface components {
             db: components["schemas"]["DbHealth"];
             worker: components["schemas"]["WorkerHealth"];
         };
+        /**
+         * ThesisInstrumentInput
+         * @description Canonical instrument reference of a thesis (plain ticker for now).
+         */
+        ThesisInstrumentInput: {
+            /** Ticker */
+            ticker: string;
+        };
+        /**
+         * ThesisRevisionRequest
+         * @description One append-only review-lifecycle revision of an existing thesis.
+         *
+         *     ``snooze_until`` is required exactly when ``action`` is SNOOZED and
+         *     forbidden otherwise (also enforced by the repository and by CHECK).
+         */
+        ThesisRevisionRequest: {
+            /**
+             * Action
+             * @enum {string}
+             */
+            action: "REVIEWED" | "SNOOZED" | "NOTE_UPDATED" | "ARCHIVED" | "REACTIVATED";
+            /** Idempotency Key */
+            idempotency_key: string;
+            /**
+             * Note
+             * @default null
+             */
+            note: string | null;
+            /**
+             * Snapshot Ref
+             * @default null
+             */
+            snapshot_ref: string | null;
+            /**
+             * Snooze Until
+             * @default null
+             */
+            snooze_until: string | null;
+        };
+        /**
+         * ThesisRevisionResponse
+         * @description Receipt: ``created=false`` marks an idempotent replay (nothing written).
+         */
+        ThesisRevisionResponse: {
+            /** Created */
+            created: boolean;
+            /** Refresh Enqueued */
+            refresh_enqueued: boolean;
+            /** Revision Id */
+            revision_id: number;
+            /** Thesis Id */
+            thesis_id: number;
+        };
         /** ValidationError */
         ValidationError: {
             /** Context */
@@ -1179,6 +2401,44 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    get_analysis: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                instrument: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AnalysisResponse"];
+                };
+            };
+            /** @description Authentication required: no valid WebAuthn session cookie (or missing/invalid CSRF header on a mutation). Always the same generic body with detail code AUTH_REQUIRED. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
             };
         };
     };
@@ -1370,6 +2630,33 @@ export interface operations {
             };
         };
     };
+    get_follow_up_queue: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FollowUpQueueResponse"];
+                };
+            };
+            /** @description Authentication required: no valid WebAuthn session cookie (or missing/invalid CSRF header on a mutation). Always the same generic body with detail code AUTH_REQUIRED. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     get_health: {
         parameters: {
             query?: never;
@@ -1410,6 +2697,389 @@ export interface operations {
             };
             /** @description Authentication required: no valid WebAuthn session cookie (or missing/invalid CSRF header on a mutation). Always the same generic body with detail code AUTH_REQUIRED. */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_option_chain: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                underlying: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OptionChainResponse"];
+                };
+            };
+            /** @description Authentication required: no valid WebAuthn session cookie (or missing/invalid CSRF header on a mutation). Always the same generic body with detail code AUTH_REQUIRED. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_performance: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                portfolio_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PerformanceSnapshotResponse"];
+                };
+            };
+            /** @description Authentication required: no valid WebAuthn session cookie (or missing/invalid CSRF header on a mutation). Always the same generic body with detail code AUTH_REQUIRED. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_performance: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                portfolio_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PerformanceExportResponse"];
+                };
+            };
+            /** @description Authentication required: no valid WebAuthn session cookie (or missing/invalid CSRF header on a mutation). Always the same generic body with detail code AUTH_REQUIRED. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No performance snapshot was ever published for this portfolio — code NO_PERFORMANCE_SNAPSHOT — there is nothing honest to export. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_portfolio: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PortfolioResponse"];
+                };
+            };
+            /** @description Authentication required: no valid WebAuthn session cookie (or missing/invalid CSRF header on a mutation). Always the same generic body with detail code AUTH_REQUIRED. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    export_portfolio: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description text/csv: one version-stamp comment line, the header row and the ledger rows — no other data. Cells starting with '=', '+', '-' or '@' are neutralized with a leading apostrophe against spreadsheet formula injection. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": string;
+                };
+            };
+            /** @description Authentication required: no valid WebAuthn session cookie (or missing/invalid CSRF header on a mutation). Always the same generic body with detail code AUTH_REQUIRED. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    confirm_portfolio_import: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ImportConfirmRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportConfirmResponse"];
+                };
+            };
+            /** @description Authentication required: no valid WebAuthn session cookie (or missing/invalid CSRF header on a mutation). Always the same generic body with detail code AUTH_REQUIRED. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Rejected fail-closed: IMPORT_ROW_INVALID (a row no longer passes the replayed validation) or ECHO_HASH_MISMATCH (an echoed row was altered after the preview). Nothing is written on rejection. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    preview_portfolio_import: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CsvImportPreviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportPreviewResponse"];
+                };
+            };
+            /** @description Authentication required: no valid WebAuthn session cookie (or missing/invalid CSRF header on a mutation). Always the same generic body with detail code AUTH_REQUIRED. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Whole-input rejection: CSV_TOO_LARGE (256 KiB), CSV_TOO_MANY_ROWS (500 data rows) or CSV_HEADER_INVALID. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    record_transaction: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecordTransactionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecordTransactionResponse"];
+                };
+            };
+            /** @description Authentication required: no valid WebAuthn session cookie (or missing/invalid CSRF header on a mutation). Always the same generic body with detail code AUTH_REQUIRED. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Rejected fail-closed: wire-contract violation or EFFECTIVE_AT_IN_FUTURE (a fact that has not happened yet cannot be recorded). */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    compensate_transaction: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                transaction_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CompensateTransactionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CompensateTransactionResponse"];
+                };
+            };
+            /** @description Authentication required: no valid WebAuthn session cookie (or missing/invalid CSRF header on a mutation). Always the same generic body with detail code AUTH_REQUIRED. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unknown transaction (code UNKNOWN_TRANSACTION). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The transaction already has a compensating row (code ALREADY_COMPENSATED) — history is append-only, a fact is corrected at most once. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    post_simulations_preview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SimulationPreviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SimulationPreviewResponse"];
+                };
+            };
+            /** @description Authentication required: no valid WebAuthn session cookie (or missing/invalid CSRF header on a mutation). Always the same generic body with detail code AUTH_REQUIRED. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Rejected fail-closed with the exact machine-readable reason: either a wire-contract violation, or the defined-risk verifier's code (e.g. OUTSIDE_CLOSED_CATALOG, UNCOVERED_SHORT_UPSIDE_TAIL, VERTICAL_DEBIT_NOT_BELOW_WIDTH), or a typed calculation-domain violation from vertex_core. */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1464,6 +3134,126 @@ export interface operations {
             };
             /** @description Authentication required: no valid WebAuthn session cookie (or missing/invalid CSRF header on a mutation). Always the same generic body with detail code AUTH_REQUIRED. */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    create_thesis: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateThesisRequest"];
+            };
+        };
+        responses: {
+            /** @description Idempotent replay: the client's idempotency_key already names this thesis — nothing was written, created=false, the original ids are returned. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreateThesisResponse"];
+                };
+            };
+            /** @description Authentication required: no valid WebAuthn session cookie (or missing/invalid CSRF header on a mutation). Always the same generic body with detail code AUTH_REQUIRED. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unknown portfolio — code UNKNOWN_PORTFOLIO. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The idempotency_key already names a DIFFERENT operation (code IDEMPOTENCY_KEY_REUSED) — keys are never recycled. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Rejected fail-closed: blank invalidation, missing idempotency_key or any other wire-contract violation. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    record_thesis_revision: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                thesis_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ThesisRevisionRequest"];
+            };
+        };
+        responses: {
+            /** @description Idempotent replay: the client's idempotency_key already names this exact revision — nothing was written, created=false, the original revision id is returned. Ten replays leave exactly one row. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ThesisRevisionResponse"];
+                };
+            };
+            /** @description Authentication required: no valid WebAuthn session cookie (or missing/invalid CSRF header on a mutation). Always the same generic body with detail code AUTH_REQUIRED. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unknown thesis (code UNKNOWN_THESIS). */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The idempotency_key already names a DIFFERENT operation (code IDEMPOTENCY_KEY_REUSED) — keys are never recycled. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Rejected fail-closed: action outside the allowlist (CREATED included), snooze_until missing on SNOOZED or present elsewhere, or any wire-contract violation. */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };

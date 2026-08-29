@@ -15,8 +15,16 @@ from fastapi.openapi.utils import get_openapi
 from vertex_api.auth import auth_router
 from vertex_api.auth.challenges import ChallengeStore
 from vertex_api.capability_manifest import load_capability_manifest
+from vertex_api.follow_up import CreateThesisRequest, ThesisRevisionRequest
+from vertex_api.portfolio import (
+    CompensateTransactionRequest,
+    CsvImportPreviewRequest,
+    ImportConfirmRequest,
+    RecordTransactionRequest,
+)
 from vertex_api.routes import protected_router, public_router
 from vertex_api.schemas import AdvicePreviewRequest
+from vertex_api.simulation import SimulationPreviewRequest
 from vertex_core.version import ENGINE_VERSION
 
 __all__ = ["OpenApiComponentCollisionError", "create_app"]
@@ -50,11 +58,28 @@ def _build_openapi_schema(app: FastAPI) -> dict[str, Any]:
         description=app.description,
         routes=app.routes,
     )
-    request_schema = AdvicePreviewRequest.model_json_schema(
-        ref_template="#/components/schemas/{model}"
-    )
-    definitions: dict[str, Any] = dict(request_schema.pop("$defs", {}))
-    definitions["AdvicePreviewRequest"] = request_schema
+    definitions: dict[str, Any] = {}
+    for name, model in (
+        ("AdvicePreviewRequest", AdvicePreviewRequest),
+        ("SimulationPreviewRequest", SimulationPreviewRequest),
+        ("RecordTransactionRequest", RecordTransactionRequest),
+        ("CompensateTransactionRequest", CompensateTransactionRequest),
+        ("CsvImportPreviewRequest", CsvImportPreviewRequest),
+        ("ImportConfirmRequest", ImportConfirmRequest),
+        ("CreateThesisRequest", CreateThesisRequest),
+        ("ThesisRevisionRequest", ThesisRevisionRequest),
+    ):
+        request_schema = model.model_json_schema(
+            ref_template="#/components/schemas/{model}"
+        )
+        for def_name, definition in request_schema.pop("$defs", {}).items():
+            existing = definitions.get(def_name)
+            if existing is not None and existing != definition:
+                raise OpenApiComponentCollisionError(
+                    f"OpenAPI component {def_name!r} has two different definitions"
+                )
+            definitions[def_name] = definition
+        definitions[name] = request_schema
 
     components = schema.setdefault("components", {}).setdefault("schemas", {})
     for name in sorted(definitions):

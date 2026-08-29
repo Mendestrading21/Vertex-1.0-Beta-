@@ -29,11 +29,13 @@ __all__ = [
     "OutboxStatus",
     "LedgerEventKind",
     "PositionLotSource",
+    "ThesisRevisionAction",
     "OBSERVATION_QUALITY_STATUSES",
     "OBSERVATION_DELAY_STATUSES",
     "OUTBOX_STATUSES",
     "LEDGER_EVENT_KINDS",
     "POSITION_LOT_SOURCES",
+    "THESIS_REVISION_ACTIONS",
     "validate_enum_value",
 ]
 
@@ -86,12 +88,31 @@ class PositionLotSource(str, Enum):
     IMPORT_CONFIRMED = "IMPORT_CONFIRMED"
 
 
+@unique
+class ThesisRevisionAction(str, Enum):
+    """Action of one appended thesis revision (page 09 — follow-up queue).
+
+    Each action is a **past fact of the user's review discipline**, recorded
+    append-only. The current status of a thesis (ACTIVE / SNOOZED / ARCHIVED)
+    is never stored: it is a pure projection of these revisions, recomputed by
+    :func:`vertex_persistence.repository.theses.project_thesis_state`.
+    """
+
+    CREATED = "CREATED"
+    REVIEWED = "REVIEWED"
+    SNOOZED = "SNOOZED"
+    NOTE_UPDATED = "NOTE_UPDATED"
+    ARCHIVED = "ARCHIVED"
+    REACTIVATED = "REACTIVATED"
+
+
 # Canonical value sets, derived — never re-declared — from vertex_core.
 OBSERVATION_QUALITY_STATUSES: frozenset[str] = frozenset(m.value for m in EnvelopeQuality)
 OBSERVATION_DELAY_STATUSES: frozenset[str] = frozenset(m.value for m in DelayStatus)
 OUTBOX_STATUSES: frozenset[str] = frozenset(m.value for m in OutboxStatus)
 LEDGER_EVENT_KINDS: frozenset[str] = frozenset(m.value for m in LedgerEventKind)
 POSITION_LOT_SOURCES: frozenset[str] = frozenset(m.value for m in PositionLotSource)
+THESIS_REVISION_ACTIONS: frozenset[str] = frozenset(m.value for m in ThesisRevisionAction)
 
 
 def validate_enum_value(label: str, value: object, allowed: frozenset[str]) -> str:

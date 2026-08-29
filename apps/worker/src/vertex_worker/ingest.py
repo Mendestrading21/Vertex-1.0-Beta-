@@ -29,7 +29,13 @@ from vertex_core.contracts import DataEnvelope
 from vertex_persistence.repository.observations import insert_observation
 from vertex_persistence.repository.outbox import enqueue_outbox
 
+from vertex_worker.analysis import TOPIC_ANALYSIS_INGESTED, is_daily_bars_schema
+from vertex_worker.follow_up import TOPIC_REVIEW_QUEUE_REFRESH
 from vertex_worker.markets import TOPIC_QUOTES_INGESTED, is_daily_quote_schema
+from vertex_worker.options import (
+    TOPIC_OPTION_CHAINS_INGESTED,
+    is_option_chain_schema,
+)
 
 __all__ = [
     "TOPIC_OBSERVATION_INGESTED",
@@ -115,6 +121,49 @@ def ingest_envelope(session: Session, envelope: DataEnvelope) -> IngestResult:
                 "schema_version": envelope.schema_version,
             },
         )
+    if is_option_chain_schema(envelope.schema_version):
+        # Additional option-chain job (same transaction, same idempotence):
+        # the option-chain handler owns that topic (vertex_worker.options).
+        enqueue_outbox(
+            session,
+            TOPIC_OPTION_CHAINS_INGESTED,
+            {
+                "event_id": envelope.event_id,
+                "source": envelope.source,
+                "schema_version": envelope.schema_version,
+            },
+        )
+    if is_daily_bars_schema(envelope.schema_version) or is_option_chain_schema(
+        envelope.schema_version
+    ):
+        # Analysis dossier job: bars change the series, a chain changes the
+        # scenario basis. For a chain envelope this message is enqueued
+        # AFTER its option-chain job, so a drained outbox recomputes the
+        # chain snapshot before the dossier reads it.
+        enqueue_outbox(
+            session,
+            TOPIC_ANALYSIS_INGESTED,
+            {
+                "event_id": envelope.event_id,
+                "source": envelope.source,
+                "schema_version": envelope.schema_version,
+            },
+        )
+    # Review-queue refresh "après observation.ingested" (page 09, documented
+    # here): every NEWLY inserted observation may change the novelty context
+    # of a thesis, so one review_queue.refresh job is enqueued in the SAME
+    # transaction with the same idempotence (only when the row was actually
+    # written). The registry is one-handler-per-topic, so the review-queue
+    # handler owns its own topic instead of sharing observation.ingested.
+    enqueue_outbox(
+        session,
+        TOPIC_REVIEW_QUEUE_REFRESH,
+        {
+            "event_id": envelope.event_id,
+            "source": envelope.source,
+            "schema_version": envelope.schema_version,
+        },
+    )
     # Wake-up signal only, delivered on commit; its loss is tolerated because
     # the worker polls the outbox table (ADR-006: NOTIFY is never the queue).
     session.execute(

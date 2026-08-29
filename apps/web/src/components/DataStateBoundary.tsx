@@ -76,7 +76,17 @@ function Banner({
 
 export function DataStateBoundary({ state, children, detail, asOfLabel }: DataStateBoundaryProps) {
   if (state === 'ready') {
-    return <div data-state="ready">{children}</div>;
+    // Emplacement STABLE du contenu : `null` occupe la position du bandeau
+    // des états dégradés, donc un passage ready ↔ refreshing/partial/stale ne
+    // déplace pas `children` dans l'arbre React — les composants enfants (et
+    // leur état local : formulaires en cours de saisie, messages de
+    // confirmation) ne sont pas démontés par un simple rafraîchissement.
+    return (
+      <div data-state="ready">
+        {null}
+        {children}
+      </div>
+    );
   }
 
   const label = DATA_STATE_LABELS[state];

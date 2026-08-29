@@ -16,18 +16,53 @@ import type { PageDef } from './pages.ts';
  * Table de routes du shell. Une page réelle ne remplace l'entrée « Lot non
  * installé » que lorsque ses routes, données, états et tests existent
  * (docs/07-delivery/FOLDER_BY_FOLDER_PROGRAM.md). Pages réelles installées :
- * Aujourd'hui (/today), Marchés (/markets) et Système (/system), plus la page
- * d'accès /auth (hors rail — elle n'est pas une page produit du blueprint).
+ * Aujourd'hui (/today), Marchés (/markets), Options (/options/:underlying?),
+ * Analyse (/analysis/:instrument?), Simulateur (/simulator) et Système
+ * (/system), plus la page d'accès /auth (hors rail — elle n'est pas une page
+ * produit du blueprint). Vague 4 : Portefeuille (/portfolio), Suivi
+ * (/follow-up) et Performance (/performance) sont réelles ; seules
+ * /calendar, /opportunities et /ai restent NON_IMPLÉMENTÉ.
  *
- * /markets est chargée PARESSEUSEMENT (React.lazy) : son chunk — et le chunk
- * ECharts qu'elle importe dynamiquement — ne grossissent pas le bundle
- * initial (CHART_STANDARD : un moteur de graphique par route, jamais dans le
- * bundle initial).
+ * /markets, /options, /analysis et /simulator sont chargées PARESSEUSEMENT
+ * (React.lazy) : leurs chunks — et les chunks moteurs qu'elles importent
+ * dynamiquement (ECharts pour /markets et /simulator, Lightweight Charts
+ * pour /analysis) — ne grossissent pas le bundle initial (CHART_STANDARD :
+ * un moteur de graphique par route, jamais dans le bundle initial).
  */
 
 const LazyMarketsPage = lazy(async () => {
   const module = await import('../pages/markets/MarketsPage.tsx');
   return { default: module.MarketsPage };
+});
+
+const LazyOptionsPage = lazy(async () => {
+  const module = await import('../pages/options/OptionsPage.tsx');
+  return { default: module.OptionsPage };
+});
+
+const LazyAnalysisPage = lazy(async () => {
+  const module = await import('../pages/analysis/AnalysisPage.tsx');
+  return { default: module.AnalysisPage };
+});
+
+const LazySimulatorPage = lazy(async () => {
+  const module = await import('../pages/simulator/SimulatorPage.tsx');
+  return { default: module.SimulatorPage };
+});
+
+const LazyPortfolioPage = lazy(async () => {
+  const module = await import('../pages/portfolio/PortfolioPage.tsx');
+  return { default: module.PortfolioPage };
+});
+
+const LazyFollowUpPage = lazy(async () => {
+  const module = await import('../pages/follow-up/FollowUpPage.tsx');
+  return { default: module.FollowUpPage };
+});
+
+const LazyPerformancePage = lazy(async () => {
+  const module = await import('../pages/performance/PerformancePage.tsx');
+  return { default: module.PerformancePage };
 });
 
 function MarketsRoute() {
@@ -38,10 +73,64 @@ function MarketsRoute() {
   );
 }
 
+function OptionsRoute() {
+  return (
+    <Suspense fallback={<DataStateBoundary state="loading" />}>
+      <LazyOptionsPage />
+    </Suspense>
+  );
+}
+
+function AnalysisRoute() {
+  return (
+    <Suspense fallback={<DataStateBoundary state="loading" />}>
+      <LazyAnalysisPage />
+    </Suspense>
+  );
+}
+
+function SimulatorRoute() {
+  return (
+    <Suspense fallback={<DataStateBoundary state="loading" />}>
+      <LazySimulatorPage />
+    </Suspense>
+  );
+}
+
+function PortfolioRoute() {
+  return (
+    <Suspense fallback={<DataStateBoundary state="loading" />}>
+      <LazyPortfolioPage />
+    </Suspense>
+  );
+}
+
+function FollowUpRoute() {
+  return (
+    <Suspense fallback={<DataStateBoundary state="loading" />}>
+      <LazyFollowUpPage />
+    </Suspense>
+  );
+}
+
+function PerformanceRoute() {
+  return (
+    <Suspense fallback={<DataStateBoundary state="loading" />}>
+      <LazyPerformancePage />
+    </Suspense>
+  );
+}
+
 const INSTALLED_PAGES: Readonly<Record<string, () => React.JSX.Element>> = {
   today: TodayPage,
   markets: MarketsRoute,
   system: SystemPage,
+  options: OptionsRoute,
+  analysis: AnalysisRoute,
+  simulator: SimulatorRoute,
+  portfolio: PortfolioRoute,
+  'follow-up': FollowUpRoute,
+  performance: PerformanceRoute,
 };
 
 /** Définition de la page d'accès (hors navigation, hors blueprint des 12). */

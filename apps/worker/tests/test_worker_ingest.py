@@ -43,10 +43,10 @@ def test_insert_and_enqueue_share_the_session(monkeypatch, envelope) -> None:
         calls["insert_kwargs"] = kwargs
         return True
 
+    enqueues: list[tuple[object, str, object]] = []
+
     def fake_enqueue(session, topic, payload):
-        calls["enqueue_session"] = session
-        calls["topic"] = topic
-        calls["payload"] = payload
+        enqueues.append((session, topic, payload))
         return 42
 
     monkeypatch.setattr(ingest_module, "insert_observation", fake_insert)
@@ -56,13 +56,18 @@ def test_insert_and_enqueue_share_the_session(monkeypatch, envelope) -> None:
     result = ingest_envelope(session, envelope)
 
     assert calls["insert_session"] is session
-    assert calls["enqueue_session"] is session
-    assert calls["topic"] == TOPIC_OBSERVATION_INGESTED
-    assert calls["payload"] == {
+    # A generic (non-quote) envelope enqueues its fusion job and the review
+    # queue refresh (page 09) — both on the SAME session/transaction.
+    expected_payload = {
         "event_id": envelope.event_id,
         "source": envelope.source,
         "schema_version": envelope.schema_version,
     }
+    assert [(topic, payload) for _, topic, payload in enqueues] == [
+        (TOPIC_OBSERVATION_INGESTED, expected_payload),
+        ("review_queue.refresh", expected_payload),
+    ]
+    assert all(enqueue_session is session for enqueue_session, _, _ in enqueues)
     assert result.inserted is True
     assert result.outbox_message_id == 42
     assert result.event_id == envelope.event_id

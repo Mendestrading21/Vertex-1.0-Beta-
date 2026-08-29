@@ -39,5 +39,12 @@ class FakeSnapshotReader:
         snapshot = self.snapshots.get((kind, key))
         return None if snapshot is None else snapshot.version
 
+    def heads_for_kind(self, *, kind: str) -> dict[str, int]:
+        return {
+            key: snapshot.version
+            for (snapshot_kind, key), snapshot in self.snapshots.items()
+            if snapshot_kind == kind
+        }
+
     def ping(self) -> bool:
         return self.db_ok

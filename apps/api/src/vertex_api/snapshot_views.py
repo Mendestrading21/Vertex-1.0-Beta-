@@ -27,6 +27,7 @@ from vertex_persistence.repository.snapshots import CurrentSnapshot
 
 from vertex_api.capability_manifest import CapabilityDeclaration, CapabilityManifest
 from vertex_api.schemas import (
+    AnalysisResponse,
     AttentionItem,
     AttentionSnapshotResponse,
     CapabilityStatusEntry,
@@ -38,6 +39,9 @@ from vertex_api.schemas import (
     MarketsRejectedRecord,
     MarketsSector,
     MarketsTicker,
+    OptionChainContract,
+    OptionChainExpiration,
+    OptionChainResponse,
     SnapshotHealth,
     SystemCapabilitiesResponse,
     SystemHealth,
@@ -50,9 +54,11 @@ __all__ = [
     "REASON_NEVER_TESTED",
     "REASON_NO_SNAPSHOT_PUBLISHED",
     "SnapshotContentError",
+    "build_analysis_response",
     "build_attention_response",
     "build_capabilities_response",
     "build_markets_overview_response",
+    "build_option_chain_response",
     "build_system_health",
 ]
 
@@ -406,6 +412,260 @@ def build_markets_overview_response(
         ),
         breadth=_markets_breadth(content.get("breadth")),
         coverage=_markets_coverage(content.get("coverage")),
+        reason=None,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Analysis dossier
+# ---------------------------------------------------------------------------
+
+_ADVICE_STATUSES = frozenset(
+    {"BLOCKED", "INSUFFICIENT_DATA", "OBSERVE", "REVIEW", "QUALIFIED"}
+)
+_GATE_STATUSES = frozenset({"PASS", "DEGRADE", "BLOCK"})
+
+
+def _checked_advice(value: Any) -> Mapping[str, Any]:
+    """Fail-closed shape check of the published ``AdviceResult`` mapping.
+
+    The API never recomputes a verdict; it only refuses to relay a snapshot
+    whose advice block does not look like the canonical contract (missing
+    id, unknown status, gate without a reason code).
+    """
+    advice = _require_mapping(value, field="advice")
+    _require_str(advice.get("advice_id"), field="advice.advice_id")
+    _require_str(advice.get("engine_version"), field="advice.engine_version")
+    status = advice.get("status")
+    if status not in _ADVICE_STATUSES:
+        raise SnapshotContentError("advice.status: canonical AdviceStatus required")
+    gates = _require_list(advice.get("gates"), field="advice.gates")
+    for index, raw_gate in enumerate(gates):
+        gate = _require_mapping(raw_gate, field=f"advice.gates[{index}]")
+        _require_str(gate.get("gate_id"), field=f"advice.gates[{index}].gate_id")
+        _require_str(
+            gate.get("reason_code"), field=f"advice.gates[{index}].reason_code"
+        )
+        if gate.get("status") not in _GATE_STATUSES:
+            raise SnapshotContentError(
+                f"advice.gates[{index}].status: PASS/DEGRADE/BLOCK required"
+            )
+    return advice
+
+
+def build_analysis_response(
+    snapshot: Optional[CurrentSnapshot], *, instrument: str
+) -> AnalysisResponse:
+    """Render the last analysis dossier, or the honest empty state.
+
+    Presentation only: the persisted content is shape-checked fail-closed
+    and relayed VERBATIM — no bar, cluster, scenario value or verdict is
+    ever recomputed here. Absence of a published snapshot is a NORMAL state
+    (200 with ``state = "empty"``), never a 500 and never an invented
+    dossier.
+    """
+    if snapshot is None:
+        return AnalysisResponse(
+            state="empty",
+            snapshot_version=None,
+            as_of=None,
+            population=None,
+            instrument=instrument,
+            engine_version=None,
+            bars=None,
+            evidence=None,
+            scenarios=None,
+            advice=None,
+            coverage=None,
+            reason=REASON_NO_SNAPSHOT_PUBLISHED,
+        )
+
+    content = _require_mapping(snapshot.content, field="content")
+    published_instrument = _require_str(content.get("instrument"), field="instrument")
+    if published_instrument != instrument:
+        raise SnapshotContentError(
+            "instrument: snapshot content does not match the requested key"
+        )
+    bars = _require_mapping(content.get("bars"), field="bars")
+    scenarios = _require_mapping(content.get("scenarios"), field="scenarios")
+    scenario_status = scenarios.get("status")
+    if scenario_status not in ("OK", "ABSENT"):
+        raise SnapshotContentError("scenarios.status: 'OK' or 'ABSENT' required")
+    if scenario_status == "OK" and scenarios.get("value_nature") != "THEORETICAL":
+        raise SnapshotContentError(
+            "scenarios.value_nature: 'THEORETICAL' required on a computed grid"
+        )
+    if scenario_status == "ABSENT":
+        _require_str(scenarios.get("reason"), field="scenarios.reason")
+    return AnalysisResponse(
+        state="ok",
+        snapshot_version=snapshot.version,
+        as_of=_parse_utc(content.get("as_of"), field="as_of"),
+        population=_require_str(content.get("population"), field="population"),
+        instrument=published_instrument,
+        engine_version=_require_str(
+            content.get("engine_version"), field="engine_version"
+        ),
+        bars=dict(bars),
+        evidence=dict(_require_mapping(content.get("evidence"), field="evidence")),
+        scenarios=dict(scenarios),
+        advice=dict(_checked_advice(content.get("advice"))),
+        coverage=dict(_require_mapping(content.get("coverage"), field="coverage")),
+        reason=None,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Option chain
+# ---------------------------------------------------------------------------
+
+
+def _optional_non_negative_int(value: Any, *, field: str) -> Optional[int]:
+    if value is None:
+        return None
+    result = _require_int(value, field=field)
+    if result < 0:
+        raise SnapshotContentError(f"{field}: non-negative integer required")
+    return result
+
+
+def _status_mapping(value: Any, *, field: str) -> Mapping[str, Any]:
+    """A worker result block: a mapping carrying a non-empty ``status``."""
+    mapping = _require_mapping(value, field=field)
+    status = mapping.get("status")
+    if not isinstance(status, str) or not status:
+        raise SnapshotContentError(f"{field}.status: non-empty string required")
+    return mapping
+
+
+def _option_contract(raw: Any, *, field: str) -> OptionChainContract:
+    entry = _require_mapping(raw, field=field)
+    con_id = entry.get("con_id")
+    if con_id is not None:
+        con_id = _require_int(con_id, field=f"{field}.con_id")
+    right = entry.get("right")
+    if right is not None and right not in ("CALL", "PUT"):
+        raise SnapshotContentError(f"{field}.right: 'CALL', 'PUT' or null required")
+    return OptionChainContract(
+        con_id=con_id,
+        strike=_optional_str(entry.get("strike"), field=f"{field}.strike"),
+        right=right,
+        expiration=_require_str(entry.get("expiration"), field=f"{field}.expiration"),
+        trading_class=_require_str(
+            entry.get("trading_class"), field=f"{field}.trading_class"
+        ),
+        multiplier=_require_int(entry.get("multiplier"), field=f"{field}.multiplier"),
+        currency=_require_str(entry.get("currency"), field=f"{field}.currency"),
+        exchange=_require_str(entry.get("exchange"), field=f"{field}.exchange"),
+        style=_require_str(entry.get("style"), field=f"{field}.style"),
+        settlement=_require_str(entry.get("settlement"), field=f"{field}.settlement"),
+        quote=dict(_status_mapping(entry.get("quote"), field=f"{field}.quote")),
+        volume=_optional_non_negative_int(entry.get("volume"), field=f"{field}.volume"),
+        open_interest=_optional_non_negative_int(
+            entry.get("open_interest"), field=f"{field}.open_interest"
+        ),
+        open_interest_status=_optional_str(
+            entry.get("open_interest_status"), field=f"{field}.open_interest_status"
+        ),
+        iv=dict(_status_mapping(entry.get("iv"), field=f"{field}.iv")),
+        greeks=dict(_status_mapping(entry.get("greeks"), field=f"{field}.greeks")),
+        synthetic=_require_bool(entry.get("synthetic"), field=f"{field}.synthetic"),
+    )
+
+
+def _option_expiration(raw: Any, *, index: int) -> OptionChainExpiration:
+    field = f"expirations[{index}]"
+    entry = _require_mapping(raw, field=field)
+    contracts_raw = _require_list(entry.get("contracts"), field=f"{field}.contracts")
+    return OptionChainExpiration(
+        expiration=_require_str(entry.get("expiration"), field=f"{field}.expiration"),
+        trading_class=_require_str(
+            entry.get("trading_class"), field=f"{field}.trading_class"
+        ),
+        exchange=_require_str(entry.get("exchange"), field=f"{field}.exchange"),
+        style=_require_str(entry.get("style"), field=f"{field}.style"),
+        settlement=_require_str(entry.get("settlement"), field=f"{field}.settlement"),
+        multiplier=_require_int(entry.get("multiplier"), field=f"{field}.multiplier"),
+        currency=_require_str(entry.get("currency"), field=f"{field}.currency"),
+        maturity_years=_require_str(
+            entry.get("maturity_years"), field=f"{field}.maturity_years"
+        ),
+        quality=_require_str(entry.get("quality"), field=f"{field}.quality"),
+        source_event_id=_require_str(
+            entry.get("source_event_id"), field=f"{field}.source_event_id"
+        ),
+        contracts=tuple(
+            _option_contract(contract, field=f"{field}.contracts[{i}]")
+            for i, contract in enumerate(contracts_raw)
+        ),
+        coverage=dict(
+            _require_mapping(entry.get("coverage"), field=f"{field}.coverage")
+        ),
+    )
+
+
+def build_option_chain_response(
+    snapshot: Optional[CurrentSnapshot], *, underlying: str
+) -> OptionChainResponse:
+    """Render the last option-chain snapshot, or the honest empty state.
+
+    Presentation only: the persisted content is validated fail-closed into
+    the wire DTOs and relayed VERBATIM — no quote, IV, Greek or coverage
+    figure is ever recomputed here. Absence of a published snapshot is a
+    NORMAL state (200 with ``state = "empty"``), never a 500 and never an
+    invented chain.
+    """
+    if snapshot is None:
+        return OptionChainResponse(
+            state="empty",
+            snapshot_version=None,
+            as_of=None,
+            population=None,
+            underlying=underlying,
+            engine_version=None,
+            value_nature=None,
+            spot=None,
+            assumptions=None,
+            expirations=(),
+            row_budget=None,
+            coverage=None,
+            reason=REASON_NO_SNAPSHOT_PUBLISHED,
+        )
+
+    content = _require_mapping(snapshot.content, field="content")
+    published_underlying = _require_str(content.get("underlying"), field="underlying")
+    if published_underlying != underlying:
+        raise SnapshotContentError(
+            "underlying: snapshot content does not match the requested key"
+        )
+    value_nature = content.get("value_nature")
+    if value_nature != "THEORETICAL":
+        raise SnapshotContentError("value_nature: 'THEORETICAL' required")
+    expirations_raw = _require_list(content.get("expirations"), field="expirations")
+    spot = content.get("spot")
+    assumptions = content.get("assumptions")
+    return OptionChainResponse(
+        state="ok",
+        snapshot_version=snapshot.version,
+        as_of=_parse_utc(content.get("as_of"), field="as_of"),
+        population=_require_str(content.get("population"), field="population"),
+        underlying=published_underlying,
+        engine_version=_require_str(
+            content.get("engine_version"), field="engine_version"
+        ),
+        value_nature="THEORETICAL",
+        spot=None if spot is None else dict(_require_mapping(spot, field="spot")),
+        assumptions=(
+            None
+            if assumptions is None
+            else dict(_require_mapping(assumptions, field="assumptions"))
+        ),
+        expirations=tuple(
+            _option_expiration(raw, index=index)
+            for index, raw in enumerate(expirations_raw)
+        ),
+        row_budget=dict(_require_mapping(content.get("row_budget"), field="row_budget")),
+        coverage=dict(_require_mapping(content.get("coverage"), field="coverage")),
         reason=None,
     )
 

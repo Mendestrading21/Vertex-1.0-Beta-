@@ -39,7 +39,9 @@ from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Callable, Mapping, Optional, Sequence
 
 if TYPE_CHECKING:  # import-time cycle avoidance (ingest -> markets)
+    from vertex_worker.analysis import AnalysisConfig
     from vertex_worker.markets import MarketsConfig
+    from vertex_worker.options import OptionsConfig
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -580,18 +582,32 @@ def build_registry(
     clock: Clock,
     fusion_config: FusionConfig,
     markets_config: Optional["MarketsConfig"] = None,
+    options_config: Optional["OptionsConfig"] = None,
+    analysis_config: Optional["AnalysisConfig"] = None,
 ) -> HandlerRegistry:
-    """Build the worker registry with the three canonical topics.
+    """Build the worker registry with the canonical topics.
 
-    ``markets_config`` defaults to the development-only synthetic markets
-    registry (``DEV_SYNTHETIC_MARKETS_CONFIG``) — the same dev posture as the
-    callers passing ``DEV_SYNTHETIC_CONFIG`` here; every snapshot it produces
-    is honestly labeled ``population = "SYNTHETIC"``.
+    ``markets_config`` and ``options_config`` default to the development-only
+    synthetic registries (``DEV_SYNTHETIC_MARKETS_CONFIG`` /
+    ``DEV_SYNTHETIC_OPTIONS_CONFIG``) — the same dev posture as the callers
+    passing ``DEV_SYNTHETIC_CONFIG`` here; every snapshot they produce is
+    honestly labeled ``population = "SYNTHETIC"``.
     """
     from vertex_worker.markets import (
         DEV_SYNTHETIC_MARKETS_CONFIG,
         register_markets_handler,
     )
+    from vertex_worker.analysis import (
+        DEV_SYNTHETIC_ANALYSIS_CONFIG,
+        register_analysis_handler,
+    )
+    from vertex_worker.follow_up import register_follow_up_handler
+    from vertex_worker.options import (
+        DEV_SYNTHETIC_OPTIONS_CONFIG,
+        register_options_handler,
+    )
+    from vertex_worker.performance import register_performance_handler
+    from vertex_worker.portfolio import register_portfolio_handler
 
     registry = HandlerRegistry()
     registry.register(
@@ -601,9 +617,23 @@ def build_registry(
     registry.register(
         TOPIC_CAPABILITIES_REFRESH, CapabilitiesSnapshotHandler(clock=clock)
     )
-    register_markets_handler(
+    resolved_markets_config = (
+        markets_config if markets_config is not None else DEV_SYNTHETIC_MARKETS_CONFIG
+    )
+    register_markets_handler(registry, clock=clock, config=resolved_markets_config)
+    register_options_handler(
         registry,
         clock=clock,
-        config=markets_config if markets_config is not None else DEV_SYNTHETIC_MARKETS_CONFIG,
+        config=options_config if options_config is not None else DEV_SYNTHETIC_OPTIONS_CONFIG,
     )
+    register_analysis_handler(
+        registry,
+        clock=clock,
+        config=analysis_config if analysis_config is not None else DEV_SYNTHETIC_ANALYSIS_CONFIG,
+    )
+    register_portfolio_handler(registry, clock=clock)
+    # Review queue (page 09): same fusion registry as the attention handler.
+    register_follow_up_handler(registry, clock=clock, config=fusion_config)
+    # Performance (page 10): same quote registry as the markets handler.
+    register_performance_handler(registry, clock=clock, config=resolved_markets_config)
     return registry

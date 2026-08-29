@@ -55,6 +55,13 @@ class ScriptedHeadReader:
         self.polls += 1
         return self.versions[(kind, key)]
 
+    def heads_for_kind(self, *, kind: str) -> dict[str, int]:
+        return {
+            key: version
+            for (head_kind, key), version in self.versions.items()
+            if head_kind == kind and version is not None
+        }
+
     def ping(self) -> bool:  # pragma: no cover - not used here
         return True
 
@@ -150,6 +157,35 @@ def test_pings_keep_flowing_without_any_change() -> None:
     assert [event for event, _ in frames] == ["ping", "ping", "ping"]
 
 
+def test_option_chain_keys_are_watched_by_kind_prefix() -> None:
+    """``option_chain/*``: a key that APPEARS while streaming is signalled.
+
+    Documented semantics: the stream watches the whole ``option_chain`` kind
+    (every published key), so a brand-new underlying — never listed anywhere
+    in the API — starts signalling as soon as the worker publishes its head.
+    """
+    reader = ScriptedHeadReader()
+
+    async def run() -> list[tuple[str, dict]]:
+        frames: list[tuple[str, dict]] = []
+        stream = snapshot_event_stream(reader, FAST)
+        async for frame in stream:
+            frames.extend(parse_frames(frame))
+            event = frames[-1][0]
+            if event == "ping" and ("option_chain", "SYN-TECH-01") not in reader.versions:
+                reader.versions[("option_chain", "SYN-TECH-01")] = 5
+            if event == "snapshot":
+                break
+        await stream.aclose()
+        return frames
+
+    frames = asyncio.run(asyncio.wait_for(run(), timeout=5.0))
+    snapshot_frames = [data for event, data in frames if event == "snapshot"]
+    assert snapshot_frames == [
+        {"resource": "option_chain/SYN-TECH-01", "version": 5}
+    ]
+
+
 def test_format_sse_event_is_canonical() -> None:
     frame = format_sse_event("snapshot", {"version": 2, "resource": "attention/global"})
     assert frame == 'event: snapshot\ndata: {"resource":"attention/global","version":2}\n\n'
@@ -226,3 +262,11 @@ def test_http_stream_reads_events_then_closes_cleanly(
     assert events[0][0] == "ping"
     snapshot_payloads = [json.loads(data) for event, data in events if event == "snapshot"]
     assert snapshot_payloads == [{"resource": "attention/global", "version": 7}]
+
+
+def test_review_queue_and_performance_kinds_are_watched() -> None:
+    """The stream signals review_queue/* and performance/* head changes."""
+    from vertex_api.events import WATCHED_SNAPSHOT_KINDS
+
+    assert "review_queue" in WATCHED_SNAPSHOT_KINDS
+    assert "performance" in WATCHED_SNAPSHOT_KINDS

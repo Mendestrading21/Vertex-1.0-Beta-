@@ -1,0 +1,119 @@
+import { exclusionReasonLabel } from './portfolioView.ts';
+import type { ExcludedLotRow, ValuedLotRow } from './portfolioView.ts';
+
+/**
+ * Dominante de /portfolio : lots ouverts VALORISÉS (chaînes serveur
+ * verbatim) puis, dans une section SÉPARÉE, les lots EXCLUS avec leur raison.
+ *
+ * Un lot exclu n'apparaît JAMAIS à zéro dans la table des valorisés : les
+ * deux populations de lignes restent disjointes et ne sont jamais sommées.
+ */
+
+export function PortfolioTable({
+  lots,
+  excluded,
+}: {
+  readonly lots: readonly ValuedLotRow[];
+  readonly excluded: readonly ExcludedLotRow[];
+}) {
+  return (
+    <section className="vx-pf-table" aria-labelledby="vx-pf-table-title">
+      <h2 id="vx-pf-table-title">Lots ouverts valorisés</h2>
+      {lots.length === 0 ? (
+        <p className="vx-cell-absent" data-testid="pf-lots-empty">
+          Aucun lot ouvert valorisé — l'absence reste une absence, aucun zéro n'est fabriqué.
+        </p>
+      ) : (
+        <div className="vx-pf-table-scroll" tabIndex={0} role="region" aria-label="Lots ouverts défilants">
+          <table className="vx-pf-lots" aria-label="Lots ouverts valorisés (valeurs serveur exactes)">
+            <thead>
+              <tr>
+                <th scope="col">Ticker</th>
+                <th scope="col">Lot</th>
+                <th scope="col">Quantité restante</th>
+                <th scope="col">Coût unitaire</th>
+                <th scope="col">Mark (clôture synthétique)</th>
+                <th scope="col">Valeur marquée</th>
+                <th scope="col">P&amp;L latent</th>
+                <th scope="col">Devise</th>
+                <th scope="col">Qualité de la marque</th>
+              </tr>
+            </thead>
+            <tbody>
+              {lots.map((lot) => (
+                <tr key={lot.lotId}>
+                  <th scope="row">
+                    <code>{lot.ticker}</code>
+                  </th>
+                  <td>
+                    <code>{lot.lotId}</code>
+                  </td>
+                  <td className="vx-num">{lot.quantity}</td>
+                  <td className="vx-num">{lot.unitCost}</td>
+                  <td className="vx-num">{lot.mark}</td>
+                  <td className="vx-num">{lot.marketValue}</td>
+                  <td className="vx-num" data-sign={lot.unrealizedPnl.startsWith('-') ? 'negative' : 'positive'}>
+                    {lot.unrealizedPnl}
+                  </td>
+                  <td>
+                    <code>{lot.currency}</code>
+                  </td>
+                  <td>
+                    <span className="vx-badge vx-badge-synthetic">SYNTHÉTIQUE</span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      <section className="vx-pf-excluded" aria-labelledby="vx-pf-excluded-title" data-testid="pf-excluded">
+        <h3 id="vx-pf-excluded-title">Lots exclus de la valorisation ({excluded.length})</h3>
+        {excluded.length === 0 ? (
+          <p className="vx-cell-absent">Aucun lot exclu.</p>
+        ) : (
+          <>
+            <p className="vx-pf-excluded-note">
+              Ces lots ne sont PAS valorisés et n'entrent dans aucun total : un lot sans marque
+              utilisable est écarté avec sa raison, jamais compté à zéro.
+            </p>
+            <div
+              className="vx-pf-table-scroll"
+              tabIndex={0}
+              role="region"
+              aria-label="Lots exclus défilants"
+            >
+            <table className="vx-pf-excluded-table" aria-label="Lots exclus et raison d'exclusion">
+              <thead>
+                <tr>
+                  <th scope="col">Lot</th>
+                  <th scope="col">Ticker</th>
+                  <th scope="col">Devise</th>
+                  <th scope="col">Raison (code serveur)</th>
+                  <th scope="col">Explication</th>
+                </tr>
+              </thead>
+              <tbody>
+                {excluded.map((lot) => (
+                  <tr key={`${lot.lotId}-${lot.ticker ?? ''}-${lot.reason}`}>
+                    <th scope="row">
+                      <code>{lot.lotId}</code>
+                    </th>
+                    <td>{lot.ticker !== null ? <code>{lot.ticker}</code> : '—'}</td>
+                    <td>{lot.currency !== null ? <code>{lot.currency}</code> : '—'}</td>
+                    <td>
+                      <code>{lot.reason}</code>
+                    </td>
+                    <td>{exclusionReasonLabel(lot.reason)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            </div>
+          </>
+        )}
+      </section>
+    </section>
+  );
+}
