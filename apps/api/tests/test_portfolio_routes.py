@@ -8,6 +8,7 @@ worker drain) is exercised in ``apps/api/tests_integration``.
 from __future__ import annotations
 
 import hashlib
+import logging
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Iterator
@@ -408,3 +409,138 @@ def test_export_is_versioned_csv_of_the_ledger_only(portfolio_client, gateway) -
     assert "'=SUM(A1:A9)" in response.text
     assert "'-1000" in response.text
     assert len(lines) == 4  # stamp + header + 2 ledger rows, nothing else
+
+
+# ---------------------------------------------------------------------------
+# P0-6 — `mark_population` est une NATURE, pas du texte libre
+# ---------------------------------------------------------------------------
+#
+# Le 6e audit a relayé, jusqu'au bandeau « DONNÉES RÉELLES » de
+# `PortfolioPage`, une valorisation étiquetée `mark_population = "REAL"` qui
+# portait TOUJOURS `rights = SYNTHETIC`. Le garde de contradiction interne
+# posé à la vague précédente ne regardait que la clé littérale `population` ;
+# `vertex_worker.portfolio` publie la sienne sous `mark_population`.
+#
+# Ces tests passent par la VRAIE route et le VRAI garde. Aucune fixture n'est
+# rendue permissive : la valorisation saine (`SYNTHETIC`) reste servie.
+
+
+def _valuation(content: dict) -> CurrentSnapshot:
+    return CurrentSnapshot(
+        kind="portfolio_valuation",
+        key="1",
+        version=4,
+        content=content,
+        content_hash="sha256:" + "0" * 64,
+        as_of=FIXED_NOW,
+    )
+
+
+FORGED_MARK_POPULATIONS = [
+    "REAL",
+    "DELAYED",
+    "LIVE",
+    "PRODUCTION",
+    "real",
+    "IBKR_REALTIME_ENTITLED",
+    "DONNEES REELLES 100% FIABLES",
+]
+
+
+@pytest.mark.parametrize("forged", FORGED_MARK_POPULATIONS)
+def test_a_forged_mark_population_fails_the_valuation_relay_closed(
+    portfolio_client, gateway, forged: str
+) -> None:
+    """Contenu SAIN du worker, dont la seule nature a été réétiquetée.
+
+    Les marks restent ceux du snapshot markets synthétique (`rights =
+    SYNTHETIC`) : la charge se contredit et ne peut pas être servie.
+    """
+    gateway.valuation = _valuation(
+        {
+            "schema_version": "vertex.portfolio-valuation/1.0",
+            "as_of": FIXED_NOW.isoformat(),
+            "mark_population": forged,
+            "marks": {"provenance": {"rights": ["SYNTHETIC"]}},
+            "excluded_lots": [],
+        }
+    )
+    response = portfolio_client.get("/api/v1/portfolio")
+    assert response.status_code == 500
+    assert response.json()["code"] == "SNAPSHOT_CONTENT_INVALID"
+    assert forged not in response.text
+
+
+@pytest.mark.parametrize("forged", ["LIVE", "PRODUCTION", "DONNEES REELLES"])
+def test_a_mark_population_outside_the_vocabulary_is_refused_alone(
+    portfolio_client, gateway, forged: str
+) -> None:
+    """Même sans marqueur en regard : une nature hors vocabulaire ne sort pas."""
+    gateway.valuation = _valuation(
+        {
+            "schema_version": "vertex.portfolio-valuation/1.0",
+            "mark_population": forged,
+            "excluded_lots": [],
+        }
+    )
+    response = portfolio_client.get("/api/v1/portfolio")
+    assert response.status_code == 500
+    assert response.json()["code"] == "SNAPSHOT_CONTENT_INVALID"
+
+
+def test_the_mark_population_refusal_leaks_no_value_to_the_logs(
+    portfolio_client, gateway, caplog
+) -> None:
+    """`.claude/rules/security.md` : un refus nomme un CHEMIN, jamais la valeur."""
+    forged = "DONNEES REELLES 100% FIABLES"
+    gateway.valuation = _valuation(
+        {
+            "schema_version": "vertex.portfolio-valuation/1.0",
+            "mark_population": forged,
+            "excluded_lots": [],
+        }
+    )
+    with caplog.at_level(logging.DEBUG):
+        response = portfolio_client.get("/api/v1/portfolio")
+    assert response.status_code == 500
+    emitted = "\n".join(record.getMessage() for record in caplog.records)
+    emitted += "\n" + "\n".join(str(record.exc_info) for record in caplog.records)
+    assert forged not in emitted
+    assert forged not in response.text
+    assert "mark_population" in emitted  # le CHEMIN, lui, doit être tracé
+
+
+def test_a_synthetic_marks_source_still_contradicts_a_real_claim(
+    portfolio_client, gateway
+) -> None:
+    """Le marqueur n'est pas seulement `rights` : le `schema_version` du
+    générateur en est un aussi (`vertex_core.synthetic`)."""
+    gateway.valuation = _valuation(
+        {
+            "schema_version": "vertex.portfolio-valuation/1.0",
+            "mark_population": "REAL",
+            "marks": {"source": {"schema_version": "synthetic-daily-quote/1.0"}},
+            "excluded_lots": [],
+        }
+    )
+    response = portfolio_client.get("/api/v1/portfolio")
+    assert response.status_code == 500
+    assert response.json()["code"] == "SNAPSHOT_CONTENT_INVALID"
+
+
+def test_the_honest_synthetic_valuation_is_still_served(
+    portfolio_client, gateway
+) -> None:
+    """Anti-vacuité : la valorisation que le worker publie VRAIMENT passe."""
+    gateway.valuation = _valuation(
+        {
+            "schema_version": "vertex.portfolio-valuation/1.0",
+            "as_of": FIXED_NOW.isoformat(),
+            "mark_population": "SYNTHETIC",
+            "marks": {"provenance": {"rights": ["SYNTHETIC"]}},
+            "excluded_lots": [],
+        }
+    )
+    response = portfolio_client.get("/api/v1/portfolio")
+    assert response.status_code == 200
+    assert response.json()["valuation"]["content"]["mark_population"] == "SYNTHETIC"

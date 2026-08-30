@@ -9,13 +9,21 @@ State machine, per trigger (``event_id = alert_id + ":" + nonce``)::
 Guarantees (all fail-closed):
 
 - messages are pulled from an injected :class:`QueueClient` (fakes in tests);
+- the envelope ``received_at`` is stamped by the Cloudflare Worker and travels
+  on the wire, so it is EXTERNAL input: it is bounded against the injected
+  ingress clock before anything is anchored on it. Beyond
+  ``max_received_at_skew`` ahead it is ``received_at_in_future``; beyond
+  ``max_received_at_age`` behind it is ``received_at_too_old``. Without that
+  bound both the HP-02 deadline and the anti-replay window would be anchored
+  on a value nobody local controls, hence self-referential and inert;
 - persistence is idempotent through an injected :class:`SignalStore` keyed by
   ``event_id``: 100 redeliveries of the same alert produce exactly ONE signal;
 - a message is acknowledged ONLY after the store confirmed persistence; a
   crash/failure before persistence leaves the message un-acked for redelivery;
 - revalidation requires a fresh IBKR quote with ``observed_at >=
-  trigger.received_at`` AND the CURRENT connection epoch; anything else is
-  ``BLOCKED`` with an explicit reason;
+  trigger.received_at``, ``observed_at`` no further ahead of the ingress clock
+  than ``max_received_at_skew``, AND the CURRENT connection epoch; anything
+  else is ``BLOCKED`` with an explicit reason;
 - past the HP-02 deadline (10 s by default, injected) without a quote the
   trigger becomes ``EXPIRED``. ``EXPIRED`` is a terminal ingress status and
   NEVER a verdict: this module produces no ``AdviceResult``, no direction, no
@@ -46,6 +54,8 @@ from vertex_ingress_tv.schema import (
 )
 
 __all__ = [
+    "DEFAULT_MAX_RECEIVED_AT_AGE",
+    "DEFAULT_MAX_RECEIVED_AT_SKEW",
     "QUEUE_ENVELOPE_SCHEMA_ID",
     "IngestOutcome",
     "IngressRejection",
@@ -64,6 +74,18 @@ QUEUE_ENVELOPE_SCHEMA_ID = "vertex.tradingview.queue-envelope.v1"
 #: explained blocking, hard deadline 10 000 ms.
 DEFAULT_REVALIDATION_DEADLINE = timedelta(seconds=10.0)
 DEFAULT_SENT_AT_WINDOW = timedelta(seconds=300)
+
+#: Clock skew tolerated between the Cloudflare ingress (which stamps
+#: ``received_at``) and the local ingress clock. It MUST stay strictly below
+#: the HP-02 deadline, otherwise a wire timestamp could extend that deadline.
+DEFAULT_MAX_RECEIVED_AT_SKEW = timedelta(seconds=2)
+
+#: Replay horizon for the ingress receipt. A receipt older than this could
+#: never be revalidated anyway (the HP-02 deadline is 10 s), so admitting it
+#: would only write a trigger record that is dead on arrival. Inside the
+#: horizon the documented behaviour is unchanged: an outage backlog is still
+#: routed and expires on its deadline instead of being re-qualified.
+DEFAULT_MAX_RECEIVED_AT_AGE = DEFAULT_SENT_AT_WINDOW
 
 
 @unique
@@ -185,11 +207,22 @@ class TradingViewOrchestrator:
         audit_sink: Callable[[IngressRejection], None],
         sent_at_window: timedelta = DEFAULT_SENT_AT_WINDOW,
         revalidation_deadline: timedelta = DEFAULT_REVALIDATION_DEADLINE,
+        max_received_at_skew: timedelta = DEFAULT_MAX_RECEIVED_AT_SKEW,
+        max_received_at_age: timedelta = DEFAULT_MAX_RECEIVED_AT_AGE,
     ) -> None:
         if revalidation_deadline <= timedelta(0):
             raise ValueError("revalidation_deadline must be strictly positive")
         if sent_at_window <= timedelta(0):
             raise ValueError("sent_at_window must be strictly positive")
+        if max_received_at_skew < timedelta(0):
+            raise ValueError("max_received_at_skew must be >= 0")
+        if max_received_at_skew >= revalidation_deadline:
+            raise ValueError(
+                "max_received_at_skew must stay strictly below revalidation_deadline: "
+                "a wire timestamp must never be able to extend the HP-02 deadline"
+            )
+        if max_received_at_age <= timedelta(0):
+            raise ValueError("max_received_at_age must be strictly positive")
         self._queue = queue
         self._store = store
         self._quotes = quote_provider
@@ -199,6 +232,8 @@ class TradingViewOrchestrator:
         self._audit = audit_sink
         self._window = sent_at_window
         self._deadline = revalidation_deadline
+        self._max_received_at_skew = max_received_at_skew
+        self._max_received_at_age = max_received_at_age
         self._pending: Dict[str, _PendingTrigger] = {}
 
     # ------------------------------------------------------------------ pull
@@ -213,12 +248,14 @@ class TradingViewOrchestrator:
         _ensure_aware_utc(now, "clock()")
 
         try:
-            envelope = self._decode_envelope(message)
+            envelope = self._decode_envelope(message, now=now)
             alert = parse_alert(envelope["alert"])
             received_at = envelope["received_at"]
-            # Anti-replay window is anchored on the ingress receipt time, so a
-            # queue drained after a long outage still routes old messages
-            # (they expire on the HP-02 deadline; they are never re-qualified).
+            # Anti-replay window is anchored on the ingress receipt time, which
+            # ``_decode_envelope`` has just bounded against the injected ingress
+            # clock. Inside that horizon a queue drained after an outage still
+            # routes old messages (they expire on the HP-02 deadline; they are
+            # never re-qualified).
             ensure_sent_at_in_window(alert, reference=received_at, window=self._window)
         except AlertRejected as exc:
             return self._reject(message, exc.reason_code, exc.detail)
@@ -287,8 +324,9 @@ class TradingViewOrchestrator:
 
         Deadline is evaluated FIRST: a quote arriving after the HP-02 deadline
         cannot resurrect an expired trigger. A returned quote is then judged
-        once — fresh and current-epoch means REVALIDATED (a full downstream
-        re-evaluation request, not a verdict), anything else means BLOCKED
+        once — aware, not dated ahead of the ingress clock, current-epoch and
+        observed at or after the trigger means REVALIDATED (a full downstream
+        re-evaluation request, not a verdict); anything else means BLOCKED
         with an explicit reason. No quote means the trigger keeps WAITING.
         """
         outcomes: List[IngestOutcome] = []
@@ -316,6 +354,15 @@ class TradingViewOrchestrator:
             observed_at = quote.observed_at
             if observed_at.tzinfo is None or observed_at.tzinfo.utcoffset(observed_at) is None:
                 outcomes.append(self._finish(trigger, TriggerState.BLOCKED, "QUOTE_TIMESTAMP_NAIVE"))
+                continue
+            # Freshness is proved by ``observed_at >= received_at`` below, and
+            # ``observed_at`` is provider-supplied: without an upper bound
+            # against the ingress clock, a future-dated quote would prove its
+            # own freshness. Same bound as the envelope receipt.
+            if observed_at - now > self._max_received_at_skew:
+                outcomes.append(
+                    self._finish(trigger, TriggerState.BLOCKED, "QUOTE_OBSERVED_IN_FUTURE")
+                )
                 continue
             current_epoch = self._epoch()
             if quote.connection_epoch != current_epoch:
@@ -370,8 +417,12 @@ class TradingViewOrchestrator:
             message_id=message.message_id, event_id=None, status="REJECTED", reason=reason_code
         )
 
-    def _decode_envelope(self, message: QueueMessage) -> Mapping[str, Any]:
-        """Decode and check the queue envelope (fail-closed)."""
+    def _decode_envelope(self, message: QueueMessage, *, now: datetime) -> Mapping[str, Any]:
+        """Decode and check the queue envelope against the ingress clock (fail-closed).
+
+        ``now`` is the injected ingress clock. It is what makes ``received_at``
+        an audited input rather than a self-declared one.
+        """
         if len(message.body) > MAX_PAYLOAD_BYTES * 2:
             # Envelope = alert (<=16 KiB at the Worker) + bounded metadata.
             raise AlertRejected("oversize_envelope", f"{len(message.body)} bytes")
@@ -391,6 +442,22 @@ class TradingViewOrchestrator:
         except ValueError as exc:
             raise AlertRejected("invalid_received_at", raw_received[:64]) from exc
         received_at = _ensure_aware_utc(received_at, "received_at")
+        # HARD BOUND on the wire receipt. Everything downstream is anchored on
+        # this field (HP-02 deadline, anti-replay window, quote ordering), so
+        # an unbounded value would make all three self-referential. Details
+        # carry durations only — never payload content.
+        ahead = received_at - now
+        if ahead > self._max_received_at_skew:
+            raise AlertRejected(
+                "received_at_in_future",
+                f"{ahead.total_seconds():.3f}s ahead of the ingress clock",
+            )
+        behind = now - received_at
+        if behind > self._max_received_at_age:
+            raise AlertRejected(
+                "received_at_too_old",
+                f"{behind.total_seconds():.0f}s behind the ingress clock",
+            )
         alert = decoded.get("alert")
         if not isinstance(alert, dict):
             raise AlertRejected("missing_alert")

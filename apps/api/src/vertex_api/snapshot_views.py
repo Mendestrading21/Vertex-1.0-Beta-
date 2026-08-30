@@ -38,6 +38,13 @@ run the calculation, and it must not pretend otherwise.
   :data:`MARKETS_UNIT`); no control character, no unbounded string, no
   malformed decimal, instant, day, currency, hash or IANA zone; and no
   content that claims an observation while carrying a synthetic marker.
+  THE NATURE IS A CLASS, NOT A KEY (6th audit): the vocabulary and the
+  contradiction check apply to ``population`` AND ``mark_population`` at any
+  depth, to every leaf of a ``populations`` / ``population_components``
+  grouping, and to the KEYS of a ``population_counts`` census — the previous
+  wave closed the literal ``population`` at the top level only, which left
+  the portfolio valuation banner reading « DONNÉES RÉELLES » over marks
+  still stamped ``rights = SYNTHETIC``.
 - NOT guaranteed: that a snapshot labeled ``REAL`` is real. Only the worker
   knows, and the relay never recomputes what the worker owns.
 - KNOWN RESIDUE, stated rather than hidden. Several DISPLAYED fields keep a
@@ -114,10 +121,16 @@ __all__ = [
     "BARS_STATUS_LABELS",
     "MARKETS_DISPLAY_UNIT",
     "MARKETS_UNIT",
+    "GENERATED_NATURE_LABELS",
+    "NATURE_CENSUS_KEYS",
+    "NATURE_LEAF_KEYS",
+    "NATURE_PARENT_KEYS",
     "OBSERVATION_CLAIM_LABELS",
     "POPULATION_LABELS",
+    "SYNTHETIC_IDENTIFIER_KEYS",
     "SYNTHETIC_MARKER_KEYS",
     "SYNTHETIC_MARKER_VALUES",
+    "SYNTHETIC_VALUE_PREFIXES",
     "VALUE_NATURE_LABELS",
     "REASON_CONFLICTING_FIELD_STATUSES",
     "REASON_INVALID_STATUS",
@@ -131,6 +144,7 @@ __all__ = [
     "build_option_chain_response",
     "build_system_health",
     "checked_relayed_content",
+    "is_synthetic_marker",
 ]
 
 REASON_NO_SNAPSHOT_PUBLISHED = "no snapshot published"
@@ -392,6 +406,19 @@ delayed. They are therefore the only two a forged or defective payload gains
 anything from.
 """
 
+GENERATED_NATURE_LABELS: frozenset[str] = frozenset(
+    {"SYNTHETIC", "SIMULATED", "DEMO"}
+)
+"""The nature labels that state, by themselves, that nothing was observed.
+
+They are a STRICT SUBSET of :data:`POPULATION_LABELS` and disjoint from
+:data:`OBSERVATION_CLAIM_LABELS`. ``THEORETICAL``, ``USER_DECLARED``,
+``EMPTY`` and ``SYNTHETIC_MARKS_REAL_LEDGER`` are deliberately ABSENT: a
+theoretical price, a declared lot or an empty census legitimately sit beside
+real observations (``vertex_worker.performance`` publishes exactly that), so
+treating them as contradictions would refuse honest product states.
+"""
+
 SYNTHETIC_MARKER_VALUES: frozenset[str] = frozenset({"SYNTHETIC", "synthetic-dev"})
 """The two markers ``vertex_core.synthetic`` stamps on everything it makes.
 
@@ -403,7 +430,99 @@ change there fails the build instead of silently widening this check.
 """
 
 SYNTHETIC_MARKER_KEYS: frozenset[str] = frozenset({"rights", "sources", "source"})
-"""The provenance keys under which those markers travel."""
+"""The provenance keys under which those markers HISTORICALLY travelled.
+
+Kept as documentation of where the 5th audit looked. The 6th audit showed the
+restriction was the defect, not the protection: ``generator``,
+``source_system``, ``schema_version`` and ``title`` carry the same markers and
+were all served under a ``REAL`` claim. :func:`is_synthetic_marker` therefore
+no longer restricts the EXACT markers to these keys — only the IDENTIFIER
+shapes stay key-scoped (:data:`SYNTHETIC_IDENTIFIER_KEYS`).
+"""
+
+SYNTHETIC_VALUE_PREFIXES: tuple[str, ...] = ("synthetic-", "[SYNTHETIC] ")
+"""Prefixes ``vertex_core.synthetic`` puts in front of what it names.
+
+``synthetic-`` opens every generated ``schema_version``
+(``synthetic-news/1.0``, ``synthetic-quote/1.0``, ``synthetic-daily-bars/1.0``,
+``synthetic-option-chain/1.0``, ``synthetic-calendar-event/1.0``,
+``synthetic-daily-quote/1.0``), its ``source`` (``synthetic-dev``) and its
+adjustment basis (``synthetic-unadjusted``); ``[SYNTHETIC] `` opens every
+generated news title. A PREFIX rather than the six literals: a schema the
+generator adds tomorrow is covered the day it is added, and the drift test
+proves the coverage against the authority instead of trusting this list.
+"""
+
+SYNTHETIC_IDENTIFIER_KEYS: frozenset[str] = frozenset(
+    {
+        "currency",
+        "exchange",
+        "instrument",
+        "sector",
+        "symbol",
+        "ticker",
+        "tickers",
+        "trading_class",
+        "underlying",
+    }
+)
+"""Keys where a SYNTHETIC identifier shape counts as a marker.
+
+Scoped to identifier fields on purpose: matching the shape inside free prose
+would turn a sentence into a provenance verdict.
+"""
+
+_SYNTHETIC_IDENTIFIER_RE = re.compile(r"SYN(?:[0-9]|TH|-[A-Z]{4}(?:-[0-9]{2})?)?")
+"""EXACT shapes of the identifiers ``vertex_core.synthetic`` mints.
+
+``SYN`` (the generated currency), ``SYN1``..``SYN9`` (the news tickers),
+``SYNTH`` (the generated option exchange), ``SYN-TECH`` (the sectors) and
+``SYN-TECH-01`` (the sector/focus tickers). It is a FULL match, never a
+``SYN`` prefix: ``SYNA`` is Synaptics, a real instrument, and a prefix rule
+would refuse a genuine snapshot mentioning it.
+
+RESIDUE, stated rather than hidden: if a real instrument ever carried one of
+these exact shapes, a genuine ``REAL`` snapshot naming it would be REFUSED.
+That direction is fail-closed — an honest error state instead of a synthetic
+value shown as an observation — which is the direction
+``financial-safety.md`` requires.
+"""
+
+NATURE_LEAF_KEYS: frozenset[str] = frozenset({"population", "mark_population"})
+"""Leaf keys that carry a nature label, AT ANY DEPTH.
+
+``population`` is published by ``vertex_worker.{analysis, markets, calendar,
+opportunities, handlers, follow_up}`` — as a HEAD label and, in
+``opportunities``, once per dossier beside it. ``mark_population`` is
+``vertex_worker.portfolio``'s: the nature of the marks a valuation is priced
+with. The 6th audit found the guard closed on the literal ``population``
+alone, so ``mark_population = "REAL"`` beside ``rights = SYNTHETIC`` reached
+the portfolio banner reading « DONNÉES RÉELLES ».
+"""
+
+NATURE_PARENT_KEYS: frozenset[str] = frozenset(
+    {"populations", "population_components"}
+)
+"""Mappings whose EVERY leaf is a nature label, whatever the leaf is called.
+
+``vertex_worker.follow_up`` publishes ``populations = {theses,
+information_context}`` and ``vertex_worker.performance`` publishes
+``population_components = {marks, ledger}``. Their leaf keys (``marks``,
+``ledger``) are ordinary words: closing them by leaf key would both miss them
+here and wrongly constrain a ``marks`` key elsewhere. They are therefore
+closed by PATH.
+"""
+
+NATURE_CENSUS_KEYS: frozenset[str] = frozenset({"population_counts"})
+"""Mappings whose KEYS are nature labels and whose values are counts.
+
+``vertex_worker.opportunities`` publishes ``population_counts = {"SYNTHETIC":
+2, "REAL": 1}``. The keys obey the same closed vocabulary — a census bucket
+named ``IBKR_LIVE`` asserts a nature no producer declares. They are NOT read
+as claims or markers: a census DESCRIBES a mix, it does not claim one, and
+the mixed snapshot it describes is a legitimate product state (see
+:func:`checked_relayed_content`).
+"""
 
 BARS_STATUS_LABELS: frozenset[str] = frozenset({"OK", "ABSENT"})
 """CLOSED vocabulary of ``bars.status`` in an analysis dossier.
@@ -830,11 +949,80 @@ def _leaf_key(path: str) -> str:
     return tail if bracket < 0 else tail[:bracket]
 
 
+def _parent_path(path: str) -> str:
+    """The path of the container a leaf sits in (``""`` at the top level)."""
+    head, sep, _ = path.rpartition(".")
+    return head if sep else ""
+
+
+def _nature_scope(path: str) -> Optional[str]:
+    """The SUBTREE a nature label at ``path`` governs, or ``None``.
+
+    A nature label describes the container it sits in, not the whole
+    document: ``dossiers[0].population`` speaks for ``dossiers[0]``, the
+    top-level ``population`` speaks for everything. A label under a grouping
+    mapping (:data:`NATURE_PARENT_KEYS`) speaks for the container that HOLDS
+    the grouping — ``populations`` and ``population_components`` carry no
+    data of their own, so scoping to them would make the label govern
+    nothing.
+    """
+    parent = _parent_path(path)
+    if _leaf_key(path) in NATURE_LEAF_KEYS:
+        return parent
+    if parent and _leaf_key(parent) in NATURE_PARENT_KEYS:
+        return _parent_path(parent)
+    return None
+
+
+def _within(path: str, scope: str) -> bool:
+    """Whether ``path`` sits inside the subtree ``scope`` (``""`` = all)."""
+    if not scope:
+        return True
+    return path == scope or path.startswith(f"{scope}.") or path.startswith(
+        f"{scope}["
+    )
+
+
+def is_synthetic_marker(value: str, path: str) -> bool:
+    """Whether a relayed string ANNOUNCES that it was generated, not observed.
+
+    Three independent tells, all traceable to ``vertex_core.synthetic``:
+
+    1. an EXACT marker (:data:`SYNTHETIC_MARKER_VALUES`) — under any key now,
+       not only under ``rights``/``sources``/``source``: the 6th audit served
+       ``generator = "synthetic-dev"`` and ``source_system = "synthetic-dev"``
+       untouched beneath a ``REAL`` claim;
+    2. a marker PREFIX (:data:`SYNTHETIC_VALUE_PREFIXES`) — the generated
+       ``schema_version``, the generated adjustment basis, the ``[SYNTHETIC] ``
+       news-title prefix;
+    3. an identifier the generator MINTS (:data:`SYNTHETIC_IDENTIFIER_KEYS`
+       crossed with :data:`_SYNTHETIC_IDENTIFIER_RE`) — a ``REAL`` snapshot
+       priced on ``SYN-TECH-01`` contradicts itself.
+
+    It proves nothing about content that carries NO marker: a producer that
+    scrubs every tell is still relayed as it declares itself. That limit is
+    pinned by ``test_residue_a_fully_scrubbed_payload_still_passes``.
+    """
+    if value in SYNTHETIC_MARKER_VALUES:
+        return True
+    if value.startswith(SYNTHETIC_VALUE_PREFIXES):
+        return True
+    return (
+        _leaf_key(path) in SYNTHETIC_IDENTIFIER_KEYS
+        and _SYNTHETIC_IDENTIFIER_RE.fullmatch(value) is not None
+    )
+
+
 def _check_relayed_string(value: str, *, field: str) -> None:
     if not value:
         raise SnapshotContentError(
             f"{field}: non-empty string required", field=field
         )
+    if _nature_scope(field) is not None:
+        # A nature label obeys its closed vocabulary WHEREVER it sits, and
+        # whatever its leaf is called (``marks``, ``ledger``, ``theses``).
+        _relayed_population(value, field=field)
+        return
     _CLASS_BY_LEAF_KEY.get(_leaf_key(field), _relayed_text)(value, field=field)
 
 
@@ -851,24 +1039,42 @@ def checked_relayed_content(
     out of shape is REFUSED, with a :class:`SnapshotContentError` naming its
     path and never its value.
 
-    One CROSS-FIELD invariant is checked on top of the per-value contracts:
-    a content whose top-level ``population`` claims an observation
-    (:data:`OBSERVATION_CLAIM_LABELS`) may not also carry a synthetic
-    provenance marker. This does not prove that a ``REAL`` snapshot is real —
-    nothing here can — it only refuses a payload that contradicts ITSELF,
-    which is the strongest statement a relay is entitled to make.
+    THE NATURE IS A CLASS OF FIELDS, NOT ONE KEY (6th audit). Every location
+    that carries a nature — :data:`NATURE_LEAF_KEYS` at ANY depth, every leaf
+    under a :data:`NATURE_PARENT_KEYS` grouping, and the KEYS of a
+    :data:`NATURE_CENSUS_KEYS` census — obeys :data:`POPULATION_LABELS`. The
+    previous wave closed the literal ``population`` only, so
+    ``mark_population`` (``vertex_worker.portfolio``) and
+    ``population_components.marks`` (``vertex_worker.performance``) took free
+    text, and a nested dossier nature was neither a claim nor a marker.
+
+    ONE CROSS-FIELD INVARIANT, and its exact scope. A nature label GOVERNS
+    THE CONTAINER IT SITS IN (:func:`_nature_scope`). A label that claims an
+    observation (:data:`OBSERVATION_CLAIM_LABELS`) is REFUSED when a
+    synthetic marker appears anywhere in the subtree it governs — a marker
+    being :func:`is_synthetic_marker`, an explicit ``synthetic: true``, or a
+    generated nature (:data:`GENERATED_NATURE_LABELS`) declared at another
+    nature-bearing location inside that subtree.
+
+    WHAT THE RULE DELIBERATELY DOES NOT REFUSE, and why. Only the
+    OVER-CLAIM direction is a contradiction. A prudent head above a claiming
+    leaf — ``population = "SYNTHETIC"`` over a ``REAL`` dossier — is the
+    degradation ``vertex_worker.opportunities`` performs ON PURPOSE ("a
+    single synthetic dossier makes the whole snapshot synthetic"), published
+    with its ``limitations`` and its ``population_counts``. Refusing it would
+    break a legitimate product state while protecting nobody: no reader of
+    that snapshot is told "real". The rule is therefore asymmetric by design,
+    and the census keys are excluded from the cross-check for the same
+    reason — a census DESCRIBES a mix, it does not claim one.
+
+    None of this proves that a ``REAL`` snapshot is real. Only the worker
+    knows. It refuses a payload that contradicts ITSELF, which is the
+    strongest statement a relay is entitled to make.
     """
     mapping = _require_mapping(content, field=field)
-    claimed = mapping.get("population")
-    claims_observation = (
-        isinstance(claimed, str) and claimed in OBSERVATION_CLAIM_LABELS
-    )
-    contradicting_path: Optional[str] = None
-
-    def note_marker(path: str) -> None:
-        nonlocal contradicting_path
-        if claims_observation and contradicting_path is None:
-            contradicting_path = path
+    # (path of the claim, subtree it governs) and paths of the markers found.
+    claims: list[tuple[str, str]] = []
+    markers: list[str] = []
 
     def walk(node: Any, path: str, depth: int) -> None:
         if depth > MAX_RELAYED_DEPTH:
@@ -878,6 +1084,7 @@ def checked_relayed_content(
                 field=path or field,
             )
         if isinstance(node, Mapping):
+            census = bool(path) and _leaf_key(path) in NATURE_CENSUS_KEYS
             for key, value in node.items():
                 if not isinstance(key, str) or not key:
                     raise SnapshotContentError(
@@ -889,6 +1096,12 @@ def checked_relayed_content(
                         f"{path or field}: relayed mapping key out of shape",
                         field=path or field,
                     )
+                if census and key not in POPULATION_LABELS:
+                    raise SnapshotContentError(
+                        f"{path}: nature census key outside its closed "
+                        "vocabulary",
+                        field=path,
+                    )
                 walk(value, f"{path}.{key}" if path else key, depth + 1)
         elif isinstance(node, list):
             for index, value in enumerate(node):
@@ -897,22 +1110,26 @@ def checked_relayed_content(
             # ``synthetic: true`` is the producers' explicit self-declaration
             # (attention items, evidence clusters, calendar events).
             if node and _leaf_key(path) == "synthetic":
-                note_marker(path)
+                markers.append(path)
         elif isinstance(node, str):
             _check_relayed_string(node, field=path or field)
-            if (
-                node in SYNTHETIC_MARKER_VALUES
-                and _leaf_key(path) in SYNTHETIC_MARKER_KEYS
+            scope = _nature_scope(path)
+            if scope is not None and node in OBSERVATION_CLAIM_LABELS:
+                claims.append((path, scope))
+            elif is_synthetic_marker(node, path) or (
+                scope is not None and node in GENERATED_NATURE_LABELS
             ):
-                note_marker(path)
+                markers.append(path)
 
     walk(mapping, "", 0)
-    if contradicting_path is not None:
-        raise SnapshotContentError(
-            "population: the content claims an observation while carrying a "
-            f"synthetic provenance marker at {contradicting_path}",
-            field="population",
-        )
+    for claim_path, scope in claims:
+        for marker_path in markers:
+            if marker_path != claim_path and _within(marker_path, scope):
+                raise SnapshotContentError(
+                    f"{claim_path}: the content claims an observation while "
+                    f"carrying a synthetic provenance marker at {marker_path}",
+                    field=claim_path,
+                )
     return mapping
 
 

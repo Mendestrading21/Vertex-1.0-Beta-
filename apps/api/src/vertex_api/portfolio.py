@@ -1117,6 +1117,18 @@ def build_portfolio_response(overview: PortfolioOverview) -> PortfolioResponse:
             # 100 % de ses champs chaîne passaient verbatim, valeurs monétaires
             # et étiquette `population` comprises. Il subit désormais le même
             # contrat de classe que les autres relais.
+            #
+            # 6e audit — le contrat de classe ne suffisait pas ici. La nature
+            # que `vertex_worker.portfolio` publie n'est pas `population` mais
+            # `mark_population` (MARK_POPULATION_SYNTHETIC) : le garde de
+            # vocabulaire fermé et de contradiction interne, posé sur la clé
+            # LITTÉRALE `population`, la laissait passer en texte libre. Une
+            # valorisation réétiquetée `mark_population = "REAL"` alors que ses
+            # marks portent toujours `rights = SYNTHETIC` remontait jusqu'au
+            # bandeau « DONNÉES RÉELLES » de `PortfolioPage`. `checked_relayed_
+            # content` traite désormais la nature comme une CLASSE de champs
+            # (voir `snapshot_views.NATURE_LEAF_KEYS`) ; ce relais échoue donc
+            # fermé sur cette charge au lieu de la servir.
             content=dict(checked_relayed_content(overview.valuation.content)),
             reason=None,
         )

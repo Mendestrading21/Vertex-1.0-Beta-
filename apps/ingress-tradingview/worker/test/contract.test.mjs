@@ -176,3 +176,25 @@ test("missing or invalid nonce is rejected (ingress policy)", () => {
 test("MAX_BODY_BYTES is exactly 16 KiB", () => {
   assert.equal(MAX_BODY_BYTES, 16384);
 });
+
+test("bar_time far after sent_at is rejected (a bar cannot close after its alert)", () => {
+  const result = validateAlertPayload(
+    makeAlert({ sent_at: "2026-08-29T11:59:30Z", bar_time: "2126-08-29T11:55:00Z" }),
+  );
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, "bar_time_after_sent_at");
+});
+
+test("bar_time before sent_at stays valid (a weekly bar opened long before)", () => {
+  const result = validateAlertPayload(
+    makeAlert({ sent_at: "2026-08-29T11:59:30Z", bar_time: "2026-08-24T00:00:00Z" }),
+  );
+  assert.equal(result.ok, true);
+});
+
+test("a small provider clock skew on bar_time is tolerated", () => {
+  const result = validateAlertPayload(
+    makeAlert({ sent_at: "2026-08-29T11:59:30Z", bar_time: "2026-08-29T11:59:31Z" }),
+  );
+  assert.equal(result.ok, true);
+});

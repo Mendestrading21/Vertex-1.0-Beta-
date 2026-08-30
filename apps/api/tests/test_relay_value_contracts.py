@@ -735,3 +735,322 @@ def test_residue_a_fully_scrubbed_payload_still_passes() -> None:
         "items": [{"synthetic": False}],
     }
     assert checked_relayed_content(scrubbed) == scrubbed
+
+
+# ---------------------------------------------------------------------------
+# P0-6 — la nature n'est pas UNE clé : c'est une CLASSE de champs
+# ---------------------------------------------------------------------------
+#
+# 6e audit adversarial. Le correctif P0-5 fermait le vocabulaire et refusait
+# la contradiction interne pour la clé LITTÉRALE `population`, au SOMMET du
+# contenu seulement. Trois trous en découlaient :
+#
+#   1. `mark_population` — la nature des marks de valorisation
+#      (`vertex_worker.portfolio.MARK_POPULATION_SYNTHETIC`, relayée par
+#      `vertex_api.portfolio.build_portfolio_response`) n'était NI fermée NI
+#      croisée : `mark_population = "REAL"` à côté de `rights = SYNTHETIC`
+#      passait, et « DONNEES REELLES 100% FIABLES » aussi. La chaîne va
+#      jusqu'à l'écran (`PortfolioPage` → bandeau « DONNÉES RÉELLES »).
+#   2. une `population` IMBRIQUÉE (dossier d'opportunité, bloc `bars`) était
+#      bien soumise au vocabulaire — `_leaf_key` ignore la profondeur — mais
+#      n'était NI une revendication NI un marqueur pour la vérification
+#      croisée. Une tête REAL au-dessus de dossiers SYNTHETIC passait.
+#   3. le vocabulaire des marqueurs synthétiques ne connaissait que
+#      {SYNTHETIC, synthetic-dev} sous {rights, sources, source}. Le
+#      `schema_version` du générateur, son préfixe de titre, ses identifiants
+#      et ses clés `generator`/`source_system` passaient inaperçus.
+#
+# RÈGLE ÉCRITE ICI pour deux natures qui coexistent et se contredisent :
+# la nature d'un nœud GOUVERNE SON SOUS-ARBRE, et seule la SUR-REVENDICATION
+# est refusée. Une tête qui revendique une observation au-dessus d'un
+# marqueur synthétique est REFUSÉE ; une tête prudente (SYNTHETIC) au-dessus
+# d'un dossier REAL est SERVIE, parce que c'est exactement la dégradation
+# vers le plus prudent que le worker applique déjà
+# (`vertex_worker.opportunities` : « a single synthetic dossier makes the
+# whole snapshot synthetic »). Refuser cette seconde forme casserait un état
+# produit légitime sans rien protéger : personne n'y lit « réel ».
+
+from collections.abc import Mapping  # noqa: E402
+
+from vertex_core.synthetic import (  # noqa: E402
+    SYNTHETIC_ADJUSTMENT_BASIS,
+    SYNTHETIC_FOCUS_TICKERS,
+    SYNTHETIC_MARKET_CURRENCY,
+    SYNTHETIC_SCHEMA_QUOTE,
+    SYNTHETIC_SECTOR_LABELS_FR,
+    SYNTHETIC_SECTORS,
+    SYNTHETIC_TITLE_PREFIX,
+)
+
+from vertex_api.snapshot_views import (  # noqa: E402
+    GENERATED_NATURE_LABELS,
+    NATURE_CENSUS_KEYS,
+    NATURE_LEAF_KEYS,
+    NATURE_PARENT_KEYS,
+    is_synthetic_marker,
+)
+
+
+# --- 1. `mark_population` : le vecteur P0 exact du 6e audit -----------------
+
+
+@pytest.mark.parametrize(
+    "forged",
+    [
+        "IBKR_REALTIME_ENTITLED",
+        "LIVE",
+        "PRODUCTION",
+        "real",
+        "DONNEES REELLES 100% FIABLES",
+    ],
+)
+def test_a_forged_mark_population_is_outside_the_closed_vocabulary(
+    forged: str,
+) -> None:
+    """Le relais de valorisation acceptait n'importe quelle étiquette."""
+    with pytest.raises(SnapshotContentError) as excinfo:
+        checked_relayed_content({"mark_population": forged})
+    assert excinfo.value.field == "mark_population"
+    assert forged not in str(excinfo.value)
+
+
+@pytest.mark.parametrize("claim", sorted(OBSERVATION_CLAIM_LABELS))
+def test_a_mark_population_claim_beside_a_synthetic_marker_is_refused(
+    claim: str,
+) -> None:
+    """`mark_population = REAL` + `rights = SYNTHETIC` rendait 200."""
+    with pytest.raises(SnapshotContentError) as excinfo:
+        checked_relayed_content(
+            {
+                "mark_population": claim,
+                "provenance": {"rights": [SYNTHETIC_RIGHTS]},
+            }
+        )
+    assert excinfo.value.field == "mark_population"
+    assert "provenance.rights[0]" in str(excinfo.value)
+
+
+def test_the_honest_portfolio_valuation_nature_is_still_relayed() -> None:
+    """Anti-vacuité : la seule nature que le worker publie reste servie."""
+    honest = {
+        "schema_version": "vertex.portfolio-valuation/1.0",
+        "mark_population": "SYNTHETIC",
+    }
+    assert checked_relayed_content(honest) == honest
+
+
+# --- 2. la nature IMBRIQUÉE, à n'importe quelle profondeur ------------------
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        {"population": "REAL", "dossiers": [{"population": "SYNTHETIC"}]},
+        {"population": "REAL", "bars": {"population": "SYNTHETIC"}},
+        {"population": "DELAYED", "a": {"b": {"c": {"population": "SYNTHETIC"}}}},
+        {
+            "population": "REAL",
+            "population_components": {"marks": "SYNTHETIC", "ledger": "USER_DECLARED"},
+        },
+        {"population": "REAL", "populations": {"theses": "SYNTHETIC"}},
+        {"mark_population": "REAL", "marks": {"population": "DEMO"}},
+    ],
+)
+def test_a_nested_generated_nature_refuses_a_head_that_claims_an_observation(
+    content: dict,
+) -> None:
+    """Une tête REAL au-dessus d'un sous-arbre synthétique se contredit."""
+    with pytest.raises(SnapshotContentError) as excinfo:
+        checked_relayed_content(content)
+    assert excinfo.value.field in NATURE_LEAF_KEYS
+
+
+def test_a_nested_claim_is_refused_by_a_marker_inside_ITS_OWN_subtree() -> None:
+    """La revendication imbriquée est gouvernée par son propre sous-arbre."""
+    with pytest.raises(SnapshotContentError) as excinfo:
+        checked_relayed_content(
+            {
+                "population": "SYNTHETIC",
+                "dossiers": [
+                    {"population": "REAL", "provenance": {"sources": [SYNTHETIC_SOURCE]}}
+                ],
+            }
+        )
+    assert excinfo.value.field == "dossiers[0].population"
+    assert "dossiers[0].provenance.sources[0]" in str(excinfo.value)
+
+
+def test_a_prudent_head_above_a_real_dossier_is_still_served() -> None:
+    """RÈGLE : la dégradation vers le plus prudent n'est PAS une contradiction.
+
+    `vertex_worker.opportunities` étiquette délibérément SYNTHETIC un
+    snapshot dont un seul dossier est synthétique, et publie le mélange dans
+    `limitations` + `population_counts`. Refuser cet état casserait le
+    produit sans protéger personne : aucun lecteur n'y voit « réel ».
+    """
+    mixed = {
+        "population": "SYNTHETIC",
+        "dossiers": [{"population": "REAL"}, {"population": "SYNTHETIC"}],
+        "coverage": {"population_counts": {"REAL": 1, "SYNTHETIC": 1}},
+    }
+    assert checked_relayed_content(mixed) == mixed
+
+
+@pytest.mark.parametrize("forged", ["IBKR_REALTIME", "LIVE", "reel"])
+def test_a_nature_under_a_grouping_key_obeys_the_closed_vocabulary(
+    forged: str,
+) -> None:
+    """`population_components` / `populations` portent des natures dont les
+    clés feuilles sont quelconques (`marks`, `ledger`) : le vocabulaire s'y
+    applique par CHEMIN, pas par nom de feuille."""
+    for parent in sorted(NATURE_PARENT_KEYS):
+        with pytest.raises(SnapshotContentError) as excinfo:
+            checked_relayed_content({parent: {"marks": forged}})
+        assert excinfo.value.field == f"{parent}.marks"
+        assert forged not in str(excinfo.value)
+
+
+def test_a_population_census_key_obeys_the_closed_vocabulary() -> None:
+    """`coverage.population_counts` est un recensement DE NATURES : ses CLÉS
+    appartiennent au même vocabulaire fermé que la nature elle-même."""
+    for census in sorted(NATURE_CENSUS_KEYS):
+        with pytest.raises(SnapshotContentError) as excinfo:
+            checked_relayed_content({census: {"IBKR_LIVE": 2}})
+        assert excinfo.value.field == census
+        assert "IBKR_LIVE" not in str(excinfo.value)
+
+
+# --- 3. le vocabulaire ÉLARGI des marqueurs synthétiques --------------------
+
+
+@pytest.mark.parametrize(
+    "marker_content",
+    [
+        {"schema_version": SYNTHETIC_SCHEMA_QUOTE},
+        {"generator": SYNTHETIC_SOURCE},
+        {"source_system": SYNTHETIC_SOURCE},
+        {"adjustment_basis": SYNTHETIC_ADJUSTMENT_BASIS},
+        {"title": SYNTHETIC_TITLE_PREFIX + "Fictional company SYN1"},
+        {"ticker": "SYN1"},
+        {"ticker": SYNTHETIC_FOCUS_TICKERS[0]},
+        {"sector": SYNTHETIC_SECTORS[0]},
+        {"currency": SYNTHETIC_MARKET_CURRENCY},
+        {"bars": {"population": "SYNTHETIC"}},
+    ],
+)
+def test_the_widened_synthetic_markers_contradict_an_observation_claim(
+    marker_content: dict,
+) -> None:
+    """Aucun de ces marqueurs n'était vu : tous étaient servis sous REAL."""
+    with pytest.raises(SnapshotContentError) as excinfo:
+        checked_relayed_content({"population": "REAL", **marker_content})
+    assert excinfo.value.field == "population"
+
+
+def test_the_widened_markers_alone_are_never_a_refusal() -> None:
+    """Anti-vacuité : un contenu synthétique honnête reste servi entier."""
+    honest = {
+        "population": "SYNTHETIC",
+        "schema_version": SYNTHETIC_SCHEMA_QUOTE,
+        "ticker": SYNTHETIC_FOCUS_TICKERS[0],
+        "currency": SYNTHETIC_MARKET_CURRENCY,
+        "title": SYNTHETIC_TITLE_PREFIX + "Fictional company SYN1",
+        "provenance": {"rights": [SYNTHETIC_RIGHTS], "sources": [SYNTHETIC_SOURCE]},
+    }
+    assert checked_relayed_content(honest) == honest
+
+
+def test_a_real_ticker_that_merely_starts_with_syn_is_not_a_marker() -> None:
+    """Anti-faux-positif : SYNA (Synaptics) n'est pas un identifiant du
+    générateur. La détection est une FORME EXACTE, jamais un préfixe `SYN`."""
+    real = {"population": "REAL", "ticker": "SYNA", "sector": "SYNDICATED"}
+    assert checked_relayed_content(real) == real
+    assert not is_synthetic_marker("SYNA", "ticker")
+    assert not is_synthetic_marker("SYNDICATED", "sector")
+
+
+# --- 4. anti-dérive contre l'autorité qui estampille -------------------------
+
+
+def test_every_synthetic_identifier_of_the_authority_is_detected() -> None:
+    """Anti-dérive EXHAUSTIVE : chaque constante chaîne exportée par
+    `vertex_core.synthetic` (paquet ET sous-module `options`) est soit
+    détectée comme marqueur, soit explicitement justifiée ci-dessous.
+    Ajouter une constante au générateur sans l'une des deux CASSE ce test.
+
+    C'est ce test — et non un import — qui rattache le relais à l'autorité :
+    `snapshot_views` ne doit PAS charger un GÉNÉRATEUR de données dans le
+    processus API (décision déjà inscrite dans son docstring). La dérive est
+    donc épinglée depuis les tests, où l'import est sans conséquence runtime.
+    """
+    import vertex_core.synthetic as authority
+    from vertex_core.synthetic import options as authority_options
+
+    # Constantes qui ne sont PAS des marqueurs, et pourquoi.
+    not_markers = {
+        "Europe/Zurich",  # SYNTHETIC_EXCHANGE_TIMEZONE : vraie zone IANA
+        "DIVIDEND", "EARNINGS", "MACRO", "OPTION_EXPIRATION",  # catégories réelles
+        "GLOBAL", "TICKER",  # portées réelles
+        "CONFIRMED", "ESTIMATED",  # statuts réels
+        "EUROPEAN", "CASH",  # style/règlement canoniques, pas des identifiants
+        "OI_DELAYED",  # statut d'open interest canonique
+    }
+
+    def strings(value):
+        if isinstance(value, str):
+            yield value
+        elif isinstance(value, (tuple, list)):
+            for item in value:
+                yield from strings(item)
+        elif isinstance(value, Mapping):
+            for key, item in value.items():
+                yield from strings(key)
+                yield from strings(item)
+
+    checked = 0
+    exported = [(authority, name) for name in authority.__all__]
+    exported += [(authority_options, name) for name in authority_options.__all__]
+    for module, name in exported:
+        value = getattr(module, name)
+        if callable(value):
+            continue
+        for text in strings(value):
+            if text in not_markers:
+                continue
+            if text in SYNTHETIC_SECTOR_LABELS_FR.values():
+                continue  # libellés FR d'affichage, prose et non identifiant
+            checked += 1
+            assert is_synthetic_marker(text, "ticker"), (
+                f"{name}: constante du générateur non détectée comme marqueur"
+            )
+    assert checked >= 40
+
+
+def test_the_generated_nature_labels_are_all_declared_natures() -> None:
+    """Les natures qui VALENT marqueur restent membres du vocabulaire fermé
+    et disjointes des deux revendications d'observation."""
+    assert GENERATED_NATURE_LABELS <= POPULATION_LABELS
+    assert not (GENERATED_NATURE_LABELS & OBSERVATION_CLAIM_LABELS)
+
+
+# --- 5. le refus ne fuit jamais la valeur stockée ---------------------------
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        {"mark_population": "DONNEES REELLES 100% FIABLES"},
+        {"mark_population": "REAL", "provenance": {"rights": [SYNTHETIC_RIGHTS]}},
+        {"population": "REAL", "dossiers": [{"population": "SYNTHETIC"}]},
+        {"population_components": {"marks": HOSTILE}},
+        {"population_counts": {"IBKR_LIVE": 1}},
+    ],
+)
+def test_a_nature_refusal_names_a_path_and_never_a_value(content: dict) -> None:
+    with pytest.raises(SnapshotContentError) as excinfo:
+        checked_relayed_content(content)
+    message = str(excinfo.value)
+    assert HOSTILE not in message
+    assert "\x07" not in message and "\x1b" not in message
+    assert "DONNEES REELLES" not in message
+    assert "IBKR_LIVE" not in message

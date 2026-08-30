@@ -15,7 +15,12 @@ from vertex_edge_ibkr.adapter import (
     LOOPBACK_HOST,
     IbAsyncInformationAdapter,
 )
-from vertex_edge_ibkr.port import ContractSpec, GreeksObservation, QuoteObservation
+from vertex_edge_ibkr.port import (
+    ContractSpec,
+    GreeksObservation,
+    QuoteObservation,
+    ScannerDefinition,
+)
 from vertex_edge_ibkr.state import ConnectionStateMachine
 
 from fakes import NAN, FakeComputation, FakeIB, FakeTicker, T1, fixed_clock, instant_sleep
@@ -217,6 +222,118 @@ def test_partial_quote_is_labelled_partial_quality() -> None:
     assert empty.envelopes[0].quality_status is EnvelopeQuality.INSUFFICIENT_DATA
 
 
+# -- greeks quality is DERIVED, exactly like the quote quality ---------------
+
+_GREEK_FIELDS = (
+    "implied_volatility",
+    "delta",
+    "gamma",
+    "vega",
+    "theta",
+    "option_price",
+    "pv_dividend",
+    "underlying_price",
+)
+
+
+def greeks_envelope(ticker: FakeTicker, **kwargs):
+    """The single greeks envelope of an option snapshot."""
+    result = snapshot(make_adapter(FakeIB(ticker=ticker)), OPTION, **kwargs)
+    return next(env for env in result.envelopes if isinstance(env.payload, GreeksObservation))
+
+
+def test_greeks_with_one_field_out_of_eight_are_not_valid() -> None:
+    """A computation carrying 7 sentinels out of 8 degrades; it never passes.
+
+    Reproducer (CONSTITUTION §4): stamping it VALID removes the
+    ``PARTIAL_SNAPSHOT`` degradation of
+    ``evaluate_snapshot_fresh_and_coherent``, so advice could be built on
+    almost-empty greeks believed to be complete. The quote observed in the
+    SAME snapshot is the witness: it derives PARTIAL from the same evidence.
+    """
+    ticker = FakeTicker(
+        bid=1.0,  # ask/last stay unset -> the quote witness is PARTIAL
+        modelGreeks=FakeComputation(
+            impliedVol=-1.0,
+            delta=-2.0,
+            gamma=0.04,
+            vega=-2.0,
+            theta=-2.0,
+            optPrice=-1.0,
+            pvDividend=-1.0,
+            undPrice=-1.0,
+        ),
+    )
+    result = snapshot(make_adapter(FakeIB(ticker=ticker)), OPTION)
+    greeks_env = next(e for e in result.envelopes if isinstance(e.payload, GreeksObservation))
+    quote_env = next(e for e in result.envelopes if isinstance(e.payload, QuoteObservation))
+    present = [name for name in _GREEK_FIELDS if getattr(greeks_env.payload, name) is not None]
+    assert present == ["gamma"]  # 1 field out of 8
+    assert quote_env.quality_status is EnvelopeQuality.PARTIAL
+    assert greeks_env.quality_status is EnvelopeQuality.PARTIAL
+
+
+def test_complete_risk_set_is_valid_without_the_provider_context_fields() -> None:
+    """VALID requires the five risk fields; the three context fields may be absent.
+
+    ``option_price``, ``pv_dividend`` and ``underlying_price`` are provider
+    context that IBKR legitimately omits (no dividend, non-model basis).
+    Requiring them would make almost every real computation PARTIAL and turn
+    the degradation into noise.
+    """
+    ticker = FakeTicker(
+        bid=1.0,
+        ask=1.2,
+        last=1.1,
+        modelGreeks=FakeComputation(
+            impliedVol=0.31, delta=0.55, gamma=0.04, vega=0.12, theta=-0.05
+        ),
+    )
+    envelope = greeks_envelope(ticker)
+    assert envelope.payload.option_price is None
+    assert envelope.payload.pv_dividend is None
+    assert envelope.payload.underlying_price is None
+    assert envelope.quality_status is EnvelopeQuality.VALID
+
+
+@pytest.mark.parametrize("missing", ["impliedVol", "delta", "gamma", "vega", "theta"])
+def test_any_missing_risk_field_degrades_to_partial(missing: str) -> None:
+    """Each of the five risk fields is required: losing one degrades the whole."""
+    computation = dict(impliedVol=0.31, delta=0.55, gamma=0.04, vega=0.12, theta=-0.05)
+    del computation[missing]
+    ticker = FakeTicker(
+        bid=1.0, ask=1.2, last=1.1, modelGreeks=FakeComputation(**computation)
+    )
+    assert greeks_envelope(ticker).quality_status is EnvelopeQuality.PARTIAL
+
+
+def test_greeks_with_only_context_fields_are_insufficient_data() -> None:
+    """No risk field at all is INSUFFICIENT_DATA, never PARTIAL and never VALID."""
+    ticker = FakeTicker(
+        bid=1.0,
+        ask=1.2,
+        last=1.1,
+        modelGreeks=FakeComputation(optPrice=1.15, undPrice=100.0, pvDividend=0.0),
+    )
+    envelope = greeks_envelope(ticker)
+    assert envelope.payload.underlying_price == Decimal("100.0")
+    assert envelope.quality_status is EnvelopeQuality.INSUFFICIENT_DATA
+
+
+def test_delayed_greeks_quality_is_derived_too() -> None:
+    """The delayed regime uses the same derivation: a lone greek is PARTIAL."""
+    ticker = FakeTicker(
+        marketDataType=3,
+        bid=1.0,
+        ask=1.2,
+        last=1.1,
+        modelGreeks=FakeComputation(delta=0.52),
+    )
+    envelope = greeks_envelope(ticker, market_data_type=3)
+    assert envelope.delay_status is DelayStatus.DELAYED
+    assert envelope.quality_status is EnvelopeQuality.PARTIAL
+
+
 # -- subscription lifecycle -------------------------------------------------
 
 
@@ -273,3 +390,28 @@ def test_market_data_type_is_requested_and_preserved() -> None:
     assert result.requested_market_data_type == 3
     assert result.reported_market_data_type == 3
     assert result.quote().market_data_type == 3
+
+
+# -- an ABSENT provider answer is not an EMPTY one --------------------------
+
+
+def test_empty_scan_is_a_real_answer_but_a_missing_one_is_not() -> None:
+    """Zero rows = the scan matched nothing (VALID); no answer = no evidence."""
+    definition = ScannerDefinition(
+        instrument="STK", location_code="STK.US.MAJOR", scan_code="TOP_PERC_GAIN"
+    )
+    empty = asyncio.run(make_adapter(FakeIB(scan_rows=())).scanner_run(definition))
+    assert empty.payload.rows == ()
+    assert empty.quality_status is EnvelopeQuality.VALID
+
+    missing = asyncio.run(make_adapter(FakeIB(scan_rows=None)).scanner_run(definition))
+    assert missing.quality_status is EnvelopeQuality.INSUFFICIENT_DATA
+
+
+def test_empty_news_provider_list_is_a_real_answer_but_a_missing_one_is_not() -> None:
+    empty = asyncio.run(make_adapter(FakeIB(providers=())).news_providers())
+    assert empty.payload.providers == ()
+    assert empty.quality_status is EnvelopeQuality.VALID
+
+    missing = asyncio.run(make_adapter(FakeIB(providers=None)).news_providers())
+    assert missing.quality_status is EnvelopeQuality.INSUFFICIENT_DATA

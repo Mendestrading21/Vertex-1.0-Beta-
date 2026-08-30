@@ -10,7 +10,10 @@
  *    (naive timestamps are ambiguous -> rejected, fail-closed);
  *  - `values.nonce` is REQUIRED: schema v1 has no top-level nonce field and
  *    forbids additional properties, so the nonce travels inside `values`
- *    (allowed string map). The deduplication key is `alert_id + ":" + nonce`.
+ *    (allowed string map). The deduplication key is `alert_id + ":" + nonce`;
+ *  - `bar_time` must not follow `sent_at` by more than MAX_BAR_TIME_AHEAD_MS:
+ *    a bar cannot close after the alert that reports it. Kept identical to the
+ *    Python mirror (apps/ingress-tradingview/src/vertex_ingress_tv/schema.py).
  *
  * The alert `price` is TradingView context only. It is NEVER authoritative:
  * no financial computation happens here or downstream of this module.
@@ -55,6 +58,9 @@ const TIMESTAMP_RE =
   /^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]{1,9})?(?:Z|[+-][0-9]{2}:[0-9]{2})$/;
 
 const MAX_VALUES_PROPERTIES = 40;
+
+/** Tolerated skew between the TradingView `bar_time` and `sent_at` clocks. */
+export const MAX_BAR_TIME_AHEAD_MS = 60_000;
 
 function isPlainString(value, minLen, maxLen) {
   return (
@@ -106,6 +112,10 @@ export function validateAlertPayload(payload) {
   if (sentAtMs === null) return { ok: false, reason: "invalid_sent_at" };
   const barTimeMs = parseUtcTimestampMs(payload.bar_time);
   if (barTimeMs === null) return { ok: false, reason: "invalid_bar_time" };
+  // Ingress policy: a bar cannot close after the alert reporting it.
+  if (barTimeMs - sentAtMs > MAX_BAR_TIME_AHEAD_MS) {
+    return { ok: false, reason: "bar_time_after_sent_at" };
+  }
 
   if (!isPlainString(payload.exchange, 1, 32)) {
     return { ok: false, reason: "invalid_exchange" };

@@ -13,6 +13,12 @@ Safety invariants enforced here (ADR-004, docs/04-integrations/IBKR.md):
   (ticks 10-13) and delayed ones (ticks 80-83) are DISTINCT observations and
   the reported market-data type is preserved verbatim;
 - ``-1``/``-2``/NaN sentinels and absent values stay ``None`` — never zero;
+- every envelope quality is DERIVED from the required fields actually
+  received (``_derive_quality``), never assumed by the call site: an
+  incomplete quote AND an incomplete option computation both degrade to
+  ``PARTIAL`` so the snapshot gate can see it;
+- an empty provider answer (zero rows, zero providers) is a real answer;
+  a MISSING answer (``None``) is ``INSUFFICIENT_DATA`` — the two never merge;
 - every subscription opened by a snapshot is cancelled in ``finally``.
 
 This module is the only one importing ``ib_async``; domain code never does.
@@ -66,7 +72,13 @@ from vertex_edge_ibkr.port import (
 )
 from vertex_edge_ibkr.state import ConnectionStateMachine
 
-__all__ = ["IbAsyncInformationAdapter", "LOOPBACK_HOST", "DEFAULT_CLIENT_ID"]
+__all__ = [
+    "CONTEXT_GREEK_FIELDS",
+    "DEFAULT_CLIENT_ID",
+    "IbAsyncInformationAdapter",
+    "LOOPBACK_HOST",
+    "REQUIRED_GREEK_FIELDS",
+]
 
 #: The only host this adapter will ever talk to.
 LOOPBACK_HOST = "127.0.0.1"
@@ -89,8 +101,50 @@ _DELAY_BY_TYPE = {
 }
 
 
+#: Option-computation fields REQUIRED for a VALID greeks observation: the risk
+#: set every downstream option evaluation consumes. Losing any one of them
+#: makes the observation incomplete, so the envelope degrades to PARTIAL and
+#: ``evaluate_snapshot_fresh_and_coherent`` reports PARTIAL_SNAPSHOT.
+REQUIRED_GREEK_FIELDS: tuple[str, ...] = (
+    "implied_volatility",
+    "delta",
+    "gamma",
+    "vega",
+    "theta",
+)
+
+#: Provider CONTEXT fields: IBKR legitimately omits them (no dividend, a
+#: non-model basis), so their absence never downgrades the observation.
+#: Requiring them would degrade nearly every real computation and turn the
+#: degradation signal into noise. They still count as content: an observation
+#: carrying only context is emitted, and derived INSUFFICIENT_DATA.
+CONTEXT_GREEK_FIELDS: tuple[str, ...] = (
+    "option_price",
+    "pv_dividend",
+    "underlying_price",
+)
+
+
 def _utc_now() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def _derive_quality(required: tuple[Optional[Decimal], ...]) -> EnvelopeQuality:
+    """Derive an envelope quality from the REQUIRED fields of one observation.
+
+    The SAME rule serves every observation kind (top-of-book quote, option
+    computation): all required fields present -> ``VALID``; some present ->
+    ``PARTIAL`` (the snapshot gate degrades); none -> ``INSUFFICIENT_DATA``.
+    A quality is always derived from the evidence actually received, never
+    assumed by the call site (CONSTITUTION §4).
+    """
+    if not required:
+        raise ValueError("a quality cannot be derived from an empty required-field set")
+    if all(value is not None for value in required):
+        return EnvelopeQuality.VALID
+    if any(value is not None for value in required):
+        return EnvelopeQuality.PARTIAL
+    return EnvelopeQuality.INSUFFICIENT_DATA
 
 
 def _is_unset(value: Any) -> bool:
@@ -418,6 +472,9 @@ class IbAsyncInformationAdapter:
             scanCode=definition.scan_code,
         )
         rows = await self._ib.reqScannerDataAsync(subscription)
+        # ``None`` = the provider answered nothing; ``()`` = the scan matched
+        # nothing. Absent and zero are never the same evidence.
+        answered = rows is not None
         entries: list[ScannerRow] = []
         for row in rows or ():
             details = getattr(row, "contractDetails", None)
@@ -440,7 +497,7 @@ class IbAsyncInformationAdapter:
             con_id=None,
             observed_at=None,
             delay_status=DelayStatus.UNKNOWN,
-            quality=EnvelopeQuality.VALID,
+            quality=EnvelopeQuality.VALID if answered else EnvelopeQuality.INSUFFICIENT_DATA,
             stale_seconds=self._quote_stale,
         )
 
@@ -448,6 +505,9 @@ class IbAsyncInformationAdapter:
 
     async def news_providers(self) -> DataEnvelope:
         providers = await self._ib.reqNewsProvidersAsync()
+        # Same rule as the scanner: no answer at all is INSUFFICIENT_DATA, an
+        # empty provider list is a real (VALID) answer.
+        answered = providers is not None
         payload = NewsProvidersPayload(
             providers=tuple(
                 NewsProviderInfo(code=item.code, name=item.name or None)
@@ -459,7 +519,7 @@ class IbAsyncInformationAdapter:
             con_id=None,
             observed_at=None,
             delay_status=DelayStatus.UNKNOWN,
-            quality=EnvelopeQuality.VALID,
+            quality=EnvelopeQuality.VALID if answered else EnvelopeQuality.INSUFFICIENT_DATA,
             stale_seconds=self._reference_stale,
         )
 
@@ -626,13 +686,7 @@ class IbAsyncInformationAdapter:
             average_option_volume=_size(getattr(ticker, "avOptionVolume", None)),
             option_implied_volatility_30d=_non_negative(getattr(ticker, "impliedVolatility", None)),
         )
-        core_fields = (quote.bid, quote.ask, quote.last)
-        if all(value is not None for value in core_fields):
-            quality = EnvelopeQuality.VALID
-        elif any(value is not None for value in core_fields):
-            quality = EnvelopeQuality.PARTIAL
-        else:
-            quality = EnvelopeQuality.INSUFFICIENT_DATA
+        quality = _derive_quality((quote.bid, quote.ask, quote.last))
         envelopes = [
             self._envelope(
                 quote,
@@ -670,16 +724,7 @@ class IbAsyncInformationAdapter:
             )
             has_content = any(
                 getattr(observation, name) is not None
-                for name in (
-                    "implied_volatility",
-                    "delta",
-                    "gamma",
-                    "vega",
-                    "theta",
-                    "option_price",
-                    "pv_dividend",
-                    "underlying_price",
-                )
+                for name in REQUIRED_GREEK_FIELDS + CONTEXT_GREEK_FIELDS
             )
             if not has_content:
                 continue
@@ -689,7 +734,11 @@ class IbAsyncInformationAdapter:
                     con_id=con_id,
                     observed_at=observed_at,
                     delay_status=delay,
-                    quality=EnvelopeQuality.VALID,
+                    # Derived exactly like the quote above: a computation with
+                    # 7 sentinels out of 8 must degrade, never pass as complete.
+                    quality=_derive_quality(
+                        tuple(getattr(observation, name) for name in REQUIRED_GREEK_FIELDS)
+                    ),
                     stale_seconds=self._quote_stale,
                 )
             )

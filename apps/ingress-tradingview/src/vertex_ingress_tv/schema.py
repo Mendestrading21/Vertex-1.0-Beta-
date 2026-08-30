@@ -12,7 +12,11 @@ Ingress policy overlay (stricter than schema v1, never looser):
 - ``values.nonce`` is REQUIRED: schema v1 has no top-level ``nonce`` field and
   forbids additional properties, so the nonce travels inside ``values``
   (a string map the schema allows). The canonical deduplication key is
-  ``alert_id + ":" + nonce`` (``event_id``).
+  ``alert_id + ":" + nonce`` (``event_id``);
+- ``bar_time`` must not follow ``sent_at`` by more than
+  ``MAX_BAR_TIME_AHEAD``: a bar cannot close after the alert reporting it.
+  Without that bound ``bar_time`` is the one alert timestamp with no bound at
+  all, and it is persisted verbatim into the trigger record.
 
 The transported ``price`` is TradingView CONTEXT ONLY. It is never a market
 observation, never an authoritative price, and no financial computation is
@@ -40,6 +44,7 @@ from pydantic import (
 )
 
 __all__ = [
+    "MAX_BAR_TIME_AHEAD",
     "MAX_PAYLOAD_BYTES",
     "MAX_VALUES_PROPERTIES",
     "SCHEMA_ID",
@@ -54,6 +59,12 @@ SCHEMA_ID = "vertex.tradingview.alert.v1"
 MAX_PAYLOAD_BYTES = 16 * 1024
 MAX_VALUES_PROPERTIES = 40
 NONCE_KEY = "nonce"
+
+#: Tolerated skew when TradingView stamps ``bar_time`` and ``sent_at`` from its
+#: own clocks. Beyond it, a bar claiming to close AFTER the alert that reports
+#: it is incoherent evidence and is refused (fail-closed). The past side stays
+#: unbounded on purpose: a monthly bar legitimately opened long before.
+MAX_BAR_TIME_AHEAD = timedelta(seconds=60)
 
 _SCRIPT_VERSION_RE = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}\.[0-9]+$")
 _PRICE_RE = re.compile(r"^-?[0-9]+(?:\.[0-9]+)?$")
@@ -197,6 +208,16 @@ class TradingViewAlertV1(BaseModel):
         nonce = self.values[NONCE_KEY]
         if not isinstance(nonce, str) or not _NONCE_RE.match(nonce):
             raise ValueError("invalid_nonce: values.nonce must match ^[A-Za-z0-9._-]{8,64}$")
+        return self
+
+    @model_validator(mode="after")
+    def _check_bar_time_coherence(self) -> "TradingViewAlertV1":
+        # Ingress policy: a bar cannot close after the alert reporting it.
+        if self.bar_time - self.sent_at > MAX_BAR_TIME_AHEAD:
+            raise ValueError(
+                "bar_time_after_sent_at: bar_time must not follow sent_at by more "
+                f"than {int(MAX_BAR_TIME_AHEAD.total_seconds())}s"
+            )
         return self
 
     @property

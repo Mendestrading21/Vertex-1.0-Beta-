@@ -171,6 +171,35 @@ class TestRejections:
         assert "price" in exc.detail  # field path only
 
 
+class TestBarTimeIsBoundedBySentAt:
+    """A bar cannot close after the alert that reports it (policy overlay).
+
+    ``bar_time`` is the only alert timestamp with no bound at all: it is
+    persisted verbatim into the trigger record and read downstream. An alert
+    claiming a bar in 2126 must not become a stored fact.
+    """
+
+    def test_bar_time_far_after_sent_at_is_rejected(self) -> None:
+        reject(
+            make_alert_payload(sent_at="2026-08-29T11:59:30Z", bar_time="2126-08-29T11:55:00Z"),
+            "contract_violation",
+        )
+
+    def test_bar_time_before_sent_at_is_accepted(self) -> None:
+        # A weekly bar opened long before the alert fired stays valid.
+        alert = parse_alert(
+            make_alert_payload(sent_at="2026-08-29T11:59:30Z", bar_time="2026-08-24T00:00:00Z")
+        )
+        assert alert.bar_time < alert.sent_at
+
+    def test_small_provider_skew_is_tolerated(self) -> None:
+        # TradingView stamps bar_time and sent_at from its own clocks.
+        alert = parse_alert(
+            make_alert_payload(sent_at="2026-08-29T11:59:30Z", bar_time="2026-08-29T11:59:31Z")
+        )
+        assert alert.bar_time > alert.sent_at
+
+
 class TestSentAtWindow:
     def _alert(self, sent_at: str) -> TradingViewAlertV1:
         return parse_alert(make_alert_payload(sent_at=sent_at))
