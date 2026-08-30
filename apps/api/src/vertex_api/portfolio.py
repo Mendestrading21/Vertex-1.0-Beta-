@@ -60,6 +60,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from vertex_api.auth.db import open_db_session
+from vertex_api.snapshot_views import checked_relayed_content
 from vertex_core.contracts.types import (
     ContractModel,
     CurrencyCode,
@@ -88,6 +89,8 @@ __all__ = [
     "DEFAULT_PORTFOLIO_NAME",
     "EXPORT_SCHEMA_VERSION",
     "IMPORT_COLUMNS",
+    "MAX_DECIMAL_MAGNITUDE_EXPONENT",
+    "MAX_DECIMAL_SCALE",
     "MAX_IMPORT_BYTES",
     "MAX_IMPORT_ROWS",
     "SNAPSHOT_KIND_PORTFOLIO_VALUATION",
@@ -116,6 +119,7 @@ __all__ = [
     "RecordTransactionResponse",
     "ValidatedImportRow",
     "build_portfolio_response",
+    "decimal_magnitude_is_recordable",
     "detect_potential_duplicates",
     "import_row_hash",
     "neutralize_csv_cell",
@@ -151,6 +155,48 @@ EXPORT_SCHEMA_VERSION = "vertex.portfolio-ledger-export/1.0"
 
 MAX_IMPORT_BYTES = 256 * 1024
 MAX_IMPORT_ROWS = 500
+
+MAX_DECIMAL_MAGNITUDE_EXPONENT = 24
+"""Magnitude ceiling of every DECLARED decimal: ``|value| < 10**24``.
+
+Why a ceiling exists at all. ``Decimal`` accepts any exponent the machine can
+hold, and ``Decimal("1E+99999999")`` is perfectly ``is_finite()``; the only
+remaining limit was the memory of the machine, and ``_decimal_text`` renders
+the exponent as digits. 500 declared rows (the row budget) carrying
+``1E+200000`` fitted in 26 KiB — well under ``MAX_IMPORT_BYTES`` — and produced
+95 MiB of response. A byte budget on the INPUT bounds nothing when a single
+cell can expand by five orders of magnitude, so the magnitude itself is
+bounded, before anything is formatted.
+
+Why 10**24, and why that refusal is defendable. The manual journal is the
+user's ONLY source of truth: Vertex must not decide for them what is "too
+much". The ceiling is therefore placed where no declaration can honestly
+reach, whatever the currency:
+
+- ~10**20 is the largest nominal figure ever issued in a real currency
+  (the 10**20 pengő note, Hungary 1946) — four decades of headroom;
+- ~10**14 USD is the world's entire broad money supply — ten decades;
+- ~10**11 USD is the largest personal fortune ever recorded — thirteen
+  decades.
+
+A figure above 10**24 is not a declaration, it is a typing or paste accident,
+and recording it corrupts every valuation and performance series downstream.
+"""
+
+MAX_DECIMAL_SCALE = 18
+"""Granularity floor of every DECLARED decimal: at most 18 decimal places.
+
+The mirror of the ceiling — ``1E-200000`` renders to 200 002 characters just
+like ``1E+200000`` — and it also bounds the coefficient: with the ceiling
+above, a value written in full carries at most 24 + 18 digits, so
+``format(value, "f")`` never exceeds 44 characters.
+
+18 decimal places is the finest granularity any financial system uses (the
+attounit/wei), ten decades finer than the finest brokerage fractional-share
+grain (10**-8) and fourteen finer than the finest currency minor unit
+(10**-4). Trailing zeros are counted as declared, so a spreadsheet export
+rendering a float over 17 significant digits still passes.
+"""
 
 IMPORT_COLUMNS: tuple[str, ...] = (
     "kind",
@@ -197,6 +243,7 @@ ERROR_EFFECTIVE_AT_IN_FUTURE = "EFFECTIVE_AT_IN_FUTURE"
 ERROR_CSV_TOO_LARGE = "CSV_TOO_LARGE"
 ERROR_CSV_TOO_MANY_ROWS = "CSV_TOO_MANY_ROWS"
 ERROR_CSV_HEADER_INVALID = "CSV_HEADER_INVALID"
+ERROR_CSV_MALFORMED = "CSV_MALFORMED"
 ERROR_ECHO_HASH_MISMATCH = "ECHO_HASH_MISMATCH"
 ERROR_IMPORT_ROW_INVALID = "IMPORT_ROW_INVALID"
 
@@ -214,6 +261,14 @@ ROW_ERROR_INVALID_FEES = "INVALID_FEES"
 ROW_ERROR_INVALID_EFFECTIVE_AT = "INVALID_EFFECTIVE_AT"
 ROW_ERROR_EFFECTIVE_AT_IN_FUTURE = "EFFECTIVE_AT_IN_FUTURE"
 ROW_ERROR_NOTE_TOO_LONG = "NOTE_TOO_LONG"
+ROW_ERROR_QUANTITY_OUT_OF_RANGE = "QUANTITY_OUT_OF_RANGE"
+ROW_ERROR_PRICE_OUT_OF_RANGE = "PRICE_OUT_OF_RANGE"
+ROW_ERROR_AMOUNT_OUT_OF_RANGE = "AMOUNT_OUT_OF_RANGE"
+ROW_ERROR_FEES_OUT_OF_RANGE = "FEES_OUT_OF_RANGE"
+"""Out-of-range magnitudes get their OWN codes, distinct from the malformed
+``INVALID_*`` ones: the row parses, its magnitude is what is refused. Each
+code names the FIELD and ``ImportRowError.row_number`` names the ROW — the
+refused value itself never travels back."""
 
 
 # ---------------------------------------------------------------------------
@@ -259,8 +314,23 @@ class RecordTransactionRequest(ContractModel):
             ("amount", self.amount),
             ("fees", self.fees),
         ):
-            if value is not None and not value.is_finite():
+            if value is None:
+                continue
+            if not value.is_finite():
                 raise ValueError(f"{label}: non-finite decimal rejected")
+            # ``is_finite()`` alone bounded nothing: ``1E+200000`` IS finite,
+            # and one such field reached the ledger INSERT, where PostgreSQL
+            # refused it with a DataError whose text quoted the whole row.
+            # The magnitude window is the same one the CSV codec applies —
+            # see ``decimal_magnitude_is_recordable``. The message names the
+            # FIELD and the WINDOW, never the refused value.
+            if not decimal_magnitude_is_recordable(value):
+                raise ValueError(
+                    f"{label}: {label.upper()}_OUT_OF_RANGE — a declared "
+                    f"decimal must be below 1E+{MAX_DECIMAL_MAGNITUDE_EXPONENT} "
+                    f"in magnitude with at most {MAX_DECIMAL_SCALE} decimal "
+                    "places"
+                )
         if self.fees < 0:
             raise ValueError("fees: negative fees rejected")
         if self.quantity is not None and self.quantity <= 0:
@@ -530,7 +600,36 @@ def _denormalize_csv_cell(value: str) -> str:
     return value
 
 
+def decimal_magnitude_is_recordable(value: Decimal) -> bool:
+    """Is this declared decimal within the recordable magnitude window?
+
+    The SINGLE truth of the bound, applied by the journal DTO
+    (:class:`RecordTransactionRequest`) and by the CSV codec alike, so no
+    write path can reach ``_decimal_text`` with an unbounded exponent.
+
+    Accepts a finite value whose magnitude is below
+    ``10**MAX_DECIMAL_MAGNITUDE_EXPONENT`` and whose declared granularity is
+    no finer than ``10**-MAX_DECIMAL_SCALE``. ``Decimal.adjusted()`` is the
+    base-10 exponent of the leading digit and ``as_tuple().exponent`` the
+    declared scale: both are read from the coefficient WITHOUT expanding it,
+    which is the whole point — the check must cost nothing on the very input
+    it refuses.
+    """
+    if not value.is_finite():
+        return False
+    exponent = value.as_tuple().exponent
+    if not isinstance(exponent, int) or exponent < -MAX_DECIMAL_SCALE:
+        return False
+    return value.adjusted() < MAX_DECIMAL_MAGNITUDE_EXPONENT
+
+
 def _decimal_text(value: Decimal) -> str:
+    """Render an ALREADY BOUNDED decimal in full positional notation.
+
+    Every caller must have passed :func:`decimal_magnitude_is_recordable`
+    first: ``format(value, "f")`` materializes the exponent as digits, so it
+    is the amplification primitive this module bounds upstream.
+    """
     return format(value, "f")
 
 
@@ -579,34 +678,53 @@ def validate_import_fields(
         else:
             errors.append(ROW_ERROR_INVALID_TICKER)
 
-    def _parse_decimal(label_error: str, raw: str) -> Optional[Decimal]:
+    def _parse_decimal(
+        invalid_error: str, range_error: str, raw: str
+    ) -> Optional[Decimal]:
+        """Parse one declared decimal, MAGNITUDE BOUND INCLUDED.
+
+        ``Decimal(raw)`` itself is cheap whatever the exponent (the exponent
+        stays an ``int``); what is not cheap is ``_decimal_text``. The bound
+        is therefore applied here, before the value can reach the canonical
+        rendering, and it yields its OWN code so the user can tell a
+        malformed cell from an out-of-range one.
+        """
         try:
             value = Decimal(raw)
-        except InvalidOperation:
-            errors.append(label_error)
+        except (InvalidOperation, ValueError):
+            errors.append(invalid_error)
             return None
         if not value.is_finite():
-            errors.append(label_error)
+            errors.append(invalid_error)
+            return None
+        if not decimal_magnitude_is_recordable(value):
+            errors.append(range_error)
             return None
         return value
 
     quantity: Optional[Decimal] = None
     if quantity_text:
-        quantity = _parse_decimal(ROW_ERROR_INVALID_QUANTITY, quantity_text)
+        quantity = _parse_decimal(
+            ROW_ERROR_INVALID_QUANTITY, ROW_ERROR_QUANTITY_OUT_OF_RANGE, quantity_text
+        )
         if quantity is not None and quantity <= 0:
             errors.append(ROW_ERROR_INVALID_QUANTITY)
             quantity = None
 
     price: Optional[Decimal] = None
     if price_text:
-        price = _parse_decimal(ROW_ERROR_INVALID_PRICE, price_text)
+        price = _parse_decimal(
+            ROW_ERROR_INVALID_PRICE, ROW_ERROR_PRICE_OUT_OF_RANGE, price_text
+        )
         if price is not None and price < 0:
             errors.append(ROW_ERROR_INVALID_PRICE)
             price = None
 
     amount: Optional[Decimal] = None
     if amount_text:
-        amount = _parse_decimal(ROW_ERROR_INVALID_AMOUNT, amount_text)
+        amount = _parse_decimal(
+            ROW_ERROR_INVALID_AMOUNT, ROW_ERROR_AMOUNT_OUT_OF_RANGE, amount_text
+        )
     else:
         errors.append(ROW_ERROR_INVALID_AMOUNT)
 
@@ -615,7 +733,9 @@ def validate_import_fields(
 
     fees: Optional[Decimal] = None
     if fees_text:
-        fees = _parse_decimal(ROW_ERROR_INVALID_FEES, fees_text)
+        fees = _parse_decimal(
+            ROW_ERROR_INVALID_FEES, ROW_ERROR_FEES_OUT_OF_RANGE, fees_text
+        )
         if fees is not None and fees < 0:
             errors.append(ROW_ERROR_INVALID_FEES)
             fees = None
@@ -709,7 +829,21 @@ def parse_import_csv(
     if not lines:
         raise CsvImportError(ERROR_CSV_HEADER_INVALID, "csv input carries no header row")
     reader = csv.reader(io.StringIO("\n".join(lines)))
-    rows = list(reader)
+    try:
+        rows = list(reader)
+    except csv.Error as exc:
+        # The stdlib reader fails on its own terms — a cell above its
+        # 131 072-character field limit, an unterminated quote, an embedded
+        # NUL. All three fit under MAX_IMPORT_BYTES, so all three were
+        # reachable, and none of them is a ``CsvImportError``: they escaped
+        # this function and reached the DEFAULT exception handler as an
+        # UNTYPED 500, exactly like the database errors of P1-5. Malformed
+        # input is a client fault and gets a typed whole-input refusal; the
+        # stdlib message is dropped rather than relayed, since it is the one
+        # thing here that could quote a fragment of the submitted file.
+        raise CsvImportError(
+            ERROR_CSV_MALFORMED, "csv input is not readable as delimited text"
+        ) from exc
     header = [cell.strip() for cell in rows[0]] if rows else []
     # Every required column must be present by NAME (any order); unknown
     # columns — e.g. the export's id/recorded_at/source/compensates — are
@@ -1112,7 +1246,23 @@ def build_portfolio_response(overview: PortfolioOverview) -> PortfolioResponse:
             state="ok",
             snapshot_version=overview.valuation.version,
             as_of=overview.valuation.as_of,
-            content=dict(overview.valuation.content),
+            # Le contenu de valorisation était relayé sans AUCUNE validation :
+            # 100 % de ses champs chaîne passaient verbatim, valeurs monétaires
+            # et étiquette `population` comprises. Il subit désormais le même
+            # contrat de classe que les autres relais.
+            #
+            # 6e audit — le contrat de classe ne suffisait pas ici. La nature
+            # que `vertex_worker.portfolio` publie n'est pas `population` mais
+            # `mark_population` (MARK_POPULATION_SYNTHETIC) : le garde de
+            # vocabulaire fermé et de contradiction interne, posé sur la clé
+            # LITTÉRALE `population`, la laissait passer en texte libre. Une
+            # valorisation réétiquetée `mark_population = "REAL"` alors que ses
+            # marks portent toujours `rights = SYNTHETIC` remontait jusqu'au
+            # bandeau « DONNÉES RÉELLES » de `PortfolioPage`. `checked_relayed_
+            # content` traite désormais la nature comme une CLASSE de champs
+            # (voir `snapshot_views.NATURE_LEAF_KEYS`) ; ce relais échoue donc
+            # fermé sur cette charge au lieu de la servir.
+            content=dict(checked_relayed_content(overview.valuation.content)),
             reason=None,
         )
 

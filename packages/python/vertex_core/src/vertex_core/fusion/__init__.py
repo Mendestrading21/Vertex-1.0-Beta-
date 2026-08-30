@@ -15,8 +15,10 @@ from vertex_core.fusion.dedup import (
     FusionResult,
     RULE_CANONICAL_URL,
     RULE_FINGERPRINT,
+    POLARITY_MARKERS,
     RULE_KEPT_DISTINCT,
     RULE_NATIVE_ID,
+    RULE_POLARITY_CONFLICT,
     RULE_SIMILARITY_FLAG,
     SIMILARITY_MIN_JACCARD_PERCENT,
     SIMILARITY_MIN_SHARED_ENTITIES,
@@ -27,9 +29,12 @@ from vertex_core.fusion.dedup import (
     fusion_result_hash,
     normalize_canonical_url,
     normalize_title,
+    opposed_markers,
     title_fingerprint,
+    title_polarity_markers,
 )
 from vertex_core.fusion.models import (
+    REVERSIBLE_FLAG_ACTIONS,
     ContentCluster,
     ContentObservation,
     FusionAction,
@@ -64,6 +69,7 @@ from vertex_core.fusion.relevance import (
 
 __all__ = [
     # models
+    "REVERSIBLE_FLAG_ACTIONS",
     "ContentCluster",
     "ContentObservation",
     "FusionAction",
@@ -76,8 +82,10 @@ __all__ = [
     "FusionResult",
     "RULE_CANONICAL_URL",
     "RULE_FINGERPRINT",
+    "POLARITY_MARKERS",
     "RULE_KEPT_DISTINCT",
     "RULE_NATIVE_ID",
+    "RULE_POLARITY_CONFLICT",
     "RULE_SIMILARITY_FLAG",
     "SIMILARITY_MIN_JACCARD_PERCENT",
     "SIMILARITY_MIN_SHARED_ENTITIES",
@@ -88,7 +96,9 @@ __all__ = [
     "fusion_result_hash",
     "normalize_canonical_url",
     "normalize_title",
+    "opposed_markers",
     "title_fingerprint",
+    "title_polarity_markers",
     # relevance
     "ATTENTION_BUDGETS",
     "GATE_IDENTITY_OK",

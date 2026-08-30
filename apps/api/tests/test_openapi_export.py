@@ -79,6 +79,14 @@ def test_openapi_structure_is_explicit() -> None:
         # Performance (page 10): verbatim snapshot relay + reproducible export.
         "get_performance",
         "export_performance",
+        # Calendar (page 02) and opportunities funnel (page 04): verbatim
+        # snapshot relays, bounded window for the agenda.
+        "get_calendar",
+        "get_opportunities",
+        # Vertex AI (page 11): DETERMINISTIC template only while the AI
+        # provider decision (B-05) is pending — no model is called.
+        "post_ai_explain",
+        "get_ai_status",
         "post_auth_register_options",
         "post_auth_register_verify",
         "post_auth_login_options",

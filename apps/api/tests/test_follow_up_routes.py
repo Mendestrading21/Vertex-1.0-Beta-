@@ -3,6 +3,14 @@
 Gateway, snapshot reader and clock are injected through
 ``app.dependency_overrides``; the real path (repository idempotence, outbox
 atomicity, worker drain) runs in ``tests_integration/test_follow_up_api_e2e.py``.
+
+Third re-audit (P1-G): ``GET /api/v1/follow-up/queue`` published
+``dict(snapshot.content)`` with no shape check, so any string-keyed payload
+was served ``200 state="ok"``. The queue fixture below is therefore the
+COMPLETE shape ``vertex_worker.follow_up.build_review_queue_content`` really
+publishes — an approximate fixture would have made the new shape check look
+satisfied while proving nothing. The forged variants live in
+``test_snapshot_content_errors.py``.
 """
 
 from __future__ import annotations
@@ -33,17 +41,84 @@ VALID_THESIS = {
     "instrument": {"ticker": "SYN-TECH-01"},
 }
 
+QUEUE_CONTENT = {
+    "schema_version": "vertex.review-queue/1.0",
+    "as_of": FIXED_NOW.isoformat(),
+    # Two SEPARATE population labels, never merged into one.
+    "populations": {"theses": "USER_DECLARED", "information_context": "SYNTHETIC"},
+    "ordering": {
+        "method": "lexicographic",
+        "keys": ["effective_review_due_at asc", "thesis_id asc"],
+        "note": "new information raises urgency but never rewrites the thesis",
+    },
+    "theses": [
+        {
+            "thesis": {
+                "id": 1,
+                "portfolio_id": None,
+                "instrument": {"ticker": "SYN-TECH-01"},
+                "title": "SYNTHETIC thesis",
+                "hypotheses": "[SYNTHETIC] the synthetic sector keeps its breadth",
+                "invalidation": "[SYNTHETIC] breadth below 40% for five sessions",
+                "horizon": "3m",
+                "review_due_at": FIXED_NOW.isoformat(),
+                "created_at": FIXED_NOW.isoformat(),
+            },
+            "state": {
+                "status": "ACTIVE",
+                "review_due_at": FIXED_NOW.isoformat(),
+                "is_due": True,
+                "snooze_until": None,
+                "last_reviewed_at": None,
+                "last_action": "CREATED",
+                "last_recorded_at": FIXED_NOW.isoformat(),
+                "revision_count": 1,
+            },
+            "instrument_ticker": "SYN-TECH-01",
+            "information_context": {"population": "SYNTHETIC", "clusters": []},
+            "has_new_information": True,
+            "urgency_reasons": [
+                {
+                    "code": "NEW_INFORMATION_SINCE_LAST_REVIEW",
+                    "cluster_id": "synthetic-cluster-1",
+                }
+            ],
+        }
+    ],
+    "due": [
+        {
+            "rank": 1,
+            "thesis_id": 1,
+            "title": "SYNTHETIC thesis",
+            "review_due_at": FIXED_NOW.isoformat(),
+            "overdue_seconds": 0,
+            "last_recorded_at": FIXED_NOW.isoformat(),
+            "has_new_information": True,
+            "urgency_reasons": [
+                {
+                    "code": "NEW_INFORMATION_SINCE_LAST_REVIEW",
+                    "cluster_id": "synthetic-cluster-1",
+                }
+            ],
+        }
+    ],
+    "coverage": {
+        "theses_total": 1,
+        "due_count": 1,
+        "theses_with_instrument": 1,
+        "theses_with_new_information": 1,
+        "observations_considered": 4,
+        "content_observations": 2,
+        "clusters": 1,
+        "lookback_seconds": 259200,
+    },
+}
+
 QUEUE_SNAPSHOT = CurrentSnapshot(
     kind="review_queue",
     key="global",
     version=3,
-    content={
-        "schema_version": "vertex.review-queue/1.0",
-        "as_of": FIXED_NOW.isoformat(),
-        "populations": {"theses": "USER_DECLARED", "information_context": "SYNTHETIC"},
-        "theses": [{"thesis": {"id": 1}}],
-        "due": [{"rank": 1, "thesis_id": 1, "has_new_information": True}],
-    },
+    content=QUEUE_CONTENT,
     content_hash="sha256:" + "0" * 64,
     as_of=FIXED_NOW,
 )

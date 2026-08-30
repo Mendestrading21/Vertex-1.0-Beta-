@@ -232,3 +232,88 @@ class TestQuotesAndCoverage:
             coverage["content_observations"] + coverage["non_content_observations"]
             == coverage["observations_considered"]
         )
+
+
+def polarity_record(number: int, *, title: str, native_id: str) -> ObservationRecord:
+    """A DEMO record sharing ``native_id`` with its twin (level-1 cluster)."""
+    published = BASE_TIME + timedelta(seconds=45 * number)
+    return ObservationRecord(
+        event_id=f"demo:{number:04d}",
+        source=DEMO_SOURCE,
+        source_event_id=native_id,
+        instrument_ref="SPX",
+        published_at=published,
+        received_at=published + timedelta(seconds=10),
+        as_of=published + timedelta(seconds=10),
+        quality_status="VALID",
+        rights=DEMO_RIGHTS,
+        schema_version="demo-news/1.0",
+        payload={"type": "news", "title": title, "entities": ["SPX"]},
+    )
+
+
+DEMO_ONLY_CONFIG = FusionConfig(
+    allowed_sources=frozenset({DEMO_SOURCE}),
+    usable_rights=frozenset({DEMO_RIGHTS}),
+)
+
+
+class TestPolarityConflictIsNeverResolvedByElection:
+    """A cluster holding two opposite polarities must not be represented by
+    one blindly elected member: a rise would be published in place of a fall
+    with no contradiction visible anywhere."""
+
+    def _conflicted(self):
+        return [
+            polarity_record(1, title="SPX -3,2 % sur la seance", native_id="n-spx"),
+            polarity_record(2, title="SPX +3,2 % sur la seance", native_id="n-spx"),
+        ]
+
+    def test_conflicted_cluster_is_not_published_as_one_item(self) -> None:
+        content = build_attention_content(
+            self._conflicted(), now=NOW, config=DEMO_ONLY_CONFIG
+        )
+        assert content["coverage"]["clusters"] == 1
+        assert content["items"] == [], (
+            "one polarity was published as the representative of a "
+            f"contradictory cluster: {content['items']}"
+        )
+
+    def test_conflict_is_published_not_silently_dropped(self) -> None:
+        content = build_attention_content(
+            self._conflicted(), now=NOW, config=DEMO_ONLY_CONFIG
+        )
+        conflicts = content["conflicts"]
+        assert len(conflicts) == 1
+        conflict = conflicts[0]
+        assert conflict["kind"] == "POLARITY"
+        assert conflict["scope"] == "INTRA_CLUSTER"
+        assert sorted(conflict["member_event_ids"]) == ["demo:0001", "demo:0002"]
+        assert content["coverage"]["polarity_conflicts"] == 1
+        assert content["rejected"], "the conflicted cluster must be explained"
+
+    def test_agreeing_cluster_is_still_published(self) -> None:
+        """The fix must not reject ordinary clusters: same sign, one item."""
+        records = [
+            polarity_record(1, title="SPX -3,2 % sur la seance", native_id="n-spx"),
+            polarity_record(2, title="SPX -3,2 % a la cloture", native_id="n-spx"),
+        ]
+        content = build_attention_content(records, now=NOW, config=DEMO_ONLY_CONFIG)
+        assert content["coverage"]["clusters"] == 1
+        assert len(content["items"]) == 1
+        assert content["conflicts"] == []
+        assert content["coverage"]["polarity_conflicts"] == 0
+
+    def test_coverage_still_accounts_for_every_cluster(self) -> None:
+        records = [*self._conflicted(), demo_record(9)]
+        content = build_attention_content(records, now=NOW, config=DEMO_ONLY_CONFIG)
+        coverage = content["coverage"]
+        assert coverage["rejected"] == len(content["rejected"])
+        assert coverage["clusters"] == coverage["ranked"] + coverage["rejected"]
+
+    def test_conflicted_content_is_order_independent(self) -> None:
+        records = [*self._conflicted(), demo_record(9)]
+        shuffled = list(reversed(records))
+        first = build_attention_content(records, now=NOW, config=DEMO_ONLY_CONFIG)
+        second = build_attention_content(shuffled, now=NOW, config=DEMO_ONLY_CONFIG)
+        assert first == second

@@ -39,4 +39,12 @@ def main(target: Optional[Path] = None) -> Path:
 
 
 if __name__ == "__main__":
-    main()
+    # Une cible peut être passée en argument, pour exporter deux fois vers des
+    # chemins distincts et comparer les octets : c'est ainsi que le déterminisme
+    # se PROUVE. Sans cet argument, la porte CI qui promettait un « double
+    # export byte-identique » écrivait deux fois le même fichier canonique et
+    # ne comparait rien.
+    if len(sys.argv) > 2:
+        sys.stderr.write("usage: export_openapi.py [cible]\n")
+        raise SystemExit(2)
+    main(Path(sys.argv[1]) if len(sys.argv) == 2 else None)

@@ -118,3 +118,49 @@ def test_duplicate_event_id_enqueues_nothing(monkeypatch, envelope) -> None:
 def test_non_envelope_rejected() -> None:
     with pytest.raises(TypeError):
         ingest_envelope(RecordingSession(), {"event_id": "x"})  # type: ignore[arg-type]
+
+
+def test_calendar_event_enqueues_calendar_and_opportunities(monkeypatch) -> None:
+    from vertex_core.synthetic import generate_calendar_event_envelopes
+
+    envelope = generate_calendar_event_envelopes(seed=1, base_time=BASE_TIME)[0]
+    monkeypatch.setattr(ingest_module, "insert_observation", lambda s, **k: True)
+    enqueues: list[str] = []
+    monkeypatch.setattr(
+        ingest_module,
+        "enqueue_outbox",
+        lambda session, topic, payload: enqueues.append(topic) or 1,
+    )
+
+    ingest_envelope(RecordingSession(), envelope)
+
+    # Calendar job BEFORE opportunities job: a drained outbox recomputes the
+    # calendar snapshot before the opportunities handler reads catalysts.
+    assert enqueues == [
+        TOPIC_OBSERVATION_INGESTED,
+        "calendar.ingested",
+        "opportunities.refresh",
+        "review_queue.refresh",
+    ]
+
+
+def test_daily_bars_enqueue_analysis_and_opportunities(monkeypatch) -> None:
+    from vertex_core.synthetic import generate_daily_bar_envelopes
+
+    envelope = generate_daily_bar_envelopes(seed=1, base_time=BASE_TIME)[0]
+    monkeypatch.setattr(ingest_module, "insert_observation", lambda s, **k: True)
+    enqueues: list[str] = []
+    monkeypatch.setattr(
+        ingest_module,
+        "enqueue_outbox",
+        lambda session, topic, payload: enqueues.append(topic) or 1,
+    )
+
+    ingest_envelope(RecordingSession(), envelope)
+
+    assert enqueues == [
+        TOPIC_OBSERVATION_INGESTED,
+        "analysis.ingested",
+        "opportunities.refresh",
+        "review_queue.refresh",
+    ]

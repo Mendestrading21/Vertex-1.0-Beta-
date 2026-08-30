@@ -205,7 +205,12 @@ class TestRejections:
         assert store.records == {}
 
     def test_old_alert_rejected(self, orchestrator, queue, store, audit) -> None:
-        old = make_alert_payload(sent_at="2026-08-29T10:00:00Z")  # ~2h before receipt
+        # bar_time moves with sent_at so this case isolates the anti-replay
+        # window (an incoherent bar_time is a different, earlier refusal).
+        old = make_alert_payload(
+            sent_at="2026-08-29T10:00:00Z",  # ~2h before receipt
+            bar_time="2026-08-29T09:55:00Z",
+        )
         outcomes = self.push_and_ingest(orchestrator, queue, alert=old)
         assert [o.status for o in outcomes] == ["REJECTED"]
         assert outcomes[0].reason == "sent_at_too_old"
@@ -314,6 +319,36 @@ class TestRevalidation:
         assert outcomes[0].reason == "STALE_CONNECTION_EPOCH"
         assert store.get_state(EVENT_ID) is TriggerState.BLOCKED
 
+    def test_quote_observed_in_the_future_blocks(
+        self, orchestrator, queue, store, quotes, clock
+    ) -> None:
+        """Same class as the ``received_at`` defect, on the revalidation side.
+
+        Freshness is proved by ``observed_at >= trigger.received_at``, and
+        ``observed_at`` is provider-supplied. With no upper bound against the
+        ingress clock, a quote dated in the future proves freshness by
+        construction — the proof would be self-referential too.
+        """
+        self.ingest_one(orchestrator, queue)
+        quotes.responses = [
+            Quote(
+                observed_at=datetime(2126, 8, 29, 12, 0, 5, tzinfo=timezone.utc),
+                connection_epoch=1,
+            )
+        ]
+        outcomes = orchestrator.advance_pending()
+        assert [o.status for o in outcomes] == ["BLOCKED"]
+        assert outcomes[0].reason == "QUOTE_OBSERVED_IN_FUTURE"
+        assert store.get_state(EVENT_ID) is TriggerState.BLOCKED
+
+    def test_quote_inside_the_tolerated_skew_still_revalidates(
+        self, orchestrator, queue, store, quotes, clock
+    ) -> None:
+        """The bound is a skew tolerance, not a ban on being slightly ahead."""
+        self.ingest_one(orchestrator, queue)
+        quotes.responses = [fresh_quote(clock, epoch=1, offset_seconds=1.5)]
+        assert [o.status for o in orchestrator.advance_pending()] == ["REVALIDATED"]
+
     def test_naive_quote_timestamp_blocks_fail_closed(
         self, orchestrator, queue, store, quotes
     ) -> None:
@@ -372,6 +407,150 @@ class TestRevalidation:
         assert [o.status for o in outcomes] == ["REVALIDATED"]
 
 
+class TestReceivedAtIsBoundedByTheIngressClock:
+    """HP-02 must be anchored on a clock the ingress controls, not on the wire.
+
+    ``received_at`` is stamped by the Cloudflare Worker and travels in the
+    queue envelope: it is EXTERNAL input. The HP-02 hard deadline
+    (``received_at + 10 s``) and the anti-replay window
+    (``ensure_sent_at_in_window(reference=received_at)``) are both anchored on
+    it, so an unbounded ``received_at`` makes both self-referential and inert.
+    """
+
+    def push(self, queue, message_id, *, received_at, sent_at, bar_time=None):
+        alert = make_alert_payload(
+            sent_at=sent_at, bar_time=bar_time or sent_at, values={"nonce": "1787999700000"}
+        )
+        queue.push(make_message(message_id, alert, received_at=received_at))
+
+    def test_received_at_a_century_ahead_is_rejected(
+        self, orchestrator, queue, store, quotes, clock, audit
+    ) -> None:
+        """Reproducer: a 2126 receipt made the 10 000 ms deadline unreachable."""
+        self.push(
+            queue,
+            "msg-1",
+            received_at="2126-08-29T11:59:59Z",
+            sent_at="2126-08-29T11:59:30Z",
+        )
+        outcomes = orchestrator.pull_and_ingest()
+        assert [o.status for o in outcomes] == ["REJECTED"]
+        assert outcomes[0].reason == "received_at_in_future"
+        assert store.records == {}
+        assert orchestrator.pending_event_ids() == []
+        assert len(audit) == 1  # auditable, and the body never reaches the log
+        assert queue.is_acked("msg-1")
+
+    def test_deadline_stays_reachable_so_pending_always_drains(
+        self, orchestrator, queue, store, quotes, clock
+    ) -> None:
+        """``_pending`` is bounded in time: one clock advance drains all of it.
+
+        Twenty distinct alerts are ingested with the LATEST receipt the
+        ingress tolerates. Advancing the ingress clock past
+        ``max_received_at_skew + revalidation_deadline`` must terminate every
+        one of them — nothing can stay WAITING beyond that horizon.
+        """
+        quotes.responses = [None]  # IBKR never answers
+        for n in range(20):
+            alert = make_alert_payload(values={"nonce": f"178799970000{n}"})
+            queue.push(make_message(f"msg-{n}", alert, received_at="2026-08-29T12:00:02Z"))
+        # One message claims a receipt a century ahead: admitting it would put
+        # its deadline out of reach and leave it pending forever.
+        self.push(
+            queue,
+            "msg-forged",
+            received_at="2126-08-29T11:59:59Z",
+            sent_at="2126-08-29T11:59:30Z",
+        )
+        statuses = [o.status for o in orchestrator.pull_and_ingest(max_messages=21)]
+        assert statuses.count("PERSISTED") == 20
+        assert statuses.count("REJECTED") == 1
+        assert len(orchestrator.pending_event_ids()) == 20
+
+        clock.advance(2 + 10 + 0.001)  # max skew + HP-02 deadline
+        outcomes = orchestrator.advance_pending()
+        assert {o.status for o in outcomes} == {"EXPIRED"}
+        assert orchestrator.pending_event_ids() == []
+
+    def test_received_at_beyond_the_tolerated_skew_is_rejected(
+        self, orchestrator, queue, store, clock
+    ) -> None:
+        # Clock is 12:00:00; 2 s of skew is tolerated, 2.001 s is not.
+        self.push(
+            queue,
+            "msg-1",
+            received_at="2026-08-29T12:00:02.001Z",
+            sent_at="2026-08-29T11:59:30Z",
+        )
+        outcomes = orchestrator.pull_and_ingest()
+        assert [o.status for o in outcomes] == ["REJECTED"]
+        assert outcomes[0].reason == "received_at_in_future"
+        assert store.records == {}
+
+    def test_received_at_at_the_tolerated_skew_is_accepted(
+        self, orchestrator, queue, store, clock
+    ) -> None:
+        self.push(
+            queue,
+            "msg-1",
+            received_at="2026-08-29T12:00:02Z",
+            sent_at="2026-08-29T11:59:30Z",
+        )
+        outcomes = orchestrator.pull_and_ingest()
+        assert [o.status for o in outcomes] == ["PERSISTED"]
+
+    def test_received_at_older_than_the_replay_horizon_is_rejected(
+        self, orchestrator, queue, store, audit
+    ) -> None:
+        # Clock is 12:00:00; a receipt stamped 11:50:00 is 600 s old (> 300 s).
+        self.push(
+            queue,
+            "msg-1",
+            received_at="2026-08-29T11:50:00Z",
+            sent_at="2026-08-29T11:49:50Z",
+        )
+        outcomes = orchestrator.pull_and_ingest()
+        assert [o.status for o in outcomes] == ["REJECTED"]
+        assert outcomes[0].reason == "received_at_too_old"
+        assert store.records == {}
+        assert len(audit) == 1
+
+    def test_a_bounded_outage_backlog_is_still_routed_and_expires(
+        self, orchestrator, queue, store, quotes, clock
+    ) -> None:
+        """Inside the horizon the documented behaviour is unchanged.
+
+        A receipt 120 s old is still persisted and routed; it simply expires
+        on its HP-02 deadline instead of being re-qualified.
+        """
+        quotes.responses = [None]
+        self.push(
+            queue,
+            "msg-1",
+            received_at="2026-08-29T11:58:00Z",
+            sent_at="2026-08-29T11:57:55Z",
+        )
+        assert [o.status for o in orchestrator.pull_and_ingest()] == ["PERSISTED"]
+        outcomes = orchestrator.advance_pending()
+        assert [o.status for o in outcomes] == ["EXPIRED"]
+        assert outcomes[0].reason == "IBKR_QUOTE_DEADLINE_EXCEEDED"
+
+    def test_rejection_reasons_carry_no_payload_content(
+        self, orchestrator, queue, audit
+    ) -> None:
+        self.push(
+            queue,
+            "msg-1",
+            received_at="2126-08-29T11:59:59Z",
+            sent_at="2126-08-29T11:59:30Z",
+        )
+        orchestrator.pull_and_ingest()
+        serialized = f"{audit[0].reason_code}|{audit[0].detail}"
+        assert "123.45" not in serialized  # the transported price never leaks
+        assert "FAKE" not in serialized
+
+
 class TestConstruction:
     def test_non_positive_deadline_refused(self, queue, store, quotes, registry, clock) -> None:
         with pytest.raises(ValueError):
@@ -400,3 +579,28 @@ class TestConstruction:
         queue.push(make_message("msg-1"))
         with pytest.raises(Exception):
             orchestrator.pull_and_ingest()
+
+    @pytest.mark.parametrize(
+        "kwargs",
+        [
+            {"max_received_at_skew": timedelta(seconds=-1)},
+            {"max_received_at_skew": timedelta(seconds=10)},  # >= the HP-02 deadline
+            {"max_received_at_age": timedelta(0)},
+        ],
+    )
+    def test_received_at_bounds_are_validated(
+        self, queue, store, quotes, registry, clock, kwargs
+    ) -> None:
+        """A skew >= the HP-02 deadline would let the wire extend the deadline."""
+        with pytest.raises(ValueError):
+            TradingViewOrchestrator(
+                queue=queue,
+                store=store,
+                quote_provider=quotes,
+                registry=registry,
+                clock=clock,
+                epoch_provider=lambda: 1,
+                audit_sink=lambda r: None,
+                revalidation_deadline=timedelta(seconds=10.0),
+                **kwargs,
+            )

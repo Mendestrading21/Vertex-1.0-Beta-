@@ -20,9 +20,10 @@ a valid WebAuthn session cookie — plus the CSRF double-submit header on every
 mutation — or a generic 401 with code ``AUTH_REQUIRED``, fail-closed.
 """
 
-from typing import Annotated
+from datetime import datetime
+from typing import Annotated, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Path, Request
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import StreamingResponse
 from pydantic import ValidationError
@@ -30,8 +31,27 @@ from starlette.concurrency import run_in_threadpool
 
 from fastapi.responses import Response
 
+from vertex_api.ai_explain import (
+    ERROR_NO_SNAPSHOT_FOR_SUBJECT,
+    SUBJECT_SNAPSHOT_KINDS,
+    AiAnswer,
+    AiExplainRequest,
+    AiStatusResponse,
+    build_ai_answer,
+)
 from vertex_api.auth import require_session
+from vertex_api.calendar import (
+    SNAPSHOT_KIND_CALENDAR,
+    CalendarResponse,
+    build_calendar_response,
+    validate_window,
+)
 from vertex_api.capability_manifest import CapabilityManifest
+from vertex_api.opportunities import (
+    SNAPSHOT_KIND_OPPORTUNITIES,
+    OpportunitiesResponse,
+    build_opportunities_response,
+)
 from vertex_api.events import StreamSettings, get_stream_settings, snapshot_event_stream
 from vertex_api.portfolio import (
     ERROR_ALREADY_COMPENSATED,
@@ -369,6 +389,149 @@ def get_option_chain(
     return build_option_chain_response(snapshot, underlying=underlying)
 
 
+@protected_router.get(
+    "/calendar",
+    operation_id="get_calendar",
+    response_model=CalendarResponse,
+    summary="Last published calendar snapshot (or honest empty state)",
+    responses={
+        422: {
+            "description": (
+                "Rejected fail-closed window: WINDOW_INCOMPLETE (one bound "
+                "without the other), WINDOW_NAIVE_DATETIME, WINDOW_INVERTED "
+                "or WINDOW_TOO_LARGE (bounded to 90 days)."
+            )
+        }
+    },
+)
+def get_calendar(
+    reader: Annotated[SnapshotReader, Depends(get_snapshot_reader)],
+    window_from: Annotated[Optional[datetime], Query(alias="from")] = None,
+    window_to: Annotated[Optional[datetime], Query(alias="to")] = None,
+) -> CalendarResponse:
+    """Serve the LAST ``calendar/global`` snapshot exactly as persisted.
+
+    The API relays the worker's published agenda — importance from the
+    versioned rule, distinct ESTIMATED/CONFIRMED labels, revisions with
+    their preserved previous values, conserved exchange timezones and the
+    position/thesis event context — and computes nothing. The optional
+    ``from``/``to`` query window (both bounds, aware datetimes, at most 90
+    days) SELECTS events without altering any. With no snapshot ever
+    published the answer is a 200 with ``state = "empty"``.
+    """
+    window = validate_window(window_from, window_to)
+    snapshot = reader.current(kind=SNAPSHOT_KIND_CALENDAR, key=SNAPSHOT_KEY_GLOBAL)
+    return build_calendar_response(snapshot, window=window)
+
+
+@protected_router.get(
+    "/opportunities",
+    operation_id="get_opportunities",
+    response_model=OpportunitiesResponse,
+    summary="Last published opportunities snapshot (or honest empty state)",
+)
+def get_opportunities(
+    reader: Annotated[SnapshotReader, Depends(get_snapshot_reader)],
+) -> OpportunitiesResponse:
+    """Serve the LAST ``opportunities/global`` snapshot exactly as persisted.
+
+    The API relays the worker's published candidates — the single
+    ``AdviceEngine``'s statuses under the manifest profile (id + version),
+    the documented lexicographic ordering, the honest evidence-presence
+    checks and the exclusion-reason distribution — and computes nothing. A
+    relay guard refuses a snapshot carrying a closed candidate in the
+    qualified group. With no snapshot ever published the answer is a 200
+    with ``state = "empty"``.
+    """
+    snapshot = reader.current(
+        kind=SNAPSHOT_KIND_OPPORTUNITIES, key=SNAPSHOT_KEY_GLOBAL
+    )
+    return build_opportunities_response(snapshot)
+
+
+# ---------------------------------------------------------------------------
+# Vertex AI (page 11 — LOT-21 socle): deterministic template ONLY. No AI
+# provider exists (human decision B-05 pending); nothing here calls a model.
+# ---------------------------------------------------------------------------
+
+
+async def parse_ai_explain_request(request: Request) -> AiExplainRequest:
+    """Strict JSON-mode validation of the explain body (fail-closed 422)."""
+    raw_body = await request.body()
+    try:
+        return AiExplainRequest.model_validate_json(raw_body)
+    except ValidationError as exc:
+        raise RequestValidationError(
+            exc.errors(include_url=False, include_context=False, include_input=False)
+        ) from exc
+
+
+@protected_router.get(
+    "/ai/status",
+    operation_id="get_ai_status",
+    response_model=AiStatusResponse,
+    summary="AI provider state: DISABLED pending human decision B-05",
+)
+def get_ai_status() -> AiStatusResponse:
+    """Report the honest AI state: no provider, deterministic template only."""
+    return AiStatusResponse(
+        provider="DISABLED",
+        reason="B-05_HUMAN_DECISION_PENDING",
+        deterministic_template_available=True,
+    )
+
+
+@protected_router.post(
+    "/ai/explain",
+    operation_id="post_ai_explain",
+    response_model=AiAnswer,
+    summary="Deterministic template explanation of one persisted snapshot",
+    openapi_extra={
+        "requestBody": {
+            "required": True,
+            "content": {
+                "application/json": {
+                    "schema": {"$ref": "#/components/schemas/AiExplainRequest"}
+                }
+            },
+        }
+    },
+    responses={
+        404: {
+            "description": (
+                "No snapshot was ever published for this subject (code "
+                "NO_SNAPSHOT_FOR_SUBJECT) — there is nothing honest to "
+                "explain."
+            )
+        }
+    },
+)
+def post_ai_explain(
+    inputs: Annotated[AiExplainRequest, Depends(parse_ai_explain_request)],
+    reader: Annotated[SnapshotReader, Depends(get_snapshot_reader)],
+) -> AiAnswer:
+    """Explain ONE persisted snapshot through the DETERMINISTIC template.
+
+    Pure presentation of already-certified data: no network, no model, no
+    financial computation, no clock beyond the snapshot's own ``as_of``.
+    Every claim cites evidence really present in the snapshot (validated
+    fail-closed); the answer is labeled ``DETERMINISTIC_TEMPLATE`` and its
+    limitations always carry the B-05 notice. An absent snapshot is a clean
+    404 — never an invented explanation.
+    """
+    kind = SUBJECT_SNAPSHOT_KINDS[inputs.subject.kind]
+    snapshot = reader.current(kind=kind, key=inputs.subject.key)
+    if snapshot is None:
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "code": ERROR_NO_SNAPSHOT_FOR_SUBJECT,
+                "message": "no snapshot published for this subject",
+            },
+        )
+    return build_ai_answer(inputs.subject, snapshot)
+
+
 def get_capability_manifest(request: Request) -> CapabilityManifest:
     """Provide the manifest parsed once at startup (``create_app``)."""
     return request.app.state.capability_manifest
@@ -693,7 +856,9 @@ def compensate_transaction(
         422: {
             "description": (
                 "Whole-input rejection: CSV_TOO_LARGE (256 KiB), "
-                "CSV_TOO_MANY_ROWS (500 data rows) or CSV_HEADER_INVALID."
+                "CSV_TOO_MANY_ROWS (500 data rows), CSV_HEADER_INVALID or "
+                "CSV_MALFORMED (a cell the CSV reader itself refuses; the "
+                "stdlib message is never relayed, it can quote the file)."
             )
         }
     },

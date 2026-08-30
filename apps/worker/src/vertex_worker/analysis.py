@@ -12,7 +12,14 @@ focus instrument present in the recent bars window:
 
 - the ~60 synthetic OHLCV bars relayed VERBATIM (decimal strings) after a
   fail-closed per-bar validation (an invalid bar is discarded WITH its
-  reason, never repaired), plus the last close;
+  reason, never repaired), plus the last close. This handler is the
+  ADMISSION frontier of those source-controlled values: every payload field
+  it relays into the published dossier (``currency``, ``adjustment_basis``,
+  ``trading_day``, the four prices) must match its declared SHAPE — an
+  ISO-4217 code, a technical code, a real ISO day, a plain decimal. A value
+  out of shape is NEVER cleaned, escaped or truncated: it excludes its bar
+  (``discarded``) or the whole observation (``coverage.rejected_records``)
+  with a typed reason, and the rest of the dossier is still produced;
 - a short evidence rail: the ticker's content clusters from the single
   deterministic fusion engine (``vertex_core.fusion.fuse``) — dedup only,
   no invented relevance;
@@ -26,10 +33,12 @@ focus instrument present in the recent bars window:
   ``AdviceInputs`` built HONESTLY from the real state of the synthetic data:
   facts the worker genuinely holds are filled (identity in the declared
   universe without an IBKR con_id, snapshot quality/freshness from the bars,
-  the statuses of the calculations actually run, no portfolio-risk
-  requirement, no probability used); facts nobody holds (entitlements,
-  session/event calendar, liquidity thresholds, contradiction review, user
-  constraints) stay ``None`` and their gates BLOCK ``UNEVALUABLE`` —
+  the statuses of the calculations actually run, the portfolio-risk
+  requirement DECLARED by the caller's ``AnalysisConfig``, no probability
+  used); facts nobody holds (entitlements, session/event calendar, liquidity
+  thresholds, contradiction review, user constraints, and the manual
+  portfolio declarations when the caller requires them) stay ``None`` and
+  their gates BLOCK ``UNEVALUABLE`` —
   fail-closed. The resulting status (typically ``INSUFFICIENT_DATA`` on the
   synthetic population) is published AS IS: the worker NEVER forces a
   status, and ``direction`` stays ``UNKNOWN`` because no upstream analytical
@@ -42,8 +51,9 @@ handlers.
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import TYPE_CHECKING, Any, Callable, Mapping, Optional, Sequence
 
@@ -91,8 +101,11 @@ __all__ = [
     "ANALYSIS_SCHEMA_VERSION",
     "DAILY_BARS_SCHEMA_PREFIXES",
     "DEV_SYNTHETIC_ANALYSIS_CONFIG",
+    "REASON_INVALID_ADJUSTMENT_BASIS",
     "REASON_INVALID_BAR",
+    "REASON_INVALID_CURRENCY",
     "REASON_INVALID_PAYLOAD",
+    "REASON_INVALID_TRADING_DAY",
     "REASON_NO_HEALTHY_CONTRACT",
     "REASON_NO_OPTION_CHAIN",
     "REASON_RIGHTS_NOT_USABLE",
@@ -126,10 +139,78 @@ VALUE_NATURE_THEORETICAL = "THEORETICAL"
 
 REASON_INVALID_BAR = "invalid_bar"
 REASON_INVALID_PAYLOAD = "invalid_payload"
+REASON_INVALID_CURRENCY = "invalid_currency"
+REASON_INVALID_ADJUSTMENT_BASIS = "invalid_adjustment_basis"
+REASON_INVALID_TRADING_DAY = "invalid_trading_day"
 REASON_SOURCE_NOT_ALLOWED = "source_not_allowed"
 REASON_RIGHTS_NOT_USABLE = "rights_not_usable"
 REASON_NO_OPTION_CHAIN = "no_option_chain_snapshot"
 REASON_NO_HEALTHY_CONTRACT = "no_healthy_option_contract"
+
+# --------------------------------------------------------------------------
+# Admission allowlists: SHAPE of every source-controlled payload field this
+# module relays into the published dossier.
+#
+# The dossier is read downstream by the explanation layer, which concatenates
+# some of these values into FACT sentences. The frontier that ADMITS a value
+# is this worker, so a value whose SHAPE is not the declared one is never
+# repaired, escaped or truncated here: it EXCLUDES its element (the bar, or
+# the whole observation) with a typed reason published in the dossier —
+# fail-closed, and without cancelling the rest of the dossier.
+# --------------------------------------------------------------------------
+
+_CURRENCY_RE = re.compile(r"^[A-Z]{3}$")
+"""ISO-4217 alphabetic code: exactly three ASCII capitals."""
+
+_TRADING_DAY_RE = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}$")
+"""Strict ISO calendar day (the value must ALSO be a real date)."""
+
+_BASIS_CODE_RE = re.compile(r"^[A-Za-z0-9]+(?:[-_.][A-Za-z0-9]+)*$")
+"""Technical code (``synthetic-unadjusted``, ``split_adjusted``, ...)."""
+
+_PRICE_RE = re.compile(r"^(?:0|[1-9][0-9]{0,15})(?:\.[0-9]{1,8})?$")
+"""Plain positive decimal string. ASCII digits only: no sign, no exponent,
+no underscore, no surrounding whitespace, no Unicode digit — all of which
+``Decimal`` would otherwise accept and this module would relay VERBATIM."""
+
+_MAX_CODE_LENGTH = 32
+
+
+def _currency_or_none(value: Any) -> Optional[str]:
+    """The ISO-4217 code itself, or ``None`` when the shape is not admitted."""
+    if not isinstance(value, str) or not _CURRENCY_RE.fullmatch(value):
+        return None
+    return value
+
+
+def _trading_day_or_none(value: Any) -> Optional[str]:
+    """The ISO day itself, or ``None`` (shape rejected, or not a real date)."""
+    if not isinstance(value, str) or not _TRADING_DAY_RE.fullmatch(value):
+        return None
+    try:
+        date.fromisoformat(value)
+    except ValueError:
+        return None
+    return value
+
+
+def _basis_code_or_none(value: Any) -> Optional[str]:
+    """The adjustment-basis code itself, or ``None`` when out of shape."""
+    if not isinstance(value, str) or len(value) > _MAX_CODE_LENGTH:
+        return None
+    if not _BASIS_CODE_RE.fullmatch(value):
+        return None
+    return value
+
+
+def _price_or_none(value: Any) -> Optional[tuple[str, Decimal]]:
+    """The verbatim price string AND its Decimal, or ``None`` when out of
+    shape. Guarantees that what is relayed verbatim is a plain decimal."""
+    if not isinstance(value, str) or not _PRICE_RE.fullmatch(value):
+        return None
+    parsed = Decimal(value)
+    return (value, parsed) if parsed.is_finite() else None
+
 
 _CODE_SHA = f"module:vertex_core.calculations.options@{ENGINE_VERSION}"
 _SPOT_SHOCKS = (Decimal("0.90"), Decimal("0.95"), Decimal("1.00"), Decimal("1.05"), Decimal("1.10"))
@@ -174,6 +255,16 @@ class AnalysisConfig:
     advice_validity: timedelta = timedelta(hours=1)
     max_evidence: int = 5
     horizon: str = "1d"
+    portfolio_risk_required: bool = False
+    """Whether gate 7 must be OBSERVED for this population.
+
+    ``False`` states the honest fact of the analysis page: no strategy
+    profile requires a manual portfolio-fit here, so the gate PASSES
+    ``NOT_REQUIRED``. A caller whose profile DOES require a portfolio fit
+    (opportunities under ``equity_etf_swing_3_12m``) must set it to ``True``:
+    the gate is then evaluated on the real user declarations and BLOCKS
+    fail-closed while none exists — a required gate is never satisfied by
+    declaration."""
 
     def __post_init__(self) -> None:
         if not self.instruments:
@@ -190,6 +281,8 @@ class AnalysisConfig:
             raise ValueError("max_evidence: must be an int >= 1")
         if not self.horizon:
             raise ValueError("horizon: non-empty string required")
+        if not isinstance(self.portfolio_risk_required, bool):
+            raise ValueError("portfolio_risk_required: bool required")
 
 
 DEV_SYNTHETIC_ANALYSIS_CONFIG = AnalysisConfig(
@@ -277,34 +370,40 @@ def _decimal_or_none(value: Any) -> Optional[Decimal]:
     return parsed if parsed.is_finite() else None
 
 
-def _validate_bar(raw: Any) -> Optional[dict[str, Any]]:
-    """Validate one OHLCV bar fail-closed; returns the verbatim bar or None."""
+def _validate_bar(raw: Any) -> tuple[Optional[dict[str, Any]], Optional[str]]:
+    """Validate one OHLCV bar fail-closed.
+
+    Returns ``(bar, None)`` for an admitted bar — relayed VERBATIM — or
+    ``(None, reason)`` for a discarded one. A field whose SHAPE is not the
+    declared one is never repaired: it discards the bar with its reason.
+    """
     if not isinstance(raw, Mapping):
-        return None
-    trading_day = raw.get("trading_day")
-    if not isinstance(trading_day, str) or not trading_day:
-        return None
-    open_ = _decimal_or_none(raw.get("open"))
-    high = _decimal_or_none(raw.get("high"))
-    low = _decimal_or_none(raw.get("low"))
-    close = _decimal_or_none(raw.get("close"))
+        return None, REASON_INVALID_BAR
+    trading_day = _trading_day_or_none(raw.get("trading_day"))
+    if trading_day is None:
+        return None, REASON_INVALID_TRADING_DAY
+    prices: dict[str, tuple[str, Decimal]] = {}
+    for name in ("open", "high", "low", "close"):
+        price = _price_or_none(raw.get(name))
+        if price is None:
+            return None, REASON_INVALID_BAR
+        prices[name] = price
     volume = raw.get("volume")
-    if open_ is None or high is None or low is None or close is None:
-        return None
     if isinstance(volume, bool) or not isinstance(volume, int) or volume < 0:
-        return None
+        return None, REASON_INVALID_BAR
+    open_, high, low, close = (prices[name][1] for name in ("open", "high", "low", "close"))
     if min(open_, high, low, close) <= 0:
-        return None
+        return None, REASON_INVALID_BAR
     if high < max(open_, close) or low > min(open_, close):
-        return None
+        return None, REASON_INVALID_BAR
     return {
         "trading_day": trading_day,
-        "open": raw["open"],
-        "high": raw["high"],
-        "low": raw["low"],
-        "close": raw["close"],
+        "open": prices["open"][0],
+        "high": prices["high"][0],
+        "low": prices["low"][0],
+        "close": prices["close"][0],
         "volume": volume,
-    }
+    }, None
 
 
 def _build_evidence(
@@ -589,6 +688,21 @@ def build_analysis_content(
                 {"event_id": record.event_id, "reason": REASON_INVALID_PAYLOAD}
             )
             continue
+        # Record-level source-controlled fields relayed into the dossier:
+        # admitted ONLY on their declared shape, never repaired.
+        if _currency_or_none(payload.get("currency")) is None:
+            rejected_records.append(
+                {"event_id": record.event_id, "reason": REASON_INVALID_CURRENCY}
+            )
+            continue
+        if _basis_code_or_none(payload.get("adjustment_basis")) is None:
+            rejected_records.append(
+                {
+                    "event_id": record.event_id,
+                    "reason": REASON_INVALID_ADJUSTMENT_BASIS,
+                }
+            )
+            continue
         chosen = record  # ascending order: the latest usable record wins
 
     # -- bars block (verbatim, fail-closed per bar) ---------------------------
@@ -600,9 +714,9 @@ def build_analysis_content(
         synthetic = _is_synthetic_bar(chosen)
         bars_fresh = (now - chosen.as_of) <= config.bars_freshness
         for index, raw in enumerate(chosen.payload["bars"]):
-            bar = _validate_bar(raw)
+            bar, reason = _validate_bar(raw)
             if bar is None:
-                discarded_bars.append({"index": index, "reason": REASON_INVALID_BAR})
+                discarded_bars.append({"index": index, "reason": reason})
             else:
                 valid_bars.append(bar)
         valid_bars.sort(key=lambda bar: bar["trading_day"])
@@ -611,9 +725,14 @@ def build_analysis_content(
     bars_block: dict[str, Any] = {
         "status": "OK" if valid_bars else "ABSENT",
         "count": len(valid_bars),
-        "currency": payload.get("currency") if chosen is not None else None,
+        # Both were admitted on their shape above: relayed as admitted.
+        "currency": (
+            _currency_or_none(payload.get("currency")) if chosen is not None else None
+        ),
         "adjustment_basis": (
-            payload.get("adjustment_basis") if chosen is not None else None
+            _basis_code_or_none(payload.get("adjustment_basis"))
+            if chosen is not None
+            else None
         ),
         "first_trading_day": valid_bars[0]["trading_day"] if valid_bars else None,
         "last_trading_day": valid_bars[-1]["trading_day"] if valid_bars else None,
@@ -699,12 +818,27 @@ def build_analysis_content(
         calculations=CalculationsInput(
             calculation_statuses=calculation_statuses or None
         ),
-        portfolio_risk=PortfolioRiskInput(risk_required=False),
+        # Declared by the caller's configuration, never by this builder: when
+        # the required flag is set and no user declaration exists, gate 7
+        # BLOCKS (fail-closed) instead of passing NOT_REQUIRED.
+        portfolio_risk=PortfolioRiskInput(
+            risk_required=config.portfolio_risk_required
+        ),
         probability=ProbabilityInput(probability_used=False),
     )
     advice = engine.evaluate(inputs)
 
-    population = "EMPTY" if considered == 0 else ("SYNTHETIC" if synthetic else "REAL")
+    # Population DERIVED from what was really RETAINED, never from the number
+    # of records merely considered: records rejected (source, rights, payload)
+    # retain nothing, so the dossier is honestly EMPTY instead of claiming a
+    # REAL population nothing supports.
+    retained = bool(valid_bars) or bool(evidence["clusters"])
+    if not retained:
+        population = "EMPTY"
+    elif synthetic:
+        population = "SYNTHETIC"
+    else:
+        population = "REAL"
     return {
         "schema_version": ANALYSIS_SCHEMA_VERSION,
         "as_of": now.isoformat(),

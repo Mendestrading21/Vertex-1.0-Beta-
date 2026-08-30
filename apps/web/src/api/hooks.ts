@@ -29,8 +29,10 @@ import type {
 /** Ressources signalées par le flux SSE signal-only (têtes fixes). */
 export const SSE_RESOURCES = [
   'attention/global',
+  'calendar/global',
   'capabilities/global',
   'markets_overview/global',
+  'opportunities/global',
   'review_queue/global',
 ] as const;
 

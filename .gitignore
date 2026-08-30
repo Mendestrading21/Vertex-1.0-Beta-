@@ -33,3 +33,7 @@ test-results/
 backups/
 secrets/
 runtime-data/
+
+# Artefacts de la porte supply-chain (régénérés, jamais commités)
+requirements-locked.txt
+sbom-python.json

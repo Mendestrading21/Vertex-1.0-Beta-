@@ -38,6 +38,7 @@ from sqlalchemy.orm import Session
 
 from vertex_core.synthetic import (
     SYNTHETIC_FOCUS_TICKERS,
+    generate_calendar_event_envelopes,
     generate_daily_bar_envelopes,
     generate_daily_quote_envelopes,
     generate_envelopes,
@@ -144,6 +145,40 @@ def main() -> int:
             )
             bars_inserted = sum(
                 1 for e in bar_envelopes if ingest_envelope(session, e).inserted
+            )
+            session.commit()
+
+        # 2 quinquies. Calendar events SYNTHETIC (page 02) through the SAME
+        # ingestion path: it enqueues ``calendar.ingested`` and, after it,
+        # ``opportunities.refresh`` — so a drained outbox publishes the
+        # calendar snapshot BEFORE the opportunities handler reads it as
+        # catalyst provenance. Nothing is reimplemented here; the generator
+        # already emits ESTIMATED and CONFIRMED-through-a-dated-revision
+        # events, dividends, option expirations and global macro events.
+        calendar_envelopes = generate_calendar_event_envelopes(
+            seed=SEED, base_time=now - timedelta(minutes=5)
+        )
+        # An OLDER generation of the SAME earnings events (same stable ids
+        # ``syn-ev-earnings-<ticker>``, one day earlier, hence an earlier
+        # instant and an earlier ``as_of``). The calendar builder keeps the
+        # most recent business knowledge and turns the ones it supersedes
+        # into READABLE ``previous_values`` — the E2E therefore exercises the
+        # real revision path instead of asserting an always-empty list.
+        # A distinct seed only avoids an envelope-id collision with the
+        # current generation (ingestion is idempotent by envelope id); the
+        # earnings stable ids do NOT depend on the seed.
+        superseded_envelopes = tuple(
+            envelope
+            for envelope in generate_calendar_event_envelopes(
+                seed=SEED + 1, base_time=now - timedelta(minutes=5, days=1)
+            )
+            if envelope.source_event_id.startswith("syn-ev-earnings-")
+        )
+        with Session(engine) as session:
+            calendar_inserted = sum(
+                1
+                for e in superseded_envelopes + calendar_envelopes
+                if ingest_envelope(session, e).inserted
             )
             session.commit()
 
@@ -457,6 +492,58 @@ def main() -> int:
             )
             return 1
 
+        # 5 quater. Vague finale : calendrier et opportunités RÉELLEMENT
+        # publiés, états honnêtes, révisions conservées et provenance croisée.
+        with Session(engine) as session:
+            calendar = get_current_snapshot(session, kind="calendar", key="global")
+            opportunities = get_current_snapshot(
+                session, kind="opportunities", key="global"
+            )
+        if calendar is None or opportunities is None:
+            print(
+                "expected calendar and opportunities snapshots to be published",
+                file=sys.stderr,
+            )
+            return 1
+        ccontent = calendar.content
+        agenda = ccontent["agenda"]
+        revised_events = [event for event in agenda if event["revised"]]
+        with_previous = [event for event in agenda if event["previous_values"]]
+        statuses = ccontent["statuses"]
+        if (
+            ccontent["agenda_state"] != "OK"
+            or ccontent["population"] != "SYNTHETIC"
+            or ccontent["importance_rule"]["version"] != "importance_rule/1.1"
+            or statuses.get("ESTIMATED", 0) < 1
+            or statuses.get("CONFIRMED", 0) < 1
+            or len(revised_events) < 1
+            or len(with_previous) < 1
+            or ccontent["coverage"]["events_superseded"] < 1
+        ):
+            print(
+                f"unexpected calendar snapshot: state={ccontent['agenda_state']} "
+                f"statuses={statuses} revised={len(revised_events)} "
+                f"previous={len(with_previous)} "
+                f"coverage={ccontent['coverage']}",
+                file=sys.stderr,
+            )
+            return 1
+        ocontent = opportunities.content
+        ocoverage = ocontent["coverage"]
+        if (
+            ocontent["population"] != "SYNTHETIC"
+            or ocontent["calendar_ref"]["status"] != "USED"
+            or ocoverage["qualified_count"] != 0
+            or ocoverage["excluded_count"] != ocoverage["universe_size"]
+            or not ocontent["profile_ref"]["not_applied"]
+        ):
+            print(
+                f"unexpected opportunities snapshot: coverage={ocoverage} "
+                f"calendar_ref={ocontent['calendar_ref']}",
+                file=sys.stderr,
+            )
+            return 1
+
         print(
             "seed ok: "
             f"envelopes={len(envelopes)} inserted={inserted} "
@@ -471,7 +558,18 @@ def main() -> int:
             f"chain_versions={chain_versions} analysis_versions={analysis_versions} "
             f"portfolio_id={portfolio_id} valuation_version={valuation.version} "
             f"performance_version={performance.version} "
-            f"review_queue_version={review_queue.version} due_ids={due_ids}"
+            f"review_queue_version={review_queue.version} due_ids={due_ids} "
+            f"calendar_envelopes={len(calendar_envelopes)} "
+            f"superseded_envelopes={len(superseded_envelopes)} "
+            f"calendar_inserted={calendar_inserted} "
+            f"calendar_version={calendar.version} "
+            f"calendar_events={len(agenda)} calendar_statuses={statuses} "
+            f"calendar_revised={len(revised_events)} "
+            f"calendar_with_previous={len(with_previous)} "
+            f"opportunities_version={opportunities.version} "
+            f"opportunities_qualified={ocoverage['qualified_count']} "
+            f"opportunities_excluded={ocoverage['excluded_count']} "
+            f"opportunities_reasons={ocontent['exclusion_reasons']}"
         )
         return 0
     finally:

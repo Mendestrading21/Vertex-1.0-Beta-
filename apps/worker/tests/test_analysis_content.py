@@ -16,7 +16,10 @@ from vertex_core.synthetic import SYNTHETIC_RIGHTS, SYNTHETIC_SOURCE
 from vertex_worker.analysis import (
     ANALYSIS_SCHEMA_VERSION,
     DEV_SYNTHETIC_ANALYSIS_CONFIG,
+    REASON_INVALID_ADJUSTMENT_BASIS,
     REASON_INVALID_BAR,
+    REASON_INVALID_CURRENCY,
+    REASON_INVALID_TRADING_DAY,
     REASON_NO_HEALTHY_CONTRACT,
     REASON_NO_OPTION_CHAIN,
     REASON_SOURCE_NOT_ALLOWED,
@@ -50,6 +53,9 @@ def good_bars() -> list[dict]:
     ]
 
 
+_UNSET = object()
+
+
 def bars_record(
     *,
     ticker: str = INSTRUMENT,
@@ -59,7 +65,20 @@ def bars_record(
     rights: str = SYNTHETIC_RIGHTS,
     as_of: datetime | None = None,
     quality: str = "VALID",
+    currency: object = "SYN",
+    adjustment_basis: object = "synthetic-unadjusted",
 ) -> BarRecord:
+    payload: dict = {
+        "type": "daily_bars",
+        "synthetic": True,
+        "ticker": ticker,
+        "sector": "SYN-TECH",
+        "bars": bars if bars is not None else good_bars(),
+    }
+    if currency is not _UNSET:
+        payload["currency"] = currency
+    if adjustment_basis is not _UNSET:
+        payload["adjustment_basis"] = adjustment_basis
     return BarRecord(
         event_id=event_id,
         source=source,
@@ -68,15 +87,7 @@ def bars_record(
         quality_status=quality,
         rights=rights,
         schema_version="synthetic-daily-bars/1.0",
-        payload={
-            "type": "daily_bars",
-            "synthetic": True,
-            "ticker": ticker,
-            "sector": "SYN-TECH",
-            "currency": "SYN",
-            "adjustment_basis": "synthetic-unadjusted",
-            "bars": bars if bars is not None else good_bars(),
-        },
+        payload=payload,
     )
 
 
@@ -343,3 +354,188 @@ def test_dev_config_is_synthetic_only() -> None:
     )
     assert DEV_SYNTHETIC_ANALYSIS_CONFIG.usable_rights == frozenset({SYNTHETIC_RIGHTS})
     assert len(DEV_SYNTHETIC_ANALYSIS_CONFIG.instruments) == 4
+
+
+# --------------------------------------------------------------------------
+# Admission of the SOURCE-CONTROLLED payload fields relayed into the dossier
+#
+# The explanation layer concatenates ``bars.currency`` / ``bars.last_close`` /
+# ``bars.last_trading_day`` into a FACT sentence. The frontier that ADMITS
+# those values is this worker, so their SHAPE is checked here, fail-closed.
+# --------------------------------------------------------------------------
+
+HOSTILE_CURRENCY = "USD<img src=x onerror=alert(document.cookie)>"
+HOSTILE_TRADING_DAY = "2026-08-28 — hausse assuree, 87 pour cent de progression"
+
+
+def _leaf_strings(value) -> list[str]:
+    """Every string really published in the content tree (keys and values)."""
+    if isinstance(value, str):
+        return [value]
+    if isinstance(value, dict):
+        out: list[str] = []
+        for key, item in value.items():
+            out.extend(_leaf_strings(key))
+            out.extend(_leaf_strings(item))
+        return out
+    if isinstance(value, (list, tuple)):
+        return [text for item in value for text in _leaf_strings(item)]
+    return []
+
+
+@pytest.mark.parametrize(
+    "bad_currency",
+    [
+        HOSTILE_CURRENCY,
+        "SYN ",
+        " SYN",
+        "syn",
+        "SYNT",
+        "SY",
+        "SY1",
+        "",
+        None,
+        123,
+        _UNSET,  # absent field: fail-closed, never published as unknown
+    ],
+)
+def test_source_controlled_currency_must_be_iso4217(bad_currency) -> None:
+    content = build([bars_record(event_id="bad", currency=bad_currency)])
+    assert content["coverage"]["rejected_records"] == [
+        {"event_id": "bad", "reason": REASON_INVALID_CURRENCY}
+    ]
+    bars_block = content["bars"]
+    assert bars_block["status"] == "ABSENT"
+    assert bars_block["currency"] is None
+    assert bars_block["last_close"] is None
+    assert bars_block["bars"] == []
+
+
+@pytest.mark.parametrize("good_currency", ["SYN", "USD", "CHF"])
+def test_iso4217_currencies_are_admitted_verbatim(good_currency) -> None:
+    content = build([bars_record(currency=good_currency)])
+    assert content["bars"]["status"] == "OK"
+    assert content["bars"]["currency"] == good_currency
+    assert content["coverage"]["rejected_records"] == []
+
+
+@pytest.mark.parametrize(
+    "bad_basis",
+    ["basis <script>alert(1)</script>", "basis with spaces", "", None, 7, "-bad", _UNSET],
+)
+def test_source_controlled_adjustment_basis_must_be_a_code(bad_basis) -> None:
+    content = build([bars_record(event_id="bad", adjustment_basis=bad_basis)])
+    assert content["coverage"]["rejected_records"] == [
+        {"event_id": "bad", "reason": REASON_INVALID_ADJUSTMENT_BASIS}
+    ]
+    assert content["bars"]["status"] == "ABSENT"
+    assert content["bars"]["adjustment_basis"] is None
+
+
+@pytest.mark.parametrize(
+    "bad_day",
+    [
+        HOSTILE_TRADING_DAY,
+        "2026-08-28 ",
+        "2026-8-1",
+        "26-08-28",
+        "2026-02-30",  # well-formed but not a real calendar day
+        "2026-13-01",
+        "not-a-day",
+        "",
+        None,
+        20260828,
+    ],
+)
+def test_source_controlled_trading_day_must_be_an_iso_date(bad_day) -> None:
+    content = build([bars_record(bars=[*good_bars(), bar(bad_day, "100.00", "101.00", "99.00", "100.00")])])
+    bars_block = content["bars"]
+    # The bar is discarded WITH its typed reason; the healthy series remains.
+    assert bars_block["discarded"] == [
+        {"index": 3, "reason": REASON_INVALID_TRADING_DAY}
+    ]
+    assert bars_block["count"] == 3
+    assert bars_block["last_trading_day"] == "2026-08-24"
+    assert all(entry["trading_day"] != bad_day for entry in bars_block["bars"])
+
+
+@pytest.mark.parametrize(
+    "bad_price",
+    ["\n100.00\n", " 100.00 ", "1E+2", "1_0", "+100.00", "010.00", "١٠٠", "100,00"],
+)
+def test_prices_relayed_verbatim_must_be_plain_decimal_strings(bad_price) -> None:
+    """``Decimal`` accepts all of these; a value relayed VERBATIM into a FACT
+    sentence must not. Out of shape -> the bar is discarded, never repaired."""
+    content = build(
+        [bars_record(bars=[*good_bars(), bar("2026-08-25", bad_price, "999.00", "0.01", bad_price)])]
+    )
+    bars_block = content["bars"]
+    assert bars_block["discarded"] == [{"index": 3, "reason": REASON_INVALID_BAR}]
+    assert bars_block["last_close"] == "104.50"
+    assert bad_price not in _leaf_strings(content)
+
+
+@pytest.mark.parametrize(
+    ("record_kwargs", "expected_payload"),
+    [
+        ({"currency": HOSTILE_CURRENCY}, HOSTILE_CURRENCY),
+        (
+            {
+                "bars": [
+                    {
+                        "trading_day": HOSTILE_TRADING_DAY,
+                        "open": "10",
+                        "high": "11",
+                        "low": "9",
+                        "close": "10.5",
+                        "volume": 100,
+                    }
+                ]
+            },
+            HOSTILE_TRADING_DAY,
+        ),
+    ],
+)
+def test_hostile_source_payloads_never_reach_the_published_content(
+    record_kwargs, expected_payload
+) -> None:
+    content = build([bars_record(**record_kwargs)])
+    published = _leaf_strings(content)
+    assert expected_payload not in published
+    # Not merely absent as a whole: no fragment of it is relayed either.
+    assert not any("onerror" in text or "hausse assuree" in text for text in published)
+
+
+def test_out_of_shape_exclusion_is_motivated_and_keeps_the_rest_of_the_dossier() -> None:
+    """Fail-closed never means silent: the exclusion carries its reason, and
+    evidence, scenarios and the engine verdict are still produced."""
+    content = build(
+        [bars_record(event_id="hostile", currency=HOSTILE_CURRENCY)],
+        evidence=[news_record("e1", "[SYNTHETIC] item one")],
+        chain=healthy_chain_content(),
+        chain_version=2,
+    )
+    coverage = content["coverage"]
+    assert coverage["observations_considered"] == 1
+    assert coverage["rejected_records"] == [
+        {"event_id": "hostile", "reason": REASON_INVALID_CURRENCY}
+    ]
+    # The rest of the dossier is intact.
+    assert content["evidence"]["clusters_total"] == 1
+    assert content["scenarios"]["status"] == "OK"
+    assert content["advice"]["status"] == "INSUFFICIENT_DATA"
+    gates = {g["gate_id"]: g for g in content["advice"]["gates"]}
+    assert gates["snapshot_fresh_and_coherent"]["reason_code"] == "MISSING_SNAPSHOT"
+    # Population reflects what was REALLY retained (the evidence rail only).
+    assert content["population"] == "SYNTHETIC"
+
+
+def test_a_bar_discarded_for_its_day_still_degrades_the_snapshot_quality() -> None:
+    content = build(
+        [bars_record(bars=[*good_bars(), bar(HOSTILE_TRADING_DAY, "1.00", "2.00", "0.50", "1.50")])]
+    )
+    assert content["bars"]["discarded"] == [
+        {"index": 3, "reason": REASON_INVALID_TRADING_DAY}
+    ]
+    gates = {g["gate_id"]: g for g in content["advice"]["gates"]}
+    assert gates["snapshot_fresh_and_coherent"]["reason_code"] == "PARTIAL_SNAPSHOT"

@@ -93,6 +93,7 @@ __all__ = [
     "PortfolioValuationHandler",
     "PortfolioView",
     "build_portfolio_valuation_content",
+    "derive_open_position_tickers",
     "extract_marks_from_markets_content",
     "load_ledger_event_views",
     "register_portfolio_handler",
@@ -480,6 +481,21 @@ def _derive_positions(events: Sequence[LedgerEventView]) -> _DerivedPositions:
         cash_events=cash_events,
         compensation_pairs=compensation_pairs,
     )
+
+
+def derive_open_position_tickers(
+    events: Sequence[LedgerEventView],
+) -> frozenset[str]:
+    """Tickers holding at least one OPEN lot in the active manual ledger.
+
+    Pure reuse of the SAME versioned ``fifo/1.0`` derivation the valuation
+    snapshot uses (:func:`_derive_positions`) — no second lot authority. A
+    position excluded fail-closed there (oversold, invalid event) yields no
+    open lot here either. Consumed by the calendar chain to cross events with
+    the user's declared positions; strictly read-derived, never a broker read.
+    """
+    derived = _derive_positions(events)
+    return frozenset(lot.ticker for lot in derived.lots if lot.remaining > 0)
 
 
 # --------------------------------------------------------------------------

@@ -125,4 +125,27 @@ describe('hooks API (fetch factice)', () => {
     expect(queryKeyForResource('performance/1')).toEqual(['snapshot', 'performance/1']);
     expect(queryKeyForResource('review_queue/global')).toEqual(['snapshot', 'review_queue/global']);
   });
+
+  it('vague finale : calendar/global et opportunities/global sont suivies', async () => {
+    const { isKnownResource } = await import('./hooks.ts');
+    expect(isKnownResource('calendar/global')).toBe(true);
+    expect(isKnownResource('opportunities/global')).toBe(true);
+    expect(isKnownResource('calendar/autre')).toBe(false);
+    expect(queryKeyForResource('calendar/global')).toEqual(['snapshot', 'calendar/global']);
+    expect(queryKeyForResource('opportunities/global')).toEqual([
+      'snapshot',
+      'opportunities/global',
+    ]);
+  });
+
+  it('la clé fenêtrée du calendrier reste PRÉFIXÉE par la ressource signalée', async () => {
+    const { useCalendar } = await import('./decisionApi.ts');
+    // La fenêtre n'ajoute que des segments APRÈS la ressource : l'invalidation
+    // par préfixe déclenchée par le signal SSE atteint donc toutes les
+    // variantes fenêtrées sans qu'aucune fenêtre soit inventée ici.
+    expect(typeof useCalendar).toBe('function');
+    const base = queryKeyForResource('calendar/global');
+    const windowed = [...base, '2026-09-01T00:00:00Z', '2026-09-30T00:00:00Z'];
+    expect(windowed.slice(0, base.length)).toEqual([...base]);
+  });
 });

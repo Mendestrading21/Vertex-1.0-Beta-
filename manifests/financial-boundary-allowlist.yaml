@@ -1,0 +1,245 @@
+schema_version: 1
+# Exemptions NOMMÉES de la porte `tools/check_financial_boundary.py`.
+#
+# La porte signale toute façon d'ATTEINDRE une capacité IBKR interdite —
+# appel, accès d'attribut, import, mention littérale, fragment de route.
+# `call`, `attribute` et `import` ne sont JAMAIS exemptables : ils obtiennent
+# la référence. Seules la mention (`string`, `reference`) et le fragment de
+# route peuvent l'être, et seulement fichier par fichier, symbole par symbole.
+#
+# Les exempter NOMMÉMENT vaut mieux que d'écarter des répertoires entiers :
+# `SKIP_PARTS` écartait `tests` et `tools`, si bien qu'un appel interdit écrit
+# dans n'importe quel test passait la porte la plus critique du programme
+# (6e audit adversarial). Le manifeste déclare
+# `scope: [runtime, tests, dependencies, routes, permissions, ai_tools]`.
+#
+# Une entrée peut porter `symbol:` (un symbole) ou `symbols:` (plusieurs, même
+# fichier, même forme, même motif). La forme liste ne relâche rien : chaque
+# symbole reste écrit, il n'existe aucun joker. Elle évite de répéter
+# cinquante fois le même motif — une allowlist illisible n'est plus relue, et
+# c'est ainsi que le 7e audit a trouvé une exemption qui couvrait autre chose
+# que ce qu'elle annonçait.
+#
+# Une exemption sans occurrence est signalée comme dette morte : un fichier
+# renommé ou nettoyé ne doit pas laisser derrière lui une exemption qui
+# couvrirait autre chose.
+#
+# `reason` est obligatoire. « c'est un test » ne suffit pas : un appel interdit
+# dans un test reste un appel interdit.
+allow:
+  - path: apps/edge-ibkr/tests/test_denylist.py
+    symbols:
+      - "accountSummary"
+      - "cancelOrder"
+      - "completedOrders"
+      - "executions"
+      - "exerciseOptions"
+      - "managedAccounts"
+      - "openOrders"
+      - "placeOrder"
+      - "reqAccountSummary"
+      - "reqAccountUpdates"
+      - "reqAccountUpdatesMulti"
+      - "reqAllOpenOrders"
+      - "reqAutoOpenOrders"
+      - "reqCompletedOrders"
+      - "reqExecutions"
+      - "reqGlobalCancel"
+      - "reqIds"
+      - "reqOpenOrders"
+      - "reqPnL"
+      - "reqPnLSingle"
+      - "reqPositions"
+      - "reqPositionsMulti"
+      - "whatIfOrder"
+    kind: string
+    reason: >-
+      Test qui prouve l'ABSENCE de ces capacites dans le code de production. Il les
+      nomme en CHAINES uniquement, jamais en appel, en attribut ni en import,
+      precisement pour ne pas creer lui-meme le chemin qu'il interdit.
+  - path: manifests/current-vertex-salvage.yaml
+    symbol: "positions"
+    kind: reference
+    reason: >-
+      Inventaire du depot donneur : il decrit les lectures compte/positions du
+      Vertex actuel comme dette a NE PAS reprendre. Texte d'inventaire, aucun code.
+  - path: manifests/financial-boundary-allowlist.yaml
+    symbols:
+      - "/iserver/account/order"
+      - "/iserver/account/orders"
+      - "/iserver/account/pnl"
+      - "/iserver/account/trades"
+      - "/pa/performance"
+    kind: fragment
+    reason: >-
+      Ce fichier d'exemptions lui-même. Il cite chaque symbole qu'il exempte
+      ailleurs ; la citation est la mention, jamais un chemin vers la capacité.
+  - path: manifests/financial-boundary-allowlist.yaml
+    symbols:
+      - "accountSummary"
+      - "cancelOrder"
+      - "completedOrders"
+      - "executions"
+      - "exerciseOptions"
+      - "managedAccounts"
+      - "openOrders"
+      - "placeOrder"
+      - "reqAccountSummary"
+      - "reqAccountUpdates"
+      - "reqAccountUpdatesMulti"
+      - "reqAllOpenOrders"
+      - "reqAutoOpenOrders"
+      - "reqCompletedOrders"
+      - "reqExecutions"
+      - "reqGlobalCancel"
+      - "reqIds"
+      - "reqOpenOrders"
+      - "reqPnL"
+      - "reqPnLSingle"
+      - "reqPositions"
+      - "reqPositionsMulti"
+      - "whatIfOrder"
+    kind: reference
+    reason: >-
+      Ce fichier d'exemptions lui-même. Il cite chaque symbole qu'il exempte
+      ailleurs ; la citation est la mention, jamais un chemin vers la capacité.
+  - path: manifests/forbidden-capabilities.yaml
+    symbols:
+      - "/iserver/account/order"
+      - "/iserver/account/orders"
+      - "/iserver/account/pnl"
+      - "/iserver/account/trades"
+      - "/pa/performance"
+    kind: fragment
+    reason: >-
+      Manifeste de POLITIQUE : c'est la source de vérité qui nomme les capacités
+      interdites. Il les déclare pour les refuser ; il n'ouvre aucun chemin vers
+      elles.
+  - path: manifests/forbidden-capabilities.yaml
+    symbols:
+      - "cancelOrder"
+      - "exerciseOptions"
+      - "managedAccounts"
+      - "placeOrder"
+      - "portfolio"
+      - "reqAccountSummary"
+      - "reqAccountUpdates"
+      - "reqAccountUpdatesMulti"
+      - "reqAllOpenOrders"
+      - "reqAutoOpenOrders"
+      - "reqCompletedOrders"
+      - "reqExecutions"
+      - "reqGlobalCancel"
+      - "reqIds"
+      - "reqOpenOrders"
+      - "reqPnL"
+      - "reqPnLSingle"
+      - "reqPositions"
+      - "reqPositionsMulti"
+      - "whatIfOrder"
+    kind: reference
+    reason: >-
+      Manifeste de POLITIQUE : c'est la source de vérité qui nomme les capacités
+      interdites. Il les déclare pour les refuser ; il n'ouvre aucun chemin vers
+      elles.
+  - path: manifests/ibkr-market-data-capabilities.yaml
+    symbols:
+      - "cancelOrder"
+      - "exerciseOptions"
+      - "placeOrder"
+      - "reqAccountSummary"
+      - "reqAccountUpdates"
+      - "reqAllOpenOrders"
+      - "reqCompletedOrders"
+      - "reqExecutions"
+      - "reqGlobalCancel"
+      - "reqOpenOrders"
+      - "reqPnL"
+      - "reqPnLSingle"
+      - "reqPositions"
+      - "reqPositionsMulti"
+      - "whatIfOrder"
+    kind: reference
+    reason: >-
+      Manifeste de la sonde d'entitlement IBKR : sa liste `forbidden_methods` nomme
+      les capacités que l'adaptateur doit refuser. Nommer l'interdit est le
+      contraire de l'atteindre.
+  - path: manifests/news-social-sources.yaml
+    symbol: "executions"
+    kind: reference
+    reason: >-
+      Liste `prohibited_permissions` d'une source de news : elle nomme les
+      permissions refusées aux connecteurs. Declaration de refus, pas d'usage.
+  - path: manifests/widget-catalog.yaml
+    symbol: "positions"
+    kind: reference
+    reason: >-
+      Catalogue de widgets : decrit la table du portefeuille MANUEL et rappelle
+      qu'aucune lecture de compte IBKR n'a lieu. Vocabulaire metier de Vertex.
+  - path: tools/check_financial_boundary.py
+    symbols:
+      - "/iserver/account/order"
+      - "/iserver/account/orders"
+      - "/iserver/account/pnl"
+      - "/iserver/account/trades"
+      - "/pa/performance"
+    kind: fragment
+    reason: >-
+      La porte elle-meme. Elle doit connaitre les symboles qu'elle refuse ; sa liste
+      de repli existe pour que le scan ne s'affaiblisse jamais en silence si le
+      manifeste ou PyYAML manque.
+  - path: tools/check_financial_boundary.py
+    symbols:
+      - "accountSummary"
+      - "cancelOrder"
+      - "completedOrders"
+      - "executions"
+      - "exerciseOptions"
+      - "managedAccounts"
+      - "openOrders"
+      - "placeOrder"
+      - "reqAccountSummary"
+      - "reqAccountUpdates"
+      - "reqAccountUpdatesMulti"
+      - "reqAllOpenOrders"
+      - "reqAutoOpenOrders"
+      - "reqCompletedOrders"
+      - "reqExecutions"
+      - "reqGlobalCancel"
+      - "reqIds"
+      - "reqOpenOrders"
+      - "reqPnL"
+      - "reqPnLSingle"
+      - "reqPositions"
+      - "reqPositionsMulti"
+      - "whatIfOrder"
+    kind: string
+    reason: >-
+      La porte elle-meme. Elle doit connaitre les symboles qu'elle refuse ; sa liste
+      de repli existe pour que le scan ne s'affaiblisse jamais en silence si le
+      manifeste ou PyYAML manque.
+  - path: tools/tests/test_check_financial_boundary.py
+    symbols:
+      - "/iserver/account/order"
+      - "/iserver/account/orders"
+    kind: fragment
+    reason: >-
+      Corpus de test de la porte elle-meme. Sans ces symboles, rien ne prouverait
+      qu'elle detecte quoi que ce soit. Ils n'apparaissent que dans des sources de
+      test ecrites sur des fichiers temporaires, jamais sur un client IBKR.
+  - path: tools/tests/test_check_financial_boundary.py
+    symbols:
+      - "cancelOrder"
+      - "placeOrder"
+      - "reqAccountSummary"
+      - "reqExecutions"
+      - "reqGlobalCancel"
+      - "reqIds"
+      - "reqPnL"
+      - "reqPositions"
+      - "whatIfOrder"
+    kind: string
+    reason: >-
+      Corpus de test de la porte elle-meme. Sans ces symboles, rien ne prouverait
+      qu'elle detecte quoi que ce soit. Ils n'apparaissent que dans des sources de
+      test ecrites sur des fichiers temporaires, jamais sur un client IBKR.

@@ -23,6 +23,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from snapshot_fakes import synthetic_session
+from vertex_api.events import WATCHED_SNAPSHOTS
 from vertex_api.auth import AUTH_REQUIRED, require_session
 from vertex_api.events import (
     StreamSettings,
@@ -41,10 +42,13 @@ class ScriptedHeadReader:
     """SYNTHETIC reader: head versions are mutated by the test itself."""
 
     def __init__(self) -> None:
+        # The fake serves EVERY head the application actually polls: deriving
+        # the keys from WATCHED_SNAPSHOTS keeps the reader honest when a wave
+        # adds a snapshot. The watch list itself is asserted explicitly by
+        # ``test_watched_snapshots_are_the_expected_resources`` below, so an
+        # accidental addition or removal is still caught.
         self.versions: dict[tuple[str, str], Optional[int]] = {
-            ("attention", "global"): None,
-            ("capabilities", "global"): None,
-            ("markets_overview", "global"): None,
+            (kind, key): None for kind, key in WATCHED_SNAPSHOTS
         }
         self.polls = 0
 
@@ -270,3 +274,19 @@ def test_review_queue_and_performance_kinds_are_watched() -> None:
 
     assert "review_queue" in WATCHED_SNAPSHOT_KINDS
     assert "performance" in WATCHED_SNAPSHOT_KINDS
+
+
+def test_watched_snapshots_are_the_expected_resources() -> None:
+    """The watch list is explicit: adding or removing a resource is a decision.
+
+    ``ScriptedHeadReader`` derives its keys from ``WATCHED_SNAPSHOTS`` so the
+    fake never drifts from the application; this test keeps the list itself
+    under review so the drift cannot pass unnoticed either.
+    """
+    assert WATCHED_SNAPSHOTS == (
+        ("attention", "global"),
+        ("calendar", "global"),
+        ("capabilities", "global"),
+        ("markets_overview", "global"),
+        ("opportunities", "global"),
+    )

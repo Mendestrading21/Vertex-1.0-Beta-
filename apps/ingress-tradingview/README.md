@@ -126,9 +126,20 @@ Référence : `docs/08-runbooks/TRADINGVIEW_SETUP.md`.
    volume d'opérations.
 3. **Rate limit KV « best effort »** : compteur non atomique, cohérence
    éventuelle, quota d'écritures Free faible — documenté ci-dessus.
-4. **`received_at`** : stampé par le Worker dans l'enveloppe de queue ; le
-   côté local le revalide (UTC aware obligatoire) et l'utilise comme ancre de
-   la fenêtre anti-rejeu et de la deadline HP-02 — un drain tardif route les
-   messages vers `EXPIRED` sans les requalifier.
+4. **`received_at`** : stampé par le Worker dans l'enveloppe de queue, donc
+   entrée EXTERNE. Le côté local le revalide (UTC aware obligatoire) **et le
+   borne sur son horloge injectée** avant de l'utiliser comme ancre de la
+   fenêtre anti-rejeu et de la deadline HP-02 : au-delà de
+   `max_received_at_skew` (2 s par défaut, toujours < deadline HP-02) c'est
+   `received_at_in_future` ; au-delà de `max_received_at_age` (300 s par
+   défaut) c'est `received_at_too_old`. Sans cette borne, les deux limites
+   seraient ancrées sur une valeur que personne en local ne contrôle, donc
+   auto-référentielles et inertes. Dans l'horizon, le comportement documenté
+   est inchangé : un drain tardif route les messages vers `EXPIRED` sans les
+   requalifier.
 5. **Scripts Pine non exécutables ici** : marqués `NON TESTÉS EN PLATEFORME —
    validation au déploiement humain` (compilation TradingView en checklist).
+6. **`bar_time`** : politique d'ingress (Worker et Python identiques) —
+   `bar_time` ne peut pas suivre `sent_at` de plus de 60 s : une bougie ne se
+   clôture pas après l'alerte qui la rapporte. Le côté passé reste non borné
+   (une bougie mensuelle s'ouvre légitimement bien avant).

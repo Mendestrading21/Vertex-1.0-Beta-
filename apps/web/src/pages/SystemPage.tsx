@@ -95,10 +95,18 @@ function HealthPanel({ health }: { readonly health: SystemHealth }) {
 
 function SystemReady({ data }: { readonly data: SystemCapabilities }) {
   const attention = useAttention();
+  // La nature vient d'une SECONDE requête. Tant qu'elle n'a pas répondu, on ne
+  // sait pas encore — ce n'est pas la même chose qu'une nature non déclarée.
+  // Rendre le bandeau tout de suite afficherait « NATURE NON DÉCLARÉE » en
+  // rouge à chaque chargement de la page : une fausse alerte, et la confusion
+  // exacte entre « absent » et « pas encore connu » que le programme interdit.
+  // Une requête en ERREUR, en revanche, laisse bien la nature indéterminée et
+  // doit avertir.
+  const attentionSettled = !attention.isPending;
   const population = attention.data?.population ?? null;
   return (
     <>
-      <SyntheticBanner population={population} />
+      {attentionSettled ? <SyntheticBanner population={population} /> : null}
       <SourceHealthMatrix entries={data.capabilities} total={data.total} />
       <HealthPanel health={data.health} />
       {data.unknown_probed_capability_ids.length > 0 ? (

@@ -467,14 +467,17 @@ def test_ingest_routes_option_chain_envelopes_to_the_topic(monkeypatch) -> None:
 
     ingest_envelope(_Session(), envelope)
     # A chain envelope feeds the chain handler AND the analysis dossier
-    # (whose scenarios read the chain snapshot), chain job first; every
-    # inserted observation also refreshes the review queue (page 09).
+    # (whose scenarios read the chain snapshot), chain job first; a chain also
+    # changes the advice basis of a candidate, so the opportunities funnel is
+    # refreshed too; every inserted observation refreshes the review queue.
     from vertex_worker.analysis import TOPIC_ANALYSIS_INGESTED
     from vertex_worker.follow_up import TOPIC_REVIEW_QUEUE_REFRESH
+    from vertex_worker.opportunities import TOPIC_OPPORTUNITIES_REFRESH
 
     assert topics == [
         TOPIC_OBSERVATION_INGESTED,
         TOPIC_OPTION_CHAINS_INGESTED,
         TOPIC_ANALYSIS_INGESTED,
+        TOPIC_OPPORTUNITIES_REFRESH,
         TOPIC_REVIEW_QUEUE_REFRESH,
     ]

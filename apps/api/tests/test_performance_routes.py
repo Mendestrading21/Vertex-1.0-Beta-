@@ -3,6 +3,14 @@
 Snapshot reader injected through ``app.dependency_overrides``; the real chain
 (ledger writes -> worker -> snapshot -> export) runs in
 ``tests_integration/test_performance_api_e2e.py``.
+
+Third re-audit (P1-G): this relay published ``dict(snapshot.content)`` with
+no shape check, so any string-keyed payload was served ``200 state="ok"``.
+The fixture below is therefore the COMPLETE shape
+``vertex_worker.performance.build_performance_content`` really publishes —
+an approximate fixture would have made the new shape check look satisfied
+while proving nothing. The forged variants live in
+``test_snapshot_content_errors.py``.
 """
 
 from __future__ import annotations
@@ -21,10 +29,20 @@ from vertex_persistence.repository.snapshots import CurrentSnapshot
 
 FIXED_NOW = datetime(2026, 8, 25, 12, 0, 0, tzinfo=timezone.utc)
 
+def _insufficient_metric() -> dict:
+    """A metric the worker could not compute: reason, never an invented zero."""
+    return {
+        "status": "INSUFFICIENT_DATA",
+        "reason": "not enough valued days on the synthetic series",
+        "calculation": None,
+    }
+
+
 PERFORMANCE_CONTENT = {
     "schema_version": "vertex.performance/1.0",
     "as_of": FIXED_NOW.isoformat(),
     "engine_version": "0.1.0",
+    "portfolio": {"id": 1, "name": "SYNTHETIC portfolio", "base_currency": "SYN"},
     "population": "SYNTHETIC_MARKS_REAL_LEDGER",
     "population_components": {"marks": "SYNTHETIC", "ledger": "USER_DECLARED"},
     "currency": "SYN",
@@ -57,7 +75,12 @@ PERFORMANCE_CONTENT = {
         ],
         "excluded_days": [],
     },
+    "external_cashflows": [],
     "metrics": {
+        "twr_net": _insufficient_metric(),
+        "xirr_net": _insufficient_metric(),
+        "drawdown_gross": _insufficient_metric(),
+        "drawdown_net": _insufficient_metric(),
         "twr_gross": {
             "status": "OK",
             "reason": None,
@@ -83,7 +106,18 @@ PERFORMANCE_CONTENT = {
         "months": [],
         "derived_from_calculation": {"input_hash": "sha256:" + "1" * 64},
     },
-    "coverage": {"days_with_close": 2, "days_valued": 2},
+    "coverage": {
+        "days_with_close": 2,
+        "days_valued": 2,
+        "days_excluded": 0,
+        "days_before_first_ledger_event": 0,
+        "coverage_ratio": "1",
+        "events_considered": 3,
+        "external_cashflows": 0,
+        "observations_considered": 4,
+        "observations_truncated": False,
+        "rejected_records": [],
+    },
 }
 
 SNAPSHOT = CurrentSnapshot(
@@ -194,7 +228,7 @@ def test_export_is_reproducible_and_carries_the_lineage(performance_client) -> N
     # A gate outcome without a computation is exported as-is: reason, no hash.
     xirr = manifest["calculations"]["xirr_gross"]
     assert xirr["status"] == "INVALID" and xirr["calculation"] is None
-    assert manifest["coverage"] == {"days_with_close": 2, "days_valued": 2}
+    assert manifest["coverage"] == PERFORMANCE_CONTENT["coverage"]
 
 
 def test_export_without_snapshot_is_404(performance_client) -> None:

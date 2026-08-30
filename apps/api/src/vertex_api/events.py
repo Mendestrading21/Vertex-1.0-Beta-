@@ -40,8 +40,10 @@ __all__ = [
 
 WATCHED_SNAPSHOTS: tuple[tuple[str, str], ...] = (
     ("attention", "global"),
+    ("calendar", "global"),
     ("capabilities", "global"),
     ("markets_overview", "global"),
+    ("opportunities", "global"),
 )
 """(kind, key) heads whose version changes are signalled on the stream."""
 
