@@ -228,8 +228,17 @@ inchangé, les deux fichiers restent ceux servis par l'API. La révocation
 différée est conservée comme hygiène, mais elle reste une **hypothèse non
 prouvée** : rien ne montre qu'elle corrige quoi que ce soit.
 
-**CE CORRECTIF-CI N'EST PAS ENCORE VÉRIFIÉ** hors Chromium non plus. Il ne le
-sera que par une quatrième exécution nocturne.
+**Exécution 4 (`33314910817`) — VERTE : 665 passés, 2 sautés, 0 échoué,
+11,2 min sur Chromium, Firefox ET WebKit.** Le produit passe pour la première
+fois sur les trois moteurs de rendu. Les 2 sautés sont la cérémonie passkey,
+intestable hors Chromium, avec son motif écrit ; le trou qu'ils laissent est
+nommé ci-dessus et reste ouvert.
+
+Ce que cette campagne a coûté à la confiance dans les chiffres antérieurs : il
+a fallu QUATRE exécutions, dont trois rouges, pour obtenir la première mesure
+verte hors Chromium. 234 tests Chromium verts n'avaient rien dit d'un export
+cassé sur un moteur sur trois, et le premier correctif de ce défaut était une
+hypothèse fausse — seule la troisième exécution l'a démontré.
 
 Ce que cette campagne a coûté à la confiance dans les chiffres antérieurs :
 234 tests Chromium verts n'avaient rien dit d'un export cassé sur un moteur

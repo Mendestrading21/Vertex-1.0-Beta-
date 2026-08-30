@@ -127,16 +127,15 @@ revendication de conformité AA.
   projet. Trois exécutions, une seule mesure.
 - Le seuil de 100 ms pour `prefers-reduced-motion` est un choix écrit dans le
   test, pas une valeur normative.
-- Les mesures viennent de Chromium uniquement. Firefox et WebKit sont exécutés
-  par `.github/workflows/nightly.yml`. Une version antérieure de ce rapport
-  disait que ce workflow **n'avait jamais tourné** ; il a tourné (exécution
-  `33311874652`) et il a **ÉCHOUÉ**, avant toute mesure, dans
-  `e2e/global.setup.ts` : le job installait `firefox webkit` sans Chromium,
-  alors que la préparation de session utilise l'authentificateur virtuel
-  WebAuthn par CDP, donc Chromium. Le job installe désormais les trois
-  moteurs, mais **aucun chiffre Firefox ou WebKit n'a encore été mesuré** —
-  tant qu'une exécution n'a pas abouti, ce rapport ne couvre que Chromium
-  (`docs/99-status/DEBT.md`).
+- **Les 168 cas ci-dessus sont mesurés sur Chromium.** Depuis l'exécution
+  nocturne `33314910817` (665 passés, 2 sautés, 0 échoué, 11,2 min), la même
+  campagne tourne aussi sur **Firefox et WebKit** : les projets
+  `firefox-1440x900` et `webkit-1440x900` n'excluent que `smoke.spec.ts`
+  (`apps/web/playwright.config.ts`). Ce que ces deux moteurs N'apportent PAS,
+  c'est la matrice de viewports : ils sont mesurés à **1440×900 uniquement**,
+  alors que Chromium couvre les trois largeurs de release. Une violation de
+  contraste ou de reflow propre à une largeur non couverte passerait donc
+  encore inaperçue sur Firefox et WebKit (`docs/99-status/DEBT.md`).
 - La population est SYNTHETIC : aucune donnée réelle n'a encore été observée.
 
 ## Comment reproduire
