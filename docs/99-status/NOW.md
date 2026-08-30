@@ -64,7 +64,10 @@ ecarts_declares:
      atteignable en l'état"
   - "Firefox et WebKit : workflow nocturne écrit, JAMAIS exécuté"
   - "provenance et signature de release : NON FAISABLES ici, déclarées absentes"
-  - "mutation testing : non commencé, score réel inconnu"
+  - "mutation testing : TENTÉ deux fois avec mutmut, 6 017 mutants tous
+     ignorés — la copie mutée n'est pas celle qu'importent les tests dans un
+     workspace uv éditable. Outil retiré, cause écrite dans DEBT.md, score
+     réel toujours INCONNU"
   - "5 interdictions absolues sur 30 ne sont pas prouvées par un test —
      détail dans manifests/traceability.yaml, imprimé à chaque exécution"
   - "AUCUNE donnée réelle n'a jamais été observée — IBKR jamais contacté,

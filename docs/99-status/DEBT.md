@@ -239,15 +239,41 @@ balayage statique du dépôt web équivalent à `check_financial_boundary` pour
 les calculs financiers en TypeScript. Un calcul autoritaire ajouté dans une
 vue non couverte passerait.
 
-## Mutation testing — non commencé
+## Mutation testing — TENTÉ, ÉCHOUÉ, aucun score publiable
 
 `.claude/rules/testing.md` exige un score de mutation d'au moins 95 % sur les
-modules critiques, sans mutant dangereux survivant. **Aucune campagne n'a été
-lancée**, aucun outil de mutation n'est adopté, et le score réel est inconnu.
-Ce n'est pas une estimation basse : c'est une absence de mesure.
+modules critiques, sans mutant dangereux survivant. **Le score réel est
+inconnu.** Ce n'est pas une estimation basse : c'est une absence de mesure.
 
-Les modules concernés au premier chef sont `vertex_core.decision` (gates et
-`AdviceEngine`), `vertex_core.data` (fraîcheur, qualité, conflit) et
-`vertex_core.calculations`. Adopter un outil de mutation suppose une entrée
-dans `manifests/dependencies.yaml` et un temps de calcul non trivial : la
-suite complète tourne pour chaque mutant.
+Deux tentatives ont été faites avec `mutmut==3.7.0` (déjà adopté par
+`manifests/dependencies.yaml`, `adopt.test`), sur `vertex_core.decision` —
+les gates et l'`AdviceEngine`, seule autorité de verdict du produit. Les deux
+ont rendu **exactement le même résultat : 6 017 mutants générés, 6 017
+ignorés, 0 tué, 0 survivant, « 0.00 mutations/second »**. Un score de zéro qui
+ne mesure rien.
+
+Cause identifiée : `mutmut` 3 recopie l'arbre source dans `mutants/` et y
+exécute pytest, mais le dépôt est un workspace `uv` en disposition `src`
+installé en ÉDITABLE. Les tests importent donc le paquet réel, pas la copie
+mutée ; la phase de statistiques n'associe aucun test aux fichiers mutés, et
+tous les mutants sont classés « non couverts ». Forcer
+`PYTHONPATH=mutants/packages/python/vertex_core/src` fait bien pointer un
+`import vertex_core.decision.gates` vers la copie — vérifié — mais ne suffit
+pas à `mutmut`, y compris avec l'arbre `mutants/` déjà présent au démarrage
+(seconde tentative, faite précisément pour écarter l'hypothèse du répertoire
+inexistant au lancement).
+
+**L'outil et sa configuration ont été RETIRÉS du dépôt** plutôt que laissés
+en place. Un `setup.cfg` configuré qui produit « 0 tué / 6 017 ignorés » est
+un artefact qui ressemble à une campagne et n'en est pas une ; c'est
+exactement le type de vert sans preuve que ce dépôt interdit. Le
+reverrouillage a aussi entraîné trois composants tiers de plus (`rich`,
+`setproctitle`, `textual`) et la porte `notices` en rouge — coût inutile pour
+une mesure inexistante.
+
+Ce qu'une prochaine tentative doit résoudre AVANT de recommencer : faire en
+sorte que la copie de `mutants/` soit la seule `vertex_core` importable
+pendant toute la campagne, statistiques comprises. Les pistes non explorées
+sont une installation non éditable dans un environnement dédié à la campagne,
+ou un outil dont le modèle d'exécution ne repose pas sur la recopie de
+l'arbre (`cosmic-ray` mute en place).
