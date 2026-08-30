@@ -62,6 +62,7 @@ gates:
     - tools/check_policy.py
     - tools/check_notices.py
     - tools/check_performance_budgets.py
+    - tools/check_traceability.py
   # Portes présentes sur le disque et DÉLIBÉRÉMENT pas encore branchées.
   # Chaque entrée exige un motif écrit. La porte les signale à chaque
   # exécution sans bloquer, et ÉCHOUE si l'une d'elles se révèle en fait

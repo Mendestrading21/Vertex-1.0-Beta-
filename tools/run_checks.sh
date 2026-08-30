@@ -34,6 +34,12 @@ echo "== politique CI et supply-chain (porte policy) =="
 # réservé à la CI ; en local la preuve vient de manifests/actions-pins.yaml.
 python3 tools/check_policy.py
 
+echo "== traçabilité des interdictions absolues (porte traceability) =="
+# Sortie NON masquée : cette porte imprime les interdictions qui ne sont PAS
+# prouvées, à chaque exécution. Un manque qui cesse d'être visible cesse
+# d'être un manque.
+python3 tools/check_traceability.py
+
 echo "== notices tierces (porte release/notices) =="
 # Sortie NON masquée : cette porte imprime les licences non permissives
 # reconnues avec leur motif.

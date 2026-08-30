@@ -91,6 +91,12 @@ jobs:
       - name: Porte 5quater — notices tierces (inventaire, licences, fraîcheur)
         run: uv run --no-sync python tools/check_notices.py
 
+      # Chaque interdiction absolue de CLAUDE.md et de financial-safety.md est
+      # reliée à la preuve qui l'établit, ou à un écart écrit, daté et possédé.
+      # Les entrées non prouvées sont imprimées à chaque exécution.
+      - name: Porte 5quinquies — traçabilité des interdictions absolues
+        run: uv run --no-sync python tools/check_traceability.py
+
       - name: Porte 6 — compilation du domaine et des applications
         run: uv run --no-sync python -m compileall -q packages/python apps
 

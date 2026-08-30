@@ -217,3 +217,37 @@ version et son `as_of` d'origine : l'ancienneté n'est pas blanchie par une
 activité ultérieure. La fraîcheur est donc jugée **à la lecture**, sur
 `as_of`, et non republiée. C'est cohérent avec l'architecture par snapshots
 immuables ; ce n'était écrit nulle part avant ce test.
+
+## Matrice de traçabilité — 25 interdictions prouvées sur 30, 5 écarts
+
+`manifests/traceability.yaml` relie chaque interdiction absolue de
+`CLAUDE.md` et de `.claude/rules/financial-safety.md` à la preuve qui
+l'établit. La porte `tools/check_traceability.py` imprime les écarts à chaque
+exécution. Ce qu'elle a révélé :
+
+| Interdiction | Écart |
+|---|---|
+| Afficher une probabilité prédictive non calibrée (deux formulations, `CLAUDE.md` et `financial-safety.md`) | La règle d'abstention est prouvée **côté recherche** (`research/tests/test_calibration.py`), pas **au point d'affichage**. Aucune probabilité n'atteint l'interface aujourd'hui, et aucun test ne prouve que l'interface en refuserait une mal formée. |
+| Copier un fichier du dépôt donneur sans inventaire | `tools/inventory_donor.py` et l'inventaire existent, mais aucun test ne vérifie qu'une copie non inventoriée serait détectée. La règle repose sur la discipline, pas sur une porte. |
+| Ajouter un framework sans ADR | La porte `policy` prouve l'épinglage et le verrouillage, `notices` l'inventaire et la licence. **Rien ne relie une dépendance à un ADR accepté.** |
+| Travailler sur `main`, force-push, fusionner sans validation humaine | Déclarée **NON PROUVABLE PAR TEST** : protections de branche et droits de fusion vivent dans la configuration GitHub, qu'aucun test exécuté dans un checkout ne peut lire. Reste une vérification humaine. |
+
+Une limite de la matrice elle-même mérite d'être écrite : l'entrée
+`AUCUN-CALCUL-AUTORITAIRE-EN-TS` est marquée `PROVEN`, mais ses preuves
+couvrent les **vues testées**, pas tout le code TypeScript. Il n'existe aucun
+balayage statique du dépôt web équivalent à `check_financial_boundary` pour
+les calculs financiers en TypeScript. Un calcul autoritaire ajouté dans une
+vue non couverte passerait.
+
+## Mutation testing — non commencé
+
+`.claude/rules/testing.md` exige un score de mutation d'au moins 95 % sur les
+modules critiques, sans mutant dangereux survivant. **Aucune campagne n'a été
+lancée**, aucun outil de mutation n'est adopté, et le score réel est inconnu.
+Ce n'est pas une estimation basse : c'est une absence de mesure.
+
+Les modules concernés au premier chef sont `vertex_core.decision` (gates et
+`AdviceEngine`), `vertex_core.data` (fraîcheur, qualité, conflit) et
+`vertex_core.calculations`. Adopter un outil de mutation suppose une entrée
+dans `manifests/dependencies.yaml` et un temps de calcul non trivial : la
+suite complète tourne pour chaque mutant.

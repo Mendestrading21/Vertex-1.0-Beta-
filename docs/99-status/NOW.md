@@ -4,17 +4,17 @@
 phase: douze_pages_livrees_portes_ci_completees_lot_23_entame
 lot: LOT-23 — qualité, politique, performance, chaos, accessibilité
 branch: claude/vertex-connection-kgkntr
-status: batterie_locale_TOUT_VERT_ci_a_confirmer
-last_good_commit: 15fbf1b
+status: batterie_locale_TOUT_VERT_ci_verte_sur_5a40bc8
+last_good_commit: 5a40bc8
 completed:
   - vagues_1_a_5: 13 routes sur 13 réelles (PR #1, #2 et #3 fusionnées)
-  - ci: 7 jobs, 24 portes nommées ; actions épinglées par SHA de COMMIT
+  - ci: 7 jobs, 25 portes nommées — VERTE sur 5a40bc8 ; actions épinglées par SHA de COMMIT
       (l'objet-tag annoté est refusé), images par digest, permissions
       read-all, timeout sur chaque job
   - portes_ajoutees_cette_session:
       - "web-quality (Biome) — 451 violations ramenées à 0, trois défauts
          d'accessibilité réels corrigés au passage"
-      - "python-quality (ruff + mypy --strict) — 0 violation, 114 fichiers
+      - "python-quality (ruff + mypy --strict) — 0 violation, 115 fichiers
          sans erreur de typage"
       - "policy — SHA d'actions, permissions, timeouts, pull_request_target,
          runners, digests d'images, dépendances épinglées, verrous, et le
@@ -22,6 +22,8 @@ completed:
       - "release/notices — inventaire des 245 composants tiers, licences
          SPDX, fraîcheur des notices"
       - "performance — budgets MESURÉS, jamais déclarés"
+      - "traceability — chaque interdiction absolue reliée à sa preuve :
+         25 prouvées sur 30, 5 écarts écrits, datés et imprimés"
   - supply_chain: uv.lock exact + hachages ; pip-audit et pnpm audit sans
       vulnérabilité ; SBOM CycloneDX produite PAR LA CI
   - infra: compose durci (loopback seul, digests) ; sauvegarde chiffrée à
@@ -47,7 +49,7 @@ checks_locaux:
      + 65 (api) — exécution SÉRIELLE obligatoire, base partagée"
   - "vitest 337 passed ; tsc 0 erreur ; biome 0 violation"
   - "playwright 234 passed + 144 assertions d'accessibilité"
-  - "ruff : All checks passed ; mypy --strict : 114 fichiers, 0 erreur"
+  - "ruff : All checks passed ; mypy --strict : 115 fichiers, 0 erreur"
   - "worker Cloudflare : 53 tests de contrat"
   - "run_checks.sh TOUT VERT"
 pages_reelles: [/today, /markets, /system, /auth, /options, /analysis, /simulator, /portfolio, /follow-up, /performance, /calendar, /opportunities, /ai]
@@ -62,7 +64,9 @@ ecarts_declares:
      atteignable en l'état"
   - "Firefox et WebKit : workflow nocturne écrit, JAMAIS exécuté"
   - "provenance et signature de release : NON FAISABLES ici, déclarées absentes"
-  - "mutation testing : non commencé"
+  - "mutation testing : non commencé, score réel inconnu"
+  - "5 interdictions absolues sur 30 ne sont pas prouvées par un test —
+     détail dans manifests/traceability.yaml, imprimé à chaque exécution"
   - "AUCUNE donnée réelle n'a jamais été observée — IBKR jamais contacté,
      Cloudflare non déployé, Compose jamais exécuté (pas de démon Docker)"
 blocages_humains:
