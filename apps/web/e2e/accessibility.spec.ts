@@ -32,14 +32,37 @@ import { expect, test } from './fixtures.ts';
 /** Étiquettes de règles axe correspondant aux critères WCAG jusqu'à 2.2 AA. */
 const WCAG_AA_TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'] as const;
 
-/** Les 13 routes réelles de l'application. */
+/**
+ * Les routes mesurées — 14 chemins pour 12 des 13 routes de l'application.
+ *
+ * `/analysis` et `/options` sont PARAMÉTRÉES (`/analysis/:instrument?`,
+ * `/options/:underlying?` dans `src/app/pages.ts`). Les visiter sans paramètre
+ * rend un encart « Aucun instrument sélectionné » : `OptionChainTable`,
+ * `OptionInspector`, `CandleChart` et `PayoffChart` — les composants les plus
+ * larges et les plus animés du produit — n'étaient JAMAIS montés. La campagne
+ * annonçait « 12 routes » en mesurant neuf pages et trois encarts vides.
+ *
+ * Les deux états sont désormais mesurés : l'état vide, qui est une vraie page,
+ * ET l'état peuplé, qui porte les composants qui décident du contraste, de
+ * l'ordre de tabulation dans une grille et du mouvement.
+ *
+ * `/simulator/:id?` sans paramètre rend en revanche son composeur complet
+ * (seule la zone de résultat est vide) : c'est bien la page, pas un encart.
+ *
+ * `/auth` n'est PAS ici : elle n'a aucune couverture d'accessibilité, et le
+ * rapport le dit désormais au lieu de la déclarer couverte.
+ */
+const INSTRUMENT_SYNTHETIQUE = 'SYN-TECH-01';
+
 const ROUTES = [
   '/today',
   '/calendar',
   '/markets',
   '/opportunities',
   '/analysis',
+  `/analysis/${INSTRUMENT_SYNTHETIQUE}`,
   '/options',
+  `/options/${INSTRUMENT_SYNTHETIQUE}`,
   '/simulator',
   '/portfolio',
   '/follow-up',
@@ -81,30 +104,44 @@ test.describe('Accessibilité — traversée clavier et focus visible', () => {
 
       await page.keyboard.press('Tab');
 
+      // DIFFÉRENTIEL avant/après focus. La version précédente acceptait
+      // n'importe quelle `box-shadow` NON VIDE — or
+      // `.vx-rail-link[aria-current='page']` en porte une en permanence, hors
+      // focus. Le test aurait annoncé « focus visible » en mesurant un
+      // indicateur d'état de navigation. On compare donc l'apparence de
+      // l'élément focalisé avec elle-même sans focus.
       const focus = await page.evaluate(() => {
-        const active = document.activeElement;
+        const active = document.activeElement as HTMLElement | null;
         if (active === null || active === document.body) {
           return null;
         }
-        const style = getComputedStyle(active);
-        const outlineWidth = Number.parseFloat(style.outlineWidth) || 0;
-        const hasOutline = style.outlineStyle !== 'none' && outlineWidth > 0;
-        // Un anneau de focus peut être dessiné par `box-shadow` plutôt que par
-        // `outline` ; les deux sont des indicateurs visibles légitimes.
-        const hasShadowRing = style.boxShadow !== 'none' && style.boxShadow.trim() !== '';
+        const lire = (): { outline: string; shadow: string } => {
+          const style = getComputedStyle(active);
+          return {
+            outline: `${style.outlineStyle} ${style.outlineWidth} ${style.outlineColor}`,
+            shadow: style.boxShadow,
+          };
+        };
+        const avecFocus = lire();
+        active.blur();
+        const sansFocus = lire();
+        active.focus();
         return {
           tag: active.tagName.toLowerCase(),
-          role: active.getAttribute('role'),
-          visible: hasOutline || hasShadowRing,
-          outline: `${style.outlineStyle} ${style.outlineWidth} ${style.outlineColor}`,
+          avecFocus,
+          sansFocus,
+          change:
+            avecFocus.outline !== sansFocus.outline || avecFocus.shadow !== sansFocus.shadow,
         };
       });
 
       expect(focus, `${route} : la première tabulation n'a focalisé aucun élément`).not.toBeNull();
       expect(
-        focus?.visible,
-        `${route} : l'élément focalisé (${focus?.tag}) ne porte aucun indicateur de focus visible ` +
-          `(outline « ${focus?.outline} ») — WCAG 2.4.7`,
+        focus?.change,
+        `${route} : l'apparence de l'élément focalisé (${focus?.tag}) est IDENTIQUE avec et ` +
+          `sans focus — outline « ${focus?.avecFocus.outline} », ombre ` +
+          `« ${focus?.avecFocus.shadow} ». Une décoration permanente n'est pas un ` +
+          'indicateur de focus — WCAG 2.4.7',
       ).toBe(true);
     });
   }
@@ -165,18 +202,30 @@ test.describe('Accessibilité — zoom 200 % : plancher desktop mesuré (WCAG 1.
           `déclaré ${PLANCHER_DESKTOP_PX} px — un composant impose sa propre largeur minimale`,
       ).toBe(PLANCHER_DESKTOP_PX);
 
-      // Aucun contenu perdu : le défilement atteint bien le plancher.
+      // L'assertion précédente — « le défilement atteint le bord droit » —
+      // était une TAUTOLOGIE : `scrollTo` est borné par
+      // `scrollWidth − clientWidth`, donc `scrollLeft + clientWidth` vaut
+      // toujours `scrollWidth`, déjà contraint à 1024 ci-dessus. Elle ne
+      // pouvait pas échouer et le rapport la présentait comme une mesure.
+      //
+      // Ce qui se mesure vraiment : le contenu du `main` reste-t-il ATTEIGNABLE
+      // horizontalement ? On vérifie que le défilement de la page découvre bien
+      // la largeur manquante, en comparant la position du bord droit du `main`
+      // avant et après défilement.
+      const avant = await page
+        .getByRole('main')
+        .evaluate((element) => element.getBoundingClientRect().right);
       await page.evaluate((cible) => {
         document.scrollingElement?.scrollTo({ left: cible, behavior: 'instant' });
       }, PLANCHER_DESKTOP_PX);
-      const atteint = await page.evaluate(() => {
-        const root = document.scrollingElement;
-        return root === null ? 0 : root.scrollLeft + root.clientWidth;
-      });
+      const apres = await page
+        .getByRole('main')
+        .evaluate((element) => element.getBoundingClientRect().right);
       expect(
-        atteint,
-        `${route} : le défilement n'atteint pas le bord droit du contenu — du contenu serait perdu`,
-      ).toBeGreaterThanOrEqual(PLANCHER_DESKTOP_PX);
+        Math.round(avant - apres),
+        `${route} : le défilement horizontal ne déplace pas le contenu — il n'est pas ` +
+          'atteignable, du contenu serait réellement perdu',
+      ).toBe(PLANCHER_DESKTOP_PX - largeur);
     });
   }
 });

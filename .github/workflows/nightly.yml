@@ -93,9 +93,19 @@ jobs:
       - name: Interpréteur verrouillé en tête de PATH
         run: echo "${{ github.workspace }}/.venv/bin" >> "$GITHUB_PATH"
 
-      - name: Navigateurs Firefox et WebKit
+      # CHROMIUM EST OBLIGATOIRE ICI, même si ce job existe pour les deux
+      # autres moteurs. `e2e/global.setup.ts` crée la première passkey via
+      # l'authentificateur WebAuthn VIRTUEL, qui passe par CDP — un protocole
+      # Chromium. Sans lui, le setup échoue avant qu'un seul test Firefox ou
+      # WebKit ne démarre. C'est exactement ce qui s'est produit au tout
+      # premier passage de ce workflow : `chromium.launch()` a échoué à
+      # `global.setup.ts:169`.
+      #
+      # Les projets Chromium tournent d'ailleurs aussi dans ce job — l'étape
+      # suivante s'appelle « les trois moteurs de rendu ».
+      - name: Navigateurs Chromium, Firefox et WebKit
         working-directory: apps/web
-        run: pnpm exec playwright install --with-deps firefox webkit
+        run: pnpm exec playwright install --with-deps chromium firefox webkit
 
       - name: Les 13 routes sur les trois moteurs de rendu
         working-directory: apps/web

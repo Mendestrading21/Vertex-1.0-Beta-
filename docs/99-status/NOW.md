@@ -42,13 +42,13 @@ audits:
 mesures_reelles:
   bundle_initial_gzip: "118 291 octets (budget 307 200)"
   moteurs_de_graphes: "hors charge initiale — ECharts 205 ko, Lightweight 53 ko"
-  accessibilite: "144 assertions vertes, 12 routes × 3 viewports"
+  accessibilite: "168 cas de test verts, 14 chemins × 3 viewports (Chromium seul)"
 checks_locaux:
   - "pytest 3433 passed / 0 failed"
   - "intégration PostgreSQL : 96 (persistance) + 29 (worker, dont 12 chaos)
      + 65 (api) — exécution SÉRIELLE obligatoire, base partagée"
   - "vitest 337 passed ; tsc 0 erreur ; biome 0 violation"
-  - "playwright 234 passed + 144 assertions d'accessibilité"
+  - "playwright 234 passed + 168 cas d'accessibilité"
   - "ruff : All checks passed ; mypy --strict : 115 fichiers, 0 erreur"
   - "worker Cloudflare : 53 tests de contrat"
   - "run_checks.sh TOUT VERT"

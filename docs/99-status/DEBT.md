@@ -54,7 +54,7 @@ Ce fichier ne contient pas de décision humaine ; celles-ci restent dans
 | Fichiers non typés | `apps/web/tsconfig.json` n'inclut que `src` : `e2e/`, `scripts/gen-api.ts` et `playwright.config.ts` ne sont vérifiés par **aucun** `tsc` (Playwright transpile sans typer). Biome les couvre depuis la porte `web-quality`, mais un lint ne remplace pas un typage. |
 | Formatage web | Le formateur Biome est **désactivé** : le meilleur réglage réécrirait 61 % des fichiers. La mise en forme n'est donc gardée par aucune porte. Décision mesurée, à reprendre dans un commit purement mécanique. |
 | Supply-chain | `uv.lock` verrouille les 60 paquets Python en versions exactes + 1035 hachages sha256 ; `pip-audit --strict` et `pnpm audit --audit-level high` remontent **0 vulnérabilité** (exécutés localement) ; une SBOM CycloneDX 1.6 de 53 composants est produite PAR LA CI (le job supply-chain est vert sur GitHub ; aucun artefact SBOM n'est commité dans l'arbre, et il ne doit pas l'être). Manquent encore : **signature** (cosign), **provenance** SLSA, scan d'image de conteneur, et SBOM du volet Node. |
-| Navigateurs | Playwright tourne sur **Chromium** en CI de branche. Firefox et WebKit sont désormais couverts par `.github/workflows/nightly.yml` (382 tests au lieu de 234), mais **ce workflow n'a jamais tourné** : ses binaires ne sont pas téléchargeables depuis l'environnement de développement (le CDN Playwright n'y est pas joignable), et la première exécution nocturne n'a pas encore eu lieu. Tant qu'un run vert n'existe pas, la couverture navigateur réelle du produit se limite à Chromium. |
+| Navigateurs | Playwright tourne sur **Chromium** en CI de branche. Firefox et WebKit sont couverts par `.github/workflows/nightly.yml`. Ce workflow a tourné une fois (exécution `33311874652`) et a **ÉCHOUÉ avant toute mesure**, dans `e2e/global.setup.ts` : le job installait `firefox webkit` sans Chromium, alors que la préparation de session crée la première passkey par l'authentificateur WebAuthn virtuel, qui passe par CDP — donc par Chromium. Le job installe désormais les trois moteurs, mais **aucun chiffre Firefox ou WebKit n'existe encore**. Tant qu'un run abouti n'existe pas, la couverture navigateur réelle du produit se limite à Chromium. Les binaires ne sont par ailleurs pas téléchargeables depuis l'environnement de développement (CDN Playwright injoignable) : cette preuve ne peut venir que de la CI. |
 | Données | **Aucune donnée réelle n'a jamais été observée.** Tout est `SYNTHETIC` étiqueté ; IBKR n'a jamais été contacté ; Cloudflare n'est pas déployé. |
 | Détection de secrets | `tools/check_secrets.py` inspecte l'**arbre suivi**, pas l'historique Git. Un secret introduit puis retiré dans un commit antérieur ne serait pas vu. La détection est par motifs : une forme non listée passe. |
 | Probabilités | `probability.calibration` est `NOT_IMPLEMENTED` au registre : aucune probabilité prédictive n'est affichable, et aucune ne l'est. |
@@ -157,9 +157,9 @@ Le rapport complet, avec ses mesures, est
 1. **WCAG 1.4.10 (Reflow) — NON CONFORME.** `min-width: 1024px` sur
    l'enveloppe applicative (`apps/web/src/styles/global.css`) fait déborder la
    page de **384 px exactement** à 640 px de large (soit 200 % de zoom sur
-   1280 px), sur les 12 routes. Aucun contenu n'est perdu — le défilement
-   atteint le bord droit — mais le défilement bidimensionnel que le critère
-   interdit existe. Les tests
+   1280 px), sur les 14 chemins mesurés. Aucun contenu n'est perdu — le bord
+   droit du `main` se déplace réellement de la largeur manquante, mesuré — mais
+   le défilement bidimensionnel que le critère interdit existe. Les tests
    (`apps/web/e2e/accessibility.spec.ts`) épinglent la largeur défilable au
    plancher déclaré : ils échouent si un composant ajoute sa propre largeur
    minimale, c'est-à-dire si la situation empire. Lever l'écart suppose de
@@ -173,10 +173,14 @@ Le rapport complet, avec ses mesures, est
    éléments sans rôle, où un lecteur d'écran annonçait « tiret » au lieu de
    « bid absent ») avaient été trouvés par le lint, pas par axe.
 
-Ce qui est en revanche **mesuré vert** : 144 assertions sur 12 routes × 3
-viewports — axe restreint aux étiquettes WCAG 2.0/2.1/2.2 A et AA, tous
+Ce qui est en revanche **mesuré vert** : **168 cas de test** sur 14 chemins ×
+3 viewports — axe restreint aux étiquettes WCAG 2.0/2.1/2.2 A et AA, tous
 impacts confondus, zéro violation ; focus visible atteint à la première
-tabulation ; `prefers-reduced-motion` respecté (zéro animation > 100 ms).
+tabulation, mesuré par différentiel avant/après `Tab` ;
+`prefers-reduced-motion` respecté (zéro animation > 100 ms). Les libellés
+antérieurs — « 144 assertions », « 12 routes » — étaient faux deux fois : ce
+sont des cas de test, et trois des douze routes étaient mesurées à VIDE parce
+qu'elles sont paramétrées et étaient visitées sans paramètre.
 
 ## Campagne chaos LOT-23 — ce qu'elle couvre, ce qu'elle ne couvre pas
 
