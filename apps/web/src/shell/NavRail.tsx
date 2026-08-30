@@ -59,13 +59,17 @@ export function NavRail({ collapsed, onToggle }: NavRailProps) {
       onKeyDown={handleKeyDown}
     >
       <div className="vx-rail-head">
-        <span className="vx-brand-lockup" role="img" aria-label="Vertex 1.0 Beta">
+        <span
+          className="vx-brand-lockup"
+          role="img"
+          aria-label="Vertex 1.0 Beta, thème Titanium Ledger"
+        >
           <span className="vx-brand-mark" aria-hidden="true">
-            V
+            <span className="vx-brand-monogram">VX</span>
           </span>
           {!collapsed && (
             <span className="vx-rail-wordmark" aria-hidden="true">
-              Vertex <small>1.0 Beta</small>
+              Vertex <small>Titanium Ledger</small>
             </span>
           )}
         </span>

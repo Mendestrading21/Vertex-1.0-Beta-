@@ -1,20 +1,21 @@
 # État courant
 
 ```yaml
-phase: refonte_visuelle_black_intelligence_prete_a_revue
-lot: LOT-10 — rafraîchissement design system et shell Obsidian
+phase: identite_titanium_ledger_prete_a_revue
+lot: LOT-10 — système visuel complet Titanium Ledger
 branch: lot/10-obsidian-theme-refresh
 status: ready_for_human_review
 last_good_commit: 940e3a7 (= origin/main, baseline locale web verte)
 active_work:
-  - "refonte visuelle demandée à partir de 26 références : terminal graphite,
-     grille bento régulière, accent signal rare et hiérarchie décisionnelle"
-  - "périmètre borné au design system, au shell et à la page Aujourd'hui ;
-     aucun contrat API, calcul financier, gate ou source de données modifié"
-  - "implémentation : design tokens Obsidian, shell, glyphes approuvés,
-     cockpit Aujourd'hui et rail de vérité du snapshot"
+  - "direction choisie après comparaison : Titanium Ledger — terminal graphite
+     chaud, métal sombre, accent ambre rare et hiérarchie décisionnelle"
+  - "périmètre : identité, tokens, shell et langage des objets, tableaux,
+     graphiques et widgets des 12 pages ; aucun contrat API, calcul financier,
+     gate ou source de données modifié"
+  - "implémentation : monogramme VX, rail Titanium, codes TL/01 à TL/12,
+     Ledger Frames, Metric Blocks, Inspector Sheets et grammaire graphique"
   - "validation finale locale : Biome 0 violation, TypeScript 0 erreur,
-     Vitest 389/389, build Vite vert ; bundle initial gzip 121709 octets,
+     Vitest 390/390, build Vite vert ; bundle initial gzip 124072 octets,
      moteurs graphiques hors fermeture initiale"
   - "E2E/captures non exécutés localement : PostgreSQL jetable et Chromium
      absents ; exécution attendue en CI avant validation humaine"

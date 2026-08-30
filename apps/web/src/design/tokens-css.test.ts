@@ -45,7 +45,7 @@ describe('tokens.css généré', () => {
     }
   });
 
-  it('déclare les trois ombres sobres du système Obsidian', () => {
+  it('déclare les trois ombres sobres du système Titanium Ledger', () => {
     expect(Object.keys(shadow)).toEqual(['panel', 'floating', 'inset']);
     for (const [key, value] of Object.entries(shadow)) {
       expect(committed).toContain(`--vx-shadow-${key}: ${value};`);

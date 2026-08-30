@@ -48,7 +48,7 @@ export function ContextBar() {
     <header className="vx-contextbar">
       <div className="vx-contextbar-title">
         <span className="vx-contextbar-app" aria-hidden="true">
-          Vertex One
+          Titanium Ledger
         </span>
         <span className="vx-contextbar-divider" aria-hidden="true">
           /
@@ -56,7 +56,7 @@ export function ContextBar() {
         <span className="vx-contextbar-page">{title}</span>
       </div>
       <div className="vx-contextbar-meta">
-        <span className="vx-contextbar-edition">1.0 Beta</span>
+        <span className="vx-contextbar-edition">Vertex 1.0 Beta</span>
         <p className="vx-contextbar-status" data-session={session}>
           <span className="vx-status-dot" aria-hidden="true" />
           {SESSION_LABELS[session]}

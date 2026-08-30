@@ -1,5 +1,5 @@
 /*
- * Styles globaux du shell — Black Glass, Signal Light.
+ * Styles globaux du shell — Black Glass, Titanium Ledger.
  * Toutes les couleurs proviennent des variables de src/design/tokens.css
  * (générées depuis src/design/tokens.ts). Aucune couleur brute ici.
  *
@@ -3587,5 +3587,583 @@ body {
 
   .vx-primary-action:hover:not(:disabled) {
     transform: none;
+  }
+}
+
+/* ================================================================== */
+/* TITANIUM LEDGER — identité visuelle Vertex 1.0 Beta                 */
+/* ================================================================== */
+
+/* Le canevas associe une grille de terminal extrêmement discrète à une
+   lumière ambre localisée. La lumière ne porte jamais une donnée financière. */
+body {
+  background-color: var(--vx-app);
+  background-image:
+    radial-gradient(circle at 78% -12%, var(--vx-signal-faint), transparent 34%),
+    linear-gradient(var(--vx-grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--vx-grid-line) 1px, transparent 1px);
+  background-size: auto, 44px 44px, 44px 44px;
+  background-attachment: fixed;
+}
+
+.vx-shell,
+.vx-shell-body {
+  background: transparent;
+}
+
+.vx-shell {
+  --vx-rail-width: 248px;
+}
+
+.vx-rail {
+  background:
+    linear-gradient(180deg, var(--vx-titanium-soft), transparent 14%),
+    var(--vx-surface-0);
+  border-right-color: var(--vx-border);
+}
+
+.vx-rail-head {
+  min-height: 80px;
+  background: var(--vx-scrim);
+}
+
+.vx-brand-mark {
+  position: relative;
+  width: 42px;
+  height: 42px;
+  flex-basis: 42px;
+  overflow: hidden;
+  border-color: var(--vx-border-strong);
+  border-radius: var(--vx-radius-10);
+  background: linear-gradient(
+    145deg,
+    var(--vx-silver),
+    var(--vx-titanium) 46%,
+    var(--vx-signal-deep)
+  );
+  color: var(--vx-black);
+  box-shadow: var(--vx-shadow-inset), var(--vx-shadow-panel);
+}
+
+.vx-brand-mark::after {
+  position: absolute;
+  right: -34%;
+  bottom: -48%;
+  width: 90%;
+  height: 120%;
+  border: 1px solid var(--vx-signal-bright);
+  content: '';
+  transform: rotate(32deg);
+}
+
+.vx-brand-monogram {
+  position: relative;
+  z-index: 1;
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-label);
+  font-weight: 780;
+  letter-spacing: -0.13em;
+  transform: translateX(-1px) skewX(-8deg);
+}
+
+.vx-rail-wordmark {
+  display: flex;
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 0;
+  font-size: 17px;
+  font-weight: 690;
+  letter-spacing: 0.01em;
+  line-height: 1.1;
+  text-transform: uppercase;
+}
+
+.vx-rail-wordmark small {
+  margin-top: var(--vx-space-4);
+  color: var(--vx-signal);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.vx-rail-group-label {
+  color: var(--vx-titanium);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.14em;
+}
+
+.vx-rail-link {
+  position: relative;
+  min-height: 44px;
+  border-radius: var(--vx-radius-6);
+}
+
+.vx-rail-link::after {
+  position: absolute;
+  right: var(--vx-space-8);
+  width: 4px;
+  height: 4px;
+  border-radius: var(--vx-radius-pill);
+  background: var(--vx-titanium);
+  content: '';
+  opacity: 0;
+  transition: opacity var(--vx-motion-140) var(--vx-ease-standard);
+}
+
+.vx-rail-link[aria-current='page'] {
+  border-color: var(--vx-border-strong);
+  background: linear-gradient(90deg, var(--vx-signal-soft), var(--vx-signal-faint));
+  box-shadow: inset 2px 0 0 var(--vx-signal), var(--vx-shadow-inset);
+}
+
+.vx-rail-link[aria-current='page']::after {
+  background: var(--vx-signal-bright);
+  opacity: 1;
+}
+
+.vx-rail-link-short,
+.vx-rail-link[aria-current='page'] .vx-rail-link-short {
+  border-color: transparent;
+  background: transparent;
+}
+
+.vx-rail-link[aria-current='page'] .vx-rail-link-short {
+  color: var(--vx-signal-bright);
+}
+
+.vx-contextbar {
+  min-height: 68px;
+  background:
+    linear-gradient(90deg, var(--vx-titanium-soft), transparent 28%),
+    var(--vx-overlay);
+  border-bottom-color: var(--vx-border);
+}
+
+.vx-contextbar-app {
+  color: var(--vx-signal);
+  font-family: var(--vx-font-mono);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.vx-contextbar-edition {
+  border-color: var(--vx-border);
+  background: var(--vx-titanium-soft);
+  color: var(--vx-silver);
+  letter-spacing: 0.04em;
+}
+
+.vx-main {
+  position: relative;
+  isolation: isolate;
+  padding-top: var(--vx-space-40);
+}
+
+.vx-main::before {
+  position: fixed;
+  z-index: -1;
+  top: 92px;
+  right: var(--vx-space-32);
+  color: var(--vx-titanium-soft);
+  content: attr(data-ledger-code);
+  font-family: var(--vx-font-mono);
+  font-size: clamp(52px, 6vw, 104px);
+  font-weight: 700;
+  letter-spacing: -0.08em;
+  line-height: 1;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Numérotation éditoriale des douze espaces. Elle identifie l'écran, jamais
+   une performance ni une priorité. */
+.vx-main[data-page='today'] {
+  --vx-page-ledger: 'LEDGER 01 · NOW';
+}
+
+.vx-main[data-page='opportunities'] {
+  --vx-page-ledger: 'LEDGER 02 · SCREEN';
+}
+
+.vx-main[data-page='analysis'] {
+  --vx-page-ledger: 'LEDGER 03 · EVIDENCE';
+}
+
+.vx-main[data-page='options'] {
+  --vx-page-ledger: 'LEDGER 04 · CHAIN';
+}
+
+.vx-main[data-page='simulator'] {
+  --vx-page-ledger: 'LEDGER 05 · MODEL';
+}
+
+.vx-main[data-page='calendar'] {
+  --vx-page-ledger: 'LEDGER 06 · EVENTS';
+}
+
+.vx-main[data-page='markets'] {
+  --vx-page-ledger: 'LEDGER 07 · REGIME';
+}
+
+.vx-main[data-page='portfolio'] {
+  --vx-page-ledger: 'LEDGER 08 · BOOK';
+}
+
+.vx-main[data-page='follow-up'] {
+  --vx-page-ledger: 'LEDGER 09 · THESIS';
+}
+
+.vx-main[data-page='performance'] {
+  --vx-page-ledger: 'LEDGER 10 · ATTRIBUTION';
+}
+
+.vx-main[data-page='ai'] {
+  --vx-page-ledger: 'LEDGER 11 · INTELLIGENCE';
+}
+
+.vx-main[data-page='system'] {
+  --vx-page-ledger: 'LEDGER 12 · CONTROL';
+}
+
+.vx-page-header {
+  position: relative;
+  min-height: 92px;
+  margin-bottom: var(--vx-space-24);
+  padding: 0 160px var(--vx-space-20) 0;
+  border-bottom: 1px solid var(--vx-border);
+}
+
+.vx-page-header::before {
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  width: 88px;
+  height: 1px;
+  background: linear-gradient(90deg, var(--vx-signal-bright), transparent);
+  content: '';
+}
+
+.vx-page-header::after {
+  position: absolute;
+  top: var(--vx-space-8);
+  right: 0;
+  color: var(--vx-titanium);
+  content: var(--vx-page-ledger, 'TITANIUM LEDGER');
+  font-family: var(--vx-font-mono);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.vx-page-header h1 {
+  color: var(--vx-text);
+  font-size: 32px;
+  font-weight: 620;
+  letter-spacing: -0.035em;
+}
+
+.vx-page-eyebrow,
+.vx-panel-kicker {
+  color: var(--vx-signal);
+}
+
+.vx-page-question {
+  max-width: 72ch;
+}
+
+/* Les surfaces principales ont une tranche métallique et un coin de registre.
+   Les widgets secondaires restent plus calmes afin de préserver la hiérarchie. */
+.vx-chartframe,
+.vx-today-primary,
+.vx-snapshot-rail,
+.vx-health-item,
+.vx-perf-metric,
+.vx-pf-summary,
+.vx-pf-concentration,
+.vx-pf-ledger,
+.vx-sim-composer,
+.vx-sim-result,
+.vx-ai-provider,
+.vx-ai-subject,
+.vx-cal-window,
+.vx-opp-profile,
+.vx-fu-queue,
+.vx-fu-theses {
+  position: relative;
+  overflow: hidden;
+  border-color: var(--vx-border);
+  background:
+    linear-gradient(135deg, var(--vx-titanium-soft), transparent 22%),
+    var(--vx-surface-1);
+  box-shadow: var(--vx-shadow-panel), var(--vx-shadow-inset);
+}
+
+.vx-chartframe::before,
+.vx-today-primary::before,
+.vx-snapshot-rail::before,
+.vx-pf-summary::before,
+.vx-sim-result::before {
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  left: var(--vx-space-20);
+  width: 76px;
+  height: 2px;
+  background: linear-gradient(90deg, var(--vx-signal-bright), var(--vx-signal-deep));
+  content: '';
+}
+
+.vx-chartframe-head,
+.vx-panel-head,
+.vx-pf-summary-head,
+.vx-pf-ledger-head {
+  border-bottom-color: var(--vx-border);
+}
+
+.vx-chartframe-head h2,
+.vx-panel-head h2,
+.vx-health h2,
+.vx-unknown-probes h2 {
+  font-weight: 620;
+  letter-spacing: -0.02em;
+}
+
+.vx-chartframe-meta,
+.vx-pf-summary-meta,
+.vx-health-strip,
+.vx-ai-trace {
+  border-color: var(--vx-border);
+  background: var(--vx-scrim);
+}
+
+/* Graphiques : même cadre, grille et pied de preuve sur Marchés, Analyse,
+   Simulateur et Performance. Les moteurs gardent leurs données exactes. */
+.vx-marketmap-canvas,
+.vx-candles-canvas,
+.vx-payoff-canvas,
+.vx-perf-chart-canvas,
+.vx-perf-heatmap-canvas {
+  border: 1px solid var(--vx-border-soft);
+  border-radius: var(--vx-radius-10);
+  background-color: var(--vx-surface-0);
+  background-image:
+    linear-gradient(var(--vx-grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--vx-grid-line) 1px, transparent 1px);
+  background-size: 36px 36px;
+  box-shadow: var(--vx-shadow-inset);
+}
+
+.vx-marketmap-caption,
+.vx-candles-caption,
+.vx-payoff-caption,
+.vx-perf-chart-caption,
+.vx-chartframe-foot {
+  border-top-color: var(--vx-border);
+  color: var(--vx-text-muted);
+  font-family: var(--vx-font-mono);
+  font-size: 11px;
+}
+
+.vx-chartframe-legend,
+.vx-cal-counters,
+.vx-perf-metrics-grid,
+.vx-pf-summary-grid {
+  gap: var(--vx-space-12);
+}
+
+.vx-legend-chip,
+.vx-perf-metric,
+.vx-pf-summary-block,
+.vx-health-strip-item {
+  border-color: var(--vx-border-soft);
+  background: var(--vx-surface-0);
+  box-shadow: var(--vx-shadow-inset);
+}
+
+.vx-perf-metric-value,
+.vx-inspector-value,
+.vx-pf-summary-list dd,
+.vx-num {
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.vx-perf-metric-value,
+.vx-inspector-value {
+  color: var(--vx-silver);
+  letter-spacing: -0.025em;
+}
+
+/* Tableaux Ledger : en-têtes mats, rythme plus dense, survol guidé et
+   séparateurs fins. Aucun contenu ni ordre n'est modifié. */
+.vx-matrix-scroll,
+.vx-markets-table-scroll,
+.vx-chain-table-scroll,
+.vx-pf-table-scroll,
+.vx-ohlcv-scroll {
+  border-color: var(--vx-border);
+  border-radius: var(--vx-radius-10);
+  background: var(--vx-surface-0);
+  box-shadow: var(--vx-shadow-inset);
+}
+
+.vx-matrix-table thead,
+.vx-markets-table thead,
+.vx-chain-table thead,
+.vx-pf-table thead,
+.vx-ohlcv-table thead,
+.vx-perf-months-table thead,
+.vx-perf-points-table thead {
+  background: var(--vx-surface-2);
+}
+
+.vx-matrix-table thead th,
+.vx-markets-table thead th,
+.vx-chain-table thead th,
+.vx-pf-table thead th,
+.vx-ohlcv-table thead th,
+.vx-perf-months-table thead th,
+.vx-perf-points-table thead th {
+  color: var(--vx-titanium);
+  font-family: var(--vx-font-mono);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.vx-matrix-table tbody tr,
+.vx-markets-table tbody tr,
+.vx-chain-table tbody tr,
+.vx-pf-table tbody tr,
+.vx-ohlcv-table tbody tr {
+  transition: background-color var(--vx-motion-90) var(--vx-ease-standard);
+}
+
+.vx-matrix-table tbody tr:hover,
+.vx-markets-table tbody tr:hover,
+.vx-chain-table tbody tr:hover,
+.vx-pf-table tbody tr:hover,
+.vx-ohlcv-table tbody tr:hover {
+  background: var(--vx-signal-faint);
+}
+
+.vx-chain-strike,
+.vx-chain-strike-head {
+  background: var(--vx-signal-faint);
+  color: var(--vx-signal-bright);
+}
+
+/* Contrôles et actions : métal neutre au repos, ambre uniquement pour
+   l'action principale ou la sélection. */
+button,
+input,
+select,
+textarea {
+  font-family: inherit;
+}
+
+input,
+select,
+textarea {
+  border-color: var(--vx-border);
+  background: var(--vx-surface-0);
+  color: var(--vx-text);
+  box-shadow: var(--vx-shadow-inset);
+}
+
+input:hover,
+select:hover,
+textarea:hover {
+  border-color: var(--vx-border-strong);
+}
+
+.vx-primary-action {
+  border-color: var(--vx-signal-bright);
+  background: linear-gradient(135deg, var(--vx-signal-bright), var(--vx-signal));
+  color: var(--vx-black);
+  box-shadow: var(--vx-shadow-inset), 0 12px 28px var(--vx-signal-faint);
+  font-weight: 700;
+}
+
+.vx-primary-action:hover:not(:disabled) {
+  border-color: var(--vx-silver);
+  background: linear-gradient(135deg, var(--vx-silver), var(--vx-signal-bright));
+}
+
+.vx-sheet {
+  border-left-color: var(--vx-border-strong);
+  background:
+    linear-gradient(150deg, var(--vx-titanium-soft), transparent 24%),
+    var(--vx-surface-1);
+  box-shadow: var(--vx-shadow-floating);
+}
+
+.vx-sheet-head {
+  border-bottom-color: var(--vx-border);
+}
+
+.vx-badge {
+  border-radius: var(--vx-radius-6);
+  letter-spacing: 0.06em;
+}
+
+.vx-status-badge,
+.vx-freshness,
+.vx-contextbar-status {
+  border-radius: var(--vx-radius-6);
+}
+
+/* Signature particulière de chaque famille de page. */
+.vx-main[data-page='today'] .vx-today-layout,
+.vx-main[data-page='portfolio'] .vx-pf-summary,
+.vx-main[data-page='performance'] .vx-perf-metrics {
+  position: relative;
+}
+
+.vx-main[data-page='markets'] .vx-chartframe,
+.vx-main[data-page='analysis'] .vx-chartframe,
+.vx-main[data-page='simulator'] .vx-sim-result,
+.vx-main[data-page='performance'] .vx-perf-chart {
+  border-radius: var(--vx-radius-18);
+}
+
+.vx-main[data-page='options'] .vx-chain-group[aria-current='true'],
+.vx-main[data-page='follow-up'] .vx-fu-due-item:hover,
+.vx-main[data-page='opportunities'] .vx-opp-group:hover {
+  border-color: var(--vx-signal-deep);
+}
+
+.vx-main[data-page='ai'] .vx-ai-claim-ref,
+.vx-main[data-page='system'] .vx-health-method {
+  color: var(--vx-signal);
+}
+
+.vx-main[data-page='calendar'] .vx-cal-status-mark,
+.vx-main[data-page='opportunities'] .vx-opp-status {
+  box-shadow: 0 0 0 var(--vx-space-4) var(--vx-titanium-soft);
+}
+
+@media (max-width: 1279px) {
+  .vx-shell {
+    --vx-rail-width: 232px;
+  }
+
+  .vx-page-header {
+    padding-right: 128px;
+  }
+
+  .vx-main::before {
+    font-size: 54px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body {
+    background-attachment: scroll;
   }
 }

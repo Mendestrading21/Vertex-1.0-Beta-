@@ -14,6 +14,13 @@ describe('AppShell — landmarks et lien d’évitement', () => {
     expect(screen.getByRole('main')).toBeDefined();
   });
 
+  it('porte la signature Titanium Ledger propre à la page active', () => {
+    renderApp('/markets');
+    const main = screen.getByRole('main');
+    expect(main.getAttribute('data-page')).toBe('markets');
+    expect(main.getAttribute('data-ledger-code')).toBe('TL / 07');
+  });
+
   it('le lien d’évitement pointe vers le contenu principal', () => {
     renderApp('/today');
     const skipLink = screen.getByRole('link', { name: 'Aller au contenu principal' });

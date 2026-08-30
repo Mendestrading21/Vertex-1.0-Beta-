@@ -1,12 +1,14 @@
 # Tokens Black Glass
 
-`DESIGN_SYSTEM.md` définit la palette. Le LOT-10 la convertit en une source typée unique générant CSS et documentation ; aucune page ne déclare une couleur brute.
+`DESIGN_SYSTEM.md` définit la palette Titanium Ledger. Le LOT-10 la convertit
+en une source typée unique générant CSS et documentation ; aucune page ne
+déclare une couleur brute.
 
 ## Familles
 
 - couleur : surface, texte, bordure, état, option et macro ;
 - espace : grille de 4 px, valeurs 4/8/12/16/20/24/32/40/48 ;
-- rayon : 6/10/14/18/22 px, pilule seulement pour badge ;
+- rayon : clés 6/10/14/18/22, valeurs resserrées pour le registre métallique ;
 - ombre : panneau, flottant et reflet interne sobres, jamais utilisés comme
   seule séparation ni comme halo lumineux ;
 - typographie : `body`, `meta`, `label`, `title`, `display`, `mono-number` ;

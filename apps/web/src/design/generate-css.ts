@@ -37,7 +37,7 @@ export function renderTokensCss(): string {
   return `${GENERATED_HEADER}
 
 :root {
-  /* Couleurs — Black Glass, Obsidian Signal */
+  /* Couleurs — Black Glass, Titanium Ledger */
 ${block('  ', 'vx-', color)}
 
   /* Espacements — grille 4 px */

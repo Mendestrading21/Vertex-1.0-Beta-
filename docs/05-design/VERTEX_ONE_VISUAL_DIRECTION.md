@@ -1,9 +1,14 @@
-# Vertex 1.0 Beta — direction visuelle « Obsidian Signal »
+# Vertex 1.0 Beta — étude de direction visuelle
+
+> Décision mise à jour : **Titanium Ledger** a été retenu pour le thème complet.
+> La spécification active se trouve dans
+> `docs/05-design/TITANIUM_LEDGER_VISUAL_SYSTEM.md`. Le présent document conserve
+> l'audit et la comparaison ayant conduit à cette décision.
 
 ## Décision
 
-Vertex devient un terminal de décision contemporain : fond graphite, hiérarchie
-forte, grille bento régulière et signal lime rare. L'interface conserve sa
+Vertex devient un registre décisionnel premium : fond graphite chaud, hiérarchie
+forte, grille bento régulière et signal ambre rare. L'interface conserve sa
 rigueur financière et sa traçabilité, mais cesse de présenter chaque donnée
 comme un bloc technique de même importance.
 
@@ -19,10 +24,10 @@ Cette direction est une synthèse des références fournies, pas une copie d'un
 | B — Prism Intelligence | laboratoire de données premium | violet prismatique + contrepoint turquoise | losange/prisme portant le `V` | exprime bien l'IA et l'analyse, plus éditorial | le violet doit rester distinct du langage sémantique des options |
 | C — Titanium Ledger | outil patrimonial mature | métal chaud/ambre | monogramme angulaire `VX` | sobre, crédible, durable, excellente densité | risque d'être moins immédiatement différenciant |
 
-La branche implémente A comme base de comparaison parce qu'elle répond le mieux
-au besoin exprimé de contraste, de modernité et d'identité propre. B et C
-restent des directions visuelles réversibles : aucune n'autorise un écart aux
-contrats de données ou à la frontière sans exécution.
+La première branche a implémenté A comme base de comparaison. Après revue des
+propositions, C — Titanium Ledger — est retenue et développée comme système
+complet. Cette évolution visuelle n'autorise aucun écart aux contrats de données
+ou à la frontière sans exécution.
 
 ## Audit de l'interface avant refonte
 

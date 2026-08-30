@@ -1,5 +1,5 @@
 /**
- * Tokens Black Glass — Obsidian Signal. SOURCE TYPÉE UNIQUE.
+ * Tokens Black Glass — Titanium Ledger. SOURCE TYPÉE UNIQUE.
  *
  * Références : docs/05-design/DESIGN_SYSTEM.md et docs/05-design/TOKENS.md.
  *
@@ -14,34 +14,40 @@
 
 /** Couleurs canoniques. Clé → variable CSS `--vx-<clé>`. */
 export const color = {
-  'black': '#020304',
-  'app': '#06080d',
-  'surface-0': '#090c12',
-  'surface-1': '#0e1219',
-  'surface-2': '#141923',
-  'surface-3': '#1a202b',
-  'hover': '#202835',
-  'border-soft': 'rgba(232, 239, 249, 0.07)',
-  'border': 'rgba(232, 239, 249, 0.11)',
-  'border-strong': 'rgba(232, 239, 249, 0.18)',
-  'text': '#f5f7fb',
-  'text-secondary': '#a8b0bf',
-  'text-muted': '#747e8e',
-  'silver': '#d4dae3',
-  'signal': '#d4ff45',
-  'signal-soft': 'rgba(212, 255, 69, 0.13)',
-  'signal-faint': 'rgba(212, 255, 69, 0.055)',
-  'positive': '#2bd99b',
-  'positive-soft': 'rgba(43, 217, 155, 0.12)',
-  'negative': '#ff6070',
-  'negative-soft': 'rgba(255, 96, 112, 0.12)',
-  'warning': '#f2b94b',
-  'warning-soft': 'rgba(242, 185, 75, 0.12)',
-  'option': '#a87cf7',
-  'option-soft': 'rgba(168, 124, 247, 0.12)',
-  'macro': '#5bd2c2',
-  'macro-soft': 'rgba(91, 210, 194, 0.12)',
-  'overlay': 'rgba(2, 3, 4, 0.82)',
+  'black': '#030302',
+  'app': '#080806',
+  'surface-0': '#0d0d0b',
+  'surface-1': '#141310',
+  'surface-2': '#1b1915',
+  'surface-3': '#242119',
+  'hover': '#2d2920',
+  'border-soft': 'rgba(231, 224, 207, 0.07)',
+  'border': 'rgba(231, 224, 207, 0.12)',
+  'border-strong': 'rgba(231, 224, 207, 0.21)',
+  'grid-line': 'rgba(231, 224, 207, 0.045)',
+  'text': '#f6f2e8',
+  'text-secondary': '#b8b0a0',
+  'text-muted': '#7f786b',
+  'silver': '#d8d3c7',
+  'titanium': '#aaa497',
+  'titanium-soft': 'rgba(216, 211, 199, 0.1)',
+  'signal': '#d7a94a',
+  'signal-bright': '#f2c76b',
+  'signal-deep': '#765319',
+  'signal-soft': 'rgba(215, 169, 74, 0.15)',
+  'signal-faint': 'rgba(215, 169, 74, 0.065)',
+  'positive': '#50c992',
+  'positive-soft': 'rgba(80, 201, 146, 0.12)',
+  'negative': '#ef6f6c',
+  'negative-soft': 'rgba(239, 111, 108, 0.12)',
+  'warning': '#f0c36a',
+  'warning-soft': 'rgba(240, 195, 106, 0.12)',
+  'option': '#a88ae8',
+  'option-soft': 'rgba(168, 138, 232, 0.12)',
+  'macro': '#6bc5bc',
+  'macro-soft': 'rgba(107, 197, 188, 0.12)',
+  'overlay': 'rgba(3, 3, 2, 0.86)',
+  'scrim': 'rgba(3, 3, 2, 0.56)',
 } as const satisfies Record<string, string>;
 
 /** Espacements — grille 4 px. Clé (valeur px) → `--vx-space-<clé>`. */
@@ -62,16 +68,16 @@ export const radius = {
   6: '6px',
   10: '10px',
   14: '14px',
-  18: '18px',
-  22: '22px',
+  18: '16px',
+  22: '20px',
   pill: '999px',
 } as const satisfies Record<string | number, string>;
 
 /** Ombres sobres : profondeur, jamais halo lumineux. */
 export const shadow = {
-  panel: '0 18px 48px rgba(0, 0, 0, 0.2)',
-  floating: '0 28px 72px rgba(0, 0, 0, 0.38)',
-  inset: 'inset 0 1px 0 rgba(255, 255, 255, 0.035)',
+  panel: '0 20px 52px rgba(0, 0, 0, 0.28)',
+  floating: '0 32px 80px rgba(0, 0, 0, 0.48)',
+  inset: 'inset 0 1px 0 rgba(255, 255, 255, 0.045)',
 } as const satisfies Record<string, string>;
 
 /**
