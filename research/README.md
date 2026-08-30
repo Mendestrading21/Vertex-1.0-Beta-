@@ -15,14 +15,31 @@ décision humaine explicite.
 | Publier une probabilité prédictive | `probability.calibration` est `NOT_IMPLEMENTED` au registre des calculs ; aucune valeur ne peut être affichée tant qu'un humain n'a pas accepté une calibration validée |
 | Utiliser une donnée non point-in-time | Une variable connue après l'instant de décision est une fuite, pas un signal |
 
-Un test d'architecture (`research/tests/test_boundary.py`) échoue si un import
-de runtime apparaît sous `research/`.
+Un test d'architecture (`research/tests/test_boundary.py`) analyse chaque
+module `.py` **et chaque cellule de code de chaque notebook `.ipynb`** sous
+`research/`, et échoue s'il y trouve un import de runtime écrit en clair, un
+import dynamique dont le nom de module est un littéral
+(`importlib.import_module("vertex_persistence")`), ou le lancement d'un
+exécutable de base de données ou de service runtime (`psql`, `pg_dump`,
+`alembic`, `uvicorn`…) nommé littéralement.
+
+Ce contrôle est une analyse **statique** : il rend le chemin évident
+impossible par inadvertance. Il ne détecte pas un nom de module construit à
+l'exécution, un `exec` de source assemblée, une socket brute vers PostgreSQL
+ni un exécutable renommé. La liste exacte de ce qui est couvert et de ce qui
+ne l'est pas est en tête de `research/tests/test_boundary.py` ; elle ne
+remplace ni la revue humaine ni les droits d'accès.
 
 ## Ce que ce dossier fournit aujourd'hui
 
-- `pipelines/walk_forward.py` — découpage **walk-forward purgé** avec écart
-  (`gap`) au moins égal à l'horizon du label, plus embargo. C'est la seule
-  façon d'évaluer un modèle sur des séries temporelles sans se mentir.
+- `pipelines/walk_forward.py` — découpage **walk-forward purgé**. La fenêtre
+  d'entraînement est contiguë au test ; la non-fuite vient de la **purge**,
+  qui retire les observations dont le label se résout pendant le test — pas
+  d'un écart fixe, qui rendrait la purge inutile en masquant combien de
+  données il jette. L'**embargo** est distinct et facultatif : il met en
+  quarantaine les observations déjà évaluées par un pli, pour qu'elles ne
+  reviennent pas immédiatement entraîner le pli suivant. C'est la seule façon
+  d'évaluer un modèle sur des séries temporelles sans se mentir.
 - `pipelines/calibration.py` — Brier score, log loss, diagramme de fiabilité,
   intervalles par **bootstrap en blocs** (les observations voisines ne sont pas
   indépendantes), et surtout la **règle d'abstention** : la fonction dit

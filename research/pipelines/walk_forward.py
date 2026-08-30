@@ -14,8 +14,13 @@ Ce module implémente le protocole minimal exigé par
   est retirée. C'est la purge qui garantit la non-fuite — pas un écart
   arbitraire. Un écart fixe suffisamment grand rendrait la purge inutile ; il
   masquerait surtout le fait qu'on jette des données sans savoir combien ;
-* **embargo** : une marge après le test, pour que le pli suivant n'entraîne pas
-  sur des observations qui partagent encore le régime du test ;
+* **embargo** : une quarantaine des observations DÉJÀ ÉVALUÉES. Dans un
+  walk-forward, la fenêtre de test d'un pli devient de la donnée
+  d'entraînement pour les plis suivants ; l'estimation agrégée hors
+  échantillon suppose pourtant des plis peu redondants. Une observation
+  évaluée par un pli dont le test se termine à ``test_end`` ne redevient donc
+  entraînable qu'à partir de ``test_end + embargo``. Avec ``embargo = 0``
+  (défaut) rien n'est mis en quarantaine et seule la purge agit ;
 * **holdout final** séparé et intouchable.
 
 Aucune dépendance au runtime : ce module ne connaît ni base, ni API, ni
@@ -39,6 +44,14 @@ class WalkForwardConfig:
     résultat qu'on cherche à prédire est connu. La fenêtre d'entraînement est
     contiguë au test ; la non-fuite vient de la purge, qui retire les
     observations dont le label se résout pendant le test.
+
+    ``embargo`` est le délai de quarantaine appliqué APRÈS la fin d'un test :
+    une observation évaluée par un pli ne peut réintégrer un entraînement
+    qu'une fois ce délai écoulé. Il ne remplace pas la purge et ne la relâche
+    jamais : les deux filtres s'appliquent, la purge répondant à la fuite de
+    label et l'embargo à la redondance entre plis. ``embargo = 0`` laisse le
+    walk-forward réutiliser immédiatement chaque test, ce qui est le
+    comportement classique et reste le défaut.
     """
 
     train_span: timedelta
@@ -72,8 +85,11 @@ class Fold:
     test_start: datetime
     test_end: datetime
     purged: tuple[int, ...]
-    """Indices retirés de l'entraînement par purge ou embargo. Rendus
-    explicitement : une purge muette empêche de vérifier qu'elle a eu lieu."""
+    """Indices qui étaient dans la fenêtre d'entraînement et en ont été
+    RETIRÉS, par purge de label ou par embargo. Rendus explicitement : un
+    retrait muet empêche de vérifier qu'il a eu lieu. N'y figure jamais une
+    observation postérieure au début du test : elle n'était pas candidate,
+    l'inscrire gonflerait le compte sans rien retirer."""
 
 
 def _require_sorted_aware(timestamps: Sequence[datetime]) -> None:
@@ -108,6 +124,11 @@ def purged_walk_forward(
     last = timestamps[-1]
     fold_index = 0
 
+    # Fenêtres de test des plis DÉJÀ PRODUITS. Seules celles-là comptent : une
+    # fenêtre qu'aucun pli n'a évaluée n'a contaminé aucune mesure, la mettre
+    # en quarantaine jetterait des données sans motif.
+    evaluated: list[tuple[datetime, datetime]] = []
+
     train_start = start
     while True:
         train_end = train_start + config.train_span
@@ -123,17 +144,27 @@ def purged_walk_forward(
             for position, moment in enumerate(timestamps)
             if test_start <= moment < test_end
         )
-        embargo_end = test_end + config.embargo
+        # Embargo encore actif à l'instant où commence ce test : la quarantaine
+        # d'une fenêtre évaluée court jusqu'à `fin du test + embargo`.
+        quarantine = [
+            window
+            for window in evaluated
+            if window[1] + config.embargo > test_start
+        ]
 
         candidate_train: list[int] = []
         purged: list[int] = []
         for position, moment in enumerate(timestamps):
             if not (train_start <= moment < train_end):
-                if test_end <= moment < embargo_end:
-                    # Sous embargo : postérieure au test, donc pas dans la
-                    # fenêtre d'entraînement de ce pli de toute façon. Notée
-                    # pour que l'embargo soit visible, pas seulement décrété.
-                    purged.append(position)
+                continue
+            # Embargo : cette observation a-t-elle déjà été évaluée par un pli
+            # dont la quarantaine n'est pas expirée ? Si oui, l'entraîner
+            # dessus rendrait ce pli redondant avec le précédent.
+            if any(
+                window_start <= moment < window_end
+                for window_start, window_end in quarantine
+            ):
+                purged.append(position)
                 continue
             # Purge : le label de cette observation se résout-il pendant ou
             # après le début du test ? Si oui, elle partage l'information du
@@ -154,6 +185,7 @@ def purged_walk_forward(
                 purged=tuple(purged),
             )
             fold_index += 1
+            evaluated.append((test_start, test_end))
 
         train_start = train_start + config.test_span
         if train_start >= last:

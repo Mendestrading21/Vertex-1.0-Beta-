@@ -165,3 +165,109 @@ def test_le_pli_expose_ce_qu_il_a_purge() -> None:
     fold: Fold = next(iter(purged_walk_forward(daily(400), config())))
     assert fold.purged
     assert set(fold.purged).isdisjoint(fold.train)
+
+
+# ── Embargo ───────────────────────────────────────────────────────────────
+#
+# L'embargo n'a de sens que s'il RETIRE des observations d'un entraînement.
+# Un embargo qui ne change rien est une garantie décorative : les tests qui
+# suivent comparent donc deux exécutions et exigent une différence, au lieu de
+# se contenter de constater que le paramètre est accepté.
+
+def _embargo_stamps() -> list[datetime]:
+    return daily(120)
+
+
+def _embargo_config(embargo_days: int) -> WalkForwardConfig:
+    return WalkForwardConfig(
+        train_span=30 * DAY,
+        test_span=10 * DAY,
+        label_horizon=3 * DAY,
+        embargo=embargo_days * DAY,
+    )
+
+
+def _folds(embargo_days: int) -> list[Fold]:
+    return list(purged_walk_forward(_embargo_stamps(), _embargo_config(embargo_days)))
+
+
+def test_sans_embargo_le_pli_suivant_reutilise_le_test_du_pli_precedent() -> None:
+    """Anti-vacuité : le cas que l'embargo doit corriger existe réellement."""
+    folds = _folds(0)
+    assert len(folds) >= 2
+    reuse = set(folds[0].test) & set(folds[1].train)
+    assert reuse, (
+        "sans embargo le pli 1 devrait réutiliser le test du pli 0 ; "
+        "si ce n'est pas le cas le jeu de test est mal choisi"
+    )
+
+
+def test_l_embargo_modifie_reellement_les_entrainements() -> None:
+    """L'embargo doit CHANGER les entraînements, pas seulement être accepté."""
+    sans = [fold.train for fold in _folds(0)]
+    avec = [fold.train for fold in _folds(365)]
+    assert sans, "aucun pli produit : la comparaison ne prouverait rien"
+    assert avec != sans, (
+        "embargo inerte : les entraînements sont identiques avec embargo=0 "
+        f"et embargo=365 jours ({sans!r})"
+    )
+
+
+def test_l_embargo_retire_le_test_precedent_de_l_entrainement_suivant() -> None:
+    folds = _folds(365)
+    assert len(folds) >= 2
+    for previous, current in zip(folds, folds[1:]):
+        assert set(current.train).isdisjoint(previous.test), (
+            f"le pli {current.index} entraîne sur "
+            f"{sorted(set(current.train) & set(previous.test))} — observations "
+            f"évaluées par le pli {previous.index}, encore sous embargo"
+        )
+
+
+def test_les_observations_sous_embargo_sont_declarees_purgees() -> None:
+    """Un retrait muet ne serait pas vérifiable : `purged` doit le montrer."""
+    folds = _folds(365)
+    assert len(folds) >= 2
+    fold = folds[1]
+    quarantined = set(folds[0].test) & set(
+        position
+        for position, moment in enumerate(_embargo_stamps())
+        if moment < fold.test_start
+    )
+    assert quarantined
+    assert quarantined.issubset(set(fold.purged))
+    assert set(fold.purged).isdisjoint(fold.train)
+
+
+def test_purged_ne_contient_que_des_observations_retirees_d_un_entrainement() -> None:
+    """`purged` documente un RETRAIT : une observation postérieure au test,
+    qui n'était de toute façon pas candidate, n'y a pas sa place."""
+    stamps = daily(400)
+    settings_ = config(embargo=30 * DAY)
+    for fold in purged_walk_forward(stamps, settings_):
+        for position in fold.purged:
+            assert stamps[position] < fold.test_start, (
+                f"l'observation {position} est postérieure au début du test : "
+                "elle n'a jamais été candidate à l'entraînement"
+            )
+
+
+@settings(max_examples=50, deadline=None)
+@given(embargo_days=st.integers(min_value=0, max_value=40))
+def test_propriete_embargo_aucune_reutilisation_avant_expiration(embargo_days: int) -> None:
+    """Invariant : tant que `embargo` n'est pas écoulé depuis la fin d'un test,
+    les observations de ce test ne peuvent pas servir à entraîner."""
+    stamps = daily(300)
+    settings_ = WalkForwardConfig(
+        train_span=40 * DAY,
+        test_span=15 * DAY,
+        label_horizon=4 * DAY,
+        embargo=embargo_days * DAY,
+    )
+    folds = list(purged_walk_forward(stamps, settings_))
+    for earlier in folds:
+        for later in folds:
+            if later.index <= earlier.index:
+                continue
+            if earlier.test_end + settings_.embargo > later.test_start:
+                assert set(later.train).isdisjoint(earlier.test)
