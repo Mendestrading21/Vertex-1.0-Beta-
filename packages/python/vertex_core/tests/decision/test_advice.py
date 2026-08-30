@@ -13,6 +13,7 @@ from typing import ClassVar
 import pytest
 
 from vertex_core.contracts.enums import (
+    AFFIRMATIVE_STATUSES,
     AdviceStatus,
     AssetClass,
     CalculationStatus,
@@ -43,7 +44,11 @@ from vertex_core.version import ENGINE_VERSION
 AS_OF = datetime(2026, 8, 28, 13, 30, tzinfo=UTC)
 VALID_UNTIL = datetime(2026, 8, 28, 21, 0, tzinfo=UTC)
 
-QUALIFIED_FAMILY = {AdviceStatus.OBSERVE, AdviceStatus.REVIEW, AdviceStatus.QUALIFIED}
+# DÉRIVÉ de l'unique autorité, jamais recopié. Ce dépôt a porté TROIS littéraux
+# concurrents de cette partition : ici, dans `vertex_worker.opportunities`, et
+# dans la campagne de dégradation — où `OBSERVE` manquait, ouvrant un trou dans
+# l'invariant que la campagne prétendait tenir.
+QUALIFIED_FAMILY = set(AFFIRMATIVE_STATUSES)
 
 
 def all_pass_inputs(**overrides) -> AdviceInputs:

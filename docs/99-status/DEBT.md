@@ -277,3 +277,79 @@ pendant toute la campagne, statistiques comprises. Les pistes non explorées
 sont une installation non éditable dans un environnement dédié à la campagne,
 ou un outil dont le modèle d'exécution ne repose pas sur la recopie de
 l'arbre (`cosmic-ray` mute en place).
+
+## Neuvième audit — deux verdicts REJECT, et ce qui reste ouvert
+
+Deux audits adversariaux indépendants, l'un sur les cinq nouvelles portes,
+l'autre sur la matrice et les campagnes. Chaque constat repris ici a été
+**confirmé par exécution** avant d'être écrit.
+
+### Corrigé dans ce lot
+
+| Défaut | Preuve exécutée |
+|---|---|
+| `run_checks.sh` invoquait onze portes en `porte && echo OK` : sous `set -e`, l'opérande gauche d'un `&&` est exemptée de l'arrêt sur erreur | la porte rend 1, le script rend 0 et imprime « TOUT VERT ». **Quatrième** contournement de la frontière financière |
+| `check_policy` vérifiait le câblage par `script in text` | un commentaire, `if: ${{ false }}`, `\|\| true` et `continue-on-error` passaient tous les quatre |
+| `known_not_wired` endormait n'importe quelle porte pour une phrase | la frontière financière endormie avec « suspendue le temps d'un refactor », porte verte |
+| Trois littéraux concurrents de la partition de statut, dont un sans `OBSERVE` | `vertex_worker.opportunities`, `test_advice.py` et la campagne chaos ne s'accordaient pas |
+| La garde anti-ordre ne contenait que de l'anglais | `<button>Acheter</button>` passait au vert dans une interface française |
+| La campagne chaos ne discriminait rien | en substituant `INSUFFICIENT_DATA` à l'ensemble affirmatif, seuls 4 tests sur 8 rougissaient : quatre bouclaient sur un statut constant, quatre sur **zéro dossier** |
+
+### DÉFAUT PRODUIT OUVERT — un dossier publié se dit encore frais 71 h plus tard
+
+Mesuré : un dossier d'analyse publié conserve
+`snapshot_fresh_and_coherent = PASS / FRESH_AND_COHERENT` à +47 h et +71 h,
+alors que `AnalysisConfig.bars_freshness` vaut 48 h. Aucune observation
+nouvelle ne déclenche de republication, et le snapshot est immuable.
+
+Pris isolément ce n'est pas faux : la fraîcheur DOIT se juger à la lecture, sur
+`as_of`. Mais ce registre mesure par ailleurs que **8 relais sur 10** ne la
+recalculent pas. Verdict gelé plus relais permissif se combinent en « périmé
+présenté comme frais » — ce que `.claude/rules/financial-safety.md` interdit
+sous le nom de « conserver silencieusement un ancien verdict ».
+
+`test_defaut_connu_un_dossier_publie_se_dit_encore_frais_bien_plus_tard`
+épingle la réalité mesurée et **échouera le jour où le défaut sera corrigé**,
+forçant à revenir retirer la caractérisation. L'entrée
+`EXCEPTION-JAMAIS-QUALIFIED` de `manifests/traceability.yaml` doit être
+rétrogradée tant que le recalcul de fraîcheur au relais n'est pas fait.
+
+### Encore ouverts, mesurés, non corrigés
+
+- **La matrice compte des déclarations, pas des preuves.** 58 citations sur 67
+  n'ont pas de `::` et sont validées par le seul `path.is_file()` ; une
+  citation `::nom` est résolue par SOUS-CHAÎNE contre tous les
+  `FunctionDef`/`ClassDef`, helpers compris. `README.md` cité comme preuve
+  d'« Envoyer un ordre IBKR » passe ; `test_ai_explain.py::t` aussi.
+- **Le champ `text:` de la matrice n'est jamais confronté à la règle** :
+  14 entrées sur 30 divergent, dont `API-COMPTE-SAFETY` qui présente une
+  interdiction plus étroite que la règle réelle.
+- **`check_secrets` ne balaie pas les commentaires de sa propre allowlist** :
+  deux jetons de test y passent inaperçus alors que le même texte dans
+  `NOW.md` est détecté. Le commentaire du fichier affirme le contraire.
+- **`check_notices` ne revérifie jamais une licence hors ligne** (`--refresh`
+  n'est invoqué par aucun job) : deux `sed` cohérents transforment
+  `LGPL-3.0-only` en `MIT` dans le registre ET les notices sans qu'aucun
+  contrôle ne bronche.
+- **La porte `performance` ne peut pas bloquer sur son budget numérique** :
+  `P-CI.absolute_release_gate` vaut `false`, donc un bundle **32×** au-dessus
+  du budget passe. Seul le budget booléen bloque réellement.
+- **Trois routes d'accessibilité mesuraient un état vide** : `/analysis`,
+  `/options` et `/simulator` sont paramétrées et ont été visitées sans
+  paramètre. `OptionChainTable`, `OptionInspector`, `CandleChart` et
+  `PayoffChart` n'ont **jamais** été mesurés. `/auth` a **zéro** couverture
+  d'accessibilité alors que le rapport la déclare couverte.
+- **L'assertion « aucun contenu perdu » est une tautologie** : `scrollTo` est
+  borné par `scrollWidth − clientWidth`, donc l'égalité est vraie par
+  construction. Le test de plancher est par ailleurs aveugle aux sept
+  conteneurs `overflow-x: auto` de `global.css`.
+- **« Focus visible » est satisfait par une ombre permanente** — et
+  `.vx-rail-link[aria-current='page']` en porte une. Il faut un différentiel
+  avant/après `Tab`.
+- **Deux mutants survivants** : retirer le CSS de la charge initiale
+  (`measure_web_bundle.py`) ne fait rougir aucun test alors que le chiffre
+  publié tomberait de 118 291 à 110 433 ; la comparaison de `role` de
+  `check_notices.py` n'est prouvée par aucun test.
+- **`P-DESKTOP` porte `absolute_release_gate: true` sans aucune
+  `required_metadata`** : un verdict de release absolu peut être rendu sur une
+  machine entièrement non décrite.

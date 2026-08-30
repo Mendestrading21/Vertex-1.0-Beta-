@@ -23,6 +23,7 @@ from typing import Any
 import pytest
 from sqlalchemy import func, select
 
+from vertex_core.contracts import AFFIRMATIVE_STATUSES
 from vertex_core.synthetic import (
     generate_daily_bar_envelopes,
     generate_envelopes,
@@ -40,9 +41,16 @@ NOW = datetime(2026, 8, 25, 12, 0, 0, tzinfo=UTC)
 BASE_TIME = NOW - timedelta(minutes=30)
 SEED = 909090
 
-# Statuts qui affirment quelque chose de positif sur une opportunité. Aucune
-# dégradation de cette campagne ne doit permettre de les atteindre.
-STATUTS_AFFIRMATIFS = {"QUALIFIED", "REVIEW"}
+# Statuts qui affirment quelque chose de positif sur une opportunité, DÉRIVÉS de
+# l'unique autorité `vertex_core.contracts`. Ce fichier écrivait son propre
+# littéral `{"QUALIFIED", "REVIEW"}` alors que `vertex_worker.opportunities`
+# range aussi `OBSERVE` dans le groupe qualifié : un scénario produisant
+# `OBSERVE` aurait donc satisfait un invariant écrit pour l'interdire.
+STATUTS_AFFIRMATIFS = {statut.value for statut in AFFIRMATIVE_STATUSES}
+
+#: Gate dont l'état CHANGE avec la dégradation, et qui sert donc d'assertion
+#: discriminante. Mesurée : en nominal elle vaut `PASS / FRESH_AND_COHERENT`.
+GATE_FRAICHEUR = "snapshot_fresh_and_coherent"
 
 
 class MutableClock:
@@ -95,6 +103,32 @@ def _analysis_advices(session_factory: Any) -> list[dict[str, Any]]:
             if snapshot is not None and "advice" in snapshot.content:
                 advices.append(snapshot.content["advice"])
     return advices
+
+
+def _analysis_gate(session_factory: Any, gate_id: str) -> dict[str, tuple[str, str]]:
+    """État `(status, reason_code)` d'une gate, par dossier d'analyse courant.
+
+    C'est la mesure DISCRIMINANTE de cette campagne. Le statut d'avis, lui, est
+    constant sur population SYNTHETIC — `analysis.py` pose toujours une
+    limitation « SYNTHETIC development population », et `advice.py` exige
+    `not inputs.limitations` pour `QUALIFIED` ; plusieurs gates restent en
+    outre `BLOCK UNEVALUABLE` faute de faits. Asserter « le statut n'est pas
+    affirmatif » ne peut donc pas échouer ici, et ne prouve rien à soi seul.
+    L'état des gates, lui, bouge réellement avec le scénario.
+    """
+    etats: dict[str, tuple[str, str]] = {}
+    with session_factory() as session:
+        keys = session.execute(
+            select(Snapshot.key).where(Snapshot.kind == SNAPSHOT_KIND_ANALYSIS).distinct()
+        ).scalars()
+        for key in keys:
+            snapshot = get_current_snapshot(session, kind=SNAPSHOT_KIND_ANALYSIS, key=key)
+            if snapshot is None or "advice" not in snapshot.content:
+                continue
+            for gate in snapshot.content.get("advice", {}).get("gates", ()):
+                if gate.get("gate_id") == gate_id:
+                    etats[key] = (gate["status"], gate["reason_code"])
+    return etats
 
 
 # ── duplication ──────────────────────────────────────────────────────────────
@@ -215,9 +249,32 @@ def test_une_horloge_qui_derive_ne_produit_jamais_un_avis_affirmatif(
     # L'horloge du worker est placée AVANT les observations : de son point de
     # vue, elles viennent du futur.
     clock = MutableClock(BASE_TIME - avance)
-    _runner(session_factory, clock).drain(max_batches=30)
+    runner = _runner(session_factory, clock)
+    runner.drain(max_batches=30)
 
-    for advice in _analysis_advices(session_factory):
+    advices = _analysis_advices(session_factory)
+
+    # NON-VACUITÉ. Sans cette branche, une boucle sur une liste vide n'assertait
+    # RIEN et le test passait au vert en n'ayant rien mesuré. C'est exactement
+    # le cas de `un_jour_dans_le_futur` : le filtre `Observation.as_of <= now`
+    # d'`analysis.py` écarte toute la population, aucun dossier n'est publié.
+    # Les deux issues sont légitimes, mais elles doivent être DISTINGUÉES et
+    # asserties séparément — pas confondues dans une boucle silencieuse.
+    if not advices:
+        assert (runner.stats().failed, runner.stats().dead) == (0, 0), (
+            f"{libelle} : aucun dossier publié, mais la file est empoisonnée — "
+            "le silence doit être propre"
+        )
+        with session_factory() as session:
+            bloques = session.execute(
+                select(func.count())
+                .select_from(OutboxMessage)
+                .where(OutboxMessage.status != OutboxStatus.DONE.value)
+            ).scalar_one()
+        assert bloques == 0, f"{libelle} : des messages sont restés bloqués"
+        return
+
+    for advice in advices:
         assert advice["status"] not in STATUTS_AFFIRMATIFS, (
             f"{libelle} : un avis {advice['status']} a été produit "
             "alors que les observations sont postérieures à l'instant de calcul"
@@ -252,9 +309,14 @@ def test_une_population_perimee_ne_produit_jamais_un_avis_affirmatif(
     runner = _runner(session_factory, clock)
     runner.drain(max_batches=30)
 
-    for advice in _analysis_advices(session_factory):
-        assert advice["status"] not in STATUTS_AFFIRMATIFS
-        assert advice["direction"] in {"UNKNOWN", "NEUTRAL", "MIXED", "BULLISH", "BEARISH"}
+    advices = _analysis_advices(session_factory)
+    # NON-VACUITÉ : la boucle ci-dessous n'assertait rien aux âges 30 j et
+    # 400 j, où la fenêtre bornée ne contient plus aucune barre. On enregistre
+    # laquelle des deux issues s'est produite au lieu de les confondre.
+    if advices:
+        for advice in advices:
+            assert advice["status"] not in STATUTS_AFFIRMATIFS
+            assert advice["direction"] in {"UNKNOWN", "NEUTRAL", "MIXED", "BULLISH", "BEARISH"}
 
     # Le silence doit être propre : rien d'empoisonné, rien de bloqué.
     stats = runner.stats()
@@ -398,3 +460,104 @@ def test_une_interruption_en_plein_drain_ne_perd_ni_ne_duplique_le_travail(
     # (`test_un_replay_complet_apres_traitement_ne_republie_pas_un_snapshot`)
     # prouve qu'un retraitement ne publie rien de neuf. Ici, l'invariant est
     # qu'aucun message n'est ni perdu ni bloqué.
+
+
+# ── mesure discriminante : l'état de la gate de fraîcheur ────────────────────
+
+
+def test_en_nominal_la_gate_de_fraicheur_passe(session_factory: Any) -> None:
+    """Contrôle POSITIF, sans lequel le reste de la campagne ne prouve rien.
+
+    Une campagne de dégradation n'a de sens que si l'état non dégradé est
+    distinguable. Le statut d'avis ne l'est pas ici — il vaut constamment
+    `INSUFFICIENT_DATA` sur population SYNTHETIC. L'état de la gate de
+    fraîcheur, lui, l'est : en nominal elle vaut `PASS / FRESH_AND_COHERENT`,
+    et c'est cette valeur que toute dégradation de fraîcheur doit faire bouger.
+    """
+    _ingest(
+        session_factory,
+        (
+            *generate_option_chain_envelopes(seed=SEED, base_time=BASE_TIME),
+            *generate_daily_bar_envelopes(seed=SEED, base_time=BASE_TIME),
+        ),
+    )
+    _runner(session_factory, MutableClock(NOW)).drain(max_batches=30)
+
+    etats = _analysis_gate(session_factory, GATE_FRAICHEUR)
+    assert etats, "aucun dossier publié : le contrôle positif ne mesure rien"
+    for key, (statut, raison) in etats.items():
+        assert (statut, raison) == ("PASS", "FRESH_AND_COHERENT"), (
+            f"{key} : la gate de fraîcheur vaut {statut}/{raison} en nominal ; "
+            "la référence de cette campagne est fausse"
+        )
+
+
+def test_defaut_connu_un_dossier_publie_se_dit_encore_frais_bien_plus_tard(
+    session_factory: Any,
+) -> None:
+    """DÉFAUT CONNU, mesuré et épinglé — ce test décrit ce qui EST, pas ce qui
+    devrait être.
+
+    `.claude/rules/financial-safety.md` interdit de « conserver silencieusement
+    un ancien verdict ». Or un dossier publié conserve
+    `snapshot_fresh_and_coherent = PASS / FRESH_AND_COHERENT` bien après la
+    fenêtre de fraîcheur des barres (`AnalysisConfig.bars_freshness`, 48 h),
+    parce qu'aucune observation nouvelle ne déclenche de republication et que le
+    snapshot est immuable.
+
+    Ce n'est pas faux en soi — la fraîcheur DOIT se juger à la lecture, sur
+    `as_of` — mais `docs/99-status/DEBT.md` mesure que 8 relais sur 10 ne la
+    recalculent pas. Le verdict gelé et le relais permissif se combinent alors
+    en « périmé présenté comme frais ».
+
+    Ce test échouera le jour où le défaut sera corrigé. C'est voulu : il forcera
+    à revenir ici, à retirer cette caractérisation et à rétablir l'assertion
+    normale. Il est inscrit à `docs/99-status/DEBT.md`.
+    """
+    _ingest(
+        session_factory,
+        (
+            *generate_option_chain_envelopes(seed=SEED, base_time=BASE_TIME),
+            *generate_daily_bar_envelopes(seed=SEED, base_time=BASE_TIME),
+        ),
+    )
+    _runner(session_factory, MutableClock(NOW)).drain(max_batches=30)
+    reference = _analysis_gate(session_factory, GATE_FRAICHEUR)
+    assert reference, "le scénario exige des dossiers publiés sur données fraîches"
+
+    # 71 h plus tard, une ingestion sans rapport fait tourner les handlers.
+    plus_tard = NOW + timedelta(hours=71)
+    _ingest(
+        session_factory,
+        generate_envelopes(seed=SEED + 11, count=6, base_time=plus_tard - timedelta(minutes=5)),
+    )
+    _runner(session_factory, MutableClock(plus_tard)).drain(max_batches=40)
+
+    apres = _analysis_gate(session_factory, GATE_FRAICHEUR)
+    assert apres == reference, (
+        "l'état de la gate de fraîcheur a changé : le défaut est peut-être "
+        "corrigé — retirer cette caractérisation et rétablir l'assertion normale"
+    )
+    assert all(etat == ("PASS", "FRESH_AND_COHERENT") for etat in apres.values()), (
+        "défaut caractérisé : le dossier ne se dit plus frais, ce test n'a plus d'objet"
+    )
+
+
+def test_l_ensemble_affirmatif_reste_ancre_sur_l_autorite_canonique(
+    session_factory: Any,
+) -> None:
+    """Anti-dérive : ce fichier a déjà écrit son propre littéral une fois.
+
+    `OBSERVE` y était absent alors que `vertex_worker.opportunities` le range
+    dans le groupe qualifié — un dossier `OBSERVE` atteint l'utilisateur comme
+    une carte d'opportunité. Un scénario le produisant aurait satisfait
+    l'invariant. La constante doit rester DÉRIVÉE, jamais recopiée.
+    """
+    from vertex_worker.opportunities import QUALIFIED_STATUSES
+
+    assert STATUTS_AFFIRMATIFS == set(QUALIFIED_STATUSES), (
+        "la campagne et le producteur d'opportunités ne s'accordent plus sur "
+        "ce qui est affirmatif"
+    )
+    assert "OBSERVE" in STATUTS_AFFIRMATIFS
+    assert session_factory is not None
