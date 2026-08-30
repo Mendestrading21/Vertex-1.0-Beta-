@@ -16,7 +16,20 @@
 #   échouer le démarrage si elles manquent (`${VAR:?message}`) ;
 # - le système de fichiers applicatif est en lecture seule ; ce qui doit être
 #   écrit l'est dans un tmpfs déclaré ;
-# - `edge-ibkr` n'est PAS ici : il joint TWS sur la boucle locale de l'hôte.
+# - `edge-ibkr` n'est PAS ici : il joint TWS sur la boucle locale de l'hôte ;
+# - TROIS rôles PostgreSQL distincts, jamais confondus. `POSTGRES_USER` de
+#   l'image officielle est un SUPERUTILISATEUR et le propriétaire de tout ce
+#   que la première connexion crée. Tant que `api` et `worker` s'en servaient,
+#   ils POSSÉDAIENT les tables append-only, donc pouvaient exécuter
+#   `ALTER TABLE snapshots DISABLE TRIGGER snapshots_append_only` puis réécrire
+#   l'historique. Désormais :
+#     `VERTEX_DB_SUPERUSER`   amorçage seul, crée les deux autres rôles ;
+#     `VERTEX_DB_MIGRATE_USER` propriétaire du schéma, utilisé PAR ALEMBIC SEUL
+#                              (service `migrate` ci-dessous) ;
+#     `VERTEX_DB_RUNTIME_USER` utilisé par `api` et `worker`, ne possède RIEN.
+#   Provisionnement : `initdb/10-least-privilege-roles.sh` (premier démarrage)
+#   puis la migration `0007_least_privilege_grants`. Preuve exécutable :
+#   `infra/compose/check-least-privilege.sh`.
 #
 # Se lance depuis la RACINE du dépôt :
 #   docker compose -f infra/compose/compose.yaml --env-file .env up
@@ -40,9 +53,16 @@ services:
     cap_add: ["CHOWN", "DAC_OVERRIDE", "FOWNER", "SETGID", "SETUID"]
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${VERTEX_DB_USER:?VERTEX_DB_USER requis}
-      POSTGRES_PASSWORD: ${VERTEX_DB_PASSWORD:?VERTEX_DB_PASSWORD requis}
+      # Rôle d'AMORÇAGE uniquement : superutilisateur, jamais utilisé par un
+      # service applicatif ni par les sauvegardes.
+      POSTGRES_USER: ${VERTEX_DB_SUPERUSER:?VERTEX_DB_SUPERUSER requis}
+      POSTGRES_PASSWORD: ${VERTEX_DB_SUPERUSER_PASSWORD:?VERTEX_DB_SUPERUSER_PASSWORD requis}
       POSTGRES_DB: ${VERTEX_DB_NAME:?VERTEX_DB_NAME requis}
+      # Lus par `initdb/10-least-privilege-roles.sh` au premier démarrage.
+      VERTEX_DB_MIGRATE_USER: ${VERTEX_DB_MIGRATE_USER:?VERTEX_DB_MIGRATE_USER requis}
+      VERTEX_DB_MIGRATE_PASSWORD: ${VERTEX_DB_MIGRATE_PASSWORD:?VERTEX_DB_MIGRATE_PASSWORD requis}
+      VERTEX_DB_RUNTIME_USER: ${VERTEX_DB_RUNTIME_USER:?VERTEX_DB_RUNTIME_USER requis}
+      VERTEX_DB_RUNTIME_PASSWORD: ${VERTEX_DB_RUNTIME_PASSWORD:?VERTEX_DB_RUNTIME_PASSWORD requis}
       # Horodatage : le stockage est en UTC, la conversion est un choix
       # d'affichage fait à l'interface, jamais dans la base.
       TZ: UTC
@@ -58,14 +78,58 @@ services:
       - summarize_wal=on
     volumes:
       - db-data:/var/lib/postgresql/data
+      # L'entrypoint officiel exécute ces fichiers à la PREMIÈRE initialisation
+      # d'un volume vide. Monté en lecture seule : le conteneur ne peut pas les
+      # réécrire.
+      - ./initdb:/docker-entrypoint-initdb.d:ro
     ports:
       - "127.0.0.1:${VERTEX_DB_PORT:-5432}:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      # `pg_isready` répond « accepting connections » AVANT de savoir si la
+      # base est utilisable : il n'authentifie pas et n'exécute aucune requête.
+      # Il déclarait donc sain un serveur dont le provisionnement des rôles
+      # avait échoué. On exécute une vraie requête ET on exige que le rôle de
+      # runtime existe : sans lui, `api` et `worker` ne peuvent pas démarrer.
+      test:
+        - CMD-SHELL
+        - >-
+          psql -q -tA --username "$${POSTGRES_USER}" --dbname "$${POSTGRES_DB}"
+          -c "SELECT 1 FROM pg_roles WHERE rolname = '$${VERTEX_DB_RUNTIME_USER}'"
+          | grep -q '^1$$'
       interval: 5s
       timeout: 5s
       retries: 20
       start_period: 10s
+
+  # Migrations : le SEUL service qui utilise le rôle propriétaire. Il tourne
+  # une fois, jusqu'à `head`, puis s'arrête. `api` et `worker` attendent sa
+  # sortie réussie — sans quoi ils démarreraient sur un schéma incomplet, ou
+  # sans les droits que `0007_least_privilege_grants` leur pose.
+  migrate:
+    build:
+      context: ../..
+      dockerfile: infra/compose/Dockerfile.python
+    read_only: true
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+    restart: "no"
+    depends_on:
+      db: {condition: service_healthy}
+    environment:
+      VERTEX_ENV: ${VERTEX_ENV:?VERTEX_ENV requis}
+      # DSN du rôle PROPRIÉTAIRE. Il ne doit apparaître nulle part ailleurs.
+      VERTEX_DATABASE_URL: ${VERTEX_MIGRATION_DATABASE_URL:?VERTEX_MIGRATION_DATABASE_URL requis}
+      # Nom du rôle de runtime auquel la migration 0007 accorde les droits.
+      VERTEX_DB_RUNTIME_USER: ${VERTEX_DB_RUNTIME_USER:?VERTEX_DB_RUNTIME_USER requis}
+    command:
+      - python
+      - -m
+      - alembic
+      - -c
+      - packages/python/vertex_persistence/alembic.ini
+      - upgrade
+      - head
+    tmpfs: ["/tmp:size=64m,mode=1777"]
 
   api:
     <<: *hardening
@@ -74,8 +138,11 @@ services:
       dockerfile: infra/compose/Dockerfile.python
     depends_on:
       db: {condition: service_healthy}
+      migrate: {condition: service_completed_successfully}
     environment:
       VERTEX_ENV: ${VERTEX_ENV:?VERTEX_ENV requis}
+      # DSN du rôle de RUNTIME : il ne possède aucune table et ne peut pas
+      # désactiver un déclencheur append-only.
       VERTEX_DATABASE_URL: ${VERTEX_DATABASE_URL:?VERTEX_DATABASE_URL requis}
     command:
       - python
@@ -104,8 +171,11 @@ services:
       dockerfile: infra/compose/Dockerfile.python
     depends_on:
       db: {condition: service_healthy}
+      migrate: {condition: service_completed_successfully}
     environment:
       VERTEX_ENV: ${VERTEX_ENV:?VERTEX_ENV requis}
+      # DSN du rôle de RUNTIME : il ne possède aucune table et ne peut pas
+      # désactiver un déclencheur append-only.
       VERTEX_DATABASE_URL: ${VERTEX_DATABASE_URL:?VERTEX_DATABASE_URL requis}
     command: ["python", "-m", "vertex_worker"]
     tmpfs: ["/tmp:size=64m,mode=1777"]
