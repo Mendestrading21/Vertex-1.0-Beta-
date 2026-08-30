@@ -687,11 +687,22 @@ def test_unusable_advice_block_is_reported_not_silently_dropped() -> None:
     }
 
 
-def test_non_mapping_advice_block_is_reported() -> None:
-    content = analysis_content()
-    content["advice"] = "not-a-mapping"
-    answer = analysis_answer(content)
-    assert any("inexploitable" in item for item in answer.missing_data)
+def test_non_mapping_advice_block_fails_closed() -> None:
+    """Un ``advice`` qui n'est pas un objet cache toute porte fermée.
+
+    Il était seulement RAPPORTÉ (« bloc d'avis inexploitable ») pendant que
+    les portes qu'il pouvait transporter disparaissaient sans un mot : c'est
+    l'échappatoire symétrique du bloc d'avis sans porte (6e audit, P1-1). Un
+    ``gates`` illisible échoue fermé, un ``advice`` illisible aussi.
+    """
+    for raw in ("not-a-mapping", ["gates"], 3):
+        content = analysis_content()
+        content["advice"] = raw
+        with pytest.raises(AiGroundingError) as excinfo:
+            analysis_answer(content)
+        assert excinfo.value.code == AI_ERROR_UNREADABLE_GATES, raw
+        # Le code typé est tout ce que porte le message : aucune valeur stockée.
+        assert str(excinfo.value) == AI_ERROR_UNREADABLE_GATES
 
 
 # --- F27 -------------------------------------------------------------------
@@ -701,7 +712,7 @@ def test_non_mapping_advice_block_is_reported() -> None:
     "content",
     [
         {},
-        {"advice": "not-a-mapping"},
+        {"population": "SYNTHETIC <b>"},
     ],
 )
 def test_empty_or_malformed_snapshot_yields_a_structured_refusal(
@@ -2132,6 +2143,12 @@ from vertex_api.ai_explain import (  # noqa: E402
         ("status hors vocabulaire", {"gates": [{"gate_id": "g", "status": "BLOQUE"}]}),
         ("status absent", {"gates": [{"gate_id": "g"}]}),
         ("status non textuel", {"gates": [{"gate_id": "g", "status": 1}]}),
+        # 6e audit (P1-1) : `AdviceResult.gates` porte `min_length=1`.
+        ("gates absent d'un bloc d'avis", {"status": "BLOCKED"}),
+        ("gates null", {"gates": None}),
+        ("gates liste vide", {"gates": []}),
+        ("gates tuple", {"gates": ({"gate_id": "g", "status": "BLOCK"},)}),
+        ("liste imbriquée", {"gates": [[{"gate_id": "g", "status": "BLOCK"}]]}),
     ],
 )
 def test_unreadable_gates_fail_closed(label: str, advice: dict) -> None:
@@ -2145,11 +2162,23 @@ def test_unreadable_gates_fail_closed(label: str, advice: dict) -> None:
 @pytest.mark.parametrize(
     ("label", "advice", "expected"),
     [
-        ("absence déclarée", {}, 0),
-        ("liste vide", {"gates": []}, 0),
-        ("BLOCK canonique", {"gates": [{"gate_id": "g", "status": "BLOCK"}]}, 1),
+        (
+            "BLOCK canonique",
+            {"status": "BLOCKED", "gates": [{"gate_id": "g", "status": "BLOCK"}]},
+            1,
+        ),
         ("PASS canonique", {"gates": [{"gate_id": "g", "status": "PASS"}]}, 0),
         ("DEGRADE canonique", {"gates": [{"gate_id": "g", "status": "DEGRADE"}]}, 0),
+        (
+            "PASS et DEGRADE",
+            {
+                "gates": [
+                    {"gate_id": "g", "status": "PASS"},
+                    {"gate_id": "h", "status": "DEGRADE"},
+                ]
+            },
+            0,
+        ),
     ],
 )
 def test_readable_gates_are_still_accepted(label: str, advice: dict, expected: int) -> None:
@@ -2167,3 +2196,355 @@ def test_the_gate_status_vocabulary_is_read_from_vertex_core() -> None:
     from vertex_core.contracts.enums import GateStatus
 
     assert _GATE_STATUS_VALUES == frozenset(member.value for member in GateStatus)
+
+
+# ---------------------------------------------------------------------------
+# 6e audit adversarial — les invariants CROISÉS du contrat ``AdviceResult``
+# ---------------------------------------------------------------------------
+#
+# `packages/python/vertex_core/src/vertex_core/contracts/decision.py` déclare
+# deux règles que le relais IA ne vérifiait pas :
+#
+#   * `gates: Annotated[tuple[GateResult, ...], Field(min_length=1)]` — un bloc
+#     d'avis SANS porte est impossible depuis l'autorité ; le relais le lisait
+#     comme « il n'y a pas de portes, ce n'est pas un défaut » et servait un
+#     `state="ok"` sans aucune contradiction ;
+#   * `_BLOCK_COMPATIBLE_STATUSES` — une porte `BLOCK` impose `BLOCKED` ou
+#     `INSUFFICIENT_DATA` ; le relais republiait « Statut du verdict :
+#     QUALIFIED. » juste à côté de la contradiction qui le dément.
+#
+# Les reproducteurs partent du VRAI producteur (`build_analysis_content`) et
+# passent par la VRAIE route : seule la corruption étudiée est appliquée au
+# bloc d'avis publié.
+
+from pydantic import ValidationError  # noqa: E402
+
+from vertex_api.ai_explain import (  # noqa: E402
+    AI_ERROR_INCOHERENT_ADVICE,
+    _ADVICE_FIELD_VOCABULARIES,
+    _BLOCK_COMPATIBLE_STATUS_VALUES,
+)
+from vertex_core.contracts.decision import (  # noqa: E402
+    _BLOCK_COMPATIBLE_STATUSES as CORE_BLOCK_COMPATIBLE_STATUSES,
+)
+from vertex_core.contracts.decision import AdviceResult, GateResult  # noqa: E402
+from vertex_core.contracts.enums import AdviceStatus, GateStatus  # noqa: E402
+
+#: Marqueur « champ absent » : distinct de `None`, qui est une valeur stockée.
+ABSENT = object()
+
+
+def _explain_analysis(api: TestClient, reader: FakeSnapshotReader, content: dict):
+    reader.snapshots[("analysis", "SYN-TECH-01")] = snapshot(
+        "analysis", "SYN-TECH-01", content
+    )
+    return api.post(
+        "/api/v1/ai/explain",
+        json={"subject": {"kind": "analysis", "key": "SYN-TECH-01"}, "locale": "fr"},
+    )
+
+
+def real_analysis_content(**advice_changes) -> dict:
+    """Contenu du VRAI producteur, corrompu UNIQUEMENT sur le bloc d'avis."""
+    content = worker_analysis_content()
+    for field, value in advice_changes.items():
+        if value is ABSENT:
+            content["advice"].pop(field, None)
+        else:
+            content["advice"][field] = value
+    return content
+
+
+def test_the_real_producer_publishes_gates_and_a_block() -> None:
+    """ANTI-VACUITÉ des reproducteurs : la corruption porte sur du réel."""
+    advice = worker_analysis_content()["advice"]
+    assert len(advice["gates"]) >= 1
+    assert GateStatus.BLOCK.value in {g["status"] for g in advice["gates"]}
+    assert advice["status"] == AdviceStatus.INSUFFICIENT_DATA.value
+
+
+# --- P1-1 : un bloc d'avis SANS porte est malformé, jamais « sans portes » ---
+
+NO_GATE_SHAPES = (
+    ("champ absent", ABSENT),
+    ("gates null", None),
+    ("gates liste vide", []),
+)
+
+
+@pytest.mark.parametrize(
+    ("label", "gates"), NO_GATE_SHAPES, ids=[name for name, _ in NO_GATE_SHAPES]
+)
+@pytest.mark.parametrize(
+    ("status", "direction"),
+    [("QUALIFIED", "BULLISH"), ("INSUFFICIENT_DATA", "UNKNOWN")],
+    ids=["qualified", "insufficient-data"],
+)
+def test_an_advice_block_without_any_gate_fails_closed(
+    api: TestClient,
+    reader: FakeSnapshotReader,
+    label: str,
+    gates,
+    status: str,
+    direction: str,
+) -> None:
+    """P1-1 : `gates` absent, `null` ou `[]` n'est PAS « pas de portes ».
+
+    `AdviceResult.gates` porte `min_length=1` : la forme est impossible depuis
+    l'autorité, donc malformée. Le relais refusait auparavant de le voir et
+    servait le statut comme un fait, sans contradiction ni `missing_data`.
+    """
+    content = real_analysis_content(gates=gates, status=status, direction=direction)
+
+    response = _explain_analysis(api, reader, content)
+
+    assert response.status_code == 500, response.text
+    assert response.json()["code"] == AI_ERROR_UNREADABLE_GATES, label
+    # Le verdict n'est republié NULLE PART : ni en fait, ni dans le refus.
+    assert status not in response.text
+    assert direction not in response.text
+
+
+def test_vertex_core_really_requires_at_least_one_gate() -> None:
+    """Garde-fou de dérive P1-1 : la règle lue est celle que le cœur impose."""
+    with pytest.raises(ValidationError):
+        _advice_result(AdviceStatus.BLOCKED, gates=())
+
+
+# --- P1-2 : un statut incompatible avec une porte BLOCK est IMPOSSIBLE -------
+
+INCOMPATIBLE_STATUSES = tuple(
+    sorted(
+        status.value
+        for status in AdviceStatus
+        if status not in CORE_BLOCK_COMPATIBLE_STATUSES
+    )
+)
+COMPATIBLE_STATUSES = tuple(
+    sorted(status.value for status in CORE_BLOCK_COMPATIBLE_STATUSES)
+)
+
+
+@pytest.mark.parametrize("status", INCOMPATIBLE_STATUSES)
+def test_a_status_incompatible_with_a_closed_gate_fails_closed(
+    api: TestClient, reader: FakeSnapshotReader, status: str
+) -> None:
+    """P1-2 : le relais ne republie pas un verdict que le cœur interdit."""
+    content = real_analysis_content(status=status, direction="BULLISH")
+    assert GateStatus.BLOCK.value in {
+        g["status"] for g in content["advice"]["gates"]
+    }
+
+    response = _explain_analysis(api, reader, content)
+
+    assert response.status_code == 500, response.text
+    assert response.json()["code"] == AI_ERROR_INCOHERENT_ADVICE
+    assert status not in response.text
+
+
+@pytest.mark.parametrize("status", COMPATIBLE_STATUSES)
+def test_a_status_compatible_with_a_closed_gate_still_passes(
+    api: TestClient, reader: FakeSnapshotReader, status: str
+) -> None:
+    """NON-RÉGRESSION / anti-vacuité : l'avis sain reste une explication."""
+    content = real_analysis_content(status=status)
+
+    response = _explain_analysis(api, reader, content)
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["state"] == "ok"
+    assert body["claims"]
+    assert f"Statut du verdict : {status}." in {c["text"] for c in body["claims"]}
+    published = {
+        g["gate_id"]
+        for g in content["advice"]["gates"]
+        if g["status"] == GateStatus.BLOCK.value
+    }
+    assert published <= {c["reference"] for c in body["contradictions"]}
+
+
+def test_an_unreadable_status_next_to_a_closed_gate_fails_closed(
+    api: TestClient, reader: FakeSnapshotReader
+) -> None:
+    """La règle croisée est INVÉRIFIABLE : elle échoue fermé (ADR-014).
+
+    Casse, absence et valeur hors vocabulaire sont traitées pareil : sans
+    statut canonique, la compatibilité avec la porte fermée ne peut pas être
+    établie, donc rien n'est republié.
+    """
+    for status in ("qualified", "REJECT", ABSENT, None, 1):
+        content = real_analysis_content(status=status)
+        response = _explain_analysis(api, reader, content)
+        assert response.status_code == 500, (status, response.text)
+        assert response.json()["code"] == AI_ERROR_INCOHERENT_ADVICE, status
+
+
+def _advice_result(status: AdviceStatus, gates=None) -> AdviceResult:
+    """Un `AdviceResult` RÉEL, construit par le cœur — jamais un dict imité."""
+    return AdviceResult(
+        advice_id=ADVICE_ID,
+        instrument_id="SYN-TECH-01",
+        as_of=AS_OF,
+        valid_until=AS_OF,
+        input_snapshot_id=BARS_EVENT_ID,
+        engine_version="vertex_core@0.1.0",
+        status=status,
+        direction=Direction.UNKNOWN,
+        horizon="1d",
+        gates=(
+            GateResult(
+                gate_id="entitlements_sufficient",
+                version="1.0.0",
+                status=GateStatus.BLOCK,
+                reason_code="UNEVALUABLE",
+                message="synthetic gate message",
+            ),
+        )
+        if gates is None
+        else gates,
+        risk_summary="synthetic development inputs",
+    )
+
+
+def test_the_block_compatibility_rule_is_read_from_vertex_core() -> None:
+    """Le relais LIT la règle ; il n'en garde aucune copie autonome."""
+    assert _BLOCK_COMPATIBLE_STATUS_VALUES == frozenset(
+        status.value for status in CORE_BLOCK_COMPATIBLE_STATUSES
+    )
+    assert _ADVICE_FIELD_VOCABULARIES["status"] == frozenset(
+        status.value for status in AdviceStatus
+    )
+    assert _ADVICE_FIELD_VOCABULARIES["direction"] == frozenset(
+        direction.value for direction in Direction
+    )
+
+
+def test_the_block_compatibility_rule_matches_what_vertex_core_enforces() -> None:
+    """Garde-fou de DÉRIVE : la constante lue et la règle appliquée coïncident.
+
+    Si `vertex_core` change la liste des statuts compatibles avec une porte
+    fermée — dans la constante OU dans le validateur — ce test casse au lieu
+    de laisser le relais accepter ou refuser sur une règle périmée.
+    """
+    accepted = set()
+    for status in AdviceStatus:
+        try:
+            _advice_result(status)
+        except ValidationError:
+            continue
+        accepted.add(status.value)
+    assert accepted == _BLOCK_COMPATIBLE_STATUS_VALUES
+    assert accepted  # anti-vacuité : la règle laisse réellement passer
+
+
+def test_the_reviewed_block_compatibility_rule_is_pinned() -> None:
+    """Garde-fou de dérive : la règle du cœur ne bouge pas EN SILENCE.
+
+    Ce pin vit dans le TEST, jamais dans le module : `ai_explain` LIT la règle
+    (`_BLOCK_COMPATIBLE_STATUS_VALUES`) et n'en garde aucune copie exécutable,
+    donc il ne peut pas devenir une seconde autorité. Ce que le pin ajoute est
+    l'ACQUITTEMENT de revue : les deux statuts ci-dessous sont ceux contre
+    lesquels le relais a été audité. Si `vertex_core` élargit ou restreint la
+    règle — même de façon parfaitement cohérente — ce test casse et impose de
+    ré-examiner ce que le relais accepte de republier, au lieu de suivre le
+    changement sans que personne ne le voie.
+    """
+    assert _BLOCK_COMPATIBLE_STATUS_VALUES == frozenset({"BLOCKED", "INSUFFICIENT_DATA"})
+
+
+def test_the_incoherent_advice_refusal_leaks_no_stored_value(
+    api: TestClient, reader: FakeSnapshotReader, caplog
+) -> None:
+    """Ni la réponse HTTP ni le log ne relaient une valeur stockée."""
+    marker = "SYN-MARKER-01"
+    content = real_analysis_content(status="QUALIFIED", risk_summary=marker)
+    content["advice"]["gates"][1]["reason_code"] = marker
+
+    with caplog.at_level(logging.DEBUG):
+        response = _explain_analysis(api, reader, content)
+
+    assert response.status_code == 500
+    assert marker not in response.text
+    assert "QUALIFIED" not in response.text
+    logged = "\n".join(record.getMessage() for record in caplog.records)
+    assert marker not in logged
+    assert "QUALIFIED" not in logged
+
+
+# --- Fermeture de la CLASSE : le vocabulaire canonique des champs d'avis ----
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("status", "qualified"),
+        ("status", "REJECT"),
+        ("status", "WATCH"),
+        ("direction", "bullish"),
+        ("direction", "UP"),
+        ("direction", "DOWN"),
+    ],
+)
+def test_a_non_canonical_advice_field_is_reported_never_relayed(
+    api: TestClient, reader: FakeSnapshotReader, field: str, value: str
+) -> None:
+    """Un statut/direction hors ADR-014 n'est pas un fait Vertex.
+
+    Le relais restituait VERBATIM tout ce qui avait la forme d'un jeton :
+    « Statut du verdict : qualified. » était servi comme un fait alors que le
+    vocabulaire canonique ne contient pas cette valeur.
+    """
+    content = real_analysis_content(
+        # Sans porte fermée, la règle croisée ne s'applique pas : c'est bien
+        # l'appartenance au vocabulaire qui est testée ici.
+        gates=[gate("instrument_resolved", "PASS", "RESOLVED")],
+        **{field: value},
+    )
+
+    response = _explain_analysis(api, reader, content)
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    for text in [c["text"] for c in body["claims"]] + list(body["missing_data"]):
+        assert value not in text, text
+    assert any(field in item for item in body["missing_data"]), body["missing_data"]
+
+
+def test_a_canonical_advice_field_is_still_restituted(
+    api: TestClient, reader: FakeSnapshotReader
+) -> None:
+    """ANTI-VACUITÉ du contrôle précédent : le vocabulaire canonique passe."""
+    content = real_analysis_content(
+        gates=[gate("instrument_resolved", "PASS", "RESOLVED")],
+        status="QUALIFIED",
+        direction="BULLISH",
+    )
+
+    response = _explain_analysis(api, reader, content)
+
+    assert response.status_code == 200, response.text
+    texts = {c["text"] for c in response.json()["claims"]}
+    assert "Statut du verdict : QUALIFIED." in texts
+    assert "Direction analytique : BULLISH." in texts
+
+
+
+def test_a_snapshot_without_any_advice_block_is_still_explained() -> None:
+    """ANTI-VACUITÉ : l'absence TOTALE de bloc d'avis reste licite.
+
+    `portfolio_valuation` et `performance` ne publient pas d'avis : exiger
+    une porte là où il n'y a pas de bloc transformerait la correction en
+    régression de disponibilité.
+    """
+    for factory, kind in (
+        (portfolio_content, "portfolio_valuation"),
+        (performance_content, "performance"),
+    ):
+        content = factory()
+        assert "advice" not in content
+        answer = build_ai_answer(
+            AiSubject(kind=kind, key="1"), snapshot(kind, "1", content)
+        )
+        assert answer.state == "ok"
+        assert answer.claims

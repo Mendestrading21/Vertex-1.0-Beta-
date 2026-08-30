@@ -112,6 +112,9 @@ from typing import Any, Literal, Mapping, NamedTuple, Optional, Sequence, Union
 from pydantic import Field, model_validator
 
 from vertex_core.contracts import enums as canonical_enums
+from vertex_core.contracts.decision import (
+    _BLOCK_COMPATIBLE_STATUSES as _CORE_BLOCK_COMPATIBLE_STATUSES,
+)
 from vertex_core.contracts.types import (
     ContractModel,
     NonEmptyStr,
@@ -122,8 +125,10 @@ from vertex_core.decision.gates import GATE_ORDER, REASON_UNEVALUABLE
 from vertex_persistence.repository.snapshots import CurrentSnapshot
 
 __all__ = [
+    "AI_ERROR_INCOHERENT_ADVICE",
     "AI_ERROR_INCOMPLETE_ANSWER",
     "AI_ERROR_UNGROUNDED_CLAIM",
+    "AI_ERROR_UNREADABLE_GATES",
     "AI_STATUS_PROVIDER",
     "AI_STATUS_REASON",
     "CANONICAL_VOCABULARY",
@@ -216,11 +221,23 @@ AI_ERROR_UNGROUNDED_CLAIM = "AI_ANSWER_UNGROUNDED"
 """Typed code: a finished claim cites evidence absent from the catalog."""
 
 AI_ERROR_INCOMPLETE_ANSWER = "AI_ANSWER_INCOMPLETE"
-#: Le bloc d'avis publie des portes que l'on ne sait pas lire : une porte non
-#: évaluable vaut BLOCK (ADR-014), donc la réponse est refusée plutôt que
-#: construite en ignorant ce que l'on n'a pas compris.
-AI_ERROR_UNREADABLE_GATES = "AI_ANSWER_UNREADABLE_GATES"
 """Typed code: a gate published as ``BLOCK`` is missing from the answer."""
+
+#: Le bloc d'avis publie des portes que l'on ne sait pas lire — ou n'en publie
+#: AUCUNE, ce que ``AdviceResult.gates`` (``min_length=1``) rend impossible
+#: depuis l'autorité. Une porte non évaluable vaut BLOCK (ADR-014), donc la
+#: réponse est refusée plutôt que construite en ignorant ce que l'on n'a pas
+#: compris.
+AI_ERROR_UNREADABLE_GATES = "AI_ANSWER_UNREADABLE_GATES"
+"""Typed code: the advice block publishes gates that cannot be read."""
+
+#: Le bloc d'avis viole un invariant CROISÉ que ``AdviceResult`` déclare
+#: impossible : un statut incompatible avec une porte ``BLOCK``. Le relais
+#: n'est pas une seconde autorité sur le vocabulaire de décision ; il refuse
+#: au lieu de republier comme un fait un verdict que le cœur ne peut pas
+#: produire.
+AI_ERROR_INCOHERENT_ADVICE = "AI_ANSWER_INCOHERENT_ADVICE"
+"""Typed code: the stored advice contradicts an ``AdviceResult`` invariant."""
 
 _SAFE_EVIDENCE_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9:._@/+-]{0,127}")
 """Shape an identifier coming from external content must have to be cited.
@@ -1146,9 +1163,34 @@ def _string_list(value: Any) -> list[str]:
 #: redéfinis ici : l'IA n'est pas une seconde autorité sur ce vocabulaire.
 _GATE_STATUS_VALUES: frozenset[str] = frozenset(member.value for member in canonical_enums.GateStatus)
 
+_ADVICE_FIELD_VOCABULARIES: Mapping[str, frozenset[str]] = {
+    "status": frozenset(member.value for member in canonical_enums.AdviceStatus),
+    "direction": frozenset(member.value for member in canonical_enums.Direction),
+}
+"""Vocabulaire canonique des champs d'avis que le relais RESTITUE.
+
+Même règle que pour les portes : la valeur est LUE depuis ``vertex_core``.
+Une valeur hors énumération — ``"qualified"``, ``"REJECT"``, ``"UP"`` — n'est
+pas un verdict Vertex : elle est rapportée comme non conforme, jamais relayée
+verbatim comme un fait. ``horizon`` n'a pas d'énumération dans le contrat, il
+n'en a donc pas ici non plus (le relais ne s'invente pas un vocabulaire).
+"""
+
+_BLOCK_COMPATIBLE_STATUS_VALUES: frozenset[str] = frozenset(
+    status.value for status in _CORE_BLOCK_COMPATIBLE_STATUSES
+)
+"""Statuts qu'``AdviceResult`` autorise à côté d'une porte ``BLOCK``.
+
+LUE depuis ``vertex_core.contracts.decision``, jamais recopiée : l'IA n'est
+pas une seconde autorité sur le vocabulaire de décision. Un test de dérive
+compare cette lecture au comportement RÉEL du validateur de ``AdviceResult``,
+de sorte qu'un changement de la règle du cœur casse au lieu de laisser
+diverger silencieusement le relais.
+"""
+
 
 def _gate_blocks(advice: Mapping[str, Any]) -> list[Mapping[str, Any]]:
-    """Les portes publiées ``BLOCK``, ou un REFUS si elles sont illisibles.
+    """Les portes publiées ``BLOCK`` d'un bloc d'avis QUI EXISTE.
 
     Cette fonction sert à la fois au calcul de l'invariant de complétude et à
     la restitution. Elle IGNORAIT silencieusement ce qu'elle ne savait pas
@@ -1161,11 +1203,16 @@ def _gate_blocks(advice: Mapping[str, Any]) -> list[Mapping[str, Any]]:
     La constitution tranche le cas (ADR-014) : une porte qui ne peut pas être
     évaluée vaut ``BLOCK``. Une forme illisible échoue donc FERMÉ, avec un
     code typé, plutôt que d'être écartée.
+
+    UNE LISTE VIDE, ``null`` OU UN CHAMP ABSENT SONT DES FORMES ILLISIBLES,
+    pas une « absence déclarée » : ``AdviceResult.gates`` porte
+    ``Field(min_length=1)``, un bloc d'avis sans porte est donc IMPOSSIBLE
+    depuis l'autorité. Le relais lisait ces trois formes comme « il n'y a pas
+    de portes » et servait le statut comme un fait, sans contradiction ni
+    ``missing_data`` — l'exact contraire du fail-closed.
     """
     gates = advice.get("gates")
-    if gates is None:
-        return []  # absence déclarée : il n'y a pas de portes, ce n'est pas un défaut
-    if not isinstance(gates, list):
+    if not isinstance(gates, list) or not gates:
         raise AiGroundingError(AI_ERROR_UNREADABLE_GATES)
     blocks: list[Mapping[str, Any]] = []
     for gate in gates:
@@ -1176,7 +1223,51 @@ def _gate_blocks(advice: Mapping[str, Any]) -> list[Mapping[str, Any]]:
             raise AiGroundingError(AI_ERROR_UNREADABLE_GATES)
         if status == canonical_enums.GateStatus.BLOCK.value:
             blocks.append(gate)
+    if blocks:
+        _check_status_compatible_with_a_closed_gate(advice)
     return blocks
+
+
+def _check_status_compatible_with_a_closed_gate(advice: Mapping[str, Any]) -> None:
+    """Fermer l'invariant CROISÉ statut × porte fermée d'``AdviceResult``.
+
+    ``AdviceResult`` refuse à la construction qu'une porte ``BLOCK`` coexiste
+    avec autre chose que ``BLOCKED`` ou ``INSUFFICIENT_DATA``. Le relais, lui,
+    republiait « Statut du verdict : QUALIFIED. » comme un FAIT, juste à côté
+    de la contradiction qui le dément : il affirmait un verdict que le cœur
+    déclare impossible.
+
+    La règle est LUE depuis ``vertex_core``
+    (:data:`_BLOCK_COMPATIBLE_STATUS_VALUES`), jamais recopiée. Un statut
+    absent, non textuel ou hors énumération rend la règle INVÉRIFIABLE : cela
+    échoue fermé comme une porte non évaluable (ADR-014), plutôt que de
+    laisser passer ce que l'on n'a pas su lire.
+    """
+    status = advice.get("status")
+    if not isinstance(status, str):
+        raise AiGroundingError(AI_ERROR_INCOHERENT_ADVICE)
+    if status not in _ADVICE_FIELD_VOCABULARIES["status"]:
+        raise AiGroundingError(AI_ERROR_INCOHERENT_ADVICE)
+    if status not in _BLOCK_COMPATIBLE_STATUS_VALUES:
+        raise AiGroundingError(AI_ERROR_INCOHERENT_ADVICE)
+
+
+def _advice_gate_blocks(raw_advice: Any) -> list[Mapping[str, Any]]:
+    """Les portes ``BLOCK`` du bloc d'avis, ou ``[]`` s'il n'y en a aucun.
+
+    Seule l'ABSENCE TOTALE de bloc d'avis est licite : un snapshot
+    ``portfolio_valuation`` ou ``performance`` n'en publie pas, et exiger une
+    porte là où il n'y a pas de bloc serait une régression de disponibilité.
+
+    Un bloc d'avis présent mais qui n'est pas un objet est l'échappatoire
+    symétrique de la forme sans porte : il cache toute porte fermée qu'il
+    pourrait transporter, donc il échoue FERMÉ comme un ``gates`` illisible.
+    """
+    if raw_advice is None:
+        return []
+    if not isinstance(raw_advice, Mapping):
+        raise AiGroundingError(AI_ERROR_UNREADABLE_GATES)
+    return _gate_blocks(raw_advice)
 
 
 class _BlockedGates(NamedTuple):
@@ -1196,7 +1287,7 @@ def _blocked_gates(content: Mapping[str, Any]) -> _BlockedGates:
     """Split the ``BLOCK`` gates of the snapshot, WHATEVER their id shape."""
     named: set[str] = set()
     anonymous = 0
-    for gate in _gate_blocks(_mapping(content.get("advice"))):
+    for gate in _advice_gate_blocks(content.get("advice")):
         gate_id = _token(gate.get("gate_id"))
         if gate_id is None:
             anonymous += 1
@@ -1206,7 +1297,7 @@ def _blocked_gates(content: Mapping[str, Any]) -> _BlockedGates:
 
 
 def _gate_parts(
-    advice: Mapping[str, Any],
+    raw_advice: Any,
 ) -> tuple[list[str], list[_DraftContradiction], list[_Draft]]:
     """Restitute EVERY ``BLOCK`` gate of an advice block.
 
@@ -1225,7 +1316,7 @@ def _gate_parts(
     blocked_ids: list[str] = []
     contradictions: list[_DraftContradiction] = []
     missing: list[_Draft] = []
-    for gate in _gate_blocks(advice):
+    for gate in _advice_gate_blocks(raw_advice):
         gate_id = _token(gate.get("gate_id"))
         reason = _token(gate.get("reason_code")) or "UNKNOWN"
         if gate_id is None:
@@ -1324,6 +1415,14 @@ def _analysis_parts(content: Mapping[str, Any], self_ref: str) -> _Parts:
             ("horizon", "Horizon"),
         ):
             value = _token(advice.get(field_name))
+            # Un champ à vocabulaire fermé (ADR-014) n'est un fait Vertex que
+            # si sa valeur APPARTIENT à l'énumération de ``vertex_core``.
+            # « qualified », « REJECT » ou « UP » ont la forme d'un jeton mais
+            # ne sont pas des verdicts : les relayer verbatim publiait comme un
+            # fait un vocabulaire que le cœur ne peut pas produire.
+            vocabulary = _ADVICE_FIELD_VOCABULARIES.get(field_name)
+            if value is not None and vocabulary is not None and value not in vocabulary:
+                value = None
             if value is not None:
                 claims.append(
                     _claim(
@@ -1356,7 +1455,7 @@ def _analysis_parts(content: Mapping[str, Any], self_ref: str) -> _Parts:
     # Closed gates cite the gate itself: they stay visible even when the
     # advice block carries no citable identifier (see :func:`_gate_parts`
     # and the invariant enforced in :func:`build_ai_answer`).
-    blocked_ids, gate_contradictions, gate_missing = _gate_parts(advice)
+    blocked_ids, gate_contradictions, gate_missing = _gate_parts(raw_advice)
     contradictions.extend(gate_contradictions)
     missing.extend(gate_missing)
     if status == "INSUFFICIENT_DATA" and blocked_ids and advice_id is not None:
@@ -1594,9 +1693,7 @@ def _portfolio_parts(content: Mapping[str, Any], self_ref: str) -> _Parts:
     # A portfolio snapshot is not supposed to carry an advice block; when a
     # stored one does, its BLOCK gates are restituted like anywhere else
     # (the completeness invariant is kind-agnostic, so this must be too).
-    _, gate_contradictions, gate_missing = _gate_parts(
-        _mapping(content.get("advice"))
-    )
+    _, gate_contradictions, gate_missing = _gate_parts(content.get("advice"))
     contradictions.extend(gate_contradictions)
     missing.extend(gate_missing)
 
@@ -1803,9 +1900,7 @@ def _performance_parts(content: Mapping[str, Any], self_ref: str) -> _Parts:
 
     # Same rule as the portfolio builder: a stored advice block's BLOCK
     # gates are restituted whatever the subject kind.
-    _, gate_contradictions, gate_missing = _gate_parts(
-        _mapping(content.get("advice"))
-    )
+    _, gate_contradictions, gate_missing = _gate_parts(content.get("advice"))
     contradictions.extend(gate_contradictions)
     missing.extend(gate_missing)
 
