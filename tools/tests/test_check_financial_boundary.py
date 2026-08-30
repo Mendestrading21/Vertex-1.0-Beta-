@@ -128,3 +128,94 @@ def test_le_depot_declare_ses_exemptions_avec_un_motif() -> None:
     assert allowlist, "aucune exemption : le test ne prouverait rien"
     for key, reason in allowlist.items():
         assert len(reason.strip()) > 40, f"motif trop court pour {key}"
+
+
+# ── 7e audit : l'allowlist ÉTAIT une cachette ─────────────────────────────
+#
+# La clé d'exemption était `path:symbol`, sans la FORME D'ACCÈS. Le motif écrit
+# dans le manifeste — « il les nomme en CHAÎNES uniquement, jamais en appel ni
+# en accès d'attribut » — était exact, mais n'était appliqué par RIEN : quatre
+# capacités interdites réellement APPELÉES dans un fichier exempté
+# franchissaient la porte.
+
+def _write_allowlist(root: Path, kind: str) -> None:
+    (root / "manifests").mkdir(exist_ok=True)
+    (root / "manifests" / gate.ALLOWLIST_FILENAME).write_text(
+        "allow:\n"
+        "  - path: a.py\n"
+        "    symbol: placeOrder\n"
+        f"    kind: {kind}\n"
+        "    reason: motif suffisamment long pour passer le contrôle de longueur\n",
+        encoding="utf-8",
+    )
+
+
+@pytest.mark.parametrize("kind", sorted(gate.NEVER_EXEMPTABLE_KINDS))
+def test_une_exemption_d_appel_ou_d_attribut_est_refusee(tmp_path: Path, kind: str) -> None:
+    """Un appel et un accès d'attribut ATTEIGNENT la capacité.
+
+    Ce n'est pas une exemption discutable : c'est exactement le chemin qu'on
+    interdit. Le refus est au CHARGEMENT, pas au cas par cas.
+    """
+    _write_allowlist(tmp_path, kind)
+    with pytest.raises(SystemExit) as raised:
+        gate.load_allowlist(tmp_path)
+    assert "jamais exemptables" in str(raised.value)
+
+
+def test_une_exemption_de_chaine_reste_possible(tmp_path: Path) -> None:
+    """Anti-vacuité : la mention en chaîne reste légitimement exemptable."""
+    _write_allowlist(tmp_path, "string")
+    assert gate.load_allowlist(tmp_path) == {
+        "a.py:placeOrder:string": (
+            "motif suffisamment long pour passer le contrôle de longueur"
+        )
+    }
+
+
+def test_la_cle_d_exemption_porte_la_forme_d_acces() -> None:
+    """Sans le `kind` dans la clé, une exemption de chaîne couvrait un appel."""
+    for key in gate.load_allowlist(_REPO_ROOT):
+        assert key.rsplit(":", 1)[-1] in {"string", "fragment"}
+
+
+@pytest.mark.parametrize(
+    ("label", "relative", "source"),
+    [
+        # `.mjs` n'était pas dans CODE_SUFFIXES — et le dépôt en contient déjà
+        # (`worker/test/*.test.mjs`, `infra/compose/serve-static.mjs`).
+        ("module ECMAScript", "apps/edge-ibkr/src/account.mjs",
+         "export function a(ib){ return ib.reqPositions(); }\n"),
+        # `build` et `fixtures` étaient écartés À TOUTE PROFONDEUR, donc aussi
+        # à l'intérieur d'un `src/`.
+        ("répertoire nommé build sous src", "apps/edge-ibkr/src/pkg/build/orders.py",
+         "def a(ib):\n    return ib.placeOrder(1, 2)\n"),
+        ("répertoire nommé fixtures sous src", "apps/api/src/pkg/fixtures/accounts.py",
+         "def a(ib):\n    return ib.reqAccountSummary('All')\n"),
+    ],
+)
+def test_les_angles_morts_structurels_sont_fermes(
+    tmp_path: Path, label: str, relative: str, source: str
+) -> None:
+    target = tmp_path / relative
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(source, encoding="utf-8")
+    completed = subprocess.run(
+        [sys.executable, str(_GATE), str(tmp_path)], capture_output=True, text=True
+    )
+    payload = json.loads(completed.stdout)
+    assert payload["ok"] is False, label
+    assert any(f["kind"] == "call" for f in payload["findings"]), label
+
+
+def test_les_repertoires_ecartes_sont_seulement_generes_ou_vendus() -> None:
+    """Un nom qui peut désigner du code de production ne s'écarte pas."""
+    assert gate.SKIP_PARTS == {
+        ".git",
+        ".venv",
+        "node_modules",
+        "__pycache__",
+        ".pytest_cache",
+        "dist",
+        ".vite",
+    }

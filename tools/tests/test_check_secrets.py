@@ -185,7 +185,6 @@ def test_les_contournements_du_4e_audit_sont_fermes(label: str, path: str, text:
         ("référence compose", "compose.yaml", "  POSTGRES_PASSWORD: ${VERTEX_DB_PASSWORD:?requis}"),
         # Le nom désigne l'emplacement, l'identifiant ou l'empreinte, pas le secret.
         ("emplacement d'un secret", "m.yaml", "  secret_location: env:VERTEX_NEWS_API_TOKEN_PRIMARY"),
-        ("identifiant", "a.py", 'credential_id = "0123456789abcdef0123456789abcdef"'),
         ("empreinte", "a.py", 'csrf_token_hash = "3b1f9c2e8d7a6b5c4d3e2f1a0b9c8d7e"'),
     ],
 )
@@ -378,3 +377,72 @@ def test_les_nouveaux_vecteurs_ne_reproduisent_pas_la_valeur(
         assert finding.match not in rendered
         assert "empreinte" in rendered
         assert finding.match not in str(finding.label)
+
+
+# ── 7e audit : les exemptions DÉSARMAIENT des noms canoniques ─────────────
+#
+# Un suffixe suffisait à faire passer un vrai secret : `client_secret` renommé
+# `client_secret_ref` n'était plus regardé. L'exemption dépend désormais de ce
+# que la VALEUR est, pas de ce que son nom prétend.
+
+_SECRET_MATERIAL = "9f3b7d1c8a2e4056b1d9c7e3f5a80264"  # SYNTHETIC, n'ouvre rien
+
+
+@pytest.mark.parametrize(
+    ("label", "text"),
+    [
+        ("suffixe _id", f'api_key_id: "{_SECRET_MATERIAL}"'),
+        ("suffixe _ref", f'client_secret_ref: "{_SECRET_MATERIAL}"'),
+        ("suffixe _file", f'api_key_file: "{_SECRET_MATERIAL}"'),
+        ("suffixe _path", f'token_path: "{_SECRET_MATERIAL}"'),
+        ("suffixe _name", f'password_name: "{_SECRET_MATERIAL}"'),
+    ],
+)
+def test_un_suffixe_ne_desarme_plus_un_nom_canonique(label: str, text: str) -> None:
+    """De la matière secrète sous un nom rassurant reste de la matière."""
+    assert {f.code for f in gate.scan_text("conf.yaml", text)}, label
+
+
+@pytest.mark.parametrize(
+    ("label", "path", "text"),
+    [
+        ("référence d'environnement", "m.yaml", "secret_location: env:VERTEX_NEWS_TOKEN"),
+        ("emplacement décrit en mots", "m.yaml", "secret_location: operating_system_secret_store"),
+        ("chemin", "c.yaml", "api_key_file: /run/secrets/api_key.txt"),
+        ("nom de variable", "c.yaml", "password_env: VERTEX_DB_PASSWORD"),
+        ("empreinte non réversible", "a.py", f'csrf_token_hash = "{_SECRET_MATERIAL}"'),
+    ],
+)
+def test_une_vraie_reference_reste_silencieuse(label: str, path: str, text: str) -> None:
+    """Anti-vacuité : l'exemption n'a pas disparu, elle est devenue exacte.
+
+    Une empreinte reste exemptée sur son NOM : un hachage n'est pas
+    réversible. Un emplacement ne l'est que si la valeur en est vraiment un —
+    un chemin, une variable, une URI, ou des mots. Un secret n'est pas
+    prononçable.
+    """
+    assert {f.code for f in gate.scan_text(path, text)} == set(), label
+
+
+@pytest.mark.parametrize(
+    "name", ["SIGNING_KEY", "ENCRYPTION_KEY", "HMAC_KEY", "SESSION_KEY", "MASTER_KEY"]
+)
+def test_les_cles_cryptographiques_sont_couvertes(name: str) -> None:
+    """Leur nom ne contient ni « secret » ni « password », mais leur VALEUR
+    est le secret."""
+    assert {f.code for f in gate.scan_text("a.py", f'{name} = "{_SECRET_MATERIAL}"')}
+
+
+def test_un_marqueur_accole_ne_desarme_pas_un_secret() -> None:
+    """« synthetic » est le mot le plus courant du dépôt : l'accoler à un vrai
+    secret le faisait passer pour un gabarit."""
+    assert {f.code for f in gate.scan_text("c.yaml", 'client_secret: "9f3b7d1c8a2e4056b1d9c-synthetic"')}
+
+
+@pytest.mark.parametrize(
+    "value", ['"${VERTEX_API_KEY}"', '"{{ vault_token }}"', "CHANGE_ME", '"api-key-example"']
+)
+def test_un_vrai_gabarit_reste_silencieux(value: str) -> None:
+    """Anti-vacuité : la nouvelle épreuve d'entropie ne s'applique qu'aux
+    gabarits par MOT-marqueur, pas aux gabarits par FORME."""
+    assert {f.code for f in gate.scan_text("c.yaml", f"api_key: {value}")} == set()

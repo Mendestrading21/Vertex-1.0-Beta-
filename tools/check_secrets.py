@@ -119,13 +119,56 @@ RULES: tuple[Rule, ...] = (
 # détection dépendait de l'ORDRE DES CLÉS, sur le format JSON minifié que ce
 # script dit précisément viser. Le test est désormais fait en Python sur
 # `name`, où il ne peut plus déborder hors du nom.
-NAME_IS_NOT_THE_SECRET = re.compile(
-    r"(?i)_(?:location|path|file|dir|name|env|var|ref|id|hash|digest)$"
+# Suffixes qui désignent une EMPREINTE : un hachage n'est pas réversible, ce
+# n'est pas le secret. Exemptés sur le nom seul.
+NAME_IS_A_DIGEST = re.compile(r"(?i)_(?:hash|digest|fingerprint|checksum)$")
+
+# Suffixes qui désignent un EMPLACEMENT ou une RÉFÉRENCE. Les exempter sur le
+# NOM SEUL suffisait à désarmer la règle : il suffisait de renommer
+# `client_secret` en `client_secret_ref` pour qu'un vrai secret passe
+# (7e audit). L'exemption dépend donc désormais de ce que la valeur EST.
+NAME_IS_A_POINTER = re.compile(
+    r"(?i)_(?:location|path|file|dir|name|env|var|ref|id)$"
 )
+
+#: Une valeur qui DÉSIGNE au lieu de porter : nom de variable, chemin, URI.
+POINTER_VALUE = re.compile(
+    r"""(?x)
+    ^(?:
+        [A-Z][A-Z0-9_]*                  # NOM_DE_VARIABLE_ENV
+      | [^\s]*[/\\][^\s]*              # un chemin
+      | \$\{?[A-Za-z0-9_]+\}?            # ${VAR}
+      | [a-z][a-z0-9+.-]*:[^\s]*         # env:VAR, vault:…, file:…
+      | [^\s]+\.[A-Za-z0-9]{1,8}         # quelque.chose.ext
+      # Un emplacement peut se DÉCRIRE en mots plutôt que se localiser :
+      # `operating_system_secret_store`. Des mots séparés, sans chiffre, ne
+      # sont pas de la matière secrète — un secret n'est pas prononçable.
+      | [A-Za-z]{2,}(?:[_.\-][A-Za-z]{2,})+
+    )$
+    """
+)
+
+
+def name_is_not_the_secret(name: str, value: str) -> bool:
+    """Le nom exempte-t-il LÉGITIMEMENT cette valeur ?
+
+    Une empreinte est exemptée sur son nom. Un emplacement ne l'est que si la
+    valeur ressemble effectivement à un emplacement : sinon, c'est de la
+    matière secrète rangée sous un nom rassurant.
+    """
+    if NAME_IS_A_DIGEST.search(name):
+        return True
+    if NAME_IS_A_POINTER.search(name):
+        return bool(POINTER_VALUE.match(value))
+    return False
 
 _SECRET_NAME = r"""[A-Za-z0-9_.-]*
         (?:secret|token|password|passwd|passphrase|api[_-]?key|private[_-]?key|
-           credential|client[_-]?secret|access[_-]?key|auth[_-]?key)
+           credential|client[_-]?secret|access[_-]?key|auth[_-]?key|
+           # Clés cryptographiques : leur nom ne contient ni « secret » ni
+           # « password », mais leur valeur EST le secret.
+           signing[_-]?key|encryption[_-]?key|hmac[_-]?key|secret[_-]?key|
+           session[_-]?key|master[_-]?key|signing[_-]?secret)
      [A-Za-z0-9_.-]*"""
 
 ASSIGNMENT = re.compile(
@@ -318,7 +361,7 @@ def _yaml_block_scalar_finding(path: str, lines: list[str], index: int) -> Findi
     if header is None:
         return None
     name = header.group("name")
-    if NAME_IS_NOT_THE_SECRET.search(name):
+    if NAME_IS_A_DIGEST.search(name):
         return None
     indent = len(header.group("indent"))
     body: list[str] = []
@@ -330,6 +373,11 @@ def _yaml_block_scalar_finding(path: str, lines: list[str], index: int) -> Findi
             break
         body.append(line.strip())
     value = "\n".join(body).strip()
+    # Même règle sensible à la valeur que pour une affectation sur une ligne :
+    # le nom seul n'exempte que les empreintes ; un nom d'emplacement n'exempte
+    # que si la valeur en est réellement un.
+    if name_is_not_the_secret(name, value):
+        return None
     if not value or PLACEHOLDER.match(value) or not _high_entropy(value):
         return None
     return Finding(
@@ -339,6 +387,27 @@ def _yaml_block_scalar_finding(path: str, lines: list[str], index: int) -> Findi
         f"valeur à forte entropie affectée à « {name} » (scalaire bloc YAML)",
         value,
     )
+
+
+#: Mots qui, dans une valeur, annoncent un gabarit plutôt qu'une donnée.
+_MARKER_WORDS = re.compile(
+    r"(?i)(example|exemple|placeholder|change[_-]?me|redacted|fictif|dummy|"
+    r"fake|sample|synthetic|todo)"
+)
+
+
+def _entropy_survives_the_marker(value: str) -> bool:
+    """Le marqueur retiré, ce qui reste porte-t-il encore un secret ?
+
+    Un gabarit honnête (`api-key-example`, `CHANGE_ME`) n'a rien derrière son
+    marqueur. Un secret décoré (`9f3b7d1c8a2e4056b1d9c-synthetic`) garde toute
+    son entropie une fois le mot retiré — c'est ce résidu qui est mesuré.
+    """
+    residue = _MARKER_WORDS.sub("", value).strip(" _-.:/")
+    if len(residue) < 16:
+        return False
+    per_char = shannon_bits_per_char(residue)
+    return per_char >= MIN_ENTROPY_BITS and per_char * len(residue) >= MIN_TOTAL_ENTROPY_BITS
 
 
 def _scan_line(path: str, number: int, line: str) -> Iterable[Finding]:
@@ -351,13 +420,20 @@ def _scan_line(path: str, number: int, line: str) -> Iterable[Finding]:
                 continue
             yield Finding(path, number, rule.code, rule.label, captured)
     for found in ASSIGNMENT.finditer(line):
-        if NAME_IS_NOT_THE_SECRET.search(found.group("name")):
-            continue
         bare = found.group("bare")
         if bare is not None and not _bare_values_are_data(path):
             continue
         value = (found.group("quoted") or bare or "").strip()
-        if PLACEHOLDER.match(value):
+        if name_is_not_the_secret(found.group("name"), value):
+            continue
+        if PLACEHOLDER.match(value) and not (
+            _MARKER_WORDS.search(value) and _entropy_survives_the_marker(value)
+        ):
+            # Un vrai secret décoré d'un suffixe de marqueur reste un secret :
+            # `…b1d9c-synthetic` matchait PLACEHOLDER et passait, alors que
+            # « synthetic » est le mot le plus courant du dépôt. On retire le
+            # marqueur et on remesure : si ce qui reste porte encore l'entropie
+            # d'un secret, ce n'était pas un gabarit.
             continue
         if not _high_entropy(value):
             continue

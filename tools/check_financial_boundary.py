@@ -75,16 +75,16 @@ AMBIGUOUS_BARE_SYMBOLS = {
 }
 BROKER_CONTEXT = re.compile(r"iserver|ibkr|interactive\s*brokers|clientportal", re.IGNORECASE)
 
-CODE_SUFFIXES = {".py", ".js", ".jsx", ".ts", ".tsx"}
-# `tests` et `tools` ne sont PLUS ignorés : le manifeste déclare
-# `scope: [runtime, tests, dependencies, routes, permissions, ai_tools]`, et le
-# scanner les écartait — un appel interdit écrit dans un test passait donc la
-# porte la plus critique du programme. Les deux fichiers qui nomment
-# légitimement ces symboles sont exemptés NOMMÉMENT dans
-# `manifests/financial-boundary-allowlist.yaml`, avec un motif écrit.
-# `docs` et `fixtures` restent écartés : ce n'est pas du code, et la
-# documentation doit pouvoir NOMMER ce qu'elle interdit.
-SKIP_PARTS = {".git", ".venv", "node_modules", "fixtures", "docs", "dist", "build"}
+CODE_SUFFIXES = {".py", ".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx"}
+# Ne sont écartés que les répertoires GÉNÉRÉS ou VENDUS — jamais un nom qui
+# peut désigner du code de production. `tests` et `tools` étaient écartés : un
+# appel interdit y passait la porte la plus critique du programme (6e audit).
+# `build` et `fixtures` l'étaient aussi À N'IMPORTE QUELLE PROFONDEUR, si bien
+# que `apps/edge-ibkr/src/vertex_edge_ibkr/build/orders.py` et
+# `apps/api/src/vertex_api/fixtures/accounts.py` étaient invisibles (7e audit).
+# Ce qui nomme légitimement une capacité interdite passe par l'allowlist, qui
+# est NOMMÉE et n'exempte que la mention en chaîne.
+SKIP_PARTS = {".git", ".venv", "node_modules", "__pycache__", ".pytest_cache", "dist", ".vite"}
 
 ALLOWLIST_FILENAME = "financial-boundary-allowlist.yaml"
 
@@ -112,17 +112,27 @@ def load_manifest(root: Path) -> tuple[set[str], set[str]]:
     return symbols | FALLBACK_CALLS, fragments | FALLBACK_FRAGMENTS
 
 
+#: Formes d'accès qu'une exemption ne peut JAMAIS couvrir. Un APPEL et un
+#: ACCÈS D'ATTRIBUT atteignent réellement la capacité ; seule la MENTION en
+#: chaîne (ou dans un fragment d'URL) peut être légitime — c'est le cas du test
+#: qui prouve l'absence, et de cette porte elle-même.
+NEVER_EXEMPTABLE_KINDS = frozenset({"call", "attribute"})
+
+
 def load_allowlist(root: Path) -> dict[str, str]:
-    """Exemptions NOMMÉES : ``"<chemin>:<symbole>" -> motif``.
+    """Exemptions NOMMÉES : ``"<chemin>:<symbole>:<forme>" -> motif``.
 
-    Deux fichiers du dépôt nomment légitimement les capacités interdites : le
-    test qui prouve leur ABSENCE, et ce scanner lui-même. Les exempter par
-    chemin explicite, avec un motif écrit, vaut mieux que d'écarter des
-    répertoires entiers — ce que faisait `SKIP_PARTS`, et qui laissait passer
-    un appel interdit dans n'importe quel test.
+    La clé porte la FORME D'ACCÈS. Sans elle, l'exemption écrite « il les nomme
+    en CHAÎNES uniquement — jamais en appel ni en accès d'attribut » n'était
+    appliquée par RIEN : quatre capacités interdites réellement APPELÉES dans
+    un fichier exempté franchissaient la porte (7e audit). Le motif était
+    exact, seulement il n'était pas exécutable.
 
-    Fail-closed : si le fichier d'exemptions est illisible, AUCUNE exemption
-    n'est accordée.
+    Une entrée qui tente d'exempter un ``call`` ou un ``attribute`` est REFUSÉE
+    au chargement : ce n'est pas une exemption discutable, c'est le chemin
+    qu'on interdit.
+
+    Fail-closed : un fichier d'exemptions illisible n'accorde AUCUNE exemption.
     """
     path = root / "manifests" / ALLOWLIST_FILENAME
     if not path.is_file():
@@ -135,13 +145,20 @@ def load_allowlist(root: Path) -> dict[str, str]:
         return {}
     allowed: dict[str, str] = {}
     for entry in data.get("allow") or []:
-        missing = [k for k in ("path", "symbol", "reason") if not entry.get(k)]
+        missing = [k for k in ("path", "symbol", "kind", "reason") if not entry.get(k)]
         if missing:
             raise SystemExit(
                 f"manifests/{ALLOWLIST_FILENAME} : entrée incomplète, "
                 f"champs manquants {missing}"
             )
-        allowed[f"{entry['path']}:{entry['symbol']}"] = str(entry["reason"])
+        kind = str(entry["kind"])
+        if kind in NEVER_EXEMPTABLE_KINDS:
+            raise SystemExit(
+                f"manifests/{ALLOWLIST_FILENAME} : {entry['path']} tente d'exempter "
+                f"un « {kind} » sur {entry['symbol']} — un appel et un accès "
+                "d'attribut atteignent la capacité, ils ne sont jamais exemptables."
+            )
+        allowed[f"{entry['path']}:{entry['symbol']}:{kind}"] = str(entry["reason"])
     return allowed
 
 
@@ -215,12 +232,12 @@ def scan_text(
     )
     for number, line in enumerate(text.splitlines(), start=1):
         for match in call_pattern.finditer(line):
-            findings.append({"line": number, "symbol": match.group(1)})
+            findings.append({"line": number, "symbol": match.group(1), "kind": "call"})
         for fragment in fragments:
             if fragment in line:
                 if fragment in AMBIGUOUS_FRAGMENTS and not BROKER_CONTEXT.search(line):
                     continue
-                findings.append({"line": number, "symbol": fragment})
+                findings.append({"line": number, "symbol": fragment, "kind": "fragment"})
     return findings
 
 
@@ -238,7 +255,7 @@ def scan_python_fragments(
             if fragment in line:
                 if fragment in AMBIGUOUS_FRAGMENTS and not BROKER_CONTEXT.search(line):
                     continue
-                findings.append({"line": number, "symbol": fragment})
+                findings.append({"line": number, "symbol": fragment, "kind": "fragment"})
     return findings
 
 
@@ -260,7 +277,7 @@ def main() -> int:
         else:
             findings = scan_text(path, forbidden, fragments)
         for finding in findings:
-            key = f"{relative}:{finding['symbol']}"
+            key = f"{relative}:{finding['symbol']}:{finding.get('kind', '?')}"
             if key in allowlist:
                 used.add(key)
                 continue
