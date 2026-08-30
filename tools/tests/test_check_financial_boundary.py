@@ -173,10 +173,30 @@ def test_une_exemption_de_chaine_reste_possible(tmp_path: Path) -> None:
     }
 
 
+EXEMPTABLE_KINDS = {"string", "reference", "fragment", "binding"}
+
+
 def test_la_cle_d_exemption_porte_la_forme_d_acces() -> None:
     """Sans le `kind` dans la clé, une exemption de chaîne couvrait un appel."""
     for key in gate.load_allowlist(_REPO_ROOT):
-        assert key.rsplit(":", 1)[-1] in {"string", "fragment"}
+        kind = key.rsplit(":", 1)[-1]
+        assert kind not in gate.NEVER_EXEMPTABLE_KINDS, key
+        assert kind in EXEMPTABLE_KINDS, key
+
+
+def test_les_deux_ensembles_de_formes_sont_disjoints_et_complets() -> None:
+    """Aucune forme ne doit tomber entre les deux ensembles.
+
+    Une forme inconnue des deux listes serait exemptable par défaut sans que
+    personne l'ait décidé — c'est exactement le genre de trou que les audits
+    précédents ont trouvé.
+    """
+    assert not (EXEMPTABLE_KINDS & gate.NEVER_EXEMPTABLE_KINDS)
+    produced = {
+        str(f["kind"])
+        for f in gate.scan_python(_GATE, FORBIDDEN) + gate.scan_python_fragments(_GATE, gate.FALLBACK_FRAGMENTS)
+    }
+    assert produced <= EXEMPTABLE_KINDS | gate.NEVER_EXEMPTABLE_KINDS
 
 
 @pytest.mark.parametrize(
@@ -218,4 +238,481 @@ def test_les_repertoires_ecartes_sont_seulement_generes_ou_vendus() -> None:
         ".pytest_cache",
         "dist",
         ".vite",
+    }
+
+
+# ── 8e audit : l'IMPORT, la surface d'analyse et l'asymétrie TS/Python ────
+#
+# Trois familles reproduites :
+#   1. `scan_python` ne visitait que `Call`, `Attribute` et `Constant`. Les
+#      nœuds `ast.alias` — donc TOUTES les instructions `import` — n'étaient
+#      jamais examinés : `from ib_insync.ib import placeOrder as _send` puis
+#      `_send(ib, c, o)` passait la porte. Un `import … as` EST l'obtention
+#      de la référence, sous forme statique et littérale.
+#   2. Le manifeste déclare `scope: [runtime, tests, dependencies, routes,
+#      permissions, ai_tools]` mais `CODE_SUFFIXES` ne couvrait ni `.sh`
+#      (3 fichiers suivis, dont `tools/run_checks.sh`), ni les formats
+#      déclaratifs qui portent routes, permissions et outils IA.
+#   3. `scan_text` n'avait qu'un motif `symbole\s*\(` : `ib.placeOrder` et
+#      `ib["reqPositions"]` échappaient en TypeScript alors que les MÊMES
+#      formes étaient vues en Python.
+
+
+def _scan_ts(tmp_path: Path, source: str, name: str = "module.ts") -> set[tuple[str, str]]:
+    target = tmp_path / name
+    target.write_text(source, encoding="utf-8")
+    return {
+        (str(f["symbol"]), str(f["kind"]))
+        for f in gate.scan_text(target, FORBIDDEN, gate.FALLBACK_FRAGMENTS)
+    }
+
+
+def _run_gate_on(root: Path) -> dict[str, object]:
+    completed = subprocess.run(
+        [sys.executable, str(_GATE), str(root)], capture_output=True, text=True
+    )
+    return json.loads(completed.stdout)
+
+
+@pytest.mark.parametrize(
+    ("label", "source", "expected"),
+    [
+        (
+            "import avec alias",
+            "from ib_insync.ib import placeOrder as _send\n\n\ndef go(ib, c, o):\n    return _send(ib, c, o)\n",
+            ("placeOrder", "import"),
+        ),
+        (
+            "import nu jamais appelé",
+            "from ib_insync.ib import reqPositions\n",
+            ("reqPositions", "import"),
+        ),
+        (
+            "module pointé",
+            "import ib_insync.cancelOrder as _m\n",
+            ("cancelOrder", "import"),
+        ),
+        (
+            "module d'origine pointé",
+            "from ib_insync.whatIfOrder import helper\n",
+            ("whatIfOrder", "import"),
+        ),
+        (
+            "renommage VERS un nom interdit",
+            "import ib_insync as reqPnL\n",
+            ("reqPnL", "import"),
+        ),
+    ],
+)
+def test_un_import_est_une_obtention_de_reference(
+    tmp_path: Path, label: str, source: str, expected: tuple[str, str]
+) -> None:
+    """`import … as` est statique et littéral : la porte doit le voir."""
+    assert expected in _scan(tmp_path, source), label
+
+
+@pytest.mark.parametrize(
+    ("label", "source", "expected"),
+    [
+        (
+            "concaténation littérale",
+            'def go(ib):\n    return getattr(ib, "place" + "Order")\n',
+            "placeOrder",
+        ),
+        (
+            "f-string entièrement littérale",
+            'def go(ib):\n    return getattr(ib, f"reqPositions")\n',
+            "reqPositions",
+        ),
+        (
+            "littéral d'octets décodé",
+            'def go(ib):\n    return getattr(ib, b"cancelOrder".decode())\n',
+            "cancelOrder",
+        ),
+        (
+            "chemin pointé en chaîne",
+            'import importlib\n\n\ndef go():\n    return importlib.import_module("ib_insync.placeOrder")\n',
+            "placeOrder",
+        ),
+    ],
+)
+def test_les_litteraux_composes_sont_resolus(
+    tmp_path: Path, label: str, source: str, expected: str
+) -> None:
+    """Ce qui est STATIQUE et LITTÉRAL doit être résolu, même découpé."""
+    assert expected in {symbol for symbol, _ in _scan(tmp_path, source)}, label
+
+
+@pytest.mark.parametrize(
+    ("label", "source", "expected"),
+    [
+        ("appel (témoin)", "export const f = (ib: any) => ib.placeOrder(1);\n", ("placeOrder", "call")),
+        ("accès d'attribut", "export const f = (ib: any) => ib.placeOrder;\n", ("placeOrder", "attribute")),
+        ("chaînage optionnel", "export const f = (ib: any) => ib?.reqAccountSummary;\n", ("reqAccountSummary", "attribute")),
+        ("indexation par nom", 'export const f = (ib: any) => ib["reqPositions"];\n', ("reqPositions", "reference")),
+        ("destructuration", "export const f = (ib: any) => { const { placeOrder } = ib; return placeOrder; };\n", ("placeOrder", "reference")),
+        ("destructuration avec alias", "export const f = (ib: any) => { const { reqPnL: r } = ib; return r; };\n", ("reqPnL", "reference")),
+        ("import nommé", 'import { cancelOrder } from "./ib";\nexport const f = cancelOrder;\n', ("cancelOrder", "import")),
+        ("import avec alias", 'import { reqPositions as read } from "./ib";\nexport const f = read;\n', ("reqPositions", "import")),
+        ("import dynamique", 'export const f = async () => (await import("./ib")).whatIfOrder;\n', ("whatIfOrder", "attribute")),
+        ("require", 'const { reqExecutions } = require("./ib");\n', ("reqExecutions", "import")),
+    ],
+)
+def test_l_analyseur_texte_est_aligne_sur_l_analyseur_python(
+    tmp_path: Path, label: str, source: str, expected: tuple[str, str]
+) -> None:
+    """Les mêmes formes doivent être vues en TypeScript et en Python."""
+    assert expected in _scan_ts(tmp_path, source), label
+
+
+@pytest.mark.parametrize(
+    ("label", "relative", "source"),
+    [
+        ("script shell — route courtier", "deploy.sh",
+         '#!/usr/bin/env bash\ncurl -s "https://localhost:5000/v1/api/iserver/account/orders" -X POST\n'),
+        ("script shell — symbole appelé", "infra/publish.sh",
+         '#!/usr/bin/env bash\npython3 -c "import x; x.placeOrder(1, 2)"\n'),
+        ("OpenAPI — route", "apps/api/openapi.json",
+         '{"paths": {"/v1/api/iserver/account/orders": {"post": {}}}}\n'),
+        ("YAML — permission", "manifests/tooling.yaml",
+         'tools:\n  - name: broker\n    allowed_methods: [placeOrder]\n'),
+        ("TOML — route de worker", "worker/wrangler.toml",
+         'routes = ["https://x/v1/api/iserver/account/orders"]\n'),
+        ("HTML — script en ligne", "apps/web/index.html",
+         '<script>fetch("/v1/api/iserver/account/orders");</script>\n'),
+        ("Dockerfile — appel réseau", "infra/Dockerfile.python",
+         'RUN curl "https://x/v1/api/iserver/account/orders"\n'),
+        ("workflow CI — étape shell", ".github/workflows/deploy.yml",
+         'jobs:\n  a:\n    steps:\n      - run: curl "https://x/v1/api/iserver/account/orders"\n'),
+    ],
+)
+def test_la_surface_couvre_le_perimetre_declare(
+    tmp_path: Path, label: str, relative: str, source: str
+) -> None:
+    """`scope: [runtime, tests, dependencies, routes, permissions, ai_tools]`.
+
+    Routes et permissions vivent dans des fichiers shell et déclaratifs ; les
+    ignorer laissait le périmètre déclaré plus large que le périmètre analysé.
+    """
+    target = tmp_path / relative
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(source, encoding="utf-8")
+    assert _run_gate_on(tmp_path)["ok"] is False, label
+
+
+def test_un_import_n_est_pas_exemptable(tmp_path: Path) -> None:
+    """Un renommage est une obtention de référence, pas une mention."""
+    assert "import" in gate.NEVER_EXEMPTABLE_KINDS
+    _write_allowlist(tmp_path, "import")
+    with pytest.raises(SystemExit) as raised:
+        gate.load_allowlist(tmp_path)
+    assert "jamais exemptables" in str(raised.value)
+
+
+def test_le_vocabulaire_metier_ne_produit_pas_de_faux_positif(tmp_path: Path) -> None:
+    """`portfolio` et `positions` sont le portefeuille MANUEL de Vertex.
+
+    Le dépôt les emploie plus de 400 fois : module `vertex_api.portfolio`,
+    clés de contenu, champs de DTO. Élargir la porte sans les traiter la
+    rendrait illisible — donc inappliquée.
+    """
+    assert _scan(tmp_path, "from vertex_api.portfolio import build\n") == set()
+    assert _scan(tmp_path, 'x = {"positions": [], "portfolio": 1}\n') == set()
+    assert _scan_ts(tmp_path, "const id = data.portfolio.id;\n") == set()
+    assert _scan_ts(tmp_path, "for (const p of record['positions']) void p;\n") == set()
+    # …mais un contexte courtier explicite les fait ressortir.
+    assert _scan_ts(
+        tmp_path, 'const r = await fetch("/iserver/portfolio").then((x) => x.positions);\n'
+    ) != set()
+
+
+def test_les_formes_dynamiques_restent_hors_de_portee(tmp_path: Path) -> None:
+    """Limite ASSUMÉE d'une analyse statique — elle est nommée, pas cachée.
+
+    Un nom assemblé à l'exécution n'est pas littéral : aucun scanner statique
+    ne le voit. Ce test fige la frontière pour qu'elle ne soit jamais
+    présentée comme couverte.
+    """
+    assert _scan(tmp_path, 'def go(ib, part):\n    return getattr(ib, "place" + part)\n') == set()
+    assert _scan(tmp_path, 'def go(ib, n):\n    return getattr(ib, f"req{n}")\n') == set()
+    assert _scan(tmp_path, "def go(ib, name):\n    return ib.__getattribute__(name)\n") == set()
+
+
+def test_le_docstring_ne_sur_promet_pas() -> None:
+    """Le 8e audit a relevé une affirmation fausse : « couvre `getattr` ».
+
+    La mention en chaîne couvre `getattr` avec un nom LITTÉRAL, jamais un nom
+    construit. Une porte qui se décrit plus large qu'elle n'est fait échouer
+    la revue suivante.
+    """
+    doc = gate.scan_python.__doc__ or ""
+    assert "littéral" in doc.lower() or "litteral" in doc.lower()
+    assert "construit" in doc.lower()
+
+
+# ── Forme liste de l'allowlist : lisibilité sans relâchement ──────────────
+#
+# L'élargissement de la surface au 8e audit a fait passer les exemptions de 33
+# à 76 clés. À cinq lignes chacune, l'allowlist devenait illisible — et une
+# allowlist qu'on ne relit plus est exactement ce qui a permis au 7e audit d'y
+# trouver une exemption couvrant autre chose que ce qu'elle annonçait.
+
+def _write_allowlist_entry(root: Path, body: str) -> None:
+    (root / "manifests").mkdir(exist_ok=True)
+    (root / "manifests" / gate.ALLOWLIST_FILENAME).write_text(
+        "allow:\n" + body, encoding="utf-8"
+    )
+
+
+def test_la_forme_liste_nomme_chaque_symbole(tmp_path: Path) -> None:
+    _write_allowlist_entry(
+        tmp_path,
+        "  - path: a.py\n"
+        "    symbols: [placeOrder, reqPositions]\n"
+        "    kind: string\n"
+        "    reason: motif suffisamment long pour passer le contrôle de longueur\n",
+    )
+    assert set(gate.load_allowlist(tmp_path)) == {
+        "a.py:placeOrder:string",
+        "a.py:reqPositions:string",
+    }
+
+
+def test_la_forme_liste_n_introduit_aucun_joker(tmp_path: Path) -> None:
+    """`*` n'exempte que le symbole littéral `*`, jamais un fichier entier."""
+    _write_allowlist_entry(
+        tmp_path,
+        '  - path: a.py\n'
+        '    symbols: ["*"]\n'
+        "    kind: string\n"
+        "    reason: motif suffisamment long pour passer le contrôle de longueur\n",
+    )
+    assert set(gate.load_allowlist(tmp_path)) == {"a.py:*:string"}
+    (tmp_path / "a.py").write_text('X = "placeOrder"\n', encoding="utf-8")
+    assert _run_gate_on(tmp_path)["ok"] is False
+
+
+def test_la_forme_liste_reste_soumise_aux_formes_non_exemptables(tmp_path: Path) -> None:
+    _write_allowlist_entry(
+        tmp_path,
+        "  - path: a.py\n"
+        "    symbols: [placeOrder]\n"
+        "    kind: import\n"
+        "    reason: motif suffisamment long pour passer le contrôle de longueur\n",
+    )
+    with pytest.raises(SystemExit) as raised:
+        gate.load_allowlist(tmp_path)
+    assert "jamais exemptables" in str(raised.value)
+
+
+def test_une_entree_sans_aucun_symbole_est_refusee(tmp_path: Path) -> None:
+    _write_allowlist_entry(
+        tmp_path,
+        "  - path: a.py\n"
+        "    symbols: []\n"
+        "    kind: string\n"
+        "    reason: motif suffisamment long pour passer le contrôle de longueur\n",
+    )
+    with pytest.raises(SystemExit) as raised:
+        gate.load_allowlist(tmp_path)
+    assert "symbol" in str(raised.value)
+
+
+def test_une_exemption_de_liste_sans_occurrence_est_dette_morte(tmp_path: Path) -> None:
+    """La détection de dette morte reste par SYMBOLE, pas par entrée."""
+    _write_allowlist_entry(
+        tmp_path,
+        "  - path: a.py\n"
+        "    symbols: [placeOrder, reqPositions]\n"
+        "    kind: string\n"
+        "    reason: motif suffisamment long pour passer le contrôle de longueur\n",
+    )
+    (tmp_path / "a.py").write_text('X = "placeOrder"\n', encoding="utf-8")
+    payload = _run_gate_on(tmp_path)
+    assert payload["ok"] is False
+    assert any(
+        f["symbol"] == "STALE_ALLOWLIST_ENTRY" and "reqPositions" in str(f["path"])
+        for f in payload["findings"]
+    )
+
+
+def test_les_limites_de_la_porte_sont_ecrites_dans_la_porte() -> None:
+    """Une porte qui ne dit pas où elle s'arrête sera crue exhaustive."""
+    assert len(gate.OUT_OF_STATIC_REACH) >= 6
+    joined = " ".join(gate.OUT_OF_STATIC_REACH).lower()
+    for expected in ("getattr", "__getattr__", "import *", "markdown"):
+        assert expected in joined, expected
+
+
+# ── Fabriquer le nom, pas seulement l'atteindre ───────────────────────────
+#
+# Énumération poursuivie au-delà des vecteurs signalés : une capacité interdite
+# peut aussi être RECRÉÉE sous le toit de Vertex. Si le corps de la fonction
+# atteint IBKR par un nom construit — hors de portée d'une analyse statique —,
+# la définition est la SEULE trace visible.
+
+@pytest.mark.parametrize(
+    ("label", "source", "expected"),
+    [
+        ("fonction", "def placeOrder(ib, c, o):\n    return None\n", ("placeOrder", "definition")),
+        ("fonction asynchrone", "async def reqPositions(ib):\n    return None\n", ("reqPositions", "definition")),
+        ("classe", "class whatIfOrder:\n    pass\n", ("whatIfOrder", "definition")),
+        ("affectation", "def f(x):\n    reqPnL = x\n    return reqPnL\n", ("reqPnL", "binding")),
+        ("paramètre", "def f(cancelOrder):\n    return cancelOrder\n", ("cancelOrder", "binding")),
+        ("boucle", "def f(xs):\n    for reqExecutions in xs:\n        return reqExecutions\n", ("reqExecutions", "binding")),
+        ("gestionnaire d'exception", "def f():\n    try:\n        pass\n    except ValueError as reqIds:\n        return reqIds\n", ("reqIds", "binding")),
+        ("global", "def f():\n    global reqGlobalCancel\n    return 1\n", ("reqGlobalCancel", "binding")),
+    ],
+)
+def test_recreer_la_capacite_sous_un_autre_toit_est_vu(
+    tmp_path: Path, label: str, source: str, expected: tuple[str, str]
+) -> None:
+    assert expected in _scan(tmp_path, source), label
+
+
+def test_une_definition_n_est_pas_exemptable(tmp_path: Path) -> None:
+    """`financial-safety.md` interdit d'AJOUTER la commande, pas seulement de
+    l'appeler. Aucun motif ne rend légitime un `def placeOrder` chez Vertex."""
+    assert "definition" in gate.NEVER_EXEMPTABLE_KINDS
+    _write_allowlist(tmp_path, "definition")
+    with pytest.raises(SystemExit) as raised:
+        gate.load_allowlist(tmp_path)
+    assert "jamais exemptables" in str(raised.value)
+
+
+def test_une_liaison_reste_exemptable(tmp_path: Path) -> None:
+    """Anti-vacuité : « executions » est aussi un mot anglais courant.
+
+    Une variable locale n'est pas un point d'entrée ; la rendre non exemptable
+    rendrait la porte inapplicable sans rien fermer.
+    """
+    assert "binding" not in gate.NEVER_EXEMPTABLE_KINDS
+    _write_allowlist_entry(
+        tmp_path,
+        "  - path: a.py\n"
+        "    symbol: executions\n"
+        "    kind: binding\n"
+        "    reason: motif suffisamment long pour passer le contrôle de longueur\n",
+    )
+    assert set(gate.load_allowlist(tmp_path)) == {"a.py:executions:binding"}
+
+
+def test_le_vocabulaire_metier_echappe_aussi_a_ces_formes(tmp_path: Path) -> None:
+    """`portfolio = ...` et `def positions(...)` sont partout dans Vertex."""
+    assert _scan(tmp_path, "def f(row):\n    portfolio = row\n    return portfolio\n") == set()
+    assert _scan(tmp_path, "def positions(ledger):\n    return ledger\n") == set()
+
+
+def test_une_definition_typescript_est_vue(tmp_path: Path) -> None:
+    assert ("placeOrder", "definition") in _scan_ts(
+        tmp_path, "export function placeOrder(ib: any) { return ib; }\n"
+    )
+    assert ("reqPositions", "definition") in _scan_ts(
+        tmp_path, "class reqPositions {}\n"
+    )
+
+
+def test_la_concatenation_litterale_est_repliee_aussi_en_texte(tmp_path: Path) -> None:
+    """Dernière asymétrie relevée : Python repliait, TypeScript non."""
+    assert ("placeOrder", "reference") in _scan_ts(
+        tmp_path, 'export const f = (ib: any) => ib["place" + "Order"];\n'
+    )
+    assert ("reqPositions", "reference") in _scan_ts(
+        tmp_path, "export const f = (ib: any) => ib['req' + 'Positions'];\n"
+    )
+    # …mais un morceau non littéral ne se replie pas : c'est un nom construit.
+    assert _scan_ts(
+        tmp_path, 'export const f = (ib: any, s: string) => ib["place" + s];\n'
+    ) == set()
+
+
+def test_les_deux_analyseurs_voient_les_memes_formes(tmp_path: Path) -> None:
+    """Anti-régression d'asymétrie : la même source, deux langages.
+
+    L'analyseur texte n'avait qu'un motif `symbole\\s*\\(` ; `ib.placeOrder` et
+    `ib["reqPositions"]` passaient en TypeScript alors qu'ils étaient vus en
+    Python. Ce test compare les deux analyseurs sur les formes communes.
+    """
+    cases = [
+        ("appel", "x = ib.placeOrder(1)\n", "const x = ib.placeOrder(1);\n"),
+        ("attribut", "x = ib.placeOrder\n", "const x = ib.placeOrder;\n"),
+        ("indexation", 'x = ib["reqPositions"]\n', 'const x = ib["reqPositions"];\n'),
+        ("définition", "def placeOrder():\n    pass\n", "function placeOrder() {}\n"),
+        ("concaténation", 'x = ib["place" + "Order"]\n', 'const x = ib["place" + "Order"];\n'),
+    ]
+    for label, python_source, text_source in cases:
+        seen_py = {symbol for symbol, _ in _scan(tmp_path, python_source)}
+        seen_ts = {symbol for symbol, _ in _scan_ts(tmp_path, text_source)}
+        assert seen_py == seen_ts != set(), f"{label} : {seen_py} vs {seen_ts}"
+
+
+# ── La surface analysée doit suivre le dépôt ──────────────────────────────
+
+#: Formats délibérément HORS de l'analyse, avec le motif de la décision.
+#: Toute autre extension présente dans le dépôt doit être analysée : c'est
+#: ainsi que `.sh` a pu manquer pendant huit audits.
+DELIBERATELY_UNSCANNED = {
+    ".md": "documentation — le manifeste la classe `comment_or_documentation: "
+           "review_required`, pas `deny`",
+    ".svg": "icône vectorielle — aucune exécution, aucune route",
+    ".png": "image binaire",
+    ".lock": "verrou de dépendances généré",
+    ".gitkeep": "marqueur de répertoire vide",
+    ".gitignore": "règles d'ignorance Git",
+    ".gitattributes": "attributs Git",
+    ".editorconfig": "réglages d'éditeur",
+    ".css": "feuille de style — aucune capacité atteignable",
+    ".pyc": "octet-code généré",
+    ".gitignore": "règles d'ignorance Git",
+    ".gitkeep": "marqueur de répertoire vide",
+}
+
+
+def test_aucun_format_du_depot_n_echappe_sans_decision_ecrite() -> None:
+    """Le périmètre analysé doit couvrir tout ce que le dépôt contient.
+
+    `CODE_SUFFIXES` ignorait `.sh` alors que trois scripts shell sont suivis,
+    dont `tools/run_checks.sh` : `deploy.sh` appelant une route d'ordre par
+    `curl` n'était vu par personne (8e audit). Ce test échoue dès qu'un format
+    nouveau apparaît sans avoir été soit analysé, soit écarté par écrit.
+    """
+    tracked = subprocess.run(
+        ["git", "ls-files", "-z"],
+        cwd=_REPO_ROOT, capture_output=True, text=True, check=True,
+    ).stdout.split("\0")
+    undecided: dict[str, str] = {}
+    for name in tracked:
+        if not name:
+            continue
+        path = _REPO_ROOT / name
+        if any(part in gate.SKIP_PARTS for part in Path(name).parts):
+            continue
+        if gate.is_scanned(path):
+            continue
+        if path.suffix in DELIBERATELY_UNSCANNED or path.name in DELIBERATELY_UNSCANNED:
+            continue
+        undecided.setdefault(path.suffix or path.name, name)
+    assert not undecided, (
+        "format ni analysé ni écarté par écrit — décider, puis inscrire la "
+        f"décision : {undecided}"
+    )
+
+
+def test_les_scripts_shell_du_depot_sont_bien_analyses() -> None:
+    """Anti-vacuité du test précédent : le dépôt contient bien des `.sh`."""
+    shell = [
+        _REPO_ROOT / n
+        for n in subprocess.run(
+            ["git", "ls-files", "*.sh"],
+            cwd=_REPO_ROOT, capture_output=True, text=True, check=True,
+        ).stdout.split()
+    ]
+    assert shell, "aucun script shell : le test ne prouverait rien"
+    assert all(gate.is_scanned(p) for p in shell)
+    assert ".sh" in gate.CODE_SUFFIXES
+
+
+def test_les_repertoires_ecartes_restent_seulement_generes_ou_vendus() -> None:
+    assert gate.SKIP_PARTS == {
+        ".git", ".venv", "node_modules", "__pycache__", ".pytest_cache", "dist", ".vite",
     }
