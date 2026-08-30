@@ -1,11 +1,23 @@
 # État courant
 
 ```yaml
-phase: douze_pages_livrees_portes_ci_completees_lot_23_entame
-lot: LOT-23 — qualité, politique, performance, chaos, accessibilité
-branch: claude/vertex-connection-kgkntr
-status: neuvieme_audit_ferme_batterie_locale_TOUT_VERT_nightly_en_cours
-last_good_commit: 9310b1f (= origin/main, PR #4 fusionnée)
+phase: refonte_visuelle_black_intelligence_prete_a_revue
+lot: LOT-10 — rafraîchissement design system et shell Obsidian
+branch: lot/10-obsidian-theme-refresh
+status: ready_for_human_review
+last_good_commit: 940e3a7 (= origin/main, baseline locale web verte)
+active_work:
+  - "refonte visuelle demandée à partir de 26 références : terminal graphite,
+     grille bento régulière, accent signal rare et hiérarchie décisionnelle"
+  - "périmètre borné au design system, au shell et à la page Aujourd'hui ;
+     aucun contrat API, calcul financier, gate ou source de données modifié"
+  - "implémentation : design tokens Obsidian, shell, glyphes approuvés,
+     cockpit Aujourd'hui et rail de vérité du snapshot"
+  - "validation finale locale : Biome 0 violation, TypeScript 0 erreur,
+     Vitest 389/389, build Vite vert ; bundle initial gzip 121709 octets,
+     moteurs graphiques hors fermeture initiale"
+  - "E2E/captures non exécutés localement : PostgreSQL jetable et Chromium
+     absents ; exécution attendue en CI avant validation humaine"
 completed:
   - vagues_1_a_5: 13 routes sur 13 réelles (PR #1, #2 et #3 fusionnées)
   - ci: 7 jobs, 25 portes nommées — VERTE sur 5a40bc8 ; actions épinglées par SHA de COMMIT

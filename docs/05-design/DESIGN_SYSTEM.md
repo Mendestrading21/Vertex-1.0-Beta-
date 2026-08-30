@@ -1,4 +1,4 @@
-# Design system — Black Glass 1.0
+# Design system — Black Glass 1.1 « Obsidian Signal »
 
 > Portée Beta : interface Vertex exclusivement bureau/laptop. Les largeurs cible
 > sont 1280, 1440 et 1600 px ; 1024 px sert seulement de dégradation laptop.
@@ -7,31 +7,35 @@
 
 ## ADN conservé
 
-Fond noir/graphite, surfaces très proches, bordures argent discrètes, chiffres tabulaires, violet réservé aux options, vert positif, corail négatif et ambre avertissement. Aucun bleu de marque.
+Fond noir/graphite, surfaces hiérarchisées, bordures argent discrètes, chiffres
+tabulaires, violet réservé aux options, vert positif, corail négatif et ambre
+avertissement. Un signal lime acide, rare et non financier, identifie la
+sélection, le focus de marque et l'action principale. Aucun bleu de marque.
 
 ## Palette canonique neuve
 
 ```css
 :root {
-  --vx-black: #040504;
-  --vx-app: #08090b;
-  --vx-surface-0: #0b0c0f;
-  --vx-surface-1: #101216;
-  --vx-surface-2: #15171c;
-  --vx-surface-3: #1b1e23;
-  --vx-hover: #232830;
-  --vx-border-soft: rgba(222, 227, 237, 0.09);
-  --vx-border: rgba(222, 227, 237, 0.14);
-  --vx-border-strong: rgba(222, 227, 237, 0.22);
-  --vx-text: #f3f5f8;
-  --vx-text-secondary: #b7bcc4;
-  --vx-text-muted: #828892;
-  --vx-silver: #c9cdd4;
-  --vx-positive: #36c889;
-  --vx-negative: #ed655c;
-  --vx-warning: #dda23b;
-  --vx-option: #9c79d0;
-  --vx-macro: #53b9ad;
+  --vx-black: #020304;
+  --vx-app: #06080d;
+  --vx-surface-0: #090c12;
+  --vx-surface-1: #0e1219;
+  --vx-surface-2: #141923;
+  --vx-surface-3: #1a202b;
+  --vx-hover: #202835;
+  --vx-border-soft: rgba(232, 239, 249, 0.07);
+  --vx-border: rgba(232, 239, 249, 0.11);
+  --vx-border-strong: rgba(232, 239, 249, 0.18);
+  --vx-text: #f5f7fb;
+  --vx-text-secondary: #a8b0bf;
+  --vx-text-muted: #747e8e;
+  --vx-silver: #d4dae3;
+  --vx-signal: #d4ff45;
+  --vx-positive: #2bd99b;
+  --vx-negative: #ff6070;
+  --vx-warning: #f2b94b;
+  --vx-option: #a87cf7;
+  --vx-macro: #5bd2c2;
 }
 ```
 
@@ -67,6 +71,7 @@ Radix Primitives apporte le comportement accessible ; Vertex fournit tous les st
 - une couleur = une signification ;
 - jamais couleur seule : texte, icône ou motif ;
 - verre discret, pas de blur généralisé ;
+- le signal lime n'exprime jamais une hausse, un score ou une validation ;
 - gradients réservés à sélection/action principale ;
 - jauges uniquement linéaires/segmentées, nommées et sourcées ; aucun cadran décoratif ou score opaque ;
 - animations 140–220 ms et désactivables ;

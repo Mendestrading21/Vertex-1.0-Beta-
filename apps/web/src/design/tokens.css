@@ -1,26 +1,35 @@
 /* GÉNÉRÉ — ne pas éditer. Source : src/design/tokens.ts — régénérer via `pnpm tokens:css`. */
 
 :root {
-  /* Couleurs — Black Glass, Signal Light */
-  --vx-black: #040504;
-  --vx-app: #08090b;
-  --vx-surface-0: #0b0c0f;
-  --vx-surface-1: #101216;
-  --vx-surface-2: #15171c;
-  --vx-surface-3: #1b1e23;
-  --vx-hover: #232830;
-  --vx-border-soft: rgba(222, 227, 237, 0.09);
-  --vx-border: rgba(222, 227, 237, 0.14);
-  --vx-border-strong: rgba(222, 227, 237, 0.22);
-  --vx-text: #f3f5f8;
-  --vx-text-secondary: #b7bcc4;
-  --vx-text-muted: #828892;
-  --vx-silver: #c9cdd4;
-  --vx-positive: #36c889;
-  --vx-negative: #ed655c;
-  --vx-warning: #dda23b;
-  --vx-option: #9c79d0;
-  --vx-macro: #53b9ad;
+  /* Couleurs — Black Glass, Obsidian Signal */
+  --vx-black: #020304;
+  --vx-app: #06080d;
+  --vx-surface-0: #090c12;
+  --vx-surface-1: #0e1219;
+  --vx-surface-2: #141923;
+  --vx-surface-3: #1a202b;
+  --vx-hover: #202835;
+  --vx-border-soft: rgba(232, 239, 249, 0.07);
+  --vx-border: rgba(232, 239, 249, 0.11);
+  --vx-border-strong: rgba(232, 239, 249, 0.18);
+  --vx-text: #f5f7fb;
+  --vx-text-secondary: #a8b0bf;
+  --vx-text-muted: #747e8e;
+  --vx-silver: #d4dae3;
+  --vx-signal: #d4ff45;
+  --vx-signal-soft: rgba(212, 255, 69, 0.13);
+  --vx-signal-faint: rgba(212, 255, 69, 0.055);
+  --vx-positive: #2bd99b;
+  --vx-positive-soft: rgba(43, 217, 155, 0.12);
+  --vx-negative: #ff6070;
+  --vx-negative-soft: rgba(255, 96, 112, 0.12);
+  --vx-warning: #f2b94b;
+  --vx-warning-soft: rgba(242, 185, 75, 0.12);
+  --vx-option: #a87cf7;
+  --vx-option-soft: rgba(168, 124, 247, 0.12);
+  --vx-macro: #5bd2c2;
+  --vx-macro-soft: rgba(91, 210, 194, 0.12);
+  --vx-overlay: rgba(2, 3, 4, 0.82);
 
   /* Espacements — grille 4 px */
   --vx-space-4: 4px;
@@ -37,7 +46,14 @@
   --vx-radius-6: 6px;
   --vx-radius-10: 10px;
   --vx-radius-14: 14px;
+  --vx-radius-18: 18px;
+  --vx-radius-22: 22px;
   --vx-radius-pill: 999px;
+
+  /* Ombres */
+  --vx-shadow-panel: 0 18px 48px rgba(0, 0, 0, 0.2);
+  --vx-shadow-floating: 0 28px 72px rgba(0, 0, 0, 0.38);
+  --vx-shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.035);
 
   /* Mouvements */
   --vx-motion-90: 90ms;
@@ -63,6 +79,8 @@
   --vx-font-size-label: 13px;
   --vx-font-size-title: 16px;
   --vx-font-size-display: 22px;
+  --vx-font-size-headline: 28px;
+  --vx-font-size-metric: 34px;
 }
 
 /* Reduced motion : toutes les durées tombent à 0 ms. */

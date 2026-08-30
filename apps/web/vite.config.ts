@@ -1,6 +1,11 @@
 /// <reference types="vitest/config" />
+import { fileURLToPath } from 'node:url';
+
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
+
+const WEB_ROOT = fileURLToPath(new URL('.', import.meta.url));
+const DESIGN_ASSETS_ROOT = fileURLToPath(new URL('../../design-assets', import.meta.url));
 
 /**
  * Proxy `/api` → API locale (loopback uniquement) pour les serveurs de
@@ -20,6 +25,10 @@ export default defineConfig({
     target: 'es2022',
   },
   server: {
+    fs: {
+      // Les glyphes audités vivent dans le catalogue partagé du dépôt.
+      allow: [WEB_ROOT, DESIGN_ASSETS_ROOT],
+    },
     proxy: LOCAL_API_PROXY,
   },
   preview: {

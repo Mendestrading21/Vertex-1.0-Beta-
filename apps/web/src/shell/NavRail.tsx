@@ -3,6 +3,7 @@ import type { KeyboardEvent } from 'react';
 import { NavLink } from 'react-router-dom';
 
 import { NAV_GROUPS } from '../app/pages.ts';
+import { NavGlyph } from './NavGlyph.tsx';
 
 export interface NavRailProps {
   readonly collapsed: boolean;
@@ -58,7 +59,16 @@ export function NavRail({ collapsed, onToggle }: NavRailProps) {
       onKeyDown={handleKeyDown}
     >
       <div className="vx-rail-head">
-        {!collapsed && <span className="vx-rail-wordmark">Vertex</span>}
+        <span className="vx-brand-lockup" role="img" aria-label="Vertex 1.0 Beta">
+          <span className="vx-brand-mark" aria-hidden="true">
+            V
+          </span>
+          {!collapsed && (
+            <span className="vx-rail-wordmark" aria-hidden="true">
+              Vertex <small>1.0 Beta</small>
+            </span>
+          )}
+        </span>
         <button
           type="button"
           className="vx-rail-toggle"
@@ -67,15 +77,23 @@ export function NavRail({ collapsed, onToggle }: NavRailProps) {
           data-rail-focusable=""
           onClick={onToggle}
         >
-          <span aria-hidden="true">{collapsed ? '»' : '«'}</span>
+          <span
+            className="vx-rail-toggle-icon"
+            data-direction={collapsed ? 'open' : 'close'}
+            aria-hidden="true"
+          />
         </button>
       </div>
 
       {NAV_GROUPS.map((group) => (
         <div key={group.label} className="vx-rail-group" role="group" aria-label={group.label}>
-          <p className="vx-rail-group-label" aria-hidden="true">
-            {collapsed ? '·' : group.label}
-          </p>
+          {collapsed ? (
+            <span className="vx-rail-group-separator" aria-hidden="true" />
+          ) : (
+            <p className="vx-rail-group-label" aria-hidden="true">
+              {group.label}
+            </p>
+          )}
           <ul className="vx-rail-list">
             {group.pages.map((page) => (
               <li key={page.key}>
@@ -87,7 +105,7 @@ export function NavRail({ collapsed, onToggle }: NavRailProps) {
                   data-rail-focusable=""
                 >
                   <span className="vx-rail-link-short" aria-hidden="true">
-                    {page.shortLabel}
+                    <NavGlyph pageKey={page.key} />
                   </span>
                   {!collapsed && (
                     <span className="vx-rail-link-label" aria-hidden="true">

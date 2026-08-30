@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 import { GENERATED_HEADER, renderTokensCss } from './generate-css.ts';
-import { color, motionDuration, space, zIndex } from './tokens.ts';
+import { color, motionDuration, radius, shadow, space, zIndex } from './tokens.ts';
 
 const tokensCssPath = fileURLToPath(new URL('./tokens.css', import.meta.url));
 
@@ -38,9 +38,17 @@ describe('tokens.css généré', () => {
     }
   });
 
-  it('déclare les rayons 6/10/14', () => {
-    for (const key of [6, 10, 14]) {
-      expect(committed).toContain(`--vx-radius-${key}: ${key}px;`);
+  it('déclare les rayons 6/10/14/18/22', () => {
+    expect(Object.keys(radius)).toEqual(['6', '10', '14', '18', '22', 'pill']);
+    for (const [key, value] of Object.entries(radius)) {
+      expect(committed).toContain(`--vx-radius-${key}: ${value};`);
+    }
+  });
+
+  it('déclare les trois ombres sobres du système Obsidian', () => {
+    expect(Object.keys(shadow)).toEqual(['panel', 'floating', 'inset']);
+    for (const [key, value] of Object.entries(shadow)) {
+      expect(committed).toContain(`--vx-shadow-${key}: ${value};`);
     }
   });
 

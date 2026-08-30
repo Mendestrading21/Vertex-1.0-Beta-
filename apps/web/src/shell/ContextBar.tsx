@@ -48,15 +48,21 @@ export function ContextBar() {
     <header className="vx-contextbar">
       <div className="vx-contextbar-title">
         <span className="vx-contextbar-app" aria-hidden="true">
-          Vertex
+          Vertex One
+        </span>
+        <span className="vx-contextbar-divider" aria-hidden="true">
+          /
         </span>
         <span className="vx-contextbar-page">{title}</span>
       </div>
-      <p className="vx-contextbar-status" data-session={session}>
-        <span className="vx-status-dot" aria-hidden="true" />
-        {SESSION_LABELS[session]}
-        {session === 'unauthenticated' ? <Link to="/auth">Accès</Link> : null}
-      </p>
+      <div className="vx-contextbar-meta">
+        <span className="vx-contextbar-edition">1.0 Beta</span>
+        <p className="vx-contextbar-status" data-session={session}>
+          <span className="vx-status-dot" aria-hidden="true" />
+          {SESSION_LABELS[session]}
+          {session === 'unauthenticated' ? <Link to="/auth">Accès</Link> : null}
+        </p>
+      </div>
     </header>
   );
 }

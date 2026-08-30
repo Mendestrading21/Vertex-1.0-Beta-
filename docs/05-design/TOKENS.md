@@ -6,8 +6,9 @@
 
 - couleur : surface, texte, bordure, état, option et macro ;
 - espace : grille de 4 px, valeurs 4/8/12/16/20/24/32/40/48 ;
-- rayon : 6/10/14 px, pilule seulement pour badge ;
-- ombre : deux niveaux sobres, jamais utilisée comme seule séparation ;
+- rayon : 6/10/14/18/22 px, pilule seulement pour badge ;
+- ombre : panneau, flottant et reflet interne sobres, jamais utilisés comme
+  seule séparation ni comme halo lumineux ;
 - typographie : `body`, `meta`, `label`, `title`, `display`, `mono-number` ;
 - motion : 140/180/220 ms, courbes documentées et variante reduced-motion ;
 - z-index : base, sticky, popover, sheet, dialog, toast ; aucune valeur locale arbitraire ;
@@ -20,4 +21,3 @@
 ## Validation
 
 La CI refuse couleurs hex/rgb hors fichier source, espacements arbitraires et tokens non documentés. Storybook montre états, thèmes, focus, contrastes et reduced-motion. Les captures de référence utilisent les mêmes données synthétiques déterministes.
-

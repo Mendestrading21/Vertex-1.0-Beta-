@@ -15,6 +15,7 @@ import {
   motionDuration,
   motionEase,
   radius,
+  shadow,
   space,
   zIndex,
 } from './tokens.ts';
@@ -36,7 +37,7 @@ export function renderTokensCss(): string {
   return `${GENERATED_HEADER}
 
 :root {
-  /* Couleurs — Black Glass, Signal Light */
+  /* Couleurs — Black Glass, Obsidian Signal */
 ${block('  ', 'vx-', color)}
 
   /* Espacements — grille 4 px */
@@ -44,6 +45,9 @@ ${block('  ', 'vx-space-', space)}
 
   /* Rayons */
 ${block('  ', 'vx-radius-', radius)}
+
+  /* Ombres */
+${block('  ', 'vx-shadow-', shadow)}
 
   /* Mouvements */
 ${block('  ', 'vx-motion-', motionDuration)}
