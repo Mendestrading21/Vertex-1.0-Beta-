@@ -92,7 +92,7 @@ ecarts_declares:
      ignorés — la copie mutée n'est pas celle qu'importent les tests dans un
      workspace uv éditable. Outil retiré, cause écrite dans DEBT.md, score
      réel toujours INCONNU"
-  - "5 interdictions absolues sur 30 ne sont pas prouvées par un test —
+  - "6 interdictions absolues sur 30 ne sont pas prouvées par un test (24/30 prouvées) —
      détail dans manifests/traceability.yaml, imprimé à chaque exécution"
   - "AUCUNE donnée réelle n'a jamais été observée — IBKR jamais contacté,
      Cloudflare non déployé, Compose jamais exécuté (pas de démon Docker)"
