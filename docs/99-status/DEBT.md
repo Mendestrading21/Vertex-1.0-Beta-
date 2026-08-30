@@ -263,7 +263,7 @@ activité ultérieure. La fraîcheur est donc jugée **à la lecture**, sur
 `as_of`, et non republiée. C'est cohérent avec l'architecture par snapshots
 immuables ; ce n'était écrit nulle part avant ce test.
 
-## Matrice de traçabilité — 25 interdictions prouvées sur 30, 5 écarts
+## Matrice de traçabilité — 24 interdictions prouvées sur 30, 6 écarts
 
 `manifests/traceability.yaml` relie chaque interdiction absolue de
 `CLAUDE.md` et de `.claude/rules/financial-safety.md` à la preuve qui
@@ -277,12 +277,30 @@ exécution. Ce qu'elle a révélé :
 | Ajouter un framework sans ADR | La porte `policy` prouve l'épinglage et le verrouillage, `notices` l'inventaire et la licence. **Rien ne relie une dépendance à un ADR accepté.** |
 | Travailler sur `main`, force-push, fusionner sans validation humaine | Déclarée **NON PROUVABLE PAR TEST** : protections de branche et droits de fusion vivent dans la configuration GitHub, qu'aucun test exécuté dans un checkout ne peut lire. Reste une vérification humaine. |
 
-Une limite de la matrice elle-même mérite d'être écrite : l'entrée
-`AUCUN-CALCUL-AUTORITAIRE-EN-TS` est marquée `PROVEN`, mais ses preuves
-couvrent les **vues testées**, pas tout le code TypeScript. Il n'existe aucun
+Le sixième écart est `EXCEPTION-JAMAIS-QUALIFIED`, rétrogradé de `PROVEN` à
+`NOT_YET_PROVEN` : sa seconde moitié — « ni conserver silencieusement un
+ancien verdict » — est **contredite par une mesure**, celle des +71 heures
+décrite plus bas.
+
+Une version antérieure de ce paragraphe affirmait qu'« il n'existe aucun
 balayage statique du dépôt web équivalent à `check_financial_boundary` pour
-les calculs financiers en TypeScript. Un calcul autoritaire ajouté dans une
-vue non couverte passerait.
+les calculs financiers en TypeScript ». **C'est faux depuis `fdc9dfc`** :
+`no-authoritative-calculation.test.ts` balaie tout `apps/web/src` par AST et
+refuse toute arithmétique sur une grandeur financière relayée (vocabulaire
+fermé de 35 noms, 9 injections à détecter, 6 à ignorer), et
+`no-uncalibrated-probability.test.ts` réserve la lecture de
+`probability_evidence`. Ce qui reste vrai : les deux gardes lisent
+`apps/web/src` et rien d'autre, et aucune ne voit une expression construite
+dynamiquement.
+
+Ce que la matrice ne prouve toujours pas, et qui est désormais écrit dans
+chaque entrée concernée : `NATURES-JAMAIS-CONFONDUES` et
+`FALLBACK-JAMAIS-PRESENTE-COMME-REEL` sont prouvées au niveau des
+**composants**, sans qu'aucun balayage n'établisse qu'une page ne peut pas les
+contourner ; `UNITES-AUX-FRONTIERES` est prouvée aux **quatre frontières
+citées**, pas à toutes ; `AUCUN-VOCABULAIRE-D-ORDRE` ne balaie que
+l'interface, donc un impératif d'ordre écrit dans une réponse serveur
+atteindrait l'écran sans être vu.
 
 ## Mutation testing — TENTÉ, ÉCHOUÉ, aucun score publiable
 
@@ -356,19 +374,31 @@ sous le nom de « conserver silencieusement un ancien verdict ».
 `test_defaut_connu_un_dossier_publie_se_dit_encore_frais_bien_plus_tard`
 épingle la réalité mesurée et **échouera le jour où le défaut sera corrigé**,
 forçant à revenir retirer la caractérisation. L'entrée
-`EXCEPTION-JAMAIS-QUALIFIED` de `manifests/traceability.yaml` doit être
-rétrogradée tant que le recalcul de fraîcheur au relais n'est pas fait.
+`EXCEPTION-JAMAIS-QUALIFIED` de `manifests/traceability.yaml` **est désormais
+rétrogradée** en `NOT_YET_PROVEN`, avec la mesure exacte, un propriétaire, une
+échéance et un critère de fermeture : le recalcul de fraîcheur à la lecture
+dans `snapshot_views.py`, plus un test montrant qu'un dossier publié au-delà
+de son TTL cesse de se déclarer frais. Le défaut LUI-MÊME reste ouvert.
 
 ### Encore ouverts, mesurés, non corrigés
 
-- **La matrice compte des déclarations, pas des preuves.** 58 citations sur 67
-  n'ont pas de `::` et sont validées par le seul `path.is_file()` ; une
-  citation `::nom` est résolue par SOUS-CHAÎNE contre tous les
+- ~~**La matrice compte des déclarations, pas des preuves.**~~ — **FERMÉ**.
+  Les 67 citations nomment maintenant un test précis, comparé par égalité
+  EXACTE à la liste des fonctions `test_*` du fichier (les classes et les
+  helpers ne sont plus collectés). Une citation de fichier entier échoue
+  désormais (`proof_not_anchored`). Falsifié : `::t`, `::e`, `README.md` et
+  un fichier de tests cité nu sont tous refusés, et l'ancre exacte passe.
+  Le champ `text` est en outre confronté mot pour mot à la règle : 14 entrées
+  sur 30 divergeaient, dont une énonçant une interdiction PLUS ÉTROITE que le
+  document. Trace de l'ancien défaut : 58 citations sur 67
+  n'avaient pas de `::` et étaient validées par le seul `path.is_file()` ; une
+  citation `::nom` était résolue par SOUS-CHAÎNE contre tous les
   `FunctionDef`/`ClassDef`, helpers compris. `README.md` cité comme preuve
   d'« Envoyer un ordre IBKR » passe ; `test_ai_explain.py::t` aussi.
-- **Le champ `text:` de la matrice n'est jamais confronté à la règle** :
-  14 entrées sur 30 divergent, dont `API-COMPTE-SAFETY` qui présente une
-  interdiction plus étroite que la règle réelle.
+- ~~**Le champ `text:` de la matrice n'est jamais confronté à la règle**~~ —
+  **FERMÉ** avec le point ci-dessus. `API-COMPTE-SAFETY` omettait « résumé de
+  compte », « allocations » et « identifiants d'ordre » : un lecteur se fiant
+  à la matrice aurait cru l'interdiction plus étroite qu'elle n'est.
 - ~~**`check_secrets` ne balaie pas les commentaires de sa propre
   allowlist**~~ — **FERMÉ**. L'exemption ne porte plus sur le fichier entier
   mais sur les valeurs des champs `match`, et sur elles seules ; commentaires,
