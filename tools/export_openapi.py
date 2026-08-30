@@ -10,7 +10,6 @@ Usage: ``python tools/export_openapi.py``
 
 import sys
 from pathlib import Path
-from typing import Optional
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _IMPORT_PATHS = (
@@ -22,7 +21,7 @@ _IMPORT_PATHS = (
 DEFAULT_TARGET = _REPO_ROOT / "apps" / "api" / "openapi.json"
 
 
-def main(target: Optional[Path] = None) -> Path:
+def main(target: Path | None = None) -> Path:
     """Render the OpenAPI document and write it to ``target`` (canonical path
     by default). Returns the written path."""
     for path in _IMPORT_PATHS:

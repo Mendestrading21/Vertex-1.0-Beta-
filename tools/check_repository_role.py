@@ -12,7 +12,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-
 EXPECTED = {
     "donor": "Mendestrading21/Vertex-",
     "target": "Mendestrading21/Vertex-1.0-Beta-",
@@ -20,13 +19,12 @@ EXPECTED = {
 
 
 def run(root: Path, *args: str) -> str:
-    completed = subprocess.run(
-        ["git", *args],
+    completed = subprocess.run(  # noqa: S603 (argv littéral, sans shell)
+        ["git", *args],  # noqa: S607 (git résolu par PATH, argv littéral)
         cwd=root,
         check=True,
         text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
     )
     return completed.stdout.strip()
 

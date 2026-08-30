@@ -72,7 +72,7 @@ def validate_yaml(root: Path, errors: list[str], counts: Counter[str]) -> None:
     if not paths:
         return
     try:
-        import yaml  # type: ignore
+        import yaml
     except ImportError:
         errors.append("PyYAML is required to validate YAML files")
         return
@@ -96,7 +96,11 @@ def validate_csv(root: Path, errors: list[str], counts: Counter[str]) -> None:
             width = len(rows[0])
             for number, row in enumerate(rows[1:], start=2):
                 if len(row) != width:
-                    add_error(errors, path.relative_to(root), f"row {number} has {len(row)} columns, expected {width}")
+                    add_error(
+                        errors,
+                        path.relative_to(root),
+                        f"row {number} has {len(row)} columns, expected {width}",
+                    )
         except Exception as exc:  # pragma: no cover - diagnostic path
             add_error(errors, path.relative_to(root), f"invalid CSV: {type(exc).__name__}: {exc}")
 
@@ -105,11 +109,13 @@ def validate_svg(root: Path, errors: list[str], counts: Counter[str]) -> None:
     for path in scan_files(root, "*.svg"):
         counts["svg"] += 1
         try:
-            tree = ET.parse(path)
+            tree = ET.parse(path)  # noqa: S314 (SVG suivis du dépôt, entrée non hostile)
             if not tree.getroot().tag.endswith("svg"):
                 add_error(errors, path.relative_to(root), "root element is not svg")
         except Exception as exc:  # pragma: no cover - diagnostic path
-            add_error(errors, path.relative_to(root), f"invalid SVG XML: {type(exc).__name__}: {exc}")
+            add_error(
+                errors, path.relative_to(root), f"invalid SVG XML: {type(exc).__name__}: {exc}"
+            )
 
 
 def validate_lots(root: Path, errors: list[str], counts: Counter[str]) -> None:
@@ -154,14 +160,24 @@ def validate_schema_examples(root: Path, errors: list[str], counts: Counter[str]
         try:
             schema = json.loads(schema_path.read_text(encoding="utf-8"))
             example = json.loads(example_path.read_text(encoding="utf-8"))
-            validator = jsonschema.Draft202012Validator(schema, format_checker=jsonschema.FormatChecker())
+            validator = jsonschema.Draft202012Validator(
+                schema, format_checker=jsonschema.FormatChecker()
+            )
             failures = sorted(validator.iter_errors(example), key=lambda item: list(item.path))
             for failure in failures:
                 location = ".".join(map(str, failure.path)) or "$"
-                add_error(errors, example_path.relative_to(root), f"schema failure at {location}: {failure.message}")
+                add_error(
+                    errors,
+                    example_path.relative_to(root),
+                    f"schema failure at {location}: {failure.message}",
+                )
             counts["schema_examples"] += 1
         except Exception as exc:  # pragma: no cover - diagnostic path
-            add_error(errors, example_path.relative_to(root), f"schema validation error: {type(exc).__name__}: {exc}")
+            add_error(
+                errors,
+                example_path.relative_to(root),
+                f"schema validation error: {type(exc).__name__}: {exc}",
+            )
 
 
 def validate_markdown_fences(root: Path, errors: list[str], counts: Counter[str]) -> None:
@@ -187,7 +203,12 @@ def main() -> int:
     validate_lots(root, errors, counts)
     validate_schema_examples(root, errors, counts)
     validate_markdown_fences(root, errors, counts)
-    result = {"ok": not errors, "root": str(root), "counts": dict(sorted(counts.items())), "errors": errors}
+    result = {
+        "ok": not errors,
+        "root": str(root),
+        "counts": dict(sorted(counts.items())),
+        "errors": errors,
+    }
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0 if not errors else 1
 

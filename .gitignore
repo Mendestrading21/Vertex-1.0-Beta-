@@ -16,6 +16,9 @@ htmlcov/
 coverage.xml
 node_modules/
 dist/
+# Métadonnées d'installation éditable produites par `uv sync` dans chaque
+# paquet du workspace. Artefacts de build, jamais du contenu de dépôt.
+*.egg-info/
 build/
 .vite/
 playwright-report/

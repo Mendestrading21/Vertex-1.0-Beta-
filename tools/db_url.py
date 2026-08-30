@@ -33,7 +33,7 @@ from vertex_persistence.dsn import (  # noqa: E402
     sqlalchemy_url_to_conninfo,
 )
 
-__all__ = ["to_libpq", "database_name"]
+__all__ = ["database_name", "to_libpq"]
 
 
 def to_libpq(url: str) -> str:

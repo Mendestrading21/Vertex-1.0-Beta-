@@ -77,8 +77,61 @@ jobs:
       - name: Porte 5bis — détection de secrets (arbre suivi)
         run: uv run --no-sync python tools/check_secrets.py
 
+      # Porte `policy` de docs/06-quality/CI_GATES.md. `--resolve-remote`
+      # re-résout chaque `uses:` par `git ls-remote` : il détecte un tag déplacé
+      # ou supprimé, c'est-à-dire un manifeste d'épinglage devenu faux. La
+      # variante HORS LIGNE (sans réseau) est celle de `tools/run_checks.sh` ;
+      # elle est prouvée par `tools/tests/test_check_policy.py`.
+      - name: Porte 5ter — politique CI et supply-chain (SHA, permissions, verrous)
+        run: uv run --no-sync python tools/check_policy.py --resolve-remote
+
+      # Volet `notices` de la porte `release`. La SBOM est produite par le job
+      # `supply-chain` ; provenance et signature restent NON FAISABLES ici et
+      # sont inscrites dans docs/99-status/DEBT.md, pas simulées.
+      - name: Porte 5quater — notices tierces (inventaire, licences, fraîcheur)
+        run: uv run --no-sync python tools/check_notices.py
+
       - name: Porte 6 — compilation du domaine et des applications
         run: uv run --no-sync python -m compileall -q packages/python apps
+
+  # ── Porte `python-quality` : lint et typage strict ──────────────────────
+  # docs/06-quality/CI_GATES.md : « Ruff, mypy strict, architecture/imports ;
+  # bloque si erreur ». Cette porte ÉCHOUE sur la moindre violation — aucun
+  # `continue-on-error`, aucun mode avertissement, aucun seuil toléré.
+  #
+  # Ruff et mypy sont épinglés en versions EXACTES dans `pyproject.toml` et
+  # verrouillés par `uv.lock` : sans cela le compte de violations n'est
+  # reproductible par personne, et le registre de dette a effectivement publié
+  # deux chiffres incompatibles pour cette raison.
+  python-quality:
+    name: python — lint Ruff et typage mypy strict (cible 3.13)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+
+      - name: uv
+        uses: astral-sh/setup-uv@2ddd2b9cb38ad8efd50337e8ab201519a34c9f24 # v7.1.1
+        with:
+          enable-cache: false
+
+      - name: Installation depuis le verrou exact
+        run: uv sync --locked --all-extras --python ${{ env.PYTHON_VERSION }}
+
+      # `apps/web` est exclu par `tool.ruff.extend-exclude` : il relève de la
+      # porte `web-quality` (Biome), pas de celle-ci.
+      - name: Porte Q1 — Ruff (aucune violation tolérée)
+        run: uv run --no-sync ruff check .
+
+      # Le formateur n'est PAS imposé au dépôt : seule la longueur de ligne
+      # (E501) est vérifiée, par `ruff check`. Aucune étape `ruff format
+      # --check` ici — l'adoption d'un formateur serait un choix structurant,
+      # pas un effet de bord de cette porte.
+      - name: Porte Q2 — mypy --strict (sources de production et portes CI)
+        run: uv run --no-sync mypy
 
   # ── Porte 7 : unitaires, propriétés, oracles, contrats ─────────────────
   python-unitaire:
@@ -198,7 +251,11 @@ jobs:
         working-directory: apps/web
         run: pnpm exec vitest run
 
-      - name: Porte 11 — build de production et budget de bundle
+      # Ce libellé promettait « et budget de bundle » alors que `pnpm build`
+      # ne vérifie aucun budget : il construit, il n'arbitre rien. Le budget
+      # est mesuré et arbitré par la porte 16 (job `e2e`), qui a besoin d'un
+      # navigateur installé pour renseigner `browser_version`.
+      - name: Porte 11 — build de production
         working-directory: apps/web
         run: pnpm build
 
@@ -285,6 +342,30 @@ jobs:
       - name: Porte 14 — parcours critiques des 13 routes
         working-directory: apps/web
         run: pnpm exec playwright test
+
+      # ── Porte 16 : budgets de performance ────────────────────────────
+      # Cette porte ne « vérifie » pas un budget déclaré : elle exige une
+      # MESURE. `manifests/performance-budgets.yaml` porte la liste des
+      # mesures requises ; une entrée MEASURED sans mesure échoue
+      # (`policy.missing_measurement_is_pass: false`), et une entrée
+      # NOT_YET_MEASURED doit être possédée, motivée et datée.
+      #
+      # Elle vit dans CE job parce que le profil P-CI exige `browser_version` :
+      # c'est le seul job où un navigateur est réellement installé. Le
+      # renseigner ailleurs supposerait un navigateur absent.
+      - name: Version réelle du navigateur installé
+        working-directory: apps/web
+        run: |
+          CHROME="$(pnpm exec node -e "console.log(require('playwright-core').chromium.executablePath())")"
+          echo "VERTEX_BROWSER_VERSION=$("$CHROME" --version)" >> "$GITHUB_ENV"
+
+      - name: Porte 16 — budgets de performance (mesure, jamais déclaration)
+        run: |
+          pnpm --dir apps/web exec vite build --manifest
+          uv run --no-sync python tools/build_performance_report.py \
+            --profile P-CI --out "${RUNNER_TEMP}/performance-report.json"
+          uv run --no-sync python tools/check_performance_budgets.py \
+            --report "${RUNNER_TEMP}/performance-report.json"
 
       - name: Artefacts d'échec (jamais de donnée réelle — tout est SYNTHETIC)
         if: failure()
