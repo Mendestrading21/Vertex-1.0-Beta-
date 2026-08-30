@@ -10,7 +10,7 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { saveTextAsFile, yieldToBrowser } from './downloadFile.ts';
+import { saveTextAsFile } from './downloadFile.ts';
 
 describe('saveTextAsFile', () => {
   let revoked: string[];
@@ -71,15 +71,5 @@ describe('saveTextAsFile', () => {
     });
     saveTextAsFile('{}', 'vertex-performance-7-manifest.json', 'application/json');
     expect(nom).toBe('vertex-performance-7-manifest.json');
-  });
-
-  it('deux enregistrements séparés par yieldToBrowser produisent deux clics', async () => {
-    saveTextAsFile('a;b\n', 'un.csv', 'text/csv');
-    const attente = yieldToBrowser();
-    vi.advanceTimersByTime(0);
-    await attente;
-    saveTextAsFile('{}', 'deux-manifest.json', 'application/json');
-    expect(clicks).toBe(2);
-    expect(created).toBe(2);
   });
 });

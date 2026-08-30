@@ -1,7 +1,7 @@
 import { useState } from 'react';
 
 import { isApiError } from '../../api/client.ts';
-import { saveTextAsFile, yieldToBrowser } from '../../app/downloadFile.ts';
+import { saveTextAsFile } from '../../app/downloadFile.ts';
 import { getPerformanceExport, usePerformance, usePortfolio } from '../../api/portfolioApi.ts';
 import type { PerformanceSnapshotResponse } from '../../api/client.ts';
 import { pageStateOf } from '../../api/hooks.ts';
@@ -154,19 +154,34 @@ export function PerformancePage() {
       : pageStateOf(performanceQuery);
   const frame = performanceFrameStateOf(queryState, performanceQuery.data);
 
-  async function exportSnapshot(id: number): Promise<void> {
+  /**
+   * UN téléchargement par clic, et c'est délibéré.
+   *
+   * Cette page émettait les deux fichiers depuis un seul bouton. La première
+   * exécution des trois moteurs de rendu a mesuré que WebKit n'en délivrait
+   * qu'UN — le CSV partait, le manifeste jamais. Différer la révocation de
+   * l'URL objet et rendre la main entre les deux enregistrements n'y a rien
+   * changé : la seconde exécution nocturne a reproduit exactement le même
+   * échec. Ce qui EST mesuré comme fonctionnant partout, c'est un
+   * téléchargement par geste utilisateur.
+   *
+   * Deux boutons suppriment donc la dépendance au multi-téléchargement au lieu
+   * de tenter une troisième variante non vérifiable localement. Le contenu
+   * exporté est inchangé : les deux fichiers restent ceux servis par l'API.
+   */
+  async function exportPart(id: number, part: 'csv' | 'manifest'): Promise<void> {
     setExportState('pending');
     try {
       const result = await getPerformanceExport(id);
-      saveTextAsFile(result.csv, `vertex-performance-${id}.csv`, 'text/csv');
-      // Deux téléchargements dans la MÊME tâche : WebKit n'en délivre qu'un.
-      // Mesuré par la première exécution des trois moteurs.
-      await yieldToBrowser();
-      saveTextAsFile(
-        JSON.stringify(result.manifest, null, 2),
-        `vertex-performance-${id}-manifest.json`,
-        'application/json',
-      );
+      if (part === 'csv') {
+        saveTextAsFile(result.csv, `vertex-performance-${id}.csv`, 'text/csv');
+      } else {
+        saveTextAsFile(
+          JSON.stringify(result.manifest, null, 2),
+          `vertex-performance-${id}-manifest.json`,
+          'application/json',
+        );
+      }
       setExportState('idle');
     } catch (error) {
       if (isApiError(error) && error.status === 404) {
@@ -344,9 +359,9 @@ export function PerformancePage() {
           <section className="vx-perf-export" aria-labelledby="vx-perf-export-title">
             <h2 id="vx-perf-export-title">Export reproductible</h2>
             <p>
-              CSV des points quotidiens + manifeste d'audit JSON (méthodes, versions, hashes) —
+              CSV des points quotidiens et manifeste d'audit JSON (méthodes, versions, hashes) —
               fonction pure du snapshot publié : deux exports du même snapshot sont identiques
-              octet pour octet.
+              octet pour octet. Les deux fichiers sont téléchargés séparément, un par action.
             </p>
             <button
               type="button"
@@ -354,11 +369,23 @@ export function PerformancePage() {
               disabled={exportState === 'pending' || portfolioId === null}
               onClick={() => {
                 if (portfolioId !== null) {
-                  void exportSnapshot(portfolioId);
+                  void exportPart(portfolioId, 'csv');
                 }
               }}
             >
-              Exporter (CSV + manifeste servis par l'API)
+              Exporter les points (CSV servi par l'API)
+            </button>
+            <button
+              type="button"
+              className="vx-markets-export"
+              disabled={exportState === 'pending' || portfolioId === null}
+              onClick={() => {
+                if (portfolioId !== null) {
+                  void exportPart(portfolioId, 'manifest');
+                }
+              }}
+            >
+              Exporter le manifeste (JSON servi par l'API)
             </button>
             {exportState === 'failed' ? (
               <p role="alert" className="vx-pf-form-rejected">

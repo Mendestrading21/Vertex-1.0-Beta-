@@ -208,16 +208,28 @@ trois moteurs.
    enregistré au setup.
 2. **`performance.spec.ts:92` sur WebKit seul — DÉFAUT PRODUIT.** L'export
    « CSV + manifeste » de la page Performance ne produisait **qu'un fichier sur
-   deux**. Deux causes, corrigées : `URL.revokeObjectURL()` était appelé
-   synchronement après `click()` — le clic ne fait qu'ordonnancer le
-   téléchargement, WebKit lit l'URL ensuite et la trouvait révoquée ; et deux
-   `click()` dans la même tâche, dont WebKit ne délivre que le premier.
-   L'utilitaire existait en **trois copies** portant toutes le défaut
-   (`PerformancePage.tsx`, `LedgerPanel.tsx`, `MarketsTable.tsx`) ; elles sont
-   remplacées par `src/app/downloadFile.ts`, propriétaire unique.
-   **CE CORRECTIF N'EST PAS VÉRIFIÉ** : il ne peut l'être que par une
-   exécution nocturne. Les tests unitaires ajoutés tournent sur jsdom et
-   prouvent la forme du correctif, pas le comportement de WebKit.
+   deux** : le CSV partait, le manifeste d'audit jamais. Un utilisateur Safari
+   ne l'aurait jamais reçu. L'utilitaire de téléchargement existait en **trois
+   copies** ; elles sont remplacées par `src/app/downloadFile.ts`,
+   propriétaire unique.
+
+**Exécution 3 (`33313838830`) — 659 passés, 2 sautés, 1 ÉCHOUÉ, 9,7 min.** La
+limite CDP est réglée (2 sautés, avec motif écrit). Le défaut WebKit, lui, a
+**résisté au premier correctif** : différer `URL.revokeObjectURL()` et rendre
+la main entre les deux enregistrements n'a rien changé, l'échec s'est reproduit
+à l'identique.
+
+Ce que la mesure dit vraiment : **un** téléchargement par geste utilisateur
+passe sur les trois moteurs, deux ne passent pas sur WebKit. Plutôt qu'une
+troisième variante invérifiable localement, la dépendance au
+multi-téléchargement est SUPPRIMÉE : la page Performance a deux boutons —
+« Exporter les points » et « Exporter le manifeste ». Le contenu exporté est
+inchangé, les deux fichiers restent ceux servis par l'API. La révocation
+différée est conservée comme hygiène, mais elle reste une **hypothèse non
+prouvée** : rien ne montre qu'elle corrige quoi que ce soit.
+
+**CE CORRECTIF-CI N'EST PAS ENCORE VÉRIFIÉ** hors Chromium non plus. Il ne le
+sera que par une quatrième exécution nocturne.
 
 Ce que cette campagne a coûté à la confiance dans les chiffres antérieurs :
 234 tests Chromium verts n'avaient rien dit d'un export cassé sur un moteur

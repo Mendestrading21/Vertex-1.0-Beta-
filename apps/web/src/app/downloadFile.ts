@@ -14,24 +14,21 @@
  *    ensuite, et la trouvait déjà révoquée. Chromium tolère la course, pas
  *    WebKit. La révocation est donc différée — l'URL objet est libérée à la
  *    tâche suivante, ce qui laisse le moteur la lire.
- * 2. Deux `click()` dans la même tâche : le second écrasait le premier. Les
- *    appelants rendent maintenant la main entre deux enregistrements via
- *    `yieldToBrowser()`.
+ * 2. Deux `click()` dans la même tâche : WebKit ne délivrait que le premier.
+ *    Rendre la main entre les deux N'A PAS SUFFI — la seconde exécution
+ *    nocturne a reproduit le même échec. Les appelants n'émettent donc plus
+ *    qu'UN téléchargement par geste utilisateur, ce qui est mesuré comme
+ *    fonctionnant sur les trois moteurs ; la page Performance a désormais deux
+ *    boutons au lieu d'un.
  *
  * NON VÉRIFIÉ LOCALEMENT : les binaires Firefox et WebKit ne sont pas
- * téléchargeables depuis l'environnement de développement. Cette correction
- * ne peut être prouvée que par `.github/workflows/nightly.yml`.
+ * téléchargeables depuis l'environnement de développement. La correction 1
+ * reste une hypothèse plausible non prouvée ; la correction 2 supprime la
+ * dépendance au multi-téléchargement au lieu de parier dessus.
  */
 
 /** Délai avant révocation. Assez long pour que le moteur ait lu l'URL. */
 const REVOCATION_DELAY_MS = 60_000;
-
-/** Rend la main au navigateur, le temps qu'il ordonnance un téléchargement. */
-export function yieldToBrowser(): Promise<void> {
-  return new Promise((resolve) => {
-    window.setTimeout(resolve, 0);
-  });
-}
 
 /** Déclenche le téléchargement navigateur d'un texte servi par l'API. */
 export function saveTextAsFile(text: string, filename: string, mediaType: string): void {

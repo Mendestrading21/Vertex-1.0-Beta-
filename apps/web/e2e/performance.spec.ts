@@ -112,7 +112,31 @@ test.describe('Page Performance — snapshot réel', () => {
     }
   });
 
-  test('export : CSV des points + manifeste JSON servis par l’API', async ({ page }) => {
+  // UN téléchargement par action, et le test le dit.
+  //
+  // Ce test attendait DEUX fichiers depuis un seul clic. Il passait sur
+  // Chromium et Firefox et ÉCHOUAIT sur WebKit, qui n'en délivrait qu'un : le
+  // manifeste ne partait jamais. C'était un défaut PRODUIT, pas un défaut de
+  // test — un utilisateur Safari n'aurait jamais reçu son manifeste d'audit.
+  // La page a désormais deux boutons ; le test les exerce séparément.
+  test('export : le CSV des points est servi par l’API, un fichier par action', async ({
+    page,
+  }) => {
+    await page.goto('/performance');
+    await expect(page.getByTestId('perf-metrics')).toBeVisible({ timeout: 20_000 });
+
+    const downloads: string[] = [];
+    page.on('download', (download) => {
+      downloads.push(download.suggestedFilename());
+    });
+    await page.getByRole('button', { name: "Exporter les points (CSV servi par l'API)" }).click();
+    await expect.poll(() => downloads.length, { timeout: 15_000 }).toBe(1);
+    expect(downloads[0]!.endsWith('.csv')).toBe(true);
+  });
+
+  test('export : le manifeste JSON est servi par l’API, un fichier par action', async ({
+    page,
+  }) => {
     await page.goto('/performance');
     await expect(page.getByTestId('perf-metrics')).toBeVisible({ timeout: 20_000 });
 
@@ -121,11 +145,10 @@ test.describe('Page Performance — snapshot réel', () => {
       downloads.push(download.suggestedFilename());
     });
     await page
-      .getByRole('button', { name: "Exporter (CSV + manifeste servis par l'API)" })
+      .getByRole('button', { name: "Exporter le manifeste (JSON servi par l'API)" })
       .click();
-    await expect.poll(() => downloads.length, { timeout: 15_000 }).toBe(2);
-    expect(downloads.some((name) => name.endsWith('.csv'))).toBe(true);
-    expect(downloads.some((name) => name.endsWith('-manifest.json'))).toBe(true);
+    await expect.poll(() => downloads.length, { timeout: 15_000 }).toBe(1);
+    expect(downloads[0]!.endsWith('-manifest.json')).toBe(true);
   });
 
   test('axe : zéro violation critique/sérieuse + capture', async ({ page }, testInfo) => {
