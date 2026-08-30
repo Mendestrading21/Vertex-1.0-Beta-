@@ -58,6 +58,7 @@ from vertex_api.snapshot_views import (
     _require_positive_int,
     _require_str,
     _wire_mapping,
+    checked_relayed_content,
 )
 from vertex_core.contracts.types import (
     ContractModel,
@@ -470,6 +471,10 @@ def checked_review_queue_content(content: Any) -> Mapping[str, Any]:
     corrected or defaulted here.
     """
     mapping = _wire_mapping(content, field="content")
+    # FORM of every relayed value (P1-1): the queue is served verbatim, so a
+    # nature label, an instant or a user statement out of shape is refused
+    # before any field-by-field invariant is read.
+    checked_relayed_content(mapping)
     schema_version = _require_str(
         mapping.get("schema_version"), field="schema_version"
     )

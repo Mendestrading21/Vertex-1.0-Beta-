@@ -95,6 +95,7 @@ from vertex_api.snapshot_views import (
     _require_mapping,
     _require_str,
     _wire_mapping,
+    checked_relayed_content,
 )
 
 __all__ = [
@@ -711,6 +712,12 @@ def build_opportunities_response(
             candidate, field=f"excluded[{index}]", seen=seen_candidates
         )
     _require_mapping(content.get("exclusion_reasons"), field="exclusion_reasons")
+    # FORM of every relayed value (P1-1). The WHOLE content is served
+    # verbatim, so a decimal, a nature label or a piece of prose out of shape
+    # must never reach the wire. Run AFTER the invariants above so a broken
+    # candidate keeps naming the invariant it breaks rather than the shape of
+    # one of its fields.
+    checked_relayed_content(content)
 
     age = _snapshot_age(snapshot, now=_utc_now() if now is None else now)
     if age < -OPPORTUNITIES_CLOCK_DRIFT_TOLERANCE:

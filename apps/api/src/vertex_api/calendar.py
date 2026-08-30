@@ -75,9 +75,11 @@ from vertex_persistence.repository.snapshots import CurrentSnapshot
 from vertex_api.snapshot_views import (
     SnapshotContentError,
     _parse_utc,
+    _relayed_timezone,
     _require_list,
     _require_mapping,
     _require_str,
+    checked_relayed_content,
 )
 
 __all__ = [
@@ -401,7 +403,7 @@ def build_calendar_response(
         raise ValueError("now must be a timezone-aware datetime")
     age = _snapshot_age(snapshot, now=relay_clock)
 
-    content = _require_mapping(snapshot.content, field="content")
+    content = checked_relayed_content(snapshot.content)
     agenda_raw = _require_list(content.get("agenda"), field="agenda")
     # Fields an EARLIER contract may not carry. Absence degrades (and is
     # named); a present but unreadable value still fails closed.
@@ -426,8 +428,17 @@ def build_calendar_response(
             importance.get("rule_version"),
             field=f"agenda[{index}].importance.rule_version",
         )
-        _require_str(
-            event.get("exchange_timezone"),
+        # P2-1: a PRESENT exchange timezone must be a RESOLVABLE IANA zone.
+        # ``_require_str`` alone accepted ``Mars/Olympus`` and page 02 served
+        # it 200 ``state = "ok"`` — the single leak of the rule "a present
+        # but unreadable value fails closed". Every local instant published
+        # beside it (``event_time_local``, the revision history) is stated in
+        # that zone, so a zone nothing resolves makes them unverifiable.
+        _relayed_timezone(
+            _require_str(
+                event.get("exchange_timezone"),
+                field=f"agenda[{index}].exchange_timezone",
+            ),
             field=f"agenda[{index}].exchange_timezone",
         )
         for field in ("previous_values", "revisions"):
