@@ -46,3 +46,52 @@ Preuves : 12 reproducteurs rouges d'abord par la vraie route HTTP ;
 `apps/api/tests` 979 passed ; 3 suites d'intégration en série sur base
 jetable dédiée (65 / 17 / 96) ; **9 mutants ciblés du garde, 9 tués** ;
 `caplog` DEBUG prouvant qu'aucun refus ne cite une valeur stockée.
+
+
+## Rectification — commit `f726471`, et une faute répétée
+
+Son message décrit le P0-2 (recensement de nature). Il contient AUSSI le
+correctif **P1-6 de la fusion** — l'effacement du signe — et le travail sur le
+portefeuille, soit trois périmètres.
+
+C'est la DEUXIÈME fois. La rectification du commit `0b178e8` ci-dessus dit
+exactement cela, je l'ai écrite moi-même, et j'ai recommencé : un `git add -A`
+alors que des agents écrivaient encore. Écrire la règle n'a pas suffi ; le
+changement de méthode est de ne plus faire de `git add -A` tant qu'un agent
+travaille sur l'arbre, et d'ajouter les chemins un par un.
+
+**Ce que `f726471` contient réellement, côté fusion (P1-6) :**
+
+`dedup.py` supprimait tout caractère non alphanumérique, donc `+` et `-`.
+Reproduit : `'SPX -3,2 % sur la seance'` et `'SPX +3,2 % sur la seance'`
+donnaient la même empreinte `'spx 3 2 sur la seance'`, étaient fusionnés, et le
+worker ne publiait qu'UN représentant élu à l'aveugle. Une hausse pouvait donc
+s'afficher à la place d'une baisse, sans qu'aucune contradiction ne soit
+signalée. Même chose pour `↑`/`↓`, `▲`/`▼`, `>`/`<`.
+
+Règle retenue : **le signe accolé à un nombre est une donnée, pas de la
+ponctuation.** Un caractère de signe n'est un marqueur que s'il précède
+immédiatement un chiffre sans être précédé d'un alphanumérique — ce qui protège
+`COVID-19`, `Compàny-1`, les dates et les fourchettes `3-5 %`. Les caractères de
+direction et de comparaison sont toujours des marqueurs. Les variantes d'un même
+sens sont canonicalisées (`↓`, `▼`, `−` → `-`) pour qu'une différence
+typographique ne scinde pas deux dépêches du même événement. Un marqueur ABSENT
+n'est jamais l'opposé d'un marqueur présent : `-5 %` et `5 %` donnent deux
+clusters, mais AUCUN conflit — un nombre non signé est de polarité inconnue,
+pas positive.
+
+Séparer ou signaler ? **Les deux, selon le niveau qui a lié.** Sur l'empreinte
+de titre, l'effacement ÉTAIT le défaut : deux titres opposés ne se rencontrent
+plus. Sur l'identité fournisseur (`native_id`, URL canonique), la preuve est
+plus forte que la formulation — deux dépêches sous un même identifiant sont un
+seul item, typiquement une correction, et les séparer perdrait ce lien. Donc le
+cluster est conservé et la **contradiction publiée**, la qualité du cluster
+valant `CONFLICT`, ce qui ferme la gate `QUALITY_OK` : l'item passe en
+`rejected` plutôt que d'être arbitré en silence.
+
+`FUSION_RULESET_VERSION` passe de `1.0.0` à `2.0.0` : les empreintes d'avant et
+d'après ne sont pas comparables en rejeu.
+
+Non-régression vérifiée : 7 variantes typographiques de la MÊME dépêche
+fusionnent toujours, et aucun marqueur parasite sur `Compàny-1`, `COVID-19`,
+`2026-08-25`, `3-5 %`, `1 000 000`.
