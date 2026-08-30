@@ -451,10 +451,14 @@ de son TTL cesse de se déclarer frais. Le défaut LUI-MÊME reste ouvert.
   cette limite est écrite dans le rapport, elle n'est pas levée.
 - ~~**« Focus visible » est satisfait par une ombre permanente**~~ — **FERMÉ**.
   Différentiel `blur()`/`focus()` avant/après `Tab`.
-- **Un mutant survivant** : la comparaison de `role` de `check_notices.py`
-  n'est prouvée par aucun test. ~~Retirer le CSS de la charge initiale
-  (`measure_web_bundle.py`)~~ est **FERMÉ** : deux tests mesurent maintenant
-  l'écart, et le mutant réintroduit les fait rougir tous les deux.
+- ~~**Deux mutants survivants**~~ — **FERMÉS**. Retirer le CSS de la charge
+  initiale (`measure_web_bundle.py`) fait rougir deux tests qui mesurent
+  l'écart. Neutraliser la comparaison de `role` (`check_notices.py`) en fait
+  rougir deux autres : ce champ décide de la SECTION du tableau des notices —
+  `runtime`, embarqué chez l'utilisateur, ou `development` — et un composant
+  copyleft reclassé à la main sortait de la section qui l'expose sans que rien
+  ne bronche. Un rôle vide ou absent est traité comme une divergence, pas comme
+  une absence de contrainte.
 - ~~**`P-DESKTOP` porte `absolute_release_gate: true` sans aucune
   `required_metadata`**~~ — **FERMÉ**. Le profil exige `cpu`, `ram_mib`,
   `os_kernel`, `browser_version`, `viewport` et `device_pixel_ratio`, et un

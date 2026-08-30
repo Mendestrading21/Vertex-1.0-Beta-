@@ -473,3 +473,57 @@ def test_refresh_et_verify_sont_exclusifs() -> None:
     with pytest.raises(SystemExit) as leve:
         gate.main(["--refresh", "--verify"])
     assert "--verify" in str(leve.value)
+
+
+# ── 9e audit : la comparaison de `role` n'était prouvée par aucun test ───────
+#
+# Mutant survivant : neutraliser `str(entry.get("role") or "") != component.role`
+# ne faisait rougir aucun test. Or `role` décide de la SECTION du tableau des
+# notices — `runtime` (embarqué chez l'utilisateur) ou `development`. Un
+# composant copyleft reclassé `development` à la main sortirait de la section
+# qui l'expose, sans que rien ne bronche.
+
+
+def test_un_role_reecrit_dans_le_registre_est_signale(sandbox: Path) -> None:
+    """`libruntime` est atteignable depuis les dépendances non optionnelles du
+    workspace : le verrou dit `runtime`. Le registre prétend `development`."""
+    reclasse = {
+        "schema_version": 1,
+        "components": [
+            dict(entry, role="development" if entry["name"] == "libruntime" else entry["role"])
+            for entry in REGISTRY["components"]
+        ],
+    }
+    _write(sandbox, registry=reclasse)
+    codes = _codes(gate.collect_findings(sandbox))
+    assert "NOTICE_STALE" in codes, (
+        "un rôle réécrit à la main doit être signalé : il décide de la section "
+        "du tableau des notices"
+    )
+
+
+def test_le_role_exact_du_verrou_ne_signale_rien(sandbox: Path) -> None:
+    """Anti-vacuité : sans ce contrôle, le test ci-dessus pourrait passer pour
+    une raison sans rapport et la comparaison serait toujours rouge."""
+    assert gate.collect_findings(sandbox) == []
+
+
+def test_un_role_absent_du_registre_est_signale(sandbox: Path) -> None:
+    """Un rôle vide n'est pas « pas de contrainte » : c'est une divergence.
+
+    `str(entry.get("role") or "")` rend `""` pour un rôle absent, `None` ou
+    vide — trois formes qu'un registre édité à la main peut prendre, et qui ne
+    valent aucun rôle du verrou.
+    """
+    for valeur in ("", None):
+        sans_role = {
+            "schema_version": 1,
+            "components": [
+                ({**entry, "role": valeur} if entry["name"] == "libruntime" else entry)
+                for entry in REGISTRY["components"]
+            ],
+        }
+        _write(sandbox, registry=sans_role)
+        assert "NOTICE_STALE" in _codes(gate.collect_findings(sandbox)), (
+            f"un rôle {valeur!r} doit être signalé, pas accepté par défaut"
+        )
