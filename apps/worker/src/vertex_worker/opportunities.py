@@ -81,6 +81,7 @@ from typing import Any
 import yaml
 from sqlalchemy.orm import Session
 
+from vertex_core.contracts import AFFIRMATIVE_STATUSES, NON_AFFIRMATIVE_STATUSES
 from vertex_core.decision import AdviceEngine
 from vertex_core.synthetic import SYNTHETIC_SECTOR_TICKERS
 from vertex_core.version import ENGINE_VERSION
@@ -130,11 +131,21 @@ SNAPSHOT_KIND_OPPORTUNITIES = "opportunities"
 SNAPSHOT_KEY_GLOBAL = "global"
 OPPORTUNITIES_SCHEMA_VERSION = "vertex.opportunities/1.0"
 
-QUALIFIED_STATUSES = ("OBSERVE", "REVIEW", "QUALIFIED")
-"""Open statuses. NECESSARY but NOT sufficient to enter the qualified group."""
+QUALIFIED_STATUSES = tuple(sorted(status.value for status in AFFIRMATIVE_STATUSES))
+"""Open statuses. NECESSARY but NOT sufficient to enter the qualified group.
 
-EXCLUDED_STATUSES = ("BLOCKED", "INSUFFICIENT_DATA")
-"""Statuses of the excluded group (closed verdicts). NEVER in qualified."""
+DERIVED from ``vertex_core.contracts.AFFIRMATIVE_STATUSES``, never written out
+again here: this module and a degradation campaign each kept their own literal,
+the two disagreed on ``OBSERVE``, and an invariant meant to forbid an
+affirmative verdict would have accepted one.
+"""
+
+EXCLUDED_STATUSES = tuple(sorted(status.value for status in NON_AFFIRMATIVE_STATUSES))
+"""Statuses of the excluded group (closed verdicts). NEVER in qualified.
+
+Derived from the same partition, so the two groups cover ``AdviceStatus``
+exactly and a sixth member added tomorrow cannot land in neither.
+"""
 
 GATE_STATUS_BLOCK = "BLOCK"
 GATE_STATUS_DEGRADE = "DEGRADE"

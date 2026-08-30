@@ -9,6 +9,8 @@ in this package.
 from vertex_core.contracts.calculation import CalculationRecord, make_calculation_record
 from vertex_core.contracts.decision import AdviceResult, GateResult
 from vertex_core.contracts.enums import (
+    AFFIRMATIVE_STATUSES,
+    NON_AFFIRMATIVE_STATUSES,
     AdviceStatus,
     AssetClass,
     CalculationStatus,
@@ -46,11 +48,13 @@ from vertex_core.contracts.types import (
 from vertex_core.version import ENGINE_VERSION
 
 __all__ = [
+    # enums
+    "AFFIRMATIVE_STATUSES",
     # version
     "ENGINE_VERSION",
+    "NON_AFFIRMATIVE_STATUSES",
     # decision
     "AdviceResult",
-    # enums
     "AdviceStatus",
     "AssetClass",
     # calculation

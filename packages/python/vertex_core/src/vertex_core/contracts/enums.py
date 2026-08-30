@@ -10,6 +10,8 @@ this family and are never re-introduced.
 from enum import Enum, unique
 
 __all__ = [
+    "AFFIRMATIVE_STATUSES",
+    "NON_AFFIRMATIVE_STATUSES",
     "AdviceStatus",
     "AssetClass",
     "CalculationStatus",
@@ -42,6 +44,27 @@ class AdviceStatus(str, Enum):
     OBSERVE = "OBSERVE"
     REVIEW = "REVIEW"
     QUALIFIED = "QUALIFIED"
+
+
+#: Statuses that make a POSITIVE claim about an opportunity — the ones that put
+#: a card in front of the user. This is the partition the product already used,
+#: written down once instead of three times: ``vertex_worker.opportunities``
+#: routes exactly these three into its qualified group.
+#:
+#: It exists because two competing literals had drifted apart: production
+#: counted ``OBSERVE`` as affirmative while a degradation campaign's own literal
+#: did not, so a scenario that produced ``OBSERVE`` would have satisfied an
+#: invariant meant to forbid it. One authority, imported everywhere.
+AFFIRMATIVE_STATUSES: frozenset[AdviceStatus] = frozenset(
+    {AdviceStatus.OBSERVE, AdviceStatus.REVIEW, AdviceStatus.QUALIFIED}
+)
+
+#: The complement. Together with :data:`AFFIRMATIVE_STATUSES` it covers
+#: ``AdviceStatus`` exactly; a sixth member added tomorrow breaks the exhaustivity
+#: test rather than silently falling on the permissive side.
+NON_AFFIRMATIVE_STATUSES: frozenset[AdviceStatus] = frozenset(
+    {AdviceStatus.BLOCKED, AdviceStatus.INSUFFICIENT_DATA}
+)
 
 
 @unique
