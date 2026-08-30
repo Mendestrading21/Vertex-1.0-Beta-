@@ -10,16 +10,16 @@ All data is SYNTHETIC.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from collections.abc import Iterator
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Iterator
 
 import pytest
 from fastapi.testclient import TestClient
+from soft_passkey import SoftPasskey, login_passkey, register_passkey
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session
 
-from soft_passkey import SoftPasskey, login_passkey, register_passkey
 from vertex_core.contracts import DataEnvelope, canonical_json_hash
 from vertex_core.contracts.enums import DelayStatus, EnvelopeQuality
 from vertex_persistence.enums import OutboxStatus
@@ -36,7 +36,7 @@ SECTOR = "SYN-TECH"
 CURRENCY = "SYN"  # the synthetic mark universe's fictional currency code
 TOLERANCE = Decimal("1e-18")
 
-NOW = datetime.now(timezone.utc).replace(microsecond=0)
+NOW = datetime.now(UTC).replace(microsecond=0)
 # Three past synthetic trading days (D1 < D2 < D3), all strictly before now.
 DAY1 = (NOW - timedelta(days=3)).date()
 DAY2 = (NOW - timedelta(days=2)).date()
@@ -45,7 +45,7 @@ CLOSES = {DAY1.isoformat(): "100", DAY2.isoformat(): "110", DAY3.isoformat(): "1
 
 
 def at(day, hour: int) -> datetime:
-    return datetime(day.year, day.month, day.day, hour, 0, 0, tzinfo=timezone.utc)
+    return datetime(day.year, day.month, day.day, hour, 0, 0, tzinfo=UTC)
 
 
 @pytest.fixture()
@@ -77,11 +77,11 @@ def drain_worker(database_url: str):
         runner = WorkerRunner(
             session_factory=factory,
             registry=build_registry(
-                clock=lambda: datetime.now(timezone.utc),
+                clock=lambda: datetime.now(UTC),
                 fusion_config=DEV_SYNTHETIC_CONFIG,
             ),
             poll_interval_seconds=0.05,
-            clock=lambda: datetime.now(timezone.utc),
+            clock=lambda: datetime.now(UTC),
         )
         runner.drain(max_batches=40)
         stats = runner.stats()

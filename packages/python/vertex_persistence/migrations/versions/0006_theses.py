@@ -38,16 +38,16 @@ database (the up→down→up integrity cycle) downgrades without friction.
 from __future__ import annotations
 
 import os
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import context, op
 from sqlalchemy.dialects.postgresql import JSONB
 
 revision: str = "0006_theses"
-down_revision: Union[str, None] = "0005_auth_tables"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "0005_auth_tables"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 # Frozen vocabulary (see module docstring).
 THESIS_REVISION_ACTIONS = (

@@ -21,7 +21,7 @@ Clocks are injected synthetic instants — no sleeping, no real time.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy import Engine
@@ -39,7 +39,7 @@ from vertex_persistence.repository import (
     reap_expired_leases,
 )
 
-UTC = timezone.utc
+UTC = UTC
 T0 = datetime(2026, 8, 28, 12, 0, 0, tzinfo=UTC)
 TOPIC = "synthetic.test.topic"
 

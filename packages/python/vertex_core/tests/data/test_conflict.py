@@ -1,6 +1,6 @@
 """Cross-source conflict detection: both sides kept, no vote, no average."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import pytest
@@ -14,7 +14,7 @@ from vertex_core.data import (
     detect_conflicts,
 )
 
-T0 = datetime(2026, 8, 28, 14, 0, tzinfo=timezone.utc)
+T0 = datetime(2026, 8, 28, 14, 0, tzinfo=UTC)
 
 
 def obs(source, value, field_name="last", as_of=T0, unit=None):
@@ -190,7 +190,7 @@ class TestObservationModel:
     def test_naive_as_of_rejected(self):
         with pytest.raises(ValidationError, match="naive datetime"):
             FieldObservation(
-                source="a", field_name="last", value=Decimal("1"), as_of=datetime(2026, 8, 28)
+                source="a", field_name="last", value=Decimal("1"), as_of=datetime(2026, 8, 28)  # noqa: DTZ001 (naïf délibéré : rejet vérifié)
             )
 
     def test_frozen(self):

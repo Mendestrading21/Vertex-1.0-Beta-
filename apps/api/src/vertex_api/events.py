@@ -22,8 +22,8 @@ from __future__ import annotations
 import asyncio
 import json
 import time
+from collections.abc import AsyncIterator
 from dataclasses import dataclass
-from typing import AsyncIterator, Dict, Optional
 
 from starlette.concurrency import run_in_threadpool
 
@@ -87,7 +87,7 @@ def get_stream_settings() -> StreamSettings:
     return StreamSettings()
 
 
-def format_sse_event(event: str, data: Dict[str, object]) -> str:
+def format_sse_event(event: str, data: dict[str, object]) -> str:
     """One SSE frame: named event, single canonical JSON data line."""
     payload = json.dumps(data, sort_keys=True, separators=(",", ":"))
     return f"event: {event}\ndata: {payload}\n\n"
@@ -97,8 +97,8 @@ def _resource_name(kind: str, key: str) -> str:
     return f"{kind}/{key}"
 
 
-async def _poll_versions(reader: SnapshotReader) -> Dict[str, Optional[int]]:
-    versions: Dict[str, Optional[int]] = {}
+async def _poll_versions(reader: SnapshotReader) -> dict[str, int | None]:
+    versions: dict[str, int | None] = {}
     for kind, key in WATCHED_SNAPSHOTS:
         versions[_resource_name(kind, key)] = await run_in_threadpool(
             reader.head_version, kind=kind, key=key

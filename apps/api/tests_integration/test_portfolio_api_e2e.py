@@ -9,16 +9,16 @@ read back through ``GET /api/v1/portfolio``. All data is SYNTHETIC.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from collections.abc import Iterator
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Iterator
 
 import pytest
 from fastapi.testclient import TestClient
+from soft_passkey import SoftPasskey, login_passkey, register_passkey
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session
 
-from soft_passkey import SoftPasskey, login_passkey, register_passkey
 from vertex_persistence.enums import OutboxStatus
 from vertex_persistence.models import OutboxMessage
 from vertex_persistence.repository.snapshots import publish_snapshot
@@ -32,7 +32,7 @@ TOPIC_REFRESH = "portfolio.valuation.refresh"
 TICKER = "SYN-TECH-01"
 CURRENCY = "SYN"  # the synthetic mark universe's fictional currency code
 
-NOW = datetime.now(timezone.utc).replace(microsecond=0)
+NOW = datetime.now(UTC).replace(microsecond=0)
 EFFECTIVE_AT = (NOW - timedelta(days=1)).isoformat()
 
 MARKETS_CONTENT = {
@@ -96,11 +96,11 @@ def drain_worker(database_url: str):
         runner = WorkerRunner(
             session_factory=factory,
             registry=build_registry(
-                clock=lambda: datetime.now(timezone.utc),
+                clock=lambda: datetime.now(UTC),
                 fusion_config=DEV_SYNTHETIC_CONFIG,
             ),
             poll_interval_seconds=0.05,
-            clock=lambda: datetime.now(timezone.utc),
+            clock=lambda: datetime.now(UTC),
         )
         runner.drain(max_batches=30)
         stats = runner.stats()

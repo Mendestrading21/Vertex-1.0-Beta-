@@ -46,8 +46,6 @@ version and every gate version: replaying identical inputs yields the same
 
 from __future__ import annotations
 
-from typing import Optional
-
 from pydantic import Field, model_validator
 
 from vertex_core.contracts.decision import AdviceResult, GateResult
@@ -120,74 +118,74 @@ def _reason_signals_missing_data(reason_code: str) -> bool:
 class InstrumentResolutionInput(ContractModel):
     """Facts for gate 1 (``instrument_resolved``)."""
 
-    identity_status: Optional[IdentityStatus] = None
-    resolved_with_conid: Optional[bool] = None
+    identity_status: IdentityStatus | None = None
+    resolved_with_conid: bool | None = None
 
 
 class EntitlementsInput(ContractModel):
     """Facts for gate 2 (``entitlements_sufficient``)."""
 
-    capability_status: Optional[SourceCapabilityStatus] = None
+    capability_status: SourceCapabilityStatus | None = None
 
 
 class SnapshotInput(ContractModel):
     """Facts for gate 3 (``snapshot_fresh_and_coherent``)."""
 
-    quality: Optional[SnapshotQuality] = None
-    fresh: Optional[bool] = None
+    quality: SnapshotQuality | None = None
+    fresh: bool | None = None
 
 
 class SessionEventInput(ContractModel):
     """Facts for gate 4 (``session_and_event_known``)."""
 
-    session_known: Optional[bool] = None
-    event_calendar_known: Optional[bool] = None
+    session_known: bool | None = None
+    event_calendar_known: bool | None = None
 
 
 class LiquidityInput(ContractModel):
     """Facts for gate 5 (``minimum_liquidity``); the threshold is per asset class."""
 
-    asset_class: Optional[AssetClass] = None
-    observed_liquidity: Optional[FiniteDecimal] = None
-    required_minimum: Optional[FiniteDecimal] = None
-    observation_delayed: Optional[bool] = None
+    asset_class: AssetClass | None = None
+    observed_liquidity: FiniteDecimal | None = None
+    required_minimum: FiniteDecimal | None = None
+    observation_delayed: bool | None = None
 
 
 class CalculationsInput(ContractModel):
     """Facts for gate 6 (``calculations_valid``): calculation id -> CalculationStatus."""
 
-    calculation_statuses: Optional[FrozenStrMapping] = None
+    calculation_statuses: FrozenStrMapping | None = None
 
 
 class PortfolioRiskInput(ContractModel):
     """Facts for gate 7 (``manual_portfolio_risk_available``); declarations are user-made only."""
 
-    risk_required: Optional[bool] = None
-    portfolio_risk_available: Optional[bool] = None
-    declarations_current: Optional[bool] = None
+    risk_required: bool | None = None
+    portfolio_risk_available: bool | None = None
+    declarations_current: bool | None = None
 
 
 class ProbabilityInput(ContractModel):
     """Facts for gate 8 (``probability_calibrated_if_used``)."""
 
-    probability_used: Optional[bool] = None
-    calibration_valid: Optional[bool] = None
-    out_of_sample_validated: Optional[bool] = None
-    calibration_current: Optional[bool] = None
+    probability_used: bool | None = None
+    calibration_valid: bool | None = None
+    out_of_sample_validated: bool | None = None
+    calibration_current: bool | None = None
 
 
 class ContradictionsInput(ContractModel):
     """Facts for gate 9 (``critical_contradictions_resolved``)."""
 
-    unresolved_critical_count: Optional[int] = None
-    explicit_contradiction_count: Optional[int] = None
+    unresolved_critical_count: int | None = None
+    explicit_contradiction_count: int | None = None
 
 
 class ConstraintsInput(ContractModel):
     """Facts for gate 10 (``user_constraints_versioned``)."""
 
-    constraints_version: Optional[str] = None
-    constraints_current: Optional[bool] = None
+    constraints_version: str | None = None
+    constraints_current: bool | None = None
 
 
 class AdviceInputs(ContractModel):
@@ -210,8 +208,8 @@ class AdviceInputs(ContractModel):
     scenario_ids: tuple[str, ...] = ()
     explanation_facts: tuple[str, ...] = ()
     limitations: tuple[str, ...] = ()
-    probability_evidence: Optional[FrozenStrMapping] = None
-    supersedes: Optional[NonEmptyStr] = None
+    probability_evidence: FrozenStrMapping | None = None
+    supersedes: NonEmptyStr | None = None
     instrument: InstrumentResolutionInput = Field(default_factory=InstrumentResolutionInput)
     entitlements: EntitlementsInput = Field(default_factory=EntitlementsInput)
     snapshot: SnapshotInput = Field(default_factory=SnapshotInput)
@@ -224,7 +222,7 @@ class AdviceInputs(ContractModel):
     constraints: ConstraintsInput = Field(default_factory=ConstraintsInput)
 
     @model_validator(mode="after")
-    def _check_temporal_consistency(self) -> "AdviceInputs":
+    def _check_temporal_consistency(self) -> AdviceInputs:
         if self.valid_until < self.as_of:
             raise ValueError("valid_until must not precede as_of")
         return self
@@ -337,7 +335,7 @@ class AdviceEngine:
             ),
         )
         # Structural self-check against the catalog: order and versions match.
-        assert tuple(g.gate_id for g in gates) == tuple(s.gate_id for s in GATE_CATALOG)
+        assert tuple(g.gate_id for g in gates) == tuple(s.gate_id for s in GATE_CATALOG)  # noqa: S101 (narrowing mypy, garde réelle au-dessus)
         return gates
 
     @staticmethod
@@ -367,7 +365,7 @@ class AdviceEngine:
         inputs: AdviceInputs,
         gates: tuple[GateResult, ...],
         limitations: list[str],
-    ) -> Optional[FrozenStrMapping]:
+    ) -> FrozenStrMapping | None:
         """Propagate probability evidence only when gate 8 proved calibration.
 
         Any other outcome keeps ``probability_evidence = None`` and, when

@@ -13,7 +13,6 @@ unequal and can be used as mapping keys.
 from __future__ import annotations
 
 from datetime import date
-from typing import Optional
 
 from pydantic import model_validator
 
@@ -48,18 +47,18 @@ class InstrumentId(ContractModel):
     canonical_symbol: NonEmptyStr
     exchange: NonEmptyStr
     currency: CurrencyCode
-    ibkr_con_id: Optional[PositiveInt] = None
-    tradingview_ticker_id: Optional[NonEmptyStr] = None
-    isin: Optional[NonEmptyStr] = None
-    cusip: Optional[NonEmptyStr] = None
-    cik: Optional[NonEmptyStr] = None
-    issuer_id: Optional[NonEmptyStr] = None
+    ibkr_con_id: PositiveInt | None = None
+    tradingview_ticker_id: NonEmptyStr | None = None
+    isin: NonEmptyStr | None = None
+    cusip: NonEmptyStr | None = None
+    cik: NonEmptyStr | None = None
+    issuer_id: NonEmptyStr | None = None
     valid_from: UtcDatetime
-    valid_to: Optional[UtcDatetime] = None
+    valid_to: UtcDatetime | None = None
     identity_status: IdentityStatus
 
     @model_validator(mode="after")
-    def _check_validity_window(self) -> "InstrumentId":
+    def _check_validity_window(self) -> InstrumentId:
         if self.valid_to is not None and self.valid_to < self.valid_from:
             raise ValueError("valid_to must not precede valid_from")
         return self
@@ -74,7 +73,7 @@ class OptionContractId(ContractModel):
     """
 
     underlying_id: NonEmptyStr
-    ibkr_con_id: Optional[PositiveInt] = None
+    ibkr_con_id: PositiveInt | None = None
     expiry: date
     strike: PositiveDecimal
     right: OptionRight
@@ -84,5 +83,5 @@ class OptionContractId(ContractModel):
     currency: CurrencyCode
     exchange: NonEmptyStr
     trading_class: NonEmptyStr
-    adjustment_code: Optional[NonEmptyStr] = None
-    deliverable: Optional[NonEmptyStr] = None
+    adjustment_code: NonEmptyStr | None = None
+    deliverable: NonEmptyStr | None = None

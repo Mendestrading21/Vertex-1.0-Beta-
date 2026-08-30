@@ -9,9 +9,9 @@ surface the probe uses — they never call any real IBKR capability.
 from __future__ import annotations
 
 import asyncio
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Any, Optional
+from typing import Any
 
 from vertex_core.contracts import (
     DataEnvelope,
@@ -19,7 +19,6 @@ from vertex_core.contracts import (
     EnvelopeQuality,
     canonical_json_hash,
 )
-
 from vertex_edge_ibkr.port import (
     GreeksObservation,
     MarketDataSnapshotResult,
@@ -31,7 +30,7 @@ from vertex_edge_ibkr.port import (
 NAN = float("nan")
 
 #: Deterministic synthetic instants (no real clock in tests).
-T0 = datetime(2026, 8, 28, 14, 0, 0, tzinfo=timezone.utc)
+T0 = datetime(2026, 8, 28, 14, 0, 0, tzinfo=UTC)
 T1 = T0 + timedelta(seconds=1)
 
 
@@ -73,7 +72,7 @@ class FakeEvent:
     def __init__(self) -> None:
         self._handlers: list[Any] = []
 
-    def __iadd__(self, handler: Any) -> "FakeEvent":
+    def __iadd__(self, handler: Any) -> FakeEvent:
         self._handlers.append(handler)
         return self
 
@@ -89,14 +88,14 @@ class FakeComputation:
         self,
         *,
         tickAttrib: int = 0,
-        impliedVol: Optional[float] = None,
-        delta: Optional[float] = None,
-        optPrice: Optional[float] = None,
-        pvDividend: Optional[float] = None,
-        gamma: Optional[float] = None,
-        vega: Optional[float] = None,
-        theta: Optional[float] = None,
-        undPrice: Optional[float] = None,
+        impliedVol: float | None = None,
+        delta: float | None = None,
+        optPrice: float | None = None,
+        pvDividend: float | None = None,
+        gamma: float | None = None,
+        vega: float | None = None,
+        theta: float | None = None,
+        undPrice: float | None = None,
     ) -> None:
         self.tickAttrib = tickAttrib
         self.impliedVol = impliedVol
@@ -114,7 +113,7 @@ class FakeTicker:
 
     def __init__(self, **overrides: Any) -> None:
         self.contract: Any = None
-        self.time: Optional[datetime] = T0
+        self.time: datetime | None = T0
         self.marketDataType = 1
         self.bid = NAN
         self.bidSize = NAN
@@ -132,10 +131,10 @@ class FakeTicker:
         self.histVolatility = NAN
         self.impliedVolatility = NAN
         self.avOptionVolume = NAN
-        self.bidGreeks: Optional[FakeComputation] = None
-        self.askGreeks: Optional[FakeComputation] = None
-        self.lastGreeks: Optional[FakeComputation] = None
-        self.modelGreeks: Optional[FakeComputation] = None
+        self.bidGreeks: FakeComputation | None = None
+        self.askGreeks: FakeComputation | None = None
+        self.lastGreeks: FakeComputation | None = None
+        self.modelGreeks: FakeComputation | None = None
         for name, value in overrides.items():
             if not hasattr(self, name):
                 raise AttributeError(f"unknown FakeTicker field {name!r}")
@@ -153,11 +152,11 @@ class FakeIB:
     def __init__(
         self,
         *,
-        ticker: Optional[FakeTicker] = None,
+        ticker: FakeTicker | None = None,
         subscribe_errors: tuple[tuple[int, int, str], ...] = (),
-        server_time: Optional[datetime] = T0,
+        server_time: datetime | None = T0,
         chains: tuple[Any, ...] = (),
-        qualified: Optional[list[Any]] = None,
+        qualified: list[Any] | None = None,
         bars: tuple[Any, ...] = (),
         scan_rows: tuple[Any, ...] = (),
         providers: tuple[Any, ...] = (),
@@ -193,7 +192,7 @@ class FakeIB:
     def disconnect(self) -> None:
         self.disconnect_calls += 1
 
-    async def reqCurrentTimeAsync(self) -> Optional[datetime]:
+    async def reqCurrentTimeAsync(self) -> datetime | None:
         return self.server_time_value
 
     # -- market data -------------------------------------------------------
@@ -226,7 +225,11 @@ class FakeIB:
         return list(contracts)
 
     async def reqSecDefOptParamsAsync(
-        self, underlyingSymbol: str, futFopExchange: str, underlyingSecType: str, underlyingConId: int
+        self,
+        underlyingSymbol: str,
+        futFopExchange: str,
+        underlyingSecType: str,
+        underlyingConId: int,
     ) -> tuple[Any, ...]:
         return self.chains
 
@@ -258,8 +261,8 @@ class FakeIB:
 def make_envelope(
     payload: Any,
     *,
-    con_id: Optional[int] = None,
-    observed_at: Optional[datetime] = T0,
+    con_id: int | None = None,
+    observed_at: datetime | None = T0,
     received_at: datetime = T1,
     delay: DelayStatus = DelayStatus.LIVE,
     quality: EnvelopeQuality = EnvelopeQuality.VALID,
@@ -288,7 +291,7 @@ def make_snapshot_result(
     *,
     errors: tuple[ProviderErrorInfo, ...] = (),
     requested: int = 1,
-    reported: Optional[int] = 1,
+    reported: int | None = 1,
     generic: tuple[int, ...] = (),
     subscription_id: str = "sub-1",
     cancelled: bool = True,
@@ -304,7 +307,9 @@ def make_snapshot_result(
     )
 
 
-def full_quote(con_id: int, *, market_data_type: int = 1, with_generics: bool = False) -> QuoteObservation:
+def full_quote(
+    con_id: int, *, market_data_type: int = 1, with_generics: bool = False
+) -> QuoteObservation:
     generic_values: dict[str, Any] = {}
     if with_generics:
         generic_values = {
@@ -327,7 +332,9 @@ def full_quote(con_id: int, *, market_data_type: int = 1, with_generics: bool = 
     )
 
 
-def full_greeks(con_id: int, *, tick_type: int, basis: str = "model", market_data_type: int = 1) -> GreeksObservation:
+def full_greeks(
+    con_id: int, *, tick_type: int, basis: str = "model", market_data_type: int = 1
+) -> GreeksObservation:
     return GreeksObservation(
         con_id=con_id,
         basis=basis,
@@ -354,7 +361,7 @@ class FakeInformationPort:
         *,
         server_time_behavior: Any = T0,
         chain_behavior: Any = ("chain",),
-        snapshot_behaviors: Optional[dict[tuple[int, int], Any]] = None,
+        snapshot_behaviors: dict[tuple[int, int], Any] | None = None,
     ) -> None:
         self.server_time_behavior = server_time_behavior
         self.chain_behavior = chain_behavior
@@ -385,7 +392,7 @@ class FakeInformationPort:
         *,
         generic_ticks: tuple[int, ...] = (),
         market_data_type: int = 1,
-        timeout_seconds: Optional[float] = None,
+        timeout_seconds: float | None = None,
     ) -> MarketDataSnapshotResult:
         self.snapshot_calls.append((spec.con_id, market_data_type, tuple(generic_ticks)))
         key = (spec.con_id, market_data_type)

@@ -48,10 +48,11 @@ deposit, ...) is a cash event: counted, never a position.
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation, localcontext
-from typing import Any, Callable, Mapping, Optional, Sequence
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -71,7 +72,6 @@ from vertex_core.version import ENGINE_VERSION
 from vertex_persistence.models import LedgerTransaction, Portfolio
 from vertex_persistence.repository.outbox import ClaimedOutboxMessage
 from vertex_persistence.repository.snapshots import get_current_snapshot
-
 from vertex_worker.errors import HandlerError
 from vertex_worker.registry import HandlerRegistry
 
@@ -148,15 +148,15 @@ class LedgerEventView:
 
     id: int
     kind: str
-    instrument: Optional[Mapping[str, Any]]
-    quantity: Optional[Decimal]
-    price: Optional[Decimal]
+    instrument: Mapping[str, Any] | None
+    quantity: Decimal | None
+    price: Decimal | None
     amount: Decimal
     currency: str
     fees: Decimal
     effective_at: datetime
     source: str
-    compensates: Optional[int]
+    compensates: int | None
 
 
 @dataclass(frozen=True)
@@ -174,8 +174,8 @@ class MarkQuote:
 
     ticker: str
     close: Decimal
-    currency: Optional[str]
-    trading_day: Optional[str]
+    currency: str | None
+    trading_day: str | None
 
 
 @dataclass(frozen=True)
@@ -193,14 +193,14 @@ def _require_aware_utc(now: datetime) -> datetime:
         raise TypeError(f"now: expected datetime, got {type(now).__name__}")
     if now.tzinfo is None or now.tzinfo.utcoffset(now) is None:
         raise ValueError("now: naive datetime rejected, aware UTC required")
-    return now.astimezone(timezone.utc)
+    return now.astimezone(UTC)
 
 
 def _decimal_text(value: Decimal) -> str:
     return format(value, "f")
 
 
-def _optional_decimal_text(value: Optional[Decimal]) -> Optional[str]:
+def _optional_decimal_text(value: Decimal | None) -> str | None:
     return None if value is None else _decimal_text(value)
 
 
@@ -343,7 +343,7 @@ class _DerivedPositions:
     compensation_pairs: int
 
 
-def _event_ticker(event: LedgerEventView) -> Optional[str]:
+def _event_ticker(event: LedgerEventView) -> str | None:
     instrument = event.instrument
     if not isinstance(instrument, Mapping):
         return None
@@ -353,7 +353,7 @@ def _event_ticker(event: LedgerEventView) -> Optional[str]:
     return None
 
 
-def _position_event_error(event: LedgerEventView) -> Optional[str]:
+def _position_event_error(event: LedgerEventView) -> str | None:
     if _event_ticker(event) is None:
         return REASON_MISSING_TICKER
     if event.quantity is None or event.quantity <= 0:
@@ -399,7 +399,8 @@ def _derive_positions(events: Sequence[LedgerEventView]) -> _DerivedPositions:
                 invalid_events.append({"event_id": event.id, "reason": error})
                 continue
             ticker = _event_ticker(event)
-            assert ticker is not None  # narrowed by _position_event_error
+            # narrowing mypy, garde réelle au-dessus
+            assert ticker is not None  # narrowed by _position_event_error  # noqa: S101
             book_key = (ticker, event.currency)
             if book_key in oversold:
                 # The position is already invalid; keep counting, add nothing.
@@ -417,7 +418,7 @@ def _derive_positions(events: Sequence[LedgerEventView]) -> _DerivedPositions:
                 continue
             # SELL_RECORDED: FIFO assignment against the open lots.
             to_close = event.quantity
-            assert to_close is not None
+            assert to_close is not None  # noqa: S101 (narrowing mypy, garde réelle au-dessus)
             first_slice = True
             for lot in open_lots.get(book_key, []):
                 if to_close <= 0:
@@ -427,7 +428,7 @@ def _derive_positions(events: Sequence[LedgerEventView]) -> _DerivedPositions:
                 slice_quantity = min(lot["remaining"], to_close)
                 lot["remaining"] = lot["remaining"] - slice_quantity
                 to_close = to_close - slice_quantity
-                assert event.price is not None
+                assert event.price is not None  # noqa: S101 (narrowing mypy, garde réelle au-dessus)
                 closings.append(
                     _DerivedClosing(
                         transaction_id=f"ledger-{event.id}:lot-{lot['event_id']}",
@@ -588,7 +589,7 @@ def build_portfolio_valuation_content(
     events: Sequence[LedgerEventView],
     *,
     portfolio: PortfolioView,
-    marks: Optional[MarksView],
+    marks: MarksView | None,
     now: datetime,
 ) -> dict[str, Any]:
     """Build the portfolio valuation snapshot content. Pure and deterministic.

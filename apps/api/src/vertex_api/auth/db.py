@@ -11,8 +11,9 @@ reveals nothing). DSNs are never stored in the repository.
 from __future__ import annotations
 
 import os
+from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import Iterator
+from typing import cast
 
 from fastapi import FastAPI
 from sqlalchemy import Engine, create_engine
@@ -33,7 +34,9 @@ def get_engine(app: FastAPI) -> Engine:
     """Return the application's engine, creating it from the environment once."""
     engine = getattr(app.state, _STATE_ATTR, None)
     if engine is not None:
-        return engine
+        # `app.state` est un espace de noms dynamique : `create_app` y
+        # installe un `Engine` et rien d'autre.
+        return cast(Engine, engine)
     url = os.environ.get(DATABASE_URL_ENV_VAR)
     if not url:
         raise DatabaseNotConfiguredError(

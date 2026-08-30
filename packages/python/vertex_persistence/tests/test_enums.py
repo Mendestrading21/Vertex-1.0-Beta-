@@ -12,7 +12,6 @@ from pathlib import Path
 import pytest
 
 from vertex_core.contracts import DelayStatus, EnvelopeQuality
-
 from vertex_persistence.enums import (
     LEDGER_EVENT_KINDS,
     OBSERVATION_DELAY_STATUSES,

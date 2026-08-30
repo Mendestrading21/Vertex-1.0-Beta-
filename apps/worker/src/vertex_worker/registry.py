@@ -7,7 +7,7 @@ override of an authority).
 
 from __future__ import annotations
 
-from typing import Callable, Dict, Optional
+from collections.abc import Callable
 
 from sqlalchemy.orm import Session
 
@@ -24,7 +24,7 @@ class HandlerRegistry:
     """Explicit, immutable-by-convention mapping of outbox topics to handlers."""
 
     def __init__(self) -> None:
-        self._handlers: Dict[str, Handler] = {}
+        self._handlers: dict[str, Handler] = {}
 
     def register(self, topic: str, handler: Handler) -> None:
         """Register ``handler`` for ``topic``; duplicates are refused."""
@@ -41,6 +41,6 @@ class HandlerRegistry:
         """Registered topics in deterministic (sorted) order."""
         return tuple(sorted(self._handlers))
 
-    def get(self, topic: str) -> Optional[Handler]:
+    def get(self, topic: str) -> Handler | None:
         """Return the handler for ``topic``, or ``None`` when unregistered."""
         return self._handlers.get(topic)

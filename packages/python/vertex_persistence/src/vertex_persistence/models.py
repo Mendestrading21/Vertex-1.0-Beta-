@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal
-from typing import Any, Optional
+from typing import Any
 
 from sqlalchemy import (
     BigInteger,
@@ -47,18 +47,18 @@ from vertex_persistence.enums import (
 )
 
 __all__ = [
+    "AuthSession",
     "Base",
+    "LedgerTransaction",
     "Observation",
-    "Snapshot",
-    "SnapshotHead",
     "OutboxMessage",
     "Portfolio",
     "PositionLot",
-    "LedgerTransaction",
-    "WebauthnCredential",
-    "AuthSession",
+    "Snapshot",
+    "SnapshotHead",
     "Thesis",
     "ThesisRevision",
+    "WebauthnCredential",
     "sql_enum_check",
 ]
 
@@ -99,16 +99,16 @@ class Observation(Base):
     event_id: Mapped[str] = mapped_column(Text, nullable=False)
     schema_version: Mapped[str] = mapped_column(Text, nullable=False)
     source: Mapped[str] = mapped_column(Text, nullable=False)
-    source_event_id: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    instrument_ref: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    observed_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
-    published_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    source_event_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+    instrument_ref: Mapped[str | None] = mapped_column(Text, nullable=True)
+    observed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     as_of: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     stale_after: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     quality_status: Mapped[str] = mapped_column(Text, nullable=False)
     delay_status: Mapped[str] = mapped_column(Text, nullable=False)
-    connection_epoch: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    connection_epoch: Mapped[int | None] = mapped_column(Integer, nullable=True)
     rights: Mapped[str] = mapped_column(Text, nullable=False)
     payload: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
     payload_hash: Mapped[str] = mapped_column(Text, nullable=False)
@@ -175,12 +175,12 @@ class OutboxMessage(Base):
     payload: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
     status: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'PENDING'"))
     attempts: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
-    lease_until: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    lease_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     # Opaque per-claim ownership nonce: set on claim, required by ack/fail,
     # cleared on every transition out of IN_PROGRESS (ack, fail, reap).
-    lease_token: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    lease_token: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Short technical diagnostic only — never a payload, secret or account datum.
-    last_error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=text("now()")
     )
@@ -228,7 +228,7 @@ class PositionLot(Base):
     currency: Mapped[str] = mapped_column(Text, nullable=False)
     opened_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     source: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'MANUAL'"))
-    note: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     __table_args__ = (
         CheckConstraint(sql_enum_check("source", POSITION_LOT_SOURCES), name="source_canonical"),
@@ -253,10 +253,10 @@ class WebauthnCredential(Base):
     credential_id: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
     public_key: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
     sign_count: Mapped[int] = mapped_column(BigInteger, nullable=False)
-    transports: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    transports: Mapped[str | None] = mapped_column(Text, nullable=True)
     label: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    revoked_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (
         UniqueConstraint("credential_id"),
@@ -284,7 +284,7 @@ class AuthSession(Base):
     csrf_token_hash: Mapped[str] = mapped_column(Text, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    revoked_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     __table_args__ = (
         UniqueConstraint("session_id_hash"),
@@ -310,15 +310,15 @@ class Thesis(Base):
     __tablename__ = "theses"
 
     id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
-    portfolio_id: Mapped[Optional[int]] = mapped_column(
+    portfolio_id: Mapped[int | None] = mapped_column(
         BigInteger, ForeignKey("portfolios.id"), nullable=True
     )
-    instrument: Mapped[Optional[dict[str, Any]]] = mapped_column(JSONB, nullable=True)
+    instrument: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
     title: Mapped[str] = mapped_column(Text, nullable=False)
     hypotheses: Mapped[str] = mapped_column(Text, nullable=False)
     invalidation: Mapped[str] = mapped_column(Text, nullable=False)
-    horizon: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    review_due_at: Mapped[Optional[datetime]] = mapped_column(
+    horizon: Mapped[str | None] = mapped_column(Text, nullable=True)
+    review_due_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
@@ -347,15 +347,15 @@ class ThesisRevision(Base):
     id: Mapped[int] = mapped_column(BigInteger, Identity(always=True), primary_key=True)
     thesis_id: Mapped[int] = mapped_column(BigInteger, ForeignKey("theses.id"), nullable=False)
     action: Mapped[str] = mapped_column(Text, nullable=False)
-    note: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    snapshot_ref: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    snapshot_ref: Mapped[str | None] = mapped_column(Text, nullable=True)
     content_hash: Mapped[str] = mapped_column(Text, nullable=False)
     idempotency_key: Mapped[str] = mapped_column(Text, nullable=False)
     author: Mapped[str] = mapped_column(
         Text, nullable=False, server_default=text("'local-user'")
     )
     recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    snooze_until: Mapped[Optional[datetime]] = mapped_column(
+    snooze_until: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
 
@@ -387,17 +387,17 @@ class LedgerTransaction(Base):
         BigInteger, ForeignKey("portfolios.id"), nullable=False
     )
     kind: Mapped[str] = mapped_column(Text, nullable=False)
-    instrument: Mapped[Optional[dict[str, Any]]] = mapped_column(JSONB, nullable=True)
-    quantity: Mapped[Optional[Decimal]] = mapped_column(Numeric, nullable=True)
-    price: Mapped[Optional[Decimal]] = mapped_column(Numeric, nullable=True)
+    instrument: Mapped[dict[str, Any] | None] = mapped_column(JSONB, nullable=True)
+    quantity: Mapped[Decimal | None] = mapped_column(Numeric, nullable=True)
+    price: Mapped[Decimal | None] = mapped_column(Numeric, nullable=True)
     amount: Mapped[Decimal] = mapped_column(Numeric, nullable=False)
     currency: Mapped[str] = mapped_column(Text, nullable=False)
     fees: Mapped[Decimal] = mapped_column(Numeric, nullable=False)
     effective_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     source: Mapped[str] = mapped_column(Text, nullable=False, server_default=text("'MANUAL'"))
-    note: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    compensates: Mapped[Optional[int]] = mapped_column(
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    compensates: Mapped[int | None] = mapped_column(
         BigInteger, ForeignKey("ledger_transactions.id"), nullable=True
     )
 

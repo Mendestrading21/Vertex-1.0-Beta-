@@ -4,19 +4,18 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from vertex_core.contracts import canonical_json_hash
-
 from vertex_persistence.errors import SnapshotStateError
 from vertex_persistence.json_codec import to_jsonb_object
 from vertex_persistence.models import Snapshot, SnapshotHead
 from vertex_persistence.repository._validation import require_aware_utc, require_non_empty_str
 
-__all__ = ["PublishedSnapshot", "CurrentSnapshot", "publish_snapshot", "get_current_snapshot"]
+__all__ = ["CurrentSnapshot", "PublishedSnapshot", "get_current_snapshot", "publish_snapshot"]
 
 
 @dataclass(frozen=True)
@@ -93,7 +92,7 @@ def publish_snapshot(
     )
 
 
-def get_current_snapshot(session: Session, *, kind: str, key: str) -> Optional[CurrentSnapshot]:
+def get_current_snapshot(session: Session, *, kind: str, key: str) -> CurrentSnapshot | None:
     """Return the head version of (kind, key), or ``None`` if never published.
 
     Absence is returned as ``None`` — never as an empty snapshot. A head

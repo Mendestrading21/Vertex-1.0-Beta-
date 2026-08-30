@@ -28,9 +28,10 @@ column. The value is additionally truncated defensively.
 from __future__ import annotations
 
 import uuid
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Any, Sequence
+from typing import Any
 
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
@@ -49,9 +50,9 @@ from vertex_persistence.repository._validation import (
 
 __all__ = [
     "ClaimedOutboxMessage",
-    "enqueue_outbox",
-    "claim_outbox_batch",
     "ack_outbox",
+    "claim_outbox_batch",
+    "enqueue_outbox",
     "fail_outbox",
     "reap_expired_leases",
 ]

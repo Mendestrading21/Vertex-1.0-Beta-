@@ -26,10 +26,11 @@ from __future__ import annotations
 import hashlib
 import json
 import math
-from datetime import date, datetime, timezone
+from collections.abc import Mapping, Sequence
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from enum import Enum
-from typing import Any, Mapping, Sequence
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -58,8 +59,10 @@ def _canonicalize(obj: Any) -> Any:
         return str(obj)
     if isinstance(obj, datetime):
         if obj.tzinfo is None or obj.tzinfo.utcoffset(obj) is None:
-            raise CanonicalizationError("naive datetime cannot be canonicalized: UTC-aware required")
-        return obj.astimezone(timezone.utc).isoformat()
+            raise CanonicalizationError(
+                "naive datetime cannot be canonicalized: UTC-aware required"
+            )
+        return obj.astimezone(UTC).isoformat()
     if isinstance(obj, date):
         return obj.isoformat()
     if isinstance(obj, Enum):
@@ -72,7 +75,8 @@ def _canonicalize(obj: Any) -> Any:
         for key, value in obj.items():
             if not isinstance(key, str):
                 raise CanonicalizationError(
-                    f"mapping key of type {type(key).__name__} cannot be canonicalized: string keys required"
+                    f"mapping key of type {type(key).__name__} cannot be "
+                    "canonicalized: string keys required"
                 )
             out[key] = _canonicalize(value)
         return out

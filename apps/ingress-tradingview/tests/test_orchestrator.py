@@ -8,20 +8,19 @@ from __future__ import annotations
 
 import json
 import random
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
-
 from conftest import (
     FakeQueueClient,
     FakeQuoteProvider,
     FakeStore,
-    FixedClock,
     fresh_quote,
     make_alert_payload,
     make_envelope_body,
     make_message,
 )
+
 from vertex_ingress_tv.orchestrator import (
     IngressRejection,
     Quote,
@@ -154,7 +153,9 @@ class TestAckAfterPersistence:
         assert queue.is_acked("msg-1")
         assert EVENT_ID in store.records
 
-    def test_redelivery_after_crash_between_persist_and_ack(self, queue, store, quotes, registry, clock, audit) -> None:
+    def test_redelivery_after_crash_between_persist_and_ack(
+        self, queue, store, quotes, registry, clock, audit
+    ) -> None:
         # First run persists but "crashes" before ack (we simply drop the
         # orchestrator without acking).
         first = TradingViewOrchestrator(
@@ -302,7 +303,7 @@ class TestRevalidation:
     ) -> None:
         self.ingest_one(orchestrator, queue)
         stale = Quote(
-            observed_at=datetime(2026, 8, 29, 11, 59, 30, tzinfo=timezone.utc),  # < received_at
+            observed_at=datetime(2026, 8, 29, 11, 59, 30, tzinfo=UTC),  # < received_at
             connection_epoch=1,
         )
         quotes.responses = [stale]
@@ -332,7 +333,7 @@ class TestRevalidation:
         self.ingest_one(orchestrator, queue)
         quotes.responses = [
             Quote(
-                observed_at=datetime(2126, 8, 29, 12, 0, 5, tzinfo=timezone.utc),
+                observed_at=datetime(2126, 8, 29, 12, 0, 5, tzinfo=UTC),
                 connection_epoch=1,
             )
         ]
@@ -353,7 +354,7 @@ class TestRevalidation:
         self, orchestrator, queue, store, quotes
     ) -> None:
         self.ingest_one(orchestrator, queue)
-        quotes.responses = [Quote(observed_at=datetime(2026, 8, 29, 12, 0, 5), connection_epoch=1)]
+        quotes.responses = [Quote(observed_at=datetime(2026, 8, 29, 12, 0, 5), connection_epoch=1)]  # noqa: DTZ001 (naïf délibéré : rejet vérifié)
         outcomes = orchestrator.advance_pending()
         assert [o.status for o in outcomes] == ["BLOCKED"]
         assert outcomes[0].reason == "QUOTE_TIMESTAMP_NAIVE"
@@ -375,7 +376,7 @@ class TestRevalidation:
         self.ingest_one(orchestrator, queue)
         quotes.responses = [None]
         # Deadline anchors on received_at (11:59:59) + 10 s.
-        clock.now = datetime(2026, 8, 29, 12, 0, 9, tzinfo=timezone.utc)
+        clock.now = datetime(2026, 8, 29, 12, 0, 9, tzinfo=UTC)
         outcomes = orchestrator.advance_pending()
         assert [o.status for o in outcomes] == ["EXPIRED"]
         assert outcomes[0].reason == "IBKR_QUOTE_DEADLINE_EXCEEDED"
@@ -398,11 +399,13 @@ class TestRevalidation:
         # And a later advance does nothing (trigger left the pending set).
         assert orchestrator.advance_pending() == []
 
-    def test_deadline_boundary_is_exclusive_before(self, orchestrator, queue, store, quotes, clock) -> None:
+    def test_deadline_boundary_is_exclusive_before(
+        self, orchestrator, queue, store, quotes, clock
+    ) -> None:
         self.ingest_one(orchestrator, queue)
         quotes.responses = [fresh_quote(clock, epoch=1)]
         # 1 ms before the deadline: still eligible for revalidation.
-        clock.now = datetime(2026, 8, 29, 12, 0, 8, 999000, tzinfo=timezone.utc)
+        clock.now = datetime(2026, 8, 29, 12, 0, 8, 999000, tzinfo=UTC)
         outcomes = orchestrator.advance_pending()
         assert [o.status for o in outcomes] == ["REVALIDATED"]
 
@@ -566,7 +569,7 @@ class TestConstruction:
             )
 
     def test_naive_clock_is_refused_at_ingest(self, queue, store, quotes, registry) -> None:
-        naive_clock = lambda: datetime(2026, 8, 29, 12, 0, 0)  # noqa: E731
+        naive_clock = lambda: datetime(2026, 8, 29, 12, 0, 0)  # noqa: E731, DTZ001
         orchestrator = TradingViewOrchestrator(
             queue=queue,
             store=store,
@@ -577,7 +580,7 @@ class TestConstruction:
             audit_sink=lambda r: None,
         )
         queue.push(make_message("msg-1"))
-        with pytest.raises(Exception):
+        with pytest.raises(Exception):  # noqa: B017 (contrat du test inchangé (resserrement = dette, cf. DEBT.md))
             orchestrator.pull_and_ingest()
 
     @pytest.mark.parametrize(

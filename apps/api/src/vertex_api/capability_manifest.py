@@ -19,18 +19,19 @@ performs any probe, any IBKR call or any financial computation.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Mapping, Optional
+from typing import Any
 
 import yaml
 
 __all__ = [
     "DEFAULT_MANIFEST_PATH",
+    "FAMILY_BY_REQUEST_METHOD",
     "CapabilityDeclaration",
     "CapabilityManifest",
     "CapabilityManifestError",
-    "FAMILY_BY_REQUEST_METHOD",
     "load_capability_manifest",
 ]
 
@@ -58,7 +59,7 @@ class CapabilityDeclaration:
     capability_id: str
     family: str
     declared_mode: str
-    description: Optional[str]
+    description: str | None
 
 
 @dataclass(frozen=True)
@@ -119,7 +120,7 @@ def _declaration_from_entry(entry: Any) -> CapabilityDeclaration:
     )
 
 
-def load_capability_manifest(path: Optional[Path] = None) -> CapabilityManifest:
+def load_capability_manifest(path: Path | None = None) -> CapabilityManifest:
     """Parse and validate the manifest; any structural defect fails the load."""
     manifest_path = DEFAULT_MANIFEST_PATH if path is None else path
     if not manifest_path.is_file():

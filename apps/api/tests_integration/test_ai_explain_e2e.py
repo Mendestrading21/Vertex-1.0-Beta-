@@ -23,15 +23,16 @@ from __future__ import annotations
 
 import re
 import unicodedata
-from datetime import datetime, timedelta, timezone
-from typing import Any, Iterator, Mapping
+from collections.abc import Iterator, Mapping
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
+from soft_passkey import SoftPasskey, login_passkey, register_passkey
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session
 
-from soft_passkey import SoftPasskey, login_passkey, register_passkey
 from vertex_core.synthetic import (
     generate_daily_bar_envelopes,
     generate_option_chain_envelopes,
@@ -50,7 +51,7 @@ CSRF_COOKIE = "vertex_csrf"
 INSTRUMENT = "SYN-TECH-01"
 UNKNOWN_INSTRUMENT = "SYN-TECH-99"
 
-NOW = datetime.now(timezone.utc).replace(microsecond=0)
+NOW = datetime.now(UTC).replace(microsecond=0)
 BASE_TIME = NOW - timedelta(minutes=30)
 SEED = 20260825
 
@@ -130,7 +131,7 @@ def published_analysis(database_url: str) -> Any:
                 ingest_envelope(session, envelope)
             session.commit()
 
-        clock = lambda: datetime.now(timezone.utc)  # noqa: E731
+        clock = lambda: datetime.now(UTC)  # noqa: E731
         runner = WorkerRunner(
             session_factory=factory,
             registry=build_registry(clock=clock, fusion_config=DEV_SYNTHETIC_CONFIG),

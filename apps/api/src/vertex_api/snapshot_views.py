@@ -71,23 +71,11 @@ from __future__ import annotations
 
 import math
 import re
-from datetime import date, datetime, timezone
+from collections.abc import Callable, Mapping, Sequence
+from datetime import UTC, date, datetime
 from functools import lru_cache
-from typing import Any, Callable, Mapping, Optional, Sequence
+from typing import Any, cast
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
-
-from vertex_core.contracts.enums import (
-    DelayStatus,
-    Direction,
-    EnvelopeQuality,
-    ExerciseStyle,
-    IdentityStatus,
-    OptionRight,
-    SettlementType,
-    SnapshotQuality,
-    SourceCapabilityStatus,
-)
-from vertex_persistence.repository.snapshots import CurrentSnapshot
 
 from vertex_api.capability_manifest import CapabilityDeclaration, CapabilityManifest
 from vertex_api.schemas import (
@@ -111,32 +99,44 @@ from vertex_api.schemas import (
     SystemHealth,
     WorkerHealth,
 )
+from vertex_core.contracts.enums import (
+    DelayStatus,
+    Direction,
+    EnvelopeQuality,
+    ExerciseStyle,
+    IdentityStatus,
+    OptionRight,
+    SettlementType,
+    SnapshotQuality,
+    SourceCapabilityStatus,
+)
+from vertex_persistence.repository.snapshots import CurrentSnapshot
 
 __all__ = [
+    "BARS_STATUS_LABELS",
     "DATA_STATE_LABELS",
     "DELAY_STATUS_LABELS",
+    "GENERATED_NATURE_LABELS",
+    "MARKETS_DISPLAY_UNIT",
+    "MARKETS_UNIT",
     "MAX_RELAYED_CODE_LENGTH",
     "MAX_RELAYED_DEPTH",
     "MAX_RELAYED_TEXT_LENGTH",
     "MAX_RELAYED_USER_TEXT_LENGTH",
-    "BARS_STATUS_LABELS",
-    "MARKETS_DISPLAY_UNIT",
-    "MARKETS_UNIT",
-    "GENERATED_NATURE_LABELS",
     "NATURE_CENSUS_KEYS",
     "NATURE_LEAF_KEYS",
     "NATURE_PARENT_KEYS",
     "OBSERVATION_CLAIM_LABELS",
     "POPULATION_LABELS",
+    "REASON_CONFLICTING_FIELD_STATUSES",
+    "REASON_INVALID_STATUS",
+    "REASON_NEVER_TESTED",
+    "REASON_NO_SNAPSHOT_PUBLISHED",
     "SYNTHETIC_IDENTIFIER_KEYS",
     "SYNTHETIC_MARKER_KEYS",
     "SYNTHETIC_MARKER_VALUES",
     "SYNTHETIC_VALUE_PREFIXES",
     "VALUE_NATURE_LABELS",
-    "REASON_CONFLICTING_FIELD_STATUSES",
-    "REASON_INVALID_STATUS",
-    "REASON_NEVER_TESTED",
-    "REASON_NO_SNAPSHOT_PUBLISHED",
     "SnapshotContentError",
     "build_analysis_response",
     "build_attention_response",
@@ -153,7 +153,7 @@ REASON_NEVER_TESTED = "NEVER_TESTED"
 REASON_INVALID_STATUS = "INVALID_STATUS"
 REASON_CONFLICTING_FIELD_STATUSES = "CONFLICTING_FIELD_STATUSES"
 
-_EPOCH = datetime(1970, 1, 1, tzinfo=timezone.utc)
+_EPOCH = datetime(1970, 1, 1, tzinfo=UTC)
 
 
 class SnapshotContentError(ValueError):
@@ -168,7 +168,7 @@ class SnapshotContentError(ValueError):
     could not name one — the handler then logs an explicit ``unknown``.
     """
 
-    def __init__(self, message: str, *, field: Optional[str] = None) -> None:
+    def __init__(self, message: str, *, field: str | None = None) -> None:
         super().__init__(message)
         self.field = field
 
@@ -184,10 +184,10 @@ def _parse_utc(value: Any, *, field: str) -> datetime:
         ) from exc
     if parsed.tzinfo is None or parsed.tzinfo.utcoffset(parsed) is None:
         raise SnapshotContentError(f"{field}: naive datetime rejected", field=field)
-    return parsed.astimezone(timezone.utc)
+    return parsed.astimezone(UTC)
 
 
-def _parse_utc_or_none(value: Any) -> Optional[datetime]:
+def _parse_utc_or_none(value: Any) -> datetime | None:
     if not isinstance(value, str):
         return None
     try:
@@ -196,7 +196,7 @@ def _parse_utc_or_none(value: Any) -> Optional[datetime]:
         return None
     if parsed.tzinfo is None or parsed.tzinfo.utcoffset(parsed) is None:
         return None
-    return parsed.astimezone(timezone.utc)
+    return parsed.astimezone(UTC)
 
 
 def _require_mapping(value: Any, *, field: str) -> Mapping[str, Any]:
@@ -1003,17 +1003,17 @@ _CLASS_BY_LEAF_KEY: dict[str, Callable[..., None]] = {
     "exchange_timezone": _relayed_timezone,
     "display_unit": _relayed_unit,
 }
-_CLASS_BY_LEAF_KEY.update({key: _relayed_decimal for key in _DECIMAL_KEYS})
+_CLASS_BY_LEAF_KEY.update(dict.fromkeys(_DECIMAL_KEYS, _relayed_decimal))
 _CLASS_BY_LEAF_KEY.update(
-    {key: _relayed_signed_decimal for key in _SIGNED_DECIMAL_KEYS}
+    dict.fromkeys(_SIGNED_DECIMAL_KEYS, _relayed_signed_decimal)
 )
-_CLASS_BY_LEAF_KEY.update({key: _relayed_percent for key in _PERCENT_KEYS})
-_CLASS_BY_LEAF_KEY.update({key: _relayed_instant for key in _INSTANT_KEYS})
-_CLASS_BY_LEAF_KEY.update({key: _relayed_trading_day for key in _TRADING_DAY_KEYS})
-_CLASS_BY_LEAF_KEY.update({key: _relayed_code for key in _CODE_KEYS})
-_CLASS_BY_LEAF_KEY.update({key: _relayed_upper_code for key in _UPPER_CODE_KEYS})
-_CLASS_BY_LEAF_KEY.update({key: _relayed_hash for key in _HASH_KEYS})
-_CLASS_BY_LEAF_KEY.update({key: _relayed_user_text for key in _USER_TEXT_KEYS})
+_CLASS_BY_LEAF_KEY.update(dict.fromkeys(_PERCENT_KEYS, _relayed_percent))
+_CLASS_BY_LEAF_KEY.update(dict.fromkeys(_INSTANT_KEYS, _relayed_instant))
+_CLASS_BY_LEAF_KEY.update(dict.fromkeys(_TRADING_DAY_KEYS, _relayed_trading_day))
+_CLASS_BY_LEAF_KEY.update(dict.fromkeys(_CODE_KEYS, _relayed_code))
+_CLASS_BY_LEAF_KEY.update(dict.fromkeys(_UPPER_CODE_KEYS, _relayed_upper_code))
+_CLASS_BY_LEAF_KEY.update(dict.fromkeys(_HASH_KEYS, _relayed_hash))
+_CLASS_BY_LEAF_KEY.update(dict.fromkeys(_USER_TEXT_KEYS, _relayed_user_text))
 
 
 def _check_relayed_number(value: Any, *, field: str) -> None:
@@ -1090,7 +1090,12 @@ def _relayed_census_count(value: Any, *, field: str) -> int:
 
     The refusal names the PATH of the bucket and never its stored value.
     """
-    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise SnapshotContentError(
+            f"{field}: nature census count must be a non-negative integer",
+            field=field,
+        )
+    if value < 0:
         raise SnapshotContentError(
             f"{field}: nature census count must be a non-negative integer",
             field=field,
@@ -1098,7 +1103,7 @@ def _relayed_census_count(value: Any, *, field: str) -> int:
     # A count is a number like any other: same magnitude ceiling, so a bucket
     # cannot be the one integer that escapes the bound (8th audit).
     _check_relayed_number(value, field=field)
-    return value
+    return cast(int, value)  # restreint en `int` par les deux gardes ci-dessus
 
 
 def _leaf_key(path: str) -> str:
@@ -1114,7 +1119,7 @@ def _parent_path(path: str) -> str:
     return head if sep else ""
 
 
-def _nature_scope(path: str) -> Optional[str]:
+def _nature_scope(path: str) -> str | None:
     """The SUBTREE a nature label at ``path`` governs, or ``None``.
 
     A nature label describes the container it sits in, not the whole
@@ -1401,7 +1406,7 @@ def _attention_item(raw: Any, *, index: int) -> AttentionItem:
 
 
 def build_attention_response(
-    snapshot: Optional[CurrentSnapshot],
+    snapshot: CurrentSnapshot | None,
 ) -> AttentionSnapshotResponse:
     """Render the last attention snapshot, or the honest empty state.
 
@@ -1454,14 +1459,16 @@ def _require_str(value: Any, *, field: str) -> str:
     return value
 
 
-def _optional_str(value: Any, *, field: str) -> Optional[str]:
+def _optional_str(value: Any, *, field: str) -> str | None:
     if value is None:
         return None
     return _require_str(value, field=field)
 
 
 def _require_int(value: Any, *, field: str) -> int:
-    if isinstance(value, bool) or not isinstance(value, int):
+    if isinstance(value, bool):
+        raise SnapshotContentError(f"{field}: integer required", field=field)
+    if not isinstance(value, int):
         raise SnapshotContentError(f"{field}: integer required", field=field)
     return value
 
@@ -1649,7 +1656,7 @@ def _markets_coverage(raw: Any) -> MarketsCoverage:
 
 
 def build_markets_overview_response(
-    snapshot: Optional[CurrentSnapshot],
+    snapshot: CurrentSnapshot | None,
 ) -> MarketsOverviewResponse:
     """Render the last markets overview snapshot, or the honest empty state.
 
@@ -1755,7 +1762,7 @@ def _checked_advice(value: Any) -> Mapping[str, Any]:
 
 
 def build_analysis_response(
-    snapshot: Optional[CurrentSnapshot], *, instrument: str
+    snapshot: CurrentSnapshot | None, *, instrument: str
 ) -> AnalysisResponse:
     """Render the last analysis dossier, or the honest empty state.
 
@@ -1829,7 +1836,7 @@ def build_analysis_response(
 # ---------------------------------------------------------------------------
 
 
-def _optional_non_negative_int(value: Any, *, field: str) -> Optional[int]:
+def _optional_non_negative_int(value: Any, *, field: str) -> int | None:
     if value is None:
         return None
     return _require_non_negative_int(value, field=field)
@@ -1913,7 +1920,7 @@ def _option_expiration(raw: Any, *, index: int) -> OptionChainExpiration:
 
 
 def build_option_chain_response(
-    snapshot: Optional[CurrentSnapshot], *, underlying: str
+    snapshot: CurrentSnapshot | None, *, underlying: str
 ) -> OptionChainResponse:
     """Render the last option-chain snapshot, or the honest empty state.
 
@@ -1987,7 +1994,7 @@ def build_option_chain_response(
 
 
 def _probe_field_entries(
-    snapshot: Optional[CurrentSnapshot],
+    snapshot: CurrentSnapshot | None,
 ) -> list[tuple[datetime, str, Mapping[str, Any]]]:
     """Flatten every probed field entry as (tested_at, capability_id, field).
 
@@ -2071,11 +2078,11 @@ def _entry_for_declaration(
             reason=REASON_INVALID_STATUS,
         )
 
-    reasons = {
-        field.get("reason_code")
-        for _, _, field in winning
-        if isinstance(field.get("reason_code"), str) and field.get("reason_code")
-    }
+    reasons: set[str] = set()
+    for _, _, field in winning:
+        reason_code = field.get("reason_code")
+        if isinstance(reason_code, str) and reason_code:
+            reasons.add(reason_code)
     reason = "; ".join(sorted(reasons)) if reasons else None
     return CapabilityStatusEntry(
         capability_id=declaration.capability_id,
@@ -2089,7 +2096,7 @@ def _entry_for_declaration(
 
 
 def _snapshot_health(
-    snapshot: Optional[CurrentSnapshot], *, now: datetime
+    snapshot: CurrentSnapshot | None, *, now: datetime
 ) -> SnapshotHealth:
     if snapshot is None:
         return SnapshotHealth(present=False, version=None, as_of=None, age_seconds=None)
@@ -2104,8 +2111,8 @@ def _snapshot_health(
 def build_system_health(
     *,
     db_ok: bool,
-    attention: Optional[CurrentSnapshot],
-    capabilities: Optional[CurrentSnapshot],
+    attention: CurrentSnapshot | None,
+    capabilities: CurrentSnapshot | None,
     now: datetime,
 ) -> SystemHealth:
     """Assemble the health blocks; the worker block is an explicit proxy."""
@@ -2128,8 +2135,8 @@ def build_system_health(
 def build_capabilities_response(
     manifest: CapabilityManifest,
     *,
-    snapshot: Optional[CurrentSnapshot],
-    attention: Optional[CurrentSnapshot],
+    snapshot: CurrentSnapshot | None,
+    attention: CurrentSnapshot | None,
     db_ok: bool,
     now: datetime,
 ) -> SystemCapabilitiesResponse:
@@ -2141,9 +2148,11 @@ def build_capabilities_response(
     )
     declared_ids = manifest.capability_ids
     unknown = tuple(
-        sorted({capability_id for _, capability_id, _ in probes if capability_id not in declared_ids})
+        sorted(
+            {capability_id for _, capability_id, _ in probes if capability_id not in declared_ids}
+        )
     )
-    snapshot_as_of: Optional[datetime] = None
+    snapshot_as_of: datetime | None = None
     if snapshot is not None:
         content = checked_relayed_content(snapshot.content)
         snapshot_as_of = _parse_utc(content.get("as_of"), field="as_of")

@@ -1,10 +1,11 @@
 """Identity contracts: strictness, immutability, UTC discipline, distinctness."""
 
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from decimal import Decimal
 
 import pytest
-from hypothesis import given, strategies as st
+from hypothesis import given
+from hypothesis import strategies as st
 from pydantic import ValidationError
 
 from vertex_core.contracts import (
@@ -17,36 +18,36 @@ from vertex_core.contracts import (
     SettlementType,
 )
 
-VALID_FROM = datetime(2026, 1, 5, 14, 30, tzinfo=timezone.utc)
+VALID_FROM = datetime(2026, 1, 5, 14, 30, tzinfo=UTC)
 
 
 def make_instrument(**overrides):
-    kwargs = dict(
-        instrument_id="ins-aapl-2026",
-        asset_class=AssetClass.STOCK,
-        canonical_symbol="AAPL",
-        exchange="NASDAQ",
-        currency="USD",
-        valid_from=VALID_FROM,
-        identity_status=IdentityStatus.RESOLVED,
-    )
+    kwargs = {
+        "instrument_id": "ins-aapl-2026",
+        "asset_class": AssetClass.STOCK,
+        "canonical_symbol": "AAPL",
+        "exchange": "NASDAQ",
+        "currency": "USD",
+        "valid_from": VALID_FROM,
+        "identity_status": IdentityStatus.RESOLVED,
+    }
     kwargs.update(overrides)
     return InstrumentId(**kwargs)
 
 
 def make_option(**overrides):
-    kwargs = dict(
-        underlying_id="ins-spx-2026",
-        expiry=date(2026, 9, 18),
-        strike=Decimal("5000"),
-        right=OptionRight.CALL,
-        exercise_style=ExerciseStyle.EUROPEAN,
-        settlement_type=SettlementType.CASH,
-        multiplier=100,
-        currency="USD",
-        exchange="CBOE",
-        trading_class="SPX",
-    )
+    kwargs = {
+        "underlying_id": "ins-spx-2026",
+        "expiry": date(2026, 9, 18),
+        "strike": Decimal("5000"),
+        "right": OptionRight.CALL,
+        "exercise_style": ExerciseStyle.EUROPEAN,
+        "settlement_type": SettlementType.CASH,
+        "multiplier": 100,
+        "currency": "USD",
+        "exchange": "CBOE",
+        "trading_class": "SPX",
+    }
     kwargs.update(overrides)
     return OptionContractId(**kwargs)
 
@@ -56,7 +57,7 @@ class TestInstrumentId:
         ins = make_instrument(ibkr_con_id=265598, isin="US0378331005")
         assert ins.canonical_symbol == "AAPL"
         assert ins.valid_to is None
-        assert ins.valid_from.tzinfo == timezone.utc
+        assert ins.valid_from.tzinfo == UTC
 
     def test_symbol_alone_is_never_an_identity(self):
         with pytest.raises(ValidationError):
@@ -64,19 +65,20 @@ class TestInstrumentId:
 
     def test_naive_valid_from_rejected(self):
         with pytest.raises(ValidationError, match="naive datetime"):
-            make_instrument(valid_from=datetime(2026, 1, 5, 14, 30))
+            make_instrument(valid_from=datetime(2026, 1, 5, 14, 30))  # noqa: DTZ001 (naïf délibéré : rejet vérifié)
 
     def test_aware_non_utc_normalized_to_utc(self):
-        from datetime import timedelta, timezone as tz
+        from datetime import timedelta
+        from datetime import timezone as tz
 
         paris = tz(timedelta(hours=2))
         ins = make_instrument(valid_from=datetime(2026, 1, 5, 16, 30, tzinfo=paris))
-        assert ins.valid_from == datetime(2026, 1, 5, 14, 30, tzinfo=timezone.utc)
+        assert ins.valid_from == datetime(2026, 1, 5, 14, 30, tzinfo=UTC)
         assert ins.valid_from.utcoffset().total_seconds() == 0
 
     def test_valid_to_before_valid_from_rejected(self):
         with pytest.raises(ValidationError, match="valid_to"):
-            make_instrument(valid_to=datetime(2025, 1, 1, tzinfo=timezone.utc))
+            make_instrument(valid_to=datetime(2025, 1, 1, tzinfo=UTC))
 
     def test_frozen(self):
         ins = make_instrument()

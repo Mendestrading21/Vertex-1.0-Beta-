@@ -41,10 +41,11 @@ and freshness are never silently frozen.
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Any, Callable, Mapping, Optional, Sequence
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:  # import-time cycle avoidance (ingest -> markets)
     from vertex_worker.analysis import AnalysisConfig
@@ -76,7 +77,6 @@ from vertex_persistence.repository.snapshots import (
     get_current_snapshot,
     publish_snapshot,
 )
-
 from vertex_worker.ingest import TOPIC_OBSERVATION_INGESTED
 from vertex_worker.registry import HandlerRegistry
 
@@ -140,10 +140,10 @@ def _require_aware_utc_now(now: datetime) -> datetime:
         raise TypeError(f"now: expected datetime, got {type(now).__name__}")
     if now.tzinfo is None or now.tzinfo.utcoffset(now) is None:
         raise ValueError("now: naive datetime rejected, aware UTC required")
-    return now.astimezone(timezone.utc)
+    return now.astimezone(UTC)
 
 
-def _iso(value: Optional[datetime]) -> Optional[str]:
+def _iso(value: datetime | None) -> str | None:
     if value is None:
         return None
     return _require_aware_utc_now(value).isoformat()
@@ -158,9 +158,9 @@ class ObservationRecord:
 
     event_id: str
     source: str
-    source_event_id: Optional[str]
-    instrument_ref: Optional[str]
-    published_at: Optional[datetime]
+    source_event_id: str | None
+    instrument_ref: str | None
+    published_at: datetime | None
     received_at: datetime
     as_of: datetime
     quality_status: str
@@ -276,7 +276,7 @@ def load_capability_records(session: Session) -> list[ObservationRecord]:
 # --------------------------------------------------------------------------
 
 
-def _content_title(record: ObservationRecord) -> Optional[str]:
+def _content_title(record: ObservationRecord) -> str | None:
     title = record.payload.get("title") if isinstance(record.payload, Mapping) else None
     if isinstance(title, str) and title.strip():
         return title
@@ -293,7 +293,7 @@ def _content_entities(record: ObservationRecord) -> tuple[str, ...]:
     return tuple(entities)
 
 
-def _content_url(record: ObservationRecord) -> Optional[str]:
+def _content_url(record: ObservationRecord) -> str | None:
     url = (
         record.payload.get("canonical_url")
         if isinstance(record.payload, Mapping)
@@ -551,7 +551,7 @@ def build_capabilities_content(
 
 def publish_if_changed(
     session: Session, *, kind: str, key: str, content: Any, as_of: datetime
-) -> Optional[PublishedSnapshot]:
+) -> PublishedSnapshot | None:
     """Publish a new version of ``(kind, key)`` only when the content changed.
 
     Compares the canonical content hash with the current head: identical
@@ -640,9 +640,9 @@ def build_registry(
     *,
     clock: Clock,
     fusion_config: FusionConfig,
-    markets_config: Optional["MarketsConfig"] = None,
-    options_config: Optional["OptionsConfig"] = None,
-    analysis_config: Optional["AnalysisConfig"] = None,
+    markets_config: MarketsConfig | None = None,
+    options_config: OptionsConfig | None = None,
+    analysis_config: AnalysisConfig | None = None,
 ) -> HandlerRegistry:
     """Build the worker registry with the canonical topics.
 
@@ -652,10 +652,6 @@ def build_registry(
     passing ``DEV_SYNTHETIC_CONFIG`` here; every snapshot they produce is
     honestly labeled ``population = "SYNTHETIC"``.
     """
-    from vertex_worker.markets import (
-        DEV_SYNTHETIC_MARKETS_CONFIG,
-        register_markets_handler,
-    )
     from vertex_worker.analysis import (
         DEV_SYNTHETIC_ANALYSIS_CONFIG,
         register_analysis_handler,
@@ -665,6 +661,10 @@ def build_registry(
         register_calendar_handler,
     )
     from vertex_worker.follow_up import register_follow_up_handler
+    from vertex_worker.markets import (
+        DEV_SYNTHETIC_MARKETS_CONFIG,
+        register_markets_handler,
+    )
     from vertex_worker.opportunities import (
         DEV_SYNTHETIC_OPPORTUNITIES_CONFIG,
         register_opportunities_handler,

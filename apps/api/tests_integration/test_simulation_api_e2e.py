@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import pytest
 from fastapi.testclient import TestClient
-
 from soft_passkey import SoftPasskey, login_passkey, register_passkey
 
 CSRF_HEADER = "X-Vertex-CSRF"

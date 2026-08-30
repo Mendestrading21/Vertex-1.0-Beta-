@@ -6,14 +6,14 @@ runner's dispatch, failure and shutdown logic without a database.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
-from typing import Any, Optional
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from vertex_persistence.enums import OutboxStatus
 from vertex_persistence.errors import OutboxLeaseError
 from vertex_persistence.repository.outbox import ClaimedOutboxMessage
 
-FIXED_NOW = datetime(2026, 8, 25, 12, 0, 0, tzinfo=timezone.utc)
+FIXED_NOW = datetime(2026, 8, 25, 12, 0, 0, tzinfo=UTC)
 
 
 def fixed_clock() -> datetime:
@@ -23,7 +23,7 @@ def fixed_clock() -> datetime:
 def make_message(
     message_id: int = 1,
     topic: str = "observation.ingested",
-    payload: Optional[dict[str, Any]] = None,
+    payload: dict[str, Any] | None = None,
     attempts: int = 0,
 ) -> ClaimedOutboxMessage:
     return ClaimedOutboxMessage(
@@ -50,7 +50,7 @@ class FakeSession:
     def rollback(self) -> None:
         self.rolled_back += 1
 
-    def __enter__(self) -> "FakeSession":
+    def __enter__(self) -> FakeSession:
         return self
 
     def __exit__(self, exc_type, exc, tb) -> None:

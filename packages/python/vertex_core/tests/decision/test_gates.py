@@ -71,7 +71,7 @@ class TestCatalog:
 
         for spec in GATE_CATALOG:
             params = inspect.signature(spec.evaluate).parameters
-            result = spec.evaluate(**{name: None for name in params})
+            result = spec.evaluate(**dict.fromkeys(params))
             assert result.gate_id == spec.gate_id
             assert result.version == spec.version
             assert_unevaluable(result)
@@ -211,12 +211,12 @@ class TestSessionAndEventKnown:
 
 
 def liquidity_kwargs(**overrides) -> dict:
-    kwargs = dict(
-        asset_class=AssetClass.STOCK,
-        observed_liquidity=Decimal("500000"),
-        required_minimum=Decimal("100000"),
-        observation_delayed=False,
-    )
+    kwargs = {
+        "asset_class": AssetClass.STOCK,
+        "observed_liquidity": Decimal("500000"),
+        "required_minimum": Decimal("100000"),
+        "observation_delayed": False,
+    }
     kwargs.update(overrides)
     return kwargs
 
@@ -352,12 +352,12 @@ class TestManualPortfolioRiskAvailable:
 
 
 def probability_kwargs(**overrides) -> dict:
-    kwargs = dict(
-        probability_used=True,
-        calibration_valid=True,
-        out_of_sample_validated=True,
-        calibration_current=True,
-    )
+    kwargs = {
+        "probability_used": True,
+        "calibration_valid": True,
+        "out_of_sample_validated": True,
+        "calibration_current": True,
+    }
     kwargs.update(overrides)
     return kwargs
 

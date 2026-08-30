@@ -5,10 +5,10 @@ from __future__ import annotations
 import re
 
 __all__ = [
-    "WorkerError",
+    "GENERIC_HANDLER_CODE",
     "HandlerError",
     "UnregisteredTopicError",
-    "GENERIC_HANDLER_CODE",
+    "WorkerError",
 ]
 
 _CODE_RE = re.compile(r"^[A-Z][A-Z0-9_]{0,63}$")

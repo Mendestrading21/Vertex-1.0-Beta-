@@ -43,6 +43,11 @@ from vertex_core.decision.risk_reward import (
 )
 
 __all__ = [
+    # gates
+    "GATE_CATALOG",
+    "GATE_ORDER",
+    "GATE_VERSIONS",
+    "REASON_UNEVALUABLE",
     # advice
     "AdviceEngine",
     "AdviceInputs",
@@ -50,18 +55,16 @@ __all__ = [
     "ConstraintsInput",
     "ContradictionsInput",
     "EntitlementsInput",
+    "GateSpec",
     "InstrumentResolutionInput",
     "LiquidityInput",
     "PortfolioRiskInput",
     "ProbabilityInput",
+    # risk_reward
+    "RiskRewardInputError",
+    "RiskRewardResult",
     "SessionEventInput",
     "SnapshotInput",
-    # gates
-    "GATE_CATALOG",
-    "GATE_ORDER",
-    "GATE_VERSIONS",
-    "REASON_UNEVALUABLE",
-    "GateSpec",
     "evaluate_calculations_valid",
     "evaluate_critical_contradictions_resolved",
     "evaluate_entitlements_sufficient",
@@ -72,8 +75,5 @@ __all__ = [
     "evaluate_session_and_event_known",
     "evaluate_snapshot_fresh_and_coherent",
     "evaluate_user_constraints_versioned",
-    # risk_reward
-    "RiskRewardInputError",
-    "RiskRewardResult",
     "risk_reward",
 ]

@@ -30,7 +30,7 @@ identical envelopes, byte for byte. No hidden entropy, no system clock.
 from __future__ import annotations
 
 from datetime import date, datetime, time, timedelta
-from typing import Any, Optional
+from typing import Any
 from zoneinfo import ZoneInfo
 
 from vertex_core.contracts import (
@@ -146,10 +146,10 @@ def _event_payload(
     category: str,
     status: str,
     title: str,
-    ticker: Optional[str],
+    ticker: str | None,
     instant_local: datetime,
     revisions: list[dict[str, Any]],
-    extra: Optional[dict[str, Any]] = None,
+    extra: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     payload: dict[str, Any] = {
         "type": "calendar_event",
@@ -189,7 +189,7 @@ def _chain_expirations(
 
 def generate_calendar_event_envelopes(
     *, seed: int, base_time: datetime
-) -> tuple[DataEnvelope[dict], ...]:
+) -> tuple[DataEnvelope[dict[str, Any]], ...]:
     """Generate the deterministic synthetic calendar-event envelope set.
 
     Pure function of ``(seed, base_time)``. Per focus ticker one EARNINGS
@@ -306,10 +306,10 @@ def generate_calendar_event_envelopes(
         )
         entries.append((stable_id, payload))
 
-    envelopes: list[DataEnvelope[dict]] = []
+    envelopes: list[DataEnvelope[dict[str, Any]]] = []
     for index, (stable_id, payload) in enumerate(entries):
         envelopes.append(
-            DataEnvelope[dict](
+            DataEnvelope[dict[str, Any]](
                 event_id=f"{SYNTHETIC_SOURCE}:{seed}:ev{index:04d}",
                 schema_version=SYNTHETIC_SCHEMA_CALENDAR_EVENT,
                 source=SYNTHETIC_SOURCE,

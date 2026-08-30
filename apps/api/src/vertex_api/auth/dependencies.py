@@ -20,7 +20,7 @@ context) or create a real session in the test database.
 from __future__ import annotations
 
 import hmac
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Literal
 
 from fastapi import HTTPException, Request, status
@@ -73,7 +73,7 @@ class SessionContext(BaseModel):
 
 def utc_now() -> datetime:
     """Aware UTC instant — the only clock read of the auth adapter."""
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def unauthorized() -> HTTPException:

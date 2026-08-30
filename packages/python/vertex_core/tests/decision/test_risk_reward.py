@@ -7,7 +7,8 @@ no unseeded randomness (Hypothesis manages its own reproducible search).
 from decimal import Decimal
 
 import pytest
-from hypothesis import given, strategies as st
+from hypothesis import given
+from hypothesis import strategies as st
 
 from vertex_core.contracts.enums import CalculationStatus
 from vertex_core.decision.risk_reward import (
@@ -19,15 +20,15 @@ from vertex_core.decision.risk_reward import (
 
 def valid_kwargs(**overrides) -> dict:
     """Baseline valid long scenario; override single fields per test."""
-    kwargs = dict(
-        entry=Decimal("100"),
-        stop=Decimal("95"),
-        target=Decimal("115"),
-        multiplier=1,
-        costs=Decimal("1"),
-        currency_match=True,
-        horizon_defined=True,
-    )
+    kwargs = {
+        "entry": Decimal("100"),
+        "stop": Decimal("95"),
+        "target": Decimal("115"),
+        "multiplier": 1,
+        "costs": Decimal("1"),
+        "currency_match": True,
+        "horizon_defined": True,
+    }
     kwargs.update(overrides)
     return kwargs
 
@@ -191,11 +192,11 @@ class TestFinancialSemantics:
         assert result.ratio == Decimal("100") / Decimal("0.01")
 
     def test_result_model_rejects_ok_without_figures(self):
-        with pytest.raises(Exception):
+        with pytest.raises(Exception):  # noqa: B017 (contrat du test inchangé (resserrement = dette, cf. DEBT.md))
             RiskRewardResult(status=CalculationStatus.OK)
 
     def test_result_model_rejects_not_implemented_status(self):
-        with pytest.raises(Exception):
+        with pytest.raises(Exception):  # noqa: B017 (contrat du test inchangé (resserrement = dette, cf. DEBT.md))
             RiskRewardResult(status=CalculationStatus.NOT_IMPLEMENTED, reason="X")
 
 
@@ -221,7 +222,9 @@ class TestProperties:
         self, entry, stop, target, multiplier, costs, currency_match, horizon_defined
     ):
         """Never a ratio unless every gate holds and risk > 0; then it is finite and exact."""
-        result = risk_reward(entry, stop, target, multiplier, costs, currency_match, horizon_defined)
+        result = risk_reward(
+            entry, stop, target, multiplier, costs, currency_match, horizon_defined
+        )
         gates_hold = currency_match and horizon_defined and stop < entry < target
         if result.status is CalculationStatus.OK:
             assert gates_hold

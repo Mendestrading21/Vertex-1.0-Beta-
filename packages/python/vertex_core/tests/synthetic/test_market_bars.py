@@ -7,7 +7,8 @@ clock-free.
 
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
+import itertools
+from datetime import UTC, date, datetime
 from decimal import Decimal
 
 import pytest
@@ -25,7 +26,7 @@ from vertex_core.synthetic import (
 )
 
 SEED = 20260830
-BASE_TIME = datetime(2026, 8, 25, 12, 0, 0, tzinfo=timezone.utc)
+BASE_TIME = datetime(2026, 8, 25, 12, 0, 0, tzinfo=UTC)
 
 
 @pytest.fixture(scope="module")
@@ -88,7 +89,7 @@ def test_sixty_bars_with_ohlc_invariants(envelopes) -> None:
 def test_bars_are_a_continuous_series(envelopes) -> None:
     for envelope in envelopes:
         bars = envelope.payload["bars"]
-        for previous, current in zip(bars, bars[1:]):
+        for previous, current in itertools.pairwise(bars):
             assert current["open"] == previous["close"]
 
 
@@ -102,5 +103,5 @@ def test_unknown_ticker_is_rejected() -> None:
 def test_naive_base_time_rejected() -> None:
     with pytest.raises(ValueError):
         generate_daily_bar_envelopes(
-            seed=SEED, base_time=datetime(2026, 8, 25, 12, 0, 0)
+            seed=SEED, base_time=datetime(2026, 8, 25, 12, 0, 0)  # noqa: DTZ001 (naïf délibéré : rejet vérifié)
         )

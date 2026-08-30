@@ -20,7 +20,7 @@ worker's polling remains the delivery guarantee.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
+from typing import Any
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -28,7 +28,6 @@ from sqlalchemy.orm import Session
 from vertex_core.contracts import DataEnvelope
 from vertex_persistence.repository.observations import insert_observation
 from vertex_persistence.repository.outbox import enqueue_outbox
-
 from vertex_worker.analysis import TOPIC_ANALYSIS_INGESTED, is_daily_bars_schema
 from vertex_worker.calendar import (
     TOPIC_CALENDAR_INGESTED,
@@ -43,8 +42,8 @@ from vertex_worker.options import (
 )
 
 __all__ = [
-    "TOPIC_OBSERVATION_INGESTED",
     "OUTBOX_NOTIFY_CHANNEL",
+    "TOPIC_OBSERVATION_INGESTED",
     "IngestResult",
     "ingest_envelope",
 ]
@@ -68,10 +67,10 @@ class IngestResult:
 
     event_id: str
     inserted: bool
-    outbox_message_id: Optional[int]
+    outbox_message_id: int | None
 
 
-def ingest_envelope(session: Session, envelope: DataEnvelope) -> IngestResult:
+def ingest_envelope(session: Session, envelope: DataEnvelope[Any]) -> IngestResult:
     """Persist ``envelope`` and enqueue its fusion job atomically.
 
     Runs entirely inside the caller's transaction (no commit here). The
@@ -79,6 +78,11 @@ def ingest_envelope(session: Session, envelope: DataEnvelope) -> IngestResult:
     if a new row was written, so an at-least-once upstream delivery never
     duplicates jobs for the same observation.
     """
+    # Le contrôle runtime vise la classe générique de BASE, jamais une
+    # paramétrisation : avec les génériques Pydantic, `DataEnvelope[Any]` est
+    # une classe concrète DISTINCTE de `DataEnvelope[dict[str, Any]]`, et un
+    # `isinstance` contre elle rejette toutes les enveloppes réelles.
+    # L'annotation et le contrôle runtime ne sont pas le même objet.
     if not isinstance(envelope, DataEnvelope):
         raise TypeError(
             f"envelope: expected DataEnvelope, got {type(envelope).__name__}"

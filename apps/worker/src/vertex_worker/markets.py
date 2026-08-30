@@ -37,13 +37,14 @@ handler; identical inputs and clock republish nothing.
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from decimal import ROUND_HALF_EVEN, Decimal, InvalidOperation
 from types import MappingProxyType
-from typing import Any, Callable, Mapping, Optional, Sequence
+from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import ColumnElement, select
 from sqlalchemy.orm import Session
 
 from vertex_core.calculations.market import (
@@ -61,7 +62,6 @@ from vertex_core.synthetic import (
 from vertex_core.version import ENGINE_VERSION
 from vertex_persistence.models import Observation
 from vertex_persistence.repository.outbox import ClaimedOutboxMessage
-
 from vertex_worker.registry import HandlerRegistry
 
 __all__ = [
@@ -121,7 +121,7 @@ class QuoteRecord:
 
     event_id: str
     source: str
-    instrument_ref: Optional[str]
+    instrument_ref: str | None
     as_of: datetime
     quality_status: str
     rights: str
@@ -201,7 +201,7 @@ def load_daily_quote_records(
         Observation.schema_version.like(f"{prefix}%")
         for prefix in DAILY_QUOTE_SCHEMA_PREFIXES
     ]
-    schema_filter = filters[0]
+    schema_filter: ColumnElement[bool] = filters[0]
     for extra in filters[1:]:
         schema_filter = schema_filter | extra
     rows = (
@@ -245,7 +245,7 @@ class _ParsedQuote:
     trading_day: str
     close: Decimal
     close_text: str
-    currency: Optional[str]
+    currency: str | None
     adjustment_basis: str
     quality: str
     synthetic: bool
@@ -253,7 +253,9 @@ class _ParsedQuote:
     as_of: datetime
 
 
-def _parse_quote(record: QuoteRecord, config: MarketsConfig) -> tuple[Optional[_ParsedQuote], Optional[str]]:
+def _parse_quote(
+    record: QuoteRecord, config: MarketsConfig
+) -> tuple[_ParsedQuote | None, str | None]:
     """Parse one record fail-closed; returns (quote, None) or (None, reason)."""
     if record.source not in config.allowed_sources:
         return None, REASON_SOURCE_NOT_ALLOWED
@@ -272,9 +274,10 @@ def _parse_quote(record: QuoteRecord, config: MarketsConfig) -> tuple[Optional[_
         for value in (ticker, sector, trading_day, close_text, basis)
     ):
         return None, REASON_INVALID_PAYLOAD
-    assert isinstance(ticker, str) and isinstance(sector, str)  # narrowed above
-    assert isinstance(trading_day, str) and isinstance(close_text, str)
-    assert isinstance(basis, str)
+    # narrowing mypy, garde réelle au-dessus
+    assert isinstance(ticker, str) and isinstance(sector, str)  # narrowed above  # noqa: S101
+    assert isinstance(trading_day, str) and isinstance(close_text, str)  # noqa: S101 (narrowing mypy, garde réelle au-dessus)
+    assert isinstance(basis, str)  # noqa: S101 (narrowing mypy, garde réelle au-dessus)
     declared = config.universe.get(sector)
     if declared is None or ticker not in declared:
         return None, REASON_TICKER_NOT_IN_UNIVERSE
@@ -344,7 +347,7 @@ def _french_conclusion(
     up: int,
     down: int,
     flat: int,
-    breadth_pct: Optional[str],
+    breadth_pct: str | None,
     threshold_pct: str,
 ) -> str:
     head = (
@@ -383,7 +386,7 @@ def build_markets_overview_content(
     for record in sorted(records, key=lambda r: (r.as_of, r.event_id)):
         quote, reason = _parse_quote(record, config)
         if quote is None:
-            assert reason is not None
+            assert reason is not None  # noqa: S101 (narrowing mypy, garde réelle au-dessus)
             rejected_records.append({"event_id": record.event_id, "reason": reason})
             continue
         if quote.synthetic:
@@ -413,7 +416,7 @@ def build_markets_overview_content(
         except CalculationInputError as exc:
             discarded.append({"ticker": ticker, "reason": exc.reason})
             continue
-        record = make_calculation_record(
+        calculation_record = make_calculation_record(
             calculation_id="market.simple_return",
             calculation_type="market",
             code_sha=_CODE_SHA,
@@ -451,7 +454,7 @@ def build_markets_overview_content(
             ),
             "quality": _worst_quality(older.quality, latest.quality),
             "synthetic": older.synthetic or latest.synthetic,
-            "calculation": _calculation_meta(record),
+            "calculation": _calculation_meta(calculation_record),
             "_close_decimal": latest.close,  # stripped below
         }
 
@@ -502,7 +505,7 @@ def build_markets_overview_content(
         Decimal(covered_count) / Decimal(universe_size) * 100, _PCT_ONE_DP
     )
     breadth_block: dict[str, Any]
-    breadth_pct: Optional[str] = None
+    breadth_pct: str | None = None
     try:
         breadth_value = breadth(
             up,
@@ -667,7 +670,6 @@ class MarketsOverviewHandler:
         """
         from vertex_persistence.models import Portfolio
         from vertex_persistence.repository.outbox import enqueue_outbox
-
         from vertex_worker.performance import TOPIC_PERFORMANCE_REFRESH
         from vertex_worker.portfolio import TOPIC_PORTFOLIO_VALUATION_REFRESH
 

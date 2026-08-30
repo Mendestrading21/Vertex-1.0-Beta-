@@ -57,20 +57,11 @@ committed ``apps/api/openapi.json`` rendered from it — is unchanged.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
-from typing import Any, Literal, Mapping, Optional, Sequence
+from collections.abc import Mapping, Sequence
+from datetime import UTC, datetime, timedelta
+from typing import Any, Literal
 
 from fastapi import HTTPException
-
-from vertex_core.contracts.types import (
-    ContractModel,
-    FrozenStrMapping,
-    NonEmptyStr,
-    PositiveInt,
-    UtcDatetime,
-)
-from vertex_core.data.freshness import get_freshness_policy
-from vertex_persistence.repository.snapshots import CurrentSnapshot
 
 from vertex_api.snapshot_views import (
     SnapshotContentError,
@@ -81,6 +72,15 @@ from vertex_api.snapshot_views import (
     _require_str,
     checked_relayed_content,
 )
+from vertex_core.contracts.types import (
+    ContractModel,
+    FrozenStrMapping,
+    NonEmptyStr,
+    PositiveInt,
+    UtcDatetime,
+)
+from vertex_core.data.freshness import get_freshness_policy
+from vertex_persistence.repository.snapshots import CurrentSnapshot
 
 __all__ = [
     "AGENDA_STATE_TO_RESPONSE_STATE",
@@ -111,19 +111,24 @@ SNAPSHOT_KEY_GLOBAL = "global"
 
 REASON_NO_SNAPSHOT_PUBLISHED = "no snapshot published"
 
-STATE_DEGRADED = "degraded"
+CalendarState = Literal[
+    "ok", "empty", "not_entitled", "rejected", "stale", "empty_window", "degraded"
+]
+"""États servis par la page Calendrier — le contrat, pas une chaîne libre."""
+
+STATE_DEGRADED: CalendarState = "degraded"
 """Served when the snapshot omits a field of a LATER contract — the
 ``agenda_state`` itself or one of :data:`LEGACY_EVENT_FIELDS`: the agenda is
 relayed, the state is honestly incomplete — never ``ok``."""
 
-STATE_EMPTY_WINDOW = "empty_window"
+STATE_EMPTY_WINDOW: CalendarState = "empty_window"
 """Served when the REQUESTED window selects none of the published events."""
 
 REASON_MISSING_AGENDA_STATE = (
     "state field missing: snapshot predates the current agenda_state contract"
 )
 
-AGENDA_STATE_TO_RESPONSE_STATE: Mapping[str, str] = {
+AGENDA_STATE_TO_RESPONSE_STATE: Mapping[str, CalendarState] = {
     "OK": "ok",
     "EMPTY": "empty",
     "NOT_ENTITLED": "not_entitled",
@@ -204,8 +209,8 @@ class CalendarWindow(ContractModel):
     """
 
     applied: bool
-    from_utc: Optional[UtcDatetime]
-    to_utc: Optional[UtcDatetime]
+    from_utc: UtcDatetime | None
+    to_utc: UtcDatetime | None
     max_days: PositiveInt
     events_total: int
     events_in_window: int
@@ -234,25 +239,17 @@ class CalendarResponse(ContractModel):
     clock — never a frozen boolean.
     """
 
-    state: Literal[
-        "ok",
-        "empty",
-        "not_entitled",
-        "rejected",
-        "stale",
-        "empty_window",
-        "degraded",
-    ]
-    snapshot_version: Optional[PositiveInt]
-    as_of: Optional[UtcDatetime]
-    population: Optional[NonEmptyStr]
-    importance_rule: Optional[FrozenStrMapping]
+    state: CalendarState
+    snapshot_version: PositiveInt | None
+    as_of: UtcDatetime | None
+    population: NonEmptyStr | None
+    importance_rule: FrozenStrMapping | None
     agenda: tuple[FrozenStrMapping, ...]
-    categories: Optional[FrozenStrMapping]
-    statuses: Optional[FrozenStrMapping]
-    coverage: Optional[FrozenStrMapping]
+    categories: FrozenStrMapping | None
+    statuses: FrozenStrMapping | None
+    coverage: FrozenStrMapping | None
     window: CalendarWindow
-    reason: Optional[NonEmptyStr]
+    reason: NonEmptyStr | None
 
 
 def _window_error(code: str, message: str) -> HTTPException:
@@ -262,8 +259,8 @@ def _window_error(code: str, message: str) -> HTTPException:
 
 
 def validate_window(
-    window_from: Optional[datetime], window_to: Optional[datetime]
-) -> Optional[tuple[datetime, datetime]]:
+    window_from: datetime | None, window_to: datetime | None
+) -> tuple[datetime, datetime] | None:
     """Validate the from/to pair fail-closed; ``None`` when absent.
 
     Both bounds or none; aware datetimes only; ``from <= to``; at most
@@ -282,8 +279,8 @@ def validate_window(
                 ERROR_WINDOW_NAIVE_DATETIME,
                 f"'{label}' must be a timezone-aware datetime",
             )
-    start = window_from.astimezone(timezone.utc)
-    end = window_to.astimezone(timezone.utc)
+    start = window_from.astimezone(UTC)
+    end = window_to.astimezone(UTC)
     if end < start:
         raise _window_error(
             ERROR_WINDOW_INVERTED, "'to' must not precede 'from'"
@@ -296,7 +293,9 @@ def validate_window(
     return start, end
 
 
-def _counters(events: Sequence[Mapping[str, Any]]) -> tuple[dict, dict]:
+def _counters(
+    events: Sequence[Mapping[str, Any]],
+) -> tuple[dict[str, int], dict[str, int]]:
     """Category and status counters of the events REALLY served."""
     categories: dict[str, int] = {}
     statuses: dict[str, int] = {"ESTIMATED": 0, "CONFIRMED": 0}
@@ -309,7 +308,7 @@ def _counters(events: Sequence[Mapping[str, Any]]) -> tuple[dict, dict]:
 
 
 def _window_echo(
-    window: Optional[tuple[datetime, datetime]],
+    window: tuple[datetime, datetime] | None,
     *,
     events_total: int,
     selected: Sequence[Mapping[str, Any]],
@@ -334,7 +333,7 @@ def _utc_now() -> datetime:
     read here; every caller may inject ``now`` instead (tests always do — no
     test depends on the real time).
     """
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def _snapshot_age(snapshot: CurrentSnapshot, *, now: datetime) -> timedelta:
@@ -348,7 +347,7 @@ def _snapshot_age(snapshot: CurrentSnapshot, *, now: datetime) -> timedelta:
         raise SnapshotContentError(
             "snapshot.as_of: naive datetime rejected", field="snapshot.as_of"
         )
-    age = now.astimezone(timezone.utc) - as_of.astimezone(timezone.utc)
+    age = now.astimezone(UTC) - as_of.astimezone(UTC)
     if age < _ZERO:
         raise SnapshotContentError(
             "snapshot.as_of: a snapshot dated in the future cannot be served",
@@ -358,10 +357,10 @@ def _snapshot_age(snapshot: CurrentSnapshot, *, now: datetime) -> timedelta:
 
 
 def build_calendar_response(
-    snapshot: Optional[CurrentSnapshot],
+    snapshot: CurrentSnapshot | None,
     *,
-    window: Optional[tuple[datetime, datetime]],
-    now: Optional[datetime] = None,
+    window: tuple[datetime, datetime] | None,
+    now: datetime | None = None,
 ) -> CalendarResponse:
     """Render the last calendar snapshot, or the honest empty state.
 
@@ -470,8 +469,8 @@ def build_calendar_response(
         events.append(event)
 
     published_state = content.get("agenda_state")
-    agenda_state: Optional[str]
-    reason: Optional[str]
+    agenda_state: str | None
+    reason: str | None
     if published_state is None:
         # Documented backward compatibility: publish-if-changed would keep an
         # older snapshot in place indefinitely, so its readable agenda is
@@ -506,7 +505,7 @@ def build_calendar_response(
         start, end = window
         selected = [
             event
-            for event, instant in zip(events, instants)
+            for event, instant in zip(events, instants, strict=True)
             if start <= instant <= end
         ]
 
@@ -536,7 +535,7 @@ def build_calendar_response(
     # own budget first, then the recomputed per-event flags. Neither may
     # leave a state saying ``ok`` about an agenda nothing vouches for.
     if age > CALENDAR_MAX_AGE:
-        freshness_reason: Optional[str] = REASON_SNAPSHOT_STALE.format(
+        freshness_reason: str | None = REASON_SNAPSHOT_STALE.format(
             age=int(age.total_seconds()),
             budget=int(CALENDAR_MAX_AGE.total_seconds()),
             policy=_FRESHNESS_POLICY.name,

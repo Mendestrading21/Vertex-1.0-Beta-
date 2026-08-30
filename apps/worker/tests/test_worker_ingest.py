@@ -7,7 +7,7 @@ session for insert and enqueue, no enqueue on duplicate, no commit inside.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -15,7 +15,7 @@ import vertex_worker.ingest as ingest_module
 from vertex_core.synthetic import generate_envelopes
 from vertex_worker.ingest import TOPIC_OBSERVATION_INGESTED, ingest_envelope
 
-BASE_TIME = datetime(2026, 8, 25, 12, 0, 0, tzinfo=timezone.utc)
+BASE_TIME = datetime(2026, 8, 25, 12, 0, 0, tzinfo=UTC)
 
 
 class RecordingSession:

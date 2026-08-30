@@ -9,7 +9,7 @@ proof that no opaque token is ever stored in clear in the database.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy import text
@@ -38,7 +38,7 @@ from vertex_persistence.repository.sessions import (
     validate_session,
 )
 
-T0 = datetime(2026, 8, 1, 12, 0, 0, tzinfo=timezone.utc)
+T0 = datetime(2026, 8, 1, 12, 0, 0, tzinfo=UTC)
 
 CRED_ID = b"synthetic-credential-id-1"
 PUB_KEY = b"synthetic-cose-public-key-bytes"
@@ -88,7 +88,8 @@ class TestCredentials:
                 sign_count=0,
                 transports=None,
                 label="x",
-                now=datetime(2026, 8, 1, 12, 0, 0),  # naive: rejected
+                # naïf délibéré : rejet vérifié
+                now=datetime(2026, 8, 1, 12, 0, 0),  # naive: rejected  # noqa: DTZ001
             )
 
     def test_empty_bytes_and_negative_sign_count_rejected(
@@ -151,7 +152,9 @@ class TestSessionCycle:
             db_session, credential_id=CRED_ID, now=T0, ttl=timedelta(minutes=30)
         )
         at_expiry = issued.expires_at
-        assert validate_session(db_session, session_token=issued.session_token, now=at_expiry) is None
+        assert (
+            validate_session(db_session, session_token=issued.session_token, now=at_expiry) is None
+        )
         just_before = at_expiry - timedelta(seconds=1)
         assert (
             validate_session(db_session, session_token=issued.session_token, now=just_before)

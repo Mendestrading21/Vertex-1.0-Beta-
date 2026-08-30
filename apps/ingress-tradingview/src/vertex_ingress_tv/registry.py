@@ -12,10 +12,10 @@ in-memory policy object, hydrated by the caller (later: from PostgreSQL).
 
 from __future__ import annotations
 
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum, unique
-from typing import Callable, Dict, Iterable, Optional
 
 from vertex_ingress_tv.schema import TradingViewAlertV1
 
@@ -52,9 +52,9 @@ class RegisteredAlert:
 
     alert_id: str
     expected_script_version: str
-    expected_exchange: Optional[str] = None
-    expected_ticker: Optional[str] = None
-    expected_interval: Optional[str] = None
+    expected_exchange: str | None = None
+    expected_ticker: str | None = None
+    expected_interval: str | None = None
     active: bool = True
 
 
@@ -65,7 +65,7 @@ class RegistryRejection:
     reason: RegistryRejectionReason
     alert_id: str
     observed_script_version: str
-    expected_script_version: Optional[str]
+    expected_script_version: str | None
     occurred_at: datetime
     detail: str = ""
 
@@ -75,8 +75,8 @@ class RegistryDecision:
     """Outcome of a registry check: accepted entry or auditable rejection."""
 
     accepted: bool
-    entry: Optional[RegisteredAlert] = None
-    rejection: Optional[RegistryRejection] = None
+    entry: RegisteredAlert | None = None
+    rejection: RegistryRejection | None = None
 
 
 class AlertRegistry:
@@ -94,7 +94,7 @@ class AlertRegistry:
         clock: Callable[[], datetime],
         audit_sink: Callable[[RegistryRejection], None],
     ) -> None:
-        self._entries: Dict[str, RegisteredAlert] = {}
+        self._entries: dict[str, RegisteredAlert] = {}
         for entry in entries:
             if entry.alert_id in self._entries:
                 raise ValueError(f"duplicate registry entry for alert_id {entry.alert_id!r}")
@@ -106,7 +106,7 @@ class AlertRegistry:
         self,
         reason: RegistryRejectionReason,
         alert: TradingViewAlertV1,
-        expected_script_version: Optional[str],
+        expected_script_version: str | None,
         detail: str = "",
     ) -> RegistryDecision:
         now = self._clock()

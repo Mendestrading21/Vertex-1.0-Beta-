@@ -105,9 +105,10 @@ from __future__ import annotations
 import html
 import re
 import unicodedata
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Literal, Mapping, NamedTuple, Optional, Sequence, Union
+from typing import Any, Final, Literal, NamedTuple
 
 from pydantic import Field, model_validator
 
@@ -164,8 +165,8 @@ __all__ = [
     "validate_claims",
 ]
 
-PROVIDER_DETERMINISTIC_TEMPLATE = "DETERMINISTIC_TEMPLATE"
-TEMPLATE_VERSION = "vertex.ai-deterministic-template/1.0"
+PROVIDER_DETERMINISTIC_TEMPLATE: Final = "DETERMINISTIC_TEMPLATE"
+TEMPLATE_VERSION: Final = "vertex.ai-deterministic-template/1.0"
 
 AI_STATUS_PROVIDER = "DISABLED"
 AI_STATUS_REASON = "B-05_HUMAN_DECISION_PENDING"
@@ -202,7 +203,7 @@ ERROR_NO_SNAPSHOT_FOR_SUBJECT = "NO_SNAPSHOT_FOR_SUBJECT"
 REFUSAL_EMPTY_CORPUS = "EMPTY_OR_MALFORMED_SNAPSHOT_CONTENT"
 REFUSAL_NO_GROUNDED_CLAIM = "NO_GROUNDED_CLAIM"
 
-EXTERNAL_CONTENT_LABEL = "EXTERNAL_UNVERIFIED"
+EXTERNAL_CONTENT_LABEL: Final = "EXTERNAL_UNVERIFIED"
 EXTERNAL_EXCERPT_MAX_LENGTH = 160
 """Hard truncation length of an external excerpt (before escaping)."""
 
@@ -420,7 +421,7 @@ enumerate, which is one reason the detector is not a closed class.
 _FOLDING_TABLE = str.maketrans(
     {
         **{ord(source): target for source, target in _HOMOGLYPHS},
-        **{code: target for code, target in _PERCENT_LOOKALIKES.items()},
+        **dict(_PERCENT_LOOKALIKES.items()),
     }
 )
 
@@ -662,7 +663,7 @@ _FORBIDDEN_LANGUAGE_RULES: tuple[tuple[str, Any], ...] = (
 )
 
 
-def detect_forbidden_language(text: str) -> Optional[str]:
+def detect_forbidden_language(text: str) -> str | None:
     """Return the forbidden-language category of ``text``, or ``None``.
 
     Implements the AI_GATEWAY.md « détection de langage interdit » step on
@@ -770,7 +771,7 @@ def _ident(value: str) -> _Segment:
     return _Segment(value, value not in CANONICAL_VOCABULARY)
 
 
-_Composable = Union[str, Sequence[_Segment]]
+_Composable = str | Sequence[_Segment]
 
 
 def _segments(value: _Composable) -> tuple[_Segment, ...]:
@@ -802,7 +803,7 @@ class _Draft:
 class _DraftClaim(_Draft):
     refs: tuple[str, ...] = ()
 
-    def claim(self) -> "AiClaim":
+    def claim(self) -> AiClaim:
         return AiClaim(text=self.text, kind="FACT", evidence_refs=self.refs)
 
 
@@ -839,15 +840,15 @@ class _Reference:
     """
 
     namespace: _ReferenceNamespace
-    value: Optional[str]
+    value: str | None
 
 
-def _gate_ref(gate_id: Optional[str]) -> _Reference:
+def _gate_ref(gate_id: str | None) -> _Reference:
     """Mint the ONLY kind of reference the completeness invariant accepts."""
     return _Reference(_ReferenceNamespace.GATE, gate_id)
 
 
-def _position_ref(ticker: Optional[str]) -> _Reference:
+def _position_ref(ticker: str | None) -> _Reference:
     """Mint a reference to a STORED position — never comparable to a gate."""
     return _Reference(_ReferenceNamespace.POSITION, ticker)
 
@@ -855,7 +856,7 @@ def _position_ref(ticker: Optional[str]) -> _Reference:
 @dataclass(frozen=True)
 class _DraftContradiction(_Draft):
     code: str = "UNKNOWN"
-    reference: Optional[_Reference] = None
+    reference: _Reference | None = None
 
     @property
     def restitutes_a_gate(self) -> bool:
@@ -872,16 +873,20 @@ class _DraftContradiction(_Draft):
         )
 
     @property
-    def restituted_gate_id(self) -> Optional[str]:
+    def restituted_gate_id(self) -> str | None:
         """The gate id this contradiction restitutes, else ``None``.
 
         ``None`` also means « an anonymous gate » when
         :attr:`restitutes_a_gate` is true — the two cases are told apart by
         reading both properties, never by the string alone.
         """
-        return self.reference.value if self.restitutes_a_gate else None
+        if not self.restitutes_a_gate:
+            return None
+        # `restitutes_a_gate` implique `reference is not None`.
+        assert self.reference is not None  # noqa: S101
+        return self.reference.value
 
-    def contradiction(self) -> "AiContradiction":
+    def contradiction(self) -> AiContradiction:
         return AiContradiction(
             code=self.code,
             reference=None if self.reference is None else self.reference.value,
@@ -893,7 +898,7 @@ def _note(value: _Composable) -> _Draft:
     return _Draft(_segments(value))
 
 
-_CITATION_LABELS: Mapping[tuple[Optional[_ReferenceNamespace], bool], str] = {
+_CITATION_LABELS: Mapping[tuple[_ReferenceNamespace | None, bool], str] = {
     (_ReferenceNamespace.GATE, True): "identifiant de porte cité",
     (_ReferenceNamespace.GATE, False): "porte non identifiable",
     (_ReferenceNamespace.POSITION, True): "identifiant de position cité",
@@ -910,7 +915,7 @@ refusal: the previous wording called every refused contradiction a « porte ».
 """
 
 
-def _citation(draft: "_DraftContradiction") -> str:
+def _citation(draft: _DraftContradiction) -> str:
     """Name the origin and shape of a refused contradiction's reference."""
     reference = draft.reference
     if reference is None:
@@ -918,7 +923,7 @@ def _citation(draft: "_DraftContradiction") -> str:
     return _CITATION_LABELS[(reference.namespace, reference.value is not None)]
 
 
-def _screen(draft: _Draft) -> Optional[str]:
+def _screen(draft: _Draft) -> str | None:
     """Run the detector on the FREE PROSE of a produced text only."""
     prose = draft.prose
     if not prose.strip():
@@ -993,7 +998,7 @@ class AiContradiction(ContractModel):
     """One contradiction carried by the snapshot (e.g. a closed gate)."""
 
     code: NonEmptyStr
-    reference: Optional[NonEmptyStr]
+    reference: NonEmptyStr | None
     text: NonEmptyStr
 
 
@@ -1019,7 +1024,7 @@ class AiAnswer(ContractModel):
     subject: AiSubject
     locale: Literal["fr"]
     state: Literal["ok", "refused"]
-    refusal_reason: Optional[NonEmptyStr]
+    refusal_reason: NonEmptyStr | None
     as_of: UtcDatetime
     snapshot_version: PositiveInt
     content_hash: NonEmptyStr
@@ -1031,7 +1036,7 @@ class AiAnswer(ContractModel):
     evidence_catalog: tuple[AiEvidenceCatalogEntry, ...]
 
     @model_validator(mode="after")
-    def _state_is_coherent(self) -> "AiAnswer":
+    def _state_is_coherent(self) -> AiAnswer:
         if self.state == "ok":
             if not self.claims:
                 raise ValueError(
@@ -1108,7 +1113,7 @@ def _claim(text: _Composable, *refs: str) -> _DraftClaim:
 
 
 def _contradiction(
-    code: str, reference: Optional[_Reference], text: _Composable
+    code: str, reference: _Reference | None, text: _Composable
 ) -> _DraftContradiction:
     """Build a contradiction draft.
 
@@ -1122,11 +1127,11 @@ def _mapping(value: Any) -> Mapping[str, Any]:
     return value if isinstance(value, Mapping) else {}
 
 
-def _text(value: Any) -> Optional[str]:
+def _text(value: Any) -> str | None:
     return value if isinstance(value, str) and value else None
 
 
-def _token(value: Any) -> Optional[str]:
+def _token(value: Any) -> str | None:
     """Return ``value`` when its characters are relayable, else ``None``.
 
     Applied to every value read from the snapshot before it is restituted:
@@ -1147,7 +1152,7 @@ def _token(value: Any) -> Optional[str]:
     return text
 
 
-def _count(value: Any) -> Optional[int]:
+def _count(value: Any) -> int | None:
     if isinstance(value, bool) or not isinstance(value, int):
         return None
     return value if value >= 0 else None
@@ -1161,7 +1166,9 @@ def _string_list(value: Any) -> list[str]:
 
 #: Statuts de porte canoniques (ADR-014). Lus depuis ``vertex_core``, jamais
 #: redéfinis ici : l'IA n'est pas une seconde autorité sur ce vocabulaire.
-_GATE_STATUS_VALUES: frozenset[str] = frozenset(member.value for member in canonical_enums.GateStatus)
+_GATE_STATUS_VALUES: frozenset[str] = frozenset(
+    member.value for member in canonical_enums.GateStatus
+)
 
 _ADVICE_FIELD_VOCABULARIES: Mapping[str, frozenset[str]] = {
     "status": frozenset(member.value for member in canonical_enums.AdviceStatus),
@@ -1498,6 +1505,7 @@ def _analysis_parts(content: Mapping[str, Any], self_ref: str) -> _Parts:
         ]
         if last_close is not None and currency is not None and last_day is not None:
             bars_population = _token(bars.get("population"))
+            refs: tuple[str, ...]
             if bars_population is not None:
                 refs = (bars_ref,)
             elif population is not None:

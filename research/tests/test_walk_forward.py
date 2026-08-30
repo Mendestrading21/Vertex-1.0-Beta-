@@ -8,12 +8,12 @@ la purge est neutralisée.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+import itertools
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
-
 from pipelines.walk_forward import (
     Fold,
     WalkForwardConfig,
@@ -25,7 +25,7 @@ DAY = timedelta(days=1)
 
 
 def daily(count: int, start: datetime | None = None) -> list[datetime]:
-    origin = start or datetime(2024, 1, 1, tzinfo=timezone.utc)
+    origin = start or datetime(2024, 1, 1, tzinfo=UTC)
     return [origin + index * DAY for index in range(count)]
 
 
@@ -48,7 +48,7 @@ def test_une_duree_nulle_est_refusee(field: str) -> None:
 
 
 def test_un_instant_naif_est_refuse() -> None:
-    naive = [datetime(2024, 1, 1) + index * DAY for index in range(200)]
+    naive = [datetime(2024, 1, 1) + index * DAY for index in range(200)]  # noqa: DTZ001 (naïf délibéré : rejet vérifié)
     with pytest.raises(ValueError, match="naïf"):
         list(purged_walk_forward(naive, config()))
 
@@ -105,7 +105,7 @@ def test_le_test_de_fuite_echouerait_sans_la_purge() -> None:
 def test_les_plis_avancent_dans_le_temps_sans_se_chevaucher() -> None:
     folds = list(purged_walk_forward(daily(500), config()))
     assert len(folds) >= 3
-    for previous, current in zip(folds, folds[1:]):
+    for previous, current in itertools.pairwise(folds):
         assert current.test_start > previous.test_start
         assert set(previous.test).isdisjoint(current.test)
 
@@ -216,7 +216,7 @@ def test_l_embargo_modifie_reellement_les_entrainements() -> None:
 def test_l_embargo_retire_le_test_precedent_de_l_entrainement_suivant() -> None:
     folds = _folds(365)
     assert len(folds) >= 2
-    for previous, current in zip(folds, folds[1:]):
+    for previous, current in itertools.pairwise(folds):
         assert set(current.train).isdisjoint(previous.test), (
             f"le pli {current.index} entraîne sur "
             f"{sorted(set(current.train) & set(previous.test))} — observations "
@@ -229,11 +229,11 @@ def test_les_observations_sous_embargo_sont_declarees_purgees() -> None:
     folds = _folds(365)
     assert len(folds) >= 2
     fold = folds[1]
-    quarantined = set(folds[0].test) & set(
+    quarantined = set(folds[0].test) & {
         position
         for position, moment in enumerate(_embargo_stamps())
         if moment < fold.test_start
-    )
+    }
     assert quarantined
     assert quarantined.issubset(set(fold.purged))
     assert set(fold.purged).isdisjoint(fold.train)

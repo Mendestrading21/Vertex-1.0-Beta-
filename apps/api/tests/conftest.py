@@ -7,7 +7,8 @@ the REAL authentication path (WebAuthn ceremony, database session, CSRF) is
 exercised end-to-end in ``apps/api/tests_integration`` against PostgreSQL.
 """
 
-from typing import Any, Iterator
+from collections.abc import Iterator
+from typing import Any
 
 import pytest
 from fastapi import FastAPI

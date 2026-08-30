@@ -8,7 +8,8 @@ plausible-but-clearly-fake content (SYN tickers, prefixed titles).
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
+from typing import Any
 
 import pytest
 
@@ -18,11 +19,14 @@ from vertex_core.synthetic import (
     SYNTHETIC_RIGHTS,
     SYNTHETIC_SOURCE,
     SYNTHETIC_TITLE_PREFIX,
+    generate_calendar_event_envelopes,
+    generate_daily_bar_envelopes,
     generate_envelopes,
+    generate_option_chain_envelopes,
     is_synthetic,
 )
 
-BASE_TIME = datetime(2026, 8, 25, 12, 0, 0, tzinfo=timezone.utc)
+BASE_TIME = datetime(2026, 8, 25, 12, 0, 0, tzinfo=UTC)
 
 
 def _generate(count: int = 40, seed: int = 1234):
@@ -45,7 +49,7 @@ class TestInputValidation:
     def test_naive_base_time_rejected(self) -> None:
         with pytest.raises(ValueError):
             generate_envelopes(
-                seed=1, count=5, base_time=datetime(2026, 8, 25, 12, 0, 0)
+                seed=1, count=5, base_time=datetime(2026, 8, 25, 12, 0, 0)  # noqa: DTZ001 (naïf délibéré : rejet vérifié)
             )
 
     def test_zero_count_rejected(self) -> None:
@@ -177,3 +181,38 @@ class TestEnvelopeShape:
             if envelope.payload["type"] == "quote":
                 assert isinstance(envelope.payload["bid"], str)
                 assert isinstance(envelope.payload["ask"], str)
+
+
+class TestRuntimeGuardTargetsTheGenericBase:
+    """Régression : un garde `isinstance` ne vise JAMAIS une paramétrisation.
+
+    Avec les génériques Pydantic, `DataEnvelope[Any]` est une classe concrète
+    DISTINCTE de `DataEnvelope[dict[str, Any]]`. Un garde écrit contre
+    `DataEnvelope[Any]` rejette donc toutes les enveloppes réellement
+    produites par les générateurs, et casse la chaîne d'ingestion complète.
+    L'annotation de signature et le contrôle runtime ne sont pas le même
+    objet : l'annotation peut être paramétrée, le garde doit rester sur la
+    base générique.
+    """
+
+    def test_les_parametrisations_sont_des_classes_distinctes(self) -> None:
+        # C'est la propriété qui rend le défaut possible : si elle tombe, ce
+        # test doit être relu, pas supprimé.
+        assert DataEnvelope[Any] is not DataEnvelope[dict[str, Any]]
+
+    @pytest.mark.parametrize(
+        "generate",
+        [
+            lambda: generate_envelopes(seed=1, count=3, base_time=BASE_TIME),
+            lambda: generate_option_chain_envelopes(seed=1, base_time=BASE_TIME),
+            lambda: generate_daily_bar_envelopes(seed=1, base_time=BASE_TIME),
+            lambda: generate_calendar_event_envelopes(seed=1, base_time=BASE_TIME),
+        ],
+        ids=["news", "option_chain", "daily_bars", "calendar_events"],
+    )
+    def test_toute_enveloppe_generee_traverse_le_garde(self, generate) -> None:
+        envelopes = generate()
+        assert envelopes, "le générateur doit produire au moins une enveloppe"
+        for envelope in envelopes:
+            # Échoue en TypeError si le garde vise une paramétrisation.
+            assert is_synthetic(envelope) is True

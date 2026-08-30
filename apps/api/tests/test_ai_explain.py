@@ -11,13 +11,13 @@ from __future__ import annotations
 
 import logging
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-
 from snapshot_fakes import FakeSnapshotReader, synthetic_session
+
 from vertex_api.ai_explain import (
     LIMITATION_PROVIDER_DISABLED,
     AiClaim,
@@ -30,7 +30,7 @@ from vertex_api.auth import require_session
 from vertex_api.snapshot_reader import get_snapshot_reader
 from vertex_persistence.repository.snapshots import CurrentSnapshot
 
-AS_OF = datetime(2026, 8, 25, 12, 0, 0, tzinfo=timezone.utc)
+AS_OF = datetime(2026, 8, 25, 12, 0, 0, tzinfo=UTC)
 ADVICE_ID = "sha256:" + "d" * 64
 CLUSTER_ID = "cluster:" + "e" * 8
 SCENARIO_HASH = "sha256:" + "f" * 64
@@ -237,7 +237,7 @@ def test_mutated_reference_fails_closed() -> None:
 
 
 def test_claim_without_reference_is_impossible_by_contract() -> None:
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # noqa: B017 (contrat du test inchangé (resserrement = dette, cf. DEBT.md))
         AiClaim(text="fact", kind="FACT", evidence_refs=())
 
 
@@ -571,7 +571,8 @@ def analysis_content_with_non_conforming_source_fields() -> dict:
 def test_no_produced_text_ever_triggers_the_detector() -> None:
     from vertex_api.ai_explain import detect_forbidden_language
 
-    answers = all_answers() + [
+    answers = [
+        *all_answers(),
         analysis_answer(analysis_content_with_cluster_title(INJECTION_TITLE)),
         analysis_answer(analysis_content_with_cluster_title(MARKUP_TITLE)),
         analysis_answer(analysis_content_with_cluster_title(BENIGN_MARKUP_TITLE)),
@@ -873,7 +874,7 @@ def synthetic_bar(day: str, close: str) -> dict:
 
 
 def synthetic_bars_record(
-    *, currency: str = "SYN", bars: "list[dict] | None" = None
+    *, currency: str = "SYN", bars: list[dict] | None = None
 ) -> BarRecord:
     """One SYNTHETIC daily-bars observation, as the worker really reads it."""
     return BarRecord(
@@ -925,8 +926,8 @@ def synthetic_news_record(event_id: str, title: str) -> ObservationRecord:
 
 def worker_analysis_content(
     *,
-    bars_record: "BarRecord | None" = None,
-    news: "tuple[ObservationRecord, ...]" = (),
+    bars_record: BarRecord | None = None,
+    news: tuple[ObservationRecord, ...] = (),
 ) -> dict:
     """The REAL published content: no hand-written snapshot shape here."""
     return build_analysis_content(
@@ -1080,7 +1081,7 @@ def test_forbidden_text_stays_detected_under_invisible_noise(
     seed: str, noise: list, positions: list
 ) -> None:
     text = seed
-    for character, position in zip(noise, positions):
+    for character, position in zip(noise, positions, strict=False):
         index = min(position, len(text))
         text = text[:index] + character + text[index:]
     assert detect_forbidden_language(text) is not None, repr(text)
@@ -1128,7 +1129,8 @@ def test_detector_keeps_descriptive_vocabulary_and_measurements(text: str) -> No
 def test_produced_limitations_are_never_lost_by_the_screen() -> None:
     """A limitation is Vertex prose: losing it silently hides a caveat."""
     content = worker_analysis_content()
-    published = list(content["advice"]["limitations"]) + [
+    published = [
+        *list(content["advice"]["limitations"]),
         "Couverture de l'univers : 45 % des tickers déclarés",
         "Seuil de couverture 60 % non atteint",
     ]
@@ -1276,15 +1278,14 @@ def test_a_canonical_identifier_is_never_screened_lexically() -> None:
 # ---------------------------------------------------------------------------
 
 from vertex_api.ai_explain import (  # noqa: E402
-    AI_ERROR_INCOMPLETE_ANSWER,
-    CANONICAL_VOCABULARY,
     _CANONICAL_TOKEN,
     _SAFE_EVIDENCE_ID,
+    AI_ERROR_INCOMPLETE_ANSWER,
+    CANONICAL_VOCABULARY,
     _token,
 )
 from vertex_core.contracts.enums import AdviceStatus  # noqa: E402
 from vertex_core.decision.gates import GATE_ORDER  # noqa: E402
-
 
 # --- P1-A : la frontière classe par ORIGINE (appartenance), pas par forme ---
 
@@ -1665,7 +1666,7 @@ def test_a_trailing_control_character_is_not_a_canonical_token(value: str) -> No
 
 def test_the_token_boundary_agrees_with_the_pydantic_boundary() -> None:
     """Deux frontières divergentes valent zéro frontière."""
-    with pytest.raises(Exception):
+    with pytest.raises(Exception):  # noqa: B017 (contrat du test inchangé (resserrement = dette, cf. DEBT.md))
         AiSubject(kind="analysis", key="AAPL\n")
     assert _token("AAPL\n") is None
     assert _token("AAPL") == "AAPL"
@@ -2220,15 +2221,15 @@ def test_the_gate_status_vocabulary_is_read_from_vertex_core() -> None:
 from pydantic import ValidationError  # noqa: E402
 
 from vertex_api.ai_explain import (  # noqa: E402
-    AI_ERROR_INCOHERENT_ADVICE,
     _ADVICE_FIELD_VOCABULARIES,
     _BLOCK_COMPATIBLE_STATUS_VALUES,
+    AI_ERROR_INCOHERENT_ADVICE,
 )
 from vertex_core.contracts.decision import (  # noqa: E402
     _BLOCK_COMPATIBLE_STATUSES as CORE_BLOCK_COMPATIBLE_STATUSES,
 )
 from vertex_core.contracts.decision import AdviceResult, GateResult  # noqa: E402
-from vertex_core.contracts.enums import AdviceStatus, GateStatus  # noqa: E402
+from vertex_core.contracts.enums import GateStatus  # noqa: E402
 
 #: Marqueur « champ absent » : distinct de `None`, qui est une valeur stockée.
 ABSENT = object()

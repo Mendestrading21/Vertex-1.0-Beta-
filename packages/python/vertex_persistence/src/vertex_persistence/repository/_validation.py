@@ -3,20 +3,19 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Optional
 
 from vertex_persistence.errors import ClockError, ValidationFailedError
 
 __all__ = [
     "require_aware_utc",
-    "require_now",
-    "require_non_empty_str",
-    "require_optional_str",
     "require_currency",
     "require_decimal",
+    "require_non_empty_str",
+    "require_now",
     "require_optional_decimal",
+    "require_optional_str",
     "require_positive_int",
 ]
 
@@ -29,7 +28,7 @@ def require_aware_utc(label: str, value: datetime) -> datetime:
         raise ValidationFailedError(f"{label}: expected datetime, got {type(value).__name__}")
     if value.tzinfo is None or value.tzinfo.utcoffset(value) is None:
         raise ValidationFailedError(f"{label}: naive datetime rejected, aware UTC required")
-    return value.astimezone(timezone.utc)
+    return value.astimezone(UTC)
 
 
 def require_now(now: datetime) -> datetime:
@@ -38,7 +37,7 @@ def require_now(now: datetime) -> datetime:
         raise ClockError(f"now: expected datetime, got {type(now).__name__}")
     if now.tzinfo is None or now.tzinfo.utcoffset(now) is None:
         raise ClockError("now: naive datetime rejected, aware UTC required")
-    return now.astimezone(timezone.utc)
+    return now.astimezone(UTC)
 
 
 def require_non_empty_str(label: str, value: str) -> str:
@@ -49,7 +48,7 @@ def require_non_empty_str(label: str, value: str) -> str:
     return value
 
 
-def require_optional_str(label: str, value: Optional[str]) -> Optional[str]:
+def require_optional_str(label: str, value: str | None) -> str | None:
     if value is None:
         return None
     return require_non_empty_str(label, value)
@@ -73,7 +72,7 @@ def require_decimal(label: str, value: Decimal) -> Decimal:
     return value
 
 
-def require_optional_decimal(label: str, value: Optional[Decimal]) -> Optional[Decimal]:
+def require_optional_decimal(label: str, value: Decimal | None) -> Decimal | None:
     if value is None:
         return None
     return require_decimal(label, value)

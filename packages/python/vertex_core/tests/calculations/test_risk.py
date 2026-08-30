@@ -79,8 +79,8 @@ class TestSampleCovariance:
         #   cov(A,B) = (2e-4 + 2e-4 + 0) / 2 = 2e-4  (B = 2A: exact comovement)
         result = covariance([[0.01, 0.02], [0.03, 0.06], [0.02, 0.04]])
         expected = ((1e-4, 2e-4), (2e-4, 4e-4))
-        for row, expected_row in zip(result.matrix, expected):
-            for cell, expected_cell in zip(row, expected_row):
+        for row, expected_row in zip(result.matrix, expected, strict=True):
+            for cell, expected_cell in zip(row, expected_row, strict=True):
                 assert cell == pytest.approx(expected_cell, abs=1e-18)
         assert result.n_observations == 3
         assert result.n_assets == 2

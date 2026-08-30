@@ -1,11 +1,12 @@
 """Canonical hashing: stability, key-permutation invariance, fail-closed rejections."""
 
 import re
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta, timezone
 from decimal import Decimal
 
 import pytest
-from hypothesis import given, strategies as st
+from hypothesis import given
+from hypothesis import strategies as st
 
 from vertex_core.contracts import (
     CanonicalizationError,
@@ -15,7 +16,7 @@ from vertex_core.contracts import (
 )
 
 HASH_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
-UTC_DT = datetime(2026, 3, 1, 12, 0, tzinfo=timezone.utc)
+UTC_DT = datetime(2026, 3, 1, 12, 0, tzinfo=UTC)
 
 
 class TestFormatAndStability:
@@ -81,7 +82,7 @@ class TestScalarRules:
 class TestFailClosed:
     def test_naive_datetime_rejected(self):
         with pytest.raises(CanonicalizationError):
-            canonical_json_hash(datetime(2026, 3, 1, 12, 0))
+            canonical_json_hash(datetime(2026, 3, 1, 12, 0))  # noqa: DTZ001 (naïf délibéré : rejet vérifié)
 
     def test_nan_decimal_rejected(self):
         with pytest.raises(CanonicalizationError):

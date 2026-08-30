@@ -32,7 +32,8 @@ Fail-closed rules implemented here:
 from __future__ import annotations
 
 import os
-from typing import Optional
+from collections.abc import Mapping
+from typing import Any, cast
 
 from fastapi import APIRouter, Depends, Request, Response
 from sqlalchemy.orm import Session
@@ -109,7 +110,8 @@ def get_challenge_store(request: Request) -> ChallengeStore:
     store = getattr(request.app.state, "challenge_store", None)
     if store is None:  # pragma: no cover - create_app always installs one
         raise unauthorized()
-    return store
+    # Installé par `create_app` ; `app.state` n'est pas typé.
+    return cast(ChallengeStore, store)
 
 
 def _auth_config() -> AuthConfig:
@@ -126,7 +128,7 @@ def _require_session_if_bootstrapped(request: Request, db: Session) -> None:
     authenticate_request(request)
 
 
-def _transports_of(credential: dict) -> Optional[str]:
+def _transports_of(credential: Mapping[str, Any]) -> str | None:
     """Best-effort comma-joined transports hint from the client response."""
     response = credential.get("response")
     if not isinstance(response, dict):
@@ -189,7 +191,7 @@ def _clear_session_cookies(response: Response, *, config: AuthConfig) -> None:
 )
 def post_register_options(
     request: Request,
-    store: ChallengeStore = Depends(get_challenge_store),
+    store: ChallengeStore = Depends(get_challenge_store),  # noqa: B008 (idiome FastAPI : Depends() évalué dans la signature)
 ) -> CeremonyOptionsResponse:
     """Issue registration options. Free only for the very first credential."""
     config = _auth_config()
@@ -223,7 +225,7 @@ def post_register_options(
 def post_register_verify(
     request: Request,
     body: RegisterVerifyRequest,
-    store: ChallengeStore = Depends(get_challenge_store),
+    store: ChallengeStore = Depends(get_challenge_store),  # noqa: B008 (idiome FastAPI : Depends() évalué dans la signature)
 ) -> RegisterVerifyResponse:
     """Verify the attestation response and store the credential."""
     config = _auth_config()
@@ -272,7 +274,7 @@ def post_register_verify(
 )
 def post_login_options(
     request: Request,
-    store: ChallengeStore = Depends(get_challenge_store),
+    store: ChallengeStore = Depends(get_challenge_store),  # noqa: B008 (idiome FastAPI : Depends() évalué dans la signature)
 ) -> CeremonyOptionsResponse:
     """Issue authentication options restricted to the registered passkeys."""
     config = _auth_config()
@@ -307,7 +309,7 @@ def post_login_verify(
     request: Request,
     body: LoginVerifyRequest,
     response: Response,
-    store: ChallengeStore = Depends(get_challenge_store),
+    store: ChallengeStore = Depends(get_challenge_store),  # noqa: B008 (idiome FastAPI : Depends() évalué dans la signature)
 ) -> LoginVerifyResponse:
     """Verify the assertion, enforce the sign counter, issue the session."""
     config = _auth_config()
@@ -376,7 +378,7 @@ def post_login_verify(
 def post_logout(
     request: Request,
     response: Response,
-    _session: SessionContext = Depends(require_session),
+    _session: SessionContext = Depends(require_session),  # noqa: B008 (idiome FastAPI : Depends() évalué dans la signature)
 ) -> LogoutResponse:
     """Revoke the presented session server-side (requires session + CSRF)."""
     config = _auth_config()

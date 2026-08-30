@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -12,7 +12,7 @@ from vertex_worker.handlers import (
     build_capabilities_content,
 )
 
-NOW = datetime(2026, 8, 25, 12, 0, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 25, 12, 0, 0, tzinfo=UTC)
 
 
 def capability_record(
@@ -78,4 +78,4 @@ class TestBuildCapabilitiesContent:
 
     def test_naive_now_rejected(self) -> None:
         with pytest.raises(ValueError):
-            build_capabilities_content([], now=datetime(2026, 8, 25, 12, 0, 0))
+            build_capabilities_content([], now=datetime(2026, 8, 25, 12, 0, 0))  # noqa: DTZ001 (naïf délibéré : rejet vérifié)

@@ -7,13 +7,13 @@ worker publishes (``vertex_worker.markets.build_markets_overview_content``).
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-
 from snapshot_fakes import FakeSnapshotReader, synthetic_session
+
 from vertex_api.auth import require_session
 from vertex_api.snapshot_reader import get_snapshot_reader
 from vertex_api.snapshot_views import (
@@ -22,7 +22,7 @@ from vertex_api.snapshot_views import (
 )
 from vertex_persistence.repository.snapshots import CurrentSnapshot
 
-AS_OF = datetime(2026, 8, 25, 12, 0, 0, tzinfo=timezone.utc)
+AS_OF = datetime(2026, 8, 25, 12, 0, 0, tzinfo=UTC)
 
 
 def ticker_entry(ticker: str, sector: str, *, pct: str = "+10.00") -> dict:

@@ -28,10 +28,11 @@ identical envelopes, byte for byte. No hidden entropy, no system clock.
 from __future__ import annotations
 
 import random
+from collections.abc import Mapping
 from datetime import datetime, timedelta
 from decimal import ROUND_HALF_EVEN, Decimal
 from types import MappingProxyType
-from typing import Mapping, Optional
+from typing import Any
 
 from vertex_core.calculations.options import european_price
 from vertex_core.contracts import (
@@ -49,12 +50,12 @@ from vertex_core.synthetic.market import (
 )
 
 __all__ = [
+    "SYNTHETIC_OI_STATUS",
     "SYNTHETIC_OPTION_EXCHANGE",
     "SYNTHETIC_OPTION_MULTIPLIER",
     "SYNTHETIC_OPTION_SETTLEMENT",
     "SYNTHETIC_OPTION_STYLE",
     "SYNTHETIC_OPTION_UNDERLYINGS",
-    "SYNTHETIC_OI_STATUS",
     "SYNTHETIC_SCHEMA_OPTION_CHAIN",
     "generate_option_chain_envelopes",
 ]
@@ -176,7 +177,7 @@ def _theoretical_mid(
 
 def generate_option_chain_envelopes(
     *, seed: int, base_time: datetime
-) -> tuple[DataEnvelope[dict], ...]:
+) -> tuple[DataEnvelope[dict[str, Any]], ...]:
     """Generate the deterministic synthetic option-chain envelope set.
 
     Pure function of ``(seed, base_time)``. One envelope per
@@ -190,7 +191,7 @@ def generate_option_chain_envelopes(
     honestly labeled ``PARTIAL``.
     """
     base = _validate_inputs(seed, base_time)
-    rng = random.Random(seed)
+    rng = random.Random(seed)  # noqa: S311 (données SYNTHETIC, aucun usage cryptographique)
 
     near_expiry = (base + timedelta(days=_NEAR_EXPIRY_DAYS)).date()
     far_expiry = (base + timedelta(days=_FAR_EXPIRY_DAYS)).date()
@@ -199,7 +200,7 @@ def generate_option_chain_envelopes(
     stale_observed = base - _QUOTE_AGE_STALE
     received_at = fresh_observed + _RECEIVE_LAG
 
-    envelopes: list[DataEnvelope[dict]] = []
+    envelopes: list[DataEnvelope[dict[str, Any]]] = []
     con_id = _CON_ID_BASE
     envelope_index = 0
 
@@ -228,7 +229,7 @@ def generate_option_chain_envelopes(
         for slice_number, (expiry, trading_class, vol_shift) in enumerate(slices):
             degraded_slice = slice_number == 0
             maturity_years = (expiry - base.date()).days / 365.0
-            contracts: list[dict] = []
+            contracts: list[dict[str, Any]] = []
             contract_index = 0
             for strike_cents in strikes_cents:
                 for right in ("CALL", "PUT"):
@@ -253,8 +254,8 @@ def generate_option_chain_envelopes(
                         if ask <= bid:
                             ask = bid + Decimal("0.02")
 
-                    bid_text: Optional[str] = format(bid, "f")
-                    ask_text: Optional[str] = format(ask, "f")
+                    bid_text: str | None = format(bid, "f")
+                    ask_text: str | None = format(ask, "f")
                     observed_at = fresh_observed
                     if degraded_slice and contract_index == _CROSSED_INDEX:
                         bid_text, ask_text = ask_text, bid_text  # crossed
@@ -306,7 +307,7 @@ def generate_option_chain_envelopes(
                 EnvelopeQuality.PARTIAL if degraded_slice else EnvelopeQuality.VALID
             )
             envelopes.append(
-                DataEnvelope[dict](
+                DataEnvelope[dict[str, Any]](
                     event_id=f"{SYNTHETIC_SOURCE}:{seed}:oc{envelope_index:04d}",
                     schema_version=SYNTHETIC_SCHEMA_OPTION_CHAIN,
                     source=SYNTHETIC_SOURCE,

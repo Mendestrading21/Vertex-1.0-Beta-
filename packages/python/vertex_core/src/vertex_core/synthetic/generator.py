@@ -1,4 +1,4 @@
-"""Deterministic generator of clearly-synthetic development ``DataEnvelope``s.
+"""Deterministic generator of clearly-synthetic development ``DataEnvelope[Any]``s.
 
 Purpose: exercising the ingestion, fusion and attention chain in development
 without touching any real market data. Every generated envelope is honest
@@ -35,7 +35,7 @@ from __future__ import annotations
 import random
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Any
 
 from vertex_core.contracts import (
     DataEnvelope,
@@ -87,13 +87,18 @@ _STORY_SPACING = timedelta(minutes=3)
 _RECEIVE_LAG = timedelta(seconds=30)
 
 
-def is_synthetic(envelope: DataEnvelope) -> bool:
+def is_synthetic(envelope: DataEnvelope[Any]) -> bool:
     """Return ``True`` when ``envelope`` is marked synthetic.
 
     Fail-closed on either marker: SYNTHETIC rights or the synthetic-dev
     source each suffice — an envelope carrying one marker without the other
     is still treated as synthetic and must never be presented as real.
     """
+    # Le contrôle runtime vise la classe générique de BASE, jamais une
+    # paramétrisation : avec les génériques Pydantic, `DataEnvelope[Any]` est
+    # une classe concrète DISTINCTE de `DataEnvelope[dict[str, Any]]`, et un
+    # `isinstance` contre elle rejette toutes les enveloppes réelles.
+    # L'annotation et le contrôle runtime ne sont pas le même objet.
     if not isinstance(envelope, DataEnvelope):
         raise TypeError(
             f"envelope: expected DataEnvelope, got {type(envelope).__name__}"
@@ -134,7 +139,7 @@ def _cents(rng: random.Random, low: int, high: int) -> str:
     return f"{cents // 100}.{cents % 100:02d}"
 
 
-def _news_payload(title: str, canonical_url: str, ticker: str) -> dict:
+def _news_payload(title: str, canonical_url: str, ticker: str) -> dict[str, Any]:
     return {
         "type": "news",
         "synthetic": True,
@@ -153,17 +158,17 @@ def _make_envelope(
     seed: int,
     index: int,
     schema_version: str,
-    source_event_id: Optional[str],
+    source_event_id: str | None,
     instrument_id: str,
     published_at: datetime,
     quality: EnvelopeQuality,
-    payload: dict,
-) -> DataEnvelope[dict]:
+    payload: dict[str, Any],
+) -> DataEnvelope[dict[str, Any]]:
     received_at = published_at + _RECEIVE_LAG
     stale_after = (
         received_at if quality is EnvelopeQuality.STALE else received_at + _STALE_GRACE
     )
-    return DataEnvelope[dict](
+    return DataEnvelope[dict[str, Any]](
         event_id=f"{SYNTHETIC_SOURCE}:{seed}:{index:04d}",
         schema_version=schema_version,
         source=SYNTHETIC_SOURCE,
@@ -186,7 +191,7 @@ def _make_envelope(
 
 def generate_envelopes(
     *, seed: int, count: int, base_time: datetime
-) -> tuple[DataEnvelope[dict], ...]:
+) -> tuple[DataEnvelope[dict[str, Any]], ...]:
     """Generate ``count`` deterministic synthetic envelopes.
 
     Pure function of ``(seed, count, base_time)``; the seed is mandatory and
@@ -197,11 +202,11 @@ def generate_envelopes(
     story — see the module docstring.
     """
     base_time = _validate_inputs(seed, count, base_time)
-    rng = random.Random(seed)
+    rng = random.Random(seed)  # noqa: S311 (données SYNTHETIC, aucun usage cryptographique)
 
     stories: list[_Story] = []
-    envelopes: list[DataEnvelope[dict]] = []
-    envelope_by_event_id: dict[str, DataEnvelope[dict]] = {}
+    envelopes: list[DataEnvelope[dict[str, Any]]] = []
+    envelope_by_event_id: dict[str, DataEnvelope[dict[str, Any]]] = {}
     forced_levels = ("INGEST", "NATIVE", "URL", "FINGERPRINT")
 
     for index in range(count):

@@ -25,7 +25,7 @@ class TestResolveHost:
     @pytest.mark.parametrize(
         "host",
         [
-            "0.0.0.0",
+            "0.0.0.0",  # noqa: S104 (hôte non-loopback délibéré : refus vérifié)
             "192.168.1.10",
             "10.0.0.5",
             "example.com",
@@ -64,7 +64,7 @@ class TestMain:
             local_server.uvicorn, "run", lambda *args, **kwargs: calls.append(kwargs)
         )
         with pytest.raises(LoopbackHostError):
-            main({"VERTEX_API_HOST": "0.0.0.0"})
+            main({"VERTEX_API_HOST": "0.0.0.0"})  # noqa: S104 (hôte non-loopback délibéré : refus vérifié)
         assert calls == []
 
     def test_default_environment_starts_on_loopback(

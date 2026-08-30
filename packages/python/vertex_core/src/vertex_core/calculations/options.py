@@ -47,8 +47,9 @@ only (no SciPy in that path).
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
 from decimal import Decimal, localcontext
-from typing import Literal, Optional, Sequence, Tuple, Union
+from typing import Literal
 
 import QuantLib as _ql
 from pydantic import field_validator, model_validator
@@ -64,22 +65,22 @@ from vertex_core.contracts.types import (
 
 __all__ = [
     "AMERICAN_MIN_STEPS",
-    "DefinedRiskResult",
     "FLOAT64_ABS_TOL",
     "FLOAT64_REL_TOL",
-    "GreeksResult",
-    "IVNoSolutionError",
     "IV_BRACKET_HI",
     "IV_BRACKET_LO",
     "MATURITY_MAX_YEARS",
+    "QUOTE_SIDES",
+    "RATE_ABS_MAX",
+    "SPOT_STRIKE_MAX",
+    "VOLATILITY_MAX",
+    "DefinedRiskResult",
+    "GreeksResult",
+    "IVNoSolutionError",
     "NumberLike",
     "OptionInputError",
     "OptionLeg",
     "OptionNotImplementedError",
-    "RATE_ABS_MAX",
-    "SPOT_STRIKE_MAX",
-    "VOLATILITY_MAX",
-    "QUOTE_SIDES",
     "american_price",
     "defined_risk_check",
     "european_price",
@@ -126,7 +127,7 @@ DAYS_PER_YEAR = 365.0
 """Calendar-day convention (ACT/365F) used for theta-per-day and the
 American engine's date grid."""
 
-NumberLike = Union[int, float, Decimal]
+NumberLike = int | float | Decimal
 """Accepted numeric boundary types; converted explicitly to float64 inside."""
 
 _SQRT2 = math.sqrt(2.0)
@@ -182,7 +183,7 @@ class OptionNotImplementedError(NotImplementedError):
 # ---------------------------------------------------------------------------
 
 
-def _to_float(value: NumberLike, name: str) -> float:
+def _to_float(value: object, name: str) -> float:
     """Convert a boundary number to finite float64; reject everything else."""
     if isinstance(value, bool):
         raise OptionInputError(
@@ -215,7 +216,7 @@ def _to_float(value: NumberLike, name: str) -> float:
     return 0.0 if result == 0.0 else result
 
 
-def _require_price_positive(value: NumberLike, name: str) -> float:
+def _require_price_positive(value: object, name: str) -> float:
     price = _to_float(value, name)
     if price <= 0.0:
         raise OptionInputError(
@@ -230,7 +231,7 @@ def _require_price_positive(value: NumberLike, name: str) -> float:
     return price
 
 
-def _require_maturity(value: NumberLike, name: str = "maturity_years") -> float:
+def _require_maturity(value: object, name: str = "maturity_years") -> float:
     t = _to_float(value, name)
     if t < 0.0:
         raise OptionInputError(
@@ -245,7 +246,7 @@ def _require_maturity(value: NumberLike, name: str = "maturity_years") -> float:
     return t
 
 
-def _require_volatility(value: NumberLike, name: str = "volatility") -> float:
+def _require_volatility(value: object, name: str = "volatility") -> float:
     vol = _to_float(value, name)
     if vol < 0.0:
         raise OptionInputError(
@@ -369,7 +370,7 @@ def forward_price(
 
 def _bounds_core(
     s: float, k: float, t: float, r: float, q: float, right: str
-) -> Tuple[float, float]:
+) -> tuple[float, float]:
     df_r = math.exp(-r * t)
     df_q = math.exp(-q * t)
     fwd_spot = s * df_q
@@ -390,7 +391,7 @@ def no_arbitrage_bounds(
     rate: NumberLike,
     dividend_yield: NumberLike,
     right: object,
-) -> Tuple[float, float]:
+) -> tuple[float, float]:
     """``options.no_arbitrage_bounds`` — European price interval.
 
     With ``df_r = e^{-rT}``, ``df_q = e^{-qT}``:
@@ -673,7 +674,7 @@ class GreeksResult(ContractModel):
         return 0.0 if value == 0.0 else value
 
     @model_validator(mode="after")
-    def _derived_views_consistent(self) -> "GreeksResult":
+    def _derived_views_consistent(self) -> GreeksResult:
         checks = (
             ("vega_per_point", self.vega_per_point, self.vega * 0.01),
             (
@@ -873,7 +874,7 @@ def american_price(
             "(the numerical grid degenerates at zero volatility); no "
             "deterministic fallback",
         )
-    days = int(round(t * DAYS_PER_YEAR))
+    days = round(t * DAYS_PER_YEAR)
     if days < 1:
         raise OptionInputError(
             "maturity_below_date_grid",
@@ -964,7 +965,7 @@ class OptionLeg(ContractModel):
 
     quantity: int
     right: Literal["CALL", "PUT", "STOCK"]
-    strike: Optional[PositiveDecimal] = None
+    strike: PositiveDecimal | None = None
     premium: NonNegativeDecimal
     multiplier: PositiveInt
 
@@ -976,7 +977,7 @@ class OptionLeg(ContractModel):
         return value
 
     @model_validator(mode="after")
-    def _strike_presence(self) -> "OptionLeg":
+    def _strike_presence(self) -> OptionLeg:
         if self.right == "STOCK":
             if self.strike is not None:
                 raise ValueError("a STOCK leg must not carry a strike")
@@ -985,11 +986,11 @@ class OptionLeg(ContractModel):
         return self
 
 
-def _require_legs(legs: object) -> Tuple[OptionLeg, ...]:
+def _require_legs(legs: object) -> tuple[OptionLeg, ...]:
     seq = _require_sequence(legs, "legs")
     if len(seq) == 0:
         raise OptionInputError("empty_legs", "at least one leg is required")
-    typed: list = []
+    typed: list[OptionLeg] = []
     for i, leg in enumerate(seq):
         if not isinstance(leg, OptionLeg):
             raise OptionInputError(
@@ -1001,7 +1002,7 @@ def _require_legs(legs: object) -> Tuple[OptionLeg, ...]:
 
 
 def _require_defined_risk_for_shorts(
-    typed_legs: Tuple[OptionLeg, ...], calculation_id: str
+    typed_legs: tuple[OptionLeg, ...], calculation_id: str
 ) -> None:
     """Registry gate: a short quantity requires DEFINED_RISK certification.
 
@@ -1025,9 +1026,26 @@ def _require_defined_risk_for_shorts(
         )
 
 
+def _leg_strike(leg: OptionLeg) -> Decimal:
+    """Strike d'une jambe CALL/PUT.
+
+    ``OptionLeg`` garantit par validateur de modèle l'équivalence
+    STOCK <=> ``strike is None``. Cette fonction rend cet invariant
+    inter-champs visible au vérificateur de types, sans l'affaiblir : une
+    jambe STOCK qui arriverait ici est un défaut de programmation, pas une
+    entrée utilisateur, et échoue fermé.
+    """
+    strike = leg.strike
+    if strike is None:
+        raise OptionInputError(
+            "missing_leg_strike", f"a {leg.right} leg requires a strike"
+        )
+    return strike
+
+
 def _leg_pricing_floats(
-    typed_legs: Tuple[OptionLeg, ...],
-) -> Tuple[Tuple[float, str, Optional[float], float], ...]:
+    typed_legs: tuple[OptionLeg, ...],
+) -> tuple[tuple[float, str, float | None, float], ...]:
     """Validate every leg against the pricing model domain, as float64.
 
     :func:`scenario_grid` reprices option legs through the same BSM core as
@@ -1049,13 +1067,13 @@ def _leg_pricing_floats(
     pricing core. Returns one ``(quantity*multiplier, right, strike,
     premium)`` float64 tuple per leg, in leg order.
     """
-    static: list = []
+    static: list[tuple[float, str, float | None, float]] = []
     for i, leg in enumerate(typed_legs):
         prefix = f"legs[{i}]"
         if leg.right == "STOCK":
-            strike_f: Optional[float] = None
+            strike_f: float | None = None
         else:
-            strike_f = _to_float(leg.strike, f"{prefix}.strike")
+            strike_f = _to_float(_leg_strike(leg), f"{prefix}.strike")
             if strike_f <= 0.0 or strike_f > SPOT_STRIKE_MAX:
                 raise OptionInputError(
                     "leg_strike_out_of_domain",
@@ -1118,7 +1136,7 @@ def payoff_at_expiry(
     legs: Sequence[OptionLeg],
     terminal_spot_grid: Sequence[NumberLike],
     fees: Decimal,
-) -> Tuple[Decimal, ...]:
+) -> tuple[Decimal, ...]:
     """``options.payoff`` — exact expiry P&L per terminal spot.
 
     ``P&L_T(S) = sum_i q_i * M_i * [h_i(S) - p_i] - F`` with intrinsic
@@ -1170,18 +1188,18 @@ def payoff_at_expiry(
         for i, v in enumerate(grid_seq)
     ]
     zero = Decimal(0)
-    results: list = []
+    results: list[Decimal] = []
     with localcontext() as ctx:
         ctx.prec = 60
         for spot_t in spots:
             total = zero
             for leg in typed_legs:
                 if leg.right == "CALL":
-                    intrinsic = spot_t - leg.strike
+                    intrinsic = spot_t - _leg_strike(leg)
                     if intrinsic < 0:
                         intrinsic = zero
                 elif leg.right == "PUT":
-                    intrinsic = leg.strike - spot_t
+                    intrinsic = _leg_strike(leg) - spot_t
                     if intrinsic < 0:
                         intrinsic = zero
                 else:  # STOCK
@@ -1207,10 +1225,10 @@ def scenario_grid(
     legs: Sequence[OptionLeg],
     spot_grid: Sequence[NumberLike],
     time_grid_years: Sequence[NumberLike],
-    iv_scenarios: Sequence[Sequence[Optional[NumberLike]]],
+    iv_scenarios: Sequence[Sequence[NumberLike | None]],
     rate: NumberLike,
     dividend_yield: NumberLike,
-) -> Tuple[Tuple[Tuple[float, ...], ...], ...]:
+) -> tuple[tuple[tuple[float, ...], ...], ...]:
     """``options.scenario_grid`` — BSM repricing of all legs per cell.
 
     Every cell ``[scenario][time][spot]`` reprices EVERY leg on the SAME
@@ -1271,7 +1289,7 @@ def scenario_grid(
     scen_seq = _require_sequence(iv_scenarios, "iv_scenarios")
     if len(scen_seq) == 0:
         raise OptionInputError("empty_grid", "iv_scenarios must not be empty")
-    scenarios: list = []
+    scenarios: list[list[float | None]] = []
     for si, scenario in enumerate(scen_seq):
         vol_seq = _require_sequence(scenario, f"iv_scenarios[{si}]")
         if len(vol_seq) != len(typed_legs):
@@ -1281,8 +1299,8 @@ def scenario_grid(
                 f"{len(typed_legs)} legs; one volatility (or None for STOCK) "
                 "per leg is required",
             )
-        vols: list = []
-        for li, (leg, vol_entry) in enumerate(zip(typed_legs, vol_seq)):
+        vols: list[float | None] = []
+        for li, (leg, vol_entry) in enumerate(zip(typed_legs, vol_seq, strict=True)):
             if leg.right == "STOCK":
                 if vol_entry is not None:
                     raise OptionInputError(
@@ -1305,19 +1323,25 @@ def scenario_grid(
         scenarios.append(vols)
 
     leg_static = _leg_pricing_floats(typed_legs)
-    grid: list = []
+    grid: list[tuple[tuple[float, ...], ...]] = []
     for vols in scenarios:
-        time_rows: list = []
+        time_rows: list[tuple[float, ...]] = []
         for t in times:
-            spot_row: list = []
+            spot_row: list[float] = []
             for s in spots:
                 total = 0.0
                 for (qty_mult, leg_right, leg_strike, leg_premium), vol in zip(
-                    leg_static, vols
+                    leg_static, vols, strict=True
                 ):
                     if leg_right == "STOCK":
                         value = s
                     else:
+                        # STOCK <=> strike et volatilité absents (garanti
+                        # par `_leg_pricing_floats` et par la validation de
+                        # `iv_scenarios` plus haut) : cette branche a
+                        # toujours les deux.
+                        assert leg_strike is not None  # noqa: S101
+                        assert vol is not None  # noqa: S101
                         value = _bsm_price_core(
                             s, leg_strike, t, r, q, vol, leg_right
                         )
@@ -1385,7 +1409,7 @@ long — single long CALL/PUT, long STOCK, and any all-long combination
 (straddle and strangle are named members of that family)."""
 
 
-def _classify_all_long(typed_legs: Tuple[OptionLeg, ...]) -> str:
+def _classify_all_long(typed_legs: tuple[OptionLeg, ...]) -> str:
     """Name an all-long structure: LONG_STRADDLE, LONG_STRANGLE or ALL_LONG.
 
     A straddle is one long CALL plus one long PUT at the SAME strike, same
@@ -1400,9 +1424,10 @@ def _classify_all_long(typed_legs: Tuple[OptionLeg, ...]) -> str:
         if len(calls) == 1 and len(puts) == 1:
             call, put = calls[0], puts[0]
             if call.quantity == put.quantity and call.multiplier == put.multiplier:
-                if call.strike == put.strike:
+                call_k, put_k = _leg_strike(call), _leg_strike(put)
+                if call_k == put_k:
                     return "LONG_STRADDLE"
-                if put.strike < call.strike:
+                if put_k < call_k:
                     return "LONG_STRANGLE"
     return "ALL_LONG"
 
@@ -1549,11 +1574,8 @@ def defined_risk_check(legs: Sequence[OptionLeg]) -> DefinedRiskResult:
             "requires two distinct strikes K1 < K2",
         )
     right = long_leg.right
-    debit_shape = (
-        long_leg.strike < short_leg.strike
-        if right == "CALL"
-        else long_leg.strike > short_leg.strike
-    )
+    long_k, short_k = _leg_strike(long_leg), _leg_strike(short_leg)
+    debit_shape = long_k < short_k if right == "CALL" else long_k > short_k
     if not debit_shape:
         return _reject(
             "CREDIT_VERTICAL_NOT_VALIDATED",
@@ -1562,7 +1584,7 @@ def defined_risk_check(legs: Sequence[OptionLeg]) -> DefinedRiskResult:
             "credit vertical, refused until the formal proof and separate "
             "credit profile required by the specification are validated",
         )
-    width = abs(short_leg.strike - long_leg.strike)  # W, price units
+    width = abs(short_k - long_k)  # W, price units
     net_debit = long_leg.premium - short_leg.premium  # D/M per unit
     if net_debit <= 0:
         return _reject(

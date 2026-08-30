@@ -17,8 +17,7 @@ Anything else raises :class:`~vertex_persistence.errors.ConfigurationError`.
 
 from __future__ import annotations
 
-from typing import Mapping, Optional
-
+from collections.abc import Mapping
 from urllib.parse import quote, unquote
 
 from sqlalchemy.engine import make_url
@@ -26,9 +25,9 @@ from sqlalchemy.engine import make_url
 from vertex_persistence.errors import ConfigurationError
 
 __all__ = [
+    "ALLOW_TEST_DB_ENV_VAR",
     "DATABASE_URL_ENV_VAR",
     "TEST_DATABASE_URL_ENV_VAR",
-    "ALLOW_TEST_DB_ENV_VAR",
     "database_name",
     "resolve_migration_url",
     "sqlalchemy_url_to_conninfo",
@@ -40,7 +39,7 @@ ALLOW_TEST_DB_ENV_VAR = "VERTEX_ALLOW_TEST_DB"
 
 
 def resolve_migration_url(
-    environ: Mapping[str, str], *, programmatic: Optional[str] = None
+    environ: Mapping[str, str], *, programmatic: str | None = None
 ) -> str:
     """Resolve the migration DSN fail-closed (see module docstring).
 

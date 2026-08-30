@@ -8,16 +8,16 @@ through the protected API — no dependency override anywhere.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from collections.abc import Iterator
+from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Iterator
 
 import pytest
 from fastapi.testclient import TestClient
+from soft_passkey import SoftPasskey, login_passkey, register_passkey
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
-from soft_passkey import SoftPasskey, login_passkey, register_passkey
 from vertex_core.synthetic import SYNTHETIC_RIGHTS, SYNTHETIC_SOURCE
 from vertex_persistence.repository.snapshots import publish_snapshot
 from vertex_worker.markets import (
@@ -26,7 +26,7 @@ from vertex_worker.markets import (
     build_markets_overview_content,
 )
 
-NOW = datetime(2026, 8, 25, 12, 0, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 25, 12, 0, 0, tzinfo=UTC)
 
 CONFIG = MarketsConfig(
     universe={"SYN-AAA": ("SYN-AAA-01", "SYN-AAA-02")},

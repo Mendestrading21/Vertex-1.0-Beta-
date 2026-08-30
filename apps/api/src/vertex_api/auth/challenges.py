@@ -26,8 +26,9 @@ from __future__ import annotations
 import secrets
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Callable, Literal, Optional
+from typing import Literal
 
 __all__ = ["CHALLENGE_TTL_SECONDS", "ChallengePurpose", "ChallengeStore"]
 
@@ -75,7 +76,7 @@ class ChallengeStore:
             )
         return flow_id, challenge
 
-    def consume(self, flow_id: str, purpose: ChallengePurpose) -> Optional[bytes]:
+    def consume(self, flow_id: str, purpose: ChallengePurpose) -> bytes | None:
         """Pop the challenge for ``flow_id`` — single use, purpose-bound, TTL.
 
         Returns ``None`` (fail-closed) when the flow id is unknown, already

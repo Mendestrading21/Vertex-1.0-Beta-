@@ -9,14 +9,14 @@ re-implementation. No database, no clock, no network.
 
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from decimal import ROUND_HALF_EVEN, Decimal
 
 import pytest
 
 from vertex_core.calculations.options import european_price
 from vertex_core.synthetic import SYNTHETIC_RIGHTS, SYNTHETIC_SOURCE
-from vertex_worker.handlers import build_registry, DEV_SYNTHETIC_CONFIG
+from vertex_worker.handlers import DEV_SYNTHETIC_CONFIG, build_registry
 from vertex_worker.options import (
     DEV_SYNTHETIC_OPTIONS_CONFIG,
     OPTION_CHAIN_SCHEMA_VERSION,
@@ -40,7 +40,7 @@ from vertex_worker.options import (
     is_option_chain_schema,
 )
 
-NOW = datetime(2026, 8, 25, 12, 0, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 25, 12, 0, 0, tzinfo=UTC)
 FRESH = (NOW - timedelta(minutes=30)).isoformat()
 STALE = (NOW - timedelta(hours=24)).isoformat()
 EXPIRY = date(2026, 9, 22)  # 28 days after NOW

@@ -10,7 +10,7 @@ gate, SYNTHETIC population and publish-if-changed replay semantics.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 from sqlalchemy import func, select
@@ -34,7 +34,7 @@ from vertex_worker.markets import (
 )
 from vertex_worker.runner import WorkerRunner
 
-NOW = datetime(2026, 8, 25, 12, 0, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 25, 12, 0, 0, tzinfo=UTC)
 BASE_TIME = NOW - timedelta(minutes=30)
 SEED = 424242
 
@@ -160,7 +160,11 @@ def test_markets_chain_end_to_end(session_factory) -> None:
         enqueue_outbox(
             session,
             TOPIC_QUOTES_INGESTED,
-            {"event_id": "replay", "source": "synthetic-dev", "schema_version": "synthetic-daily-quote/1.0"},
+            {
+                "event_id": "replay",
+                "source": "synthetic-dev",
+                "schema_version": "synthetic-daily-quote/1.0",
+            },
         )
         session.commit()
     replay_runner = make_runner(session_factory, clock)
@@ -180,7 +184,11 @@ def test_markets_chain_end_to_end(session_factory) -> None:
         enqueue_outbox(
             session,
             TOPIC_QUOTES_INGESTED,
-            {"event_id": "tick", "source": "synthetic-dev", "schema_version": "synthetic-daily-quote/1.0"},
+            {
+                "event_id": "tick",
+                "source": "synthetic-dev",
+                "schema_version": "synthetic-daily-quote/1.0",
+            },
         )
         session.commit()
     later_runner = make_runner(session_factory, clock)

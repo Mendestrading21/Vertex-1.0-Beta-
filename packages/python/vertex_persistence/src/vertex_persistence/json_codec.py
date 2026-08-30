@@ -21,10 +21,11 @@ The encoding mirrors the canonical-JSON rules of
 from __future__ import annotations
 
 import math
-from datetime import date, datetime, timezone
+from collections.abc import Mapping, Sequence
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from enum import Enum
-from typing import Any, Mapping, Sequence
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -51,8 +52,10 @@ def to_jsonb(value: Any) -> Any:
         return str(value)
     if isinstance(value, datetime):
         if value.tzinfo is None or value.tzinfo.utcoffset(value) is None:
-            raise JsonEncodingError("naive datetime rejected: a timezone-aware datetime is required")
-        return value.astimezone(timezone.utc).isoformat()
+            raise JsonEncodingError(
+                "naive datetime rejected: a timezone-aware datetime is required"
+            )
+        return value.astimezone(UTC).isoformat()
     if isinstance(value, date):
         return value.isoformat()
     if isinstance(value, Enum):

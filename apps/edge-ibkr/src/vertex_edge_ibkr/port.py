@@ -22,24 +22,30 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
-from typing import Optional, Protocol, runtime_checkable
+from typing import Any, Protocol, runtime_checkable
 
-from vertex_core.contracts import ContractModel, DataEnvelope, FiniteDecimal, NonEmptyStr, UtcDatetime
+from vertex_core.contracts import (
+    ContractModel,
+    DataEnvelope,
+    FiniteDecimal,
+    NonEmptyStr,
+    UtcDatetime,
+)
 
 __all__ = [
     "ALLOWED_PORT_METHODS",
-    "ContractQualificationError",
-    "ContractSpec",
     "DELAYED_GREEK_TICKS",
     "DELAYED_QUOTE_TICKS",
-    "EdgeIbkrError",
-    "GreeksObservation",
-    "IbkrInformationPort",
     "LIVE_GREEK_TICKS",
     "LIVE_QUOTE_TICKS",
     "MARKET_DATA_TYPE_DELAY",
     "BarObservation",
     "BarsPayload",
+    "ContractQualificationError",
+    "ContractSpec",
+    "EdgeIbkrError",
+    "GreeksObservation",
+    "IbkrInformationPort",
     "MarketDataSnapshotResult",
     "NewsArticlePayload",
     "NewsHeadline",
@@ -158,16 +164,16 @@ class ContractSpec:
     """
 
     sec_type: str
-    con_id: Optional[int] = None
-    symbol: Optional[str] = None
-    exchange: Optional[str] = None
-    currency: Optional[str] = None
-    last_trade_date: Optional[str] = None
-    strike: Optional[Decimal] = None
-    right: Optional[str] = None
-    trading_class: Optional[str] = None
-    multiplier: Optional[str] = None
-    local_symbol: Optional[str] = None
+    con_id: int | None = None
+    symbol: str | None = None
+    exchange: str | None = None
+    currency: str | None = None
+    last_trade_date: str | None = None
+    strike: Decimal | None = None
+    right: str | None = None
+    trading_class: str | None = None
+    multiplier: str | None = None
+    local_symbol: str | None = None
 
     def __post_init__(self) -> None:
         if not self.sec_type:
@@ -204,10 +210,10 @@ class WshEventRequest:
     request is always sent with every account-adjacent fill flag disabled.
     """
 
-    con_id: Optional[int] = None
+    con_id: int | None = None
     start_date: str = ""
     end_date: str = ""
-    total_limit: Optional[int] = None
+    total_limit: int | None = None
 
     def __post_init__(self) -> None:
         if self.con_id is not None and self.con_id <= 0:
@@ -229,27 +235,27 @@ class QuoteObservation(ContractModel):
     provider callback, preserved verbatim.
     """
 
-    con_id: Optional[int] = None
-    symbol: Optional[NonEmptyStr] = None
-    bid: Optional[FiniteDecimal] = None
-    bid_size: Optional[FiniteDecimal] = None
-    ask: Optional[FiniteDecimal] = None
-    ask_size: Optional[FiniteDecimal] = None
-    last: Optional[FiniteDecimal] = None
-    last_size: Optional[FiniteDecimal] = None
-    volume: Optional[FiniteDecimal] = None
-    close: Optional[FiniteDecimal] = None
-    halted: Optional[bool] = None
-    market_data_type: Optional[int] = None
+    con_id: int | None = None
+    symbol: NonEmptyStr | None = None
+    bid: FiniteDecimal | None = None
+    bid_size: FiniteDecimal | None = None
+    ask: FiniteDecimal | None = None
+    ask_size: FiniteDecimal | None = None
+    last: FiniteDecimal | None = None
+    last_size: FiniteDecimal | None = None
+    volume: FiniteDecimal | None = None
+    close: FiniteDecimal | None = None
+    halted: bool | None = None
+    market_data_type: int | None = None
     # Generic-tick evidence (underlying-scoped; provider semantics, descriptive
     # only — never directional):
-    call_volume: Optional[FiniteDecimal] = None  # tick 29 (generic 100)
-    put_volume: Optional[FiniteDecimal] = None  # tick 30 (generic 100)
-    call_open_interest: Optional[FiniteDecimal] = None  # tick 27 (generic 101)
-    put_open_interest: Optional[FiniteDecimal] = None  # tick 28 (generic 101)
-    historical_volatility_30d: Optional[FiniteDecimal] = None  # tick 23 (generic 104)
-    average_option_volume: Optional[FiniteDecimal] = None  # tick 87 (generic 105)
-    option_implied_volatility_30d: Optional[FiniteDecimal] = None  # tick 24 (generic 106)
+    call_volume: FiniteDecimal | None = None  # tick 29 (generic 100)
+    put_volume: FiniteDecimal | None = None  # tick 30 (generic 100)
+    call_open_interest: FiniteDecimal | None = None  # tick 27 (generic 101)
+    put_open_interest: FiniteDecimal | None = None  # tick 28 (generic 101)
+    historical_volatility_30d: FiniteDecimal | None = None  # tick 23 (generic 104)
+    average_option_volume: FiniteDecimal | None = None  # tick 87 (generic 105)
+    option_implied_volatility_30d: FiniteDecimal | None = None  # tick 24 (generic 106)
 
 
 class GreeksObservation(ContractModel):
@@ -260,37 +266,37 @@ class GreeksObservation(ContractModel):
     Provider greeks are a provider observation, never Vertex greeks.
     """
 
-    con_id: Optional[int] = None
+    con_id: int | None = None
     basis: NonEmptyStr
     tick_type: int
-    market_data_type: Optional[int] = None
-    implied_volatility: Optional[FiniteDecimal] = None
-    delta: Optional[FiniteDecimal] = None
-    gamma: Optional[FiniteDecimal] = None
-    vega: Optional[FiniteDecimal] = None
-    theta: Optional[FiniteDecimal] = None
-    option_price: Optional[FiniteDecimal] = None
-    pv_dividend: Optional[FiniteDecimal] = None
-    underlying_price: Optional[FiniteDecimal] = None
+    market_data_type: int | None = None
+    implied_volatility: FiniteDecimal | None = None
+    delta: FiniteDecimal | None = None
+    gamma: FiniteDecimal | None = None
+    vega: FiniteDecimal | None = None
+    theta: FiniteDecimal | None = None
+    option_price: FiniteDecimal | None = None
+    pv_dividend: FiniteDecimal | None = None
+    underlying_price: FiniteDecimal | None = None
 
 
 class BarObservation(ContractModel):
     """One historical bar. Sentinel/absent values stay ``None``."""
 
     time: UtcDatetime
-    open: Optional[FiniteDecimal] = None
-    high: Optional[FiniteDecimal] = None
-    low: Optional[FiniteDecimal] = None
-    close: Optional[FiniteDecimal] = None
-    volume: Optional[FiniteDecimal] = None
-    average: Optional[FiniteDecimal] = None
-    bar_count: Optional[int] = None
+    open: FiniteDecimal | None = None
+    high: FiniteDecimal | None = None
+    low: FiniteDecimal | None = None
+    close: FiniteDecimal | None = None
+    volume: FiniteDecimal | None = None
+    average: FiniteDecimal | None = None
+    bar_count: int | None = None
 
 
 class BarsPayload(ContractModel):
     """Historical bars for one exact contract."""
 
-    con_id: Optional[int] = None
+    con_id: int | None = None
     bar_size: NonEmptyStr
     what_to_show: NonEmptyStr
     use_rth: bool
@@ -301,8 +307,8 @@ class ScannerRow(ContractModel):
     """One scanner rank entry (candidate universe only, re-validated later)."""
 
     rank: int
-    con_id: Optional[int] = None
-    symbol: Optional[NonEmptyStr] = None
+    con_id: int | None = None
+    symbol: NonEmptyStr | None = None
 
 
 class ScannerPayload(ContractModel):
@@ -318,7 +324,7 @@ class NewsProviderInfo(ContractModel):
     """One news provider the technical user is entitled to."""
 
     code: NonEmptyStr
-    name: Optional[NonEmptyStr] = None
+    name: NonEmptyStr | None = None
 
 
 class NewsProvidersPayload(ContractModel):
@@ -333,7 +339,7 @@ class NewsHeadline(ContractModel):
     provider_code: NonEmptyStr
     article_id: NonEmptyStr
     headline: NonEmptyStr
-    time: Optional[UtcDatetime] = None
+    time: UtcDatetime | None = None
 
 
 class NewsHeadlinesPayload(ContractModel):
@@ -348,14 +354,14 @@ class NewsArticlePayload(ContractModel):
 
     provider_code: NonEmptyStr
     article_id: NonEmptyStr
-    article_type: Optional[int] = None
+    article_type: int | None = None
     text: str
 
 
 class WshEventsPayload(ContractModel):
     """Raw WSH event data (JSON string) for one bounded request."""
 
-    con_id: Optional[int] = None
+    con_id: int | None = None
     raw: str
 
 
@@ -386,7 +392,7 @@ class ProviderErrorInfo:
 
     code: int
     message: str = ""
-    req_id: Optional[int] = None
+    req_id: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -399,15 +405,15 @@ class MarketDataSnapshotResult:
     can coexist and both stay visible.
     """
 
-    envelopes: tuple[DataEnvelope, ...]
+    envelopes: tuple[DataEnvelope[Any], ...]
     provider_errors: tuple[ProviderErrorInfo, ...]
     requested_market_data_type: int
-    reported_market_data_type: Optional[int]
+    reported_market_data_type: int | None
     generic_ticks: tuple[int, ...]
     subscription_id: str
     cancelled: bool
 
-    def quote(self) -> Optional[QuoteObservation]:
+    def quote(self) -> QuoteObservation | None:
         """The quote observation of this snapshot, when one was produced."""
         for envelope in self.envelopes:
             if isinstance(envelope.payload, QuoteObservation):
@@ -454,7 +460,9 @@ class IbkrInformationPort(Protocol):
         """Resolve specs into fully qualified identities; unresolved fails."""
         ...
 
-    async def sec_def_opt_params(self, underlying: ContractSpec) -> tuple[OptionChainDefinition, ...]:
+    async def sec_def_opt_params(
+        self, underlying: ContractSpec
+    ) -> tuple[OptionChainDefinition, ...]:
         """Option chain definitions for one exact underlying (definition only)."""
         ...
 
@@ -464,7 +472,7 @@ class IbkrInformationPort(Protocol):
         *,
         generic_ticks: tuple[int, ...] = (),
         market_data_type: int = 1,
-        timeout_seconds: Optional[float] = None,
+        timeout_seconds: float | None = None,
     ) -> MarketDataSnapshotResult:
         """Bounded quote/computation snapshot; always cancels its data line."""
         ...
@@ -473,20 +481,20 @@ class IbkrInformationPort(Protocol):
         self,
         spec: ContractSpec,
         *,
-        end: Optional[datetime] = None,
+        end: datetime | None = None,
         duration: str = "1 D",
         bar_size: str = "1 hour",
         what_to_show: str = "TRADES",
         use_rth: bool = True,
-    ) -> DataEnvelope:
+    ) -> DataEnvelope[Any]:
         """Historical bars for one exact contract (separate pacing applies)."""
         ...
 
-    async def scanner_run(self, definition: ScannerDefinition) -> DataEnvelope:
+    async def scanner_run(self, definition: ScannerDefinition) -> DataEnvelope[Any]:
         """One bounded scanner run (candidates only, max 50 rows)."""
         ...
 
-    async def news_providers(self) -> DataEnvelope:
+    async def news_providers(self) -> DataEnvelope[Any]:
         """News providers the technical user is entitled to."""
         ...
 
@@ -498,15 +506,15 @@ class IbkrInformationPort(Protocol):
         start: str = "",
         end: str = "",
         max_results: int = 100,
-    ) -> DataEnvelope:
+    ) -> DataEnvelope[Any]:
         """Historical headlines for one contract, entitlement permitting."""
         ...
 
-    async def news_article(self, provider_code: str, article_id: str) -> DataEnvelope:
+    async def news_article(self, provider_code: str, article_id: str) -> DataEnvelope[Any]:
         """One article body, only when the entitlement allows restitution."""
         ...
 
-    async def wsh_events(self, request: WshEventRequest) -> DataEnvelope:
+    async def wsh_events(self, request: WshEventRequest) -> DataEnvelope[Any]:
         """WSH corporate event data (one bounded request at a time)."""
         ...
 

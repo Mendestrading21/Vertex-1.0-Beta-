@@ -5,9 +5,10 @@ randomness.
 """
 
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
+from typing import ClassVar
 
 import pytest
 
@@ -39,46 +40,53 @@ from vertex_core.decision import (
 )
 from vertex_core.version import ENGINE_VERSION
 
-AS_OF = datetime(2026, 8, 28, 13, 30, tzinfo=timezone.utc)
-VALID_UNTIL = datetime(2026, 8, 28, 21, 0, tzinfo=timezone.utc)
+AS_OF = datetime(2026, 8, 28, 13, 30, tzinfo=UTC)
+VALID_UNTIL = datetime(2026, 8, 28, 21, 0, tzinfo=UTC)
 
 QUALIFIED_FAMILY = {AdviceStatus.OBSERVE, AdviceStatus.REVIEW, AdviceStatus.QUALIFIED}
 
 
 def all_pass_inputs(**overrides) -> AdviceInputs:
     """Synthetic inputs whose ten gates all PASS and whose evidence is complete."""
-    kwargs = dict(
-        instrument_id="instr-SYN-001",
-        as_of=AS_OF,
-        valid_until=VALID_UNTIL,
-        input_snapshot_id="snap-SYN-001",
-        horizon="10D",
-        direction=Direction.BULLISH,
-        risk_summary="synthetic risk summary: defined stop distance, bounded loss scenario",
-        evidence_ids=("ev-1", "ev-2"),
-        scenario_ids=("sc-1",),
-        explanation_facts=("fact: synthetic momentum evidence", "fact: synthetic volume evidence"),
-        limitations=(),
-        instrument=InstrumentResolutionInput(
-            identity_status=IdentityStatus.RESOLVED, resolved_with_conid=True),
-        entitlements=EntitlementsInput(capability_status=SourceCapabilityStatus.AVAILABLE),
-        snapshot=SnapshotInput(quality=SnapshotQuality.GOOD, fresh=True),
-        session_event=SessionEventInput(session_known=True, event_calendar_known=True),
-        liquidity=LiquidityInput(
+    kwargs = {
+        "instrument_id": "instr-SYN-001",
+        "as_of": AS_OF,
+        "valid_until": VALID_UNTIL,
+        "input_snapshot_id": "snap-SYN-001",
+        "horizon": "10D",
+        "direction": Direction.BULLISH,
+        "risk_summary": "synthetic risk summary: defined stop distance, bounded loss scenario",
+        "evidence_ids": ("ev-1", "ev-2"),
+        "scenario_ids": ("sc-1",),
+        "explanation_facts": (
+            "fact: synthetic momentum evidence",
+            "fact: synthetic volume evidence",
+        ),
+        "limitations": (),
+        "instrument": InstrumentResolutionInput(
+            identity_status=IdentityStatus.RESOLVED, resolved_with_conid=True
+        ),
+        "entitlements": EntitlementsInput(capability_status=SourceCapabilityStatus.AVAILABLE),
+        "snapshot": SnapshotInput(quality=SnapshotQuality.GOOD, fresh=True),
+        "session_event": SessionEventInput(session_known=True, event_calendar_known=True),
+        "liquidity": LiquidityInput(
             asset_class=AssetClass.STOCK,
             observed_liquidity=Decimal("500000"),
             required_minimum=Decimal("100000"),
             observation_delayed=False,
         ),
-        calculations=CalculationsInput(
-            calculation_statuses={"decision.risk_reward": CalculationStatus.OK}),
-        portfolio_risk=PortfolioRiskInput(
-            risk_required=True, portfolio_risk_available=True, declarations_current=True),
-        probability=ProbabilityInput(probability_used=False),
-        contradictions=ContradictionsInput(
-            unresolved_critical_count=0, explicit_contradiction_count=0),
-        constraints=ConstraintsInput(constraints_version="v3", constraints_current=True),
-    )
+        "calculations": CalculationsInput(
+            calculation_statuses={"decision.risk_reward": CalculationStatus.OK}
+        ),
+        "portfolio_risk": PortfolioRiskInput(
+            risk_required=True, portfolio_risk_available=True, declarations_current=True
+        ),
+        "probability": ProbabilityInput(probability_used=False),
+        "contradictions": ContradictionsInput(
+            unresolved_critical_count=0, explicit_contradiction_count=0
+        ),
+        "constraints": ConstraintsInput(constraints_version="v3", constraints_current=True),
+    }
     kwargs.update(overrides)
     return AdviceInputs(**kwargs)
 
@@ -195,7 +203,9 @@ class TestDegradeRules:
             capability_status=SourceCapabilityStatus.DELAYED))
         result = AdviceEngine().evaluate(inputs)
         assert result.status is AdviceStatus.REVIEW
-        assert "gate entitlements_sufficient degraded: DELAYED_DATA_ENTITLEMENT" in result.limitations
+        assert (
+            "gate entitlements_sufficient degraded: DELAYED_DATA_ENTITLEMENT" in result.limitations
+        )
 
     def test_degrade_with_thin_evidence_stays_observe(self):
         inputs = all_pass_inputs(
@@ -265,7 +275,11 @@ class TestDirectionIndependence:
 
 
 class TestProbabilityEvidence:
-    CANDIDATE = {"model": "synthetic-calib-v1", "p_up_10d": "0.62", "population": "SYN"}
+    CANDIDATE: ClassVar[dict[str, str]] = {
+        "model": "synthetic-calib-v1",
+        "p_up_10d": "0.62",
+        "population": "SYN",
+    }
 
     def test_none_when_probability_not_used(self):
         result = AdviceEngine().evaluate(all_pass_inputs(

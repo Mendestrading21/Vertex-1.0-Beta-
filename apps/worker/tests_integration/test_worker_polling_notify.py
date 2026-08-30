@@ -5,8 +5,9 @@ from __future__ import annotations
 
 import threading
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
+from vertex_core.synthetic import generate_envelopes
 from vertex_worker.handlers import DEV_SYNTHETIC_CONFIG, build_registry
 from vertex_worker.ingest import OUTBOX_NOTIFY_CHANNEL, ingest_envelope
 from vertex_worker.runner import (
@@ -14,9 +15,8 @@ from vertex_worker.runner import (
     WorkerRunner,
     sqlalchemy_url_to_conninfo,
 )
-from vertex_core.synthetic import generate_envelopes
 
-NOW = datetime(2026, 8, 25, 12, 0, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 25, 12, 0, 0, tzinfo=UTC)
 
 
 def _wait_for(predicate, timeout_seconds: float = 10.0) -> bool:

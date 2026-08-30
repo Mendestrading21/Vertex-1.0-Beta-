@@ -7,7 +7,7 @@ refused with a typed error — the process never silently rebinds elsewhere.
 """
 
 import os
-from typing import Mapping, Optional
+from collections.abc import Mapping
 
 import uvicorn
 
@@ -37,7 +37,7 @@ class InvalidPortError(ValueError):
     """``VERTEX_API_PORT`` is not a valid TCP port number."""
 
 
-def resolve_host(configured_host: Optional[str]) -> str:
+def resolve_host(configured_host: str | None) -> str:
     """Return the bind host; refuse anything that is not exactly loopback.
 
     ``None`` (variable unset) binds the default ``127.0.0.1``. Any set value
@@ -56,7 +56,7 @@ def resolve_host(configured_host: Optional[str]) -> str:
     return configured_host
 
 
-def resolve_port(configured_port: Optional[str]) -> int:
+def resolve_port(configured_port: str | None) -> int:
     """Return the bind port; refuse anything that is not a valid TCP port.
 
     ``None`` (variable unset) uses the default. A set value must parse as an
@@ -77,7 +77,7 @@ def resolve_port(configured_port: Optional[str]) -> int:
     return port
 
 
-def main(environ: Optional[Mapping[str, str]] = None) -> None:
+def main(environ: Mapping[str, str] | None = None) -> None:
     """Validate the binding from the environment, then start uvicorn.
 
     Configuration is injected (``environ``) for unit testing; the process

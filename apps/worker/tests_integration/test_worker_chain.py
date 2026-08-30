@@ -15,7 +15,7 @@ silently frozen).
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import func, select
 
@@ -35,7 +35,7 @@ from vertex_worker.handlers import (
 from vertex_worker.ingest import TOPIC_OBSERVATION_INGESTED, ingest_envelope
 from vertex_worker.runner import WorkerRunner
 
-NOW = datetime(2026, 8, 25, 12, 0, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 25, 12, 0, 0, tzinfo=UTC)
 BASE_TIME = NOW - timedelta(minutes=30)
 SEED = 1234
 COUNT = 40

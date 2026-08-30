@@ -1,6 +1,6 @@
 """Layered envelope-quality evaluation: matrix, precedence, absent-is-not-zero."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import pytest
@@ -13,7 +13,6 @@ from vertex_core.data import (
     FreshnessStatus,
     QualityChecks,
     QualityLayer,
-    QualityViolation,
     ViolationSeverity,
     aggregate_violations,
     check_bounds,
@@ -31,19 +30,19 @@ from vertex_core.data import (
     evaluate_envelope_quality,
 )
 
-T0 = datetime(2026, 8, 28, 14, 0, tzinfo=timezone.utc)
+T0 = datetime(2026, 8, 28, 14, 0, tzinfo=UTC)
 
 
 def make_checks(**overrides):
     """All-clear checks; override single facts to trigger specific layers."""
-    kwargs = dict(
-        schema_valid=True,
-        identity_status=IdentityStatus.RESOLVED,
-        unit_consistent=True,
-        rights_known=True,
-        delay_status=DelayStatus.LIVE,
-        freshness=FreshnessStatus.FRESH,
-    )
+    kwargs = {
+        "schema_valid": True,
+        "identity_status": IdentityStatus.RESOLVED,
+        "unit_consistent": True,
+        "rights_known": True,
+        "delay_status": DelayStatus.LIVE,
+        "freshness": FreshnessStatus.FRESH,
+    }
     kwargs.update(overrides)
     return QualityChecks(**kwargs)
 
@@ -72,11 +71,11 @@ def full_coverage():
 
 
 CHECKS_BY_TARGET_QUALITY = {
-    EnvelopeQuality.VALID: dict(),
-    EnvelopeQuality.PARTIAL: dict(coverage=partial_coverage()),
-    EnvelopeQuality.STALE: dict(freshness=FreshnessStatus.STALE),
-    EnvelopeQuality.INVALID: dict(schema_valid=False),
-    EnvelopeQuality.CONFLICT: dict(conflicts=(make_conflict_record(),)),
+    EnvelopeQuality.VALID: {},
+    EnvelopeQuality.PARTIAL: {"coverage": partial_coverage()},
+    EnvelopeQuality.STALE: {"freshness": FreshnessStatus.STALE},
+    EnvelopeQuality.INVALID: {"schema_valid": False},
+    EnvelopeQuality.CONFLICT: {"conflicts": (make_conflict_record(),)},
 }
 
 
@@ -232,7 +231,7 @@ class TestTimeLayer:
 
     def test_naive_datetime_rejected_at_dto_boundary(self):
         with pytest.raises(ValidationError, match="naive datetime"):
-            make_checks(observed_at=datetime(2026, 8, 28, 14, 0))
+            make_checks(observed_at=datetime(2026, 8, 28, 14, 0))  # noqa: DTZ001 (naïf délibéré : rejet vérifié)
 
 
 class TestEntitlementLayer:

@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import pytest
-
 from conftest import make_alert_payload
+
 from vertex_ingress_tv.registry import (
     AlertRegistry,
     RegisteredAlert,

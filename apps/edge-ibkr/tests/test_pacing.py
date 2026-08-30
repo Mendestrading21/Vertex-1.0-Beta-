@@ -74,7 +74,12 @@ def test_priorities_dispatch_control_first() -> None:
 def test_full_p2_queue_refuses_explicitly_and_never_drops() -> None:
     pacer, _clock = make_pacer(
         messages_per_second=38.0,
-        queue_capacity={Priority.P0_CONTROL: 4, Priority.P1_USER: 4, Priority.P2_DURABLE: 2, Priority.P3_BACKGROUND: 4},
+        queue_capacity={
+            Priority.P0_CONTROL: 4,
+            Priority.P1_USER: 4,
+            Priority.P2_DURABLE: 2,
+            Priority.P3_BACKGROUND: 4,
+        },
     )
     pacer.submit("d1", Priority.P2_DURABLE)
     pacer.submit("d2", Priority.P2_DURABLE)

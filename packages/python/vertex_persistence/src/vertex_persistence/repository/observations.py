@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
 from vertex_core.contracts import canonical_json_hash
-
 from vertex_persistence.enums import (
     OBSERVATION_DELAY_STATUSES,
     OBSERVATION_QUALITY_STATUSES,
@@ -40,11 +39,11 @@ def insert_observation(
     delay_status: str,
     rights: str,
     payload: Any,
-    source_event_id: Optional[str] = None,
-    instrument_ref: Optional[str] = None,
-    observed_at: Optional[datetime] = None,
-    published_at: Optional[datetime] = None,
-    connection_epoch: Optional[int] = None,
+    source_event_id: str | None = None,
+    instrument_ref: str | None = None,
+    observed_at: datetime | None = None,
+    published_at: datetime | None = None,
+    connection_epoch: int | None = None,
 ) -> bool:
     """Insert one observation; return ``True`` if a row was written.
 

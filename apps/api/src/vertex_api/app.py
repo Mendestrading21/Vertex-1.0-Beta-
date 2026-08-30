@@ -302,5 +302,7 @@ def create_app() -> FastAPI:
             app.openapi_schema = _build_openapi_schema(app)
         return app.openapi_schema
 
-    app.openapi = custom_openapi
+    # Surcharge documentée par FastAPI : `app.openapi` est un attribut
+    # d'instance destiné à être remplacé, pas une méthode à redéfinir.
+    app.openapi = custom_openapi  # type: ignore[method-assign]
     return app

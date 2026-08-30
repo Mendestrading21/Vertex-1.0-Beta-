@@ -230,7 +230,9 @@ def _breakevens(
     breakevens: list[SimulationBreakeven] = []
     quantized_any = False
     candidates: list[tuple[Decimal, Decimal, Decimal]] = []
-    for (a, pa), (b, pb) in zip(zip(grid, payoffs), zip(grid[1:], payoffs[1:])):
+    for (a, pa), (b, pb) in zip(
+        zip(grid, payoffs, strict=True), zip(grid[1:], payoffs[1:], strict=True), strict=False
+    ):
         if pa == 0:
             candidates.append((a, a, a))
         elif (pa < 0 < pb) or (pb < 0 < pa):
@@ -306,7 +308,7 @@ def run_simulation_preview(
     )
 
     # 4) On-grid extremes (explicitly labeled; never a global claim).
-    indexed = list(zip(evaluation_grid, payoffs))
+    indexed = list(zip(evaluation_grid, payoffs, strict=True))
     max_spot, max_pnl = max(indexed, key=lambda pair: (pair[1], -pair[0]))
     min_spot, min_pnl = min(indexed, key=lambda pair: (pair[1], -pair[0]))
 

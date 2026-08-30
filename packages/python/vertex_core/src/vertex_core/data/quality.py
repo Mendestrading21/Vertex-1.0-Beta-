@@ -28,10 +28,11 @@ Pure module: no network, no system clock — freshness arrives pre-evaluated
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from decimal import Decimal
 from enum import Enum, unique
 from types import MappingProxyType
-from typing import Annotated, Any, Mapping, Optional, Sequence
+from typing import Annotated, Any
 
 from pydantic import Field, model_validator
 
@@ -103,7 +104,7 @@ class ViolationSeverity(str, Enum):
     PARTIAL = "PARTIAL"
 
 
-def _empty_frozen_mapping() -> MappingProxyType:
+def _empty_frozen_mapping() -> MappingProxyType[str, Any]:
     return MappingProxyType({})
 
 
@@ -133,10 +134,10 @@ class CoverageReport(ContractModel):
     stale: NonNegativeInt
     missing: NonNegativeInt
     coverage_ratio: FiniteDecimal
-    max_age_seconds: Optional[NonNegativeDecimal] = None
+    max_age_seconds: NonNegativeDecimal | None = None
 
     @model_validator(mode="after")
-    def _check_consistency(self) -> "CoverageReport":
+    def _check_consistency(self) -> CoverageReport:
         if self.received > self.expected:
             raise ValueError("received must not exceed expected")
         if self.valid + self.delayed + self.stale > self.received:
@@ -156,7 +157,7 @@ def coverage_ratio(
     delayed: int,
     stale: int,
     missing: int,
-    max_age_seconds: Optional[Decimal] = None,
+    max_age_seconds: Decimal | None = None,
 ) -> CoverageReport:
     """Build a validated :class:`CoverageReport` from raw collection counts.
 
@@ -204,24 +205,24 @@ class QualityChecks(ContractModel):
     bounds violation by itself.
     """
 
-    schema_valid: Optional[bool]
-    identity_status: Optional[IdentityStatus]
-    unit_consistent: Optional[bool]
-    rights_known: Optional[bool]
-    delay_status: Optional[DelayStatus]
-    freshness: Optional[FreshnessStatus]
-    observed_at: Optional[UtcDatetime] = None
-    received_at: Optional[UtcDatetime] = None
-    bid: Optional[FiniteDecimal] = None
-    ask: Optional[FiniteDecimal] = None
-    last: Optional[FiniteDecimal] = None
-    open_price: Optional[FiniteDecimal] = None
-    high_price: Optional[FiniteDecimal] = None
-    low_price: Optional[FiniteDecimal] = None
-    close_price: Optional[FiniteDecimal] = None
-    volume: Optional[FiniteDecimal] = None
-    crossed_market_explained: Optional[bool] = None
-    coverage: Optional[CoverageReport] = None
+    schema_valid: bool | None
+    identity_status: IdentityStatus | None
+    unit_consistent: bool | None
+    rights_known: bool | None
+    delay_status: DelayStatus | None
+    freshness: FreshnessStatus | None
+    observed_at: UtcDatetime | None = None
+    received_at: UtcDatetime | None = None
+    bid: FiniteDecimal | None = None
+    ask: FiniteDecimal | None = None
+    last: FiniteDecimal | None = None
+    open_price: FiniteDecimal | None = None
+    high_price: FiniteDecimal | None = None
+    low_price: FiniteDecimal | None = None
+    close_price: FiniteDecimal | None = None
+    volume: FiniteDecimal | None = None
+    crossed_market_explained: bool | None = None
+    coverage: CoverageReport | None = None
     conflicts: tuple[ConflictRecord, ...] = ()
 
 
@@ -230,7 +231,7 @@ def _violation(
     severity: ViolationSeverity,
     code: str,
     message: str,
-    observed: Optional[Mapping[str, Any]] = None,
+    observed: Mapping[str, Any] | None = None,
 ) -> QualityViolation:
     return QualityViolation(
         layer=layer,
@@ -246,7 +247,7 @@ def _violation(
 # ---------------------------------------------------------------------------
 
 
-def check_schema(*, schema_valid: Optional[bool]) -> tuple[QualityViolation, ...]:
+def check_schema(*, schema_valid: bool | None) -> tuple[QualityViolation, ...]:
     """Layer 1: the payload validated against its declared schema.
 
     ``None`` (never validated) fails closed exactly like ``False``.
@@ -277,7 +278,7 @@ def check_schema(*, schema_valid: Optional[bool]) -> tuple[QualityViolation, ...
 # ---------------------------------------------------------------------------
 
 
-def check_identity(*, identity_status: Optional[IdentityStatus]) -> tuple[QualityViolation, ...]:
+def check_identity(*, identity_status: IdentityStatus | None) -> tuple[QualityViolation, ...]:
     """Layer 2: the observation is bound to an unambiguously resolved identity."""
     if identity_status is None:
         return (
@@ -306,7 +307,7 @@ def check_identity(*, identity_status: Optional[IdentityStatus]) -> tuple[Qualit
 # ---------------------------------------------------------------------------
 
 
-def check_units(*, unit_consistent: Optional[bool]) -> tuple[QualityViolation, ...]:
+def check_units(*, unit_consistent: bool | None) -> tuple[QualityViolation, ...]:
     """Layer 3: unit, currency and multiplier are declared and consistent."""
     if unit_consistent is None:
         return (
@@ -336,8 +337,8 @@ def check_units(*, unit_consistent: Optional[bool]) -> tuple[QualityViolation, .
 
 def check_time_order(
     *,
-    observed_at: Optional[UtcDatetime],
-    received_at: Optional[UtcDatetime],
+    observed_at: UtcDatetime | None,
+    received_at: UtcDatetime | None,
 ) -> tuple[QualityViolation, ...]:
     """Layer 4: an observation cannot be observed after it was received.
 
@@ -367,8 +368,8 @@ def check_time_order(
 
 def check_entitlement(
     *,
-    rights_known: Optional[bool],
-    delay_status: Optional[DelayStatus],
+    rights_known: bool | None,
+    delay_status: DelayStatus | None,
 ) -> tuple[QualityViolation, ...]:
     """Layer 5: rights are known and the delay dimension is declared.
 
@@ -393,7 +394,8 @@ def check_entitlement(
                 QualityLayer.ENTITLEMENT,
                 ViolationSeverity.BLOCKING,
                 "DELAY_STATUS_MISSING",
-                "live/delayed type was never assessed (use DelayStatus.UNKNOWN to declare it unknown)",
+                "live/delayed type was never assessed "
+                "(use DelayStatus.UNKNOWN to declare it unknown)",
             )
         )
     return tuple(violations)
@@ -406,14 +408,14 @@ def check_entitlement(
 
 def check_bounds(
     *,
-    bid: Optional[Decimal] = None,
-    ask: Optional[Decimal] = None,
-    last: Optional[Decimal] = None,
-    open_price: Optional[Decimal] = None,
-    high_price: Optional[Decimal] = None,
-    low_price: Optional[Decimal] = None,
-    close_price: Optional[Decimal] = None,
-    volume: Optional[Decimal] = None,
+    bid: Decimal | None = None,
+    ask: Decimal | None = None,
+    last: Decimal | None = None,
+    open_price: Decimal | None = None,
+    high_price: Decimal | None = None,
+    low_price: Decimal | None = None,
+    close_price: Decimal | None = None,
+    volume: Decimal | None = None,
 ) -> tuple[QualityViolation, ...]:
     """Layer 6: prices and sizes respect physical/financial bounds.
 
@@ -461,13 +463,13 @@ def check_bounds(
 
 def check_price_coherence(
     *,
-    bid: Optional[Decimal] = None,
-    ask: Optional[Decimal] = None,
-    crossed_market_explained: Optional[bool] = None,
-    open_price: Optional[Decimal] = None,
-    high_price: Optional[Decimal] = None,
-    low_price: Optional[Decimal] = None,
-    close_price: Optional[Decimal] = None,
+    bid: Decimal | None = None,
+    ask: Decimal | None = None,
+    crossed_market_explained: bool | None = None,
+    open_price: Decimal | None = None,
+    high_price: Decimal | None = None,
+    low_price: Decimal | None = None,
+    close_price: Decimal | None = None,
 ) -> tuple[QualityViolation, ...]:
     """Layer 7: bid/ask and OHLC internal coherence.
 
@@ -521,7 +523,7 @@ def check_price_coherence(
 # ---------------------------------------------------------------------------
 
 
-def check_coverage(*, coverage: Optional[CoverageReport]) -> tuple[QualityViolation, ...]:
+def check_coverage(*, coverage: CoverageReport | None) -> tuple[QualityViolation, ...]:
     """Layer 8: collection coverage. ``None`` = not a collection (no violation).
 
     A coverage ratio below 1 marks the observation PARTIAL; the report keeps
@@ -556,7 +558,7 @@ def check_coverage(*, coverage: Optional[CoverageReport]) -> tuple[QualityViolat
 # ---------------------------------------------------------------------------
 
 
-def check_freshness(*, freshness: Optional[FreshnessStatus]) -> tuple[QualityViolation, ...]:
+def check_freshness(*, freshness: FreshnessStatus | None) -> tuple[QualityViolation, ...]:
     """Layer 9: pre-evaluated session-aware freshness.
 
     ``None`` (never evaluated) fails closed; ``INVALID`` (observation dated in

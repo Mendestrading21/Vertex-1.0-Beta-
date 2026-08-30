@@ -39,18 +39,15 @@ import hashlib
 import io
 import json
 import re
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal, InvalidOperation
 from typing import (
     Annotated,
     Any,
-    Iterable,
     Literal,
-    Mapping,
-    Optional,
     Protocol,
-    Sequence,
 )
 
 from fastapi import FastAPI
@@ -76,10 +73,10 @@ from vertex_persistence.enums import (
 )
 from vertex_persistence.models import LedgerTransaction, Portfolio
 from vertex_persistence.repository.ledger import (
+    compensate_ledger_event,
     create_portfolio,
     list_position_lots,
     record_ledger_event,
-    compensate_ledger_event,
 )
 from vertex_persistence.repository.outbox import enqueue_outbox
 from vertex_persistence.repository.snapshots import CurrentSnapshot, get_current_snapshot
@@ -297,17 +294,17 @@ class RecordTransactionRequest(ContractModel):
     """
 
     kind: LedgerEventKind
-    instrument: Optional[InstrumentRefInput] = None
-    quantity: Optional[Decimal] = None
-    price: Optional[Decimal] = None
+    instrument: InstrumentRefInput | None = None
+    quantity: Decimal | None = None
+    price: Decimal | None = None
     amount: Decimal
     currency: CurrencyCode
     fees: Decimal = Decimal("0")
     effective_at: UtcDatetime
-    note: Optional[NoteStr] = None
+    note: NoteStr | None = None
 
     @model_validator(mode="after")
-    def _check_shape(self) -> "RecordTransactionRequest":
+    def _check_shape(self) -> RecordTransactionRequest:
         for label, value in (
             ("quantity", self.quantity),
             ("price", self.price),
@@ -455,18 +452,18 @@ class LedgerTransactionEntry(ContractModel):
 
     id: PositiveInt
     kind: NonEmptyStr
-    instrument: Optional[FrozenStrMapping]
-    quantity: Optional[NonEmptyStr]
-    price: Optional[NonEmptyStr]
+    instrument: FrozenStrMapping | None
+    quantity: NonEmptyStr | None
+    price: NonEmptyStr | None
     amount: NonEmptyStr
     currency: CurrencyCode
     fees: NonEmptyStr
     effective_at: UtcDatetime
     recorded_at: UtcDatetime
     source: NonEmptyStr
-    note: Optional[NonEmptyStr]
-    compensates: Optional[PositiveInt]
-    compensated_by: Optional[PositiveInt]
+    note: NonEmptyStr | None
+    compensates: PositiveInt | None
+    compensated_by: PositiveInt | None
 
 
 class PortfolioLotEntry(ContractModel):
@@ -479,7 +476,7 @@ class PortfolioLotEntry(ContractModel):
     currency: CurrencyCode
     opened_at: UtcDatetime
     source: NonEmptyStr
-    note: Optional[NonEmptyStr]
+    note: NonEmptyStr | None
 
 
 class PortfolioValuationView(ContractModel):
@@ -492,10 +489,10 @@ class PortfolioValuationView(ContractModel):
     """
 
     state: Literal["ok", "empty"]
-    snapshot_version: Optional[PositiveInt]
-    as_of: Optional[UtcDatetime]
-    content: Optional[FrozenStrMapping]
-    reason: Optional[NonEmptyStr]
+    snapshot_version: PositiveInt | None
+    as_of: UtcDatetime | None
+    content: FrozenStrMapping | None
+    reason: NonEmptyStr | None
 
 
 class PortfolioResponse(ContractModel):
@@ -518,17 +515,17 @@ class LedgerEntryView:
 
     id: int
     kind: str
-    instrument: Optional[Mapping[str, Any]]
-    quantity: Optional[Decimal]
-    price: Optional[Decimal]
+    instrument: Mapping[str, Any] | None
+    quantity: Decimal | None
+    price: Decimal | None
     amount: Decimal
     currency: str
     fees: Decimal
     effective_at: datetime
     recorded_at: datetime
     source: str
-    note: Optional[str]
-    compensates: Optional[int]
+    note: str | None
+    compensates: int | None
 
 
 @dataclass(frozen=True)
@@ -542,7 +539,7 @@ class LotView:
     currency: str
     opened_at: datetime
     source: str
-    note: Optional[str]
+    note: str | None
 
 
 @dataclass(frozen=True)
@@ -554,7 +551,7 @@ class PortfolioOverview:
     base_currency: str
     transactions: tuple[LedgerEntryView, ...]
     lots: tuple[LotView, ...]
-    valuation: Optional[CurrentSnapshot]
+    valuation: CurrentSnapshot | None
 
 
 @dataclass(frozen=True)
@@ -563,14 +560,14 @@ class ValidatedImportRow:
 
     row_number: int
     kind: str
-    ticker: Optional[str]
-    quantity: Optional[Decimal]
-    price: Optional[Decimal]
+    ticker: str | None
+    quantity: Decimal | None
+    price: Decimal | None
     amount: Decimal
     currency: str
     fees: Decimal
     effective_at: datetime
-    note: Optional[str]
+    note: str | None
     canonical_fields: Mapping[str, str]
     row_hash: str
 
@@ -651,7 +648,7 @@ def import_row_hash(fields: Mapping[str, str]) -> str:
 
 def validate_import_fields(
     fields: Mapping[str, str], *, row_number: int, now: datetime
-) -> tuple[Optional[ValidatedImportRow], list[str]]:
+) -> tuple[ValidatedImportRow | None, list[str]]:
     """Validate ONE import row fail-closed; return (row, []) or (None, errors).
 
     The same function runs at preview AND at confirm — the confirm never
@@ -671,7 +668,7 @@ def validate_import_fields(
     if kind not in LEDGER_EVENT_KINDS:
         errors.append(ROW_ERROR_UNKNOWN_KIND)
 
-    parsed_ticker: Optional[str] = None
+    parsed_ticker: str | None = None
     if ticker:
         if re.match(_TICKER_PATTERN, ticker):
             parsed_ticker = ticker
@@ -680,7 +677,7 @@ def validate_import_fields(
 
     def _parse_decimal(
         invalid_error: str, range_error: str, raw: str
-    ) -> Optional[Decimal]:
+    ) -> Decimal | None:
         """Parse one declared decimal, MAGNITUDE BOUND INCLUDED.
 
         ``Decimal(raw)`` itself is cheap whatever the exponent (the exponent
@@ -702,7 +699,7 @@ def validate_import_fields(
             return None
         return value
 
-    quantity: Optional[Decimal] = None
+    quantity: Decimal | None = None
     if quantity_text:
         quantity = _parse_decimal(
             ROW_ERROR_INVALID_QUANTITY, ROW_ERROR_QUANTITY_OUT_OF_RANGE, quantity_text
@@ -711,7 +708,7 @@ def validate_import_fields(
             errors.append(ROW_ERROR_INVALID_QUANTITY)
             quantity = None
 
-    price: Optional[Decimal] = None
+    price: Decimal | None = None
     if price_text:
         price = _parse_decimal(
             ROW_ERROR_INVALID_PRICE, ROW_ERROR_PRICE_OUT_OF_RANGE, price_text
@@ -720,7 +717,7 @@ def validate_import_fields(
             errors.append(ROW_ERROR_INVALID_PRICE)
             price = None
 
-    amount: Optional[Decimal] = None
+    amount: Decimal | None = None
     if amount_text:
         amount = _parse_decimal(
             ROW_ERROR_INVALID_AMOUNT, ROW_ERROR_AMOUNT_OUT_OF_RANGE, amount_text
@@ -731,7 +728,7 @@ def validate_import_fields(
     if not re.match(_CURRENCY_PATTERN, currency):
         errors.append(ROW_ERROR_INVALID_CURRENCY)
 
-    fees: Optional[Decimal] = None
+    fees: Decimal | None = None
     if fees_text:
         fees = _parse_decimal(
             ROW_ERROR_INVALID_FEES, ROW_ERROR_FEES_OUT_OF_RANGE, fees_text
@@ -742,7 +739,7 @@ def validate_import_fields(
     else:
         fees = Decimal("0")
 
-    effective_at: Optional[datetime] = None
+    effective_at: datetime | None = None
     try:
         parsed = datetime.fromisoformat(effective_text) if effective_text else None
     except ValueError:
@@ -750,7 +747,7 @@ def validate_import_fields(
     if parsed is None or parsed.tzinfo is None or parsed.tzinfo.utcoffset(parsed) is None:
         errors.append(ROW_ERROR_INVALID_EFFECTIVE_AT)
     else:
-        effective_at = parsed.astimezone(timezone.utc)
+        effective_at = parsed.astimezone(UTC)
         if effective_at > now:
             errors.append(ROW_ERROR_EFFECTIVE_AT_IN_FUTURE)
             effective_at = None
@@ -769,7 +766,7 @@ def validate_import_fields(
     if errors:
         return None, sorted(set(errors))
 
-    assert amount is not None and fees is not None and effective_at is not None
+    assert amount is not None and fees is not None and effective_at is not None  # noqa: S101 (narrowing mypy, garde réelle au-dessus)
     canonical_fields = {
         "kind": kind,
         "ticker": parsed_ticker or "",
@@ -893,7 +890,7 @@ def _duplicate_key_of_entry(entry: LedgerEntryView) -> tuple[str, ...]:
         _decimal_text(entry.price) if entry.price is not None else "",
         _decimal_text(entry.amount),
         entry.currency,
-        entry.effective_at.astimezone(timezone.utc).isoformat(),
+        entry.effective_at.astimezone(UTC).isoformat(),
     )
 
 
@@ -959,8 +956,8 @@ def render_export_csv(entries: Iterable[LedgerEntryView]) -> str:
             _decimal_text(entry.amount),
             entry.currency,
             _decimal_text(entry.fees),
-            entry.effective_at.astimezone(timezone.utc).isoformat(),
-            entry.recorded_at.astimezone(timezone.utc).isoformat(),
+            entry.effective_at.astimezone(UTC).isoformat(),
+            entry.recorded_at.astimezone(UTC).isoformat(),
             entry.source,
             entry.note or "",
             str(entry.compensates) if entry.compensates is not None else "",
@@ -991,14 +988,14 @@ class PortfolioGateway(Protocol):
         self,
         *,
         kind: str,
-        instrument: Optional[Mapping[str, Any]],
-        quantity: Optional[Decimal],
-        price: Optional[Decimal],
+        instrument: Mapping[str, Any] | None,
+        quantity: Decimal | None,
+        price: Decimal | None,
         amount: Decimal,
         currency: str,
         fees: Decimal,
         effective_at: datetime,
-        note: Optional[str],
+        note: str | None,
         now: datetime,
     ) -> int:
         """Append one journal fact + enqueue the refresh, one transaction."""
@@ -1140,14 +1137,14 @@ class DbPortfolioGateway:
         self,
         *,
         kind: str,
-        instrument: Optional[Mapping[str, Any]],
-        quantity: Optional[Decimal],
-        price: Optional[Decimal],
+        instrument: Mapping[str, Any] | None,
+        quantity: Decimal | None,
+        price: Decimal | None,
         amount: Decimal,
         currency: str,
         fees: Decimal,
         effective_at: datetime,
-        note: Optional[str],
+        note: str | None,
         now: datetime,
     ) -> int:
         with open_db_session(self._app) as session:
@@ -1217,7 +1214,7 @@ class DbPortfolioGateway:
 # ---------------------------------------------------------------------------
 
 
-def _optional_decimal_str(value: Optional[Decimal]) -> Optional[str]:
+def _optional_decimal_str(value: Decimal | None) -> str | None:
     return None if value is None else _decimal_text(value)
 
 

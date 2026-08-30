@@ -25,13 +25,13 @@ from __future__ import annotations
 
 import asyncio
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from time import monotonic as _time_monotonic
-from typing import Any, Callable, Optional
+from typing import Any
 
 from vertex_core.contracts import ContractModel, NonEmptyStr, SourceCapabilityStatus, UtcDatetime
-
 from vertex_edge_ibkr.pacing import LineBudget
 from vertex_edge_ibkr.port import (
     DELAYED_QUOTE_TICKS,
@@ -46,6 +46,7 @@ from vertex_edge_ibkr.port import (
 )
 
 __all__ = [
+    "PROVIDER_ERROR_MAPPING",
     "CapabilityFieldEvidence",
     "EntitlementProbe",
     "ProbeAlreadyActiveError",
@@ -54,7 +55,6 @@ __all__ = [
     "ProviderErrorMapping",
     "SourceCapabilitySnapshot",
     "map_provider_error",
-    "PROVIDER_ERROR_MAPPING",
 ]
 
 _STATUS = SourceCapabilityStatus
@@ -111,11 +111,11 @@ class CapabilityFieldEvidence(ContractModel):
     capability_id: NonEmptyStr
     field: NonEmptyStr
     status: SourceCapabilityStatus
-    reason_code: Optional[NonEmptyStr] = None
-    tick_type: Optional[int] = None
-    market_data_type: Optional[int] = None
-    observed_at: Optional[UtcDatetime] = None
-    provider_error_code: Optional[int] = None
+    reason_code: NonEmptyStr | None = None
+    tick_type: int | None = None
+    market_data_type: int | None = None
+    observed_at: UtcDatetime | None = None
+    provider_error_code: int | None = None
 
 
 class SourceCapabilitySnapshot(ContractModel):
@@ -133,13 +133,13 @@ class SourceCapabilitySnapshot(ContractModel):
     expires_at: UtcDatetime
     fields: tuple[CapabilityFieldEvidence, ...]
 
-    def field_evidence(self, capability_id: str, field: str) -> Optional[CapabilityFieldEvidence]:
+    def field_evidence(self, capability_id: str, field: str) -> CapabilityFieldEvidence | None:
         for evidence in self.fields:
             if evidence.capability_id == capability_id and evidence.field == field:
                 return evidence
         return None
 
-    def status_of(self, capability_id: str, field: str) -> Optional[SourceCapabilityStatus]:
+    def status_of(self, capability_id: str, field: str) -> SourceCapabilityStatus | None:
         evidence = self.field_evidence(capability_id, field)
         return None if evidence is None else evidence.status
 
@@ -162,10 +162,10 @@ class ProbeGate:
     """Exclusive slot: at most one entitlement probe runs at any moment."""
 
     def __init__(self) -> None:
-        self._active_probe_id: Optional[str] = None
+        self._active_probe_id: str | None = None
 
     @property
-    def active_probe_id(self) -> Optional[str]:
+    def active_probe_id(self) -> str | None:
         return self._active_probe_id
 
     def acquire(self, probe_id: str) -> None:
@@ -255,7 +255,7 @@ class _FieldPlan:
     field: str
     payload_attr: str
     kind: str  # "quote" | "greek"
-    tick_type: Optional[int] = None  # fixed tick id for generic quote fields
+    tick_type: int | None = None  # fixed tick id for generic quote fields
 
 
 def _underlying_plan() -> tuple[_FieldPlan, ...]:
@@ -301,8 +301,8 @@ class EntitlementProbe:
         port: IbkrInformationPort,
         config: ProbeConfig,
         *,
-        gate: Optional[ProbeGate] = None,
-        clock: Optional[Callable[[], datetime]] = None,
+        gate: ProbeGate | None = None,
+        clock: Callable[[], datetime] | None = None,
         monotonic: Callable[[], float] = _time_monotonic,
         epoch_provider: Callable[[], int] = lambda: 0,
         probe_id_factory: Callable[[], str] = lambda: uuid.uuid4().hex,
@@ -349,7 +349,7 @@ class EntitlementProbe:
             # Step 1 — preflight: connection and server clock must answer.
             try:
                 await self._bounded(self._port.server_time, deadline)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 self._fill_missing(evidence, planned, _STATUS.ERROR, "STEP_TIMEOUT")
                 return self._publish(probe_id, evidence)
             except ProviderError as exc:
@@ -441,7 +441,7 @@ class EntitlementProbe:
             chains = await self._bounded(
                 lambda: self._port.sec_def_opt_params(self._config.underlying), deadline
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             evidence[key] = self._evidence(key, _STATUS.ERROR, "STEP_TIMEOUT")
             return
         except ProviderError as exc:
@@ -479,7 +479,7 @@ class EntitlementProbe:
                 ),
                 deadline,
             )
-        except asyncio.TimeoutError:
+        except TimeoutError:
             self._assign_step_failure(evidence, plan, _STATUS.ERROR, "STEP_TIMEOUT", None)
             return
         except ProviderError as exc:
@@ -505,8 +505,8 @@ class EntitlementProbe:
         observed_status = _STATUS.DELAYED if delayed else _STATUS.AVAILABLE
         quote_ticks = DELAYED_QUOTE_TICKS if delayed else LIVE_QUOTE_TICKS
 
-        error_mapped: Optional[tuple[int, ProviderErrorMapping]] = None
-        entitlement_mapped: Optional[tuple[int, ProviderErrorMapping]] = None
+        error_mapped: tuple[int, ProviderErrorMapping] | None = None
+        entitlement_mapped: tuple[int, ProviderErrorMapping] | None = None
         for info in result.provider_errors:
             mapping = map_provider_error(info.code)
             if mapping.status is _STATUS.ERROR and error_mapped is None:
@@ -551,7 +551,7 @@ class EntitlementProbe:
 
     def _extract(
         self, result: MarketDataSnapshotResult, item: _FieldPlan
-    ) -> Optional[tuple[Optional[int], Optional[datetime], Optional[int]]]:
+    ) -> tuple[int | None, datetime | None, int | None] | None:
         """Return (tick_type, observed_at, market_data_type) when observed."""
         if item.kind == "quote":
             for envelope in result.envelopes:
@@ -585,7 +585,7 @@ class EntitlementProbe:
         plan: tuple[_FieldPlan, ...],
         status: SourceCapabilityStatus,
         reason: str,
-        provider_error_code: Optional[int],
+        provider_error_code: int | None,
     ) -> None:
         for item in plan:
             key = (item.capability_id, item.field)
@@ -600,7 +600,7 @@ class EntitlementProbe:
         planned: list[_FieldPlan],
         status: SourceCapabilityStatus,
         reason: str,
-        provider_error_code: Optional[int] = None,
+        provider_error_code: int | None = None,
     ) -> None:
         for item in planned:
             key = (item.capability_id, item.field)
@@ -613,12 +613,12 @@ class EntitlementProbe:
         self,
         key: tuple[str, str],
         status: SourceCapabilityStatus,
-        reason_code: Optional[str],
+        reason_code: str | None,
         *,
-        tick_type: Optional[int] = None,
-        market_data_type: Optional[int] = None,
-        observed_at: Optional[datetime] = None,
-        provider_error_code: Optional[int] = None,
+        tick_type: int | None = None,
+        market_data_type: int | None = None,
+        observed_at: datetime | None = None,
+        provider_error_code: int | None = None,
     ) -> CapabilityFieldEvidence:
         return CapabilityFieldEvidence(
             capability_id=key[0],

@@ -25,15 +25,14 @@ from __future__ import annotations
 
 import random
 from enum import Enum, unique
-from typing import Optional
 
 __all__ = [
+    "TRANSPORT_ERROR_CODE_502",
     "ConnectionState",
     "ConnectionStateMachine",
     "InvalidTransitionError",
     "PortRereadRequiredError",
     "ReconnectInProgressError",
-    "TRANSPORT_ERROR_CODE_502",
 ]
 
 #: TWS "couldn't connect" transport error code, handled as EOF-equivalent.
@@ -150,7 +149,9 @@ class ConnectionStateMachine:
         if self._reconnect_in_progress:
             raise ReconnectInProgressError("a reconnection attempt is already in progress")
         if self._reread_port_required:
-            raise PortRereadRequiredError("1300 received: re-read the socket port before reconnecting")
+            raise PortRereadRequiredError(
+                "1300 received: re-read the socket port before reconnecting"
+            )
         self._reconnect_in_progress = True
         self._state = ConnectionState.CONNECTING
 
@@ -186,7 +187,7 @@ class ConnectionStateMachine:
 
     # -- provider events ---------------------------------------------------
 
-    def on_error_code(self, code: int) -> Optional[float]:
+    def on_error_code(self, code: int) -> float | None:
         """Apply one provider status code; returns a backoff delay for 502."""
         if self._state is ConnectionState.STOPPED:
             return None

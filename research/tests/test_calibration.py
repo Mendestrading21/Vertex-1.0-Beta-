@@ -10,7 +10,6 @@ import math
 import random
 
 import pytest
-
 from pipelines.calibration import (
     CalibrationStatus,
     assess_calibration,

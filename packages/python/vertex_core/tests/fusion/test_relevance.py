@@ -1,14 +1,16 @@
 """Relevance engine: mandatory gates, lexicographic ranking, budgets, sync."""
 
 import random
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 from pathlib import Path
 
 import pytest
 import yaml
-from hypothesis import given, settings, strategies as st
+from hypothesis import given, settings
+from hypothesis import strategies as st
 from pydantic import ValidationError
 
+from tests.fusion.factories import BASE_TIME, make_observation
 from vertex_core.contracts import (
     EnvelopeQuality,
     IdentityStatus,
@@ -19,18 +21,17 @@ from vertex_core.fusion import (
     PENALTY_CODES,
     POLICY_AUTHORITY,
     POLICY_VERSION,
+    REQUIRED_GATES,
+    UNLIMITED,
     RankedItem,
     RelevanceInput,
     RelevanceInputError,
     RelevanceSubscores,
-    REQUIRED_GATES,
-    UNLIMITED,
     UnknownAttentionBudgetError,
     apply_attention_budget,
     evaluate_gates,
     rank_items,
 )
-from tests.fusion.factories import BASE_TIME, make_observation
 
 AS_OF = BASE_TIME + timedelta(hours=1)
 
@@ -53,12 +54,12 @@ def make_input(content_id: str, **overrides) -> RelevanceInput:
         )
         if key in overrides
     }
-    values = dict(
-        observation=make_observation(content_id, **observation_fields),
-        identity_status=IdentityStatus.RESOLVED,
-        rights_usable=True,
-        source_allowed=True,
-    )
+    values = {
+        "observation": make_observation(content_id, **observation_fields),
+        "identity_status": IdentityStatus.RESOLVED,
+        "rights_usable": True,
+        "source_allowed": True,
+    }
     values.update(overrides)
     return RelevanceInput(**values)
 
@@ -107,7 +108,7 @@ class TestGates:
 
     def test_naive_as_of_rejected(self):
         with pytest.raises(ValueError, match="naive datetime"):
-            rank_items([make_input("a")], as_of=datetime(2026, 8, 1, 13, 0))
+            rank_items([make_input("a")], as_of=datetime(2026, 8, 1, 13, 0))  # noqa: DTZ001 (naïf délibéré : rejet vérifié)
 
     def test_duplicate_item_ids_rejected(self):
         with pytest.raises(RelevanceInputError, match="duplicate item_id"):
@@ -190,7 +191,12 @@ class TestLexicographicRanking:
         items = [
             make_input("older", watchlist=True, received_at=BASE_TIME - timedelta(hours=5)),
             make_input("newer", watchlist=True, received_at=BASE_TIME),
-            make_input("tie-b", watchlist=True, source_tier="P1", received_at=BASE_TIME - timedelta(hours=5)),
+            make_input(
+                "tie-b",
+                watchlist=True,
+                source_tier="P1",
+                received_at=BASE_TIME - timedelta(hours=5),
+            ),
         ]
         # "older" and "tie-b" share the age; P1 has the same tier so id decides.
         ranking = rank_items(items, as_of=AS_OF)

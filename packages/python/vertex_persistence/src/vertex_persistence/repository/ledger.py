@@ -16,7 +16,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
-from typing import Any, Optional
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -48,11 +48,11 @@ from vertex_persistence.repository._validation import (
 
 __all__ = [
     "PositionLotRecord",
-    "create_portfolio",
     "add_position_lot",
-    "record_ledger_event",
     "compensate_ledger_event",
+    "create_portfolio",
     "list_position_lots",
+    "record_ledger_event",
 ]
 
 # Partial unique index (0002_concurrency_guards): at most one compensating row
@@ -72,7 +72,7 @@ class PositionLotRecord:
     currency: str
     opened_at: datetime
     source: str
-    note: Optional[str]
+    note: str | None
 
 
 def _require_portfolio(session: Session, portfolio_id: int) -> Portfolio:
@@ -104,7 +104,7 @@ def add_position_lot(
     currency: str,
     opened_at: datetime,
     source: str = PositionLotSource.MANUAL.value,
-    note: Optional[str] = None,
+    note: str | None = None,
 ) -> int:
     """Record one user-declared lot; return its id (no commit here)."""
     _require_portfolio(session, portfolio_id)
@@ -134,11 +134,11 @@ def record_ledger_event(
     effective_at: datetime,
     recorded_at: datetime,
     instrument: Any = None,
-    quantity: Optional[Decimal] = None,
-    price: Optional[Decimal] = None,
+    quantity: Decimal | None = None,
+    price: Decimal | None = None,
     source: str = PositionLotSource.MANUAL.value,
-    note: Optional[str] = None,
-    compensates: Optional[int] = None,
+    note: str | None = None,
+    compensates: int | None = None,
 ) -> int:
     """Append one past fact to the ledger; return its id (no commit here).
 
@@ -154,7 +154,7 @@ def record_ledger_event(
     """
     _require_portfolio(session, portfolio_id)
     kind = validate_enum_value("kind", kind, LEDGER_EVENT_KINDS)
-    compensated: Optional[LedgerTransaction] = None
+    compensated: LedgerTransaction | None = None
     if compensates is not None:
         compensates = require_positive_int("compensates", compensates)
         compensated = session.get(LedgerTransaction, compensates)

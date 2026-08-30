@@ -1,6 +1,6 @@
 """Freshness policies: registry, session-aware TTLs, fail-closed evaluation."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone
 
 import pytest
 from pydantic import ValidationError
@@ -16,7 +16,7 @@ from vertex_core.data import (
     get_freshness_policy,
 )
 
-T0 = datetime(2026, 8, 28, 14, 0, tzinfo=timezone.utc)
+T0 = datetime(2026, 8, 28, 14, 0, tzinfo=UTC)
 
 EXPECTED_POLICY_NAMES = {
     "intraday_quote",
@@ -86,7 +86,9 @@ class TestPolicyModel:
     def test_non_positive_ttl_rejected(self):
         for bad in (0, -5):
             with pytest.raises(ValidationError):
-                FreshnessPolicy(name="x", version="1.0.0", ttl_open_seconds=bad, ttl_closed_seconds=10)
+                FreshnessPolicy(
+                    name="x", version="1.0.0", ttl_open_seconds=bad, ttl_closed_seconds=10
+                )
 
     def test_empty_name_rejected(self):
         with pytest.raises(ValidationError):
@@ -159,7 +161,7 @@ class TestEvaluateFreshness:
         with pytest.raises(ValueError, match="naive datetime"):
             evaluate_freshness(
                 policy,
-                as_of=datetime(2026, 8, 28, 14, 0),
+                as_of=datetime(2026, 8, 28, 14, 0),  # noqa: DTZ001 (naïf délibéré : rejet vérifié)
                 now=T0,
                 session_state=SessionState.OPEN,
             )
@@ -169,7 +171,7 @@ class TestEvaluateFreshness:
             evaluate_freshness(
                 policy,
                 as_of=T0,
-                now=datetime(2026, 8, 28, 14, 0),
+                now=datetime(2026, 8, 28, 14, 0),  # noqa: DTZ001 (naïf délibéré : rejet vérifié)
                 session_state=SessionState.OPEN,
             )
 
@@ -197,6 +199,6 @@ class TestEvaluateFreshness:
             evaluate_freshness(policy, as_of=None, now=T0, session_state=SessionState.OPEN)
 
     def test_determinism_same_inputs_same_result(self, policy):
-        args = dict(as_of=T0, now=T0 + timedelta(seconds=3), session_state=SessionState.OPEN)
+        args = {"as_of": T0, "now": T0 + timedelta(seconds=3), "session_state": SessionState.OPEN}
         results = {evaluate_freshness(policy, **args) for _ in range(10)}
         assert results == {FreshnessStatus.FRESH}

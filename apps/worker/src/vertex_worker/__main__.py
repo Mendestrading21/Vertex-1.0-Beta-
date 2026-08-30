@@ -26,9 +26,8 @@ import logging
 import os
 import signal
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from types import FrameType
-from typing import Optional
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
@@ -54,7 +53,7 @@ _TEST_DATABASE_MARKERS = ("_test", "test_", "vertex_test", "vertex_e2e")
 
 
 def _utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def _require_database_url() -> str:
@@ -101,7 +100,7 @@ def main() -> int:
 
     # ADR-006 : NOTIFY réveille, il ne livre pas. Sa perte est tolérée parce que
     # le sondage de la table outbox reste la garantie de livraison.
-    listener: Optional[PostgresNotifyListener] = None
+    listener: PostgresNotifyListener | None = None
     try:
         listener = PostgresNotifyListener(
             conninfo=sqlalchemy_url_to_conninfo(url),
@@ -109,14 +108,14 @@ def main() -> int:
             on_notify=runner.wake,
         )
         listener.start()
-    except Exception as error:  # noqa: BLE001 - dégradé nommé, jamais silencieux
+    except Exception as error:
         log.warning(
             "réveil LISTEN indisponible (%s) — le worker continue en sondage seul",
             type(error).__name__,
         )
         listener = None
 
-    def _request_stop(signum: int, _frame: Optional[FrameType]) -> None:
+    def _request_stop(signum: int, _frame: FrameType | None) -> None:
         log.info("signal %s reçu — arrêt après le lot en cours", signal.Signals(signum).name)
         runner.request_stop()
 

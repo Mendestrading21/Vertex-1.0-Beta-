@@ -8,19 +8,19 @@ committed capability manifest are all real.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
-from typing import Iterator
+from collections.abc import Iterator
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
+from soft_passkey import SoftPasskey, login_passkey, register_passkey
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
-from soft_passkey import SoftPasskey, login_passkey, register_passkey
 from vertex_api.capability_manifest import load_capability_manifest
 from vertex_persistence.repository.snapshots import publish_snapshot
 
-NOW = datetime(2026, 8, 25, 12, 0, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 25, 12, 0, 0, tzinfo=UTC)
 MANIFEST = load_capability_manifest()
 
 ATTENTION_CONTENT = {

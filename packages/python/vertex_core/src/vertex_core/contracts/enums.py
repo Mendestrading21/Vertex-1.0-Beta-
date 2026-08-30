@@ -64,7 +64,7 @@ class GateStatus(str, Enum):
     gate state (ADR-014).
     """
 
-    PASS = "PASS"
+    PASS = "PASS"  # noqa: S105 (faux positif : pas un secret)
     DEGRADE = "DEGRADE"
     BLOCK = "BLOCK"
 

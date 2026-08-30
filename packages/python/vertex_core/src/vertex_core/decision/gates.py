@@ -22,9 +22,10 @@ inputs or reason codes change.
 
 from __future__ import annotations
 
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from decimal import Decimal
-from typing import Any, Callable, Mapping, Optional
+from typing import Any
 
 from vertex_core.contracts.decision import GateResult
 from vertex_core.contracts.enums import (
@@ -78,8 +79,8 @@ INSTRUMENT_RESOLVED_VERSION = "1.0.0"
 
 def evaluate_instrument_resolved(
     *,
-    identity_status: Optional[IdentityStatus],
-    resolved_with_conid: Optional[bool],
+    identity_status: IdentityStatus | None,
+    resolved_with_conid: bool | None,
 ) -> GateResult:
     """Gate 1: the instrument identity is unambiguously resolved.
 
@@ -122,7 +123,10 @@ def evaluate_instrument_resolved(
             status=GateStatus.DEGRADE,
             reason_code="RESOLVED_WITHOUT_CONID",
             message="identity resolved without an IBKR con_id confirmation",
-            observed_values={"identity_status": identity_status.value, "resolved_with_conid": False},
+            observed_values={
+                "identity_status": identity_status.value,
+                "resolved_with_conid": False,
+            },
         )
     return GateResult(
         gate_id=gate_id,
@@ -144,7 +148,7 @@ ENTITLEMENTS_SUFFICIENT_VERSION = "1.0.0"
 
 def evaluate_entitlements_sufficient(
     *,
-    capability_status: Optional[SourceCapabilityStatus],
+    capability_status: SourceCapabilityStatus | None,
 ) -> GateResult:
     """Gate 2: the market-data entitlements actually cover the required capability.
 
@@ -212,8 +216,8 @@ SNAPSHOT_FRESH_AND_COHERENT_VERSION = "1.0.0"
 
 def evaluate_snapshot_fresh_and_coherent(
     *,
-    quality: Optional[SnapshotQuality],
-    fresh: Optional[bool],
+    quality: SnapshotQuality | None,
+    fresh: bool | None,
 ) -> GateResult:
     """Gate 3: the evidence snapshot is coherent and inside its freshness window.
 
@@ -290,8 +294,8 @@ SESSION_AND_EVENT_KNOWN_VERSION = "1.0.0"
 
 def evaluate_session_and_event_known(
     *,
-    session_known: Optional[bool],
-    event_calendar_known: Optional[bool],
+    session_known: bool | None,
+    event_calendar_known: bool | None,
 ) -> GateResult:
     """Gate 4: market session state and the event calendar are known.
 
@@ -344,10 +348,10 @@ MINIMUM_LIQUIDITY_VERSION = "1.0.0"
 
 def evaluate_minimum_liquidity(
     *,
-    asset_class: Optional[AssetClass],
-    observed_liquidity: Optional[Decimal],
-    required_minimum: Optional[Decimal],
-    observation_delayed: Optional[bool],
+    asset_class: AssetClass | None,
+    observed_liquidity: Decimal | None,
+    required_minimum: Decimal | None,
+    observation_delayed: bool | None,
 ) -> GateResult:
     """Gate 5: observed liquidity meets the per-asset-class minimum.
 
@@ -422,7 +426,7 @@ CALCULATIONS_VALID_VERSION = "1.0.0"
 
 def evaluate_calculations_valid(
     *,
-    calculation_statuses: Optional[Mapping[str, CalculationStatus]],
+    calculation_statuses: Mapping[str, CalculationStatus] | None,
 ) -> GateResult:
     """Gate 6: every numeric calculation backing the advice is valid.
 
@@ -497,9 +501,9 @@ MANUAL_PORTFOLIO_RISK_VERSION = "1.0.0"
 
 def evaluate_manual_portfolio_risk_available(
     *,
-    risk_required: Optional[bool],
-    portfolio_risk_available: Optional[bool],
-    declarations_current: Optional[bool],
+    risk_required: bool | None,
+    portfolio_risk_available: bool | None,
+    declarations_current: bool | None,
 ) -> GateResult:
     """Gate 7: manually declared portfolio risk is available when required.
 
@@ -576,10 +580,10 @@ PROBABILITY_CALIBRATED_VERSION = "1.0.0"
 
 def evaluate_probability_calibrated_if_used(
     *,
-    probability_used: Optional[bool],
-    calibration_valid: Optional[bool],
-    out_of_sample_validated: Optional[bool],
-    calibration_current: Optional[bool],
+    probability_used: bool | None,
+    calibration_valid: bool | None,
+    out_of_sample_validated: bool | None,
+    calibration_current: bool | None,
 ) -> GateResult:
     """Gate 8: any predictive probability in play is calibrated and validated.
 
@@ -663,8 +667,8 @@ CRITICAL_CONTRADICTIONS_VERSION = "1.0.0"
 
 def evaluate_critical_contradictions_resolved(
     *,
-    unresolved_critical_count: Optional[int],
-    explicit_contradiction_count: Optional[int],
+    unresolved_critical_count: int | None,
+    explicit_contradiction_count: int | None,
 ) -> GateResult:
     """Gate 9: critical contradictions are resolved or at least made explicit.
 
@@ -680,8 +684,14 @@ def evaluate_critical_contradictions_resolved(
         ("unresolved_critical_count", unresolved_critical_count),
         ("explicit_contradiction_count", explicit_contradiction_count),
     ):
-        if count is None or isinstance(count, bool) or not isinstance(count, int) or count < 0:
+        if count is None or isinstance(count, bool) or not isinstance(count, int):
             return _unevaluable(gate_id, version, f"{name} is missing or invalid")
+        if count < 0:
+            return _unevaluable(gate_id, version, f"{name} is missing or invalid")
+    # La boucle ci-dessus a déjà refusé `None` pour les deux compteurs ; elle
+    # ne restreint pas les NOMS d'origine, d'où ces deux narrowings.
+    assert unresolved_critical_count is not None  # noqa: S101
+    assert explicit_contradiction_count is not None  # noqa: S101
     observed = {
         "unresolved_critical_count": unresolved_critical_count,
         "explicit_contradiction_count": explicit_contradiction_count,
@@ -724,8 +734,8 @@ USER_CONSTRAINTS_VERSION = "1.0.0"
 
 def evaluate_user_constraints_versioned(
     *,
-    constraints_version: Optional[str],
-    constraints_current: Optional[bool],
+    constraints_version: str | None,
+    constraints_current: bool | None,
 ) -> GateResult:
     """Gate 10: the user constraints applied to this advice carry a version.
 
@@ -788,7 +798,9 @@ class GateSpec:
 
 
 GATE_CATALOG: tuple[GateSpec, ...] = (
-    GateSpec(INSTRUMENT_RESOLVED_GATE_ID, INSTRUMENT_RESOLVED_VERSION, evaluate_instrument_resolved),
+    GateSpec(
+        INSTRUMENT_RESOLVED_GATE_ID, INSTRUMENT_RESOLVED_VERSION, evaluate_instrument_resolved
+    ),
     GateSpec(
         ENTITLEMENTS_SUFFICIENT_GATE_ID,
         ENTITLEMENTS_SUFFICIENT_VERSION,
@@ -821,7 +833,9 @@ GATE_CATALOG: tuple[GateSpec, ...] = (
         CRITICAL_CONTRADICTIONS_VERSION,
         evaluate_critical_contradictions_resolved,
     ),
-    GateSpec(USER_CONSTRAINTS_GATE_ID, USER_CONSTRAINTS_VERSION, evaluate_user_constraints_versioned),
+    GateSpec(
+        USER_CONSTRAINTS_GATE_ID, USER_CONSTRAINTS_VERSION, evaluate_user_constraints_versioned
+    ),
 )
 """The ten decision gates, in the canonical DECISION_ENGINE.md order."""
 

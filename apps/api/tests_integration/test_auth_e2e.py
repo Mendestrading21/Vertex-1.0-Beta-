@@ -12,9 +12,8 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine, text
-
 from soft_passkey import SoftPasskey, login_passkey, register_passkey
+from sqlalchemy import create_engine, text
 
 CSRF_HEADER = "X-Vertex-CSRF"
 SESSION_COOKIE = "vertex_session"
@@ -220,7 +219,10 @@ class TestStorageAndCookies:
         options_body = secure_client.post("/api/v1/auth/login/options").json()
         response = secure_client.post(
             "/api/v1/auth/login/verify",
-            json={"flow_id": options_body["flow_id"], "credential": passkey.get(options_body["options"])},
+            json={
+                "flow_id": options_body["flow_id"],
+                "credential": passkey.get(options_body["options"]),
+            },
         )
         assert response.status_code == 200
         cookie_headers = response.headers.get_list("set-cookie")

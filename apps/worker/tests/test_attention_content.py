@@ -9,7 +9,7 @@ production-like registry gates synthetic data out entirely).
 from __future__ import annotations
 
 import random
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -26,7 +26,7 @@ from vertex_worker.handlers import (
     is_synthetic_record,
 )
 
-NOW = datetime(2026, 8, 25, 12, 0, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 25, 12, 0, 0, tzinfo=UTC)
 BASE_TIME = NOW - timedelta(minutes=30)
 
 DEMO_SOURCE = "demo-feed"
@@ -109,13 +109,13 @@ class TestDeterminismAndDedup:
         records = synthetic_records()
         with pytest.raises(ValueError):
             build_attention_content(
-                records + [records[0]], now=NOW, config=DEV_SYNTHETIC_CONFIG
+                [*records, records[0]], now=NOW, config=DEV_SYNTHETIC_CONFIG
             )
 
     def test_naive_now_rejected(self) -> None:
         with pytest.raises(ValueError):
             build_attention_content(
-                [], now=datetime(2026, 8, 25, 12, 0, 0), config=DEV_SYNTHETIC_CONFIG
+                [], now=datetime(2026, 8, 25, 12, 0, 0), config=DEV_SYNTHETIC_CONFIG  # noqa: DTZ001 (naïf délibéré : rejet vérifié)
             )
 
 

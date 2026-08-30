@@ -14,10 +14,11 @@ reserved for numerical engine internals with documented tolerances.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from collections.abc import Mapping
+from datetime import UTC, datetime
 from decimal import Decimal
 from types import MappingProxyType
-from typing import Annotated, Any, Mapping
+from typing import Annotated, Any
 
 from pydantic import (
     AfterValidator,
@@ -55,7 +56,7 @@ def ensure_utc(value: datetime) -> datetime:
     """
     if value.tzinfo is None or value.tzinfo.utcoffset(value) is None:
         raise ValueError("naive datetime rejected: a timezone-aware UTC datetime is required")
-    return value.astimezone(timezone.utc)
+    return value.astimezone(UTC)
 
 
 def ensure_finite_decimal(value: Decimal) -> Decimal:
@@ -66,7 +67,9 @@ def ensure_finite_decimal(value: Decimal) -> Decimal:
     ``0.00``); no other rounding or rescaling happens here.
     """
     if not value.is_finite():
-        raise ValueError("non-finite Decimal rejected: NaN and infinities are not valid contract values")
+        raise ValueError(
+            "non-finite Decimal rejected: NaN and infinities are not valid contract values"
+        )
     if value.is_zero() and value.is_signed():
         return value.copy_negate()
     return value

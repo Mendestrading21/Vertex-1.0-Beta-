@@ -8,10 +8,19 @@ from datetime import timedelta
 from decimal import Decimal
 
 import pytest
+from fakes import (
+    T0,
+    FakeInformationPort,
+    SteppingMonotonic,
+    fixed_clock,
+    full_greeks,
+    full_quote,
+    make_envelope,
+    make_snapshot_result,
+)
 from pydantic import ValidationError
 
 from vertex_core.contracts import DelayStatus, SourceCapabilityStatus
-
 from vertex_edge_ibkr.port import ContractSpec, ProviderError, ProviderErrorInfo
 from vertex_edge_ibkr.probe import (
     CHAIN_CAPABILITY,
@@ -24,17 +33,6 @@ from vertex_edge_ibkr.probe import (
     ProbeConfig,
     ProbeGate,
     map_provider_error,
-)
-
-from fakes import (
-    T0,
-    FakeInformationPort,
-    SteppingMonotonic,
-    fixed_clock,
-    full_greeks,
-    full_quote,
-    make_envelope,
-    make_snapshot_result,
 )
 
 _STATUS = SourceCapabilityStatus
@@ -52,12 +50,12 @@ OPTION = ContractSpec(
 
 
 def make_config(**overrides) -> ProbeConfig:
-    values = dict(
-        underlying=UNDERLYING,
-        option=OPTION,
-        step_timeout_seconds=1.0,
-        total_deadline_seconds=5.0,
-    )
+    values = {
+        "underlying": UNDERLYING,
+        "option": OPTION,
+        "step_timeout_seconds": 1.0,
+        "total_deadline_seconds": 5.0,
+    }
     values.update(overrides)
     return ProbeConfig(**values)
 

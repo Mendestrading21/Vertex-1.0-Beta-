@@ -13,7 +13,7 @@ replay semantics.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 from sqlalchemy import func, select
@@ -42,7 +42,7 @@ from vertex_worker.portfolio import (
 )
 from vertex_worker.runner import WorkerRunner
 
-NOW = datetime(2026, 8, 25, 12, 0, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 25, 12, 0, 0, tzinfo=UTC)
 BASE_TIME = NOW - timedelta(minutes=30)
 OPENED_AT = NOW - timedelta(days=2)
 SEED = 424242

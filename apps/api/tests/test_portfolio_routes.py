@@ -10,17 +10,16 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
-from datetime import datetime, timezone
+from collections.abc import Iterator
 from decimal import Decimal
-from typing import Iterator
 
 import pytest
 import sqlalchemy.exc as sa_exc
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-
 from portfolio_fakes import FIXED_NOW, FakePortfolioGateway, fixed_clock, make_entry
 from snapshot_fakes import synthetic_session
+
 from vertex_api.auth import require_session
 from vertex_api.routes import get_portfolio_gateway
 from vertex_api.snapshot_reader import get_clock

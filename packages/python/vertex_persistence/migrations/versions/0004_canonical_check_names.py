@@ -22,14 +22,14 @@ lock beyond a catalog update. ``downgrade`` restores the doubled names so the
 
 from __future__ import annotations
 
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 from alembic import op
 
 revision: str = "0004_canonical_check_names"
-down_revision: Union[str, None] = "0003_snapshots_append_only"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "0003_snapshots_append_only"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 # (table, constraint suffix) for every CHECK constraint created by 0001.
 _CHECKS: tuple[tuple[str, str], ...] = (

@@ -15,8 +15,9 @@ failure is reported as unhealthy, never masked.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
-from typing import Callable, Optional, Protocol
+from collections.abc import Callable
+from datetime import UTC, datetime
+from typing import Protocol
 
 from fastapi import FastAPI, Request
 from sqlalchemy import select, text
@@ -42,17 +43,17 @@ Clock = Callable[[], datetime]
 
 def utc_now() -> datetime:
     """Aware UTC instant — the only clock read of the snapshot routes."""
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class SnapshotReader(Protocol):
     """Narrow read-only view over published snapshots and database health."""
 
-    def current(self, *, kind: str, key: str) -> Optional[CurrentSnapshot]:
+    def current(self, *, kind: str, key: str) -> CurrentSnapshot | None:
         """Head version of (kind, key) with content, or ``None`` if never published."""
         ...
 
-    def head_version(self, *, kind: str, key: str) -> Optional[int]:
+    def head_version(self, *, kind: str, key: str) -> int | None:
         """Head version number only (no content), or ``None`` if never published."""
         ...
 
@@ -77,11 +78,11 @@ class DbSnapshotReader:
     def __init__(self, app: FastAPI) -> None:
         self._app = app
 
-    def current(self, *, kind: str, key: str) -> Optional[CurrentSnapshot]:
+    def current(self, *, kind: str, key: str) -> CurrentSnapshot | None:
         with open_db_session(self._app) as session:
             return get_current_snapshot(session, kind=kind, key=key)
 
-    def head_version(self, *, kind: str, key: str) -> Optional[int]:
+    def head_version(self, *, kind: str, key: str) -> int | None:
         with open_db_session(self._app) as session:
             return session.execute(
                 select(SnapshotHead.version).where(
@@ -96,12 +97,14 @@ class DbSnapshotReader:
                     SnapshotHead.kind == kind
                 )
             ).all()
-        return {key: version for key, version in rows}
+        # `rows` porte des `Row`, pas des tuples nus : le typage de
+        # `dict()` ne les accepte pas directement.
+        return {row.key: row.version for row in rows}
 
     def ping(self) -> bool:
         try:
             with open_db_session(self._app) as session:
-                return session.execute(text("SELECT 1")).scalar_one() == 1
+                return bool(session.execute(text("SELECT 1")).scalar_one() == 1)
         except DatabaseNotConfiguredError:
             log.warning("db health probe failed: database not configured")
             return False

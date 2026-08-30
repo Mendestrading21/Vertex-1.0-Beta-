@@ -1,39 +1,39 @@
 """CalculationRecord and its factory: lineage hashes, temporal and immutability rules."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import pytest
 from pydantic import ValidationError
 
 from vertex_core.contracts import (
+    ENGINE_VERSION,
     CalculationRecord,
     CalculationStatus,
-    ENGINE_VERSION,
     canonical_json_hash,
     make_calculation_record,
 )
 
-STARTED_AT = datetime(2026, 3, 3, 9, 0, tzinfo=timezone.utc)
+STARTED_AT = datetime(2026, 3, 3, 9, 0, tzinfo=UTC)
 COMPLETED_AT = STARTED_AT + timedelta(milliseconds=250)
 INPUTS = {"spot": Decimal("100.5"), "rate": Decimal("0.031")}
 RESULT = {"fair_value": Decimal("12.34")}
 
 
 def make_record(**overrides):
-    kwargs = dict(
-        calculation_id="calc-0001",
-        calculation_type="option_fair_value",
-        code_sha="a" * 40,
-        method="black_scholes_merton",
-        inputs=INPUTS,
-        result=RESULT,
-        started_at=STARTED_AT,
-        completed_at=COMPLETED_AT,
-        source_event_ids=("evt-0001",),
-        assumptions=("flat_rate_curve",),
-        parameters={"day_count": "ACT/365F"},
-    )
+    kwargs = {
+        "calculation_id": "calc-0001",
+        "calculation_type": "option_fair_value",
+        "code_sha": "a" * 40,
+        "method": "black_scholes_merton",
+        "inputs": INPUTS,
+        "result": RESULT,
+        "started_at": STARTED_AT,
+        "completed_at": COMPLETED_AT,
+        "source_event_ids": ("evt-0001",),
+        "assumptions": ("flat_rate_curve",),
+        "parameters": {"day_count": "ACT/365F"},
+    }
     kwargs.update(overrides)
     return make_calculation_record(**kwargs)
 
@@ -84,7 +84,7 @@ class TestModelInvariants:
 
     def test_naive_started_at_rejected(self):
         with pytest.raises(ValidationError, match="naive datetime"):
-            make_record(started_at=datetime(2026, 3, 3, 9, 0))
+            make_record(started_at=datetime(2026, 3, 3, 9, 0))  # noqa: DTZ001 (naïf délibéré : rejet vérifié)
 
     def test_frozen(self):
         record = make_record()

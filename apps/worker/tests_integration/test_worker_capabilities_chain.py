@@ -7,7 +7,7 @@ per-capability ``NEVER_TESTED`` states — never this worker).
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from vertex_persistence.repository.observations import insert_observation
 from vertex_persistence.repository.outbox import enqueue_outbox
@@ -22,7 +22,7 @@ from vertex_worker.handlers import (
 )
 from vertex_worker.runner import WorkerRunner
 
-NOW = datetime(2026, 8, 25, 12, 0, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 25, 12, 0, 0, tzinfo=UTC)
 
 
 def make_runner(session_factory, now: datetime = NOW) -> WorkerRunner:

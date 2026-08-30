@@ -41,10 +41,11 @@ canonical hash of the result.
 
 from __future__ import annotations
 
+import itertools
 import unicodedata
+from collections.abc import Iterable, Mapping, Sequence
 from datetime import datetime, timedelta
 from types import MappingProxyType
-from typing import Iterable, Mapping, Optional, Sequence
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from pydantic import Field, model_validator
@@ -60,11 +61,9 @@ from vertex_core.fusion.models import (
 __all__ = [
     "CANONICAL_URL_WINDOW",
     "FUSION_RULESET_VERSION",
-    "FusionInputError",
-    "FusionResult",
+    "POLARITY_MARKERS",
     "RULE_CANONICAL_URL",
     "RULE_FINGERPRINT",
-    "POLARITY_MARKERS",
     "RULE_KEPT_DISTINCT",
     "RULE_NATIVE_ID",
     "RULE_POLARITY_CONFLICT",
@@ -74,6 +73,8 @@ __all__ = [
     "SIMILARITY_WINDOW",
     "TRACKING_PARAMS",
     "TRACKING_PARAM_PREFIXES",
+    "FusionInputError",
+    "FusionResult",
     "fuse",
     "fusion_result_hash",
     "normalize_canonical_url",
@@ -162,12 +163,12 @@ class FusionResult(ContractModel):
     observations: tuple[ContentObservation, ...] = Field(min_length=0)
 
     @model_validator(mode="after")
-    def _check_partition(self) -> "FusionResult":
+    def _check_partition(self) -> FusionResult:
         cluster_ids = [cluster.cluster_id for cluster in self.clusters]
-        if any(a >= b for a, b in zip(cluster_ids, cluster_ids[1:])):
+        if any(a >= b for a, b in itertools.pairwise(cluster_ids)):
             raise ValueError("clusters must be strictly sorted by cluster_id")
         observation_ids = [obs.content_id for obs in self.observations]
-        if any(a >= b for a, b in zip(observation_ids, observation_ids[1:])):
+        if any(a >= b for a, b in itertools.pairwise(observation_ids)):
             raise ValueError("observations must be strictly sorted by content_id")
         member_ids = [member for cluster in self.clusters for member in cluster.member_ids]
         if len(member_ids) != len(set(member_ids)):
@@ -307,7 +308,7 @@ def _is_transparent_between_sign_and_digits(character: str) -> bool:
     return unicodedata.category(character) in ("Sc", "Ps", "Pi")
 
 
-def _sign_binding_digit_index(folded: str, index: int) -> Optional[int]:
+def _sign_binding_digit_index(folded: str, index: int) -> int | None:
     """Index of the digit a sign at ``index`` binds to, or ``None``.
 
     A ``-``/``+`` family character asserts a polarity when a decimal digit
@@ -477,7 +478,7 @@ def title_polarity_markers(title: str) -> tuple[str, ...]:
 
 def opposed_markers(
     first: Iterable[str], second: Iterable[str]
-) -> Optional[tuple[str, str]]:
+) -> tuple[str, str] | None:
     """Return the first explicitly opposed marker pair, or ``None``.
 
     Two marker sets are opposed when one asserts a direction the other
@@ -535,7 +536,7 @@ def normalize_canonical_url(url: str) -> str:
     )
 
 
-def title_fingerprint(title: str, entities: Iterable[str]) -> Optional[str]:
+def title_fingerprint(title: str, entities: Iterable[str]) -> str | None:
     """Deterministic fingerprint of a normalized title plus sorted entities.
 
     Returns ``None`` when the normalized title carries no alphanumeric
@@ -686,7 +687,7 @@ def fuse(observations: Sequence[ContentObservation]) -> FusionResult:
         if len(members) < 2:
             continue
         timeline = sorted(members, key=lambda cid: (_event_time(by_id[cid]), cid))
-        for previous, current in zip(timeline, timeline[1:]):
+        for previous, current in itertools.pairwise(timeline):
             gap = _event_time(by_id[current]) - _event_time(by_id[previous])
             if gap <= CANONICAL_URL_WINDOW:
                 link_decisions.append(
@@ -838,14 +839,15 @@ def fuse(observations: Sequence[ContentObservation]) -> FusionResult:
         if len(members) == 1:
             # A singleton was linked by no rule; similarity flags (if any) are
             # not links, so the KEPT_DISTINCT record is always due.
-            decisions = decisions + [
+            decisions = [
+                *decisions,
                 _make_decision(
                     RULE_KEPT_DISTINCT,
                     FusionAction.KEPT_DISTINCT,
                     (members[0],),
                     "no deduplication rule linked this observation to another",
                     reversible=True,
-                )
+                ),
             ]
         decisions = sorted(decisions, key=lambda d: (d.rule_id, d.inputs, d.decision_id))
         member_observations = [by_id[content_id] for content_id in members]

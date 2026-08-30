@@ -15,19 +15,19 @@ while proving nothing. The forged variants live in
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Iterator
+from collections.abc import Iterator
+from datetime import UTC, datetime
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-
 from snapshot_fakes import FakeSnapshotReader, synthetic_session
+
 from vertex_api.auth import require_session
 from vertex_api.snapshot_reader import get_snapshot_reader
 from vertex_persistence.repository.snapshots import CurrentSnapshot
 
-FIXED_NOW = datetime(2026, 8, 25, 12, 0, 0, tzinfo=timezone.utc)
+FIXED_NOW = datetime(2026, 8, 25, 12, 0, 0, tzinfo=UTC)
 
 def _insufficient_metric() -> dict:
     """A metric the worker could not compute: reason, never an invented zero."""

@@ -30,7 +30,7 @@ Everything below is SYNTHETIC and reaches nothing but the pure builders.
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -39,9 +39,9 @@ import pytest
 from vertex_api.snapshot_views import (
     MAX_RELAYED_DEPTH,
     MAX_RELAYED_NUMBER_MAGNITUDE,
-    MIN_RELAYED_NONZERO_FLOAT,
     MAX_RELAYED_TEXT_LENGTH,
     MAX_RELAYED_USER_TEXT_LENGTH,
+    MIN_RELAYED_NONZERO_FLOAT,
     POPULATION_LABELS,
     SnapshotContentError,
     checked_relayed_content,
@@ -387,9 +387,9 @@ def test_a_refusal_never_quotes_the_stored_value(content: dict) -> None:
 
 import copy  # noqa: E402
 
-from vertex_api.performance import checked_performance_content  # noqa: E402
-
 from test_performance_routes import PERFORMANCE_CONTENT  # noqa: E402
+
+from vertex_api.performance import checked_performance_content  # noqa: E402
 
 
 def _replace_leaf(content: dict, path: tuple, value: str) -> dict:
@@ -482,10 +482,9 @@ def test_the_portfolio_valuation_relay_applies_the_same_contract() -> None:
 # Les tests de RÉSIDU en fin de section fixent, chiffre à l'appui, ce qui reste
 # ouvert. Ils échouent si quelqu'un croit avoir fermé plus qu'il n'a fermé.
 
-from datetime import datetime, timezone  # noqa: E402
 
-from vertex_core.synthetic import SYNTHETIC_RIGHTS, SYNTHETIC_SOURCE  # noqa: E402
-from vertex_persistence.repository.snapshots import CurrentSnapshot  # noqa: E402
+from test_analysis import INSTRUMENT, analysis_content  # noqa: E402
+from test_markets_overview import markets_content  # noqa: E402
 
 from vertex_api.snapshot_views import (  # noqa: E402
     BARS_STATUS_LABELS,
@@ -496,12 +495,10 @@ from vertex_api.snapshot_views import (  # noqa: E402
     build_analysis_response,
     build_markets_overview_response,
 )
+from vertex_core.synthetic import SYNTHETIC_RIGHTS, SYNTHETIC_SOURCE  # noqa: E402
+from vertex_persistence.repository.snapshots import CurrentSnapshot  # noqa: E402
 
-from test_analysis import INSTRUMENT, analysis_content  # noqa: E402
-from test_markets_overview import markets_content  # noqa: E402
-
-
-AS_OF_FOR_RELAY_TESTS = datetime(2026, 8, 25, 12, 0, 0, tzinfo=timezone.utc)
+AS_OF_FOR_RELAY_TESTS = datetime(2026, 8, 25, 12, 0, 0, tzinfo=UTC)
 
 
 def _snapshot(content: dict) -> CurrentSnapshot:
@@ -776,6 +773,13 @@ def test_residue_a_fully_scrubbed_payload_still_passes() -> None:
 
 from collections.abc import Mapping  # noqa: E402
 
+from vertex_api.snapshot_views import (  # noqa: E402
+    GENERATED_NATURE_LABELS,
+    NATURE_CENSUS_KEYS,
+    NATURE_LEAF_KEYS,
+    NATURE_PARENT_KEYS,
+    is_synthetic_marker,
+)
 from vertex_core.synthetic import (  # noqa: E402
     SYNTHETIC_ADJUSTMENT_BASIS,
     SYNTHETIC_FOCUS_TICKERS,
@@ -785,15 +789,6 @@ from vertex_core.synthetic import (  # noqa: E402
     SYNTHETIC_SECTORS,
     SYNTHETIC_TITLE_PREFIX,
 )
-
-from vertex_api.snapshot_views import (  # noqa: E402
-    GENERATED_NATURE_LABELS,
-    NATURE_CENSUS_KEYS,
-    NATURE_LEAF_KEYS,
-    NATURE_PARENT_KEYS,
-    is_synthetic_marker,
-)
-
 
 # --- 1. `mark_population` : le vecteur P0 exact du 6e audit -----------------
 
@@ -1405,7 +1400,7 @@ def test_null_is_relayed_as_an_explicit_absence() -> None:
     "leaf",
     [
         Decimal("1.5"),
-        datetime(2026, 8, 29, 12, 0, tzinfo=timezone.utc),
+        datetime(2026, 8, 29, 12, 0, tzinfo=UTC),
         b"bytes",
         {1, 2},
         object(),

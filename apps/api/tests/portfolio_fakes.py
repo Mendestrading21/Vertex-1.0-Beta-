@@ -7,11 +7,10 @@ code path can construct or receive these objects.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from collections.abc import Mapping, Sequence
+from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any, Mapping, Optional, Sequence
-
-from vertex_persistence.repository.snapshots import CurrentSnapshot
+from typing import Any
 
 from vertex_api.portfolio import (
     LedgerEntryView,
@@ -19,10 +18,11 @@ from vertex_api.portfolio import (
     PortfolioOverview,
     ValidatedImportRow,
 )
+from vertex_persistence.repository.snapshots import CurrentSnapshot
 
 __all__ = ["FIXED_NOW", "FakePortfolioGateway", "fixed_clock", "make_entry"]
 
-FIXED_NOW = datetime(2026, 8, 25, 12, 0, 0, tzinfo=timezone.utc)
+FIXED_NOW = datetime(2026, 8, 25, 12, 0, 0, tzinfo=UTC)
 
 
 def fixed_clock() -> datetime:
@@ -33,17 +33,17 @@ def make_entry(
     entry_id: int = 1,
     *,
     kind: str = "BUY_RECORDED",
-    ticker: Optional[str] = "SYN-A",
-    quantity: Optional[str] = "10",
-    price: Optional[str] = "100",
+    ticker: str | None = "SYN-A",
+    quantity: str | None = "10",
+    price: str | None = "100",
     amount: str = "-1000",
     currency: str = "SYN",
     fees: str = "0",
-    effective_at: Optional[datetime] = None,
-    note: Optional[str] = None,
-    compensates: Optional[int] = None,
+    effective_at: datetime | None = None,
+    note: str | None = None,
+    compensates: int | None = None,
 ) -> LedgerEntryView:
-    at = effective_at or datetime(2026, 8, 20, 10, 0, 0, tzinfo=timezone.utc)
+    at = effective_at or datetime(2026, 8, 20, 10, 0, 0, tzinfo=UTC)
     return LedgerEntryView(
         id=entry_id,
         kind=kind,
@@ -73,8 +73,8 @@ class FakePortfolioGateway:
         *,
         transactions: Sequence[LedgerEntryView] = (),
         lots: Sequence[LotView] = (),
-        valuation: Optional[CurrentSnapshot] = None,
-        compensate_error: Optional[Exception] = None,
+        valuation: CurrentSnapshot | None = None,
+        compensate_error: Exception | None = None,
     ) -> None:
         self.transactions = tuple(transactions)
         self.lots = tuple(lots)
@@ -99,14 +99,14 @@ class FakePortfolioGateway:
         self,
         *,
         kind: str,
-        instrument: Optional[Mapping[str, Any]],
-        quantity: Optional[Decimal],
-        price: Optional[Decimal],
+        instrument: Mapping[str, Any] | None,
+        quantity: Decimal | None,
+        price: Decimal | None,
         amount: Decimal,
         currency: str,
         fees: Decimal,
         effective_at: datetime,
-        note: Optional[str],
+        note: str | None,
         now: datetime,
     ) -> int:
         self._next_id += 1

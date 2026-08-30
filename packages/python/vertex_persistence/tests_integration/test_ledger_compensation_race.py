@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import threading
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 
 import pytest
@@ -37,7 +37,7 @@ from vertex_persistence.repository import (
     record_ledger_event,
 )
 
-UTC = timezone.utc
+UTC = UTC
 T0 = datetime(2026, 8, 28, 12, 0, 0, tzinfo=UTC)
 INSTRUMENT = {"symbol": "SYN", "asset_class": "STOCK", "exchange": "SYNTH", "currency": "USD"}
 

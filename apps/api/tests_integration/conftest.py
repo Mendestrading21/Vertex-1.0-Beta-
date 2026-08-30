@@ -14,16 +14,16 @@ never crosses a production boundary.
 from __future__ import annotations
 
 import os
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Iterator
 
 import pytest
 from alembic import command
 from alembic.config import Config
 from fastapi.testclient import TestClient
+from soft_passkey import SoftPasskey
 from sqlalchemy import create_engine, text
 
-from soft_passkey import SoftPasskey
 from vertex_api.app import create_app
 
 _ENV_VAR = "VERTEX_TEST_DATABASE_URL"

@@ -10,7 +10,7 @@ net out of the lots, and every financial figure keeps its vertex_core
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 
 import pytest
@@ -32,9 +32,9 @@ from vertex_worker.portfolio import (
     extract_marks_from_markets_content,
 )
 
-NOW = datetime(2026, 8, 25, 12, 0, 0, tzinfo=timezone.utc)
-T0 = datetime(2026, 8, 20, 10, 0, 0, tzinfo=timezone.utc)
-T1 = datetime(2026, 8, 21, 10, 0, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 25, 12, 0, 0, tzinfo=UTC)
+T0 = datetime(2026, 8, 20, 10, 0, 0, tzinfo=UTC)
+T1 = datetime(2026, 8, 21, 10, 0, 0, tzinfo=UTC)
 
 PORTFOLIO = PortfolioView(id=1, name="main", base_currency="USD")
 
@@ -167,9 +167,34 @@ def test_compensated_pair_nets_out_of_the_lots() -> None:
 
 def test_fifo_realized_pnl_with_calculation_lineage() -> None:
     events = [
-        make_event(1, "BUY_RECORDED", ticker="SYN-A", quantity="10", price="100", amount="-1000", effective_at=T0),
-        make_event(2, "BUY_RECORDED", ticker="SYN-A", quantity="10", price="110", amount="-1100", effective_at=T1),
-        make_event(3, "SELL_RECORDED", ticker="SYN-A", quantity="12", price="120", amount="1440", fees="3", effective_at=T1),
+        make_event(
+            1,
+            "BUY_RECORDED",
+            ticker="SYN-A",
+            quantity="10",
+            price="100",
+            amount="-1000",
+            effective_at=T0,
+        ),
+        make_event(
+            2,
+            "BUY_RECORDED",
+            ticker="SYN-A",
+            quantity="10",
+            price="110",
+            amount="-1100",
+            effective_at=T1,
+        ),
+        make_event(
+            3,
+            "SELL_RECORDED",
+            ticker="SYN-A",
+            quantity="12",
+            price="120",
+            amount="1440",
+            fees="3",
+            effective_at=T1,
+        ),
     ]
     content = build(events, make_marks(**{"SYN-A": "130"}))
     group = content["positions_by_currency"][0]
@@ -210,7 +235,15 @@ def test_concentration_weights_and_lineage() -> None:
 def test_oversold_position_is_excluded_fail_closed() -> None:
     events = [
         make_event(1, "BUY_RECORDED", ticker="SYN-A", quantity="5", price="100", amount="-500"),
-        make_event(2, "SELL_RECORDED", ticker="SYN-A", quantity="6", price="120", amount="720", effective_at=T1),
+        make_event(
+            2,
+            "SELL_RECORDED",
+            ticker="SYN-A",
+            quantity="6",
+            price="120",
+            amount="720",
+            effective_at=T1,
+        ),
         make_event(3, "BUY_RECORDED", ticker="SYN-B", quantity="2", price="10", amount="-20"),
     ]
     content = build(events, make_marks(**{"SYN-A": "120", "SYN-B": "12"}))
@@ -238,7 +271,15 @@ def test_invalid_position_event_is_listed_with_reason() -> None:
 
 def test_mark_currency_mismatch_excludes_the_lot() -> None:
     events = [
-        make_event(1, "BUY_RECORDED", ticker="SYN-A", quantity="1", price="10", amount="-10", currency="USD"),
+        make_event(
+            1,
+            "BUY_RECORDED",
+            ticker="SYN-A",
+            quantity="1",
+            price="10",
+            amount="-10",
+            currency="USD",
+        ),
     ]
     content = build(events, make_marks(**{"SYN-A": "12"}))  # mark currency SYN
     assert content["excluded_lots"] == [
@@ -254,7 +295,16 @@ def test_mark_currency_mismatch_excludes_the_lot() -> None:
 def test_builder_is_deterministic() -> None:
     events = [
         make_event(1, "BUY_RECORDED", ticker="SYN-A", quantity="10", price="100", amount="-1000"),
-        make_event(2, "SELL_RECORDED", ticker="SYN-A", quantity="4", price="110", amount="440", fees="1", effective_at=T1),
+        make_event(
+            2,
+            "SELL_RECORDED",
+            ticker="SYN-A",
+            quantity="4",
+            price="110",
+            amount="440",
+            fees="1",
+            effective_at=T1,
+        ),
         make_event(3, "DEPOSIT", amount="5000"),
     ]
     marks = make_marks(**{"SYN-A": "115"})
@@ -267,7 +317,7 @@ def test_naive_now_is_rejected() -> None:
             [],
             portfolio=PORTFOLIO,
             marks=None,
-            now=datetime(2026, 8, 25, 12, 0, 0),
+            now=datetime(2026, 8, 25, 12, 0, 0),  # noqa: DTZ001 (naïf délibéré : rejet vérifié)
         )
 
 
@@ -278,7 +328,12 @@ def test_extract_marks_rejects_invalid_closes_fail_closed() -> None:
             {
                 "sector": "SYN-TECH",
                 "tickers": [
-                    {"ticker": "SYN-A", "last_close": "123.45", "currency": "SYN", "trading_day": "d"},
+                    {
+                        "ticker": "SYN-A",
+                        "last_close": "123.45",
+                        "currency": "SYN",
+                        "trading_day": "d",
+                    },
                     {"ticker": "SYN-B", "last_close": "not-a-number", "currency": "SYN"},
                     {"ticker": "SYN-C", "last_close": "0", "currency": "SYN"},
                     {"ticker": "SYN-D"},

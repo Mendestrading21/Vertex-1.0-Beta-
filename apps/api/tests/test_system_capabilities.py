@@ -8,20 +8,20 @@ persisted snapshot without inventing anything.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
-from typing import Iterator
+from collections.abc import Iterator
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-
 from snapshot_fakes import FakeSnapshotReader, synthetic_session
+
 from vertex_api.auth import AUTH_REQUIRED, require_session
 from vertex_api.capability_manifest import load_capability_manifest
 from vertex_api.snapshot_reader import get_clock, get_snapshot_reader
 from vertex_persistence.repository.snapshots import CurrentSnapshot
 
-NOW = datetime(2026, 8, 25, 12, 0, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 25, 12, 0, 0, tzinfo=UTC)
 PROBE_AT = NOW - timedelta(hours=2)
 SNAPSHOT_AS_OF = NOW - timedelta(hours=1)
 

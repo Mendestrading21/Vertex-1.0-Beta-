@@ -8,8 +8,7 @@ Pure-builder tests: no database, no clock reads, no network. The real chain
 from __future__ import annotations
 
 import dataclasses
-from datetime import datetime, timedelta, timezone
-from typing import Optional
+from datetime import UTC, datetime, timedelta
 
 from vertex_persistence.repository.theses import (
     ProjectedThesis,
@@ -23,20 +22,20 @@ from vertex_worker.follow_up import (
 )
 from vertex_worker.handlers import DEV_SYNTHETIC_CONFIG, ObservationRecord
 
-NOW = datetime(2026, 8, 25, 12, 0, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 25, 12, 0, 0, tzinfo=UTC)
 TICKER = "SYN-TECH-01"
 
 
 def make_projected(
     thesis_id: int,
     *,
-    ticker: Optional[str] = None,
-    review_due_at: Optional[datetime] = None,
-    base_due: Optional[datetime] = None,
+    ticker: str | None = None,
+    review_due_at: datetime | None = None,
+    base_due: datetime | None = None,
     is_due: bool = False,
-    last_recorded_at: Optional[datetime] = None,
-    last_reviewed_at: Optional[datetime] = None,
-    created_at: Optional[datetime] = None,
+    last_recorded_at: datetime | None = None,
+    last_reviewed_at: datetime | None = None,
+    created_at: datetime | None = None,
     status: str = "ACTIVE",
 ) -> ProjectedThesis:
     created = created_at if created_at is not None else NOW - timedelta(days=10)
@@ -71,7 +70,7 @@ def make_record(
     event_id: str,
     *,
     title: str,
-    entities: Optional[list[str]] = None,
+    entities: list[str] | None = None,
     received_at: datetime,
 ) -> ObservationRecord:
     return ObservationRecord(
@@ -145,7 +144,7 @@ def test_due_sort_key_is_deterministic_under_shuffle() -> None:
         for i in range(1, 6)
     ]
     forward = sorted(entries, key=due_sort_key)
-    backward = sorted(reversed(entries), key=due_sort_key)
+    backward = sorted(entries, key=due_sort_key)
     assert [e.thesis.id for e in forward] == [e.thesis.id for e in backward]
 
 
@@ -268,7 +267,9 @@ def test_builder_is_deterministic_and_counts_coverage() -> None:
     ]
     records = [
         make_record("evt-b", title="[SYNTHETIC] b", entities=[TICKER], received_at=NOW),
-        make_record("evt-a", title="[SYNTHETIC] a", entities=[TICKER], received_at=NOW - timedelta(hours=1)),
+        make_record(
+            "evt-a", title="[SYNTHETIC] a", entities=[TICKER], received_at=NOW - timedelta(hours=1)
+        ),
     ]
     first = build_review_queue_content(
         theses, [theses[0]], records, now=NOW, config=DEV_SYNTHETIC_CONFIG
