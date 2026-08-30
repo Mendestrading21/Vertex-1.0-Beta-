@@ -53,12 +53,21 @@ CE QUE CETTE PORTE NE PROUVE PAS
   autre chemin (script téléchargé, artefact) n'est pas détecté.
 - Les capacités IBKR interdites restent la propriété de
   `tools/check_financial_boundary.py` ; cette porte vérifie seulement que ce
-  script est réellement BRANCHÉ dans la CI et dans `run_checks.sh`.
+  script est invoqué par une commande qui PROPAGE son code de retour, dans la
+  CI et dans `run_checks.sh`. Elle ne lit pas son contenu et ne dit rien de sa
+  justesse : elle dit qu'il peut échouer.
+- Ce contrôle a d'abord été un `script in text`. Un nom en commentaire, une
+  étape `if: false` et un `|| true` le satisfaisaient ; le docstring affirmait
+  pourtant que « le câblage lui-même est vérifié ». Il analyse désormais
+  l'invocation, mais reste SYNTAXIQUE : un script appelé depuis un autre script
+  non analysé, ou dont la sortie serait consommée par un pipe permissif, lui
+  échapperait encore.
 """
 
 from __future__ import annotations
 
 import argparse
+import datetime as dt
 import json
 import re
 import subprocess
@@ -721,22 +730,131 @@ def check_pnpm_lock(
     return findings
 
 
+def _parse_iso_date(value: Any) -> dt.date | None:
+    """Date ISO d'une échéance, ou ``None`` si la valeur n'en est pas une."""
+    if isinstance(value, dt.date) and not isinstance(value, dt.datetime):
+        return value
+    if isinstance(value, dt.datetime):
+        return value.date()
+    if isinstance(value, str):
+        try:
+            return dt.date.fromisoformat(value)
+        except ValueError:
+            return None
+    return None
+
+
 # ── 6. Câblage des portes ───────────────────────────────────────────────────
 
 
+def _shell_command_lines(text: str) -> list[tuple[int, str]]:
+    """Lignes de SHELL réellement exécutées, commentaires retirés.
+
+    Approximation assumée et étroite : une ligne dont la forme dépouillée
+    commence par `#` est un commentaire ; un `#` précédé d'une espace hors
+    guillemets ouvre un commentaire de fin de ligne. Cela suffit pour ce
+    fichier, qui n'utilise ni `#` littéral hors chaîne ni here-document.
+    """
+    lines: list[tuple[int, str]] = []
+    for number, raw in enumerate(text.splitlines(), start=1):
+        stripped = raw.strip()
+        if not stripped or stripped.startswith("#"):
+            continue
+        code = raw
+        in_single = in_double = False
+        for position, character in enumerate(raw):
+            if character == "'" and not in_double:
+                in_single = not in_single
+            elif character == '"' and not in_single:
+                in_double = not in_double
+            elif (
+                character == "#"
+                and not in_single
+                and not in_double
+                and position
+                and raw[position - 1].isspace()
+            ):
+                code = raw[:position]
+                break
+        if code.strip():
+            lines.append((number, code))
+    return lines
+
+
+#: Façons de rendre un code de retour inoffensif. Chacune s'est produite, ou
+#: aurait pu se produire, sur ce dépôt.
+_SWALLOWS_EXIT = (
+    (re.compile(r"\|\|\s*(?:true|:)\b"), "`|| true` avale le code de retour"),
+    (re.compile(r";\s*true\b"), "`; true` avale le code de retour"),
+)
+
+
+def _neutralisation_of(line: str, script: str) -> str | None:
+    """Pourquoi cette invocation ne peut PAS faire échouer le script, le cas échéant."""
+    for pattern, explanation in _SWALLOWS_EXIT:
+        if pattern.search(line):
+            return explanation
+    # Opérande GAUCHE d'un `&&` : `set -e` ne s'applique pas, et la liste
+    # n'échoue pas non plus. C'est ainsi que onze portes du miroir local ont pu
+    # rendre 1 sans jamais interrompre le script.
+    before, separator, _ = line.partition("&&")
+    if separator and script in before:
+        return "placée à gauche d'un `&&` : exemptée de `set -e`"
+    return None
+
+
+def _workflow_steps(path: Path) -> list[dict[str, Any]]:
+    """Étapes du workflow, avec le contexte qui décide si elles peuvent échouer."""
+    document = yaml.safe_load(path.read_text(encoding="utf-8"))
+    steps: list[dict[str, Any]] = []
+    for job_name, job in ((document or {}).get("jobs") or {}).items():
+        if not isinstance(job, dict):
+            continue
+        job_lenient = bool(job.get("continue-on-error"))
+        for step in job.get("steps") or []:
+            if not isinstance(step, dict) or "run" not in step:
+                continue
+            steps.append(
+                {
+                    "job": job_name,
+                    "name": str(step.get("name") or "(sans nom)"),
+                    "run": str(step.get("run") or ""),
+                    "if": step.get("if"),
+                    "lenient": job_lenient or bool(step.get("continue-on-error")),
+                }
+            )
+    return steps
+
+
 def check_gate_wiring(root: Path, policy: dict[str, Any]) -> list[Finding]:
+    """Chaque porte obligatoire est-elle réellement CAPABLE de faire échouer ?
+
+    Le contrôle précédent était un `script in text` : un nom de script en
+    commentaire, une étape `if: false` ou un `|| true` le satisfaisaient tous
+    les trois. Trois documents affirmaient pourtant que « le câblage lui-même
+    est vérifié ». Ici, une porte doit apparaître dans une invocation qui
+    PROPAGE son code de retour.
+    """
     findings: list[Finding] = []
-    required = [str(x) for x in (policy.get("gates", {}).get("must_be_wired") or [])]
-    consumers = {
-        ".github/workflows/ci.yml": root / ".github" / "workflows" / "ci.yml",
-        "tools/run_checks.sh": root / "tools" / "run_checks.sh",
-    }
-    texts: dict[str, str] = {}
-    for label, path in consumers.items():
+    gates = policy.get("gates", {}) or {}
+    required = [str(x) for x in (gates.get("must_be_wired") or [])]
+    never_dormant = {str(x) for x in (gates.get("never_dormant") or [])}
+
+    workflow_path = root / ".github" / "workflows" / "ci.yml"
+    shell_path = root / "tools" / "run_checks.sh"
+
+    shell_lines: list[tuple[int, str]] = []
+    steps: list[dict[str, Any]] = []
+    for label, path in (
+        (".github/workflows/ci.yml", workflow_path),
+        ("tools/run_checks.sh", shell_path),
+    ):
         if not path.is_file():
             findings.append(Finding("GATE_NOT_WIRED", label, "consommateur de portes absent"))
-            continue
-        texts[label] = path.read_text(encoding="utf-8")
+    if shell_path.is_file():
+        shell_lines = _shell_command_lines(shell_path.read_text(encoding="utf-8"))
+    if workflow_path.is_file():
+        steps = _workflow_steps(workflow_path)
 
     for script in required:
         if not (root / script).is_file():
@@ -744,27 +862,156 @@ def check_gate_wiring(root: Path, policy: dict[str, Any]) -> list[Finding]:
                 Finding("GATE_NOT_WIRED", script, "script déclaré par la politique mais absent")
             )
             continue
-        for label, text in texts.items():
-            if script not in text:
-                findings.append(
-                    Finding("GATE_NOT_WIRED", label, f"`{script}` n'est jamais appelé ici")
-                )
 
+        # ── miroir local ────────────────────────────────────────────────────
+        if shell_path.is_file():
+            citations = [(n, line) for n, line in shell_lines if script in line]
+            if not citations:
+                findings.append(
+                    Finding(
+                        "GATE_NOT_WIRED",
+                        "tools/run_checks.sh",
+                        f"`{script}` n'est appelé par aucune ligne de code (un nom en "
+                        "commentaire ne l'invoque pas)",
+                    )
+                )
+            else:
+                effectives = [
+                    (n, line) for n, line in citations if _neutralisation_of(line, script) is None
+                ]
+                if not effectives:
+                    number, line = citations[0]
+                    findings.append(
+                        Finding(
+                            "GATE_NEUTRALISED",
+                            f"tools/run_checks.sh:{number}",
+                            f"`{script}` est appelé mais ne peut pas faire échouer le "
+                            f"script — {_neutralisation_of(line, script)}",
+                        )
+                    )
+
+        # ── CI ──────────────────────────────────────────────────────────────
+        if workflow_path.is_file():
+            steps_citing = [step for step in steps if script in step["run"]]
+            if not steps_citing:
+                findings.append(
+                    Finding(
+                        "GATE_NOT_WIRED",
+                        ".github/workflows/ci.yml",
+                        f"`{script}` n'apparaît dans le `run:` d'aucune étape",
+                    )
+                )
+            else:
+                steps_effectives = []
+                for step in steps_citing:
+                    if step["lenient"]:
+                        findings.append(
+                            Finding(
+                                "GATE_NEUTRALISED",
+                                f".github/workflows/ci.yml:{step['job']}",
+                                f"`{script}` est dans une étape `continue-on-error` "
+                                f"(« {step['name']} ») : son échec n'arrête rien",
+                            )
+                        )
+                        continue
+                    if step["if"] is not None:
+                        findings.append(
+                            Finding(
+                                "GATE_NEUTRALISED",
+                                f".github/workflows/ci.yml:{step['job']}",
+                                f"`{script}` est dans une étape conditionnelle "
+                                f"(`if: {step['if']}`, « {step['name']} ») : une porte "
+                                "obligatoire ne s'exécute jamais sous condition",
+                            )
+                        )
+                        continue
+                    swallowed = next(
+                        (
+                            _neutralisation_of(line, script)
+                            for line in step["run"].splitlines()
+                            if script in line and _neutralisation_of(line, script) is not None
+                        ),
+                        None,
+                    )
+                    if swallowed is not None:
+                        findings.append(
+                            Finding(
+                                "GATE_NEUTRALISED",
+                                f".github/workflows/ci.yml:{step['job']}",
+                                f"`{script}` — {swallowed}",
+                            )
+                        )
+                        continue
+                    steps_effectives.append(step)
+                if steps_citing and not steps_effectives:
+                    findings.append(
+                        Finding(
+                            "GATE_NOT_WIRED",
+                            ".github/workflows/ci.yml",
+                            f"`{script}` n'a aucune invocation capable d'échouer",
+                        )
+                    )
+
+    # ── portes déclarées dormantes ──────────────────────────────────────────
     dormant: dict[str, str] = {}
-    for item in policy.get("gates", {}).get("known_not_wired") or []:
+    for item in gates.get("known_not_wired") or []:
         script = str(item.get("script") or "")
-        reason = str(item.get("reason") or "").strip()
-        if not reason:
+        if script in never_dormant:
+            findings.append(
+                Finding(
+                    "GATE_MAY_NOT_SLEEP",
+                    "manifests/policy.yaml",
+                    f"`{script}` figure dans `gates.never_dormant` : cette porte ne "
+                    "peut pas être mise en sommeil, quel que soit le motif",
+                )
+            )
+            continue
+        manquants = [
+            champ
+            for champ in ("reason", "owner", "expires_at", "closure_criterion")
+            if not str(item.get(champ) or "").strip()
+        ]
+        if manquants:
             findings.append(
                 Finding(
                     "GATE_DORMANT_WITHOUT_REASON",
                     "manifests/policy.yaml",
-                    f"`{script}` déclaré non branché sans motif écrit",
+                    f"`{script}` déclaré non branché sans {', '.join(manquants)} — "
+                    "endormir une porte coûte un propriétaire, un motif, une échéance "
+                    "et un critère de réveil",
                 )
             )
             continue
-        dormant[script] = reason
-        if texts and all(script in text for text in texts.values()):
+        expiry = _parse_iso_date(item.get("expires_at"))
+        if expiry is None:
+            findings.append(
+                Finding(
+                    "GATE_DORMANT_WITHOUT_REASON",
+                    "manifests/policy.yaml",
+                    f"`{script}` : `expires_at` n'est pas une date ISO",
+                )
+            )
+            continue
+        if expiry < dt.datetime.now(dt.UTC).date():
+            findings.append(
+                Finding(
+                    "GATE_DORMANT_EXPIRED",
+                    "manifests/policy.yaml",
+                    f"`{script}` : sommeil échu le {expiry.isoformat()} — le réveiller "
+                    "ou réviser la décision",
+                )
+            )
+            continue
+        dormant[script] = str(item.get("reason") or "").strip()
+        # Une porte déclarée endormie mais réellement branchée PARTOUT est une
+        # déclaration périmée : elle doit repasser dans `must_be_wired`, sinon
+        # rien ne garantit qu'elle y reste. (Ce contrôle avait été perdu en
+        # réécrivant cette fonction ; le test qui le couvrait l'a rattrapé.)
+        wired_everywhere = bool(shell_lines) and bool(steps) and (
+            any(script in line for _, line in shell_lines)
+            and any(script in step["run"] for step in steps)
+        )
+        if wired_everywhere:
             findings.append(
                 Finding(
                     "GATE_DORMANT_BUT_WIRED",
@@ -773,8 +1020,8 @@ def check_gate_wiring(root: Path, policy: dict[str, Any]) -> list[Finding]:
                     "le déplacer dans `must_be_wired`",
                 )
             )
-        else:
-            print(f"[GATE_DORMANT] {script} : {' '.join(reason.split())}")
+            continue
+        print(f"[GATE_DORMANT] {script} : {' '.join(dormant[script].split())}")
 
     declared = set(required) | set(dormant)
     for script_path in sorted((root / "tools").glob("check_*.py")):

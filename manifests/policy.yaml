@@ -52,8 +52,17 @@ containers:
 
 gates:
   # Chaque script listé ici DOIT être invoqué par `.github/workflows/ci.yml`
-  # ET par `tools/run_checks.sh`. La porte de frontière financière a été
-  # contournée trois fois : le câblage lui-même est vérifié.
+  # ET par `tools/run_checks.sh`, par une invocation qui PROPAGE son code de
+  # retour.
+  #
+  # Le contrôle a d'abord été un simple `script in text`, ce qui rendait vraies
+  # trois choses fausses : un nom en commentaire, une étape `if: false` et un
+  # `|| true` le satisfaisaient tous les trois. La frontière financière avait
+  # déjà été débranchée trois fois ; un quatrième contournement, par la
+  # sémantique du shell (`porte && echo OK`, exemptée de `set -e`), rendait onze
+  # portes du miroir local incapables d'échouer. La porte analyse désormais
+  # l'invocation elle-même et distingue « absente » de « présente mais
+  # neutralisée ».
   must_be_wired:
     - tools/check_repository_role.py
     - tools/check_financial_boundary.py
@@ -63,10 +72,23 @@ gates:
     - tools/check_notices.py
     - tools/check_performance_budgets.py
     - tools/check_traceability.py
+  # Portes qui ne peuvent JAMAIS être mises en sommeil, quel que soit le motif.
+  # `known_not_wired` n'exigeait qu'une phrase : il suffisait donc d'écrire
+  # « suspendue le temps d'un refactor » pour désarmer la frontière financière,
+  # et la porte restait verte. Une porte listée ici ne peut pas y entrer.
+  never_dormant:
+    - tools/check_repository_role.py
+    - tools/check_financial_boundary.py
+    - tools/check_secrets.py
+    - tools/check_policy.py
+
   # Portes présentes sur le disque et DÉLIBÉRÉMENT pas encore branchées.
-  # Chaque entrée exige un motif écrit. La porte les signale à chaque
-  # exécution sans bloquer, et ÉCHOUE si l'une d'elles se révèle en fait
-  # branchée partout (elle doit alors passer dans `must_be_wired`).
+  # Chaque entrée exige `reason`, `owner`, `expires_at` ET `closure_criterion`
+  # — les mêmes quatre champs que les écarts des portes `traceability` et
+  # `performance`, parce qu'endormir une porte est au moins aussi grave que ne
+  # pas prouver une règle. Une échéance passée fait ÉCHOUER la porte.
+  # Elle échoue aussi si une entrée se révèle en fait branchée partout (elle
+  # doit alors passer dans `must_be_wired`).
   known_not_wired: []
 
   # Tout fichier `tools/check_*.py` absent des DEUX listes ci-dessus fait

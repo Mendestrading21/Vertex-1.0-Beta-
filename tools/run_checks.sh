@@ -5,20 +5,38 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+# RÈGLE DE CE FICHIER : une porte s'invoque SEULE, sur sa propre ligne.
+#
+# Le motif `porte && echo OK` a été utilisé partout ici et il est SILENCIEUSEMENT
+# CASSÉ : sous `set -e`, une commande placée à gauche d'un `&&` est exemptée de
+# l'arrêt sur erreur, et la liste `&&` ne fait pas échouer le script non plus.
+# Onze portes — dont la frontière financière et la détection de secrets — ont
+# donc pu rendre 1 pendant que ce script affichait « TOUT VERT » et sortait 0.
+# C'était le QUATRIÈME contournement de la frontière financière, cette fois par
+# la sémantique du shell.
+#
+# Écrire la commande seule, puis `echo OK` à la ligne : sous `set -e`, ATTEINDRE
+# le `echo` prouve que la commande a réussi.
+# `tools/tests/test_run_checks_fails_closed.py` interdit le retour du motif.
+
 echo "== rôle du dépôt =="
 python3 tools/check_repository_role.py target .
 
 echo "== blueprint =="
-python3 tools/verify_blueprint.py >/dev/null && echo OK
+python3 tools/verify_blueprint.py >/dev/null
+echo OK
 
 echo "== frontière financière =="
-python3 tools/check_financial_boundary.py >/dev/null && echo OK
+python3 tools/check_financial_boundary.py >/dev/null
+echo OK
 
 echo "== registre des calculs =="
-python3 tools/check_calculation_registry.py >/dev/null && echo OK
+python3 tools/check_calculation_registry.py >/dev/null
+echo OK
 
 echo "== détection de secrets =="
-python3 tools/check_secrets.py >/dev/null && echo OK
+python3 tools/check_secrets.py >/dev/null
+echo OK
 
 # Les portes `policy` et `release/notices` lisent des YAML : sans PyYAML elles
 # ne peuvent PAS rendre de verdict. On échoue fermé plutôt que d'annoncer un
@@ -47,14 +65,16 @@ python3 tools/check_notices.py
 
 echo "== verrouillage supply-chain (uv.lock exact) =="
 if command -v uv >/dev/null 2>&1; then
-  uv lock --check >/dev/null && echo OK
+  uv lock --check >/dev/null
+  echo OK
 else
   echo "ERREUR: uv absent — porte supply-chain NON EXÉCUTÉE (aucune preuve)." >&2
   exit 2
 fi
 
 echo "== compilation =="
-python3 -m compileall -q packages/python && echo OK
+python3 -m compileall -q packages/python
+echo OK
 
 echo "== contrat du Worker Cloudflare (ingress TradingView) =="
 # Ces 53 tests n'étaient exécutés par AUCUNE porte, ni ici ni en CI : le
@@ -62,7 +82,8 @@ echo "== contrat du Worker Cloudflare (ingress TradingView) =="
 # `node --test <répertoire>` n'est pas accepté par Node 22 — il faut nommer
 # les fichiers.
 if command -v node >/dev/null 2>&1; then
-  (cd apps/ingress-tradingview/worker && node --test test/*.test.mjs >/dev/null) && echo OK
+  (cd apps/ingress-tradingview/worker && node --test test/*.test.mjs >/dev/null)
+  echo OK
 else
   echo "ERREUR: node absent — porte du Worker NON EXÉCUTÉE (aucune preuve)." >&2
   exit 2
@@ -76,7 +97,8 @@ echo "== lint web (Biome — porte web-quality) =="
 # sans preuve.
 if command -v pnpm >/dev/null 2>&1; then
   if [[ -x apps/web/node_modules/.bin/biome ]]; then
-    (cd apps/web && pnpm exec biome lint .) && echo OK
+    (cd apps/web && pnpm exec biome lint .)
+    echo OK
   else
     echo "ERREUR: apps/web/node_modules absent — exécuter 'pnpm install --frozen-lockfile' dans apps/web ; porte Biome NON EXÉCUTÉE (aucune preuve)." >&2
     exit 2
@@ -111,7 +133,8 @@ if [[ -x apps/web/node_modules/.bin/vite ]]; then
   python3 tools/build_performance_report.py --profile P-DEV \
     --out "${TMPDIR:-/tmp}/vertex-performance-report.json" >/dev/null
   python3 tools/check_performance_budgets.py \
-    --report "${TMPDIR:-/tmp}/vertex-performance-report.json" >/dev/null && echo OK
+    --report "${TMPDIR:-/tmp}/vertex-performance-report.json" >/dev/null
+  echo OK
 else
   echo "ERREUR: apps/web/node_modules absent — porte performance NON EXÉCUTÉE (aucune preuve)." >&2
   exit 2
@@ -126,8 +149,10 @@ echo "== lint et typage Python (porte python-quality) =="
 # fermé plutôt que d'annoncer un vert sans preuve.
 # La porte échoue sur la MOINDRE violation : aucun avertissement toléré.
 if command -v uv >/dev/null 2>&1; then
-  uv run --no-sync ruff check . && echo "OK ruff"
-  uv run --no-sync mypy && echo "OK mypy"
+  uv run --no-sync ruff check .
+  echo "OK ruff"
+  uv run --no-sync mypy
+  echo "OK mypy"
 else
   echo "ERREUR: uv absent — porte python-quality NON EXÉCUTÉE (aucune preuve)." >&2
   exit 2

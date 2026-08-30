@@ -563,6 +563,116 @@ def test_gate_removed_from_run_checks_is_reported(sandbox: Path) -> None:
     assert "GATE_NOT_WIRED" in _codes(gate.collect_findings(sandbox))
 
 
+# ── Contournements du câblage ────────────────────────────────────────────────
+#
+# Le contrôle était un `script in text`. Ces quatre manœuvres le satisfaisaient
+# toutes, pendant que trois documents affirmaient que « le câblage lui-même est
+# vérifié ». Chacune a un test, parce que c'est leur absence qui les avait
+# rendues possibles.
+
+
+def test_gate_commented_out_in_run_checks_is_reported(sandbox: Path) -> None:
+    """Un nom de script en commentaire n'invoque rien."""
+    path = sandbox / "tools" / "run_checks.sh"
+    text = path.read_text(encoding="utf-8")
+    assert "python3 tools/check_alpha.py" in text
+    path.write_text(
+        text.replace(
+            "python3 tools/check_alpha.py",
+            "# DESACTIVEE : python3 tools/check_alpha.py (a reactiver plus tard)",
+        ),
+        encoding="utf-8",
+    )
+    assert "GATE_NOT_WIRED" in _codes(gate.collect_findings(sandbox))
+
+
+def test_gate_swallowed_by_or_true_in_run_checks_is_reported(sandbox: Path) -> None:
+    """`|| true` avale le code de retour : la porte ne peut plus échouer."""
+    path = sandbox / "tools" / "run_checks.sh"
+    text = path.read_text(encoding="utf-8")
+    path.write_text(
+        text.replace("python3 tools/check_alpha.py", "python3 tools/check_alpha.py || true"),
+        encoding="utf-8",
+    )
+    assert "GATE_NEUTRALISED" in _codes(gate.collect_findings(sandbox))
+
+
+def test_gate_left_of_and_in_run_checks_is_reported(sandbox: Path) -> None:
+    """Le quatrième contournement réel : `porte && echo OK` sous `set -e`.
+
+    Une commande placée à gauche d'un `&&` est exemptée de l'arrêt sur erreur.
+    Onze portes du miroir local ont été écrites ainsi, dont la frontière
+    financière et la détection de secrets.
+    """
+    path = sandbox / "tools" / "run_checks.sh"
+    text = path.read_text(encoding="utf-8")
+    path.write_text(
+        text.replace("python3 tools/check_alpha.py", "python3 tools/check_alpha.py && echo OK"),
+        encoding="utf-8",
+    )
+    assert "GATE_NEUTRALISED" in _codes(gate.collect_findings(sandbox))
+
+
+def test_gate_in_a_conditional_ci_step_is_reported(sandbox: Path) -> None:
+    """Une porte obligatoire ne s'exécute jamais sous condition."""
+    path = sandbox / ".github" / "workflows" / "ci.yml"
+    text = path.read_text(encoding="utf-8")
+    path.write_text(
+        text.replace(
+            "      - run: python tools/check_alpha.py\n",
+            "      - if: ${{ false }}\n        run: python tools/check_alpha.py\n",
+        ),
+        encoding="utf-8",
+    )
+    assert "GATE_NEUTRALISED" in _codes(gate.collect_findings(sandbox))
+
+
+def test_gate_in_a_continue_on_error_ci_step_is_reported(sandbox: Path) -> None:
+    path = sandbox / ".github" / "workflows" / "ci.yml"
+    text = path.read_text(encoding="utf-8")
+    path.write_text(
+        text.replace(
+            "      - run: python tools/check_alpha.py\n",
+            "      - continue-on-error: true\n        run: python tools/check_alpha.py\n",
+        ),
+        encoding="utf-8",
+    )
+    assert "GATE_NEUTRALISED" in _codes(gate.collect_findings(sandbox))
+
+
+def test_a_gate_that_may_not_sleep_cannot_be_declared_dormant(sandbox: Path) -> None:
+    """`known_not_wired` n'exigeait qu'une phrase pour désarmer n'importe quoi."""
+    policy = json.loads(json.dumps(TMP_POLICY))
+    policy["gates"]["never_dormant"] = ["tools/check_alpha.py"]
+    policy["gates"]["known_not_wired"] = [
+        {
+            "script": "tools/check_alpha.py",
+            "reason": "Suspendue le temps d'un refactor.",
+            "owner": "équipe test",
+            "expires_at": "2027-12-31",
+            "closure_criterion": "critère de test",
+        }
+    ]
+    (sandbox / "manifests" / "policy.yaml").write_text(yaml.safe_dump(policy), encoding="utf-8")
+    assert "GATE_MAY_NOT_SLEEP" in _codes(gate.collect_findings(sandbox))
+
+
+def test_an_expired_dormancy_is_reported(sandbox: Path) -> None:
+    policy = json.loads(json.dumps(TMP_POLICY))
+    policy["gates"]["known_not_wired"] = [
+        {
+            "script": "tools/check_beta.py",
+            "reason": "motif écrit",
+            "owner": "équipe test",
+            "expires_at": "2020-01-01",
+            "closure_criterion": "critère de test",
+        }
+    ]
+    (sandbox / "manifests" / "policy.yaml").write_text(yaml.safe_dump(policy), encoding="utf-8")
+    (sandbox / "tools" / "check_beta.py").write_text("# porte SYNTHETIC\n", encoding="utf-8")
+    assert "GATE_DORMANT_EXPIRED" in _codes(gate.collect_findings(sandbox))
+
+
 def test_undeclared_gate_script_is_reported(sandbox: Path) -> None:
     (sandbox / "tools" / "check_beta.py").write_text("# porte SYNTHETIC\n", encoding="utf-8")
     assert "GATE_NOT_DECLARED" in _codes(gate.collect_findings(sandbox))
@@ -570,7 +680,15 @@ def test_undeclared_gate_script_is_reported(sandbox: Path) -> None:
 
 def test_dormant_gate_without_reason_is_reported(sandbox: Path) -> None:
     policy = json.loads(json.dumps(TMP_POLICY))
-    policy["gates"]["known_not_wired"] = [{"script": "tools/check_beta.py", "reason": ""}]
+    policy["gates"]["known_not_wired"] = [
+        {
+            "script": "tools/check_beta.py",
+            "reason": "",
+            "owner": "équipe test",
+            "expires_at": "2027-12-31",
+            "closure_criterion": "critère de test",
+        }
+    ]
     (sandbox / "manifests" / "policy.yaml").write_text(yaml.safe_dump(policy), encoding="utf-8")
     (sandbox / "tools" / "check_beta.py").write_text("# porte SYNTHETIC\n", encoding="utf-8")
     assert "GATE_DORMANT_WITHOUT_REASON" in _codes(gate.collect_findings(sandbox))
@@ -579,7 +697,13 @@ def test_dormant_gate_without_reason_is_reported(sandbox: Path) -> None:
 def test_dormant_gate_that_is_actually_wired_is_reported(sandbox: Path) -> None:
     policy = json.loads(json.dumps(TMP_POLICY))
     policy["gates"]["known_not_wired"] = [
-        {"script": "tools/check_alpha.py", "reason": "motif SYNTHETIC"}
+        {
+            "script": "tools/check_alpha.py",
+            "reason": "motif SYNTHETIC",
+            "owner": "équipe test",
+            "expires_at": "2027-12-31",
+            "closure_criterion": "critère de test",
+        }
     ]
     policy["gates"]["must_be_wired"] = []
     (sandbox / "manifests" / "policy.yaml").write_text(yaml.safe_dump(policy), encoding="utf-8")
