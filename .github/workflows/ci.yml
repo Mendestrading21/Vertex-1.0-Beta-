@@ -422,6 +422,26 @@ jobs:
           pnpm install --frozen-lockfile
           pnpm audit --audit-level high
 
+      - name: Porte 15c — nomenclature logicielle Python (CycloneDX)
+        run: uv run --no-project --with cyclonedx-bom==7.3.1 cyclonedx-py requirements requirements-locked.txt --output-reproducible --of JSON -o sbom-python.json
+
+      - name: Publication de la nomenclature
+        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
+        with:
+          name: sbom
+          path: sbom-python.json
+          retention-days: 30
+
+      # Ce job ne synchronisait rien : ses trois autres portes tournent en
+      # `uv run --no-project --with <outil épinglé>`. Un premier essai de la
+      # porte 15d en `--no-sync` a donc créé un venv VIDE sur le Python du
+      # système et échoué sur `ModuleNotFoundError: No module named 'yaml'` —
+      # avant la SBOM, qu'elle a fait sauter au passage. D'où l'ordre actuel :
+      # la SBOM est produite et publiée AVANT, et la relecture réseau vient en
+      # dernier, où son échec ne prive de rien.
+      - name: Installation Python depuis le verrou exact
+        run: uv sync --locked --all-extras --python ${{ env.PYTHON_VERSION }}
+
       # La porte hors ligne du job `garde-fous` compare le registre aux VERROUS
       # et le tableau des notices au REGISTRE. Elle ne confronte jamais le
       # registre à sa SOURCE : un audit a mesuré que deux `sed` cohérents
@@ -434,13 +454,3 @@ jobs:
       # rejoue avec `--require-network`, où l'indisponibilité doit être vue.
       - name: Porte 15d — licences relues à leur source
         run: uv run --no-sync python tools/check_notices.py --verify
-
-      - name: Porte 15c — nomenclature logicielle Python (CycloneDX)
-        run: uv run --no-project --with cyclonedx-bom==7.3.1 cyclonedx-py requirements requirements-locked.txt --output-reproducible --of JSON -o sbom-python.json
-
-      - name: Publication de la nomenclature
-        uses: actions/upload-artifact@330a01c490aca151604b8cf639adc76d48f6c5d4 # v5.0.0
-        with:
-          name: sbom
-          path: sbom-python.json
-          retention-days: 30
