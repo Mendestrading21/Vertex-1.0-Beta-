@@ -7,11 +7,24 @@ Levels (docs/04-integrations/DATA_FUSION.md):
    parameters stripped, fragment stripped, remaining query sorted) within a
    bounded time window;
 3. fingerprint of the normalized title (case, punctuation, whitespace and
-   accents removed) plus sorted normalized entities;
+   accents removed — but NOT the polarity of a figure) plus sorted
+   normalized entities;
 4. time-window similarity: a **reversible flag only** (``FLAGGED_SIMILAR``),
    never a destructive merge;
+4b. polarity conflict: two observations asserting opposite directions
+   (``+``/``-``, ``>``/``<``) are named by a reversible
+   ``FLAGGED_POLARITY_CONFLICT`` decision — never merged, never split;
 5. cluster construction preserving every provider, right, date and every
    :class:`FusionDecision`.
+
+Polarity doctrine (``.claude/rules/financial-safety.md``, "convention de
+signe"): the sign of a financial variation is data, not punctuation.
+Normalization keeps four canonical markers so that ``"SPX -3,2 %"`` and
+``"SPX +3,2 %"`` can never share a fingerprint. Where provider identity
+(levels 1 and 2) still groups two opposite dispatches — one native id, one
+canonical url — the group is kept and the contradiction is PUBLISHED rather
+than resolved by electing one member; an absent marker is never treated as
+the opposite of a present one.
 
 Nothing is physically deleted: every input observation stays a member of
 exactly one cluster (enforced by :class:`FusionResult`), and a member linked
@@ -24,6 +37,7 @@ from __future__ import annotations
 
 import unicodedata
 from datetime import datetime, timedelta
+from types import MappingProxyType
 from typing import Iterable, Mapping, Optional, Sequence
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
@@ -44,8 +58,10 @@ __all__ = [
     "FusionResult",
     "RULE_CANONICAL_URL",
     "RULE_FINGERPRINT",
+    "POLARITY_MARKERS",
     "RULE_KEPT_DISTINCT",
     "RULE_NATIVE_ID",
+    "RULE_POLARITY_CONFLICT",
     "RULE_SIMILARITY_FLAG",
     "SIMILARITY_MIN_JACCARD_PERCENT",
     "SIMILARITY_MIN_SHARED_ENTITIES",
@@ -56,17 +72,26 @@ __all__ = [
     "fusion_result_hash",
     "normalize_canonical_url",
     "normalize_title",
+    "opposed_markers",
     "title_fingerprint",
+    "title_polarity_markers",
 ]
 
 
-FUSION_RULESET_VERSION = "1.0.0"
-"""Version stamped on every decision; bump on any behavioral rule change."""
+FUSION_RULESET_VERSION = "2.0.0"
+"""Version stamped on every decision; bump on any behavioral rule change.
+
+2.0.0 — title normalization stopped erasing the sign of a financial
+variation (P1-6): fingerprints of previously fused opposite headlines now
+differ, so this is a BREAKING rule change and replays across the boundary
+are not comparable.
+"""
 
 RULE_NATIVE_ID = "fusion.dedup.native_id"
 RULE_CANONICAL_URL = "fusion.dedup.canonical_url"
 RULE_FINGERPRINT = "fusion.dedup.title_fingerprint"
 RULE_SIMILARITY_FLAG = "fusion.dedup.similarity_window_flag"
+RULE_POLARITY_CONFLICT = "fusion.dedup.polarity_conflict"
 RULE_KEPT_DISTINCT = "fusion.dedup.kept_distinct"
 
 CANONICAL_URL_WINDOW = timedelta(hours=48)
@@ -140,18 +165,167 @@ class FusionResult(ContractModel):
         return self
 
 
+_SIGN_MARKERS: Mapping[str, str] = MappingProxyType(
+    {
+        # Negative sign family (canonicalized to ASCII "-").
+        "-": "-",  # U+002D HYPHEN-MINUS
+        "\u2010": "-",  # HYPHEN
+        "\u2011": "-",  # NON-BREAKING HYPHEN
+        "\u2012": "-",  # FIGURE DASH
+        "\u2013": "-",  # EN DASH
+        "\u2212": "-",  # MINUS SIGN
+        "\u2796": "-",  # HEAVY MINUS SIGN
+        # Positive sign family (canonicalized to ASCII "+").
+        "+": "+",  # U+002B PLUS SIGN
+        "\u2795": "+",  # HEAVY PLUS SIGN
+    }
+)
+"""Sign characters: a POLARITY marker only when glued to a number.
+
+These characters double as hyphens and dashes (``Compàny-1``, ``COVID-19``,
+``Apple — Microsoft``), so they only count as a sign under the attachment
+rule of :func:`normalize_title`; everywhere else they stay punctuation.
+"""
+
+_DIRECTION_MARKERS: Mapping[str, str] = MappingProxyType(
+    {
+        # Downward direction — same asserted polarity as a negative sign.
+        "\u2193": "-",  # DOWNWARDS ARROW
+        "\u2198": "-",  # SOUTH EAST ARROW
+        "\u2199": "-",  # SOUTH WEST ARROW
+        "\u25bc": "-",  # BLACK DOWN-POINTING TRIANGLE
+        "\u2b07": "-",  # DOWNWARDS BLACK ARROW
+        # Upward direction — same asserted polarity as a positive sign.
+        "\u2191": "+",  # UPWARDS ARROW
+        "\u2196": "+",  # NORTH WEST ARROW
+        "\u2197": "+",  # NORTH EAST ARROW
+        "\u25b2": "+",  # BLACK UP-POINTING TRIANGLE
+        "\u2b06": "+",  # UPWARDS BLACK ARROW
+        # Comparison direction — its own polarity axis, never a sign.
+        ">": ">",
+        "\u2265": ">",  # GREATER-THAN OR EQUAL TO
+        "\u226b": ">",  # MUCH GREATER-THAN
+        "<": "<",
+        "\u2264": "<",  # LESS-THAN OR EQUAL TO
+        "\u226a": "<",  # MUCH LESS-THAN
+    }
+)
+"""Direction and comparison characters: ALWAYS a polarity marker.
+
+Unlike ``-`` and ``+`` these never act as a hyphen or a separator inside a
+headline, so no attachment rule is needed: they are meaning-bearing wherever
+they appear.
+"""
+
+POLARITY_MARKERS = ("+", "-", "<", ">")
+"""Canonical polarity markers produced by :func:`title_polarity_markers`."""
+
+_OPPOSITE_MARKER: Mapping[str, str] = MappingProxyType(
+    {"+": "-", "-": "+", ">": "<", "<": ">"}
+)
+"""The single explicit opposite of each canonical marker."""
+
+
+def _scan_title(title: str) -> tuple[str, tuple[str, ...]]:
+    """Normalize ``title`` and collect its polarity markers in one pass.
+
+    Normalization (unchanged for ordinary text): NFKD decomposition,
+    combining marks dropped, casefold, every non-alphanumeric character
+    becomes a separator and whitespace collapses to single spaces.
+
+    Polarity (the fix): the sign of a financial variation is DATA, not
+    punctuation, so four canonical markers survive normalization.
+
+    Attachment rule — a ``-``/``+`` family character is a sign only when the
+    very next character is a decimal digit AND the previous character is not
+    alphanumeric; otherwise it stays punctuation, exactly as before. A
+    direction or comparison character (arrows, ``<``, ``>``) is always a
+    marker: when a number follows (across spaces) the marker binds to that
+    number, otherwise it stands alone as its own token.
+    """
+    decomposed = unicodedata.normalize("NFKD", title)
+    stripped = "".join(ch for ch in decomposed if not unicodedata.combining(ch))
+    folded = stripped.casefold()
+
+    pieces: list[str] = []
+    markers: list[str] = []
+    index, length = 0, len(folded)
+    while index < length:
+        character = folded[index]
+
+        sign = _SIGN_MARKERS.get(character)
+        if sign is not None:
+            glued_to_number = index + 1 < length and folded[index + 1].isdigit()
+            after_alphanumeric = index > 0 and folded[index - 1].isalnum()
+            if glued_to_number and not after_alphanumeric:
+                pieces.append(" " + sign)  # binds to the digits that follow
+                markers.append(sign)
+            else:
+                pieces.append(" ")  # a hyphen or a dash: ordinary punctuation
+            index += 1
+            continue
+
+        direction = _DIRECTION_MARKERS.get(character)
+        if direction is not None:
+            markers.append(direction)
+            lookahead = index + 1
+            while lookahead < length and folded[lookahead].isspace():
+                lookahead += 1
+            if lookahead < length and folded[lookahead].isdigit():
+                pieces.append(" " + direction)  # binds to the number it qualifies
+                index = lookahead
+            else:
+                pieces.append(" " + direction + " ")  # stands alone
+                index += 1
+            continue
+
+        pieces.append(character if character.isalnum() else " ")
+        index += 1
+
+    return " ".join("".join(pieces).split()), tuple(markers)
+
+
 def normalize_title(title: str) -> str:
     """Normalize a title: accents, case, punctuation and whitespace removed.
 
     Unicode is NFKD-decomposed and combining marks dropped, the result is
     casefolded, every non-alphanumeric character becomes a separator and
-    whitespace collapses to single spaces. Pure and deterministic.
+    whitespace collapses to single spaces. Polarity markers survive (see
+    :func:`_scan_title`): ``"SPX -3,2 % sur la seance"`` normalizes to
+    ``"spx -3 2 sur la seance"`` and never collides with its ``+3,2 %``
+    opposite. Pure and deterministic.
     """
-    decomposed = unicodedata.normalize("NFKD", title)
-    stripped = "".join(ch for ch in decomposed if not unicodedata.combining(ch))
-    folded = stripped.casefold()
-    separated = "".join(ch if ch.isalnum() else " " for ch in folded)
-    return " ".join(separated.split())
+    return _scan_title(title)[0]
+
+
+def title_polarity_markers(title: str) -> tuple[str, ...]:
+    """Sorted, unique canonical polarity markers asserted by ``title``.
+
+    An empty tuple means the title asserts NO direction — which is not the
+    same as asserting a neutral or a positive one. Absent stays absent.
+    """
+    return tuple(sorted(set(_scan_title(title)[1])))
+
+
+def opposed_markers(
+    first: Iterable[str], second: Iterable[str]
+) -> Optional[tuple[str, str]]:
+    """Return the first explicitly opposed marker pair, or ``None``.
+
+    Two marker sets are opposed when one asserts a direction the other
+    contradicts (``+`` against ``-``, ``>`` against ``<``) and does not
+    itself assert. An ABSENT marker is never the opposite of a present one:
+    an unsigned figure is of unknown polarity, not of the reverse polarity
+    (absent, zero and opposite stay three distinct things).
+    """
+    left, right = frozenset(first), frozenset(second)
+    if left == right:
+        return None
+    for marker in sorted(left):
+        opposite = _OPPOSITE_MARKER[marker]
+        if opposite in right and marker not in right:
+            return (marker, opposite)
+    return None
 
 
 def _normalize_entities(entities: Iterable[str]) -> tuple[str, ...]:
@@ -196,11 +370,12 @@ def normalize_canonical_url(url: str) -> str:
 def title_fingerprint(title: str, entities: Iterable[str]) -> Optional[str]:
     """Deterministic fingerprint of a normalized title plus sorted entities.
 
-    Returns ``None`` when the normalized title is empty (a punctuation-only
-    title must not link unrelated items — fail-closed, no wildcard bucket).
+    Returns ``None`` when the normalized title carries no alphanumeric
+    token (a punctuation-only or marker-only title must not link unrelated
+    items — fail-closed, no wildcard bucket).
     """
     normalized_title = normalize_title(title)
-    if not normalized_title:
+    if not any(character.isalnum() for character in normalized_title):
         return None
     return canonical_json_hash(
         {"title": normalized_title, "entities": list(_normalize_entities(entities))}
@@ -286,12 +461,15 @@ def _link_group(
 
 
 def fuse(observations: Sequence[ContentObservation]) -> FusionResult:
-    """Run the five deterministic deduplication levels and build clusters.
+    """Run the deterministic deduplication levels and build clusters.
 
-    Pure function of the input set: any permutation of ``observations``
-    yields identical cluster ids, identical decisions and an identical
-    canonical result hash. Raises :class:`FusionInputError` on duplicate
-    ``content_id`` values (two distinct observations may not share an id).
+    Levels 1 to 3 link, level 4 flags similarity, level 4b flags an opposite
+    polarity (never merging, never splitting) and level 5 builds the
+    clusters. Pure function of the input set: any permutation of
+    ``observations`` yields identical cluster ids, identical decisions and an
+    identical canonical result hash. Raises :class:`FusionInputError` on
+    duplicate ``content_id`` values (two distinct observations may not share
+    an id).
     """
     by_id: dict[str, ContentObservation] = {}
     for observation in observations:
@@ -304,6 +482,10 @@ def fuse(observations: Sequence[ContentObservation]) -> FusionResult:
     ordered_ids = sorted(by_id)
     union = _UnionFind(ordered_ids)
     link_decisions: list[FusionDecision] = []
+    markers: dict[str, tuple[str, ...]] = {
+        content_id: title_polarity_markers(by_id[content_id].title)
+        for content_id in ordered_ids
+    }
 
     # Level 1 — exact provider native id, per source.
     native_groups: dict[tuple[str, str], list[str]] = {}
@@ -402,6 +584,23 @@ def fuse(observations: Sequence[ContentObservation]) -> FusionResult:
         # Integer cross-multiplication: no float comparison in the rule.
         if 100 * len(intersection_tokens) < SIMILARITY_MIN_JACCARD_PERCENT * len(union_tokens):
             continue
+        opposed = opposed_markers(markers[first], markers[second])
+        if opposed is not None:
+            # Calling two contradictory headlines "similar" would hide the
+            # contradiction behind a reassuring word. Both stay published in
+            # their own cluster; the opposition itself is named.
+            flag_decisions.append(
+                _make_decision(
+                    RULE_POLARITY_CONFLICT,
+                    FusionAction.FLAGGED_POLARITY_CONFLICT,
+                    (first, second),
+                    f"opposite polarity {opposed[0]!r} vs {opposed[1]!r} on two "
+                    f"otherwise similar titles within {SIMILARITY_WINDOW}; "
+                    "reversible flag, never a merge",
+                    reversible=True,
+                )
+            )
+            continue
         flag_decisions.append(
             _make_decision(
                 RULE_SIMILARITY_FLAG,
@@ -419,8 +618,45 @@ def fuse(observations: Sequence[ContentObservation]) -> FusionResult:
     for content_id in ordered_ids:
         members_by_root.setdefault(union.find(content_id), []).append(content_id)
 
+    # Level 4b — polarity conflict INSIDE a cluster. Levels 1 and 2 link on
+    # provider identity (same native id, same canonical url), which is
+    # stronger evidence than wording: two dispatches under one provider
+    # identity are one item, typically a correction. Splitting them would
+    # fabricate two events out of one and would lose the correction link, so
+    # the cluster is kept and the contradiction is PUBLISHED instead. One
+    # decision per opposed pair of distinct marker sets, named by each set's
+    # smallest member (marker sets are a subset of POLARITY_MARKERS, so the
+    # number of decisions per cluster is bounded and order-independent).
+    conflict_decisions: list[FusionDecision] = []
+    for members in members_by_root.values():
+        if len(members) < 2:
+            continue
+        first_member_by_markers: dict[tuple[str, ...], str] = {}
+        for content_id in members:  # members are already sorted by content_id
+            first_member_by_markers.setdefault(markers[content_id], content_id)
+        marker_sets = sorted(first_member_by_markers)
+        for index, left in enumerate(marker_sets):
+            for right in marker_sets[index + 1 :]:
+                opposed = opposed_markers(left, right)
+                if opposed is None:
+                    continue
+                conflict_decisions.append(
+                    _make_decision(
+                        RULE_POLARITY_CONFLICT,
+                        FusionAction.FLAGGED_POLARITY_CONFLICT,
+                        (
+                            first_member_by_markers[left],
+                            first_member_by_markers[right],
+                        ),
+                        f"cluster members assert opposite polarity {opposed[0]!r} "
+                        f"vs {opposed[1]!r}; both members kept, the contradiction "
+                        "is published and never resolved by election",
+                        reversible=True,
+                    )
+                )
+
     decisions_by_root: dict[str, list[FusionDecision]] = {}
-    for decision in link_decisions:
+    for decision in (*link_decisions, *conflict_decisions):
         root = union.find(decision.inputs[0])
         decisions_by_root.setdefault(root, []).append(decision)
     for decision in flag_decisions:

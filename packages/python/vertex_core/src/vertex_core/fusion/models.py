@@ -17,6 +17,7 @@ from pydantic import Field, StringConstraints, model_validator
 from vertex_core.contracts import ContractModel, EnvelopeQuality, NonEmptyStr, UtcDatetime
 
 __all__ = [
+    "REVERSIBLE_FLAG_ACTIONS",
     "ContentCluster",
     "ContentObservation",
     "FusionAction",
@@ -39,16 +40,26 @@ def _require_strictly_sorted_unique(values: Sequence[str], field_name: str) -> N
 class FusionAction(str, Enum):
     """Canonical action recorded by one fusion decision.
 
-    ``LINKED_*`` actions join members into one cluster; ``FLAGGED_SIMILAR`` is
-    a reversible cross-cluster hint that never merges; ``KEPT_DISTINCT``
-    records that no rule linked an observation to another.
+    ``LINKED_*`` actions join members into one cluster; ``FLAGGED_SIMILAR``
+    is a reversible cross-cluster hint that never merges;
+    ``FLAGGED_POLARITY_CONFLICT`` names two observations asserting opposite
+    directions (``+``/``-``, ``>``/``<``) — it never merges and never
+    splits, it publishes the contradiction; ``KEPT_DISTINCT`` records that
+    no rule linked an observation to another.
     """
 
     LINKED_NATIVE_ID = "LINKED_NATIVE_ID"
     LINKED_CANONICAL_URL = "LINKED_CANONICAL_URL"
     LINKED_FINGERPRINT = "LINKED_FINGERPRINT"
     FLAGGED_SIMILAR = "FLAGGED_SIMILAR"
+    FLAGGED_POLARITY_CONFLICT = "FLAGGED_POLARITY_CONFLICT"
     KEPT_DISTINCT = "KEPT_DISTINCT"
+
+
+REVERSIBLE_FLAG_ACTIONS = frozenset(
+    {FusionAction.FLAGGED_SIMILAR, FusionAction.FLAGGED_POLARITY_CONFLICT}
+)
+"""Flag actions that must always be reversible (never a destructive merge)."""
 
 
 class ContentObservation(ContractModel):
@@ -77,9 +88,10 @@ class ContentObservation(ContractModel):
 class FusionDecision(ContractModel):
     """One deterministic, replayable deduplication decision.
 
-    Invariants: ``FLAGGED_SIMILAR`` is always reversible (a similarity flag is
-    never a destructive merge); ``KEPT_DISTINCT`` names exactly one input;
-    every other action names exactly two; inputs are strictly sorted.
+    Invariants: every ``FLAGGED_*`` action is always reversible (a flag is
+    never a destructive merge, and a published contradiction is never a
+    verdict); ``KEPT_DISTINCT`` names exactly one input; every other action
+    names exactly two; inputs are strictly sorted.
     """
 
     decision_id: NonEmptyStr
@@ -92,8 +104,8 @@ class FusionDecision(ContractModel):
 
     @model_validator(mode="after")
     def _check_decision_invariants(self) -> "FusionDecision":
-        if self.action is FusionAction.FLAGGED_SIMILAR and not self.reversible:
-            raise ValueError("FLAGGED_SIMILAR decisions must be reversible")
+        if self.action in REVERSIBLE_FLAG_ACTIONS and not self.reversible:
+            raise ValueError(f"{self.action.value} decisions must be reversible")
         if self.action is FusionAction.KEPT_DISTINCT:
             if len(self.inputs) != 1:
                 raise ValueError("KEPT_DISTINCT decisions take exactly one input")

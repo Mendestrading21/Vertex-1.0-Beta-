@@ -1054,3 +1054,202 @@ def test_a_nature_refusal_names_a_path_and_never_a_value(content: dict) -> None:
     assert "\x07" not in message and "\x1b" not in message
     assert "DONNEES REELLES" not in message
     assert "IBKR_LIVE" not in message
+
+
+# ===========================================================================
+# 7e AUDIT — P0-2 : le RECENSEMENT était exclu du croisement claim/marqueur
+# ===========================================================================
+#
+# VECTEUR REPRODUIT. `{"population": "REAL", "coverage":
+# {"population_counts": {"SYNTHETIC": 24}}}` était SERVI `state = "ok"`, et
+# `population = "REAL"` partait vers `SyntheticBanner` qui affichait
+# « DONNÉES RÉELLES » en ton NEUTRE. Le contrôle
+# `{"population": "REAL", "coverage": {"rights": "SYNTHETIC"}}` était, lui,
+# déjà REFUSÉ : la seule différence entre les deux est que le marqueur est
+# une CLÉ de recensement au lieu d'une valeur.
+#
+# POURQUOI L'EXCLUSION ÉTAIT FAUSSE. Le motif écrit — « un recensement DÉCRIT
+# un mélange, il n'en revendique pas un » — est vrai du recensement pris
+# SEUL. Il ne dit rien de la TÊTE placée au-dessus. Une tête qui revendique
+# une observation au-dessus d'un recensement qui ne compte AUCUN membre
+# observé revendique plus que ce que son propre recensement soutient : c'est
+# exactement la SUR-REVENDICATION que la règle asymétrique refuse déjà
+# ailleurs. La direction inverse — tête prudente au-dessus d'un recensement
+# mixte — reste servie, et les tests d'anti-vacuité ci-dessous la tiennent.
+
+
+CENSUS = "population_counts"
+
+
+@pytest.mark.parametrize("claim", sorted(OBSERVATION_CLAIM_LABELS))
+@pytest.mark.parametrize(
+    "counts",
+    [
+        {"SYNTHETIC": 24},
+        {"SIMULATED": 3},
+        {"DEMO": 1},
+        {"REAL": 3, "SYNTHETIC": 1},
+        {"DELAYED": 2, "DEMO": 7},
+    ],
+)
+def test_a_census_counting_a_generated_member_refuses_an_observation_claim(
+    claim: str, counts: dict
+) -> None:
+    """Un membre GÉNÉRÉ compté sous une tête qui revendique une observation.
+
+    `{"REAL": 3, "SYNTHETIC": 1}` est inclus délibérément : le producteur
+    (`vertex_worker.opportunities`) dégrade tout le snapshot à SYNTHETIC dès
+    UN dossier synthétique, donc une tête REAL au-dessus d'un tel mélange
+    n'est aucun état produit — et c'est la direction que
+    `financial-safety.md` interdit (réel et généré jamais confondus).
+    """
+    with pytest.raises(SnapshotContentError) as excinfo:
+        checked_relayed_content(
+            {"population": claim, "coverage": {CENSUS: counts}}
+        )
+    assert excinfo.value.field == "population"
+    assert f"coverage.{CENSUS}." in str(excinfo.value)
+
+
+@pytest.mark.parametrize("claim", sorted(OBSERVATION_CLAIM_LABELS))
+@pytest.mark.parametrize(
+    "counts",
+    [
+        {"EMPTY": 20},
+        {"THEORETICAL": 4},
+        {"USER_DECLARED": 2},
+        {"EMPTY": 20, "THEORETICAL": 1},
+    ],
+)
+def test_a_census_counting_zero_observed_member_refuses_an_observation_claim(
+    claim: str, counts: dict
+) -> None:
+    """Aucun de ces membres n'est un marqueur synthétique — et pourtant la
+    tête revendique une observation qu'AUCUN membre compté ne soutient."""
+    with pytest.raises(SnapshotContentError) as excinfo:
+        checked_relayed_content(
+            {"population": claim, "coverage": {CENSUS: counts}}
+        )
+    assert excinfo.value.field == "population"
+    assert f"coverage.{CENSUS}" in str(excinfo.value)
+
+
+def test_a_nested_claim_is_refused_by_the_census_of_ITS_OWN_subtree() -> None:
+    """Le recensement gouverne comme un marqueur : par SOUS-ARBRE."""
+    with pytest.raises(SnapshotContentError) as excinfo:
+        checked_relayed_content(
+            {
+                "population": "SYNTHETIC",
+                "dossiers": [
+                    {"population": "REAL", "coverage": {CENSUS: {"SYNTHETIC": 2}}}
+                ],
+            }
+        )
+    assert excinfo.value.field == "dossiers[0].population"
+
+
+# --- ANTI-VACUITÉ : la direction PRUDENTE reste servie ----------------------
+
+
+def test_a_prudent_head_above_a_mixed_census_is_still_served() -> None:
+    """RÈGLE ASYMÉTRIQUE, direction légitime : `vertex_worker.opportunities`
+    publie EXACTEMENT ceci et doit continuer à être servi."""
+    mixed = {
+        "population": "SYNTHETIC",
+        "limitations": ["mixed population"],
+        "coverage": {CENSUS: {"REAL": 1, "SYNTHETIC": 1}},
+    }
+    assert checked_relayed_content(mixed) == mixed
+
+
+@pytest.mark.parametrize("claim", sorted(OBSERVATION_CLAIM_LABELS))
+@pytest.mark.parametrize(
+    "counts",
+    [
+        {"REAL": 3},
+        {"DELAYED": 2},
+        {"REAL": 2, "EMPTY": 20},
+        {"REAL": 1, "THEORETICAL": 5},
+        {"REAL": 2, "SYNTHETIC": 0},
+    ],
+)
+def test_a_census_that_supports_its_claim_is_served(
+    claim: str, counts: dict
+) -> None:
+    """Anti-vacuité de la direction refusée : un recensement qui compte au
+    moins un membre observé, et aucun membre généré, laisse passer la tête.
+
+    `{"REAL": 2, "SYNTHETIC": 0}` est inclus exprès : un compteur à ZÉRO
+    n'est PAS un membre. Sans cette ligne la règle refuserait sur la simple
+    présence d'une clé, ce qui serait un contrôle de vocabulaire déguisé.
+    """
+    served = {"population": claim, "coverage": {CENSUS: counts}}
+    assert checked_relayed_content(served) == served
+
+
+@pytest.mark.parametrize("claim", sorted(OBSERVATION_CLAIM_LABELS))
+def test_an_absent_or_empty_census_is_absence_not_contradiction(
+    claim: str,
+) -> None:
+    """Un recensement VIDE ne porte aucune information : il ne contredit
+    rien. Le refuser reviendrait à refuser aussi son ABSENCE, donc tout
+    producteur qui n'en publie pas (`analysis`, `markets`, `calendar`)."""
+    for content in (
+        {"population": claim},
+        {"population": claim, "coverage": {CENSUS: {}}},
+    ):
+        assert checked_relayed_content(content) == content
+
+
+# --- les VALEURS du recensement : un compte, jamais de la prose -------------
+
+
+@pytest.mark.parametrize(
+    "forged",
+    [
+        "beaucoup",
+        "24",
+        HOSTILE,
+        True,
+        False,
+        -4,
+        1.5,
+        None,
+        [24],
+        {"n": 24},
+    ],
+)
+def test_a_census_count_must_be_a_non_negative_integer(forged: Any) -> None:
+    """La règle ci-dessus LIT le compte : une valeur illisible la rendrait
+    silencieusement inapplicable (`{"SYNTHETIC": "24"}` s'échapperait)."""
+    with pytest.raises(SnapshotContentError) as excinfo:
+        checked_relayed_content({"coverage": {CENSUS: {"SYNTHETIC": forged}}})
+    assert excinfo.value.field == f"coverage.{CENSUS}.SYNTHETIC"
+
+
+def test_a_census_count_of_zero_and_of_a_large_universe_are_both_relayed() -> None:
+    """Anti-vacuité du contrôle de valeur : les comptes honnêtes passent."""
+    honest = {"coverage": {CENSUS: {"SYNTHETIC": 0, "REAL": 10_000}}}
+    assert checked_relayed_content(honest) == honest
+
+
+# --- le refus ne fuit jamais la valeur stockée ------------------------------
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        {"population": "REAL", "coverage": {CENSUS: {"SYNTHETIC": 24}}},
+        {"population": "DELAYED", "coverage": {CENSUS: {"EMPTY": 20}}},
+        {"coverage": {CENSUS: {"SYNTHETIC": HOSTILE}}},
+        {"coverage": {CENSUS: {"IBKR_LIVE": 1}}},
+    ],
+)
+def test_a_census_refusal_names_a_path_and_never_a_value(content: dict) -> None:
+    with pytest.raises(SnapshotContentError) as excinfo:
+        checked_relayed_content(content)
+    message = str(excinfo.value)
+    assert HOSTILE not in message
+    assert "\x07" not in message and "\x1b" not in message
+    assert "IBKR_LIVE" not in message
+    assert "ACHETEZ" not in message

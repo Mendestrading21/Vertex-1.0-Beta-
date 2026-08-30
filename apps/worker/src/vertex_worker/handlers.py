@@ -5,7 +5,15 @@ recent observation window, runs the deterministic fusion engine
 (dedup -> clusters) and the mandatory-gate relevance ranking
 (RIGHTS/IDENTITY/TIME/SOURCE/QUALITY) from ``vertex_core.fusion``, then
 publishes an ``attention`` snapshot with at most
-:data:`MAX_ATTENTION_ITEMS` explained items. The handler is a pure
+:data:`MAX_ATTENTION_ITEMS` explained items.
+
+One cluster publishes at most one item, through an elected representative.
+That election must never SETTLE a contradiction: when a cluster holds two
+members asserting opposite polarity (``FLAGGED_POLARITY_CONFLICT`` with both
+sides inside the cluster), electing one of them would show a rise in place of
+a fall. Such a cluster is therefore refused by the QUALITY_OK gate, appears
+in ``rejected``, and the contradiction itself is published in the snapshot's
+``conflicts`` block — an unsignalled conflict is worse than a duplicate. The handler is a pure
 recomputation over its input window — replaying the same message with the
 same clock produces byte-identical content.
 
@@ -53,6 +61,7 @@ from vertex_core.contracts import (
 )
 from vertex_core.fusion import (
     ContentObservation,
+    FusionAction,
     RelevanceInput,
     fuse,
     rank_items,
@@ -352,18 +361,65 @@ def build_attention_content(
     fusion = fuse(observations)
     observation_by_id = {obs.content_id: obs for obs in fusion.observations}
 
+    conflicts: list[dict[str, Any]] = []
+    seen_conflicts: set[str] = set()
     inputs: list[RelevanceInput] = []
     cluster_by_representative: dict[str, Any] = {}
     for cluster in fusion.clusters:
         members = [observation_by_id[member_id] for member_id in cluster.member_ids]
+        member_ids = set(cluster.member_ids)
+        # A polarity conflict whose BOTH sides sit in this cluster cannot be
+        # resolved by electing a representative: publishing one member would
+        # show a rise in place of a fall. A conflict whose other side lives
+        # in another cluster is not hidden by the election — both clusters
+        # stay publishable — so it is reported without closing the gate.
+        internal_conflicts = [
+            decision
+            for decision in cluster.decisions
+            if decision.action is FusionAction.FLAGGED_POLARITY_CONFLICT
+            and member_ids.issuperset(decision.inputs)
+        ]
+        for decision in cluster.decisions:
+            if decision.action is not FusionAction.FLAGGED_POLARITY_CONFLICT:
+                continue
+            if decision.decision_id in seen_conflicts:
+                continue
+            seen_conflicts.add(decision.decision_id)
+            conflicts.append(
+                {
+                    "kind": "POLARITY",
+                    "scope": (
+                        "INTRA_CLUSTER"
+                        if member_ids.issuperset(decision.inputs)
+                        else "CROSS_CLUSTER"
+                    ),
+                    "cluster_id": cluster.cluster_id,
+                    "member_event_ids": list(decision.inputs),
+                    "rule_id": decision.rule_id,
+                    "rule_version": decision.rule_version,
+                    "rationale": decision.rationale,
+                    "reversible": decision.reversible,
+                }
+            )
         representative = min(
             members, key=lambda obs: (obs.source_tier, _event_time(obs), obs.content_id)
         )
         record = content_records[representative.content_id]
         cluster_by_representative[representative.content_id] = cluster
+        # The candidate carries the CLUSTER's quality, not only its own — the
+        # same aggregation already applied to rights and sources below. An
+        # unresolved internal contradiction is exactly EnvelopeQuality.CONFLICT,
+        # which the mandatory QUALITY_OK gate refuses (fail-closed). The
+        # observation itself is untouched and stays in the snapshot's cluster
+        # provenance; nothing is deleted, nothing is rewritten.
+        candidate = representative
+        if internal_conflicts:
+            candidate = representative.model_copy(
+                update={"quality": EnvelopeQuality.CONFLICT}
+            )
         inputs.append(
             RelevanceInput(
-                observation=representative,
+                observation=candidate,
                 identity_status=(
                     IdentityStatus.RESOLVED
                     if record.instrument_ref
@@ -377,6 +433,7 @@ def build_attention_content(
                 novelty=True,
             )
         )
+    conflicts.sort(key=lambda entry: (entry["scope"], entry["member_event_ids"]))
 
     ranking = rank_items(inputs, as_of=now)
     published_items = ranking.ranked[:MAX_ATTENTION_ITEMS]
@@ -424,6 +481,7 @@ def build_attention_content(
         "policy_version": POLICY_VERSION,
         "fusion_ruleset_version": fusion.ruleset_version,
         "items": items,
+        "conflicts": conflicts,
         "rejected": [
             {
                 "item_id": rejection.item_id,
@@ -441,6 +499,7 @@ def build_attention_content(
             "synthetic_observations": synthetic_count,
             "non_synthetic_observations": len(records) - synthetic_count,
             "clusters": len(fusion.clusters),
+            "polarity_conflicts": len(conflicts),
             "ranked": len(ranking.ranked),
             "rejected": len(ranking.rejected),
             "published_items": len(items),

@@ -787,3 +787,100 @@ def test_a_one_second_drift_is_served_ok_over_http(
     body = response.json()
     assert body["state"] == "ok"
     assert body["age_seconds"] == 0
+
+
+# ---------------------------------------------------------------------------
+# 7e audit — P0-2 : la tête REAL au-dessus d'un recensement tout-synthétique
+# ---------------------------------------------------------------------------
+#
+# Le snapshot ci-dessous est celui que la route servait `state = "ok"` avec
+# `content["population"] == "REAL"` — étiquette qui atteignait
+# `SyntheticBanner` et s'affichait « DONNÉES RÉELLES » en ton neutre, au-dessus
+# d'un univers dont le recensement ne compte QUE des dossiers synthétiques.
+
+
+def _real_head_over_synthetic_census() -> dict:
+    """Le vecteur exact : rien d'autre n'est modifié que la tête."""
+    content = opportunities_content(qualified=[], excluded=[])
+    content["population"] = "REAL"
+    assert content["coverage"]["population_counts"] == {"SYNTHETIC": 24}
+    return content
+
+
+def test_a_real_head_over_an_all_synthetic_census_is_refused() -> None:
+    with pytest.raises(SnapshotContentError) as excinfo:
+        relay(_real_head_over_synthetic_census())
+    assert excinfo.value.field == "population"
+
+
+def test_the_real_head_over_a_synthetic_census_never_reaches_the_page(
+    api: TestClient, reader: FakeSnapshotReader
+) -> None:
+    """Preuve par la VRAIE route : plus aucun `population = "REAL"` sur le fil."""
+    reader.snapshots[("opportunities", "global")] = snapshot(
+        _real_head_over_synthetic_census()
+    )
+
+    response = api.get("/api/v1/opportunities")
+
+    assert response.status_code == 500
+    assert response.json()["code"] == "SNAPSHOT_CONTENT_INVALID"
+    assert "REAL" not in response.text
+    assert "population_counts" not in response.text
+
+
+def test_the_honest_synthetic_head_is_still_served_ok(
+    api: TestClient, reader: FakeSnapshotReader
+) -> None:
+    """Anti-vacuité de la route : le snapshot que le worker publie vraiment
+    (tête SYNTHETIC, recensement tout-synthétique) reste servi `ok`."""
+    content = opportunities_content(
+        qualified=[candidate("SYN-TECH-01", "OBSERVE")],
+        excluded=[candidate("SYN-TECH-02", "INSUFFICIENT_DATA")],
+    )
+    reader.snapshots[("opportunities", "global")] = snapshot(content)
+
+    body = api.get("/api/v1/opportunities").json()
+
+    assert body["state"] == "ok"
+    assert body["content"]["population"] == "SYNTHETIC"
+    assert body["content"]["coverage"]["population_counts"] == {"SYNTHETIC": 24}
+
+
+def test_a_mixed_census_under_a_prudent_head_is_still_served_ok(
+    api: TestClient, reader: FakeSnapshotReader
+) -> None:
+    """Anti-vacuité, direction prudente : le mélange que le worker dégrade
+    délibérément à SYNTHETIC traverse la route intact."""
+    content = opportunities_content(
+        qualified=[candidate("SYN-TECH-01", "OBSERVE")], excluded=[]
+    )
+    content["coverage"]["population_counts"] = {"REAL": 1, "SYNTHETIC": 23}
+    reader.snapshots[("opportunities", "global")] = snapshot(content)
+
+    body = api.get("/api/v1/opportunities").json()
+
+    assert body["state"] == "ok"
+    assert body["content"]["coverage"]["population_counts"] == {
+        "REAL": 1,
+        "SYNTHETIC": 23,
+    }
+
+
+def test_the_census_refusal_leaks_no_stored_value_to_the_logs(
+    api: TestClient, reader: FakeSnapshotReader, caplog
+) -> None:
+    """`.claude/rules/security.md` : un refus nomme un CHEMIN, jamais la
+    valeur stockée."""
+    content = opportunities_content(qualified=[], excluded=[])
+    content["population"] = "REAL"
+    content["coverage"]["population_counts"] = {"SYNTHETIC": 24, "IBKR_LIVE": 7}
+    reader.snapshots[("opportunities", "global")] = snapshot(content)
+
+    with caplog.at_level("DEBUG"):
+        response = api.get("/api/v1/opportunities")
+
+    assert response.status_code == 500
+    logged = "\n".join(record.getMessage() for record in caplog.records)
+    assert "IBKR_LIVE" not in logged
+    assert "IBKR_LIVE" not in response.text

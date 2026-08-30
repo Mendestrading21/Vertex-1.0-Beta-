@@ -14,6 +14,7 @@ from fastapi import FastAPI, Request
 from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 from pydantic import ValidationError
+from sqlalchemy.exc import PendingRollbackError, StatementError
 
 from vertex_api.ai_explain import AiExplainRequest, AiGroundingError
 from vertex_api.auth import auth_router
@@ -102,6 +103,11 @@ def _build_openapi_schema(app: FastAPI) -> dict[str, Any]:
 _AI_ANSWER_REFUSED_DETAIL = (
     "the deterministic explanation of this snapshot breaks a grounding or "
     "completeness invariant and is refused"
+)
+
+_DATABASE_STATEMENT_REJECTED_DETAIL = (
+    "the database refused this statement; nothing was written and no detail "
+    "of the request is disclosed"
 )
 
 
@@ -195,6 +201,63 @@ def create_app() -> FastAPI:
         return JSONResponse(
             status_code=500,
             content={"code": exc.code, "detail": _AI_ANSWER_REFUSED_DETAIL},
+        )
+
+    @app.exception_handler(StatementError)
+    @app.exception_handler(PendingRollbackError)
+    async def _database_statement_rejected(
+        request: Request, exc: Exception
+    ) -> JSONResponse:
+        """Refuse a statement the database rejected — WITHOUT logging the row.
+
+        ``sqlalchemy.exc.StatementError`` is the CLASS that carries
+        ``.statement`` and ``.params``; every subclass (``DataError``,
+        ``IntegrityError``, ``OperationalError``, ``ProgrammingError``,
+        ``InternalError``, ``NotSupportedError``) renders them in its own
+        ``str()`` as ``[SQL: …]`` and ``[parameters: …]``. None of them had a
+        handler, so any write the database refused reached the DEFAULT one:
+        an UNTYPED ``500 "Internal Server Error"`` — a plain-text body, not
+        even a code — and uvicorn wrote the full traceback to the server log.
+
+        On ``POST /portfolio/transactions`` that traceback was the user's
+        FINANCIAL JOURNAL in clear text: the INSERT into
+        ``ledger_transactions`` with every bound parameter — amount, currency
+        and the free-text note, which is where the name of their brokerage
+        account lives. ``.claude/rules/security.md`` forbids any real payload
+        or personal datum in a log; this was the whole row.
+
+        The handler is registered on the BASE class deliberately: closing
+        only the reported vector (``DataError`` on an oversized numeric)
+        would leave every sibling leaking the same way. The client now gets a
+        stable code, and the trace keeps the ROUTE, the exception CLASS and
+        the SQLSTATE — technical identifiers, and nothing that was in the
+        statement or its parameters.
+
+        ``PendingRollbackError`` is registered alongside it although it is
+        NOT a ``StatementError``: it interpolates the original exception into
+        its own message (``"Original exception was: {…}"``), so a session
+        reused after a caught database error — the shape of
+        ``record_ledger_event``, which catches ``IntegrityError`` to detect a
+        duplicate compensation — relays the very same ``[parameters: …]``
+        under a different class.
+
+        It covers EVERY route of the application, not only the portfolio
+        ones: the passkey ceremonies write ``webauthn_credentials`` and the
+        follow-up routes write user free text, and both leaked identically.
+        """
+        sqlstate = getattr(getattr(exc, "orig", None), "sqlstate", None)
+        logging.getLogger("vertex_api.persistence").error(
+            "database statement rejected on %s: %s (sqlstate %s)",
+            request.url.path,
+            type(exc).__name__,
+            sqlstate or "unknown",
+        )
+        return JSONResponse(
+            status_code=500,
+            content={
+                "code": "DATABASE_STATEMENT_REJECTED",
+                "detail": _DATABASE_STATEMENT_REJECTED_DETAIL,
+            },
         )
 
     @app.exception_handler(ValidationError)

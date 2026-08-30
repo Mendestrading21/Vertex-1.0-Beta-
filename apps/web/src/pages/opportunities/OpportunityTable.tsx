@@ -1,5 +1,7 @@
 import { Link } from 'react-router-dom';
 
+import { POPULATION_NATURES, resolvePopulationNature } from '../../components/SyntheticBanner.tsx';
+import type { PopulationTone } from '../../components/SyntheticBanner.tsx';
 import { EXCLUSION_KIND_LABELS, disqualifyingFacts } from './opportunitiesView.ts';
 import type { CandidateView } from './opportunitiesView.ts';
 
@@ -11,7 +13,81 @@ import type { CandidateView } from './opportunitiesView.ts';
  * propre table dans le DOM (`data-group="qualified"` /
  * `data-group="excluded"`). Aucune ligne exclue n'existe dans le sous-arbre
  * du groupe qualifié.
+ *
+ * LA NATURE D'UN DOSSIER (7e audit, P1-8). La colonne « Population »
+ * imprimait la nature BRUTE — `<code>{candidate.population ?? '—'}</code>` —
+ * aux deux emplacements de lignes : aucun vocabulaire fermé, aucun ton, aucun
+ * repli fail-closed, et un mot anglais seul dans une interface française. Une
+ * étiquette forgée (`LIVE`, `IBKR_REALTIME_ENTITLED`) ou absente était donc
+ * rendue en silence. `SyntheticBanner` protège la TÊTE du snapshot ; il ne
+ * protège pas les DOSSIERS, et c'est le dossier que l'utilisateur lit ligne
+ * par ligne.
+ *
+ * `PopulationCell` réutilise le vocabulaire fermé (`POPULATION_NATURES`) et
+ * le résolveur fail-closed (`resolvePopulationNature`) du bandeau plutôt que
+ * d'ouvrir une seconde table de natures : deux tables dériveraient, et la
+ * nature est précisément le champ où une divergence est interdite.
+ *
+ * CE QUE CE COMPOSANT NE FAIT PAS. Il ne juge pas la cohérence entre la
+ * nature de la tête et celle d'une ligne. Une ligne « DONNÉES RÉELLES » sous
+ * un bandeau « DONNÉES SYNTHÉTIQUES » est un état produit LÉGITIME — la
+ * dégradation vers le plus prudent que `vertex_worker.opportunities` applique
+ * délibérément, et que le relais sert exprès (règle asymétrique de
+ * `checked_relayed_content`). Ce qui était fautif n'était pas cette ligne,
+ * mais qu'elle n'était ni nommée, ni distincte, ni fail-closed.
  */
+
+/**
+ * Teintes autorisées : ambre = prudence/dégradation, rouge = risque, neutre
+ * pour le reste. Uniquement des tokens `--vx-*` — aucune couleur brute, sinon
+ * `src/design/no-raw-colors.test.ts` échoue.
+ *
+ * La table est volontairement locale et typée `Record<PopulationTone, …>` :
+ * TypeScript en garantit l'exhaustivité, et un ton ajouté au vocabulaire
+ * casse la compilation ici au lieu de rendre une cellule sans teinte.
+ */
+const TONE_ACCENT: Record<PopulationTone, string> = {
+  neutral: 'var(--vx-text)',
+  caution: 'var(--vx-warning)',
+  risk: 'var(--vx-negative)',
+};
+
+/** Longueur maximale d'une étiquette inconnue recopiée à l'écran. */
+const MAX_ECHOED_LABEL = 24;
+
+/**
+ * La nature d'UN dossier : libellé français du vocabulaire fermé, ton,
+ * code technique, et repli fail-closed identique à celui du bandeau.
+ */
+function PopulationCell({ candidate }: { readonly candidate: CandidateView }) {
+  const { key, nature } = resolvePopulationNature(candidate.population);
+  const declared = Object.prototype.hasOwnProperty.call(POPULATION_NATURES, key);
+  // L'écho ne cite QUE une étiquette reçue sous forme de chaîne, et bornée :
+  // une valeur hors vocabulaire est du texte non fiable.
+  const raw = typeof candidate.population === 'string' ? candidate.population : '';
+  const echoed =
+    key === 'UNRECOGNISED'
+      ? raw.slice(0, MAX_ECHOED_LABEL) + (raw.length > MAX_ECHOED_LABEL ? '…' : '')
+      : null;
+  return (
+    <span
+      className="vx-opp-population"
+      data-vx-population-cell=""
+      data-vx-nature={key}
+      data-vx-tone={nature.tone}
+      title={nature.detail}
+    >
+      <strong data-testid="opp-population-label" style={{ color: TONE_ACCENT[nature.tone] }}>
+        {nature.label}
+      </strong>{' '}
+      {declared ? <code>{key}</code> : null}
+      {echoed !== null ? <code>{echoed}</code> : null}
+      {candidate.synthetic ? (
+        <span className="vx-badge vx-badge-synthetic">SYNTHÉTIQUE</span>
+      ) : null}
+    </span>
+  );
+}
 
 function StatusCell({ candidate }: { readonly candidate: CandidateView }) {
   return (
@@ -171,7 +247,7 @@ export function OpportunityTable({
                     <ListCell items={candidate.missingEvidence} emptyLabel="Aucune" />
                   </td>
                   <td>
-                    <code>{candidate.population ?? '—'}</code>
+                    <PopulationCell candidate={candidate} />
                   </td>
                 </tr>
               ))}
@@ -207,10 +283,7 @@ export function OpportunityTable({
                     />
                   </td>
                   <td>
-                    <code>{candidate.population ?? '—'}</code>
-                    {candidate.synthetic ? (
-                      <span className="vx-badge vx-badge-synthetic">SYNTHÉTIQUE</span>
-                    ) : null}
+                    <PopulationCell candidate={candidate} />
                   </td>
                 </tr>
               ))}

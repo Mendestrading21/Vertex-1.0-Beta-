@@ -13,9 +13,12 @@ from vertex_core.fusion import (
     FusionInputError,
     fuse,
     fusion_result_hash,
+    RULE_POLARITY_CONFLICT,
     normalize_canonical_url,
     normalize_title,
+    opposed_markers,
     title_fingerprint,
+    title_polarity_markers,
 )
 from tests.fusion.factories import BASE_TIME, make_observation, make_random_observations
 
@@ -379,3 +382,221 @@ class TestDeterminism:
         first, second = fuse(observations), fuse(observations)
         assert first == second
         assert fusion_result_hash(first) == fusion_result_hash(second)
+
+
+class TestPolarityIsData:
+    """The sign of a financial variation is data, never punctuation.
+
+    Reproducer for the erased-sign defect: two OPPOSITE headlines used to
+    normalize to one string, share one fingerprint and fuse into a single
+    cluster, so a rise could be published in place of a fall with no
+    contradiction signalled anywhere.
+    """
+
+    OPPOSITE_PAIRS = (
+        ("SPX -3,2 % sur la seance", "SPX +3,2 % sur la seance"),
+        ("Apple : resultat trimestriel -5 %", "Apple : resultat trimestriel +5 %"),
+        ("SPX ↓3,2 % sur la seance", "SPX ↑3,2 % sur la seance"),
+        ("SPX ▼3,2 % sur la seance", "SPX ▲3,2 % sur la seance"),
+        ("Benefice > attentes", "Benefice < attentes"),
+    )
+
+    @pytest.mark.parametrize("negative,positive", OPPOSITE_PAIRS)
+    def test_opposite_titles_never_share_a_normalized_form(self, negative, positive):
+        assert normalize_title(negative) != normalize_title(positive)
+
+    @pytest.mark.parametrize("negative,positive", OPPOSITE_PAIRS)
+    def test_opposite_titles_never_share_a_fingerprint(self, negative, positive):
+        assert title_fingerprint(negative, ("SPX",)) != title_fingerprint(
+            positive, ("SPX",)
+        )
+
+    @pytest.mark.parametrize("negative,positive", OPPOSITE_PAIRS)
+    def test_opposite_titles_are_never_fused_by_the_fingerprint(
+        self, negative, positive
+    ):
+        result = fuse(
+            [
+                make_observation("c1", title=negative, entities=("SPX",)),
+                make_observation("c2", title=positive, entities=("SPX",)),
+            ]
+        )
+        assert len(result.clusters) == 2
+        assert FusionAction.LINKED_FINGERPRINT not in _actions(result)
+
+    def test_polarity_markers_are_exposed_and_canonicalized(self):
+        assert title_polarity_markers("SPX -3,2 %") == ("-",)
+        assert title_polarity_markers("SPX −3,2 %") == ("-",)  # U+2212 minus
+        assert title_polarity_markers("SPX ↓ 3,2 %") == ("-",)  # down arrow
+        assert title_polarity_markers("SPX +3,2 %") == ("+",)
+        assert title_polarity_markers("SPX ↑ 3,2 %") == ("+",)
+        assert title_polarity_markers("Benefice > attentes") == (">",)
+        assert title_polarity_markers("Benefice ≤ attentes") == ("<",)
+        assert title_polarity_markers("Resultat trimestriel publie") == ()
+
+    def test_sign_variants_of_one_dispatch_still_merge(self):
+        """Typography must not split one event: U+2212, ASCII '-' and the
+        down arrow all assert the same polarity on the same figure."""
+        reference = title_fingerprint("SPX -3,2 % sur la seance", ("SPX",))
+        for variant in (
+            "SPX −3,2 % sur la seance",
+            "SPX ↓3,2 % sur la seance",
+            "SPX ↓ 3,2 % sur la seance",
+            "spx  -3.2 %,  SUR la  seance!",
+        ):
+            assert title_fingerprint(variant, ("SPX",)) == reference
+
+    def test_hyphen_between_words_stays_punctuation(self):
+        """The existing normalization must not be broken by the sign fix."""
+        assert (
+            normalize_title("  Compàny-1:  RÉPORTS   qúarterly, results!! ")
+            == "company 1 reports quarterly results"
+        )
+        assert normalize_title("COVID-19 impact") == "covid 19 impact"
+        assert title_polarity_markers("COVID-19 impact") == ()
+        # A dash used as a separator (space-separated) is not a sign either.
+        assert title_polarity_markers("Apple - 3 nouveaux produits") == ()
+
+    def test_unsigned_figure_is_not_declared_opposite_of_a_signed_one(self):
+        """Absent is not the opposite of negative: distinct, but no conflict."""
+        result = fuse(
+            [
+                make_observation(
+                    "c1", title="Apple : resultat trimestriel -5 %", entities=("AAPL",)
+                ),
+                make_observation(
+                    "c2", title="Apple : resultat trimestriel 5 %", entities=("AAPL",)
+                ),
+            ]
+        )
+        assert len(result.clusters) == 2
+        assert FusionAction.FLAGGED_POLARITY_CONFLICT not in _actions(result)
+
+
+class TestPolarityConflictInsideACluster:
+    """Provider identity (levels 1 and 2) still links; the contradiction is
+    published instead of being silently represented by one member."""
+
+    def _opposite_pair(self, **kwargs):
+        return [
+            make_observation(
+                "c1", title="SPX -3,2 % sur la seance", entities=("SPX",), **kwargs
+            ),
+            make_observation(
+                "c2", title="SPX +3,2 % sur la seance", entities=("SPX",), **kwargs
+            ),
+        ]
+
+    def _conflicts(self, result):
+        return [
+            decision
+            for cluster in result.clusters
+            for decision in cluster.decisions
+            if decision.action is FusionAction.FLAGGED_POLARITY_CONFLICT
+        ]
+
+    def test_same_native_id_cluster_publishes_a_polarity_conflict(self):
+        result = fuse(self._opposite_pair(native_id="n1"))
+        assert len(result.clusters) == 1  # provider identity is not overridden
+        assert result.clusters[0].member_ids == ("c1", "c2")
+        conflicts = self._conflicts(result)
+        assert len(conflicts) == 1
+        conflict = conflicts[0]
+        assert conflict.inputs == ("c1", "c2")
+        assert conflict.reversible is True
+        assert conflict.rule_id == RULE_POLARITY_CONFLICT
+        assert "'-'" in conflict.rationale and "'+'" in conflict.rationale
+
+    def test_same_canonical_url_cluster_publishes_a_polarity_conflict(self):
+        result = fuse(self._opposite_pair(canonical_url="https://news.example.com/x"))
+        assert len(result.clusters) == 1
+        assert len(self._conflicts(result)) == 1
+
+    def test_agreeing_cluster_publishes_no_conflict(self):
+        result = fuse(
+            [
+                make_observation(
+                    "c1",
+                    native_id="n1",
+                    title="SPX -3,2 % sur la seance",
+                    entities=("SPX",),
+                ),
+                make_observation(
+                    "c2",
+                    native_id="n1",
+                    title="SPX −3,2 % a la cloture",
+                    entities=("SPX",),
+                ),
+            ]
+        )
+        assert len(result.clusters) == 1
+        assert self._conflicts(result) == []
+
+    def test_conflict_never_deletes_and_never_splits(self):
+        observations = self._opposite_pair(native_id="n1")
+        result = fuse(observations)
+        assert len(result.observations) == 2
+        assert [obs.content_id for obs in result.observations] == ["c1", "c2"]
+
+    def test_opposite_polarity_pair_is_flagged_conflict_not_similar(self):
+        """Calling two contradictory headlines 'similar' is the misleading
+        label; across clusters the pair is named a polarity conflict."""
+        result = fuse(
+            [
+                make_observation(
+                    "c1",
+                    title="Acme Corp resultat annuel -12 %",
+                    entities=("ACME",),
+                    received_at=BASE_TIME,
+                ),
+                make_observation(
+                    "c2",
+                    source="sec",
+                    title="Acme Corp resultat annuel +12 %",
+                    entities=("ACME",),
+                    received_at=BASE_TIME + timedelta(hours=2),
+                ),
+            ]
+        )
+        assert len(result.clusters) == 2
+        actions = _actions(result)
+        assert FusionAction.FLAGGED_SIMILAR not in actions
+        assert actions.count(FusionAction.FLAGGED_POLARITY_CONFLICT) == 2
+
+
+class TestPolarityProperties:
+    def test_marker_only_title_has_no_fingerprint(self):
+        """A title reduced to markers must not become a wildcard bucket."""
+        assert title_fingerprint("↑↓", ("ACME",)) is None
+        assert title_fingerprint("> <", ("ACME",)) is None
+        assert title_fingerprint("!!! ---", ("ACME",)) is None
+
+    @pytest.mark.property
+    @settings(max_examples=100, deadline=None)
+    @given(
+        head=st.text(alphabet="abcdefgh ", min_size=1, max_size=12),
+        digits=st.text(alphabet="0123456789", min_size=1, max_size=6),
+        tail=st.text(alphabet="ijklmnop ", min_size=1, max_size=12),
+    )
+    def test_a_sign_flip_always_changes_the_fingerprint(self, head, digits, tail):
+        negative = f"{head} -{digits} % {tail}"
+        positive = f"{head} +{digits} % {tail}"
+        assert normalize_title(negative) != normalize_title(positive)
+        assert title_fingerprint(negative, ("ACME",)) != title_fingerprint(
+            positive, ("ACME",)
+        )
+
+    @pytest.mark.property
+    @settings(max_examples=100, deadline=None)
+    @given(
+        head=st.text(alphabet="abcdefgh ", min_size=1, max_size=12),
+        digits=st.text(alphabet="0123456789", min_size=1, max_size=6),
+    )
+    def test_opposed_markers_is_symmetric_and_never_self_opposed(self, head, digits):
+        negative = title_polarity_markers(f"{head} -{digits} %")
+        positive = title_polarity_markers(f"{head} +{digits} %")
+        assert opposed_markers(negative, negative) is None
+        assert opposed_markers(positive, positive) is None
+        assert (opposed_markers(negative, positive) is None) == (
+            opposed_markers(positive, negative) is None
+        )

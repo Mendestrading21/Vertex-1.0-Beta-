@@ -517,11 +517,25 @@ NATURE_CENSUS_KEYS: frozenset[str] = frozenset({"population_counts"})
 """Mappings whose KEYS are nature labels and whose values are counts.
 
 ``vertex_worker.opportunities`` publishes ``population_counts = {"SYNTHETIC":
-2, "REAL": 1}``. The keys obey the same closed vocabulary — a census bucket
-named ``IBKR_LIVE`` asserts a nature no producer declares. They are NOT read
-as claims or markers: a census DESCRIBES a mix, it does not claim one, and
-the mixed snapshot it describes is a legitimate product state (see
-:func:`checked_relayed_content`).
+2, "REAL": 1}``. Three things are closed here, and the 7th audit showed that
+closing only the first was a hole:
+
+1. the KEYS obey the same closed vocabulary — a census bucket named
+   ``IBKR_LIVE`` asserts a nature no producer declares;
+2. the VALUES are plain non-negative integers
+   (:func:`_relayed_census_count`). The cross-check below READS those counts;
+   a bucket holding ``"24"``, ``"beaucoup"``, ``true`` or ``-4`` would make
+   the rule silently unenforceable while still looking enforced;
+3. a census CONSTRAINS the observation claim that governs it
+   (:func:`checked_relayed_content`), in the OVER-CLAIM direction only.
+
+The previous wave excluded the census from the cross-check on the ground that
+"a census DESCRIBES a mix, it does not claim one". That is true of the census
+ALONE and says nothing about the head placed ABOVE it: ``population = "REAL"``
+over ``population_counts = {"SYNTHETIC": 24}`` was served, and reached the
+page banner as « DONNÉES RÉELLES ». The mix itself remains a legitimate
+product state — under a PRUDENT head, which is the direction the rule keeps
+serving.
 """
 
 BARS_STATUS_LABELS: frozenset[str] = frozenset({"OK", "ABSENT"})
@@ -942,6 +956,33 @@ _CLASS_BY_LEAF_KEY.update({key: _relayed_hash for key in _HASH_KEYS})
 _CLASS_BY_LEAF_KEY.update({key: _relayed_user_text for key in _USER_TEXT_KEYS})
 
 
+def _relayed_census_count(value: Any, *, field: str) -> int:
+    """A nature-census bucket holds a COUNT of members, nothing else.
+
+    Plain, non-negative, integral. ``bool`` is excluded EXPLICITLY: it is an
+    ``int`` subclass in Python, so ``{"SYNTHETIC": true}`` would otherwise
+    read as a count of one and a ``false`` bucket would read as zero.
+
+    WHY THIS IS CLOSED AT ALL (7th audit). Until this wave only the census
+    KEYS were checked; the values took anything the walk did not visit —
+    numbers were never reached, and a string fell back on free prose. The
+    cross-check in :func:`checked_relayed_content` READS these counts to
+    decide whether a census supports the claim above it, so an unreadable
+    value would not be a cosmetic defect: it would be a guard that reports
+    itself as applied while being inapplicable. Its single producer
+    (``vertex_worker.opportunities``) already writes ``int``, so nothing
+    honest is refused.
+
+    The refusal names the PATH of the bucket and never its stored value.
+    """
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        raise SnapshotContentError(
+            f"{field}: nature census count must be a non-negative integer",
+            field=field,
+        )
+    return value
+
+
 def _leaf_key(path: str) -> str:
     """The JSON key a leaf belongs to, list indices removed."""
     tail = path.rsplit(".", 1)[-1]
@@ -1056,16 +1097,37 @@ def checked_relayed_content(
     generated nature (:data:`GENERATED_NATURE_LABELS`) declared at another
     nature-bearing location inside that subtree.
 
+    THE CENSUS CONSTRAINS THE CLAIM ABOVE IT (7th audit). A nature census
+    (:data:`NATURE_CENSUS_KEYS`) DESCRIBES the members of the container it
+    belongs to. An observation claim governing a subtree that holds a census
+    is therefore REFUSED when that census does not SUPPORT it — see the rule
+    stated in full below. The previous wave excluded the census from the
+    cross-check on the ground that "a census describes a mix, it does not
+    claim one"; that is true of the census alone and says nothing about the
+    HEAD above it, so ``population = "REAL"`` over ``population_counts =
+    {"SYNTHETIC": 24}`` was served and reached the page banner as
+    « DONNÉES RÉELLES ».
+
+    THE RULE, EXACTLY. A census with no populated bucket (empty, absent, or
+    all-zero) carries NO information and refuses nothing — refusing it would
+    mean refusing its ABSENCE too, hence every producer that publishes none.
+    A census with at least one populated bucket refuses an observation claim
+    that governs it when EITHER a populated bucket names a generated nature
+    (:data:`GENERATED_NATURE_LABELS`) — the claim counts a member that states
+    it was never observed — OR no populated bucket names an observation claim
+    label — the claim counts no observed member at all. A bucket whose count
+    is ZERO is not a member: the rule reads counts, not key presence.
+
     WHAT THE RULE DELIBERATELY DOES NOT REFUSE, and why. Only the
-    OVER-CLAIM direction is a contradiction. A prudent head above a claiming
-    leaf — ``population = "SYNTHETIC"`` over a ``REAL`` dossier — is the
+    OVER-CLAIM direction is a contradiction. A prudent head above a
+    claiming leaf — ``population = "SYNTHETIC"`` over a ``REAL`` dossier, or
+    over a mixed ``population_counts = {"REAL": 1, "SYNTHETIC": 1}`` — is the
     degradation ``vertex_worker.opportunities`` performs ON PURPOSE ("a
     single synthetic dossier makes the whole snapshot synthetic"), published
     with its ``limitations`` and its ``population_counts``. Refusing it would
     break a legitimate product state while protecting nobody: no reader of
-    that snapshot is told "real". The rule is therefore asymmetric by design,
-    and the census keys are excluded from the cross-check for the same
-    reason — a census DESCRIBES a mix, it does not claim one.
+    that snapshot is told "real". The rule is asymmetric BY DESIGN, and the
+    census is now read in that same one direction.
 
     None of this proves that a ``REAL`` snapshot is real. Only the worker
     knows. It refuses a payload that contradicts ITSELF, which is the
@@ -1075,6 +1137,8 @@ def checked_relayed_content(
     # (path of the claim, subtree it governs) and paths of the markers found.
     claims: list[tuple[str, str]] = []
     markers: list[str] = []
+    # (path of a nature census, its buckets that really COUNT a member).
+    censuses: list[tuple[str, frozenset[str]]] = []
 
     def walk(node: Any, path: str, depth: int) -> None:
         if depth > MAX_RELAYED_DEPTH:
@@ -1085,6 +1149,7 @@ def checked_relayed_content(
             )
         if isinstance(node, Mapping):
             census = bool(path) and _leaf_key(path) in NATURE_CENSUS_KEYS
+            populated: set[str] = set()
             for key, value in node.items():
                 if not isinstance(key, str) or not key:
                     raise SnapshotContentError(
@@ -1096,13 +1161,21 @@ def checked_relayed_content(
                         f"{path or field}: relayed mapping key out of shape",
                         field=path or field,
                     )
-                if census and key not in POPULATION_LABELS:
-                    raise SnapshotContentError(
-                        f"{path}: nature census key outside its closed "
-                        "vocabulary",
-                        field=path,
-                    )
+                if census:
+                    if key not in POPULATION_LABELS:
+                        raise SnapshotContentError(
+                            f"{path}: nature census key outside its closed "
+                            "vocabulary",
+                            field=path,
+                        )
+                    # A census bucket is a COUNT, fully checked here: it is
+                    # a scalar, so it is never walked further.
+                    if _relayed_census_count(value, field=f"{path}.{key}"):
+                        populated.add(key)
+                    continue
                 walk(value, f"{path}.{key}" if path else key, depth + 1)
+            if census:
+                censuses.append((path, frozenset(populated)))
         elif isinstance(node, list):
             for index, value in enumerate(node):
                 walk(value, f"{path}[{index}]", depth + 1)
@@ -1128,6 +1201,28 @@ def checked_relayed_content(
                 raise SnapshotContentError(
                     f"{claim_path}: the content claims an observation while "
                     f"carrying a synthetic provenance marker at {marker_path}",
+                    field=claim_path,
+                )
+        for census_path, populated in censuses:
+            if not populated or not _within(census_path, scope):
+                continue
+            # The bucket names below are members of POPULATION_LABELS — the
+            # key vocabulary was closed during the walk — so naming one is
+            # naming a PATH SEGMENT built from a nine-member constant set,
+            # never echoing a stored value.
+            generated = sorted(populated & GENERATED_NATURE_LABELS)
+            if generated:
+                raise SnapshotContentError(
+                    f"{claim_path}: the content claims an observation while "
+                    f"its nature census counts a generated member at "
+                    f"{census_path}.{generated[0]}",
+                    field=claim_path,
+                )
+            if not populated & OBSERVATION_CLAIM_LABELS:
+                raise SnapshotContentError(
+                    f"{claim_path}: the content claims an observation while "
+                    f"its nature census at {census_path} counts no observed "
+                    "member",
                     field=claim_path,
                 )
     return mapping
