@@ -25,6 +25,39 @@ where the DTO constrains the sign, string keys where the DTO expects a
 ``ValidationError`` — whose message quotes ``input_value``, i.e. THE STORED
 VALUE, and would carry a fragment of the persisted payload into the server
 log (``.claude/rules/security.md``).
+
+WHAT THE VALUE CONTRACT DOES AND DOES NOT GUARANTEE (P0-5). The relay checks
+the FORM of what it is about to publish and the INTERNAL CONSISTENCY of the
+payload. It never checks provenance: it did not observe the market, it did not
+run the calculation, and it must not pretend otherwise.
+
+- guaranteed: no label outside a closed vocabulary is published
+  (:data:`POPULATION_LABELS`, :data:`VALUE_NATURE_LABELS`,
+  :data:`DATA_STATE_LABELS`, the enumerations read from ``vertex_core``, and
+  the two path-closed fields :data:`BARS_STATUS_LABELS` and
+  :data:`MARKETS_UNIT`); no control character, no unbounded string, no
+  malformed decimal, instant, day, currency, hash or IANA zone; and no
+  content that claims an observation while carrying a synthetic marker.
+- NOT guaranteed: that a snapshot labeled ``REAL`` is real. Only the worker
+  knows, and the relay never recomputes what the worker owns.
+- KNOWN RESIDUE, stated rather than hidden. Several DISPLAYED fields keep a
+  shape-only contract because no module of ``vertex_core`` owns a vocabulary
+  for them, and inventing one here would create a second authority:
+  ``rights`` (entitlement labels — the edge publishes
+  ``IBKR_MARKET_DATA_DISPLAY_ONLY``, the generator ``SYNTHETIC``, a probe
+  ``DEMO``; the edge value is a configurable constructor argument, so the set
+  is not closed anywhere), ``ticker``, ``exchange``, ``sector`` and ``source``
+  (open universes by construction — no registry exists in this repository),
+  and the GENERIC ``status`` leaf key, whose producers span at least eight
+  unrelated namespaces (``OK``/``ABSENT``, ``CROSSED``/``STALE``/``MISSING``,
+  ``AdviceStatus``, ``GateStatus``, ``CalculationStatus``,
+  ``SourceCapabilityStatus``, ``ESTIMATED``/``CONFIRMED``,
+  ``ACTIVE``/``SNOOZED``/``ARCHIVED``). A union of all of them would still
+  let a quote status stand where a verdict belongs, and would break the
+  DESIGNED fail-closed downgrade of an unknown capability status to ``ERROR``
+  / ``INVALID_STATUS`` — a better answer than a blanket refusal. So these
+  stay open, on purpose, and are pinned by characterisation tests in
+  ``test_relay_value_contracts`` so the residue cannot grow unnoticed.
 """
 
 from __future__ import annotations
@@ -78,7 +111,13 @@ __all__ = [
     "MAX_RELAYED_DEPTH",
     "MAX_RELAYED_TEXT_LENGTH",
     "MAX_RELAYED_USER_TEXT_LENGTH",
+    "BARS_STATUS_LABELS",
+    "MARKETS_DISPLAY_UNIT",
+    "MARKETS_UNIT",
+    "OBSERVATION_CLAIM_LABELS",
     "POPULATION_LABELS",
+    "SYNTHETIC_MARKER_KEYS",
+    "SYNTHETIC_MARKER_VALUES",
     "VALUE_NATURE_LABELS",
     "REASON_CONFLICTING_FIELD_STATUSES",
     "REASON_INVALID_STATUS",
@@ -324,12 +363,65 @@ POPULATION_LABELS: frozenset[str] = frozenset(
 
 ``population`` is what a reader uses to know whether what is displayed is an
 observation, a delayed observation, a theoretical value, a simulation, a
-demonstration or a user declaration. Left free, it lets synthetic content
-present itself as something else — exactly what ``financial-safety.md``
-forbids (real, delayed, theoretical, simulated and demonstration never share
-a status). Adding a member is an explicit, reviewed contract change, never
-an accident of a persisted payload.
+demonstration or a user declaration.
+
+WHAT THIS SET GUARANTEES. No label outside it can be PUBLISHED: a persisted
+``population`` reading ``LIVE``, ``IBKR_REALTIME_ENTITLED``, ``PRODUCTION``
+or free text is refused, and the declared natures stay DISTINCT members —
+none is a synonym of another, as ``financial-safety.md`` requires. Adding a
+member is an explicit, reviewed contract change, never an accident of a
+persisted payload.
+
+WHAT THIS SET DOES NOT GUARANTEE — and the earlier wording of this docstring
+over-promised it. Membership is a FORM check. The relay CANNOT verify that a
+snapshot labeled ``REAL`` really carries observations: that truth belongs to
+the worker that produced it, and the API never recomputes a provenance it did
+not observe. A worker defect, or a tampered snapshot row, that writes ``REAL``
+over synthetic content is still served as ``REAL`` — except where the payload
+CONTRADICTS ITSELF, which is the one thing a relay can honestly check (see
+:data:`OBSERVATION_CLAIM_LABELS`).
 """
+
+OBSERVATION_CLAIM_LABELS: frozenset[str] = frozenset({"REAL", "DELAYED"})
+"""The two labels that CLAIM an observation of a real market.
+
+Every other member of :data:`POPULATION_LABELS` announces that what is shown
+was generated, computed, simulated, demonstrated or declared by the user.
+These two do not: they tell the reader that a real quote was seen, live or
+delayed. They are therefore the only two a forged or defective payload gains
+anything from.
+"""
+
+SYNTHETIC_MARKER_VALUES: frozenset[str] = frozenset({"SYNTHETIC", "synthetic-dev"})
+"""The two markers ``vertex_core.synthetic`` stamps on everything it makes.
+
+They are ``vertex_core.synthetic.SYNTHETIC_RIGHTS`` and
+``vertex_core.synthetic.SYNTHETIC_SOURCE``. They are restated here rather than
+imported so that a read-only relay does not load a data GENERATOR into the API
+process; ``test_relay_value_contracts`` pins them against that authority, so a
+change there fails the build instead of silently widening this check.
+"""
+
+SYNTHETIC_MARKER_KEYS: frozenset[str] = frozenset({"rights", "sources", "source"})
+"""The provenance keys under which those markers travel."""
+
+BARS_STATUS_LABELS: frozenset[str] = frozenset({"OK", "ABSENT"})
+"""CLOSED vocabulary of ``bars.status`` in an analysis dossier.
+
+``vertex_worker.analysis`` publishes ``OK`` when at least one bar survived
+validation and ``ABSENT`` otherwise — there is no third value. Left as a mere
+uppercase token, the field accepted ``REAL_TIME_IBKR`` and ``LIVE``, i.e. a
+delay claim on a block that carries none. Closed by PATH (not by leaf key):
+``status`` elsewhere belongs to other producers with other vocabularies.
+"""
+
+MARKETS_UNIT = "return_ratio"
+"""The single machine unit ``vertex_worker.markets`` publishes for its sector
+returns. Left as a technical code, ``unit`` accepted ``USD`` — a ratio reading
+as money. Closed by PATH for the same reason as :data:`BARS_STATUS_LABELS`."""
+
+MARKETS_DISPLAY_UNIT = "%"
+"""The single display unit that pairs with :data:`MARKETS_UNIT`."""
 
 VALUE_NATURE_LABELS: frozenset[str] = frozenset({"THEORETICAL"})
 """CLOSED vocabulary of ``value_nature``.
@@ -758,8 +850,25 @@ def checked_relayed_content(
     UNCHANGED — nothing is repaired, truncated, escaped or defaulted: a value
     out of shape is REFUSED, with a :class:`SnapshotContentError` naming its
     path and never its value.
+
+    One CROSS-FIELD invariant is checked on top of the per-value contracts:
+    a content whose top-level ``population`` claims an observation
+    (:data:`OBSERVATION_CLAIM_LABELS`) may not also carry a synthetic
+    provenance marker. This does not prove that a ``REAL`` snapshot is real —
+    nothing here can — it only refuses a payload that contradicts ITSELF,
+    which is the strongest statement a relay is entitled to make.
     """
     mapping = _require_mapping(content, field=field)
+    claimed = mapping.get("population")
+    claims_observation = (
+        isinstance(claimed, str) and claimed in OBSERVATION_CLAIM_LABELS
+    )
+    contradicting_path: Optional[str] = None
+
+    def note_marker(path: str) -> None:
+        nonlocal contradicting_path
+        if claims_observation and contradicting_path is None:
+            contradicting_path = path
 
     def walk(node: Any, path: str, depth: int) -> None:
         if depth > MAX_RELAYED_DEPTH:
@@ -784,10 +893,26 @@ def checked_relayed_content(
         elif isinstance(node, list):
             for index, value in enumerate(node):
                 walk(value, f"{path}[{index}]", depth + 1)
+        elif isinstance(node, bool):
+            # ``synthetic: true`` is the producers' explicit self-declaration
+            # (attention items, evidence clusters, calendar events).
+            if node and _leaf_key(path) == "synthetic":
+                note_marker(path)
         elif isinstance(node, str):
             _check_relayed_string(node, field=path or field)
+            if (
+                node in SYNTHETIC_MARKER_VALUES
+                and _leaf_key(path) in SYNTHETIC_MARKER_KEYS
+            ):
+                note_marker(path)
 
     walk(mapping, "", 0)
+    if contradicting_path is not None:
+        raise SnapshotContentError(
+            "population: the content claims an observation while carrying a "
+            f"synthetic provenance marker at {contradicting_path}",
+            field="population",
+        )
     return mapping
 
 
@@ -1101,6 +1226,15 @@ def build_markets_overview_response(
         raise SnapshotContentError(
             "data_state: 'ok', 'partial' or 'stale' required", field="data_state"
         )
+    if content.get("unit") != MARKETS_UNIT:
+        raise SnapshotContentError(
+            "unit: the published sector-return unit is required", field="unit"
+        )
+    if content.get("display_unit") != MARKETS_DISPLAY_UNIT:
+        raise SnapshotContentError(
+            "display_unit: the published display unit is required",
+            field="display_unit",
+        )
 
     return MarketsOverviewResponse(
         state="ok",
@@ -1198,6 +1332,10 @@ def build_analysis_response(
             field="instrument",
         )
     bars = _wire_mapping(content.get("bars"), field="bars")
+    if bars.get("status") not in BARS_STATUS_LABELS:
+        raise SnapshotContentError(
+            "bars.status: 'OK' or 'ABSENT' required", field="bars.status"
+        )
     scenarios = _wire_mapping(content.get("scenarios"), field="scenarios")
     scenario_status = scenarios.get("status")
     if scenario_status not in ("OK", "ABSENT"):

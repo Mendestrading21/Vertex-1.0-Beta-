@@ -456,3 +456,282 @@ def test_the_portfolio_valuation_relay_applies_the_same_contract() -> None:
     for path in (("population",), ("currency",), ("positions", 0, "market_value")):
         with pytest.raises(SnapshotContentError):
             checked_relayed_content(_replace_leaf(honest, path, HOSTILE))
+
+
+# ---------------------------------------------------------------------------
+# P0-5 — `population` : ce que le relais garantit, et ce qu'il ne garantit pas
+# ---------------------------------------------------------------------------
+#
+# 5e audit adversarial. Le vocabulaire « fermé » contenait REAL et DELAYED :
+# sur le pipeline RÉEL (contenu sain étiqueté SYNTHETIC), forger
+# `population = REAL` ou `DELAYED` rendait 200 avec l'étiquette relayée
+# verbatim. Le docstring prétendait que la fermeture empêchait « du contenu
+# synthétique de se présenter comme autre chose ». Elle ne l'empêchait pas.
+#
+# Le relais NE PEUT PAS vérifier qu'une donnée étiquetée REAL l'est : cette
+# vérité appartient au worker. Ce qui EST vérifiable, et qui est fait ici :
+#   1. aucune étiquette hors vocabulaire n'est publiée (déjà couvert plus haut) ;
+#   2. un contenu ne peut pas se CONTREDIRE — revendiquer une observation tout
+#      en portant un marqueur de provenance synthétique ;
+#   3. deux champs dont un seul producteur existe sont fermés par CHEMIN.
+#
+# Les tests de RÉSIDU en fin de section fixent, chiffre à l'appui, ce qui reste
+# ouvert. Ils échouent si quelqu'un croit avoir fermé plus qu'il n'a fermé.
+
+from datetime import datetime, timezone  # noqa: E402
+
+from vertex_core.synthetic import SYNTHETIC_RIGHTS, SYNTHETIC_SOURCE  # noqa: E402
+from vertex_persistence.repository.snapshots import CurrentSnapshot  # noqa: E402
+
+from vertex_api.snapshot_views import (  # noqa: E402
+    BARS_STATUS_LABELS,
+    MARKETS_DISPLAY_UNIT,
+    MARKETS_UNIT,
+    OBSERVATION_CLAIM_LABELS,
+    SYNTHETIC_MARKER_VALUES,
+    build_analysis_response,
+    build_markets_overview_response,
+)
+
+from test_analysis import INSTRUMENT, analysis_content  # noqa: E402
+from test_markets_overview import markets_content  # noqa: E402
+
+
+AS_OF_FOR_RELAY_TESTS = datetime(2026, 8, 25, 12, 0, 0, tzinfo=timezone.utc)
+
+
+def _snapshot(content: dict) -> CurrentSnapshot:
+    """Snapshot SYNTHETIC minimal, tel que le lit un builder de relais."""
+    return CurrentSnapshot(
+        kind="synthetic",
+        key="synthetic",
+        version=1,
+        content=content,
+        content_hash="sha256:" + "e" * 64,
+        as_of=AS_OF_FOR_RELAY_TESTS,
+    )
+
+
+def _analysis(content: dict):
+    return build_analysis_response(_snapshot(content), instrument=INSTRUMENT)
+
+
+def _markets(content: dict):
+    return build_markets_overview_response(_snapshot(content))
+
+
+# --- 1. le vocabulaire est bien fermé, mais il ne PROUVE rien --------------
+
+
+def test_the_closed_vocabulary_is_a_form_check_not_a_provenance_proof() -> None:
+    """Anti-sur-promesse : REAL et DELAYED SONT des membres légitimes.
+
+    Ils doivent le rester — un worker qui observe vraiment le marché les
+    publie. Le relais ne les refuse donc pas *en tant que tels* ; il refuse
+    uniquement un contenu qui se contredit (test suivant).
+    """
+    for label in OBSERVATION_CLAIM_LABELS:
+        assert label in POPULATION_LABELS
+        assert checked_relayed_content({"population": label}) == {"population": label}
+
+
+# --- 2. l'invariant réellement vérifiable : la contradiction interne --------
+
+
+@pytest.mark.parametrize("claim", sorted(OBSERVATION_CLAIM_LABELS))
+def test_a_synthetic_analysis_may_not_relabel_itself_as_an_observation(
+    claim: str,
+) -> None:
+    """Le défaut reproduit par le 5e audit, sur le VRAI builder d'analyse.
+
+    Le contenu sain est étiqueté SYNTHETIC et porte les marqueurs du
+    générateur (`rights = SYNTHETIC`, `sources = synthetic-dev`,
+    `synthetic = true`). Le réétiqueter REAL/DELAYED rendait 200.
+    """
+    healthy = analysis_content()
+    assert healthy["population"] == "SYNTHETIC"
+    assert _analysis(healthy).population == "SYNTHETIC"
+
+    forged = _replace_leaf(healthy, ("population",), claim)
+    with pytest.raises(SnapshotContentError) as excinfo:
+        _analysis(forged)
+    assert excinfo.value.field == "population"
+
+
+@pytest.mark.parametrize("claim", sorted(OBSERVATION_CLAIM_LABELS))
+def test_a_synthetic_markets_overview_may_not_relabel_itself(claim: str) -> None:
+    healthy = markets_content()
+    assert healthy["population"] == "SYNTHETIC"
+    assert _markets(healthy).population == "SYNTHETIC"
+
+    with pytest.raises(SnapshotContentError) as excinfo:
+        _markets(_replace_leaf(healthy, ("population",), claim))
+    assert excinfo.value.field == "population"
+
+
+@pytest.mark.parametrize(
+    "marker",
+    [
+        {"population": "REAL", "provenance": {"rights": ["SYNTHETIC"]}},
+        {"population": "REAL", "provenance": {"sources": ["synthetic-dev"]}},
+        {"population": "DELAYED", "items": [{"synthetic": True}]},
+        {"population": "REAL", "clusters": [{"source": "synthetic-dev"}]},
+    ],
+)
+def test_an_observation_claim_beside_a_synthetic_marker_is_refused(
+    marker: dict,
+) -> None:
+    """La seule affirmation qu'un relais a le droit de faire : « ce contenu se
+    contredit ». Il ne dit pas que la donnée est fausse, il dit qu'elle ne
+    peut pas être ce qu'elle prétend être ET porter ce marqueur."""
+    with pytest.raises(SnapshotContentError) as excinfo:
+        checked_relayed_content(marker)
+    assert excinfo.value.field == "population"
+
+
+def test_the_contradiction_refusal_never_quotes_the_stored_value() -> None:
+    message = None
+    try:
+        checked_relayed_content(
+            {"population": "REAL", "provenance": {"rights": ["SYNTHETIC"]}}
+        )
+    except SnapshotContentError as exc:
+        message = str(exc)
+    assert message is not None
+    # Le message nomme un CHEMIN (provenance.rights[0]), jamais une valeur.
+    assert "provenance.rights[0]" in message
+
+
+def test_the_markers_are_read_from_the_authority_that_stamps_them() -> None:
+    """Anti-dérive : si `vertex_core.synthetic` change ses marqueurs, ce test
+    échoue AVANT que le garde ne devienne silencieusement plus faible."""
+    assert SYNTHETIC_MARKER_VALUES == frozenset({SYNTHETIC_RIGHTS, SYNTHETIC_SOURCE})
+
+
+def test_an_honest_synthetic_content_is_never_refused_by_the_invariant() -> None:
+    """Anti-vacuité : le contenu sain du worker passe toujours."""
+    assert _analysis(analysis_content()) is not None
+    assert _markets(markets_content()) is not None
+    # Une population qui ANNONCE le mélange reste servie telle quelle.
+    assert checked_relayed_content(
+        {
+            "population": "SYNTHETIC_MARKS_REAL_LEDGER",
+            "provenance": {"rights": ["SYNTHETIC"]},
+        }
+    )
+
+
+# --- 3. deux champs fermés par CHEMIN, là où un seul producteur existe ------
+
+
+@pytest.mark.parametrize("forged", ["REAL_TIME_IBKR", "LIVE", "DELAYED", "OK_ISH"])
+def test_bars_status_may_not_carry_a_delay_claim(forged: str) -> None:
+    """`analysis.bars.status` valait OK|ABSENT et relayait `LIVE` verbatim."""
+    healthy = analysis_content()
+    assert healthy["bars"]["status"] in BARS_STATUS_LABELS
+
+    with pytest.raises(SnapshotContentError) as excinfo:
+        _analysis(_replace_leaf(healthy, ("bars", "status"), forged))
+    assert excinfo.value.field == "bars.status"
+
+
+@pytest.mark.parametrize("healthy_status", sorted(BARS_STATUS_LABELS))
+def test_both_declared_bars_statuses_are_still_relayed(healthy_status: str) -> None:
+    content = _replace_leaf(analysis_content(), ("bars", "status"), healthy_status)
+    assert _analysis(content).bars["status"] == healthy_status
+
+
+@pytest.mark.parametrize("forged", ["USD", "EUR", "percent", "return_pct"])
+def test_the_markets_unit_may_not_turn_a_ratio_into_money(forged: str) -> None:
+    """`markets_overview.unit` valait `return_ratio` et relayait `USD`."""
+    healthy = markets_content()
+    assert healthy["unit"] == MARKETS_UNIT
+
+    with pytest.raises(SnapshotContentError) as excinfo:
+        _markets(_replace_leaf(healthy, ("unit",), forged))
+    assert excinfo.value.field == "unit"
+
+
+def test_the_markets_display_unit_is_closed_on_its_single_producer() -> None:
+    healthy = markets_content()
+    assert healthy["display_unit"] == MARKETS_DISPLAY_UNIT
+    with pytest.raises(SnapshotContentError) as excinfo:
+        _markets(_replace_leaf(healthy, ("display_unit",), "USD"))
+    assert excinfo.value.field == "display_unit"
+
+
+# --- 4. RÉSIDU : ce qui reste ouvert, et pourquoi ---------------------------
+#
+# Ces tests ne célèbrent rien : ils FIGENT une faiblesse connue pour qu'elle
+# ne puisse ni grandir ni être oubliée, et pour qu'aucun rapport ne prétende
+# qu'elle est fermée. Chacun nomme l'autorité manquante.
+
+
+def test_residue_rights_is_not_closed_because_no_authority_owns_it() -> None:
+    """`rights` est AFFICHÉ (AttentionQueue, ThesisSheet, EventAgenda).
+
+    Aucun module de `vertex_core` ne possède un vocabulaire d'habilitation :
+    l'edge publie `IBKR_MARKET_DATA_DISPLAY_ONLY` (argument de constructeur,
+    donc configurable), le générateur `SYNTHETIC`, une sonde `DEMO`. Fermer
+    l'ensemble ici INVENTERAIT une autorité que le relais n'a pas. Le contrat
+    reste une contrainte de FORME, et une habilitation forgée passe encore.
+    """
+    forged = _replace_leaf(
+        analysis_content(),
+        ("evidence", "clusters", 0, "rights", 0),
+        "IBKR_REALTIME_ENTITLED",
+    )
+    relayed = _analysis(forged)
+    assert relayed.evidence["clusters"][0]["rights"][0] == "IBKR_REALTIME_ENTITLED"
+    # La seule chose garantie : la FORME (jeton majuscule borné, sans échappement).
+    with pytest.raises(SnapshotContentError):
+        checked_relayed_content({"rights": "ibkr realtime"})
+    with pytest.raises(SnapshotContentError):
+        checked_relayed_content({"rights": HOSTILE})
+
+
+@pytest.mark.parametrize(
+    "key,plausible",
+    [
+        ("ticker", "AAPL"),
+        ("exchange", "NASDAQ"),
+        ("sector", "TECHNOLOGY"),
+        ("source", "ibkr-live"),
+    ],
+)
+def test_residue_open_universes_stay_open(key: str, plausible: str) -> None:
+    """Univers ouverts par construction : aucun registre de tickers, de places,
+    de secteurs ni de sources n'existe dans ce dépôt. Fermer sur les valeurs
+    SYNTHETIC du générateur reviendrait à interdire la production."""
+    assert checked_relayed_content({key: plausible}) == {key: plausible}
+    with pytest.raises(SnapshotContentError):
+        checked_relayed_content({key: HOSTILE})
+
+
+@pytest.mark.parametrize("plausible", ["CROSSED", "AVAILABLE", "ESTIMATED", "ACTIVE"])
+def test_residue_the_generic_status_key_stays_open(plausible: str) -> None:
+    """`status` est publié par au moins huit espaces de noms non reliés
+    (OK/ABSENT, CROSSED/STALE/MISSING, AdviceStatus, GateStatus,
+    CalculationStatus, SourceCapabilityStatus, ESTIMATED/CONFIRMED,
+    ACTIVE/SNOOZED/ARCHIVED). Leur union laisserait de toute façon un statut
+    de cotation là où un verdict est attendu, et casserait la rétrogradation
+    fail-closed VOULUE d'un statut de capacité inconnu en ERROR /
+    INVALID_STATUS. Fermé par CHEMIN là où une autorité existe
+    (`bars.status`, `scenarios.status`, `advice.status`), ouvert ailleurs."""
+    assert checked_relayed_content({"status": plausible}) == {"status": plausible}
+
+
+def test_residue_a_fully_scrubbed_payload_still_passes() -> None:
+    """LIMITE HAUTE de l'invariant de contradiction, écrite noir sur blanc.
+
+    Un producteur défaillant — ou une ligne falsifiée — qui étiquette REAL
+    ET efface TOUS les marqueurs synthétiques n'est plus détectable par un
+    relais. Il faudrait pour cela une provenance signée par le worker, qui
+    n'existe pas. Ce test échouera le jour où elle existera : c'est voulu.
+    """
+    scrubbed = {
+        "population": "REAL",
+        "provenance": {"rights": ["IBKR_MARKET_DATA_DISPLAY_ONLY"], "sources": ["ibkr"]},
+        "items": [{"synthetic": False}],
+    }
+    assert checked_relayed_content(scrubbed) == scrubbed
