@@ -31,6 +31,18 @@ fi
 echo "== compilation =="
 python3 -m compileall -q packages/python && echo OK
 
+echo "== contrat du Worker Cloudflare (ingress TradingView) =="
+# Ces 53 tests n'étaient exécutés par AUCUNE porte, ni ici ni en CI : le
+# contrat d'entrée du webhook public n'était donc vérifié nulle part.
+# `node --test <répertoire>` n'est pas accepté par Node 22 — il faut nommer
+# les fichiers.
+if command -v node >/dev/null 2>&1; then
+  (cd apps/ingress-tradingview/worker && node --test test/*.test.mjs >/dev/null) && echo OK
+else
+  echo "ERREUR: node absent — porte du Worker NON EXÉCUTÉE (aucune preuve)." >&2
+  exit 2
+fi
+
 echo "== suite unitaire/propriétés/oracles =="
 python3 -m pytest -q
 

@@ -175,6 +175,12 @@ jobs:
         working-directory: apps/web
         run: pnpm install --frozen-lockfile
 
+      # Le contrat d'entrée du webhook PUBLIC n'était vérifié par aucune porte.
+      # Node est déjà installé pour ce job ; le Worker n'a aucune dépendance.
+      - name: Porte 8bis — contrat du Worker Cloudflare (webhook public)
+        working-directory: apps/ingress-tradingview/worker
+        run: node --test test/*.test.mjs
+
       - name: Porte 9 — typage strict
         working-directory: apps/web
         run: pnpm exec tsc --noEmit
