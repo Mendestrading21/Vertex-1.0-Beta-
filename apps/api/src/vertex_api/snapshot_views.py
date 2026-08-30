@@ -69,6 +69,7 @@ run the calculation, and it must not pretend otherwise.
 
 from __future__ import annotations
 
+import math
 import re
 from datetime import date, datetime, timezone
 from functools import lru_cache
@@ -278,11 +279,24 @@ def _str_tuple(value: Any, *, field: str) -> tuple[str, ...]:
 #   escapes a terminal, a log viewer or a browser would interpret instead of
 #   displaying.
 #
-# Deny-by-default applies to the LEAF KEY NAME: a key this map does not know
-# falls back to the PROSE contract, which is still bounded and control-free.
-# A field added upstream is therefore relayed under a real constraint before
-# this map learns about it — it is simply not YET constrained as a decimal or
-# as a closed label, which is what the lot report quantifies as residual.
+# Deny-by-default applies to the LEAF KEY NAME **of a string leaf**: a key
+# this map does not know falls back to the PROSE contract, which is still
+# bounded and control-free. A string field added upstream is therefore
+# relayed under a real constraint before this map learns about it — it is
+# simply not YET constrained as a decimal or as a closed label, which is what
+# the lot report quantifies as residual.
+#
+# THAT SENTENCE WAS FALSE FOR EVERY NON-STRING LEAF until the 8th audit, and
+# it is corrected here rather than defended. There was no fallback for a
+# number: the walk knew ``Mapping``, ``list``, ``bool`` and ``str``, and an
+# ``int`` or a ``float`` matched NO branch — no contract applied, not even a
+# length. ``{"population": "SYNTHETIC", "last_price": 10**5000}`` passed and
+# was relayed verbatim, which is the amplification the portfolio WRITE
+# contract had just closed, still open on the relay side for every producer.
+# The walk is now EXHAUSTIVE: a number obeys :func:`_check_relayed_number`,
+# ``null`` is accepted as the explicit ABSENCE of a value, and any other type
+# is refused. "Falls back to the prose contract" is now true of strings and
+# only of strings, which is what the map indexes.
 #
 # Refusals stay :class:`SnapshotContentError` naming the FIELD PATH only —
 # never the stored value, neither in the response body nor in a log record.
@@ -301,6 +315,52 @@ relay must be able to serve back exactly what the API accepted, never less.
 """
 
 MAX_RELAYED_INSTANT_LENGTH = 64
+
+MAX_RELAYED_NUMBER_MAGNITUDE = 2**53 - 1
+"""Magnitude ceiling of every relayed JSON NUMBER (``int`` and ``float``).
+
+WHY A NUMBER NEEDED A CONTRACT AT ALL (8th audit). The walk knew mappings,
+lists, booleans and strings; an ``int`` or a ``float`` fell through EVERY
+branch, so ``{"last_price": 10**5000}`` was relayed verbatim — a 5 001-digit
+integer crossing the last frontier before a human reads the value. That is
+the amplification class the portfolio write contract had just closed on the
+WRITE side, still open on the RELAY side, for every producer at once.
+
+WHY 2**53 - 1 = 9 007 199 254 740 991, and NOT the 10**24 of
+``vertex_api.portfolio.MAX_DECIMAL_MAGNITUDE_EXPONENT``. The two bounds
+protect different things and the relay's is deliberately TIGHTER:
+
+- 10**24 bounds a value the USER DECLARES and Vertex stores as an exact
+  decimal STRING; its ceiling is placed where no honest declaration can
+  reach, whatever the currency;
+- this bound governs a JSON NUMBER, which every consumer of this API — the
+  browser, the generated TypeScript client — parses into an IEEE-754 double.
+  2**53 - 1 is the largest integer that survives that trip EXACTLY. Above it
+  the figure displayed is no longer the figure stored, and a relay that
+  silently changes a financial value is worse than one that refuses it
+  (``financial-safety.md``: "aucune conversion flottante silencieuse").
+  10**24 would be LOOSER than what the consumer can represent, i.e. it would
+  authorize the corruption;
+- it also bounds the rendered length to 16 characters, where the previous
+  contract bounded nothing at all.
+
+A value spelled as a decimal STRING keeps its own, wider contract
+(:data:`_UNSIGNED_DECIMAL_RE`) precisely because a string crosses the wire
+unchanged. Nothing honest is refused here: the producers publish counts of
+observations, lookback seconds, ranks and census buckets.
+"""
+
+MIN_RELAYED_NONZERO_FLOAT = 1e-30
+"""Granularity floor of a relayed non-zero ``float`` (zero itself is exact).
+
+Parity with the relay's OWN decimal-string contract, which accepts at most 30
+fractional digits: the same number spelled as a string is already refused
+below this granularity, so accepting it as a float would make the guard
+depend on the spelling. It also bounds positional rendering to some thirty
+characters — the smallest subnormal double (~4.9e-324) written out in full
+costs more than a thousand.
+"""
+
 MAX_RELAYED_DEPTH = 32
 """Nesting bound of a relayed content (a persisted payload is data, not a
 recursion budget)."""
@@ -956,6 +1016,61 @@ _CLASS_BY_LEAF_KEY.update({key: _relayed_hash for key in _HASH_KEYS})
 _CLASS_BY_LEAF_KEY.update({key: _relayed_user_text for key in _USER_TEXT_KEYS})
 
 
+def _check_relayed_number(value: Any, *, field: str) -> None:
+    """Contract of a relayed JSON NUMBER — the leaves the walk used to skip.
+
+    Three refusals, none of which repairs anything:
+
+    1. a non-finite ``float``. ``NaN`` and ``±Infinity`` are not JSON
+       (RFC 8259); Python's serializer emits the bare tokens ``NaN`` and
+       ``Infinity``, which a strict parser rejects and a lenient one turns
+       into a value no reader can interpret. Neither is a financial
+       quantity: absent, zero and unknown are three distinct states and none
+       of them is ``NaN``;
+    2. a magnitude above :data:`MAX_RELAYED_NUMBER_MAGNITUDE`. For an
+       ``int`` this is the amplification bound (a 5 001-digit integer was
+       relayed verbatim before this wave); for a ``float`` it is the same
+       ceiling, because the consumer is one positional format away from
+       turning ``1.79e308`` into 309 characters;
+    3. a non-zero ``float`` finer than :data:`MIN_RELAYED_NONZERO_FLOAT`.
+
+    The magnitude is read WITHOUT materializing the number:
+    ``int.bit_length()`` is computed from the coefficient, exactly as
+    ``Decimal.adjusted()`` is on the write side — the check must cost
+    nothing on the very input it refuses. ``str(value)`` on a 5 001-digit
+    integer would itself raise, so it is never called.
+
+    The refusal names the FIELD PATH only, never the value.
+    """
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            raise SnapshotContentError(
+                f"{field}: relayed number must be finite", field=field
+            )
+        magnitude = abs(value)
+        if magnitude > MAX_RELAYED_NUMBER_MAGNITUDE:
+            raise SnapshotContentError(
+                f"{field}: relayed number outside the representable magnitude "
+                "of the contract",
+                field=field,
+            )
+        if magnitude != 0.0 and magnitude < MIN_RELAYED_NONZERO_FLOAT:
+            raise SnapshotContentError(
+                f"{field}: relayed number finer than the contract granularity",
+                field=field,
+            )
+        return
+    # ``int``: the bit length is read from the stored coefficient, so the
+    # bound costs nothing on the very input it refuses. ``bit_length() > 53``
+    # is exactly ``abs(value) > 2**53 - 1``, without materializing a digit.
+    if value.bit_length() > MAX_RELAYED_NUMBER_MAGNITUDE.bit_length():
+        raise SnapshotContentError(
+            f"{field}: relayed number outside the representable magnitude "
+            "of the contract",
+            field=field,
+        )
+
+
 def _relayed_census_count(value: Any, *, field: str) -> int:
     """A nature-census bucket holds a COUNT of members, nothing else.
 
@@ -980,6 +1095,9 @@ def _relayed_census_count(value: Any, *, field: str) -> int:
             f"{field}: nature census count must be a non-negative integer",
             field=field,
         )
+    # A count is a number like any other: same magnitude ceiling, so a bucket
+    # cannot be the one integer that escapes the bound (8th audit).
+    _check_relayed_number(value, field=field)
     return value
 
 
@@ -1079,6 +1197,14 @@ def checked_relayed_content(
     UNCHANGED — nothing is repaired, truncated, escaped or defaulted: a value
     out of shape is REFUSED, with a :class:`SnapshotContentError` naming its
     path and never its value.
+
+    THE WALK IS EXHAUSTIVE OVER THE JSON TYPES (8th audit). A ``bool`` is a
+    self-declaration, a ``str`` obeys its field class, a NUMBER obeys
+    :func:`_check_relayed_number` (finite, magnitude and granularity),
+    ``null`` is the accepted ABSENCE of a value, and anything else is
+    refused. Before this wave a number matched no branch at all: an integer
+    of five thousand digits was relayed verbatim under any key, including
+    under a head claiming ``REAL``.
 
     THE NATURE IS A CLASS OF FIELDS, NOT ONE KEY (6th audit). Every location
     that carries a nature — :data:`NATURE_LEAF_KEYS` at ANY depth, every leaf
@@ -1181,7 +1307,8 @@ def checked_relayed_content(
                 walk(value, f"{path}[{index}]", depth + 1)
         elif isinstance(node, bool):
             # ``synthetic: true`` is the producers' explicit self-declaration
-            # (attention items, evidence clusters, calendar events).
+            # (attention items, evidence clusters, calendar events). Checked
+            # BEFORE the number branch: ``bool`` is an ``int`` subclass.
             if node and _leaf_key(path) == "synthetic":
                 markers.append(path)
         elif isinstance(node, str):
@@ -1193,6 +1320,24 @@ def checked_relayed_content(
                 scope is not None and node in GENERATED_NATURE_LABELS
             ):
                 markers.append(path)
+        elif isinstance(node, (int, float)):
+            _check_relayed_number(node, field=path or field)
+        elif node is None:
+            # JSON ``null`` is the ABSENCE of a value, which the contracts
+            # require to stay distinct from zero and from a stale figure. It
+            # carries no length, no control character and no claim, so it is
+            # relayed as it is — explicitly, not by falling through.
+            pass
+        else:
+            # Deny by default. The walk is now EXHAUSTIVE over the JSON
+            # types; anything else (a ``Decimal``, a ``datetime``, an object
+            # that only a repr could render) is a producer publishing outside
+            # the contract, and the relay refuses rather than guesses.
+            raise SnapshotContentError(
+                f"{path or field}: relayed leaf of a type the contract does "
+                "not carry",
+                field=path or field,
+            )
 
     walk(mapping, "", 0)
     for claim_path, scope in claims:

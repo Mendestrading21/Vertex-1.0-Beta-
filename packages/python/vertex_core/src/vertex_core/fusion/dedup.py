@@ -20,7 +20,13 @@ Levels (docs/04-integrations/DATA_FUSION.md):
 Polarity doctrine (``.claude/rules/financial-safety.md``, "convention de
 signe"): the sign of a financial variation is data, not punctuation.
 Normalization keeps four canonical markers so that ``"SPX -3,2 %"`` and
-``"SPX +3,2 %"`` can never share a fingerprint. Where provider identity
+``"SPX +3,2 %"`` can never share a fingerprint. A sign binds to its digits
+ACROSS what typography puts between them — currency symbol, space of any
+width, bracket, quote, approximation mark or listed word — so ``-$2bn`` and
+``Nasdaq - 3 %`` are signed too; the cost of that rule is a dash used as a
+plain separator before a figure (``"Apple - 3 nouveaux produits"``) reading
+as a sign, which splits a cluster instead of merging two opposites. Where
+provider identity
 (levels 1 and 2) still groups two opposite dispatches — one native id, one
 canonical url — the group is kept and the contradiction is PUBLISHED rather
 than resolved by electing one member; an absent marker is never treated as
@@ -78,13 +84,21 @@ __all__ = [
 ]
 
 
-FUSION_RULESET_VERSION = "2.0.0"
+FUSION_RULESET_VERSION = "3.0.0"
 """Version stamped on every decision; bump on any behavioral rule change.
 
 2.0.0 — title normalization stopped erasing the sign of a financial
 variation (P1-6): fingerprints of previously fused opposite headlines now
 differ, so this is a BREAKING rule change and replays across the boundary
 are not comparable.
+
+3.0.0 — the sign now BINDS to its digits across the transparent class
+(currency symbol, space of any width, bracket, quote, approximation mark or
+listed word), instead of requiring a digit immediately after it. ``-$2bn``
+vs ``+$2bn`` and ``Nasdaq - 3 %`` vs ``Nasdaq + 3 %`` used to normalize
+identically and fuse into one cluster with one elected representative.
+Fingerprints of signed titles change again: BREAKING, replays across the
+boundary are not comparable.
 """
 
 RULE_NATIVE_ID = "fusion.dedup.native_id"
@@ -180,12 +194,152 @@ _SIGN_MARKERS: Mapping[str, str] = MappingProxyType(
         "\u2795": "+",  # HEAVY PLUS SIGN
     }
 )
-"""Sign characters: a POLARITY marker only when glued to a number.
+"""Sign characters: a POLARITY marker only when bound to a number.
 
 These characters double as hyphens and dashes (``Compàny-1``, ``COVID-19``,
 ``Apple — Microsoft``), so they only count as a sign under the attachment
-rule of :func:`normalize_title`; everywhere else they stay punctuation.
+rule of :func:`_sign_binding_digit_index`; everywhere else they stay
+punctuation.
 """
+
+
+_APPROXIMATION_MARKS = frozenset(
+    {
+        "~",  # U+007E TILDE
+        "\u223c",  # TILDE OPERATOR
+        "\u2248",  # ALMOST EQUAL TO
+        "\u2243",  # ASYMPTOTICALLY EQUAL TO
+        "\u2245",  # APPROXIMATELY EQUAL TO
+        "\u2242",  # MINUS TILDE
+        ".",  # decimal point of a leading-dot figure (``-.5 %``)
+        ",",  # decimal comma of a leading-comma figure (``-,5 %``)
+    }
+)
+"""Approximation and decimal marks that may sit between a sign and its digits.
+
+Deliberately an explicit set and NOT the ``Sm`` category: ``+``, ``-``,
+``<``, ``>`` and ``±`` are also mathematical symbols and each carries its own
+polarity, so none of them may be crossed silently.
+"""
+
+_TRANSPARENT_WORDS = frozenset(
+    {
+        # Approximation words (fr/en) — ``-environ 3 %``, ``- about 3 %``.
+        "environ",
+        "approx",
+        "approximativement",
+        "approximately",
+        "about",
+        "around",
+        "circa",
+        "quelque",
+        "quelques",
+        "pres",  # "près" after accent stripping
+        "presque",
+        "quasi",
+        "quasiment",
+        "roughly",
+        "nearly",
+        # ISO 4217 codes and the letter part of composite currency signs
+        # (``US$``, ``HK$``) — ``-USD 2 bn``, ``-US$2 bn``.
+        "usd",
+        "eur",
+        "gbp",
+        "chf",
+        "jpy",
+        "cad",
+        "aud",
+        "nzd",
+        "cny",
+        "rmb",
+        "hkd",
+        "sek",
+        "nok",
+        "dkk",
+        "sgd",
+        "inr",
+        "brl",
+        "mxn",
+        "zar",
+        "krw",
+        "rub",
+        "pln",
+        "us",
+        "hk",
+        "nt",
+    }
+)
+"""Closed set of alphabetic tokens a sign may bind ACROSS.
+
+Any other word blocks the binding, which is what keeps ``"Apple - Banque de
+France 3 %"`` free of a fabricated sign. Single letters are excluded on
+purpose (``"Apple - a 3e version"`` must not become a signed figure).
+"""
+
+_SIGN_BINDING_MAX_SCAN = 24
+"""Maximum characters scanned between a sign and the digits it may bind to."""
+
+_SIGN_BINDING_MAX_WORDS = 2
+"""Maximum alphabetic tokens (currency code + approximation word) crossed."""
+
+
+def _is_transparent_between_sign_and_digits(character: str) -> bool:
+    """True for a character a sign may bind across without losing its meaning.
+
+    The class is deliberately enumerated rather than guessed:
+
+    * whitespace of any width — ASCII space, NO-BREAK SPACE (U+00A0),
+      NARROW NO-BREAK SPACE (U+202F), THIN SPACE (U+2009), FIGURE SPACE
+      (U+2007). NFKD maps them to a space and ``str.isspace`` accepts them;
+    * currency symbols, by Unicode category ``Sc`` — ``$``, ``€``, ``£``,
+      ``¥``, ``₹``, ``₽``… (``-$2bn``, ``-€2bn``);
+    * opening brackets (``Ps``) and initial quotes (``Pi``) plus the two
+      straight ASCII quotes — ``-(2 bn)``, ``-«3 %»``, ``-"3" %``;
+    * approximation and leading decimal marks (:data:`_APPROXIMATION_MARKS`).
+
+    Everything else — a letter, another sign, a comparison character — stops
+    the scan, so the sign stays ordinary punctuation.
+    """
+    if character.isspace():
+        return True
+    if character in _APPROXIMATION_MARKS or character in "\"'":
+        return True
+    return unicodedata.category(character) in ("Sc", "Ps", "Pi")
+
+
+def _sign_binding_digit_index(folded: str, index: int) -> Optional[int]:
+    """Index of the digit a sign at ``index`` binds to, or ``None``.
+
+    A ``-``/``+`` family character asserts a polarity when a decimal digit
+    follows it across nothing but the transparent class above (bounded by
+    :data:`_SIGN_BINDING_MAX_SCAN` characters and
+    :data:`_SIGN_BINDING_MAX_WORDS` listed words). Pure, deterministic and
+    symmetric between ``+`` and ``-``: a rule that recognized one sign more
+    readily than the other would let an unrecognized ``-`` and a recognized
+    ``+`` share the empty marker set and merge as opposites.
+    """
+    cursor = index + 1
+    length = len(folded)
+    stop = min(length, cursor + _SIGN_BINDING_MAX_SCAN)
+    words = 0
+    while cursor < stop:
+        character = folded[cursor]
+        if character.isdigit():
+            return cursor
+        if _is_transparent_between_sign_and_digits(character):
+            cursor += 1
+            continue
+        if character.isalpha():
+            end = cursor
+            while end < stop and folded[end].isalpha():
+                end += 1
+            words += 1
+            if words > _SIGN_BINDING_MAX_WORDS or folded[cursor:end] not in _TRANSPARENT_WORDS:
+                return None
+            cursor = end
+            continue
+        return None
+    return None
 
 _DIRECTION_MARKERS: Mapping[str, str] = MappingProxyType(
     {
@@ -236,12 +390,17 @@ def _scan_title(title: str) -> tuple[str, tuple[str, ...]]:
     Polarity (the fix): the sign of a financial variation is DATA, not
     punctuation, so four canonical markers survive normalization.
 
-    Attachment rule — a ``-``/``+`` family character is a sign only when the
-    very next character is a decimal digit AND the previous character is not
-    alphanumeric; otherwise it stays punctuation, exactly as before. A
-    direction or comparison character (arrows, ``<``, ``>``) is always a
-    marker: when a number follows (across spaces) the marker binds to that
-    number, otherwise it stands alone as its own token.
+    Attachment rule — a ``-``/``+`` family character is a sign when the
+    previous character is not alphanumeric AND a decimal digit follows it
+    across nothing but the transparent class of
+    :func:`_is_transparent_between_sign_and_digits` (currency symbol,
+    space of any width, bracket, quote, approximation mark, listed currency
+    code or approximation word); otherwise it stays punctuation. The sign is
+    then re-glued to those digits, so every typographic variant of one
+    figure (``-2bn``, ``- 2bn``, ``-$2bn``, ``-\u202f2bn``) normalizes to the
+    same token and the variants of one dispatch keep merging. A direction or
+    comparison character (arrows, ``<``, ``>``) is always a marker: when a
+    number follows the marker binds to it, otherwise it stands alone.
     """
     decomposed = unicodedata.normalize("NFKD", title)
     stripped = "".join(ch for ch in decomposed if not unicodedata.combining(ch))
@@ -255,28 +414,37 @@ def _scan_title(title: str) -> tuple[str, tuple[str, ...]]:
 
         sign = _SIGN_MARKERS.get(character)
         if sign is not None:
-            glued_to_number = index + 1 < length and folded[index + 1].isdigit()
             after_alphanumeric = index > 0 and folded[index - 1].isalnum()
-            if glued_to_number and not after_alphanumeric:
-                pieces.append(" " + sign)  # binds to the digits that follow
-                markers.append(sign)
-            else:
+            digit_index = (
+                None if after_alphanumeric else _sign_binding_digit_index(folded, index)
+            )
+            if digit_index is None:
                 pieces.append(" ")  # a hyphen or a dash: ordinary punctuation
-            index += 1
+                index += 1
+                continue
+            markers.append(sign)
+            # Whatever separated the sign from its digits is normalized as
+            # usual (a currency symbol or a bracket becomes a separator, a
+            # listed word keeps its letters), then the sign is re-glued to
+            # the number so typography cannot split one figure in two.
+            for between in folded[index + 1 : digit_index]:
+                pieces.append(between if between.isalnum() else " ")
+            pieces.append(" " + sign + folded[digit_index])
+            index = digit_index + 1
             continue
 
         direction = _DIRECTION_MARKERS.get(character)
         if direction is not None:
             markers.append(direction)
-            lookahead = index + 1
-            while lookahead < length and folded[lookahead].isspace():
-                lookahead += 1
-            if lookahead < length and folded[lookahead].isdigit():
-                pieces.append(" " + direction)  # binds to the number it qualifies
-                index = lookahead
-            else:
+            digit_index = _sign_binding_digit_index(folded, index)
+            if digit_index is None:
                 pieces.append(" " + direction + " ")  # stands alone
                 index += 1
+                continue
+            for between in folded[index + 1 : digit_index]:
+                pieces.append(between if between.isalnum() else " ")
+            pieces.append(" " + direction + folded[digit_index])
+            index = digit_index + 1
             continue
 
         pieces.append(character if character.isalnum() else " ")

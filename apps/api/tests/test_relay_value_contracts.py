@@ -30,12 +30,16 @@ Everything below is SYNTHETIC and reaches nothing but the pure builders.
 from __future__ import annotations
 
 import re
+from datetime import datetime, timezone
+from decimal import Decimal
 from typing import Any
 
 import pytest
 
 from vertex_api.snapshot_views import (
     MAX_RELAYED_DEPTH,
+    MAX_RELAYED_NUMBER_MAGNITUDE,
+    MIN_RELAYED_NONZERO_FLOAT,
     MAX_RELAYED_TEXT_LENGTH,
     MAX_RELAYED_USER_TEXT_LENGTH,
     POPULATION_LABELS,
@@ -1253,3 +1257,216 @@ def test_a_census_refusal_names_a_path_and_never_a_value(content: dict) -> None:
     assert "\x07" not in message and "\x1b" not in message
     assert "IBKR_LIVE" not in message
     assert "ACHETEZ" not in message
+
+
+# ---------------------------------------------------------------------------
+# 8e audit — les feuilles NUMÉRIQUES du contenu relayé
+# ---------------------------------------------------------------------------
+#
+# `walk` connaissait Mapping, list, bool et str : un `int` ou un `float` ne
+# tombait dans AUCUNE branche, donc sous AUCUN contrat — pas même une borne
+# de longueur. Un entier de 5 001 chiffres franchissait la dernière frontière
+# avant lecture humaine et était rendu verbatim. C'est la classe
+# d'amplification que le correctif portefeuille venait de fermer CÔTÉ
+# ÉCRITURE, restée ouverte au relais, pour TOUS les producteurs.
+
+
+GIANT_INT = 10**5000
+"""Le vecteur du 8e audit : 5 001 chiffres. `str()` sur cet entier lève
+au-delà de la limite Python par défaut — le contrôle ne le matérialise
+jamais, et ce test non plus."""
+
+
+def test_the_reproducer_is_a_five_thousand_and_one_digit_integer() -> None:
+    """Épingle le vecteur sans le matérialiser en décimal."""
+    assert GIANT_INT.bit_length() == 16610
+    assert GIANT_INT > 10**5000 - 1
+
+
+@pytest.mark.parametrize(
+    "content,path",
+    [
+        ({"population": "SYNTHETIC", "last_price": GIANT_INT}, "last_price"),
+        ({"population": "REAL", "last_price": GIANT_INT}, "last_price"),
+        ({"last_price": -GIANT_INT}, "last_price"),
+        ({"lookback_seconds": 10**400}, "lookback_seconds"),
+        ({"coverage": {"observations_considered": 10**400}}, "coverage.observations_considered"),
+        ({"items": [{"weight": GIANT_INT}]}, "items[0].weight"),
+        ({"a_field_nobody_declared": GIANT_INT}, "a_field_nobody_declared"),
+    ],
+)
+def test_a_giant_integer_is_refused_whatever_its_key_or_head(
+    content: Any, path: str
+) -> None:
+    """Le nom de la clé et la nature revendiquée au-dessus ne changent rien :
+    la borne porte sur le NOMBRE, donc sur tous les producteurs."""
+    with pytest.raises(SnapshotContentError) as excinfo:
+        checked_relayed_content(content)
+    assert excinfo.value.field == path
+
+
+@pytest.mark.parametrize(
+    "forged",
+    [
+        float("nan"),
+        float("inf"),
+        float("-inf"),
+    ],
+)
+def test_a_non_finite_float_is_refused(forged: float) -> None:
+    """`NaN` et `Infinity` ne sont pas du JSON (RFC 8259) : le sérialiseur
+    Python émet les jetons nus, qu'un analyseur strict rejette. Aucun des
+    deux n'est une grandeur financière — absent, zéro et inconnu sont trois
+    états distincts, et aucun n'est `NaN`."""
+    with pytest.raises(SnapshotContentError) as excinfo:
+        checked_relayed_content({"population": "SYNTHETIC", "last_price": forged})
+    assert excinfo.value.field == "last_price"
+
+
+@pytest.mark.parametrize(
+    "forged",
+    [
+        1.7976931348623157e308,
+        -1.7976931348623157e308,
+        1e100,
+        float(MAX_RELAYED_NUMBER_MAGNITUDE) * 4,
+    ],
+)
+def test_a_float_beyond_the_magnitude_is_refused(forged: float) -> None:
+    """Un flottant hors borne est à un formatage positionnel de 309
+    caractères côté consommateur."""
+    with pytest.raises(SnapshotContentError) as excinfo:
+        checked_relayed_content({"score": forged})
+    assert excinfo.value.field == "score"
+
+
+@pytest.mark.parametrize("forged", [5e-324, 1e-40, -1e-40])
+def test_a_float_finer_than_the_granularity_is_refused(forged: float) -> None:
+    """Parité avec le contrat décimal EN CHAÎNE du même relais (30 décimales
+    au plus) : la garde ne peut pas dépendre de l'orthographe du nombre."""
+    with pytest.raises(SnapshotContentError) as excinfo:
+        checked_relayed_content({"score": forged})
+    assert excinfo.value.field == "score"
+
+
+def test_the_magnitude_boundary_is_exact() -> None:
+    """La borne est le plus grand entier qu'un consommateur IEEE-754 relit
+    EXACTEMENT ; au-delà, la valeur affichée n'est plus la valeur stockée."""
+    assert MAX_RELAYED_NUMBER_MAGNITUDE == 9007199254740991
+    edge = {"observations_considered": MAX_RELAYED_NUMBER_MAGNITUDE}
+    assert checked_relayed_content(edge) == edge
+    over = {"observations_considered": MAX_RELAYED_NUMBER_MAGNITUDE + 1}
+    with pytest.raises(SnapshotContentError):
+        checked_relayed_content(over)
+    assert checked_relayed_content({"score": MIN_RELAYED_NONZERO_FLOAT}) is not None
+    with pytest.raises(SnapshotContentError):
+        checked_relayed_content({"score": MIN_RELAYED_NONZERO_FLOAT / 10})
+
+
+def test_honest_numbers_still_pass_anti_vacuity() -> None:
+    """Anti-vacuité : ce que les workers publient RÉELLEMENT passe —
+    `population_counts`, `coverage.observations_considered`,
+    `lookback_seconds`, rangs, ratios, zéro et absence."""
+    honest = {
+        "population": "SYNTHETIC",
+        "coverage": {
+            "observations_considered": 128,
+            "population_counts": {"SYNTHETIC": 2, "REAL": 0},
+        },
+        "lookback_seconds": 86_400,
+        "rank": 1,
+        "score": 0.4218,
+        "return_ratio": -0.0317,
+        "exactly_zero_int": 0,
+        "exactly_zero_float": 0.0,
+        "absent": None,
+    }
+    assert checked_relayed_content(honest) == honest
+
+
+def test_a_census_count_is_bounded_like_any_other_number() -> None:
+    """Le compte de recensement est un nombre : même plafond, sinon il était
+    le seul entier à échapper à la borne."""
+    with pytest.raises(SnapshotContentError) as excinfo:
+        checked_relayed_content(
+            {"coverage": {CENSUS: {"SYNTHETIC": MAX_RELAYED_NUMBER_MAGNITUDE + 1}}}
+        )
+    assert excinfo.value.field == f"coverage.{CENSUS}.SYNTHETIC"
+
+
+def test_null_is_relayed_as_an_explicit_absence() -> None:
+    """`absent`, `zéro` et `périmé` restent distincts : `null` traverse, et
+    il traverse par une branche explicite, pas par un trou."""
+    content = {"population": "SYNTHETIC", "last_price": None, "quantity": 0}
+    assert checked_relayed_content(content) == content
+
+
+@pytest.mark.parametrize(
+    "leaf",
+    [
+        Decimal("1.5"),
+        datetime(2026, 8, 29, 12, 0, tzinfo=timezone.utc),
+        b"bytes",
+        {1, 2},
+        object(),
+    ],
+)
+def test_a_leaf_of_an_unknown_type_is_refused(leaf: Any) -> None:
+    """Le parcours est désormais EXHAUSTIF sur les types JSON : tout autre
+    type est un producteur hors contrat, et le relais refuse au lieu de
+    deviner (un `repr` d'objet finirait sur l'écran)."""
+    with pytest.raises(SnapshotContentError) as excinfo:
+        checked_relayed_content({"score": leaf})
+    assert excinfo.value.field == "score"
+
+
+@pytest.mark.parametrize(
+    "content",
+    [
+        {"last_price": GIANT_INT},
+        {"last_price": float("nan")},
+        {"score": 1.7976931348623157e308},
+        {"score": 5e-324},
+        {"coverage": {CENSUS: {"SYNTHETIC": GIANT_INT}}},
+    ],
+)
+def test_a_number_refusal_names_a_path_and_never_a_value(content: Any) -> None:
+    """Un refus ne porte QUE le chemin du champ. Le message ne doit pas
+    matérialiser le nombre — ce serait l'amplification par le message
+    d'erreur, et sur `GIANT_INT` la conversion elle-même lèverait."""
+    with pytest.raises(SnapshotContentError) as excinfo:
+        checked_relayed_content(content)
+    message = str(excinfo.value)
+    assert len(message) < 200
+    for fragment in ("9007199254740991", "1797693134862315", "e+308", "0000000000"):
+        assert fragment not in message
+    assert "nan" not in message.lower() and "inf" not in message.lower()
+
+
+def test_residue_a_number_spelled_as_a_string_keeps_its_wider_contract() -> None:
+    """Limite ASSUMÉE, épinglée pour qu'elle ne soit pas sur-promise.
+
+    Le plafond 2**53-1 porte sur un NOMBRE JSON, parce que le consommateur le
+    relit en double. Le même montant écrit en CHAÎNE traverse le fil inchangé
+    et garde le contrat décimal (18 chiffres entiers, 30 décimales) : jusqu'à
+    49 caractères passent encore. « Tout nombre relayé est borné par 2**53 »
+    serait donc faux ; la borne est « tout nombre relayé SOUS FORME DE
+    NOMBRE ». L'amplification résiduelle par cette voie est bornée à
+    quelques dizaines de caractères, pas à cinq mille.
+    """
+    long_decimal = "9" * 18 + "." + "9" * 30
+    assert len(long_decimal) == 49
+    assert checked_relayed_content({"strike": long_decimal}) is not None
+    beyond_the_number_bound = str(MAX_RELAYED_NUMBER_MAGNITUDE + 1)
+    assert checked_relayed_content({"strike": beyond_the_number_bound}) is not None
+    with pytest.raises(SnapshotContentError):
+        checked_relayed_content({"strike": int(beyond_the_number_bound)})
+
+
+def test_residue_a_number_inside_the_bound_is_never_verified_as_a_FACT() -> None:
+    """Le contrat porte la FORME, pas le CONTENU : un compte d'observations
+    faux mais plausible passe, exactement comme une chaîne bien formée."""
+    plausible_but_unverified = {"coverage": {"observations_considered": 999_999}}
+    assert (
+        checked_relayed_content(plausible_but_unverified) == plausible_but_unverified
+    )
