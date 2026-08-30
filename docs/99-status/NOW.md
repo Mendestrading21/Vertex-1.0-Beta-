@@ -1,11 +1,11 @@
 # État courant
 
 ```yaml
-phase: lot_23_fusionne_demarrage_local_reel_livre
-lot: LOT-24a — démarrage local réel (après fusion de LOT-23, PR #5)
+phase: lot_24a_fusionne_sonde_entitlements_executable
+lot: LOT-24b — sonde de droits IBKR exécutable (après fusion de LOT-24a, PR #6)
 branch: claude/vertex-connection-kgkntr
-status: vertex_demarre_et_repond_sur_loopback_batterie_verte
-last_good_commit: 940e3a7 (= origin/main, PR #5 fusionnée)
+status: la_sonde_de_droits_a_enfin_une_commande_aucune_donnee_reelle_encore
+last_good_commit: 37a7097 (= origin/main, PR #6 fusionnée)
 completed:
   - vagues_1_a_5: 13 routes sur 13 réelles (PR #1, #2 et #3 fusionnées)
   - ci: 7 jobs, 25 portes nommées — VERTE sur 5a40bc8 ; actions épinglées par SHA de COMMIT
@@ -48,8 +48,25 @@ audits:
      source, bundle 32x au-dessus du budget accepté par la porte, matrice
      comptant des déclarations, deux mutants survivants, profil à autorité
      absolue sans métadonnées"
-  - "SIX chiffres de ce registre se sont révélés faux, dont un trois fois ;
-     deux affirmations de sécurité ont été démenties par exécution"
+  - "SEPT chiffres de ce registre se sont révélés faux, dont un trois fois ;
+     deux affirmations de sécurité ont été démenties par exécution. Le
+     septième est le compte d'interdictions non prouvées ci-dessous : il
+     disait 5, la porte dit 6 depuis la rétrogradation de
+     EXCEPTION-JAMAIS-QUALIFIED"
+sonde_entitlements:
+  commande: "python3 tools/probe_entitlements.py --symbol <SYMBOLE> --dry-run"
+  etat: "LIVRÉE et prouvée contre un port SIMULÉ — 16 tests. JAMAIS exécutée
+     contre un vrai TWS : aucun TWS dans ce conteneur, aucun droit IBKR"
+  ce_qu_elle_ferme: "vertex_edge_ibkr.probe implémentait la sonde complète
+     depuis le LOT-04 et AUCUNE commande ne permettait de la lancer"
+  refus_verifies: "identité ambiguë (2 contrats qualifiés) → arrêt, jamais
+     « le premier » ; échéance, strike ou couple exchange/trading_class absent
+     de la chaîne → refus ; option incomplètement nommée → refus ;
+     client_id nul → refus par l'adaptateur ; --dry-run n'ouvre AUCUNE ligne
+     de données ; erreur fournisseur 10197 → ERROR, jamais NOT_ENTITLED ;
+     sans --persist rien n'est écrit"
+  aucune_option_host: "il n'en existe pas — ne pas offrir le réglage est plus
+     fort que le valider"
 demarrage_local:
   commande: "bash tools/start_local.sh (après tools/bootstrap_local.py)"
   mesure: "API /api/v1/health → alive ; capabilities sans session → 401
@@ -65,7 +82,8 @@ mesures_reelles:
   accessibilite: "168 cas de test verts, 14 chemins × 3 viewports (Chromium)"
   navigateurs: "Chromium, Firefox et WebKit VERTS — 665 passed, 2 skipped"
 checks_locaux:
-  - "pytest 3508 passed / 0 failed"
+  - "pytest 3520 passed, 4 skipped, 0 failed (les 4 sautés exigent
+     PostgreSQL réel : bootstrap local)"
   - "intégration PostgreSQL : 96 (persistance) + 32 (worker, dont 15 chaos)
      + 65 (api) — exécution SÉRIELLE obligatoire, base partagée"
   - "vitest 384 passed ; tsc 0 erreur ; biome 0 violation (125 fichiers)"

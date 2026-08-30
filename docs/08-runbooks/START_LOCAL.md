@@ -105,10 +105,22 @@ worker tourne en configuration synthétique de développement et l'écrit dans
 son journal au démarrage ; tout ce qui s'affiche porte
 `population = SYNTHETIC`.
 
-Brancher une source réelle appartient au LOT-24 et exige la machine cible :
-TWS ou IB Gateway en lecture seule sur loopback avec un `client_id` non nul
-(`IBKR_SETUP.md`), le projet Cloudflare pour le webhook TradingView
-(`TRADINGVIEW_SETUP.md`, blocage B-03), et la matrice réelle des entitlements.
+Brancher une source réelle exige la machine cible : TWS ou IB Gateway en
+lecture seule sur loopback avec un `client_id` non nul (`IBKR_SETUP.md`), et
+le projet Cloudflare pour le webhook TradingView (`TRADINGVIEW_SETUP.md`,
+blocage B-03).
+
+La première commande à lancer, TWS allumé, est la sonde de droits :
+
+```bash
+python3 tools/probe_entitlements.py --symbol <SYMBOLE> --dry-run
+```
+
+Elle imprime les droits RÉELS champ par champ en moins d'une minute, au lieu
+de les découvrir page par page. La séquence complète est dans
+`IBKR_SETUP.md`, section « Sonder les droits RÉELS ». Avec `--persist`, la
+page `/system` cesse d'afficher `NEVER_TESTED` pour les capacités
+effectivement sondées — et pour elles seules.
 
 ## En cas d'échec
 
