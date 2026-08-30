@@ -1,6 +1,7 @@
 import { useState } from 'react';
 
 import { isApiError } from '../../api/client.ts';
+import { saveTextAsFile, yieldToBrowser } from '../../app/downloadFile.ts';
 import { getPerformanceExport, usePerformance, usePortfolio } from '../../api/portfolioApi.ts';
 import type { PerformanceSnapshotResponse } from '../../api/client.ts';
 import { pageStateOf } from '../../api/hooks.ts';
@@ -71,18 +72,6 @@ function metricRawValue(key: MetricKey, block: MetricBlockView): string | null {
     return block.rate;
   }
   return block.maxDrawdown;
-}
-
-function saveTextAsFile(text: string, filename: string, mediaType: string): void {
-  const blob = new Blob([text], { type: mediaType });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = filename;
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  URL.revokeObjectURL(url);
 }
 
 function MetricsBand({ view }: { readonly view: PerformanceContentView }) {
@@ -170,6 +159,9 @@ export function PerformancePage() {
     try {
       const result = await getPerformanceExport(id);
       saveTextAsFile(result.csv, `vertex-performance-${id}.csv`, 'text/csv');
+      // Deux téléchargements dans la MÊME tâche : WebKit n'en délivre qu'un.
+      // Mesuré par la première exécution des trois moteurs.
+      await yieldToBrowser();
       saveTextAsFile(
         JSON.stringify(result.manifest, null, 2),
         `vertex-performance-${id}-manifest.json`,

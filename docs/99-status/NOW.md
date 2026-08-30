@@ -48,7 +48,9 @@ checks_locaux:
   - "intégration PostgreSQL : 96 (persistance) + 29 (worker, dont 12 chaos)
      + 65 (api) — exécution SÉRIELLE obligatoire, base partagée"
   - "vitest 337 passed ; tsc 0 erreur ; biome 0 violation"
-  - "playwright 234 passed + 168 cas d'accessibilité"
+  - "playwright Chromium 402 passed (dont 168 d'accessibilité)"
+  - "playwright 3 moteurs (nightly 33312346908) : 659 passed, 3 failed —
+     passkey CDP intestable hors Chromium, export WebKit à 1 fichier sur 2"
   - "ruff : All checks passed ; mypy --strict : 115 fichiers, 0 erreur"
   - "worker Cloudflare : 53 tests de contrat"
   - "run_checks.sh TOUT VERT"

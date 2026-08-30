@@ -54,7 +54,7 @@ Ce fichier ne contient pas de décision humaine ; celles-ci restent dans
 | Fichiers non typés | `apps/web/tsconfig.json` n'inclut que `src` : `e2e/`, `scripts/gen-api.ts` et `playwright.config.ts` ne sont vérifiés par **aucun** `tsc` (Playwright transpile sans typer). Biome les couvre depuis la porte `web-quality`, mais un lint ne remplace pas un typage. |
 | Formatage web | Le formateur Biome est **désactivé** : le meilleur réglage réécrirait 61 % des fichiers. La mise en forme n'est donc gardée par aucune porte. Décision mesurée, à reprendre dans un commit purement mécanique. |
 | Supply-chain | `uv.lock` verrouille les 60 paquets Python en versions exactes + 1035 hachages sha256 ; `pip-audit --strict` et `pnpm audit --audit-level high` remontent **0 vulnérabilité** (exécutés localement) ; une SBOM CycloneDX 1.6 de 53 composants est produite PAR LA CI (le job supply-chain est vert sur GitHub ; aucun artefact SBOM n'est commité dans l'arbre, et il ne doit pas l'être). Manquent encore : **signature** (cosign), **provenance** SLSA, scan d'image de conteneur, et SBOM du volet Node. |
-| Navigateurs | Playwright tourne sur **Chromium** en CI de branche. Firefox et WebKit sont couverts par `.github/workflows/nightly.yml`. Ce workflow a tourné une fois (exécution `33311874652`) et a **ÉCHOUÉ avant toute mesure**, dans `e2e/global.setup.ts` : le job installait `firefox webkit` sans Chromium, alors que la préparation de session crée la première passkey par l'authentificateur WebAuthn virtuel, qui passe par CDP — donc par Chromium. Le job installe désormais les trois moteurs, mais **aucun chiffre Firefox ou WebKit n'existe encore**. Tant qu'un run abouti n'existe pas, la couverture navigateur réelle du produit se limite à Chromium. Les binaires ne sont par ailleurs pas téléchargeables depuis l'environnement de développement (CDN Playwright injoignable) : cette preuve ne peut venir que de la CI. |
+| Navigateurs | Playwright tourne sur **Chromium** en CI de branche ; Firefox et WebKit par `.github/workflows/nightly.yml`. Les binaires ne sont pas téléchargeables depuis l'environnement de développement (CDN Playwright injoignable) : **toute preuve hors Chromium ne peut venir que de la CI**, et aucune correction visant Firefox ou WebKit n'est vérifiable localement. Les deux premières exécutions et ce qu'elles ont donné sont détaillées dans la section « Trois moteurs de rendu » plus bas. |
 | Données | **Aucune donnée réelle n'a jamais été observée.** Tout est `SYNTHETIC` étiqueté ; IBKR n'a jamais été contacté ; Cloudflare n'est pas déployé. |
 | Détection de secrets | `tools/check_secrets.py` inspecte l'**arbre suivi**, pas l'historique Git. Un secret introduit puis retiré dans un commit antérieur ne serait pas vu. La détection est par motifs : une forme non listée passe. Le fichier d'allowlist est désormais balayé lui aussi — seules les valeurs de ses champs `match` en sont dispensées. |
 | Probabilités | `probability.calibration` est `NOT_IMPLEMENTED` au registre : aucune probabilité prédictive n'est affichable, et aucune ne l'est. |
@@ -182,6 +182,46 @@ tabulation, mesuré par différentiel avant/après `Tab` ;
 antérieurs — « 144 assertions », « 12 routes » — étaient faux deux fois : ce
 sont des cas de test, et trois des douze routes étaient mesurées à VIDE parce
 qu'elles sont paramétrées et étaient visitées sans paramètre.
+
+## Trois moteurs de rendu — première mesure réelle
+
+`.github/workflows/nightly.yml` a tourné deux fois.
+
+**Exécution 1 (`33311874652`, sur `main`) — ÉCHEC avant toute mesure.** Le job
+installait `firefox webkit` sans Chromium ; `e2e/global.setup.ts:169` appelle
+`chromium.launch()` pour créer la première passkey via l'authentificateur
+WebAuthn virtuel (CDP). Aucun test n'a démarré. Corrigé : le job installe les
+trois moteurs.
+
+**Exécution 2 (`33312346908`) — première mesure réelle : 659 passés, 3
+échoués, 11,1 min.** Deux causes distinctes, aucune masquée :
+
+1. **`auth.spec.ts:38` sur Firefox ET WebKit** — `context.newCDPSession()`
+   lève « CDP session is only available in Chromium ». L'authentificateur
+   WebAuthn virtuel n'existe que derrière CDP et Playwright n'expose aucun
+   équivalent ailleurs : la cérémonie de connexion par passkey est
+   **intestable** hors Chromium. Le test est désormais sauté sur les deux
+   autres moteurs, avec le motif écrit.
+   **CE QUE CELA LAISSE OUVERT** : la connexion par passkey n'est prouvée que
+   sur Chromium. Ce qui reste prouvé partout : l'état « Session requise » sans
+   session, et les 659 tests qui tournent authentifiés par l'état de session
+   enregistré au setup.
+2. **`performance.spec.ts:92` sur WebKit seul — DÉFAUT PRODUIT.** L'export
+   « CSV + manifeste » de la page Performance ne produisait **qu'un fichier sur
+   deux**. Deux causes, corrigées : `URL.revokeObjectURL()` était appelé
+   synchronement après `click()` — le clic ne fait qu'ordonnancer le
+   téléchargement, WebKit lit l'URL ensuite et la trouvait révoquée ; et deux
+   `click()` dans la même tâche, dont WebKit ne délivre que le premier.
+   L'utilitaire existait en **trois copies** portant toutes le défaut
+   (`PerformancePage.tsx`, `LedgerPanel.tsx`, `MarketsTable.tsx`) ; elles sont
+   remplacées par `src/app/downloadFile.ts`, propriétaire unique.
+   **CE CORRECTIF N'EST PAS VÉRIFIÉ** : il ne peut l'être que par une
+   exécution nocturne. Les tests unitaires ajoutés tournent sur jsdom et
+   prouvent la forme du correctif, pas le comportement de WebKit.
+
+Ce que cette campagne a coûté à la confiance dans les chiffres antérieurs :
+234 tests Chromium verts n'avaient rien dit d'un export cassé sur un moteur
+sur trois. Le produit n'a jamais été observé hors Chromium avant le 30 août.
 
 ## Campagne chaos LOT-23 — ce qu'elle couvre, ce qu'elle ne couvre pas
 
