@@ -63,6 +63,11 @@ from typing import Any, Literal
 
 from fastapi import HTTPException
 
+from vertex_api.freshness import (
+    REASON_SNAPSHOT_STALE,
+    closed_session_budget,
+    evaluate_relay_freshness,
+)
 from vertex_api.snapshot_views import (
     SnapshotContentError,
     _parse_utc,
@@ -71,6 +76,7 @@ from vertex_api.snapshot_views import (
     _require_mapping,
     _require_str,
     checked_relayed_content,
+    require_snapshot_as_of,
 )
 from vertex_core.contracts.types import (
     ContractModel,
@@ -171,16 +177,11 @@ knows no session state) needs no conservative pick between the two.
 
 _FRESHNESS_POLICY = get_freshness_policy(CALENDAR_FRESHNESS_POLICY)
 
-CALENDAR_MAX_AGE = timedelta(seconds=_FRESHNESS_POLICY.ttl_closed_seconds)
+CALENDAR_MAX_AGE = closed_session_budget(_FRESHNESS_POLICY)
 """Freshness budget of the relayed snapshot. Past it the agenda is served
 ``stale``: an agenda published days ago is not a current one, whatever the
 frozen ``agenda_state`` says."""
 
-REASON_SNAPSHOT_STALE = (
-    "snapshot older than its freshness budget: age {age} s for a budget of "
-    "{budget} s ({policy}@{version} closed-session TTL); the worker "
-    "published nothing newer"
-)
 
 REASON_EVERY_SERVED_EVENT_STALE = (
     "every served event is past its published stale_after ({count}/{count} "
@@ -337,23 +338,23 @@ def _utc_now() -> datetime:
 
 
 def _snapshot_age(snapshot: CurrentSnapshot, *, now: datetime) -> timedelta:
-    """Age measured on SERVER timestamps only (never on stored content)."""
-    as_of = snapshot.as_of
-    if not isinstance(as_of, datetime):
-        raise SnapshotContentError(
-            "snapshot.as_of: datetime required", field="snapshot.as_of"
-        )
-    if as_of.tzinfo is None or as_of.tzinfo.utcoffset(as_of) is None:
-        raise SnapshotContentError(
-            "snapshot.as_of: naive datetime rejected", field="snapshot.as_of"
-        )
-    age = now.astimezone(UTC) - as_of.astimezone(UTC)
-    if age < _ZERO:
+    """Age measured on SERVER timestamps only (never on stored content).
+
+    The agenda relay declares NO drift tolerance: unlike ``opportunities``,
+    it recomputes a per-event ``fresh`` flag against this clock, so a lead of
+    even one second would make those flags say something the clock cannot
+    support. A snapshot dated ahead is therefore refused outright — the
+    historical behaviour, unchanged by the move to the shared owner.
+    """
+    freshness = evaluate_relay_freshness(
+        require_snapshot_as_of(snapshot), now=now, policy=_FRESHNESS_POLICY
+    )
+    if freshness.clock_inconsistent:
         raise SnapshotContentError(
             "snapshot.as_of: a snapshot dated in the future cannot be served",
             field="snapshot.as_of",
         )
-    return age
+    return freshness.age
 
 
 def build_calendar_response(

@@ -78,6 +78,12 @@ from typing import Annotated, Any, Literal
 import yaml
 from pydantic import Field
 
+from vertex_api.freshness import (
+    REASON_CLOCK_INCONSISTENT,
+    REASON_SNAPSHOT_STALE,
+    closed_session_budget,
+    evaluate_relay_freshness,
+)
 from vertex_api.snapshot_views import (
     SnapshotContentError,
     _parse_utc,
@@ -86,6 +92,7 @@ from vertex_api.snapshot_views import (
     _require_str,
     _wire_mapping,
     checked_relayed_content,
+    require_snapshot_as_of,
 )
 from vertex_core.contracts.types import (
     ContractModel,
@@ -177,19 +184,15 @@ registry's own versioned value — not a number invented here.
 
 _FRESHNESS_POLICY = get_freshness_policy(OPPORTUNITIES_FRESHNESS_POLICY)
 
-OPPORTUNITIES_MAX_AGE = timedelta(seconds=_FRESHNESS_POLICY.ttl_closed_seconds)
+OPPORTUNITIES_MAX_AGE = closed_session_budget(_FRESHNESS_POLICY)
 """Freshness budget of the relayed snapshot (CLOSED-session TTL of the
 ``daily_bar`` policy: it covers a normal weekend, so a legitimate quiet
 period is never mislabeled). The relay knows no session state, hence the
 conservative bound of the two. Past it the snapshot is served ``stale``.
-"""
 
-REASON_SNAPSHOT_STALE = (
-    "snapshot older than its freshness budget: age {age} s for a budget of "
-    "{budget} s ({policy}@{version} closed-session TTL); the worker published "
-    "nothing newer"
-)
-"""Served instead of ``reason = None`` when the budget is exceeded."""
+Value and rationale unchanged: :func:`vertex_api.freshness.closed_session_budget`
+is now the single owner of the SAME rule, shared with every other relay.
+"""
 
 OPPORTUNITIES_CLOCK_DRIFT_TOLERANCE = timedelta(seconds=5)
 """Accepted lead of the persisted ``as_of`` over the relay clock (P2-J).
@@ -207,13 +210,6 @@ misconfigured clock. Beyond it the relay stops guessing and says so (see
 date, or blaming the stored content for a clock problem.
 """
 
-REASON_CLOCK_INCONSISTENT = (
-    "server clock inconsistency: the snapshot is dated {drift} s ahead of the "
-    "relay clock, beyond the declared drift tolerance of {tolerance} s. The "
-    "verdict cannot be dated, so it is not served. This is a CLOCK problem "
-    "between the worker and the API, NOT an invalid snapshot content"
-)
-"""Served with ``state = "clock_inconsistent"`` past the drift tolerance."""
 
 _ZERO = timedelta(0)
 
@@ -636,27 +632,6 @@ def _referenced_profile(
     return profile
 
 
-def _snapshot_age(snapshot: CurrentSnapshot, *, now: datetime) -> timedelta:
-    """Signed age measured on SERVER timestamps only (never on content).
-
-    The result is NEGATIVE when the snapshot row is dated ahead of the relay
-    clock. That is a two-process reality, not a content defect, so it is
-    returned as-is and interpreted by the caller against
-    :data:`OPPORTUNITIES_CLOCK_DRIFT_TOLERANCE` (P2-J). Only a genuinely
-    unusable stamp — absent, not a datetime, or naive — is a content defect.
-    """
-    as_of = snapshot.as_of
-    if not isinstance(as_of, datetime):
-        raise SnapshotContentError(
-            "snapshot.as_of: datetime required", field="snapshot.as_of"
-        )
-    if as_of.tzinfo is None or as_of.tzinfo.utcoffset(as_of) is None:
-        raise SnapshotContentError(
-            "snapshot.as_of: naive datetime rejected", field="snapshot.as_of"
-        )
-    return now.astimezone(UTC) - as_of.astimezone(UTC)
-
-
 def build_opportunities_response(
     snapshot: CurrentSnapshot | None,
     *,
@@ -719,8 +694,13 @@ def build_opportunities_response(
     # one of its fields.
     checked_relayed_content(content)
 
-    age = _snapshot_age(snapshot, now=_utc_now() if now is None else now)
-    if age < -OPPORTUNITIES_CLOCK_DRIFT_TOLERANCE:
+    freshness = evaluate_relay_freshness(
+        require_snapshot_as_of(snapshot),
+        now=_utc_now() if now is None else now,
+        policy=_FRESHNESS_POLICY,
+        drift_tolerance=OPPORTUNITIES_CLOCK_DRIFT_TOLERANCE,
+    )
+    if freshness.clock_inconsistent:
         # The snapshot is dated further ahead than two processes can drift:
         # its age is unknown, so no verdict is served — and the reason names
         # the CLOCK, never the persisted content (P2-J).
@@ -730,29 +710,13 @@ def build_opportunities_response(
             as_of=None,
             age_seconds=None,
             content=None,
-            reason=REASON_CLOCK_INCONSISTENT.format(
-                drift=int(-age.total_seconds()),
-                tolerance=int(OPPORTUNITIES_CLOCK_DRIFT_TOLERANCE.total_seconds()),
-            ),
+            reason=freshness.clock_reason,
         )
-    if age < _ZERO:
-        # Tolerated process skew: the age is clamped, never published negative.
-        age = _ZERO
-    stale = age > OPPORTUNITIES_MAX_AGE
     return OpportunitiesResponse(
-        state="stale" if stale else "ok",
+        state="stale" if freshness.stale else "ok",
         snapshot_version=snapshot.version,
         as_of=_parse_utc(content.get("as_of"), field="as_of"),
-        age_seconds=int(age.total_seconds()),
+        age_seconds=freshness.age_seconds,
         content=content,
-        reason=(
-            REASON_SNAPSHOT_STALE.format(
-                age=int(age.total_seconds()),
-                budget=int(OPPORTUNITIES_MAX_AGE.total_seconds()),
-                policy=_FRESHNESS_POLICY.name,
-                version=_FRESHNESS_POLICY.version,
-            )
-            if stale
-            else None
-        ),
+        reason=freshness.stale_reason,
     )

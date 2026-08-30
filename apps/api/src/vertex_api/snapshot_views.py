@@ -146,6 +146,7 @@ __all__ = [
     "build_system_health",
     "checked_relayed_content",
     "is_synthetic_marker",
+    "require_snapshot_as_of",
 ]
 
 REASON_NO_SNAPSHOT_PUBLISHED = "no snapshot published"
@@ -171,6 +172,30 @@ class SnapshotContentError(ValueError):
     def __init__(self, message: str, *, field: str | None = None) -> None:
         super().__init__(message)
         self.field = field
+
+
+def require_snapshot_as_of(snapshot: CurrentSnapshot) -> datetime:
+    """Instant de PUBLICATION de l'instantané, validé une fois pour toutes.
+
+    L'âge d'un relais se mesure sur cet horodatage SERVEUR, jamais sur le
+    contenu : un contenu date sa propre vérité métier, il ne date pas sa
+    publication. Un horodatage absent, non daté ou naïf est un défaut de
+    contenu persisté — d'où `SnapshotContentError`, dont ce module est le
+    propriétaire.
+
+    Le calcul de fraîcheur lui-même appartient à `vertex_api.freshness`, qui
+    n'importe rien d'ici : la frontière évite un import cyclique.
+    """
+    as_of = snapshot.as_of
+    if not isinstance(as_of, datetime):
+        raise SnapshotContentError(
+            "snapshot.as_of: datetime required", field="snapshot.as_of"
+        )
+    if as_of.tzinfo is None or as_of.tzinfo.utcoffset(as_of) is None:
+        raise SnapshotContentError(
+            "snapshot.as_of: naive datetime rejected", field="snapshot.as_of"
+        )
+    return as_of
 
 
 def _parse_utc(value: Any, *, field: str) -> datetime:
