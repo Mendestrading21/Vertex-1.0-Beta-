@@ -168,7 +168,10 @@ _SECRET_NAME = r"""[A-Za-z0-9_.-]*
            # Clés cryptographiques : leur nom ne contient ni « secret » ni
            # « password », mais leur valeur EST le secret.
            signing[_-]?key|encryption[_-]?key|hmac[_-]?key|secret[_-]?key|
-           session[_-]?key|master[_-]?key|signing[_-]?secret)
+           session[_-]?key|master[_-]?key|signing[_-]?secret|
+           # Formes courtes et matière cryptographique dont le nom ne contient
+           # ni « secret » ni « password ».
+           pwd|salt|pepper|cookie[_-]?key|bearer|nonce[_-]?key|seed[_-]?key)
      [A-Za-z0-9_.-]*"""
 
 ASSIGNMENT = re.compile(
@@ -179,9 +182,26 @@ ASSIGNMENT = re.compile(
     # d'erreur des garde-fous eux-mêmes.
     \s*[:=](?!\?)\s*
     (?:
-        (?P<quote>["\'])(?P<quoted>[^"\'\n]{16,200})(?P=quote)
+        # Pas de borne HAUTE : elle faisait décrocher la règle sur la
+        # LONGUEUR — un secret de 210 caractères entre guillemets était
+        # invisible, alors qu'un secret est d'autant plus sérieux qu'il est
+        # long. La borne basse reste (16), elle écarte le bruit.
+        (?P<quote>["\'])(?P<quoted>[^"\'\n]{16,})(?P=quote)
       | (?P<bare>[^\s"\',;{}\[\]#]{16,200})
     )
+    """
+)
+
+#: Guillemet OUVRANT sans fermant dans la tranche examinée. Une valeur plus
+#: longue que la tranche de découpage n'a pas son guillemet fermant ici : la
+#: règle principale ne peut pas la voir, et c'est exactement le cas d'un
+#: secret très long. On rapporte alors le préfixe — il suffit à alerter, et il
+#: n'est de toute façon jamais reproduit dans le rapport.
+UNTERMINATED_ASSIGNMENT = re.compile(
+    r"""(?ix)
+    (?P<nq>["\']?)(?P<name>""" + _SECRET_NAME + r""")(?P=nq)
+    \s*[:=](?!\?)\s*
+    ["\'](?P<open>[^"\'\n]{200,})$
     """
 )
 
@@ -419,6 +439,20 @@ def _scan_line(path: str, number: int, line: str) -> Iterable[Finding]:
                 # ``${VAR}``…) : la forme du secret est là, la donnée non.
                 continue
             yield Finding(path, number, rule.code, rule.label, captured)
+    for found in UNTERMINATED_ASSIGNMENT.finditer(line):
+        opened = found.group("open").strip()
+        if name_is_not_the_secret(found.group("name"), opened):
+            continue
+        per_char = shannon_bits_per_char(opened)
+        if per_char >= MIN_ENTROPY_BITS and per_char * len(opened) >= MIN_TOTAL_ENTROPY_BITS:
+            yield Finding(
+                path,
+                number,
+                "HIGH_ENTROPY_ASSIGNMENT",
+                f"valeur à forte entropie affectée à « {found.group('name')} » "
+                "(guillemet fermant hors de la tranche examinée)",
+                opened,
+            )
     for found in ASSIGNMENT.finditer(line):
         bare = found.group("bare")
         if bare is not None and not _bare_values_are_data(path):

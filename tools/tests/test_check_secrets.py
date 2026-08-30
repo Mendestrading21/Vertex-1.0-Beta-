@@ -446,3 +446,62 @@ def test_un_vrai_gabarit_reste_silencieux(value: str) -> None:
     """Anti-vacuité : la nouvelle épreuve d'entropie ne s'applique qu'aux
     gabarits par MOT-marqueur, pas aux gabarits par FORME."""
     assert {f.code for f in gate.scan_text("c.yaml", f"api_key: {value}")} == set()
+
+
+# ── 8e audit : la règle décrochait sur la LONGUEUR ────────────────────────
+#
+# La branche quotée exigeait le guillemet fermant après AU PLUS 200
+# caractères. Au-delà, la règle échouait au backtracking et le secret était
+# invisible — alors qu'un secret est d'autant plus sérieux qu'il est long.
+# Asymétrie observée : la même valeur NON quotée était détectée, parce que
+# cette branche-là n'a pas d'ancre de fin.
+
+def _long_hex(length: int) -> str:
+    return "".join(f"{index:x}" for index in range(length * 2))[:length]
+
+
+@pytest.mark.parametrize("length", [201, 260, 1024, 4096])
+def test_un_secret_quote_long_est_detecte(length: int) -> None:
+    value = _long_hex(length)
+    assert {f.code for f in gate.scan_text("a.py", f'API_KEY = "{value}"')}
+
+
+@pytest.mark.parametrize(
+    ("label", "path", "text"),
+    [
+        ("JSON minifié", "c.json", '{"client_secret":"%s"}' % _long_hex(260)),
+        ("YAML quoté", "c.yaml", 'client_secret: "%s"' % _long_hex(260)),
+        ("YAML non quoté", "c.yaml", "client_secret: %s" % _long_hex(260)),
+    ],
+)
+def test_la_longueur_ne_cree_plus_d_asymetrie(label: str, path: str, text: str) -> None:
+    """Quotée ou nue, une valeur longue doit être vue de la même façon."""
+    assert {f.code for f in gate.scan_text(path, text)}, label
+
+
+@pytest.mark.parametrize(
+    "name",
+    ["DB_PWD", "VERTEX_SALT", "VERTEX_PEPPER", "VERTEX_COOKIE_KEY", "VERTEX_BEARER"],
+)
+def test_les_formes_courtes_et_la_matiere_cryptographique_sont_couvertes(name: str) -> None:
+    """Leur nom ne contient ni « secret » ni « password ».
+
+    Un sel et un poivre ne sont pas des secrets au sens strict — mais les
+    publier affaiblit le hachage qu'ils protègent, et rien ne les distingue
+    d'une clé à la lecture.
+    """
+    assert {f.code for f in gate.scan_text("a.py", f'{name} = "9f3Kd2Lm8Qz7Xv4Bn1Rt6Yw0Hs5JpQ7zL2mNx4"')}
+
+
+@pytest.mark.parametrize(
+    ("label", "path", "text"),
+    [
+        ("prose", "a.md", "Le sel cryptographique est stocké dans le gestionnaire de secrets."),
+        ("gabarit", "c.yaml", "salt: CHANGE_ME"),
+        ("référence", "c.yaml", "cookie_key_path: /run/secrets/cookie.key"),
+    ],
+)
+def test_le_vocabulaire_elargi_ne_cree_pas_de_faux_positif(
+    label: str, path: str, text: str
+) -> None:
+    assert {f.code for f in gate.scan_text(path, text)} == set(), label
