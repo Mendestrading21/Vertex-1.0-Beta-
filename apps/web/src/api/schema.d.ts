@@ -3469,7 +3469,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Whole-input rejection: CSV_TOO_LARGE (256 KiB), CSV_TOO_MANY_ROWS (500 data rows) or CSV_HEADER_INVALID. */
+            /** @description Whole-input rejection: CSV_TOO_LARGE (256 KiB), CSV_TOO_MANY_ROWS (500 data rows), CSV_HEADER_INVALID or CSV_MALFORMED (a cell the CSV reader itself refuses; the stdlib message is never relayed, it can quote the file). */
             422: {
                 headers: {
                     [name: string]: unknown;

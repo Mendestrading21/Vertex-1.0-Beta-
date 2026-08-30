@@ -856,7 +856,9 @@ def compensate_transaction(
         422: {
             "description": (
                 "Whole-input rejection: CSV_TOO_LARGE (256 KiB), "
-                "CSV_TOO_MANY_ROWS (500 data rows) or CSV_HEADER_INVALID."
+                "CSV_TOO_MANY_ROWS (500 data rows), CSV_HEADER_INVALID or "
+                "CSV_MALFORMED (a cell the CSV reader itself refuses; the "
+                "stdlib message is never relayed, it can quote the file)."
             )
         }
     },
