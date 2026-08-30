@@ -4,8 +4,8 @@
 phase: douze_pages_livrees_portes_ci_completees_lot_23_entame
 lot: LOT-23 — qualité, politique, performance, chaos, accessibilité
 branch: claude/vertex-connection-kgkntr
-status: batterie_locale_TOUT_VERT_ci_verte_sur_5a40bc8
-last_good_commit: 5a40bc8
+status: neuvieme_audit_ferme_batterie_locale_TOUT_VERT_nightly_en_cours
+last_good_commit: 9310b1f (= origin/main, PR #4 fusionnée)
 completed:
   - vagues_1_a_5: 13 routes sur 13 réelles (PR #1, #2 et #3 fusionnées)
   - ci: 7 jobs, 25 portes nommées — VERTE sur 5a40bc8 ; actions épinglées par SHA de COMMIT
@@ -23,7 +23,13 @@ completed:
          SPDX, fraîcheur des notices"
       - "performance — budgets MESURÉS, jamais déclarés"
       - "traceability — chaque interdiction absolue reliée à sa preuve :
-         25 prouvées sur 30, 5 écarts écrits, datés et imprimés"
+         24 prouvées sur 30, 6 écarts écrits, datés et imprimés. Les 67
+         citations nomment un test précis (58 pointaient un fichier entier),
+         la correspondance est exacte, et le champ `text` est confronté mot
+         pour mot à la règle (14 entrées divergeaient)"
+      - "release/notices --verify — chaque licence relue chez le
+         distributeur : 245 relues, 0 injoignable, 0 divergence. Le blanchiment
+         LGPL-3.0-only → MIT par deux `sed` cohérents est détecté"
   - supply_chain: uv.lock exact + hachages ; pip-audit et pnpm audit sans
       vulnérabilité ; SBOM CycloneDX produite PAR LA CI
   - infra: compose durci (loopback seul, digests) ; sauvegarde chiffrée à
@@ -37,17 +43,22 @@ audits:
   - "la campagne chaos a trouvé une RÉGRESSION P0 pendant son écriture :
      isinstance(envelope, DataEnvelope[Any]) — une paramétrisation générique
      Pydantic est une classe distincte, toute l'ingestion était cassée"
+  - "NEUVIÈME audit : six contournements de plus, tous reproduits puis fermés
+     — allowlist de secrets non balayée, licence jamais reconfrontée à sa
+     source, bundle 32x au-dessus du budget accepté par la porte, matrice
+     comptant des déclarations, deux mutants survivants, profil à autorité
+     absolue sans métadonnées"
   - "SIX chiffres de ce registre se sont révélés faux, dont un trois fois ;
      deux affirmations de sécurité ont été démenties par exécution"
 mesures_reelles:
-  bundle_initial_gzip: "118 291 octets (budget 307 200)"
+  bundle_initial_gzip: "118 317 octets (budget 307 200)"
   moteurs_de_graphes: "hors charge initiale — ECharts 205 ko, Lightweight 53 ko"
   accessibilite: "168 cas de test verts, 14 chemins × 3 viewports (Chromium seul)"
 checks_locaux:
-  - "pytest 3433 passed / 0 failed"
-  - "intégration PostgreSQL : 96 (persistance) + 29 (worker, dont 12 chaos)
+  - "pytest 3501 passed / 0 failed"
+  - "intégration PostgreSQL : 96 (persistance) + 32 (worker, dont 15 chaos)
      + 65 (api) — exécution SÉRIELLE obligatoire, base partagée"
-  - "vitest 337 passed ; tsc 0 erreur ; biome 0 violation"
+  - "vitest 384 passed ; tsc 0 erreur ; biome 0 violation (125 fichiers)"
   - "playwright Chromium 402 passed (dont 168 d'accessibilité)"
   - "playwright 3 moteurs (nightly 33313838830) : 659 passed, 2 skipped,
      1 failed — export WebKit à 1 fichier sur 2, correctif suivant NON VÉRIFIÉ"
