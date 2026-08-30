@@ -219,14 +219,19 @@ def _findings_from_tree(tree: ast.AST) -> set[str]:
             called = _dotted_name(node.func)
             if called is None:
                 continue
+            # Positionnels ET nommés : `import_module(name="…")` et
+            # `subprocess.run(args=[…])` sont des littéraux écrits en clair,
+            # que la portée revendiquée couvre — n'itérer que `node.args` les
+            # laissait passer (6e audit).
+            arguments = [*node.args, *(keyword.value for keyword in node.keywords)]
             if called in DYNAMIC_IMPORT_ENTRY_POINTS:
-                for argument in node.args:
+                for argument in arguments:
                     for literal in _string_literals(argument):
                         root = literal.split(".", 1)[0]
                         if root in FORBIDDEN_ROOTS:
                             findings.add(f"import-dynamique:{root}")
             if called in PROCESS_ENTRY_POINTS:
-                for argument in node.args:
+                for argument in arguments:
                     for literal in _string_literals(argument):
                         for executable in _executables_in(literal):
                             findings.add(f"sous-processus:{executable}")

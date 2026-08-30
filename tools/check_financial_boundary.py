@@ -60,12 +60,33 @@ FALLBACK_FRAGMENTS = {
 # Fragments generic enough to collide with legitimate Vertex routes (the manual
 # portfolio page) are only flagged when the line clearly targets a broker API.
 AMBIGUOUS_FRAGMENTS = {"/portfolio/", "/portfolio/accounts"}
+
+# Symboles dont le NOM NU est aussi du vocabulaire métier légitime de Vertex :
+# le portefeuille MANUEL de l'utilisateur a des « positions » et un
+# « portfolio », ce sont des clés de contenu et des noms de champs partout dans
+# le produit. Les signaler en tant que chaîne produirait 29 faux positifs et
+# rendrait la porte illisible — donc inappliquée.
+# Ils restent signalés en APPEL et en ACCÈS D'ATTRIBUT (`ib.positions`,
+# `ib.portfolio()`), qui sont les formes réellement dangereuses : c'est la
+# façon dont on atteindrait la capacité IBKR.
+AMBIGUOUS_BARE_SYMBOLS = {
+    "portfolio",
+    "positions",
+}
 BROKER_CONTEXT = re.compile(r"iserver|ibkr|interactive\s*brokers|clientportal", re.IGNORECASE)
 
 CODE_SUFFIXES = {".py", ".js", ".jsx", ".ts", ".tsx"}
-# "tools" is excluded because this scanner itself must name the forbidden
-# symbols and endpoint fragments; tools/ is dev-only, never runtime code.
-SKIP_PARTS = {".git", ".venv", "node_modules", "tests", "fixtures", "docs", "dist", "build", "tools"}
+# `tests` et `tools` ne sont PLUS ignorés : le manifeste déclare
+# `scope: [runtime, tests, dependencies, routes, permissions, ai_tools]`, et le
+# scanner les écartait — un appel interdit écrit dans un test passait donc la
+# porte la plus critique du programme. Les deux fichiers qui nomment
+# légitimement ces symboles sont exemptés NOMMÉMENT dans
+# `manifests/financial-boundary-allowlist.yaml`, avec un motif écrit.
+# `docs` et `fixtures` restent écartés : ce n'est pas du code, et la
+# documentation doit pouvoir NOMMER ce qu'elle interdit.
+SKIP_PARTS = {".git", ".venv", "node_modules", "fixtures", "docs", "dist", "build"}
+
+ALLOWLIST_FILENAME = "financial-boundary-allowlist.yaml"
 
 
 def load_manifest(root: Path) -> tuple[set[str], set[str]]:
@@ -91,6 +112,39 @@ def load_manifest(root: Path) -> tuple[set[str], set[str]]:
     return symbols | FALLBACK_CALLS, fragments | FALLBACK_FRAGMENTS
 
 
+def load_allowlist(root: Path) -> dict[str, str]:
+    """Exemptions NOMMÉES : ``"<chemin>:<symbole>" -> motif``.
+
+    Deux fichiers du dépôt nomment légitimement les capacités interdites : le
+    test qui prouve leur ABSENCE, et ce scanner lui-même. Les exempter par
+    chemin explicite, avec un motif écrit, vaut mieux que d'écarter des
+    répertoires entiers — ce que faisait `SKIP_PARTS`, et qui laissait passer
+    un appel interdit dans n'importe quel test.
+
+    Fail-closed : si le fichier d'exemptions est illisible, AUCUNE exemption
+    n'est accordée.
+    """
+    path = root / "manifests" / ALLOWLIST_FILENAME
+    if not path.is_file():
+        return {}
+    try:
+        import yaml  # type: ignore
+
+        data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+    except Exception:
+        return {}
+    allowed: dict[str, str] = {}
+    for entry in data.get("allow") or []:
+        missing = [k for k in ("path", "symbol", "reason") if not entry.get(k)]
+        if missing:
+            raise SystemExit(
+                f"manifests/{ALLOWLIST_FILENAME} : entrée incomplète, "
+                f"champs manquants {missing}"
+            )
+        allowed[f"{entry['path']}:{entry['symbol']}"] = str(entry["reason"])
+    return allowed
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("root", nargs="?", type=Path, default=Path.cwd())
@@ -106,16 +160,45 @@ def dotted_name(node: ast.AST) -> str | None:
 
 
 def scan_python(path: Path, forbidden: set[str]) -> list[dict[str, object]]:
+    """Toute MENTION d'une capacité interdite, pas seulement son appel.
+
+    Le scanner ne regardait que ``ast.Call``. Quatre vecteurs de code de
+    PRODUCTION passaient donc la porte (reproduits par le 6e audit) ::
+
+        send = ib.placeOrder                 # méthode liée, appelée ailleurs
+        read = getattr(ib, "reqPositions")   # nom en chaîne
+        fn   = {"p": ib.reqAccountSummary}["p"]
+        f    = ib.reqPnL                     # alias
+
+    Une capacité interdite ne doit pas être ATTEIGNABLE, pas seulement
+    non appelée : obtenir la référence suffit à l'appeler ailleurs. Sont donc
+    signalés l'appel, l'accès d'attribut, et le nom écrit en chaîne — ce
+    dernier couvrant ``getattr``, l'indexation par nom et ``importlib``.
+    """
     findings: list[dict[str, object]] = []
     try:
         tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
     except (SyntaxError, UnicodeDecodeError):
         return findings
+    seen: set[tuple[int, str]] = set()
+
+    def record(line: int, symbol: str, kind: str) -> None:
+        if (line, symbol) in seen:
+            return
+        seen.add((line, symbol))
+        findings.append({"line": line, "symbol": symbol, "kind": kind})
+
     for node in ast.walk(tree):
         if isinstance(node, ast.Call):
             name = dotted_name(node.func)
             if name in forbidden:
-                findings.append({"line": node.lineno, "symbol": name})
+                record(node.lineno, name, "call")
+        elif isinstance(node, ast.Attribute):
+            if node.attr in forbidden:
+                record(node.lineno, node.attr, "attribute")
+        elif isinstance(node, ast.Constant) and isinstance(node.value, str):
+            if node.value in forbidden and node.value not in AMBIGUOUS_BARE_SYMBOLS:
+                record(node.lineno, node.value, "string")
     return findings
 
 
@@ -162,10 +245,13 @@ def scan_python_fragments(
 def main() -> int:
     root = parse_args().root.resolve()
     forbidden, fragments = load_manifest(root)
+    allowlist = load_allowlist(root)
+    used: set[str] = set()
     results: list[dict[str, object]] = []
     for path in sorted(root.rglob("*")):
         if not path.is_file() or path.suffix not in CODE_SUFFIXES:
             continue
+        relative = path.relative_to(root).as_posix()
         if any(part in SKIP_PARTS for part in path.relative_to(root).parts):
             continue
         if path.suffix == ".py":
@@ -174,7 +260,16 @@ def main() -> int:
         else:
             findings = scan_text(path, forbidden, fragments)
         for finding in findings:
-            results.append({"path": path.relative_to(root).as_posix(), **finding})
+            key = f"{relative}:{finding['symbol']}"
+            if key in allowlist:
+                used.add(key)
+                continue
+            results.append({"path": relative, **finding})
+    stale = sorted(set(allowlist) - used)
+    if stale:
+        # Une exemption sans occurrence est une dette morte : le fichier a pu
+        # être renommé ou nettoyé, et l'exemption couvrirait alors autre chose.
+        results.extend({"path": key, "symbol": "STALE_ALLOWLIST_ENTRY", "line": 0} for key in stale)
     print(json.dumps({"ok": not results, "findings": results}, indent=2))
     return 0 if not results else 1
 

@@ -1,0 +1,245 @@
+schema_version: 1
+# Exemptions NOMMÉES de la porte `tools/check_financial_boundary.py`.
+#
+# La porte signale toute MENTION d'une capacité IBKR interdite — appel, accès
+# d'attribut, et nom écrit en chaîne. Deux fichiers du dépôt nomment
+# légitimement ces symboles : le test qui prouve leur ABSENCE du code de
+# production, et le scanner lui-même, qui doit bien les connaître.
+#
+# Les exempter NOMMÉMENT vaut mieux que d'écarter des répertoires entiers :
+# `SKIP_PARTS` écartait `tests` et `tools`, si bien qu'un appel interdit écrit
+# dans n'importe quel test passait la porte la plus critique du programme
+# (6e audit adversarial). Le manifeste déclare pourtant
+# `scope: [runtime, tests, dependencies, routes, permissions, ai_tools]`.
+#
+# Une exemption sans occurrence est signalée comme dette morte : un fichier
+# renommé ou nettoyé ne doit pas laisser derrière lui une exemption qui
+# couvrirait autre chose.
+#
+# `reason` est obligatoire. « c'est un test » ne suffit pas : un appel interdit
+# dans un test reste un appel interdit.
+allow:
+  - path: apps/edge-ibkr/tests/test_denylist.py
+    symbol: "accountSummary"
+    reason: >-
+      Test qui prouve l'ABSENCE de ces capacités dans le code de production. Il les nomme en CHAÎNES uniquement — jamais en appel ni en accès d'attribut — précisément pour ne pas créer lui-même le chemin qu'il interdit.
+  - path: apps/edge-ibkr/tests/test_denylist.py
+    symbol: "cancelOrder"
+    reason: >-
+      Test qui prouve l'ABSENCE de ces capacités dans le code de production. Il les nomme en CHAÎNES uniquement — jamais en appel ni en accès d'attribut — précisément pour ne pas créer lui-même le chemin qu'il interdit.
+  - path: apps/edge-ibkr/tests/test_denylist.py
+    symbol: "completedOrders"
+    reason: >-
+      Test qui prouve l'ABSENCE de ces capacités dans le code de production. Il les nomme en CHAÎNES uniquement — jamais en appel ni en accès d'attribut — précisément pour ne pas créer lui-même le chemin qu'il interdit.
+  - path: apps/edge-ibkr/tests/test_denylist.py
+    symbol: "executions"
+    reason: >-
+      Test qui prouve l'ABSENCE de ces capacités dans le code de production. Il les nomme en CHAÎNES uniquement — jamais en appel ni en accès d'attribut — précisément pour ne pas créer lui-même le chemin qu'il interdit.
+  - path: apps/edge-ibkr/tests/test_denylist.py
+    symbol: "exerciseOptions"
+    reason: >-
+      Test qui prouve l'ABSENCE de ces capacités dans le code de production. Il les nomme en CHAÎNES uniquement — jamais en appel ni en accès d'attribut — précisément pour ne pas créer lui-même le chemin qu'il interdit.
+  - path: apps/edge-ibkr/tests/test_denylist.py
+    symbol: "managedAccounts"
+    reason: >-
+      Test qui prouve l'ABSENCE de ces capacités dans le code de production. Il les nomme en CHAÎNES uniquement — jamais en appel ni en accès d'attribut — précisément pour ne pas créer lui-même le chemin qu'il interdit.
+  - path: apps/edge-ibkr/tests/test_denylist.py
+    symbol: "openOrders"
+    reason: >-
+      Test qui prouve l'ABSENCE de ces capacités dans le code de production. Il les nomme en CHAÎNES uniquement — jamais en appel ni en accès d'attribut — précisément pour ne pas créer lui-même le chemin qu'il interdit.
+  - path: apps/edge-ibkr/tests/test_denylist.py
+    symbol: "placeOrder"
+    reason: >-
+      Test qui prouve l'ABSENCE de ces capacités dans le code de production. Il les nomme en CHAÎNES uniquement — jamais en appel ni en accès d'attribut — précisément pour ne pas créer lui-même le chemin qu'il interdit.
+  - path: apps/edge-ibkr/tests/test_denylist.py
+    symbol: "reqAccountSummary"
+    reason: >-
+      Test qui prouve l'ABSENCE de ces capacités dans le code de production. Il les nomme en CHAÎNES uniquement — jamais en appel ni en accès d'attribut — précisément pour ne pas créer lui-même le chemin qu'il interdit.
+  - path: apps/edge-ibkr/tests/test_denylist.py
+    symbol: "reqAccountUpdates"
+    reason: >-
+      Test qui prouve l'ABSENCE de ces capacités dans le code de production. Il les nomme en CHAÎNES uniquement — jamais en appel ni en accès d'attribut — précisément pour ne pas créer lui-même le chemin qu'il interdit.
+  - path: apps/edge-ibkr/tests/test_denylist.py
+    symbol: "reqAccountUpdatesMulti"
+    reason: >-
+      Test qui prouve l'ABSENCE de ces capacités dans le code de production. Il les nomme en CHAÎNES uniquement — jamais en appel ni en accès d'attribut — précisément pour ne pas créer lui-même le chemin qu'il interdit.
+  - path: apps/edge-ibkr/tests/test_denylist.py
+    symbol: "reqAllOpenOrders"
+    reason: >-
+      Test qui prouve l'ABSENCE de ces capacités dans le code de production. Il les nomme en CHAÎNES uniquement — jamais en appel ni en accès d'attribut — précisément pour ne pas créer lui-même le chemin qu'il interdit.
+  - path: apps/edge-ibkr/tests/test_denylist.py
+    symbol: "reqAutoOpenOrders"
+    reason: >-
+      Test qui prouve l'ABSENCE de ces capacités dans le code de production. Il les nomme en CHAÎNES uniquement — jamais en appel ni en accès d'attribut — précisément pour ne pas créer lui-même le chemin qu'il interdit.
+  - path: apps/edge-ibkr/tests/test_denylist.py
+    symbol: "reqCompletedOrders"
+    reason: >-
+      Test qui prouve l'ABSENCE de ces capacités dans le code de production. Il les nomme en CHAÎNES uniquement — jamais en appel ni en accès d'attribut — précisément pour ne pas créer lui-même le chemin qu'il interdit.
+  - path: apps/edge-ibkr/tests/test_denylist.py
+    symbol: "reqExecutions"
+    reason: >-
+      Test qui prouve l'ABSENCE de ces capacités dans le code de production. Il les nomme en CHAÎNES uniquement — jamais en appel ni en accès d'attribut — précisément pour ne pas créer lui-même le chemin qu'il interdit.
+  - path: apps/edge-ibkr/tests/test_denylist.py
+    symbol: "reqGlobalCancel"
+    reason: >-
+      Test qui prouve l'ABSENCE de ces capacités dans le code de production. Il les nomme en CHAÎNES uniquement — jamais en appel ni en accès d'attribut — précisément pour ne pas créer lui-même le chemin qu'il interdit.
+  - path: apps/edge-ibkr/tests/test_denylist.py
+    symbol: "reqIds"
+    reason: >-
+      Test qui prouve l'ABSENCE de ces capacités dans le code de production. Il les nomme en CHAÎNES uniquement — jamais en appel ni en accès d'attribut — précisément pour ne pas créer lui-même le chemin qu'il interdit.
+  - path: apps/edge-ibkr/tests/test_denylist.py
+    symbol: "reqOpenOrders"
+    reason: >-
+      Test qui prouve l'ABSENCE de ces capacités dans le code de production. Il les nomme en CHAÎNES uniquement — jamais en appel ni en accès d'attribut — précisément pour ne pas créer lui-même le chemin qu'il interdit.
+  - path: apps/edge-ibkr/tests/test_denylist.py
+    symbol: "reqPnL"
+    reason: >-
+      Test qui prouve l'ABSENCE de ces capacités dans le code de production. Il les nomme en CHAÎNES uniquement — jamais en appel ni en accès d'attribut — précisément pour ne pas créer lui-même le chemin qu'il interdit.
+  - path: apps/edge-ibkr/tests/test_denylist.py
+    symbol: "reqPnLSingle"
+    reason: >-
+      Test qui prouve l'ABSENCE de ces capacités dans le code de production. Il les nomme en CHAÎNES uniquement — jamais en appel ni en accès d'attribut — précisément pour ne pas créer lui-même le chemin qu'il interdit.
+  - path: apps/edge-ibkr/tests/test_denylist.py
+    symbol: "reqPositions"
+    reason: >-
+      Test qui prouve l'ABSENCE de ces capacités dans le code de production. Il les nomme en CHAÎNES uniquement — jamais en appel ni en accès d'attribut — précisément pour ne pas créer lui-même le chemin qu'il interdit.
+  - path: apps/edge-ibkr/tests/test_denylist.py
+    symbol: "reqPositionsMulti"
+    reason: >-
+      Test qui prouve l'ABSENCE de ces capacités dans le code de production. Il les nomme en CHAÎNES uniquement — jamais en appel ni en accès d'attribut — précisément pour ne pas créer lui-même le chemin qu'il interdit.
+  - path: apps/edge-ibkr/tests/test_denylist.py
+    symbol: "whatIfOrder"
+    reason: >-
+      Test qui prouve l'ABSENCE de ces capacités dans le code de production. Il les nomme en CHAÎNES uniquement — jamais en appel ni en accès d'attribut — précisément pour ne pas créer lui-même le chemin qu'il interdit.
+  - path: tools/check_financial_boundary.py
+    symbol: "/iserver/account/order"
+    reason: >-
+      La porte elle-même. Elle doit connaître les symboles qu'elle refuse ; sa liste de repli existe pour que le scan ne s'affaiblisse jamais en silence si le manifeste ou PyYAML manque.
+  - path: tools/check_financial_boundary.py
+    symbol: "/iserver/account/order"
+    reason: >-
+      La porte elle-même. Elle doit connaître les symboles qu'elle refuse ; sa liste de repli existe pour que le scan ne s'affaiblisse jamais en silence si le manifeste ou PyYAML manque.
+  - path: tools/check_financial_boundary.py
+    symbol: "/iserver/account/orders"
+    reason: >-
+      La porte elle-même. Elle doit connaître les symboles qu'elle refuse ; sa liste de repli existe pour que le scan ne s'affaiblisse jamais en silence si le manifeste ou PyYAML manque.
+  - path: tools/check_financial_boundary.py
+    symbol: "/iserver/account/pnl"
+    reason: >-
+      La porte elle-même. Elle doit connaître les symboles qu'elle refuse ; sa liste de repli existe pour que le scan ne s'affaiblisse jamais en silence si le manifeste ou PyYAML manque.
+  - path: tools/check_financial_boundary.py
+    symbol: "/iserver/account/trades"
+    reason: >-
+      La porte elle-même. Elle doit connaître les symboles qu'elle refuse ; sa liste de repli existe pour que le scan ne s'affaiblisse jamais en silence si le manifeste ou PyYAML manque.
+  - path: tools/check_financial_boundary.py
+    symbol: "/pa/performance"
+    reason: >-
+      La porte elle-même. Elle doit connaître les symboles qu'elle refuse ; sa liste de repli existe pour que le scan ne s'affaiblisse jamais en silence si le manifeste ou PyYAML manque.
+  - path: tools/check_financial_boundary.py
+    symbol: "accountSummary"
+    reason: >-
+      La porte elle-même. Elle doit connaître les symboles qu'elle refuse ; sa liste de repli existe pour que le scan ne s'affaiblisse jamais en silence si le manifeste ou PyYAML manque.
+  - path: tools/check_financial_boundary.py
+    symbol: "cancelOrder"
+    reason: >-
+      La porte elle-même. Elle doit connaître les symboles qu'elle refuse ; sa liste de repli existe pour que le scan ne s'affaiblisse jamais en silence si le manifeste ou PyYAML manque.
+  - path: tools/check_financial_boundary.py
+    symbol: "completedOrders"
+    reason: >-
+      La porte elle-même. Elle doit connaître les symboles qu'elle refuse ; sa liste de repli existe pour que le scan ne s'affaiblisse jamais en silence si le manifeste ou PyYAML manque.
+  - path: tools/check_financial_boundary.py
+    symbol: "executions"
+    reason: >-
+      La porte elle-même. Elle doit connaître les symboles qu'elle refuse ; sa liste de repli existe pour que le scan ne s'affaiblisse jamais en silence si le manifeste ou PyYAML manque.
+  - path: tools/check_financial_boundary.py
+    symbol: "exerciseOptions"
+    reason: >-
+      La porte elle-même. Elle doit connaître les symboles qu'elle refuse ; sa liste de repli existe pour que le scan ne s'affaiblisse jamais en silence si le manifeste ou PyYAML manque.
+  - path: tools/check_financial_boundary.py
+    symbol: "managedAccounts"
+    reason: >-
+      La porte elle-même. Elle doit connaître les symboles qu'elle refuse ; sa liste de repli existe pour que le scan ne s'affaiblisse jamais en silence si le manifeste ou PyYAML manque.
+  - path: tools/check_financial_boundary.py
+    symbol: "openOrders"
+    reason: >-
+      La porte elle-même. Elle doit connaître les symboles qu'elle refuse ; sa liste de repli existe pour que le scan ne s'affaiblisse jamais en silence si le manifeste ou PyYAML manque.
+  - path: tools/check_financial_boundary.py
+    symbol: "placeOrder"
+    reason: >-
+      La porte elle-même. Elle doit connaître les symboles qu'elle refuse ; sa liste de repli existe pour que le scan ne s'affaiblisse jamais en silence si le manifeste ou PyYAML manque.
+  - path: tools/check_financial_boundary.py
+    symbol: "reqAccountSummary"
+    reason: >-
+      La porte elle-même. Elle doit connaître les symboles qu'elle refuse ; sa liste de repli existe pour que le scan ne s'affaiblisse jamais en silence si le manifeste ou PyYAML manque.
+  - path: tools/check_financial_boundary.py
+    symbol: "reqAccountUpdates"
+    reason: >-
+      La porte elle-même. Elle doit connaître les symboles qu'elle refuse ; sa liste de repli existe pour que le scan ne s'affaiblisse jamais en silence si le manifeste ou PyYAML manque.
+  - path: tools/check_financial_boundary.py
+    symbol: "reqAccountUpdatesMulti"
+    reason: >-
+      La porte elle-même. Elle doit connaître les symboles qu'elle refuse ; sa liste de repli existe pour que le scan ne s'affaiblisse jamais en silence si le manifeste ou PyYAML manque.
+  - path: tools/check_financial_boundary.py
+    symbol: "reqAllOpenOrders"
+    reason: >-
+      La porte elle-même. Elle doit connaître les symboles qu'elle refuse ; sa liste de repli existe pour que le scan ne s'affaiblisse jamais en silence si le manifeste ou PyYAML manque.
+  - path: tools/check_financial_boundary.py
+    symbol: "reqAutoOpenOrders"
+    reason: >-
+      La porte elle-même. Elle doit connaître les symboles qu'elle refuse ; sa liste de repli existe pour que le scan ne s'affaiblisse jamais en silence si le manifeste ou PyYAML manque.
+  - path: tools/check_financial_boundary.py
+    symbol: "reqCompletedOrders"
+    reason: >-
+      La porte elle-même. Elle doit connaître les symboles qu'elle refuse ; sa liste de repli existe pour que le scan ne s'affaiblisse jamais en silence si le manifeste ou PyYAML manque.
+  - path: tools/check_financial_boundary.py
+    symbol: "reqExecutions"
+    reason: >-
+      La porte elle-même. Elle doit connaître les symboles qu'elle refuse ; sa liste de repli existe pour que le scan ne s'affaiblisse jamais en silence si le manifeste ou PyYAML manque.
+  - path: tools/check_financial_boundary.py
+    symbol: "reqGlobalCancel"
+    reason: >-
+      La porte elle-même. Elle doit connaître les symboles qu'elle refuse ; sa liste de repli existe pour que le scan ne s'affaiblisse jamais en silence si le manifeste ou PyYAML manque.
+  - path: tools/check_financial_boundary.py
+    symbol: "reqIds"
+    reason: >-
+      La porte elle-même. Elle doit connaître les symboles qu'elle refuse ; sa liste de repli existe pour que le scan ne s'affaiblisse jamais en silence si le manifeste ou PyYAML manque.
+  - path: tools/check_financial_boundary.py
+    symbol: "reqOpenOrders"
+    reason: >-
+      La porte elle-même. Elle doit connaître les symboles qu'elle refuse ; sa liste de repli existe pour que le scan ne s'affaiblisse jamais en silence si le manifeste ou PyYAML manque.
+  - path: tools/check_financial_boundary.py
+    symbol: "reqPnL"
+    reason: >-
+      La porte elle-même. Elle doit connaître les symboles qu'elle refuse ; sa liste de repli existe pour que le scan ne s'affaiblisse jamais en silence si le manifeste ou PyYAML manque.
+  - path: tools/check_financial_boundary.py
+    symbol: "reqPnLSingle"
+    reason: >-
+      La porte elle-même. Elle doit connaître les symboles qu'elle refuse ; sa liste de repli existe pour que le scan ne s'affaiblisse jamais en silence si le manifeste ou PyYAML manque.
+  - path: tools/check_financial_boundary.py
+    symbol: "reqPositions"
+    reason: >-
+      La porte elle-même. Elle doit connaître les symboles qu'elle refuse ; sa liste de repli existe pour que le scan ne s'affaiblisse jamais en silence si le manifeste ou PyYAML manque.
+  - path: tools/check_financial_boundary.py
+    symbol: "reqPositionsMulti"
+    reason: >-
+      La porte elle-même. Elle doit connaître les symboles qu'elle refuse ; sa liste de repli existe pour que le scan ne s'affaiblisse jamais en silence si le manifeste ou PyYAML manque.
+  - path: tools/check_financial_boundary.py
+    symbol: "whatIfOrder"
+    reason: >-
+      La porte elle-même. Elle doit connaître les symboles qu'elle refuse ; sa liste de repli existe pour que le scan ne s'affaiblisse jamais en silence si le manifeste ou PyYAML manque.
+  - path: tools/tests/test_check_financial_boundary.py
+    symbol: "placeOrder"
+    reason: >-
+      Corpus de test de la porte elle-même. Sans ces symboles, rien ne prouverait qu'elle détecte quoi que ce soit — une porte qui ne signale jamais rien est une porte fermée sur une piece vide. Ils n'apparaissent que dans des chaînes de test passées a `scan_python` sur des fichiers temporaires, jamais sur un client IBKR.
+  - path: tools/tests/test_check_financial_boundary.py
+    symbol: "reqPositions"
+    reason: >-
+      Corpus de test de la porte elle-même. Sans ces symboles, rien ne prouverait qu'elle détecte quoi que ce soit — une porte qui ne signale jamais rien est une porte fermée sur une piece vide. Ils n'apparaissent que dans des chaînes de test passées a `scan_python` sur des fichiers temporaires, jamais sur un client IBKR.
+  - path: tools/tests/test_check_financial_boundary.py
+    symbol: "reqAccountSummary"
+    reason: >-
+      Corpus de test de la porte elle-même. Sans ces symboles, rien ne prouverait qu'elle détecte quoi que ce soit — une porte qui ne signale jamais rien est une porte fermée sur une piece vide. Ils n'apparaissent que dans des chaînes de test passées a `scan_python` sur des fichiers temporaires, jamais sur un client IBKR.
+  - path: tools/tests/test_check_financial_boundary.py
+    symbol: "reqPnL"
+    reason: >-
+      Corpus de test de la porte elle-même. Sans ces symboles, rien ne prouverait qu'elle détecte quoi que ce soit — une porte qui ne signale jamais rien est une porte fermée sur une piece vide. Ils n'apparaissent que dans des chaînes de test passées a `scan_python` sur des fichiers temporaires, jamais sur un client IBKR.

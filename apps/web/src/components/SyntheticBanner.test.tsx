@@ -24,7 +24,11 @@
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { POPULATION_NATURES, SyntheticBanner } from './SyntheticBanner.tsx';
+import {
+  POPULATION_NATURES,
+  SyntheticBanner,
+  resolvePopulationNature,
+} from './SyntheticBanner.tsx';
 
 afterEach(() => {
   cleanup();
@@ -180,5 +184,43 @@ describe('identité visuelle', () => {
       tones.add(banner().dataset.vxTone!);
     }
     expect([...tones].sort()).toEqual(['caution', 'neutral', 'risk']);
+  });
+});
+
+describe('6e audit — coercition de type', () => {
+  // `hasOwnProperty` et l'indexation coercent leur clé en chaîne. Un objet
+  // portant `toString: () => 'REAL'` affichait « DONNÉES RÉELLES » en ton
+  // neutre ; un nombre faisait planter le rendu sur `.slice`.
+  const hostiles: ReadonlyArray<readonly [string, unknown]> = [
+    ['objet avec toString', { toString: () => 'REAL' }],
+    ['tableau', ['SYNTHETIC']],
+    ['nombre', 0],
+    ['nombre non nul', 42],
+    ['booléen', true],
+    ['fonction', () => 'REAL'],
+    ['symbole-like', { valueOf: () => 'DELAYED' }],
+  ];
+
+  it.each(hostiles)('%s ne peut pas revendiquer une nature', (_label, value) => {
+    const resolved = resolvePopulationNature(value as never);
+    expect(resolved.key).toBe('UNRECOGNISED');
+    expect(resolved.nature.tone).toBe('risk');
+  });
+
+  it('undefined est traité comme non déclaré, pas comme une erreur', () => {
+    const resolved = resolvePopulationNature(undefined as never);
+    expect(resolved.key).toBe('UNDECLARED');
+  });
+
+  it.each(hostiles)('%s ne fait pas planter le rendu', (_label, value) => {
+    expect(() =>
+      render(<SyntheticBanner population={value as never} />),
+    ).not.toThrow();
+  });
+
+  it('une chaîne déclarée reste correctement reconnue', () => {
+    // Anti-vacuité : la fermeture par type n'a pas cassé le cas nominal.
+    expect(resolvePopulationNature('SYNTHETIC').key).toBe('SYNTHETIC');
+    expect(resolvePopulationNature('REAL').key).toBe('REAL');
   });
 });

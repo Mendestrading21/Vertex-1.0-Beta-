@@ -144,13 +144,24 @@ function isDeclaredLabel(value: string): value is PopulationLabel {
  * dans `UNRECOGNISED` (ou `UNDECLARED` si rien n'a été déclaré). Aucune
  * normalisation, aucun `trim`, aucune casse tolérée — `'SYNTHETIC '` n'est pas
  * `'SYNTHETIC'`, et le lecteur doit le savoir.
+ *
+ * Le TYPE est vérifié avant toute chose. `hasOwnProperty` et l'indexation
+ * COERCENT leur clé en chaîne : un objet portant `toString: () => 'REAL'`
+ * affichait « DONNÉES RÉELLES » en ton neutre, et un nombre faisait planter le
+ * rendu sur `.slice` (6e audit). Le contrat d'API type `population` en
+ * `string | null`, donc ce n'est pas atteignable aujourd'hui — mais une
+ * garantie fail-closed qui repose sur la bonne foi de l'appelant n'en est pas
+ * une.
  */
-export function resolvePopulationNature(population: string | null): {
+export function resolvePopulationNature(population: unknown): {
   readonly key: string;
   readonly nature: PopulationNature;
 } {
-  if (population === null || population === '') {
+  if (population === null || population === undefined || population === '') {
     return { key: 'UNDECLARED', nature: UNDECLARED };
+  }
+  if (typeof population !== 'string') {
+    return { key: 'UNRECOGNISED', nature: UNRECOGNISED };
   }
   if (isDeclaredLabel(population)) {
     return { key: population, nature: POPULATION_NATURES[population] };
@@ -160,8 +171,10 @@ export function resolvePopulationNature(population: string | null): {
 
 export function SyntheticBanner({ population }: { readonly population: string | null }) {
   const { key, nature } = resolvePopulationNature(population);
+  // L'écho ne cite QUE des chaînes : une valeur d'un autre type n'a pas de
+  // libellé à montrer, et `.slice` la ferait planter.
   const echoed =
-    key === 'UNRECOGNISED' && population !== null
+    key === 'UNRECOGNISED' && typeof population === 'string'
       ? population.slice(0, MAX_ECHOED_LABEL) +
         (population.length > MAX_ECHOED_LABEL ? '…' : '')
       : null;

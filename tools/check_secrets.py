@@ -260,13 +260,39 @@ _OVERLAP = 400
 # appliquer la même règle produit des dizaines de faux positifs et rend la
 # porte inutilisable. La valeur QUOTÉE, elle, est examinée partout.
 _CONFIG_SUFFIXES = frozenset(
-    {".yaml", ".yml", ".env", ".toml", ".ini", ".cfg", ".conf", ".properties", ".sh", ".bash"}
+    {
+        ".yaml",
+        ".yml",
+        ".env",
+        ".toml",
+        ".ini",
+        ".cfg",
+        ".conf",
+        ".properties",
+        ".sh",
+        ".bash",
+        # La documentation est le 2e format du dépôt (183 fichiers) et elle
+        # contient des commandes à copier-coller : `export DB_PASSWORD=…`,
+        # `PGPASSWORD=… pg_dump …`. Une valeur non quotée y est bien une
+        # DONNÉE, pas une expression — c'est même exactement là qu'un secret
+        # se glisse par inadvertance, en recopiant une session réelle.
+        ".md",
+        # Fichiers de build sans extension ou à extension propre : mêmes
+        # affectations littérales.
+        ".dockerfile",
+        ".mk",
+    }
 )
+
+#: Noms de fichiers SANS extension dont le contenu est de la configuration.
+_CONFIG_FILENAMES = frozenset({"Makefile", "Dockerfile", "Procfile", ".env"})
 
 
 def _bare_values_are_data(path: str) -> bool:
     name = path.rsplit("/", 1)[-1]
     if name.startswith(".env"):
+        return True
+    if name in _CONFIG_FILENAMES or name.startswith("Dockerfile"):
         return True
     return any(name.endswith(suffix) for suffix in _CONFIG_SUFFIXES)
 
