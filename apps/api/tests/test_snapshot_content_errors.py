@@ -42,8 +42,8 @@ Everything here is SYNTHETIC: the readers are injected through
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
-from typing import Any, Optional
+from datetime import UTC, datetime
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
@@ -53,7 +53,7 @@ from vertex_api.auth import require_session
 from vertex_api.snapshot_reader import get_snapshot_reader
 
 #: Fixed SYNTHETIC instants — no test ever reads the real clock.
-AS_OF_DATETIME = datetime(2026, 8, 25, 12, 0, 0, tzinfo=timezone.utc)
+AS_OF_DATETIME = datetime(2026, 8, 25, 12, 0, 0, tzinfo=UTC)
 AS_OF = AS_OF_DATETIME.isoformat()
 
 #: Recognizable values planted in the persisted content. Neither the HTTP
@@ -69,7 +69,7 @@ class BrokenSnapshotReader:
         self._content = content
         self._version = version
 
-    def current(self, *, kind: str, key: str) -> Optional[Any]:
+    def current(self, *, kind: str, key: str) -> Any | None:
         content = self._content
         version = self._version
 
@@ -85,7 +85,7 @@ class BrokenSnapshotReader:
         snapshot.as_of = AS_OF_DATETIME
         return snapshot
 
-    def head_version(self, *, kind: str, key: str) -> Optional[int]:
+    def head_version(self, *, kind: str, key: str) -> int | None:
         return self._version
 
     def heads_for_kind(self, *, kind: str) -> dict[str, int]:

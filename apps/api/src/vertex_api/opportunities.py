@@ -68,25 +68,15 @@ problem.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from functools import lru_cache
 from pathlib import Path
-from typing import Annotated, Any, Literal, Mapping, Optional
+from typing import Annotated, Any, Literal
 
 import yaml
 from pydantic import Field
-
-from vertex_core.contracts.types import (
-    ContractModel,
-    FrozenStrMapping,
-    NonEmptyStr,
-    PositiveInt,
-    UtcDatetime,
-)
-from vertex_core.data.freshness import get_freshness_policy
-from vertex_core.decision.gates import GATE_CATALOG
-from vertex_persistence.repository.snapshots import CurrentSnapshot
 
 from vertex_api.snapshot_views import (
     SnapshotContentError,
@@ -97,6 +87,16 @@ from vertex_api.snapshot_views import (
     _wire_mapping,
     checked_relayed_content,
 )
+from vertex_core.contracts.types import (
+    ContractModel,
+    FrozenStrMapping,
+    NonEmptyStr,
+    PositiveInt,
+    UtcDatetime,
+)
+from vertex_core.data.freshness import get_freshness_policy
+from vertex_core.decision.gates import GATE_CATALOG
+from vertex_persistence.repository.snapshots import CurrentSnapshot
 
 __all__ = [
     "CLOSED_STATUSES",
@@ -333,7 +333,7 @@ def _load_profiles(resolved: str) -> Mapping[str, RelayStrategyProfile]:
 
 
 def load_relay_strategy_profiles(
-    path: Optional[Path] = None,
+    path: Path | None = None,
 ) -> Mapping[str, RelayStrategyProfile]:
     """Parse the committed strategy-profile manifest (cached, read-only)."""
     resolved = Path(path) if path is not None else DEFAULT_PROFILES_PATH
@@ -347,7 +347,7 @@ def _utc_now() -> datetime:
     instant is read here; every caller may inject ``now`` instead (tests
     always do — no test depends on the real time).
     """
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class OpportunitiesResponse(ContractModel):
@@ -373,11 +373,11 @@ class OpportunitiesResponse(ContractModel):
     """
 
     state: Literal["ok", "stale", "empty", "clock_inconsistent"]
-    snapshot_version: Optional[PositiveInt]
-    as_of: Optional[UtcDatetime]
-    age_seconds: Optional[Annotated[int, Field(ge=0)]]
-    content: Optional[FrozenStrMapping]
-    reason: Optional[NonEmptyStr]
+    snapshot_version: PositiveInt | None
+    as_of: UtcDatetime | None
+    age_seconds: Annotated[int, Field(ge=0)] | None
+    content: FrozenStrMapping | None
+    reason: NonEmptyStr | None
 
 
 def _published_gates(
@@ -613,7 +613,7 @@ def _register_identity(
 
 
 def _referenced_profile(
-    content: Mapping[str, Any], *, profiles_path: Optional[Path]
+    content: Mapping[str, Any], *, profiles_path: Path | None
 ) -> RelayStrategyProfile:
     """The declared profile the snapshot references (fail-closed)."""
     profile_ref = _require_mapping(content.get("profile_ref"), field="profile_ref")
@@ -654,14 +654,14 @@ def _snapshot_age(snapshot: CurrentSnapshot, *, now: datetime) -> timedelta:
         raise SnapshotContentError(
             "snapshot.as_of: naive datetime rejected", field="snapshot.as_of"
         )
-    return now.astimezone(timezone.utc) - as_of.astimezone(timezone.utc)
+    return now.astimezone(UTC) - as_of.astimezone(UTC)
 
 
 def build_opportunities_response(
-    snapshot: Optional[CurrentSnapshot],
+    snapshot: CurrentSnapshot | None,
     *,
-    now: Optional[datetime] = None,
-    profiles_path: Optional[Path] = None,
+    now: datetime | None = None,
+    profiles_path: Path | None = None,
 ) -> OpportunitiesResponse:
     """Relay the last opportunities snapshot verbatim, or the empty state.
 

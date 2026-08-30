@@ -14,18 +14,18 @@ import json
 import socket
 import threading
 import time
-from typing import Iterator, Optional
+from collections.abc import Iterator
 
 import httpx
 import pytest
 import uvicorn
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-
 from snapshot_fakes import synthetic_session
-from vertex_api.events import WATCHED_SNAPSHOTS
+
 from vertex_api.auth import AUTH_REQUIRED, require_session
 from vertex_api.events import (
+    WATCHED_SNAPSHOTS,
     StreamSettings,
     format_sse_event,
     get_stream_settings,
@@ -47,15 +47,13 @@ class ScriptedHeadReader:
         # adds a snapshot. The watch list itself is asserted explicitly by
         # ``test_watched_snapshots_are_the_expected_resources`` below, so an
         # accidental addition or removal is still caught.
-        self.versions: dict[tuple[str, str], Optional[int]] = {
-            (kind, key): None for kind, key in WATCHED_SNAPSHOTS
-        }
+        self.versions: dict[tuple[str, str], int | None] = dict.fromkeys(WATCHED_SNAPSHOTS)
         self.polls = 0
 
     def current(self, *, kind: str, key: str):  # pragma: no cover - not used here
         raise AssertionError("the stream must never load snapshot content")
 
-    def head_version(self, *, kind: str, key: str) -> Optional[int]:
+    def head_version(self, *, kind: str, key: str) -> int | None:
         self.polls += 1
         return self.versions[(kind, key)]
 

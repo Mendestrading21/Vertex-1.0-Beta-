@@ -8,22 +8,22 @@ boundary.
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass, replace
-from datetime import datetime, timedelta, timezone
-from typing import Any, Dict, List, Mapping, Optional, Sequence
+from collections.abc import Mapping, Sequence
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
 import pytest
 
 from vertex_ingress_tv.orchestrator import (
     QUEUE_ENVELOPE_SCHEMA_ID,
-    Quote,
     QueueMessage,
+    Quote,
     TriggerState,
 )
 from vertex_ingress_tv.registry import AlertRegistry, RegisteredAlert, RegistryRejection
 
 # Deterministic synthetic instants.
-T0 = datetime(2026, 8, 29, 12, 0, 0, tzinfo=timezone.utc)
+T0 = datetime(2026, 8, 29, 12, 0, 0, tzinfo=UTC)
 
 
 class FixedClock:
@@ -43,8 +43,8 @@ class FakeQueueClient:
     """In-memory queue with redelivery of un-acked messages."""
 
     def __init__(self) -> None:
-        self._messages: List[QueueMessage] = []
-        self.acked: List[str] = []
+        self._messages: list[QueueMessage] = []
+        self.acked: list[str] = []
 
     def push(self, message: QueueMessage) -> None:
         self._messages.append(message)
@@ -64,10 +64,10 @@ class FakeStore:
     """Idempotent in-memory store with injectable failure (SYNTHETIC)."""
 
     def __init__(self) -> None:
-        self.records: Dict[str, Mapping[str, Any]] = {}
-        self.states: Dict[str, List[tuple]] = {}
+        self.records: dict[str, Mapping[str, Any]] = {}
+        self.states: dict[str, list[tuple]] = {}
         self.persist_calls = 0
-        self.fail_persist_with: Optional[Exception] = None
+        self.fail_persist_with: Exception | None = None
 
     def persist_signal(self, event_id: str, record: Mapping[str, Any]) -> bool:
         self.persist_calls += 1
@@ -78,17 +78,17 @@ class FakeStore:
         self.records[event_id] = dict(record)
         return True
 
-    def set_state(self, event_id: str, state: TriggerState, reason: Optional[str]) -> None:
+    def set_state(self, event_id: str, state: TriggerState, reason: str | None) -> None:
         self.states.setdefault(event_id, []).append((state, reason))
 
-    def get_state(self, event_id: str) -> Optional[TriggerState]:
+    def get_state(self, event_id: str) -> TriggerState | None:
         history = self.states.get(event_id)
         return history[-1][0] if history else None
 
-    def state_history(self, event_id: str) -> List[TriggerState]:
+    def state_history(self, event_id: str) -> list[TriggerState]:
         return [state for state, _ in self.states.get(event_id, [])]
 
-    def last_reason(self, event_id: str) -> Optional[str]:
+    def last_reason(self, event_id: str) -> str | None:
         history = self.states.get(event_id)
         return history[-1][1] if history else None
 
@@ -96,11 +96,11 @@ class FakeStore:
 class FakeQuoteProvider:
     """Returns a scripted sequence of quotes (then repeats the last entry)."""
 
-    def __init__(self, responses: Optional[List[Optional[Quote]]] = None) -> None:
-        self.responses: List[Optional[Quote]] = list(responses or [])
-        self.calls: List[tuple] = []
+    def __init__(self, responses: list[Quote | None] | None = None) -> None:
+        self.responses: list[Quote | None] = list(responses or [])
+        self.calls: list[tuple] = []
 
-    def get_quote(self, exchange: str, ticker: str) -> Optional[Quote]:
+    def get_quote(self, exchange: str, ticker: str) -> Quote | None:
         self.calls.append((exchange, ticker))
         if not self.responses:
             return None
@@ -109,9 +109,9 @@ class FakeQuoteProvider:
         return self.responses.pop(0)
 
 
-def make_alert_payload(**overrides: Any) -> Dict[str, Any]:
+def make_alert_payload(**overrides: Any) -> dict[str, Any]:
     """Complete, contract-valid synthetic alert payload."""
-    payload: Dict[str, Any] = {
+    payload: dict[str, Any] = {
         "schema": "vertex.tradingview.alert.v1",
         "alert_id": "syn-market-regime-v1",
         "script_version": "2026-08-29.1",
@@ -129,7 +129,7 @@ def make_alert_payload(**overrides: Any) -> Dict[str, Any]:
 
 
 def make_envelope_body(
-    alert: Optional[Mapping[str, Any]] = None,
+    alert: Mapping[str, Any] | None = None,
     *,
     received_at: str = "2026-08-29T11:59:59Z",
     schema: str = QUEUE_ENVELOPE_SCHEMA_ID,
@@ -146,10 +146,10 @@ def make_envelope_body(
 
 def make_message(
     message_id: str = "msg-1",
-    alert: Optional[Mapping[str, Any]] = None,
+    alert: Mapping[str, Any] | None = None,
     *,
     received_at: str = "2026-08-29T11:59:59Z",
-    body: Optional[bytes] = None,
+    body: bytes | None = None,
 ) -> QueueMessage:
     if body is None:
         body = make_envelope_body(alert, received_at=received_at)
@@ -166,12 +166,12 @@ def clock() -> FixedClock:
 
 
 @pytest.fixture
-def registry_audit() -> List[RegistryRejection]:
+def registry_audit() -> list[RegistryRejection]:
     return []
 
 
 @pytest.fixture
-def registry(clock: FixedClock, registry_audit: List[RegistryRejection]) -> AlertRegistry:
+def registry(clock: FixedClock, registry_audit: list[RegistryRejection]) -> AlertRegistry:
     entries = [
         RegisteredAlert(
             alert_id="syn-market-regime-v1",

@@ -40,12 +40,13 @@ handlers; identical inputs and clock republish nothing.
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
-from typing import Any, Callable, Mapping, Optional, Sequence
+from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import ColumnElement, select
 from sqlalchemy.orm import Session
 
 from vertex_core.calculations.options import (
@@ -63,7 +64,6 @@ from vertex_core.synthetic import (
 from vertex_core.version import ENGINE_VERSION
 from vertex_persistence.models import Observation
 from vertex_persistence.repository.outbox import ClaimedOutboxMessage
-
 from vertex_worker.registry import HandlerRegistry
 
 __all__ = [
@@ -147,7 +147,7 @@ class OptionChainRecord:
 
     event_id: str
     source: str
-    instrument_ref: Optional[str]
+    instrument_ref: str | None
     as_of: datetime
     quality_status: str
     rights: str
@@ -215,7 +215,7 @@ def load_option_chain_records(
         Observation.schema_version.like(f"{prefix}%")
         for prefix in OPTION_CHAIN_SCHEMA_PREFIXES
     ]
-    schema_filter = filters[0]
+    schema_filter: ColumnElement[bool] = filters[0]
     for extra in filters[1:]:
         schema_filter = schema_filter | extra
     rows = (
@@ -269,7 +269,7 @@ def _calculation_meta(record: CalculationRecord) -> dict[str, Any]:
     }
 
 
-def _optional_decimal(value: Any) -> Optional[Decimal]:
+def _optional_decimal(value: Any) -> Decimal | None:
     """Parse a decimal string fail-closed; None stays None; junk is invalid."""
     if value is None:
         return None
@@ -281,10 +281,12 @@ def _optional_decimal(value: Any) -> Optional[Decimal]:
     return parsed
 
 
-def _optional_int(value: Any) -> Optional[int]:
+def _optional_int(value: Any) -> int | None:
     if value is None:
         return None
-    if isinstance(value, bool) or not isinstance(value, int):
+    if isinstance(value, bool):
+        raise ValueError("integer required")
+    if not isinstance(value, int):
         raise ValueError("integer required")
     return value
 
@@ -300,7 +302,7 @@ class _SliceIdentity:
     currency: str
 
 
-def _parse_slice_identity(payload: Mapping[str, Any]) -> Optional[_SliceIdentity]:
+def _parse_slice_identity(payload: Mapping[str, Any]) -> _SliceIdentity | None:
     """Parse the shared identity fields of a chain slice; None when invalid."""
     expiration = payload.get("expiration")
     trading_class = payload.get("trading_class")
@@ -320,9 +322,9 @@ def _parse_slice_identity(payload: Mapping[str, Any]) -> Optional[_SliceIdentity
         expiry = date.fromisoformat(expiration)  # type: ignore[arg-type]
     except ValueError:
         return None
-    assert isinstance(trading_class, str) and isinstance(exchange, str)
-    assert isinstance(style, str) and isinstance(settlement, str)
-    assert isinstance(currency, str)
+    assert isinstance(trading_class, str) and isinstance(exchange, str)  # noqa: S101 (narrowing mypy, garde réelle au-dessus)
+    assert isinstance(style, str) and isinstance(settlement, str)  # noqa: S101 (narrowing mypy, garde réelle au-dessus)
+    assert isinstance(currency, str)  # noqa: S101 (narrowing mypy, garde réelle au-dessus)
     return _SliceIdentity(
         expiration=expiry,
         trading_class=trading_class,
@@ -336,9 +338,9 @@ def _parse_slice_identity(payload: Mapping[str, Any]) -> Optional[_SliceIdentity
 
 def _quote_status(
     *,
-    bid: Optional[Decimal],
-    ask: Optional[Decimal],
-    observed_at: Optional[datetime],
+    bid: Decimal | None,
+    ask: Decimal | None,
+    observed_at: datetime | None,
     now: datetime,
     max_quote_age: timedelta,
 ) -> str:
@@ -371,7 +373,7 @@ def _build_contract_entry(
     config: OptionsConfig,
     source_event_id: str,
     synthetic: bool,
-) -> tuple[dict[str, Any], Optional[str]]:
+) -> tuple[dict[str, Any], str | None]:
     """Build one contract entry; returns (entry, discard_reason_or_None).
 
     The discard reason names why NO Vertex IV exists for the contract; the
@@ -389,7 +391,7 @@ def _build_contract_entry(
         and bool(strike_text)
         and right in ("CALL", "PUT")
     )
-    strike: Optional[Decimal] = None
+    strike: Decimal | None = None
     if identity_complete:
         try:
             strike = _optional_decimal(strike_text)
@@ -403,7 +405,7 @@ def _build_contract_entry(
         ask = _optional_decimal(raw.get("ask"))
     except (ValueError, InvalidOperation):
         bid = ask = None
-    observed_at: Optional[datetime] = None
+    observed_at: datetime | None = None
     observed_text = raw.get("observed_at")
     if isinstance(observed_text, str):
         try:
@@ -458,7 +460,7 @@ def _build_contract_entry(
     }
 
     # ---- fail-closed calculation gates: identity, expiry, quote sanity ----
-    reason: Optional[str] = None
+    reason: str | None = None
     if not identity_complete:
         reason = REASON_INCOMPLETE_IDENTITY
     elif maturity_years <= 0.0:
@@ -471,7 +473,7 @@ def _build_contract_entry(
         entry["greeks"] = {"status": "ABSENT", "reason": REASON_IV_UNRESOLVED}
         return entry, reason
 
-    assert strike is not None and bid is not None and ask is not None
+    assert strike is not None and bid is not None and ask is not None  # noqa: S101 (narrowing mypy, garde réelle au-dessus)
     mid = (bid + ask) / 2
     try:
         iv_value = implied_volatility(
@@ -642,8 +644,8 @@ def build_option_chain_content(
     expirations: list[dict[str, Any]] = []
     total_rows = 0
     published_rows = 0
-    spot_block: Optional[dict[str, Any]] = None
-    assumptions_block: Optional[dict[str, Any]] = None
+    spot_block: dict[str, Any] | None = None
+    assumptions_block: dict[str, Any] | None = None
 
     for group_key in sorted(by_group):
         record, identity = by_group[group_key]
@@ -651,7 +653,7 @@ def build_option_chain_content(
         spot = _optional_decimal(payload["underlying_spot"])
         rate = _optional_decimal(payload["rate"])
         dividend_yield = _optional_decimal(payload["dividend_yield"])
-        assert spot is not None and rate is not None and dividend_yield is not None
+        assert spot is not None and rate is not None and dividend_yield is not None  # noqa: S101 (narrowing mypy, garde réelle au-dessus)
         days_to_expiry = (identity.expiration - now.date()).days
         maturity_years = days_to_expiry / 365.0
 

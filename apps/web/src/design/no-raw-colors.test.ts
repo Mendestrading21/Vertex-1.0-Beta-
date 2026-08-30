@@ -66,8 +66,90 @@ describe('interdiction des couleurs brutes hors tokens.*', () => {
 describe("interdiction du vocabulaire d'ordre boursier", () => {
   // Termes assemblés par concaténation pour que ce vérificateur ne se signale
   // pas lui-même s'il venait à être balayé.
-  const forbiddenTerms = ['bu' + 'y', 'se' + 'll', 'exe' + 'cute', 'ord' + 'er'];
+  //
+  // Le titre de ce bloc annonçait « achat/vente/transmission » depuis toujours,
+  // mais la liste ne contenait QUE de l'anglais alors que toute l'interface
+  // Vertex est en français : `<button>Acheter</button>` passait la garde. Le
+  // français est donc ajouté ici, et un cas d'injection le prouve plus bas.
+  //
+  // `exécuter` / `exécution` sont VOLONTAIREMENT absents comme mots isolés :
+  // « preuve d'exécution », « exécution du test » sont partout dans ce dépôt.
+  // Seule la locution complète, qui ne peut désigner qu'un ordre boursier, est
+  // interdite — voir `phrasePatterns`.
+  const forbiddenTerms = [
+    'bu' + 'y',
+    'se' + 'll',
+    'exe' + 'cute',
+    'ord' + 'er',
+    'ache' + 'ter',
+    'ach' + 'at',
+    'ach' + 'ats',
+    'vend' + 're',
+    'reven' + 'dre',
+    'ven' + 'te',
+    'ven' + 'tes',
+  ];
   const termPattern = new RegExp(`\\b(?:${forbiddenTerms.join('|')})\\b`, 'i');
+
+  // Locutions : chacune ne peut désigner qu'une instruction d'ordre, même
+  // lorsque ses mots pris isolément sont anodins.
+  const phrasePatterns = [
+    new RegExp(`(?:pass|envoy|transmett|exécut)\\w*\\s+(?:un|l['’])\\s*ord` + 're', 'i'),
+    new RegExp(`ord` + `re\\s+d['’]\\s*(?:ach` + 'at|vente)', 'i'),
+  ];
+
+  /**
+   * Exemptions NOMMÉES, avec motif écrit.
+   *
+   * L'interdiction porte sur une INSTRUCTION d'ordre émise par Vertex. Elle ne
+   * porte pas sur la désignation d'une transaction que l'utilisateur déclare
+   * avoir faite ailleurs : le portefeuille manuel est justement construit sur
+   * ces déclarations, et le priver de son vocabulaire rendrait la garde
+   * intenable — donc, tôt ou tard, désactivée.
+   *
+   * Chaque entrée dit pourquoi l'occurrence est un CONSTAT et non un ordre.
+   */
+  const declaredTransactionAllowlist: ReadonlyArray<{
+    path: string;
+    term: string;
+    reason: string;
+  }> = [
+    {
+      path: join('src', 'pages', 'portfolio', 'portfolioView.ts'),
+      term: 'ventes',
+      reason:
+        "Message d'incohérence du journal manuel : « ventes déclarées supérieures " +
+        'aux achats déclarés ». Il DÉCRIT une contradiction dans ce que ' +
+        "l'utilisateur a saisi ; il n'invite à aucune action et Vertex n'exécute rien.",
+    },
+    {
+      path: join('src', 'pages', 'portfolio', 'TransactionForm.tsx'),
+      term: 'achat',
+      reason:
+        "Message de validation du journal manuel : « ticker obligatoire pour un fait " +
+        "de position (achat/vente enregistré) ». Le formulaire est titré " +
+        '« Enregistrer une transaction (déjà exécutée hors Vertex) » et son en-tête ' +
+        'dit « journal comptable de FAITS PASSÉS uniquement » : il consigne, il ' +
+        "n'émet pas. C'est le site le plus sensible du dépôt sur cette règle, et " +
+        "c'est pourquoi son exemption est nommée plutôt que globale.",
+    },
+    {
+      path: join('src', 'test', 'fixtures.ts'),
+      term: 'achat',
+      reason:
+        "Note d'une fixture SYNTHETIC de lot déclaré (« achat enregistré le … »). " +
+        "Elle nomme un fait passé saisi par l'utilisateur, jamais une instruction.",
+    },
+  ];
+
+  function declaredTransactionExemption(
+    file: string,
+    term: string,
+  ): (typeof declaredTransactionAllowlist)[number] | undefined {
+    return declaredTransactionAllowlist.find(
+      (exempt) => file.endsWith(exempt.path) && exempt.term.toLowerCase() === term.toLowerCase(),
+    );
+  }
 
   // `schema.d.ts` est GÉNÉRÉ verbatim depuis apps/api/openapi.json : sa seule
   // occurrence du vocabulaire est la phrase d'interdiction du backend
@@ -85,12 +167,64 @@ describe("interdiction du vocabulaire d'ordre boursier", () => {
         continue;
       }
       const content = readFileSync(file, 'utf8');
-      const match = termPattern.exec(content);
-      if (match !== null) {
+      const match =
+        termPattern.exec(content) ??
+        phrasePatterns.reduce<RegExpExecArray | null>(
+          (found, pattern) => found ?? pattern.exec(content),
+          null,
+        );
+      if (match !== null && declaredTransactionExemption(file, match[0]) === undefined) {
         offenders.push(`${relative(APP_ROOT, file)} → ${match[0]}`);
       }
     }
     expect(offenders, `Vocabulaire d'ordre détecté : ${offenders.join(', ')}`).toEqual([]);
+  });
+
+  // Preuve par injection. La liste précédente était ANGLAISE alors que toute
+  // l'interface est française : la garde passait au vert sur un bouton
+  // « Acheter ». Un test qui ne signale jamais rien ne prouve rien ; ces cas
+  // figent la capacité de détection dans les deux langues.
+  const INSTRUCTIONS_INTERDITES: ReadonlyArray<readonly [string, string]> = [
+    ['bouton français', '<button type="button">Ach' + 'eter</button>'],
+    ['bouton français, vente', '<button>Ven' + 'dre 100 titres</button>'],
+    ['libellé de revente', 'const label = "Reven' + 'dre la position";'],
+    ['locution : passer un ordre', 'const t = "Pas' + 'ser un ordre au marché";'],
+    ['locution : transmettre un ordre', 'const t = "Trans' + 'mettre un ordre";'],
+    ["locution : ordre d'achat", 'const t = "Ord' + "re d'ach" + 'at immédiat";'],
+    ['anglais, inchangé', 'const t = "Pla' + 'ce order";'],
+  ];
+
+  const TEXTES_LEGITIMES: ReadonlyArray<readonly [string, string]> = [
+    ["preuve d'exécution", "// Preuve d'exé" + 'cution de la porte'],
+    ['exécution du test', 'const t = "exé' + 'cution du scénario";'],
+    ['aucune mention', 'const t = "Analyse du dossier";'],
+  ];
+
+  it.each(INSTRUCTIONS_INTERDITES)('détecte une instruction : %s', (_nom, code) => {
+    const detecte =
+      termPattern.test(code) || phrasePatterns.some((pattern) => pattern.test(code));
+    expect(detecte, `non détecté : ${code}`).toBe(true);
+  });
+
+  it.each(TEXTES_LEGITIMES)('ne signale pas : %s', (_nom, code) => {
+    const detecte =
+      termPattern.test(code) || phrasePatterns.some((pattern) => pattern.test(code));
+    expect(detecte, `faux positif : ${code}`).toBe(false);
+  });
+
+  it("aucune exemption de transaction déclarée n'est morte", () => {
+    const dead = declaredTransactionAllowlist.filter((exempt) => {
+      const file = scannedFiles().find((candidate) => candidate.endsWith(exempt.path));
+      if (file === undefined) {
+        return true;
+      }
+      const content = readFileSync(file, 'utf8');
+      return !new RegExp(`\\b${exempt.term}\\b`, 'i').test(content);
+    });
+    expect(
+      dead.map((exempt) => `${exempt.path} → ${exempt.term}`),
+      "une exemption qui n'exempte plus rien doit être retirée",
+    ).toEqual([]);
   });
 
   it('schema.d.ts généré : le vocabulaire n’apparaît que dans une négation du contrat', () => {

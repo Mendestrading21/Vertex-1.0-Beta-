@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 
 import pytest
@@ -22,7 +22,7 @@ from vertex_core.synthetic import (
     is_synthetic,
 )
 
-BASE_TIME = datetime(2026, 8, 25, 12, 0, 0, tzinfo=timezone.utc)
+BASE_TIME = datetime(2026, 8, 25, 12, 0, 0, tzinfo=UTC)
 SEED = 424242
 
 DECIMAL_STRING = re.compile(r"^\d+\.\d{2}$")

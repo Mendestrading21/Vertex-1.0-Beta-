@@ -6,12 +6,12 @@ size and row budgets, per-row validation and the integrity hash contract.
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 
 import pytest
-
 from portfolio_fakes import make_entry
+
 from vertex_api.portfolio import (
     EXPORT_SCHEMA_VERSION,
     MAX_IMPORT_ROWS,
@@ -23,7 +23,7 @@ from vertex_api.portfolio import (
     validate_import_fields,
 )
 
-NOW = datetime(2026, 8, 25, 12, 0, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 25, 12, 0, 0, tzinfo=UTC)
 
 
 @pytest.mark.parametrize(

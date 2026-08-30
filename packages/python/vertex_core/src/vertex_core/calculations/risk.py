@@ -47,10 +47,10 @@ from vertex_core.contracts.types import ContractModel, NonEmptyStr, PositiveInt
 __all__ = [
     "COVARIANCE_PSD_TOLERANCE",
     "COVARIANCE_SYMMETRY_TOLERANCE",
-    "RiskCalculationError",
-    "MinimumSampleError",
-    "EstimatorNotImplementedError",
     "CovarianceResult",
+    "EstimatorNotImplementedError",
+    "MinimumSampleError",
+    "RiskCalculationError",
     "covariance",
 ]
 
@@ -75,7 +75,9 @@ class EstimatorNotImplementedError(RiskCalculationError):
 
 def _ensure_finite_float(value: float) -> float:
     if not math.isfinite(value):
-        raise ValueError("non-finite float rejected: NaN and infinities are not valid contract values")
+        raise ValueError(
+            "non-finite float rejected: NaN and infinities are not valid contract values"
+        )
     return value
 
 
@@ -100,7 +102,7 @@ class CovarianceResult(ContractModel):
     min_eigenvalue: FiniteFloat
 
     @model_validator(mode="after")
-    def _check_shape_and_symmetry(self) -> "CovarianceResult":
+    def _check_shape_and_symmetry(self) -> CovarianceResult:
         if len(self.matrix) != self.n_assets:
             raise ValueError("matrix row count must equal n_assets")
         for row in self.matrix:
@@ -115,7 +117,7 @@ class CovarianceResult(ContractModel):
         return self
 
 
-def _validate_matrix(aligned_returns: Sequence[Sequence[float]]) -> "list[list[float]]":
+def _validate_matrix(aligned_returns: Sequence[Sequence[float]]) -> list[list[float]]:
     if isinstance(aligned_returns, (str, bytes)):
         raise RiskCalculationError("aligned_returns must be a sequence of observation rows")
     rows = tuple(aligned_returns)
@@ -140,7 +142,9 @@ def _validate_matrix(aligned_returns: Sequence[Sequence[float]]) -> "list[list[f
                 )
             value = float(cell)
             if not math.isfinite(value):
-                raise RiskCalculationError(f"non-finite return at [{i}][{j}] rejected (fail-closed)")
+                raise RiskCalculationError(
+                    f"non-finite return at [{i}][{j}] rejected (fail-closed)"
+                )
             converted_row.append(value)
         converted.append(converted_row)
     if width == 0:
@@ -180,8 +184,14 @@ def covariance(
         raise EstimatorNotImplementedError(
             f"estimator {estimator!r} is NOT_IMPLEMENTED: only 'sample' has a real implementation"
         )
-    if isinstance(minimum_sample, bool) or not isinstance(minimum_sample, int) or minimum_sample < 2:
-        raise RiskCalculationError("minimum_sample must be an int >= 2 (ddof=1 needs two observations)")
+    if (
+        isinstance(minimum_sample, bool)
+        or not isinstance(minimum_sample, int)
+        or minimum_sample < 2
+    ):
+        raise RiskCalculationError(
+            "minimum_sample must be an int >= 2 (ddof=1 needs two observations)"
+        )
 
     converted = _validate_matrix(aligned_returns)
     n_observations = len(converted)

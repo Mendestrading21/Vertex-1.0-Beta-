@@ -22,8 +22,8 @@ Ce fichier ne contient pas de décision humaine ; celles-ci restent dans
 | Version Python | La suite tourne localement sur **3.11** (plancher). Le workflow CI exécute la cible **3.13** et il est **vert** — c'est là, et seulement là, que la version de production est prouvée. |
 | CI | Le workflow `.github/workflows/ci.yml` existe et couvre 15 portes (actions épinglées à un SHA de commit complet, images par digest immuable). Il a **été exécuté et est vert** sur les 6 jobs et les 15 portes (dernier run vérifié : `1c782fe`), sur les versions CIBLES — Python 3.13, Node 24, PostgreSQL 18.6. C'est la seule preuve existante sur ces versions ; l'environnement de développement tourne sur 3.11 / Node 22 / PostgreSQL 16. |
 | Intégration | `tools/run_checks.sh --integration` couvre désormais les trois suites (`vertex_persistence`, `worker`, `api`), **en série obligatoire** : elles partagent la même base et recréent le schéma. Avant ce correctif, seule la suite `vertex_persistence` tournait — les mentions « TOUT VERT » antérieures ne couvraient donc **pas** les suites worker et api. |
-| Lint et typage Python | La configuration Ruff existe (`pyproject.toml`) mais **aucune porte CI ne l'applique encore** : le code présente **1634** violations, dont **723** `UP045` et **36** `DTZ001`. **CHIFFRE CORRIGÉ — le précédent (1256 / 640 / 26) était faux**, sixième chiffre erroné de ce registre. Cause structurelle : `ruff` n'est épinglé NULLE PART (ni `uv.lock`, ni CI, ni `run_checks.sh`), donc ce compte n'est reproductible par personne — c'est un défaut à part entière, pas seulement un chiffre à jour (`datetime()` sans timezone — **uniquement dans des tests**, pas dans le code de production). `mypy --strict` n'a jamais été exécuté sur l'ensemble. Nettoyage mécanique à faire avant d'ajouter la porte. |
-| Portes CI manquantes | Par rapport à `docs/06-quality/CI_GATES.md` : `python-quality` (Ruff, mypy), `web-quality` (Biome), `migrations` (rollback + restauration), `performance` (Lighthouse, Locust), `build` (images non-root/digest), et la partie `release` autre que la SBOM (provenance, signature, notices). |
+| Lint et typage Python | **Porte `python-quality` livrée et verte.** `ruff check .` : **1653 → 0** ; `mypy --strict` : **0 erreur sur 114 fichiers source**. Les deux sont câblés dans `.github/workflows/ci.yml` (job `python-quality`) et dans `tools/run_checks.sh`, et échouent sur la moindre violation. Cause structurelle corrigée d'abord : `ruff==0.15.8` et `mypy==1.19.1` sont désormais épinglés en versions EXACTES dans `pyproject.toml` et verrouillés dans `uv.lock` — auparavant épinglés NULLE PART, d'où un compte non reproductible. **Le chiffre de départ réel est 1653, pas 1634** : la ligne précédente avait été mesurée avec une version de Ruff non épinglée et donc inconnue (septième chiffre erroné de ce registre) ; l'écart par règle était bien plus large que l'écart total (`UP017` 86 → 164, `E501` 102 → 146). Périmètre du typage : sources de production + portes `tools/` ; **aucune suite de tests n'est typée** (frontière uniforme, déclarée par `exclude` dans `[tool.mypy]`). Deux règles restent désactivées AVEC motif écrit dans `pyproject.toml` : `RUF001-003` (texte français, préexistant) et **`UP042`** — la conversion `class X(str, Enum)` → `StrEnum` change la sémantique (`f"{A.X}"` vaut `"A.X"` contre `"x"`, mesuré sur CPython 3.11.15) sur les 30 énumérations de CONTRAT qui traversent PostgreSQL, JSON et OpenAPI ; la lever est un lot à part entière (inventaire des interpolations + tests de sérialisation sur 3.13). Suppressions locales ajoutées par ce lot : **102 `# noqa`**, chacune avec un motif écrit — 36 `DTZ001`, 31 `S101`, 7 `S603`, 7 `B017`, 5 `S311`, 5 `B008`, 4 `S607`, 3 `S104`, 2 `S105`, 1 `S608`, 1 `S314` — plus **1 `# type: ignore[method-assign]`** (surcharge `app.openapi` documentée par FastAPI) et **4 `# type: ignore` RETIRÉS** devenus inutiles une fois `types-PyYAML` verrouillé. Les **36 `DTZ001`** sont des tests NÉGATIFS vérifiant le REJET d'un instant naïf : les « corriger » aurait supprimé l'invariant qu'ils protègent — le brief supposait l'inverse, la mesure dit le contraire. Les 3 `S104` sont de même nature (refus d'un hôte non-loopback) et les 31 `S101` sont des narrowings placés APRÈS une garde réelle. Les **7 `B017`** (`pytest.raises(Exception)` trop large) restent une **dette de test réelle non traitée** : les resserrer changerait le contrat des tests, ce que ce lot s'interdit. |
+| Portes CI manquantes | Par rapport à `docs/06-quality/CI_GATES.md` (`python-quality` est désormais LIVRÉE) : `web-quality` (Biome), `migrations` (rollback + restauration), `performance` (Lighthouse, Locust), `build` (images non-root/digest). La porte `policy` existe désormais (`tools/check_policy.py`) et le volet **notices** de `release` aussi (`tools/check_notices.py`) ; **provenance** et **signature** restent NON FAISABLES ici — voir la section dédiée en fin de fichier, elles ne sont ni implémentées ni simulées. |
 | Sauvegarde | `infra/backup/` : cycle `pg_dump` → chiffrement AES-256 → déchiffrement → contrôle d'empreinte → restauration dans une base vide → 4 contrôles → `verified_restore_at` **exécuté et vert sur PostgreSQL réel**. Manquent : archivage WAL/PITR (donc **RPO ≤ 5 min NON atteint**), troisième copie hors machine, ordonnancement, purge de rétention 7/4/12. |
 | Compose et images | `infra/compose/` : 4 services, images épinglées par digest immuable, utilisateurs non privilégiés, systèmes de fichiers en lecture seule, ports publiés sur `127.0.0.1` uniquement. **Jamais exécuté** : cet environnement n'a pas de démon Docker. Validé syntaxiquement, pas prouvé. La preuve appartient au LOT-24. |
 | Supervision | **Aucune.** Pas de métriques, série temporelle, tableau de bord, alerte ni trace. `opentelemetry-sdk` et `prometheus-client` sont prévus au manifeste mais ne sont ni installés ni câblés (absents de `uv.lock`). Voir `infra/monitoring/README.md`. |
@@ -49,9 +49,307 @@ Ce fichier ne contient pas de décision humaine ; celles-ci restent dans
 | Portefeuille — aucune pagination | `GET /portfolio` et l'export rendent TOUT le journal, sans pagination ni plafond de lignes. Amplification proportionnelle, pas exponentielle, mais bornée par rien. |
 | Décimales hors du relais API | `vertex_worker` et `vertex_core` manipulent aussi des `Decimal` venus du journal ; aucune borne de magnitude n'y a été vérifiée. Le correctif porte sur la frontière d'écriture de l'API, pas sur le domaine. |
 | Erreurs SQLAlchemy hors `StatementError` | `ArgumentError`, `NoSuchTableError`, `TimeoutError`… ne sont délibérément PAS couvertes par le gestionnaire : elles ne portent pas de paramètres liés, et les couvrir masquerait de vraies erreurs de programmation derrière un code propre. Leurs messages n'ont pas été audités un par un. |
-| Mutation, charge, chaos | Non exécutés (LOT-23). Le seuil de mutation ≥ 95 % des règles de test n'est **pas** vérifié. |
+| Mutation, charge, chaos | Non exécutés (LOT-23). Le seuil de mutation ≥ 95 % sur les modules critiques n'est **pas** vérifié, aucun test de charge ni de chaos n'existe. La campagne de résilience exigée par LOT-23 (codes TWS 1100/1101/1102/1300/502, pacing, doublon/rejeu/désordre/DLQ TradingView, timeout IA, perte réseau, redémarrage PostgreSQL, disque faible, dérive d'horloge) n'a pas été menée. |
+| Assertions e2e sous condition | Biome relève **17 assertions sous condition**, dont 16 en e2e : une boucle qui ne trouve aucun cas laisse le test passer **à vide**. Certains sites voisins ont un compteur de garde, d'autres non. Faiblesse réelle de la matrice de preuve, signalée et non corrigée. |
+| Fichiers non typés | `apps/web/tsconfig.json` n'inclut que `src` : `e2e/`, `scripts/gen-api.ts` et `playwright.config.ts` ne sont vérifiés par **aucun** `tsc` (Playwright transpile sans typer). Biome les couvre depuis la porte `web-quality`, mais un lint ne remplace pas un typage. |
+| Formatage web | Le formateur Biome est **désactivé** : le meilleur réglage réécrirait 61 % des fichiers. La mise en forme n'est donc gardée par aucune porte. Décision mesurée, à reprendre dans un commit purement mécanique. |
 | Supply-chain | `uv.lock` verrouille les 60 paquets Python en versions exactes + 1035 hachages sha256 ; `pip-audit --strict` et `pnpm audit --audit-level high` remontent **0 vulnérabilité** (exécutés localement) ; une SBOM CycloneDX 1.6 de 53 composants est produite PAR LA CI (le job supply-chain est vert sur GitHub ; aucun artefact SBOM n'est commité dans l'arbre, et il ne doit pas l'être). Manquent encore : **signature** (cosign), **provenance** SLSA, scan d'image de conteneur, et SBOM du volet Node. |
-| Navigateurs | Playwright ne tourne que sur **Chromium**. Firefox et WebKit sont exigés avant release et n'ont jamais été lancés. |
+| Navigateurs | Playwright tourne sur **Chromium** en CI de branche. Firefox et WebKit sont désormais couverts par `.github/workflows/nightly.yml` (382 tests au lieu de 234), mais **ce workflow n'a jamais tourné** : ses binaires ne sont pas téléchargeables depuis l'environnement de développement (le CDN Playwright n'y est pas joignable), et la première exécution nocturne n'a pas encore eu lieu. Tant qu'un run vert n'existe pas, la couverture navigateur réelle du produit se limite à Chromium. |
 | Données | **Aucune donnée réelle n'a jamais été observée.** Tout est `SYNTHETIC` étiqueté ; IBKR n'a jamais été contacté ; Cloudflare n'est pas déployé. |
 | Détection de secrets | `tools/check_secrets.py` inspecte l'**arbre suivi**, pas l'historique Git. Un secret introduit puis retiré dans un commit antérieur ne serait pas vu. La détection est par motifs : une forme non listée passe. |
 | Probabilités | `probability.calibration` est `NOT_IMPLEMENTED` au registre : aucune probabilité prédictive n'est affichable, et aucune ne l'est. |
+
+## Porte `release` — provenance et signature NON FAISABLES ici (décision écrite)
+
+La porte `release` de `docs/06-quality/CI_GATES.md` exige « SBOM, provenance,
+signature, notices ». Trois de ces quatre preuves ont un état précis :
+
+| Preuve | État | Détail |
+|---|---|---|
+| SBOM | **produite** | CycloneDX Python par le job `supply-chain` (`cyclonedx-py`), publiée en artefact 30 jours. Le volet **Node n'a toujours pas de SBOM**. |
+| notices | **vérifiée** | `tools/check_notices.py` : inventaire des verrous ↔ `manifests/licenses.yaml` ↔ tableau généré de `THIRD_PARTY_NOTICES.md`. Une licence absente, `UNKNOWN`, refusée ou non classée par la politique BLOQUE. |
+| provenance | **NON FAISABLE en l'état** | voir ci-dessous |
+| signature | **NON FAISABLE en l'état** | voir ci-dessous |
+
+**Pourquoi rien n'a été ajouté pour provenance et signature.** Ce dépôt ne
+publie **aucun artefact** : pas de paquet PyPI, pas de paquet npm, pas d'image
+poussée dans un registre, pas de release GitHub. Il n'a pas non plus de démon
+de conteneur dans l'environnement de développement (déjà inscrit ci-dessus pour
+`infra/compose/`). Signer avec `cosign` suppose un artefact OCI ou une clé et
+un registre : ni l'un ni l'autre n'existe. Produire une attestation sur un
+fichier que personne ne consomme et qui est supprimé au bout de 30 jours
+attesterait la construction d'un objet sans destinataire.
+
+**Ce qui serait techniquement faisable, et ce qui reste à vérifier avant de
+l'affirmer.** `actions/attest-build-provenance` produirait une attestation SLSA
+signée par Sigstore sur `sbom-python.json`, vérifiable par
+`gh attestation verify`. Cela exigerait : (1) une élévation `id-token: write` +
+`attestations: write` sur le job `supply-chain` — la porte `policy` imposerait
+alors un commentaire `MOTIF-PERMISSION:` nommant chaque portée ; (2) que les
+*artifact attestations* soient **effectivement disponibles pour ce dépôt** selon
+sa visibilité et le plan GitHub du compte — **ce point n'a pas été vérifié**, et
+c'est la raison pour laquelle l'étape n'a pas été ajoutée : une porte ajoutée
+sans savoir si elle peut passer n'est pas une preuve, c'est un pari. Trancher ce
+point est une décision humaine (visibilité du dépôt et plan), pas un choix
+technique réversible.
+
+**Conclusion honnête.** `release` est **partielle** : SBOM Python et notices
+sont prouvées par exécution ; provenance et signature sont **absentes et
+déclarées absentes**. Aucune porte verte ne les représente. La ligne
+`release` de `CI_GATES.md` ne doit pas être considérée comme satisfaite.
+
+## Limites connues des deux portes ajoutées
+
+| Porte | Ce qu'elle NE prouve PAS |
+|---|---|
+| `policy` | Elle vérifie que chaque `uses:` épingle un SHA de **commit** en le comparant à `manifests/actions-pins.yaml`, résolu à la main par `git ls-remote <dépôt> refs/tags/<tag>^{}`. Hors ligne, la preuve « ce SHA est un commit » vaut ce que vaut ce manifeste ; seule l'option `--resolve-remote` (exécutée par la CI, pas par `run_checks.sh`) le re-résout réellement. Elle ne lit pas le CONTENU de l'action épinglée : un commit épinglé peut être malveillant. |
+| `policy` | `LOCK_DESYNC` compare les manifestes aux métadonnées **écrites dans** les verrous (`requires-dist` d'uv, `importers` de pnpm). Cela détecte une déclaration modifiée sans reverrouillage, **pas** une résolution périmée : seuls `uv lock --check` et `pnpm install --frozen-lockfile` prouvent celle-ci, et les deux exigent le réseau. |
+| `policy` | `PR_TARGET_CHECKOUT` détecte l'extraction explicite d'une réf de PR sous `pull_request_target`. Un workflow qui exécuterait du code non fiable par un autre chemin (script téléchargé, artefact d'un run précédent) n'est pas détecté. |
+| `policy` | Les capacités IBKR interdites restent la propriété de `tools/check_financial_boundary.py`. La porte `policy` vérifie seulement que ce script est **réellement appelé** par la CI et par `run_checks.sh` — c'est la régression qui s'est produite trois fois, pas le contenu du script. |
+| `notices` | Elle croit la métadonnée publiée par PyPI et npm. Un paquet qui déclare `MIT` alors que son code est sous une autre licence n'est pas détecté : aucun fichier `LICENSE` n'est comparé, aucun audit juridique n'est fait. |
+| `notices` | `role: runtime` / `development` est dérivé du graphe des verrous, pas d'une observation de ce qui serait embarqué dans un artefact — ce dépôt n'en produit aucun. |
+| `notices` | Elle ne vérifie pas la présence physique des textes de licence ni des fichiers `NOTICE` exigés par Apache-2.0, et ne dit rien de la compatibilité des licences entre elles. |
+| `notices` | **`psycopg` v3 est sous `LGPL-3.0-only`**, seule licence copyleft du runtime. Elle est **reconnue** dans `manifests/policy.yaml` (`licenses.acknowledged_spdx`) avec motif écrit et ne bloque donc pas. Cette reconnaissance **documente une adoption déjà inscrite** (`manifests/dependencies.yaml`), elle ne la valide pas : une revue humaine de cette licence est requise avant toute distribution. |
+
+## Porte `performance` — ce qui est mesuré et ce qui ne l'est pas
+
+La porte `tools/check_performance_budgets.py` applique
+`policy.missing_measurement_is_pass: false` : un budget sans mesure échoue.
+Le périmètre exigé vit dans `manifests/performance-budgets.yaml`
+(`required_measurements`), jamais dans le rapport — sinon livrer un rapport
+vide rendrait la porte verte.
+
+**Mesuré, vert, prouvé par exécution :**
+
+| Mesure | Valeur réelle | Budget |
+|---|---|---|
+| `frontend.bundles.initial_gzip_bytes` | **118 291 octets** (index JS 110 003 + CSS 7 858 + runtime 430) | 307 200 |
+| `frontend.bundles.chart_engines_route_chunked` | **vrai** — ECharts (205 ko gzip) et Lightweight Charts (53 ko gzip) hors fermeture statique | vrai exigé |
+
+**Déclaré NON MESURÉ, avec propriétaire, motif, échéance et critère de
+clôture** (la porte échoue si l'un de ces quatre champs manque, ou si
+l'échéance passe) :
+
+| Mesure | Pourquoi elle n'existe pas |
+|---|---|
+| `api.page_snapshot.hot_api_snapshot_server.latency_ms.p95` / `.p99` | Aucune mesure de latence API n'a jamais été exécutée. `measurement.minimum_samples` impose 1 000 échantillons pour un p95 et 10 000 pour un p99 : publier en dessous serait un chiffre inventé. Le profil P-LOCAL exige la machine cible, qui n'existe pas encore (LOT-24). |
+| `api.page_snapshot.hot_postgresql_query.latency_ms.p95` | Le jeu de données de référence (`datasets`) n'est pas matérialisé. Mesurer sur une base de test vide donnerait un chiffre flatteur et faux. |
+| `frontend.tables.rendered_dom_rows_max` | **Aucune table de l'interface n'est virtualisée.** Le nombre de lignes rendues dans le DOM suit le nombre de lignes reçues. Le budget (160 lignes rendues, seuil de virtualisation à 200) ne peut pas être satisfait par une mesure : il doit d'abord être rendu atteignable. Sur le scénario `table_row_counts` à 10 000 lignes, l'interface actuelle rendrait 10 000 lignes. |
+
+**Ce que la porte ne mesure pas du tout** : Web Vitals (LCP, INP, CLS),
+mémoire, backpressure, soak de 8 heures, scénarios de charge
+(`load_scenarios`), chaîne d'options à 10 000 contrats. Ces sections du
+manifeste n'ont aucune entrée `required_measurements` : elles ne sont donc ni
+mesurées, ni déclarées non mesurées. C'est la dette la plus large de cette
+porte, et elle est nommée ici pour qu'elle ne passe pas pour une couverture.
+
+**Un profil `P-DEV` a été ajouté** au manifeste pour le miroir local : il
+n'exige pas `runner_image`, qui n'a de sens que sur un coureur GitHub, et il
+n'a **aucune autorité de publication** (`absolute_release_gate: false`).
+Couverture, échantillons, échecs durs, étiquettes interdites et régressions
+relatives y restent pleinement appliqués.
+
+## Accessibilité — un critère AA non conforme, une revue non faite
+
+Le rapport complet, avec ses mesures, est
+`docs/06-quality/ACCESSIBILITY_REPORT.md`. Les deux écarts :
+
+1. **WCAG 1.4.10 (Reflow) — NON CONFORME.** `min-width: 1024px` sur
+   l'enveloppe applicative (`apps/web/src/styles/global.css`) fait déborder la
+   page de **384 px exactement** à 640 px de large (soit 200 % de zoom sur
+   1280 px), sur les 12 routes. Aucun contenu n'est perdu — le défilement
+   atteint le bord droit — mais le défilement bidimensionnel que le critère
+   interdit existe. Les tests
+   (`apps/web/e2e/accessibility.spec.ts`) épinglent la largeur défilable au
+   plancher déclaré : ils échouent si un composant ajoute sa propre largeur
+   minimale, c'est-à-dire si la situation empire. Lever l'écart suppose de
+   retirer le plancher et de refondre les mises en page larges — un chantier
+   d'interface entier, en tension directe avec la décision « desktop only,
+   mobile UI = LATER » de la phase 1.
+2. **Revue lecteur d'écran — NON FAITE.** Aucune revue par NVDA, VoiceOver ou
+   Orca conduite par une personne. `.claude/rules/testing.md` l'exige pour les
+   parcours critiques. Aucun outil automatique ne la remplace : les trois
+   défauts de libellé corrigés pendant la session (`aria-label` sur des
+   éléments sans rôle, où un lecteur d'écran annonçait « tiret » au lieu de
+   « bid absent ») avaient été trouvés par le lint, pas par axe.
+
+Ce qui est en revanche **mesuré vert** : 144 assertions sur 12 routes × 3
+viewports — axe restreint aux étiquettes WCAG 2.0/2.1/2.2 A et AA, tous
+impacts confondus, zéro violation ; focus visible atteint à la première
+tabulation ; `prefers-reduced-motion` respecté (zéro animation > 100 ms).
+
+## Campagne chaos LOT-23 — ce qu'elle couvre, ce qu'elle ne couvre pas
+
+`apps/worker/tests_integration/test_chaos_degradation.py` : 12 scénarios sur
+PostgreSQL réel. Duplication de livraison, rejeu complet après traitement,
+désordre temporel, dérive d'horloge (données venant du futur), population
+périmée à 2 / 30 / 400 jours, interruption en plein drain, et l'invariant
+transversal « aucune dégradation ne produit un avis affirmatif ».
+
+Cette campagne a trouvé une régression P0 pendant sa propre écriture :
+`isinstance(envelope, DataEnvelope)` avait été remplacé par
+`isinstance(envelope, DataEnvelope[Any])` lors d'une passe de typage. Avec les
+génériques Pydantic, `DataEnvelope[Any]` est une classe concrète distincte de
+`DataEnvelope[dict[str, Any]]` : toute la chaîne d'ingestion était cassée. Le
+cas général — une annotation d'apparence cosmétique qui change un comportement
+runtime — mérite d'être surveillé à chaque passe de typage.
+
+**Non couvert, et non simulé** :
+
+- disque plein et échec d'écriture PostgreSQL : aucune simulation honnête
+  possible sans conteneur ni quota ; un faux donnerait une fausse assurance ;
+- redémarrage réel de PostgreSQL en cours de transaction (il n'y a pas de
+  démon de conteneur dans l'environnement de construction) ;
+- codes TWS 1100 / 1101 / 1102 / 1300 / 502 : couverts par
+  `apps/edge-ibkr/tests/test_state_machine.py` au niveau de la machine à
+  états, **pas** de bout en bout jusqu'à un verdict publié ;
+- alertes TradingView forgées, vieilles, futures, dupliquées, désordonnées et
+  trop grosses : couvertes par le contrat du Worker Cloudflare
+  (`node --test`) et `apps/ingress-tradingview/tests`, **pas** de bout en bout ;
+- timeout du fournisseur d'IA : le fournisseur est désactivé (décision B-05) ;
+  il n'y a rien à faire expirer.
+
+**Comportement documenté, découvert par la campagne** : au-delà de la fenêtre
+`AnalysisConfig.lookback` (72 heures), aucun dossier d'analyse n'est publié —
+la fenêtre bornée ne contient plus de barres. Le silence est propre (aucun
+message échoué, aucun mort, aucun bloqué) et le dossier précédent garde sa
+version et son `as_of` d'origine : l'ancienneté n'est pas blanchie par une
+activité ultérieure. La fraîcheur est donc jugée **à la lecture**, sur
+`as_of`, et non republiée. C'est cohérent avec l'architecture par snapshots
+immuables ; ce n'était écrit nulle part avant ce test.
+
+## Matrice de traçabilité — 25 interdictions prouvées sur 30, 5 écarts
+
+`manifests/traceability.yaml` relie chaque interdiction absolue de
+`CLAUDE.md` et de `.claude/rules/financial-safety.md` à la preuve qui
+l'établit. La porte `tools/check_traceability.py` imprime les écarts à chaque
+exécution. Ce qu'elle a révélé :
+
+| Interdiction | Écart |
+|---|---|
+| Afficher une probabilité prédictive non calibrée (deux formulations, `CLAUDE.md` et `financial-safety.md`) | La règle d'abstention est prouvée **côté recherche** (`research/tests/test_calibration.py`), pas **au point d'affichage**. Aucune probabilité n'atteint l'interface aujourd'hui, et aucun test ne prouve que l'interface en refuserait une mal formée. |
+| Copier un fichier du dépôt donneur sans inventaire | `tools/inventory_donor.py` et l'inventaire existent, mais aucun test ne vérifie qu'une copie non inventoriée serait détectée. La règle repose sur la discipline, pas sur une porte. |
+| Ajouter un framework sans ADR | La porte `policy` prouve l'épinglage et le verrouillage, `notices` l'inventaire et la licence. **Rien ne relie une dépendance à un ADR accepté.** |
+| Travailler sur `main`, force-push, fusionner sans validation humaine | Déclarée **NON PROUVABLE PAR TEST** : protections de branche et droits de fusion vivent dans la configuration GitHub, qu'aucun test exécuté dans un checkout ne peut lire. Reste une vérification humaine. |
+
+Une limite de la matrice elle-même mérite d'être écrite : l'entrée
+`AUCUN-CALCUL-AUTORITAIRE-EN-TS` est marquée `PROVEN`, mais ses preuves
+couvrent les **vues testées**, pas tout le code TypeScript. Il n'existe aucun
+balayage statique du dépôt web équivalent à `check_financial_boundary` pour
+les calculs financiers en TypeScript. Un calcul autoritaire ajouté dans une
+vue non couverte passerait.
+
+## Mutation testing — TENTÉ, ÉCHOUÉ, aucun score publiable
+
+`.claude/rules/testing.md` exige un score de mutation d'au moins 95 % sur les
+modules critiques, sans mutant dangereux survivant. **Le score réel est
+inconnu.** Ce n'est pas une estimation basse : c'est une absence de mesure.
+
+Deux tentatives ont été faites avec `mutmut==3.7.0` (déjà adopté par
+`manifests/dependencies.yaml`, `adopt.test`), sur `vertex_core.decision` —
+les gates et l'`AdviceEngine`, seule autorité de verdict du produit. Les deux
+ont rendu **exactement le même résultat : 6 017 mutants générés, 6 017
+ignorés, 0 tué, 0 survivant, « 0.00 mutations/second »**. Un score de zéro qui
+ne mesure rien.
+
+Cause identifiée : `mutmut` 3 recopie l'arbre source dans `mutants/` et y
+exécute pytest, mais le dépôt est un workspace `uv` en disposition `src`
+installé en ÉDITABLE. Les tests importent donc le paquet réel, pas la copie
+mutée ; la phase de statistiques n'associe aucun test aux fichiers mutés, et
+tous les mutants sont classés « non couverts ». Forcer
+`PYTHONPATH=mutants/packages/python/vertex_core/src` fait bien pointer un
+`import vertex_core.decision.gates` vers la copie — vérifié — mais ne suffit
+pas à `mutmut`, y compris avec l'arbre `mutants/` déjà présent au démarrage
+(seconde tentative, faite précisément pour écarter l'hypothèse du répertoire
+inexistant au lancement).
+
+**L'outil et sa configuration ont été RETIRÉS du dépôt** plutôt que laissés
+en place. Un `setup.cfg` configuré qui produit « 0 tué / 6 017 ignorés » est
+un artefact qui ressemble à une campagne et n'en est pas une ; c'est
+exactement le type de vert sans preuve que ce dépôt interdit. Le
+reverrouillage a aussi entraîné trois composants tiers de plus (`rich`,
+`setproctitle`, `textual`) et la porte `notices` en rouge — coût inutile pour
+une mesure inexistante.
+
+Ce qu'une prochaine tentative doit résoudre AVANT de recommencer : faire en
+sorte que la copie de `mutants/` soit la seule `vertex_core` importable
+pendant toute la campagne, statistiques comprises. Les pistes non explorées
+sont une installation non éditable dans un environnement dédié à la campagne,
+ou un outil dont le modèle d'exécution ne repose pas sur la recopie de
+l'arbre (`cosmic-ray` mute en place).
+
+## Neuvième audit — deux verdicts REJECT, et ce qui reste ouvert
+
+Deux audits adversariaux indépendants, l'un sur les cinq nouvelles portes,
+l'autre sur la matrice et les campagnes. Chaque constat repris ici a été
+**confirmé par exécution** avant d'être écrit.
+
+### Corrigé dans ce lot
+
+| Défaut | Preuve exécutée |
+|---|---|
+| `run_checks.sh` invoquait onze portes en `porte && echo OK` : sous `set -e`, l'opérande gauche d'un `&&` est exemptée de l'arrêt sur erreur | la porte rend 1, le script rend 0 et imprime « TOUT VERT ». **Quatrième** contournement de la frontière financière |
+| `check_policy` vérifiait le câblage par `script in text` | un commentaire, `if: ${{ false }}`, `\|\| true` et `continue-on-error` passaient tous les quatre |
+| `known_not_wired` endormait n'importe quelle porte pour une phrase | la frontière financière endormie avec « suspendue le temps d'un refactor », porte verte |
+| Trois littéraux concurrents de la partition de statut, dont un sans `OBSERVE` | `vertex_worker.opportunities`, `test_advice.py` et la campagne chaos ne s'accordaient pas |
+| La garde anti-ordre ne contenait que de l'anglais | `<button>Acheter</button>` passait au vert dans une interface française |
+| La campagne chaos ne discriminait rien | en substituant `INSUFFICIENT_DATA` à l'ensemble affirmatif, seuls 4 tests sur 8 rougissaient : quatre bouclaient sur un statut constant, quatre sur **zéro dossier** |
+
+### DÉFAUT PRODUIT OUVERT — un dossier publié se dit encore frais 71 h plus tard
+
+Mesuré : un dossier d'analyse publié conserve
+`snapshot_fresh_and_coherent = PASS / FRESH_AND_COHERENT` à +47 h et +71 h,
+alors que `AnalysisConfig.bars_freshness` vaut 48 h. Aucune observation
+nouvelle ne déclenche de republication, et le snapshot est immuable.
+
+Pris isolément ce n'est pas faux : la fraîcheur DOIT se juger à la lecture, sur
+`as_of`. Mais ce registre mesure par ailleurs que **8 relais sur 10** ne la
+recalculent pas. Verdict gelé plus relais permissif se combinent en « périmé
+présenté comme frais » — ce que `.claude/rules/financial-safety.md` interdit
+sous le nom de « conserver silencieusement un ancien verdict ».
+
+`test_defaut_connu_un_dossier_publie_se_dit_encore_frais_bien_plus_tard`
+épingle la réalité mesurée et **échouera le jour où le défaut sera corrigé**,
+forçant à revenir retirer la caractérisation. L'entrée
+`EXCEPTION-JAMAIS-QUALIFIED` de `manifests/traceability.yaml` doit être
+rétrogradée tant que le recalcul de fraîcheur au relais n'est pas fait.
+
+### Encore ouverts, mesurés, non corrigés
+
+- **La matrice compte des déclarations, pas des preuves.** 58 citations sur 67
+  n'ont pas de `::` et sont validées par le seul `path.is_file()` ; une
+  citation `::nom` est résolue par SOUS-CHAÎNE contre tous les
+  `FunctionDef`/`ClassDef`, helpers compris. `README.md` cité comme preuve
+  d'« Envoyer un ordre IBKR » passe ; `test_ai_explain.py::t` aussi.
+- **Le champ `text:` de la matrice n'est jamais confronté à la règle** :
+  14 entrées sur 30 divergent, dont `API-COMPTE-SAFETY` qui présente une
+  interdiction plus étroite que la règle réelle.
+- **`check_secrets` ne balaie pas les commentaires de sa propre allowlist** :
+  deux jetons de test y passent inaperçus alors que le même texte dans
+  `NOW.md` est détecté. Le commentaire du fichier affirme le contraire.
+- **`check_notices` ne revérifie jamais une licence hors ligne** (`--refresh`
+  n'est invoqué par aucun job) : deux `sed` cohérents transforment
+  `LGPL-3.0-only` en `MIT` dans le registre ET les notices sans qu'aucun
+  contrôle ne bronche.
+- **La porte `performance` ne peut pas bloquer sur son budget numérique** :
+  `P-CI.absolute_release_gate` vaut `false`, donc un bundle **32×** au-dessus
+  du budget passe. Seul le budget booléen bloque réellement.
+- **Trois routes d'accessibilité mesuraient un état vide** : `/analysis`,
+  `/options` et `/simulator` sont paramétrées et ont été visitées sans
+  paramètre. `OptionChainTable`, `OptionInspector`, `CandleChart` et
+  `PayoffChart` n'ont **jamais** été mesurés. `/auth` a **zéro** couverture
+  d'accessibilité alors que le rapport la déclare couverte.
+- **L'assertion « aucun contenu perdu » est une tautologie** : `scrollTo` est
+  borné par `scrollWidth − clientWidth`, donc l'égalité est vraie par
+  construction. Le test de plancher est par ailleurs aveugle aux sept
+  conteneurs `overflow-x: auto` de `global.css`.
+- **« Focus visible » est satisfait par une ombre permanente** — et
+  `.vx-rail-link[aria-current='page']` en porte une. Il faut un différentiel
+  avant/après `Tab`.
+- **Deux mutants survivants** : retirer le CSS de la charge initiale
+  (`measure_web_bundle.py`) ne fait rougir aucun test alors que le chiffre
+  publié tomberait de 118 291 à 110 433 ; la comparaison de `role` de
+  `check_notices.py` n'est prouvée par aucun test.
+- **`P-DESKTOP` porte `absolute_release_gate: true` sans aucune
+  `required_metadata`** : un verdict de release absolu peut être rendu sur une
+  machine entièrement non décrite.

@@ -46,7 +46,13 @@ export function ClaimsBlock({ answer }: { readonly answer: AiAnswer }) {
       ) : (
         <ol className="vx-ai-claim-list">
           {answer.claims.map((claim, position) => (
-            <li key={`${position}-${claim.text}`} className="vx-ai-claim">
+            <li
+              // La liste arrive entière dans un DTO, est remplacée en bloc et n'est jamais triée, filtrée ni insérée côté client : aucun
+              // réordonnancement local n'est possible. L'index seul serait insuffisant ; le contenu seul pourrait se répéter.
+              // biome-ignore lint/suspicious/noArrayIndexKey: la clé n'est PAS l'index seul, elle concatène l'index ET le contenu publié par le serveur.
+              key={`${position}-${claim.text}`}
+              className="vx-ai-claim"
+            >
               <p className="vx-ai-claim-text">{claim.text}</p>
               <p className="vx-ai-claim-refs">
                 <span className="vx-ai-claim-kind">
@@ -97,6 +103,9 @@ export function ExternalExcerptsBlock({ answer }: { readonly answer: AiAnswer })
         <ul className="vx-ai-external-list">
           {answer.external_excerpts.map((excerpt, position) => (
             <li
+              // La liste arrive entière dans un DTO, est remplacée en bloc et n'est jamais triée, filtrée ni insérée côté client : aucun
+              // réordonnancement local n'est possible. L'index seul serait insuffisant ; le contenu seul pourrait se répéter.
+              // biome-ignore lint/suspicious/noArrayIndexKey: la clé n'est PAS l'index seul, elle concatène l'index ET le contenu publié par le serveur.
               key={`${position}-${excerpt.evidence_ref}`}
               className="vx-ai-external-item"
               data-testid={`ai-external-${excerpt.evidence_ref}`}
@@ -135,7 +144,12 @@ export function ContradictionsBlock({ answer }: { readonly answer: AiAnswer }) {
       ) : (
         <ul>
           {answer.contradictions.map((contradiction, position) => (
-            <li key={`${position}-${contradiction.code}`}>
+            <li
+              // La liste arrive entière dans un DTO, est remplacée en bloc et n'est jamais triée, filtrée ni insérée côté client : aucun
+              // réordonnancement local n'est possible. L'index seul serait insuffisant ; le contenu seul pourrait se répéter.
+              // biome-ignore lint/suspicious/noArrayIndexKey: la clé n'est PAS l'index seul, elle concatène l'index ET le contenu publié par le serveur.
+              key={`${position}-${contradiction.code}`}
+            >
               <span aria-hidden="true">✕</span> {contradiction.text} — code{' '}
               <code>{contradiction.code}</code>
               {contradiction.reference !== null ? (
@@ -161,7 +175,12 @@ export function MissingDataBlock({ answer }: { readonly answer: AiAnswer }) {
       ) : (
         <ul>
           {answer.missing_data.map((entry, position) => (
-            <li key={`${position}-${entry}`}>
+            <li
+              // La liste arrive entière dans un DTO, est remplacée en bloc et n'est jamais triée, filtrée ni insérée côté client : aucun
+              // réordonnancement local n'est possible. L'index seul serait insuffisant ; le contenu seul pourrait se répéter.
+              // biome-ignore lint/suspicious/noArrayIndexKey: la clé n'est PAS l'index seul, elle concatène l'index ET le contenu publié par le serveur.
+              key={`${position}-${entry}`}
+            >
               <span aria-hidden="true">⊘</span> {entry}
             </li>
           ))}
@@ -181,7 +200,13 @@ export function LimitationsBlock({ answer }: { readonly answer: AiAnswer }) {
       <h2 id="vx-ai-limitations-title">Limites</h2>
       <ol className="vx-ai-limitation-list">
         {answer.limitations.map((limitation, position) => (
-          <li key={`${position}-${limitation}`} data-first={String(position === 0)}>
+          <li
+            // La liste arrive entière dans un DTO, est remplacée en bloc et n'est jamais triée, filtrée ni insérée côté client : aucun
+            // réordonnancement local n'est possible. L'index seul serait insuffisant ; le contenu seul pourrait se répéter.
+            // biome-ignore lint/suspicious/noArrayIndexKey: la clé n'est PAS l'index seul, elle concatène l'index ET le contenu publié par le serveur.
+            key={`${position}-${limitation}`}
+            data-first={String(position === 0)}
+          >
             {limitation}
           </li>
         ))}

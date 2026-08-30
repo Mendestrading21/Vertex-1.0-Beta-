@@ -7,7 +7,7 @@ is exercised here on synthetic revision histories with an injected clock.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -18,7 +18,7 @@ from vertex_persistence.repository.theses import (
     project_thesis_state,
 )
 
-UTC = timezone.utc
+UTC = UTC
 T0 = datetime(2026, 8, 1, 12, 0, 0, tzinfo=UTC)
 NOW = T0 + timedelta(days=10)
 
@@ -80,7 +80,7 @@ def test_snoozed_without_snooze_until_fails_closed() -> None:
 
 def test_naive_now_rejected() -> None:
     with pytest.raises(ClockError):
-        project_thesis_state([_created()], review_due_at=None, now=datetime(2026, 8, 2))
+        project_thesis_state([_created()], review_due_at=None, now=datetime(2026, 8, 2))  # noqa: DTZ001 (naïf délibéré : rejet vérifié)
 
 
 # --- CREATED baseline ------------------------------------------------------

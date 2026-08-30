@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from zoneinfo import ZoneInfo
 
 import pytest
@@ -27,7 +27,7 @@ from vertex_core.synthetic import (
     generate_option_chain_envelopes,
 )
 
-BASE_TIME = datetime(2026, 8, 25, 12, 0, 0, tzinfo=timezone.utc)
+BASE_TIME = datetime(2026, 8, 25, 12, 0, 0, tzinfo=UTC)
 SEED = 20260825
 
 
@@ -168,7 +168,7 @@ def test_input_validation_fails_closed() -> None:
         generate_calendar_event_envelopes(seed=1, base_time="2026-08-25")
     with pytest.raises(ValueError):
         generate_calendar_event_envelopes(
-            seed=1, base_time=datetime(2026, 8, 25, 12, 0, 0)
+            seed=1, base_time=datetime(2026, 8, 25, 12, 0, 0)  # noqa: DTZ001 (naïf délibéré : rejet vérifié)
         )
 
 

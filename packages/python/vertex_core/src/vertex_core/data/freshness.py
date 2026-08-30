@@ -19,10 +19,10 @@ Pure module: no network, no system clock — the caller injects ``now``.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from datetime import datetime, timedelta
 from enum import Enum, unique
 from types import MappingProxyType
-from typing import Mapping
 
 from vertex_core.contracts.types import ContractModel, NonEmptyStr, PositiveInt, ensure_utc
 
@@ -91,24 +91,37 @@ FRESHNESS_REGISTRY_VERSION = "1.0.0"
 _POLICIES: tuple[FreshnessPolicy, ...] = (
     # All TTLs below are provisional versioned policy values (initial guesses
     # to be tuned with operational evidence), never observed market truths.
-    FreshnessPolicy(name="intraday_quote", version="1.0.0", ttl_open_seconds=5, ttl_closed_seconds=900),
+    FreshnessPolicy(
+        name="intraday_quote", version="1.0.0", ttl_open_seconds=5, ttl_closed_seconds=900
+    ),
     FreshnessPolicy(
         name="selected_option_quote", version="1.0.0", ttl_open_seconds=10, ttl_closed_seconds=900
     ),
-    FreshnessPolicy(name="option_surface", version="1.0.0", ttl_open_seconds=300, ttl_closed_seconds=3600),
+    FreshnessPolicy(
+        name="option_surface", version="1.0.0", ttl_open_seconds=300, ttl_closed_seconds=3600
+    ),
     # A daily bar remains usable through the next session; the CLOSED TTL
     # covers a normal weekend (72h) but not an extended halt.
-    FreshnessPolicy(name="daily_bar", version="1.0.0", ttl_open_seconds=86400, ttl_closed_seconds=259200),
-    FreshnessPolicy(name="news_attention", version="1.0.0", ttl_open_seconds=900, ttl_closed_seconds=3600),
+    FreshnessPolicy(
+        name="daily_bar", version="1.0.0", ttl_open_seconds=86400, ttl_closed_seconds=259200
+    ),
+    FreshnessPolicy(
+        name="news_attention", version="1.0.0", ttl_open_seconds=900, ttl_closed_seconds=3600
+    ),
     FreshnessPolicy(
         name="corporate_event", version="1.0.0", ttl_open_seconds=86400, ttl_closed_seconds=86400
     ),
     FreshnessPolicy(
-        name="fundamental_filing", version="1.0.0", ttl_open_seconds=604800, ttl_closed_seconds=604800
+        name="fundamental_filing",
+        version="1.0.0",
+        ttl_open_seconds=604800,
+        ttl_closed_seconds=604800,
     ),
     # Valuation mark of the manually declared portfolio (user declarations
     # only — never a broker account read).
-    FreshnessPolicy(name="portfolio_mark", version="1.0.0", ttl_open_seconds=300, ttl_closed_seconds=86400),
+    FreshnessPolicy(
+        name="portfolio_mark", version="1.0.0", ttl_open_seconds=300, ttl_closed_seconds=86400
+    ),
 )
 
 FRESHNESS_POLICIES: Mapping[str, FreshnessPolicy] = MappingProxyType(

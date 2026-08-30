@@ -46,15 +46,15 @@ from __future__ import annotations
 
 import os
 import re
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import context, op
 
 revision: str = "0007_least_privilege_grants"
-down_revision: Union[str, None] = "0006_theses"
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = "0006_theses"
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 #: Name of the role used by ``api`` and ``worker``. Overridable so a deployment
 #: that renamed it stays covered; validated below because it reaches SQL.
@@ -62,7 +62,7 @@ _RUNTIME_ROLE_ENV = "VERTEX_DB_RUNTIME_USER"
 _DEFAULT_RUNTIME_ROLE = "vertex_api"
 _IDENTIFIER = re.compile(r"^[a-z_][a-z0-9_]{0,62}$")
 
-_TIGHTEN = """
+_TIGHTEN = r"""
 DO $$
 DECLARE
     runtime_role text := current_setting('vertex.runtime_role', true);

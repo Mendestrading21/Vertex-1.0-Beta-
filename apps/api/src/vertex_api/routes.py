@@ -21,15 +21,13 @@ mutation — or a generic 401 with code ``AUTH_REQUIRED``, fail-closed.
 """
 
 from datetime import datetime
-from typing import Annotated, Optional
+from typing import Annotated, cast
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, Request
 from fastapi.exceptions import RequestValidationError
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from pydantic import ValidationError
 from starlette.concurrency import run_in_threadpool
-
-from fastapi.responses import Response
 
 from vertex_api.ai_explain import (
     ERROR_NO_SNAPSHOT_FOR_SUBJECT,
@@ -47,12 +45,34 @@ from vertex_api.calendar import (
     validate_window,
 )
 from vertex_api.capability_manifest import CapabilityManifest
+from vertex_api.events import StreamSettings, get_stream_settings, snapshot_event_stream
+from vertex_api.follow_up import (
+    ERROR_IDEMPOTENCY_KEY_REUSED,
+    ERROR_UNKNOWN_PORTFOLIO,
+    ERROR_UNKNOWN_THESIS,
+    SNAPSHOT_KEY_REVIEW_QUEUE,
+    SNAPSHOT_KIND_REVIEW_QUEUE,
+    CreateThesisRequest,
+    CreateThesisResponse,
+    DbFollowUpGateway,
+    FollowUpGateway,
+    FollowUpQueueResponse,
+    ThesisRevisionRequest,
+    ThesisRevisionResponse,
+    build_follow_up_queue_response,
+)
 from vertex_api.opportunities import (
     SNAPSHOT_KIND_OPPORTUNITIES,
     OpportunitiesResponse,
     build_opportunities_response,
 )
-from vertex_api.events import StreamSettings, get_stream_settings, snapshot_event_stream
+from vertex_api.performance import (
+    SNAPSHOT_KIND_PERFORMANCE,
+    PerformanceExportResponse,
+    PerformanceSnapshotResponse,
+    build_performance_export,
+    build_performance_response,
+)
 from vertex_api.portfolio import (
     ERROR_ALREADY_COMPENSATED,
     ERROR_ECHO_HASH_MISMATCH,
@@ -74,32 +94,9 @@ from vertex_api.portfolio import (
     RecordTransactionResponse,
     build_portfolio_response,
     detect_potential_duplicates,
-    import_row_hash,
     parse_import_csv,
     render_export_csv,
     validate_import_fields,
-)
-from vertex_api.follow_up import (
-    ERROR_IDEMPOTENCY_KEY_REUSED,
-    ERROR_UNKNOWN_PORTFOLIO,
-    ERROR_UNKNOWN_THESIS,
-    SNAPSHOT_KEY_REVIEW_QUEUE,
-    SNAPSHOT_KIND_REVIEW_QUEUE,
-    CreateThesisRequest,
-    CreateThesisResponse,
-    DbFollowUpGateway,
-    FollowUpGateway,
-    FollowUpQueueResponse,
-    ThesisRevisionRequest,
-    ThesisRevisionResponse,
-    build_follow_up_queue_response,
-)
-from vertex_api.performance import (
-    SNAPSHOT_KIND_PERFORMANCE,
-    PerformanceExportResponse,
-    PerformanceSnapshotResponse,
-    build_performance_export,
-    build_performance_response,
 )
 from vertex_api.schemas import (
     AdvicePreviewRequest,
@@ -406,8 +403,8 @@ def get_option_chain(
 )
 def get_calendar(
     reader: Annotated[SnapshotReader, Depends(get_snapshot_reader)],
-    window_from: Annotated[Optional[datetime], Query(alias="from")] = None,
-    window_to: Annotated[Optional[datetime], Query(alias="to")] = None,
+    window_from: Annotated[datetime | None, Query(alias="from")] = None,
+    window_to: Annotated[datetime | None, Query(alias="to")] = None,
 ) -> CalendarResponse:
     """Serve the LAST ``calendar/global`` snapshot exactly as persisted.
 
@@ -534,7 +531,7 @@ def post_ai_explain(
 
 def get_capability_manifest(request: Request) -> CapabilityManifest:
     """Provide the manifest parsed once at startup (``create_app``)."""
-    return request.app.state.capability_manifest
+    return cast(CapabilityManifest, request.app.state.capability_manifest)
 
 
 @protected_router.get(
@@ -875,7 +872,7 @@ def preview_portfolio_import(
     rows matching already-recorded facts are flagged as potential duplicates
     — information for the user, never a silent drop.
     """
-    from vertex_api.portfolio import ImportRowEcho, MAX_IMPORT_BYTES, MAX_IMPORT_ROWS
+    from vertex_api.portfolio import MAX_IMPORT_BYTES, MAX_IMPORT_ROWS, ImportRowEcho
 
     now = clock()
     try:

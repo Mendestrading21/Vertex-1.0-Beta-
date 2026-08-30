@@ -1,52 +1,83 @@
 # État courant
 
 ```yaml
-phase: douze_pages_livrees_boucle_audit_correctif_en_cours
-lot: 8e audit adversarial — correctifs en cours
+phase: douze_pages_livrees_portes_ci_completees_lot_23_entame
+lot: LOT-23 — qualité, politique, performance, chaos, accessibilité
 branch: claude/vertex-connection-kgkntr
-status: huitieme_audit_REJECT_correctifs_dispatches
-last_good_commit: 0a83699
+status: batterie_locale_TOUT_VERT_ci_verte_sur_5a40bc8
+last_good_commit: 5a40bc8
 completed:
-  - vagues_1_a_5: 13 routes sur 13 réelles (PR #1 et #2 fusionnées)
-  - ci: 16 portes, 6 jobs, actions épinglées par SHA de commit, images par digest
-      — VERTE sur les versions cibles Python 3.13 / Node 24 / PostgreSQL 18.6
-  - supply_chain: uv.lock 60 paquets exacts + 1035 hachages ; pip-audit et
-      pnpm audit sans vulnérabilité ; SBOM CycloneDX produite PAR LA CI
+  - vagues_1_a_5: 13 routes sur 13 réelles (PR #1, #2 et #3 fusionnées)
+  - ci: 7 jobs, 25 portes nommées — VERTE sur 5a40bc8 ; actions épinglées par SHA de COMMIT
+      (l'objet-tag annoté est refusé), images par digest, permissions
+      read-all, timeout sur chaque job
+  - portes_ajoutees_cette_session:
+      - "web-quality (Biome) — 451 violations ramenées à 0, trois défauts
+         d'accessibilité réels corrigés au passage"
+      - "python-quality (ruff + mypy --strict) — 0 violation, 115 fichiers
+         sans erreur de typage"
+      - "policy — SHA d'actions, permissions, timeouts, pull_request_target,
+         runners, digests d'images, dépendances épinglées, verrous, et le
+         CÂBLAGE des portes elles-mêmes"
+      - "release/notices — inventaire des 245 composants tiers, licences
+         SPDX, fraîcheur des notices"
+      - "performance — budgets MESURÉS, jamais déclarés"
+      - "traceability — chaque interdiction absolue reliée à sa preuve :
+         25 prouvées sur 30, 5 écarts écrits, datés et imprimés"
+  - supply_chain: uv.lock exact + hachages ; pip-audit et pnpm audit sans
+      vulnérabilité ; SBOM CycloneDX produite PAR LA CI
   - infra: compose durci (loopback seul, digests) ; sauvegarde chiffrée à
-      restauration exécutée ; point d'entrée de production du worker
+      restauration exécutée ; moindre privilège à trois rôles
   - research: walk-forward purgé, embargo effectif, calibration avec règle
       d'abstention, frontière anti-runtime testée
 audits:
   - "HUIT audits adversariaux indépendants, TOUS conclus REJECT"
   - "chaque défaut reproduit par exécution, chaque correctif précédé d'un
      reproducteur rouge"
-  - "deux défauts du 7e audit et un du 8e étaient des RÉGRESSIONS de mes
-     propres correctifs — la porte de frontière financière a été contournée
-     trois fois de suite"
+  - "la campagne chaos a trouvé une RÉGRESSION P0 pendant son écriture :
+     isinstance(envelope, DataEnvelope[Any]) — une paramétrisation générique
+     Pydantic est une classe distincte, toute l'ingestion était cassée"
   - "SIX chiffres de ce registre se sont révélés faux, dont un trois fois ;
      deux affirmations de sécurité ont été démenties par exécution"
+mesures_reelles:
+  bundle_initial_gzip: "118 291 octets (budget 307 200)"
+  moteurs_de_graphes: "hors charge initiale — ECharts 205 ko, Lightweight 53 ko"
+  accessibilite: "144 assertions vertes, 12 routes × 3 viewports"
 checks_locaux:
-  - "pytest 3063 passed / 0 failed"
-  - "intégration PostgreSQL : 96 (persistance) + 17 (worker) + 65 (api)
-     — exécution SÉRIELLE obligatoire, base partagée"
-  - "vitest 337 passed ; tsc 0 erreur ; playwright 234 passed"
-  - "worker Cloudflare : 53 tests de contrat (branchés depuis le 6e audit)"
+  - "pytest 3433 passed / 0 failed"
+  - "intégration PostgreSQL : 96 (persistance) + 29 (worker, dont 12 chaos)
+     + 65 (api) — exécution SÉRIELLE obligatoire, base partagée"
+  - "vitest 337 passed ; tsc 0 erreur ; biome 0 violation"
+  - "playwright 234 passed + 144 assertions d'accessibilité"
+  - "ruff : All checks passed ; mypy --strict : 115 fichiers, 0 erreur"
+  - "worker Cloudflare : 53 tests de contrat"
   - "run_checks.sh TOUT VERT"
 pages_reelles: [/today, /markets, /system, /auth, /options, /analysis, /simulator, /portfolio, /follow-up, /performance, /calendar, /opportunities, /ai]
 pages_non_implementees: []
-en_cours:
-  - "8e audit : P0 alias d'import contournant la frontière financière"
-  - "8e audit : fusion de titres opposés à travers un symbole monétaire ou une espace"
-  - "8e audit : feuilles numériques du contenu relayé sous aucun contrat"
-  - "8e audit : rôle d'exécution propriétaire des tables — append-only auto-contournable"
-  - "8e audit : verify-restore.sh estampille sans vérifier la restitution"
-reste_a_faire:
-  - "portes CI absentes : ruff/mypy, biome, migrations, performance, images, signature"
-  - "nettoyage ruff : 1634 violations, config posée mais AUCUNE porte ne l'applique,
-     et ruff n'est épinglé nulle part donc le compte n'est pas reproductible"
-  - "LOT-23 qualification : mutation, charge, chaos, Firefox/WebKit"
-  - "LOT-24 release : machine cible, TWS réel, restauration, rollback, soak"
-  - "AUCUNE donnée réelle n'a jamais été vue : tout est SYNTHETIC étiqueté"
-blocker: "B-02..B-05 (BLOCKERS.md) : inventaire donneur, Cloudflare, licence options, fournisseur IA"
-next_command: "attendre les correctifs du 8e audit, puis 9e audit avant toute fusion"
+ecarts_declares:
+  - "WCAG 1.4.10 (reflow) NON CONFORME : plancher min-width 1024px, 384 px de
+     débordement mesurés à 200 % de zoom — épinglé par test, inscrit à DEBT.md"
+  - "revue lecteur d'écran par une personne : NON FAITE"
+  - "latence API : AUCUNE mesure — p95 exige 1 000 échantillons, p99 en exige
+     10 000, et le profil de référence n'existe pas avant LOT-24"
+  - "tables non virtualisées : le budget de 160 lignes rendues n'est pas
+     atteignable en l'état"
+  - "Firefox et WebKit : workflow nocturne écrit, JAMAIS exécuté"
+  - "provenance et signature de release : NON FAISABLES ici, déclarées absentes"
+  - "mutation testing : TENTÉ deux fois avec mutmut, 6 017 mutants tous
+     ignorés — la copie mutée n'est pas celle qu'importent les tests dans un
+     workspace uv éditable. Outil retiré, cause écrite dans DEBT.md, score
+     réel toujours INCONNU"
+  - "5 interdictions absolues sur 30 ne sont pas prouvées par un test —
+     détail dans manifests/traceability.yaml, imprimé à chaque exécution"
+  - "AUCUNE donnée réelle n'a jamais été observée — IBKR jamais contacté,
+     Cloudflare non déployé, Compose jamais exécuté (pas de démon Docker)"
+blocages_humains:
+  - "B-02 : revue de l'inventaire du dépôt donneur"
+  - "B-03 : projet Cloudflare"
+  - "B-04 : licence des données historiques d'options"
+  - "B-05 : fournisseur d'IA (l'IA reste DISABLED, gabarit déterministe)"
+  - "connecteur MCP Interactive_Brokers_IBKR : autorisation OAuth à faire
+     depuis les réglages de connecteurs claude.ai (session non interactive)"
+prochaine_commande: "AUDITE LOT 23"
 ```

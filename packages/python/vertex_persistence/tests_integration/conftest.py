@@ -19,8 +19,8 @@ production would run them.
 from __future__ import annotations
 
 import os
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Iterator
 
 import pytest
 from alembic import command
@@ -40,7 +40,8 @@ def database_url() -> str:
         pytest.fail(
             f"{_ENV_VAR} is not set. Integration tests need a dedicated, "
             "throwaway PostgreSQL test database, e.g.: "
-            f"export {_ENV_VAR}='postgresql+psycopg://<user>:<password>@127.0.0.1:5432/vertex_test'. "
+            f"export {_ENV_VAR}="
+            "'postgresql+psycopg://<user>:<password>@127.0.0.1:5432/vertex_test'. "
             "Never point it at a production database: the public schema is "
             "dropped and recreated for every test.",
             pytrace=False,

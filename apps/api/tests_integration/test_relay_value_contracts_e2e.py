@@ -28,15 +28,16 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timedelta, timezone
-from typing import Any, Iterator, Optional
+from collections.abc import Iterator
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
+from soft_passkey import SoftPasskey, login_passkey, register_passkey
 from sqlalchemy import Engine, create_engine
 from sqlalchemy.orm import Session
 
-from soft_passkey import SoftPasskey, login_passkey, register_passkey
 from vertex_core.synthetic import (
     generate_calendar_event_envelopes,
     generate_daily_bar_envelopes,
@@ -55,7 +56,7 @@ from vertex_worker.ingest import ingest_envelope
 from vertex_worker.runner import WorkerRunner
 
 #: Fixed SYNTHETIC instant — no test here reads the real clock.
-NOW = datetime(2026, 8, 25, 12, 0, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 25, 12, 0, 0, tzinfo=UTC)
 BASE_TIME = NOW - timedelta(minutes=5)
 SEED = 434343
 INSTRUMENT = "SYN-TECH-01"
@@ -180,18 +181,18 @@ def _strings(node: Any) -> list[str]:
     return out
 
 
-def _first_path(node: Any, wanted: str, path: tuple = ()) -> Optional[tuple]:
+def _first_path(node: Any, wanted: str, path: tuple = ()) -> tuple | None:
     """First path whose LAST key is ``wanted`` and whose value is a string."""
     if isinstance(node, dict):
         for key, value in node.items():
             if key == wanted and isinstance(value, str):
-                return path + (key,)
-            found = _first_path(value, wanted, path + (key,))
+                return (*path, key)
+            found = _first_path(value, wanted, (*path, key))
             if found is not None:
                 return found
     elif isinstance(node, list):
         for index, value in enumerate(node):
-            found = _first_path(value, wanted, path + (index,))
+            found = _first_path(value, wanted, (*path, index))
             if found is not None:
                 return found
     return None

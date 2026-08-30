@@ -5,7 +5,7 @@ All data is SYNTHETIC user input — no market data, no broker concept.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy import func, select, text
@@ -28,24 +28,24 @@ from vertex_persistence.repository import (
     review_queue_due,
 )
 
-UTC = timezone.utc
+UTC = UTC
 T0 = datetime(2026, 8, 1, 12, 0, 0, tzinfo=UTC)
 NOW = T0 + timedelta(days=10)
 INSTRUMENT = {"symbol": "SYN", "asset_class": "STOCK", "exchange": "SYNTH", "currency": "USD"}
 
 
 def _create(session: Session, key: str = "synthetic-create-1", **overrides):
-    values = dict(
-        title="Synthetic breakout thesis",
-        hypotheses="SYNTHETIC: sector momentum persists over one quarter",
-        invalidation="SYNTHETIC: weekly close below the declared support level",
-        idempotency_key=key,
-        now=T0,
-        instrument=INSTRUMENT,
-        horizon="3M",
-        review_due_at=T0 + timedelta(days=7),
-        note="initial statement",
-    )
+    values = {
+        "title": "Synthetic breakout thesis",
+        "hypotheses": "SYNTHETIC: sector momentum persists over one quarter",
+        "invalidation": "SYNTHETIC: weekly close below the declared support level",
+        "idempotency_key": key,
+        "now": T0,
+        "instrument": INSTRUMENT,
+        "horizon": "3M",
+        "review_due_at": T0 + timedelta(days=7),
+        "note": "initial statement",
+    }
     values.update(overrides)
     return create_thesis(session, **values)
 

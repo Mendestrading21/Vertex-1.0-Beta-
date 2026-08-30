@@ -1,6 +1,6 @@
 """performance calculations: twr, xirr and drawdown."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import numpy as np
@@ -24,7 +24,7 @@ from vertex_core.calculations.performance import (
 )
 from vertex_core.contracts.enums import CalculationStatus
 
-T0 = datetime(2026, 1, 1, tzinfo=timezone.utc)
+T0 = datetime(2026, 1, 1, tzinfo=UTC)
 
 
 def val(days, value):
@@ -42,7 +42,7 @@ def curve(values):
 class TestInputModels:
     def test_naive_valuation_rejected(self):
         with pytest.raises(ValidationError, match="naive"):
-            Valuation(at=datetime(2026, 1, 1), value=Decimal("1"))
+            Valuation(at=datetime(2026, 1, 1), value=Decimal("1"))  # noqa: DTZ001 (naïf délibéré : rejet vérifié)
 
     def test_negative_valuation_rejected(self):
         with pytest.raises(ValidationError):
@@ -91,7 +91,11 @@ class TestTwr:
     @settings(max_examples=100, deadline=None)
     @given(
         contribution=st.decimals(
-            min_value=Decimal("0"), max_value=Decimal("1e6"), places=2, allow_nan=False, allow_infinity=False
+            min_value=Decimal("0"),
+            max_value=Decimal("1e6"),
+            places=2,
+            allow_nan=False,
+            allow_infinity=False,
         )
     )
     def test_cashflow_timing_neutrality(self, contribution):
@@ -159,7 +163,7 @@ class TestXirr:
         #   -1000 on 2019-01-01, +1100 on 2020-01-01 = exactly 365 days
         #   = 1.0 year under ACT/365F.
         #   NPV(r) = -1000 + 1100/(1+r) = 0  <=>  r = 0.10 exactly.
-        d0 = datetime(2019, 1, 1, tzinfo=timezone.utc)
+        d0 = datetime(2019, 1, 1, tzinfo=UTC)
         result = xirr(
             [
                 CashflowEvent(at=d0, amount=Decimal("-1000")),
@@ -181,7 +185,7 @@ class TestXirr:
         assert len(real_positive) == 1
         oracle_rate = 1.0 / real_positive[0] - 1.0
 
-        d0 = datetime(2020, 1, 1, tzinfo=timezone.utc)
+        d0 = datetime(2020, 1, 1, tzinfo=UTC)
         amounts = ["-1000", "300", "400", "500"]
         flows = [
             CashflowEvent(at=d0 + timedelta(days=365 * k), amount=Decimal(a))
@@ -193,7 +197,7 @@ class TestXirr:
         assert abs(result.npv_at_rate) <= XIRR_NPV_TOLERANCE_SCALE * 2200.0
 
     def test_deterministic(self):
-        d0 = datetime(2020, 1, 1, tzinfo=timezone.utc)
+        d0 = datetime(2020, 1, 1, tzinfo=UTC)
         flows = [
             CashflowEvent(at=d0, amount=Decimal("-500")),
             CashflowEvent(at=d0 + timedelta(days=200), amount=Decimal("120")),
@@ -202,7 +206,7 @@ class TestXirr:
         assert xirr(flows) == xirr(flows)
 
     def test_unsorted_input_same_result(self):
-        d0 = datetime(2020, 1, 1, tzinfo=timezone.utc)
+        d0 = datetime(2020, 1, 1, tzinfo=UTC)
         a = CashflowEvent(at=d0, amount=Decimal("-1000"))
         b = CashflowEvent(at=d0 + timedelta(days=365), amount=Decimal("1100"))
         assert xirr([a, b]) == xirr([b, a])
@@ -243,7 +247,13 @@ class TestXirr:
     @pytest.mark.property
     @settings(max_examples=100, deadline=None)
     @given(
-        outflow=st.decimals(min_value=Decimal("100"), max_value=Decimal("1e6"), places=2, allow_nan=False, allow_infinity=False),
+        outflow=st.decimals(
+            min_value=Decimal("100"),
+            max_value=Decimal("1e6"),
+            places=2,
+            allow_nan=False,
+            allow_infinity=False,
+        ),
         growth_bp=st.integers(min_value=-5000, max_value=20000),
         days=st.integers(min_value=365, max_value=3650),
     )
@@ -312,7 +322,13 @@ class TestDrawdown:
     @settings(max_examples=200, deadline=None)
     @given(
         values=st.lists(
-            st.decimals(min_value=Decimal("0.01"), max_value=Decimal("1e6"), places=4, allow_nan=False, allow_infinity=False),
+            st.decimals(
+                min_value=Decimal("0.01"),
+                max_value=Decimal("1e6"),
+                places=4,
+                allow_nan=False,
+                allow_infinity=False,
+            ),
             min_size=1,
             max_size=20,
         )

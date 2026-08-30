@@ -61,7 +61,7 @@ const MAX_ECHOED_LABEL = 24;
  */
 function PopulationCell({ candidate }: { readonly candidate: CandidateView }) {
   const { key, nature } = resolvePopulationNature(candidate.population);
-  const declared = Object.prototype.hasOwnProperty.call(POPULATION_NATURES, key);
+  const declared = Object.hasOwn(POPULATION_NATURES, key);
   // L'écho ne cite QUE une étiquette reçue sous forme de chaîne, et bornée :
   // une valeur hors vocabulaire est du texte non fiable.
   const raw = typeof candidate.population === 'string' ? candidate.population : '';

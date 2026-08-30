@@ -57,6 +57,16 @@ allow:
       Test qui prouve l'ABSENCE de ces capacites dans le code de production. Il les
       nomme en CHAINES uniquement, jamais en appel, en attribut ni en import,
       precisement pour ne pas creer lui-meme le chemin qu'il interdit.
+  - path: manifests/traceability.yaml
+    symbol: "positions"
+    kind: reference
+    reason: >-
+      Matrice de tracabilite : elle CITE le texte exact des interdictions
+      absolues pour les relier a leur preuve, y compris celle qui enumere les
+      lectures de courtier interdites. La citation est la mention de la regle,
+      jamais un chemin vers la capacite. Le kind `reference` reste exemptable ;
+      un appel, un attribut, un import ou une definition ne le serait pas, et
+      n'aurait rien a faire dans un document.
   - path: manifests/current-vertex-salvage.yaml
     symbol: "positions"
     kind: reference

@@ -18,20 +18,21 @@ from __future__ import annotations
 
 import math
 from collections import deque
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 from enum import IntEnum, unique
-from typing import Any, Callable, Mapping, Optional
+from typing import Any
 
 __all__ = [
+    "DEFAULT_MESSAGES_PER_SECOND",
+    "HARD_MESSAGE_BUDGET_CEILING",
+    "MAX_LINE_USAGE_FRACTION",
     "LineBudget",
     "LineBudgetExceededError",
     "MessagePacer",
     "PacingCounters",
     "Priority",
     "QueueRefusalError",
-    "DEFAULT_MESSAGES_PER_SECOND",
-    "HARD_MESSAGE_BUDGET_CEILING",
-    "MAX_LINE_USAGE_FRACTION",
 ]
 
 #: Voluntary default budget (within the documented 35-40 msg/s window).
@@ -86,10 +87,10 @@ class LineBudgetExceededError(RuntimeError):
 class PacingCounters:
     """Observable counters — refusals are visible, never silent."""
 
-    submitted: dict[Priority, int] = field(default_factory=lambda: {p: 0 for p in Priority})
-    enqueued: dict[Priority, int] = field(default_factory=lambda: {p: 0 for p in Priority})
-    dispatched: dict[Priority, int] = field(default_factory=lambda: {p: 0 for p in Priority})
-    refused: dict[Priority, int] = field(default_factory=lambda: {p: 0 for p in Priority})
+    submitted: dict[Priority, int] = field(default_factory=lambda: dict.fromkeys(Priority, 0))
+    enqueued: dict[Priority, int] = field(default_factory=lambda: dict.fromkeys(Priority, 0))
+    dispatched: dict[Priority, int] = field(default_factory=lambda: dict.fromkeys(Priority, 0))
+    refused: dict[Priority, int] = field(default_factory=lambda: dict.fromkeys(Priority, 0))
 
 
 class MessagePacer:
@@ -105,7 +106,7 @@ class MessagePacer:
         *,
         messages_per_second: float = DEFAULT_MESSAGES_PER_SECOND,
         queue_capacity: int | Mapping[Priority, int] = 256,
-        clock: Optional[Callable[[], float]] = None,
+        clock: Callable[[], float] | None = None,
     ) -> None:
         if not (1.0 <= messages_per_second <= HARD_MESSAGE_BUDGET_CEILING):
             raise ValueError(
@@ -130,7 +131,7 @@ class MessagePacer:
 
     # -- queries -----------------------------------------------------------
 
-    def pending(self, priority: Optional[Priority] = None) -> int:
+    def pending(self, priority: Priority | None = None) -> int:
         if priority is not None:
             return len(self._queues[priority])
         return sum(len(q) for q in self._queues.values())
@@ -140,7 +141,7 @@ class MessagePacer:
 
     def available_tokens(self) -> int:
         self._refill()
-        return int(math.floor(self._tokens))
+        return math.floor(self._tokens)
 
     # -- submission and dispatch ------------------------------------------
 
@@ -171,7 +172,7 @@ class MessagePacer:
             dispatched.append(item)
         return dispatched
 
-    def _pop_highest(self) -> tuple[Any, Optional[Priority]]:
+    def _pop_highest(self) -> tuple[Any, Priority | None]:
         for priority in Priority:
             queue = self._queues[priority]
             if queue:
@@ -202,7 +203,7 @@ class LineBudget:
         detected_lines: int,
         *,
         usage_fraction: float = MAX_LINE_USAGE_FRACTION,
-        hard_cap: Optional[int] = None,
+        hard_cap: int | None = None,
     ) -> None:
         if detected_lines < 0:
             raise ValueError("detected_lines must be >= 0")

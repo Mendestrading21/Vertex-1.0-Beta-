@@ -55,8 +55,9 @@ import argparse
 import json
 import re
 import sys
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
 
 REGISTRY_RELATIVE_PATH = "docs/03-domain/calculations/CALCULATION_REGISTRY.yaml"
 
@@ -86,7 +87,7 @@ class RegistryError(RuntimeError):
 
 def load_registry(path: Path) -> dict[str, Any]:
     try:
-        import yaml  # type: ignore
+        import yaml
     except ModuleNotFoundError as exc:  # pragma: no cover - environment guard
         raise RegistryError("PyYAML is required to read the calculation registry") from exc
     try:
@@ -307,7 +308,12 @@ def main(argv: list[str] | None = None) -> int:
     try:
         report = check(root)
     except RegistryError as exc:
-        print(json.dumps({"ok": False, "findings": [{"code": "registry_unusable", "detail": str(exc)}]}, indent=2))
+        print(
+            json.dumps(
+                {"ok": False, "findings": [{"code": "registry_unusable", "detail": str(exc)}]},
+                indent=2,
+            )
+        )
         return 1
     print(json.dumps(report, indent=2, sort_keys=True))
     return 0 if report["ok"] else 1

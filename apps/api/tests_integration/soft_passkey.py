@@ -12,7 +12,7 @@ import hashlib
 import json
 import os
 import struct
-from typing import Any, Optional
+from typing import Any
 
 import cbor2
 from cryptography.hazmat.primitives import hashes
@@ -99,7 +99,7 @@ class SoftPasskey:
         }
 
     def get(
-        self, options: dict[str, Any], *, sign_count: Optional[int] = None
+        self, options: dict[str, Any], *, sign_count: int | None = None
     ) -> dict[str, Any]:
         """Answer an authentication ceremony (navigator.credentials.get).
 
@@ -148,7 +148,7 @@ def register_passkey(
 
 
 def login_passkey(
-    client: TestClient, passkey: SoftPasskey, *, sign_count: Optional[int] = None
+    client: TestClient, passkey: SoftPasskey, *, sign_count: int | None = None
 ) -> Any:
     """Run the full authentication ceremony; returns the verify response."""
     options_response = client.post("/api/v1/auth/login/options")

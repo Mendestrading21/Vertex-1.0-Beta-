@@ -39,12 +39,14 @@ published schema is REFUSED, never repaired.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from datetime import datetime
-from typing import Annotated, Any, Literal, Mapping, Optional, Protocol
+from typing import Annotated, Any, Literal, Protocol
 
 from fastapi import FastAPI
 from pydantic import StringConstraints, model_validator
 from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 from vertex_api.auth.db import open_db_session
 from vertex_api.snapshot_views import (
@@ -191,11 +193,11 @@ class CreateThesisRequest(ContractModel):
     hypotheses: NonBlankText
     invalidation: NonBlankText
     idempotency_key: IdempotencyKey
-    portfolio_id: Optional[PositiveInt] = None
-    instrument: Optional[ThesisInstrumentInput] = None
-    horizon: Optional[NonBlankShort] = None
-    review_due_at: Optional[UtcDatetime] = None
-    note: Optional[NoteStr] = None
+    portfolio_id: PositiveInt | None = None
+    instrument: ThesisInstrumentInput | None = None
+    horizon: NonBlankShort | None = None
+    review_due_at: UtcDatetime | None = None
+    note: NoteStr | None = None
 
 
 class CreateThesisResponse(ContractModel):
@@ -216,12 +218,12 @@ class ThesisRevisionRequest(ContractModel):
 
     action: RevisionAction
     idempotency_key: IdempotencyKey
-    note: Optional[NoteStr] = None
-    snapshot_ref: Optional[NonBlankShort] = None
-    snooze_until: Optional[UtcDatetime] = None
+    note: NoteStr | None = None
+    snapshot_ref: NonBlankShort | None = None
+    snooze_until: UtcDatetime | None = None
 
     @model_validator(mode="after")
-    def _check_snooze_shape(self) -> "ThesisRevisionRequest":
+    def _check_snooze_shape(self) -> ThesisRevisionRequest:
         if self.action == "SNOOZED":
             if self.snooze_until is None:
                 raise ValueError("snooze_until: required for a SNOOZED revision")
@@ -251,10 +253,10 @@ class FollowUpQueueResponse(ContractModel):
     """
 
     state: Literal["ok", "empty"]
-    snapshot_version: Optional[PositiveInt]
-    as_of: Optional[UtcDatetime]
-    content: Optional[FrozenStrMapping]
-    reason: Optional[NonEmptyStr]
+    snapshot_version: PositiveInt | None
+    as_of: UtcDatetime | None
+    content: FrozenStrMapping | None
+    reason: NonEmptyStr | None
 
 
 # ---------------------------------------------------------------------------
@@ -288,7 +290,7 @@ class DbFollowUpGateway:
         self._app = app
 
     @staticmethod
-    def _enqueue_refresh(session, *, reason: str, thesis_id: int) -> None:
+    def _enqueue_refresh(session: Session, *, reason: str, thesis_id: int) -> None:
         enqueue_outbox(
             session,
             TOPIC_REVIEW_QUEUE_REFRESH,
@@ -527,7 +529,7 @@ def checked_review_queue_content(content: Any) -> Mapping[str, Any]:
 
 
 def build_follow_up_queue_response(
-    snapshot: Optional[CurrentSnapshot],
+    snapshot: CurrentSnapshot | None,
 ) -> FollowUpQueueResponse:
     """Relay the last review queue snapshot verbatim, or the honest empty state.
 

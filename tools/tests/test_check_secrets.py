@@ -42,7 +42,11 @@ def _codes(text: str) -> set[str]:
     ("label", "text", "expected"),
     [
         ("clé privée", "-----BEGIN RSA PRIVATE KEY-----\nMIIE", "PRIVATE_KEY"),
-        ("jeton GitHub", 'T = "ghp_' + "A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8" + '"', "GITHUB_TOKEN"),
+        (
+            "jeton GitHub",
+            'T = "ghp_' + "A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8" + '"',
+            "GITHUB_TOKEN",
+        ),
         ("clé AWS", "aws_key: AKIAIOSFODNN7EXAMPLE", "AWS_ACCESS_KEY"),
         (
             "JWT",
@@ -54,7 +58,11 @@ def _codes(text: str) -> set[str]:
             'DSN = "postgresql://vertex:R7h!qZ2mPx9Lw4Tv@db.internal:5432/vertex"',
             "DSN_PASSWORD",
         ),
-        ("clé de fournisseur d'IA", 'k="sk-ant-api03-' + "z9Y8x7W6v5U4t3S2r1Q0p9O8" + '"', "ANTHROPIC_KEY"),
+        (
+            "clé de fournisseur d'IA",
+            'k="sk-ant-api03-' + "z9Y8x7W6v5U4t3S2r1Q0p9O8" + '"',
+            "ANTHROPIC_KEY",
+        ),
         (
             "affectation à forte entropie",
             'CLIENT_SECRET = "9f3Kd2Lm8Qz7Xv4Bn1Rt6Yw0Hs5Jp"',
@@ -84,7 +92,9 @@ def test_aucun_faux_positif_sur_les_motifs_legitimes(label: str, text: str) -> N
 def test_l_extrait_n_est_jamais_reproduit_dans_le_rapport() -> None:
     """Un journal de CI ne doit pas publier le secret qu'il dénonce."""
     secret = "ghp_" + "A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8"
-    (finding,) = [f for f in gate.scan_text("probe.txt", f'T = "{secret}"') if f.code == "GITHUB_TOKEN"]
+    (finding,) = [
+        f for f in gate.scan_text("probe.txt", f'T = "{secret}"') if f.code == "GITHUB_TOKEN"
+    ]
     rendered = finding.render()
     assert secret not in rendered
     assert "empreinte" in rendered
@@ -93,7 +103,7 @@ def test_l_extrait_n_est_jamais_reproduit_dans_le_rapport() -> None:
 def test_la_porte_est_verte_sur_le_depot_suivi() -> None:
     """Exécution réelle : le dépôt tel qu'il est suivi par Git ne contient
     aucun secret vraisemblable non exempté, et aucune exemption morte."""
-    completed = subprocess.run(
+    completed = subprocess.run(  # noqa: S603 (argv littéral, sans shell)
         [sys.executable, str(_GATE)],
         cwd=_REPO_ROOT,
         capture_output=True,
@@ -181,10 +191,18 @@ def test_les_contournements_du_4e_audit_sont_fermes(label: str, path: str, text:
         ("appel de fonction Python", "a.py", "session_token = build_session_token(user)"),
         ("attribut TypeScript", "a.ts", "const credential = await navigator.credentials.get()"),
         # Expansion shell « valeur requise » : c'est un message, pas un secret.
-        ("garde-fou shell", "s.sh", ': "${VERTEX_BACKUP_PASSPHRASE:?VERTEX_BACKUP_PASSPHRASE requis}"'),
+        (
+            "garde-fou shell",
+            "s.sh",
+            ': "${VERTEX_BACKUP_PASSPHRASE:?VERTEX_BACKUP_PASSPHRASE requis}"',
+        ),
         ("référence compose", "compose.yaml", "  POSTGRES_PASSWORD: ${VERTEX_DB_PASSWORD:?requis}"),
         # Le nom désigne l'emplacement, l'identifiant ou l'empreinte, pas le secret.
-        ("emplacement d'un secret", "m.yaml", "  secret_location: env:VERTEX_NEWS_API_TOKEN_PRIMARY"),
+        (
+            "emplacement d'un secret",
+            "m.yaml",
+            "  secret_location: env:VERTEX_NEWS_API_TOKEN_PRIMARY",
+        ),
         ("empreinte", "a.py", 'csrf_token_hash = "3b1f9c2e8d7a6b5c4d3e2f1a0b9c8d7e"'),
     ],
 )
@@ -436,7 +454,9 @@ def test_les_cles_cryptographiques_sont_couvertes(name: str) -> None:
 def test_un_marqueur_accole_ne_desarme_pas_un_secret() -> None:
     """« synthetic » est le mot le plus courant du dépôt : l'accoler à un vrai
     secret le faisait passer pour un gabarit."""
-    assert {f.code for f in gate.scan_text("c.yaml", 'client_secret: "9f3b7d1c8a2e4056b1d9c-synthetic"')}
+    assert {
+        f.code for f in gate.scan_text("c.yaml", 'client_secret: "9f3b7d1c8a2e4056b1d9c-synthetic"')
+    }
 
 
 @pytest.mark.parametrize(
@@ -469,9 +489,13 @@ def test_un_secret_quote_long_est_detecte(length: int) -> None:
 @pytest.mark.parametrize(
     ("label", "path", "text"),
     [
-        ("JSON minifié", "c.json", '{"client_secret":"%s"}' % _long_hex(260)),
-        ("YAML quoté", "c.yaml", 'client_secret: "%s"' % _long_hex(260)),
-        ("YAML non quoté", "c.yaml", "client_secret: %s" % _long_hex(260)),
+        # NE PAS réécrire en f-string : interpoler l'appel DANS le littéral
+        # fait matcher le détecteur de secrets du dépôt (tools/check_secrets.py)
+        # sur cette fixture SYNTHETIC, et la porte « détection de secrets »
+        # tombe en rouge. La concaténation garde le nom et la valeur séparés.
+        ("JSON minifié", "c.json", '{"client_secret":"' + _long_hex(260) + '"}'),
+        ("YAML quoté", "c.yaml", 'client_secret: "' + _long_hex(260) + '"'),
+        ("YAML non quoté", "c.yaml", "client_secret: " + _long_hex(260)),
     ],
 )
 def test_la_longueur_ne_cree_plus_d_asymetrie(label: str, path: str, text: str) -> None:
@@ -490,7 +514,9 @@ def test_les_formes_courtes_et_la_matiere_cryptographique_sont_couvertes(name: s
     publier affaiblit le hachage qu'ils protègent, et rien ne les distingue
     d'une clé à la lecture.
     """
-    assert {f.code for f in gate.scan_text("a.py", f'{name} = "9f3Kd2Lm8Qz7Xv4Bn1Rt6Yw0Hs5JpQ7zL2mNx4"')}
+    assert {
+        f.code for f in gate.scan_text("a.py", f'{name} = "9f3Kd2Lm8Qz7Xv4Bn1Rt6Yw0Hs5JpQ7zL2mNx4"')
+    }
 
 
 @pytest.mark.parametrize(

@@ -29,11 +29,11 @@ worker. Il travaille sur des instants et des indices, rien d'autre.
 
 from __future__ import annotations
 
+from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Iterator, Sequence
 
-__all__ = ["Fold", "WalkForwardConfig", "purged_walk_forward", "final_holdout"]
+__all__ = ["Fold", "WalkForwardConfig", "final_holdout", "purged_walk_forward"]
 
 
 @dataclass(frozen=True)

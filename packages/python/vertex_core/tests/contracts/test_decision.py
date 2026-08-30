@@ -1,53 +1,53 @@
 """Decision contracts: gate/advice invariants, fail-closed BLOCK rule, no transactional field."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import pytest
 from pydantic import ValidationError
 
 from vertex_core.contracts import (
+    ENGINE_VERSION,
     AdviceResult,
     AdviceStatus,
     Direction,
-    ENGINE_VERSION,
     GateResult,
     GateStatus,
 )
 
-AS_OF = datetime(2026, 3, 4, 16, 0, tzinfo=timezone.utc)
+AS_OF = datetime(2026, 3, 4, 16, 0, tzinfo=UTC)
 
 
 def make_gate(**overrides):
-    kwargs = dict(
-        gate_id="gate.freshness",
-        version="1.0.0",
-        status=GateStatus.PASS,
-        reason_code="FRESH",
-        message="all required observations within freshness budget",
-        evidence_ids=("evt-0001",),
-        observed_values={"age_seconds": Decimal("2.5")},
-        thresholds={"max_age_seconds": Decimal("30")},
-    )
+    kwargs = {
+        "gate_id": "gate.freshness",
+        "version": "1.0.0",
+        "status": GateStatus.PASS,
+        "reason_code": "FRESH",
+        "message": "all required observations within freshness budget",
+        "evidence_ids": ("evt-0001",),
+        "observed_values": {"age_seconds": Decimal("2.5")},
+        "thresholds": {"max_age_seconds": Decimal("30")},
+    }
     kwargs.update(overrides)
     return GateResult(**kwargs)
 
 
 def make_advice(**overrides):
-    kwargs = dict(
-        advice_id="adv-0001",
-        instrument_id="ins-aapl-2026",
-        as_of=AS_OF,
-        valid_until=AS_OF + timedelta(hours=4),
-        input_snapshot_id="snap-0001",
-        engine_version=ENGINE_VERSION,
-        status=AdviceStatus.REVIEW,
-        direction=Direction.NEUTRAL,
-        horizon="P1W",
-        gates=(make_gate(),),
-        risk_summary="synthetic demo scenario for tests only",
-        limitations=("SYNTHETIC fixture",),
-    )
+    kwargs = {
+        "advice_id": "adv-0001",
+        "instrument_id": "ins-aapl-2026",
+        "as_of": AS_OF,
+        "valid_until": AS_OF + timedelta(hours=4),
+        "input_snapshot_id": "snap-0001",
+        "engine_version": ENGINE_VERSION,
+        "status": AdviceStatus.REVIEW,
+        "direction": Direction.NEUTRAL,
+        "horizon": "P1W",
+        "gates": (make_gate(),),
+        "risk_summary": "synthetic demo scenario for tests only",
+        "limitations": ("SYNTHETIC fixture",),
+    }
     kwargs.update(overrides)
     return AdviceResult(**kwargs)
 
@@ -116,7 +116,7 @@ class TestAdviceResult:
 
     def test_naive_as_of_rejected(self):
         with pytest.raises(ValidationError, match="naive datetime"):
-            make_advice(as_of=datetime(2026, 3, 4, 16, 0))
+            make_advice(as_of=datetime(2026, 3, 4, 16, 0))  # noqa: DTZ001 (naïf délibéré : rejet vérifié)
 
     def test_frozen(self):
         advice = make_advice()

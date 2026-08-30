@@ -16,16 +16,16 @@ scans ``information_schema`` to prove it.
 from __future__ import annotations
 
 import os
-from typing import Sequence, Union
+from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import context, op
 from sqlalchemy.dialects.postgresql import JSONB
 
 revision: str = "0001_initial"
-down_revision: Union[str, None] = None
-branch_labels: Union[str, Sequence[str], None] = None
-depends_on: Union[str, Sequence[str], None] = None
+down_revision: str | None = None
+branch_labels: str | Sequence[str] | None = None
+depends_on: str | Sequence[str] | None = None
 
 # Frozen vocabularies (see module docstring).
 OBSERVATION_QUALITY_STATUSES = (
@@ -163,10 +163,16 @@ def upgrade() -> None:
         sa.Column("lease_until", sa.DateTime(timezone=True), nullable=True),
         sa.Column("last_error", sa.Text(), nullable=True),
         sa.Column(
-            "created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
         ),
         sa.Column(
-            "updated_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False
+            "updated_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
         ),
         sa.PrimaryKeyConstraint("id", name="pk_outbox"),
         sa.CheckConstraint(
@@ -183,7 +189,10 @@ def upgrade() -> None:
         sa.Column("name", sa.Text(), nullable=False),
         sa.Column("base_currency", sa.Text(), nullable=False),
         sa.Column(
-            "created_at", sa.DateTime(timezone=True), server_default=sa.text("now()"), nullable=False
+            "created_at",
+            sa.DateTime(timezone=True),
+            server_default=sa.text("now()"),
+            nullable=False,
         ),
         sa.PrimaryKeyConstraint("id", name="pk_portfolios"),
         sa.UniqueConstraint("name", name="uq_portfolios_name"),
@@ -292,7 +301,7 @@ def downgrade() -> None:
         populated = [
             table
             for table in ("observations", "ledger_transactions")
-            if bind.execute(sa.text(f"SELECT EXISTS (SELECT 1 FROM {table})")).scalar()
+            if bind.execute(sa.text(f"SELECT EXISTS (SELECT 1 FROM {table})")).scalar()  # noqa: S608 (noms de tables littéraux, aucune entrée externe)
         ]
         if populated:
             raise RuntimeError(

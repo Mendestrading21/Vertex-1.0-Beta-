@@ -7,9 +7,9 @@ import random
 from decimal import Decimal
 
 import pytest
+from fakes import NAN, T1, FakeComputation, FakeIB, FakeTicker, fixed_clock, instant_sleep
 
 from vertex_core.contracts import DelayStatus, EnvelopeQuality
-
 from vertex_edge_ibkr.adapter import (
     DEFAULT_CLIENT_ID,
     LOOPBACK_HOST,
@@ -22,8 +22,6 @@ from vertex_edge_ibkr.port import (
     ScannerDefinition,
 )
 from vertex_edge_ibkr.state import ConnectionStateMachine
-
-from fakes import NAN, FakeComputation, FakeIB, FakeTicker, T1, fixed_clock, instant_sleep
 
 STOCK = ContractSpec(sec_type="STK", con_id=1001, symbol="SYN", exchange="SMART", currency="USD")
 OPTION = ContractSpec(
@@ -38,14 +36,14 @@ OPTION = ContractSpec(
 
 
 def make_adapter(fake: FakeIB, **overrides) -> IbAsyncInformationAdapter:
-    values = dict(
-        ib=fake,
-        clock=fixed_clock(T1),
-        sleep=instant_sleep,
-        snapshot_timeout_seconds=0.2,
-        snapshot_poll_seconds=0.1,
-        event_id_factory=iter(f"evt-{i}" for i in range(1000)).__next__,
-    )
+    values = {
+        "ib": fake,
+        "clock": fixed_clock(T1),
+        "sleep": instant_sleep,
+        "snapshot_timeout_seconds": 0.2,
+        "snapshot_poll_seconds": 0.1,
+        "event_id_factory": iter(f"evt-{i}" for i in range(1000)).__next__,
+    }
     values.update(overrides)
     return IbAsyncInformationAdapter(**values)
 
@@ -57,7 +55,7 @@ def snapshot(adapter: IbAsyncInformationAdapter, spec: ContractSpec, **kwargs):
 # -- construction refusals --------------------------------------------------
 
 
-@pytest.mark.parametrize("host", ["0.0.0.0", "192.168.1.20", "localhost", "example.com", ""])
+@pytest.mark.parametrize("host", ["0.0.0.0", "192.168.1.20", "localhost", "example.com", ""])  # noqa: S104 (hôte non-loopback délibéré : refus vérifié)
 def test_non_loopback_host_is_refused(host: str) -> None:
     with pytest.raises(ValueError):
         make_adapter(FakeIB(), host=host)
@@ -106,7 +104,9 @@ def test_connect_drives_the_state_machine_epoch() -> None:
 
 
 def test_sentinel_minus_one_and_nan_become_none_never_zero() -> None:
-    ticker = FakeTicker(bid=-1.0, bidSize=NAN, ask=101.5, askSize=3.0, last=NAN, volume=-1.0, close=4.2)
+    ticker = FakeTicker(
+        bid=-1.0, bidSize=NAN, ask=101.5, askSize=3.0, last=NAN, volume=-1.0, close=4.2
+    )
     result = snapshot(make_adapter(FakeIB(ticker=ticker)), STOCK)
     quote = result.quote()
     assert quote is not None
@@ -132,7 +132,9 @@ def test_greek_sentinels_stay_none() -> None:
         bid=1.0,
         ask=1.2,
         last=1.1,
-        modelGreeks=FakeComputation(impliedVol=-1.0, delta=-2.0, gamma=0.04, vega=-2.0, theta=-2.0, undPrice=-1.0),
+        modelGreeks=FakeComputation(
+            impliedVol=-1.0, delta=-2.0, gamma=0.04, vega=-2.0, theta=-2.0, undPrice=-1.0
+        ),
     )
     result = snapshot(make_adapter(FakeIB(ticker=ticker)), OPTION)
     greeks = result.greeks()
@@ -299,7 +301,7 @@ def test_complete_risk_set_is_valid_without_the_provider_context_fields() -> Non
 @pytest.mark.parametrize("missing", ["impliedVol", "delta", "gamma", "vega", "theta"])
 def test_any_missing_risk_field_degrades_to_partial(missing: str) -> None:
     """Each of the five risk fields is required: losing one degrades the whole."""
-    computation = dict(impliedVol=0.31, delta=0.55, gamma=0.04, vega=0.12, theta=-0.05)
+    computation = {"impliedVol": 0.31, "delta": 0.55, "gamma": 0.04, "vega": 0.12, "theta": -0.05}
     del computation[missing]
     ticker = FakeTicker(
         bid=1.0, ask=1.2, last=1.1, modelGreeks=FakeComputation(**computation)

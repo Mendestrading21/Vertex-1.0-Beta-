@@ -38,9 +38,9 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from datetime import datetime
 from decimal import Decimal, localcontext
-from typing import Optional
+from typing import Any
 
-from pydantic import Field, model_validator
+from pydantic import model_validator
 
 from vertex_core.contracts.types import (
     ContractModel,
@@ -58,25 +58,25 @@ __all__ = [
     "DECIMAL_PRECISION",
     "FX_ROUND_TRIP_RELATIVE_TOLERANCE",
     "WEIGHT_SUM_TOLERANCE",
-    "PortfolioCalculationError",
+    "ClosingTransaction",
+    "ConcentrationError",
+    "ConcentrationResult",
+    "CurrencyMismatchError",
+    "Fee",
+    "FxRateError",
     "LedgerError",
     "LotConservationError",
-    "CurrencyMismatchError",
-    "MarkError",
-    "FxRateError",
-    "ConcentrationError",
-    "PositionLot",
-    "ClosingTransaction",
-    "Fee",
     "LotRealizedPnl",
-    "RealizedPnlResult",
     "LotUnrealizedPnl",
+    "MarkError",
+    "PortfolioCalculationError",
+    "PositionLot",
+    "RealizedPnlResult",
     "UnrealizedPnlResult",
-    "ConcentrationResult",
+    "concentration",
     "fx_conversion",
     "realized_pnl",
     "unrealized_pnl",
-    "concentration",
 ]
 
 DECIMAL_PRECISION = 28
@@ -96,7 +96,8 @@ class PortfolioCalculationError(ValueError):
 
 
 class LedgerError(PortfolioCalculationError):
-    """The declared ledger is not internally consistent (unknown/duplicate references, empty population)."""
+    """The declared ledger is not internally consistent (unknown/duplicate
+    references, empty population)."""
 
 
 class LotConservationError(LedgerError):
@@ -192,7 +193,7 @@ class RealizedPnlResult(ContractModel):
     lots: tuple[LotRealizedPnl, ...]
 
     @model_validator(mode="after")
-    def _check_balanced_ledger(self) -> "RealizedPnlResult":
+    def _check_balanced_ledger(self) -> RealizedPnlResult:
         if self.total_pnl != self.gross_proceeds - self.cost_basis - self.total_fees:
             raise ValueError("unbalanced ledger: total_pnl must equal proceeds - cost basis - fees")
         if self.lots:
@@ -223,15 +224,17 @@ class UnrealizedPnlResult(ContractModel):
     """
 
     currency: CurrencyCode
-    total_unrealized: Optional[FiniteDecimal]
+    total_unrealized: FiniteDecimal | None
     lots: tuple[LotUnrealizedPnl, ...]
     excluded_lot_ids: tuple[str, ...] = ()
 
     @model_validator(mode="after")
-    def _check_absence_is_not_zero(self) -> "UnrealizedPnlResult":
+    def _check_absence_is_not_zero(self) -> UnrealizedPnlResult:
         if (self.total_unrealized is None) != (len(self.lots) == 0):
             raise ValueError("total_unrealized must be None exactly when no lot could be valued")
-        if self.lots and self.total_unrealized != sum((entry.unrealized_pnl for entry in self.lots), _ZERO):
+        if self.lots and self.total_unrealized != sum(
+            (entry.unrealized_pnl for entry in self.lots), _ZERO
+        ):
             raise ValueError("aggregation must be linear: total must equal the sum of per-lot pnl")
         return self
 
@@ -244,19 +247,22 @@ class ConcentrationResult(ContractModel):
     herfindahl_index: FiniteDecimal
 
 
-def _as_tuple_of(values: Sequence[object], expected_type: type, name: str) -> tuple:
+def _as_tuple_of(
+    values: Sequence[object], expected_type: type, name: str
+) -> tuple[Any, ...]:
     if isinstance(values, (str, bytes)):
         raise LedgerError(f"{name} must be a sequence of {expected_type.__name__} instances")
     items = tuple(values)
     for item in items:
         if not isinstance(item, expected_type):
             raise LedgerError(
-                f"{name} must contain only {expected_type.__name__} instances, got {type(item).__name__}"
+                f"{name} must contain only {expected_type.__name__} instances, "
+                f"got {type(item).__name__}"
             )
     return items
 
 
-def _indexed_lots(lots: tuple) -> "dict[str, PositionLot]":
+def _indexed_lots(lots: tuple[PositionLot, ...]) -> dict[str, PositionLot]:
     lot_by_id: dict[str, PositionLot] = {}
     for lot in lots:
         if lot.lot_id in lot_by_id:
@@ -265,7 +271,7 @@ def _indexed_lots(lots: tuple) -> "dict[str, PositionLot]":
     return lot_by_id
 
 
-def _single_currency(lots: tuple) -> str:
+def _single_currency(lots: tuple[PositionLot, ...]) -> str:
     currency = lots[0].currency
     for lot in lots:
         if lot.currency != currency:
@@ -357,12 +363,13 @@ def realized_pnl(
             )
         if tx.currency != currency:
             raise CurrencyMismatchError(
-                f"closing transaction {tx.transaction_id!r} is in {tx.currency}, expected {currency}"
+                f"closing transaction {tx.transaction_id!r} is in "
+                f"{tx.currency}, expected {currency}"
             )
         tx_by_id[tx.transaction_id] = tx
 
     fees_by_tx: dict[str, Decimal] = {}
-    seen_fee_ids: set = set()
+    seen_fee_ids: set[str] = set()
     for fee in fee_seq:
         if fee.fee_id in seen_fee_ids:
             raise LedgerError(f"duplicate fee_id: {fee.fee_id!r}")
@@ -372,7 +379,9 @@ def realized_pnl(
                 f"fee {fee.fee_id!r} references unknown closing transaction {fee.applies_to!r}"
             )
         if fee.currency != currency:
-            raise CurrencyMismatchError(f"fee {fee.fee_id!r} is in {fee.currency}, expected {currency}")
+            raise CurrencyMismatchError(
+                f"fee {fee.fee_id!r} is in {fee.currency}, expected {currency}"
+            )
         fees_by_tx[fee.applies_to] = fees_by_tx.get(fee.applies_to, _ZERO) + fee.amount
 
     with localcontext() as ctx:
@@ -386,13 +395,16 @@ def realized_pnl(
             closed = closed_by_lot.get(tx.lot_id, _ZERO) + tx.quantity
             if closed > lot.quantity:
                 raise LotConservationError(
-                    f"lot {tx.lot_id!r}: closed quantity {closed} exceeds open quantity {lot.quantity}"
+                    f"lot {tx.lot_id!r}: closed quantity {closed} exceeds "
+                    f"open quantity {lot.quantity}"
                 )
             closed_by_lot[tx.lot_id] = closed
             # No fee event recorded for this transaction means no fee was
             # declared (true absence of a ledger event, not a missing value).
             fee_amount = fees_by_tx.get(tx.transaction_id, _ZERO)
-            proceeds_by_lot[tx.lot_id] = proceeds_by_lot.get(tx.lot_id, _ZERO) + tx.quantity * tx.unit_price
+            proceeds_by_lot[tx.lot_id] = (
+                proceeds_by_lot.get(tx.lot_id, _ZERO) + tx.quantity * tx.unit_price
+            )
             cost_by_lot[tx.lot_id] = cost_by_lot.get(tx.lot_id, _ZERO) + tx.quantity * lot.unit_cost
             fees_by_lot[tx.lot_id] = fees_by_lot.get(tx.lot_id, _ZERO) + fee_amount
 
@@ -469,7 +481,7 @@ def unrealized_pnl(
     currency = _single_currency(lot_seq)
 
     fees_by_lot: dict[str, Decimal] = {}
-    seen_fee_ids: set = set()
+    seen_fee_ids: set[str] = set()
     for fee in fee_seq:
         if fee.fee_id in seen_fee_ids:
             raise LedgerError(f"duplicate fee_id: {fee.fee_id!r}")
@@ -477,14 +489,16 @@ def unrealized_pnl(
         if fee.applies_to not in lot_by_id:
             raise LedgerError(f"fee {fee.fee_id!r} references unknown lot {fee.applies_to!r}")
         if fee.currency != currency:
-            raise CurrencyMismatchError(f"fee {fee.fee_id!r} is in {fee.currency}, expected {currency}")
+            raise CurrencyMismatchError(
+                f"fee {fee.fee_id!r} is in {fee.currency}, expected {currency}"
+            )
         fees_by_lot[fee.applies_to] = fees_by_lot.get(fee.applies_to, _ZERO) + fee.amount
 
     included = []
     excluded_lot_ids = []
     with localcontext() as ctx:
         ctx.prec = DECIMAL_PRECISION
-        total: Optional[Decimal] = None
+        total: Decimal | None = None
         for lot in lot_seq:  # deterministic: input order of the lot declaration
             if lot.lot_id not in marks:
                 # Absent mark: the lot is excluded and reported, never valued at zero.
@@ -492,7 +506,9 @@ def unrealized_pnl(
                 continue
             mark = marks[lot.lot_id]
             if not isinstance(mark, Decimal):
-                raise MarkError(f"mark for lot {lot.lot_id!r} must be a Decimal, got {type(mark).__name__}")
+                raise MarkError(
+                    f"mark for lot {lot.lot_id!r} must be a Decimal, got {type(mark).__name__}"
+                )
             if not mark.is_finite() or mark < _ZERO:
                 raise MarkError(f"mark for lot {lot.lot_id!r} must be finite and non-negative")
             lot_fees = fees_by_lot.get(lot.lot_id, _ZERO)
@@ -533,7 +549,8 @@ def concentration(values_by_group: Mapping[str, Decimal]) -> ConcentrationResult
     """
     if not isinstance(values_by_group, Mapping):
         raise ConcentrationError(
-            f"values_by_group must be a mapping of group label to Decimal, got {type(values_by_group).__name__}"
+            "values_by_group must be a mapping of group label to Decimal, "
+            f"got {type(values_by_group).__name__}"
         )
     if not values_by_group:
         raise ConcentrationError("empty grouping: concentration requires at least one group")
@@ -541,7 +558,9 @@ def concentration(values_by_group: Mapping[str, Decimal]) -> ConcentrationResult
         if not isinstance(key, str) or not key:
             raise ConcentrationError("group labels must be non-empty strings")
         if not isinstance(value, Decimal):
-            raise ConcentrationError(f"value for group {key!r} must be a Decimal, got {type(value).__name__}")
+            raise ConcentrationError(
+                f"value for group {key!r} must be a Decimal, got {type(value).__name__}"
+            )
         if not value.is_finite() or value < _ZERO:
             raise ConcentrationError(f"value for group {key!r} must be finite and non-negative")
 
@@ -551,7 +570,9 @@ def concentration(values_by_group: Mapping[str, Decimal]) -> ConcentrationResult
         for value in values_by_group.values():
             total += value
         if total <= _ZERO:
-            raise ConcentrationError("positive_denominator gate failed: total group value must be > 0")
+            raise ConcentrationError(
+                "positive_denominator gate failed: total group value must be > 0"
+            )
         weights = {key: value / total for key, value in values_by_group.items()}
         herfindahl = _ZERO
         for weight in weights.values():

@@ -15,14 +15,14 @@ satisfied while proving nothing. The forged variants live in
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
-from typing import Iterator, Optional
+from collections.abc import Iterator
+from datetime import UTC, datetime
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-
 from snapshot_fakes import FakeSnapshotReader, synthetic_session
+
 from vertex_api.auth import require_session
 from vertex_api.follow_up import CreateThesisRequest, ThesisRevisionRequest
 from vertex_api.routes import get_follow_up_gateway
@@ -31,7 +31,7 @@ from vertex_persistence.errors import IdempotencyKeyReuseError, UnknownThesisErr
 from vertex_persistence.repository.snapshots import CurrentSnapshot
 from vertex_persistence.repository.theses import CreatedThesis, RecordedRevision
 
-FIXED_NOW = datetime(2026, 8, 25, 12, 0, 0, tzinfo=timezone.utc)
+FIXED_NOW = datetime(2026, 8, 25, 12, 0, 0, tzinfo=UTC)
 
 VALID_THESIS = {
     "title": "SYNTHETIC thesis",
@@ -132,8 +132,8 @@ class FakeFollowUpGateway:
         self.revisions: list[tuple[int, ThesisRevisionRequest]] = []
         self.create_result = CreatedThesis(thesis_id=1, revision_id=1, created=True)
         self.revision_result = RecordedRevision(revision_id=2, created=True)
-        self.raise_on_create: Optional[Exception] = None
-        self.raise_on_revision: Optional[Exception] = None
+        self.raise_on_create: Exception | None = None
+        self.raise_on_revision: Exception | None = None
 
     def create(self, request: CreateThesisRequest, *, now: datetime) -> CreatedThesis:
         if self.raise_on_create is not None:

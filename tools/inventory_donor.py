@@ -8,7 +8,7 @@ import json
 import sys
 from collections import Counter
 from pathlib import Path
-
+from typing import cast
 
 SKIP_PARTS = {".git", ".venv", "node_modules", "__pycache__", ".pytest_cache", "dist", "build"}
 TEXT_SUFFIXES = {".py", ".js", ".jsx", ".ts", ".tsx", ".css", ".json", ".yaml", ".yml", ".md"}
@@ -51,7 +51,9 @@ def main() -> int:
         suffix = path.suffix.lower() or "(none)"
         extensions[suffix] += 1
         top_level[relative.parts[0]] += 1
-        if path.name.lower() in SENSITIVE_NAMES or any(token in path.name.lower() for token in ("secret", "credential")):
+        if path.name.lower() in SENSITIVE_NAMES or any(
+            token in path.name.lower() for token in ("secret", "credential")
+        ):
             sensitive_paths.append(relative.as_posix())
         records.append(
             {
@@ -66,7 +68,7 @@ def main() -> int:
         "ok": True,
         "root_name": root.name,
         "file_count": len(records),
-        "total_bytes": sum(int(item["bytes"]) for item in records),
+        "total_bytes": sum(int(cast(int, item["bytes"])) for item in records),
         "extensions": dict(extensions.most_common()),
         "top_level": dict(top_level.most_common()),
         "sensitive_path_names": sensitive_paths,

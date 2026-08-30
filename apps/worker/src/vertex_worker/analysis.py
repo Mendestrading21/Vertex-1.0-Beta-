@@ -52,12 +52,13 @@ from __future__ import annotations
 
 import logging
 import re
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
-from typing import TYPE_CHECKING, Any, Callable, Mapping, Optional, Sequence
+from typing import TYPE_CHECKING, Any
 
-from sqlalchemy import select
+from sqlalchemy import ColumnElement, select
 from sqlalchemy.orm import Session
 
 from vertex_core.calculations.options import (
@@ -91,7 +92,6 @@ from vertex_core.version import ENGINE_VERSION
 from vertex_persistence.models import Observation
 from vertex_persistence.repository.outbox import ClaimedOutboxMessage
 from vertex_persistence.repository.snapshots import get_current_snapshot
-
 from vertex_worker.registry import HandlerRegistry
 
 if TYPE_CHECKING:  # import-time cycle avoidance (handlers -> ingest -> here)
@@ -176,14 +176,14 @@ no underscore, no surrounding whitespace, no Unicode digit — all of which
 _MAX_CODE_LENGTH = 32
 
 
-def _currency_or_none(value: Any) -> Optional[str]:
+def _currency_or_none(value: Any) -> str | None:
     """The ISO-4217 code itself, or ``None`` when the shape is not admitted."""
     if not isinstance(value, str) or not _CURRENCY_RE.fullmatch(value):
         return None
     return value
 
 
-def _trading_day_or_none(value: Any) -> Optional[str]:
+def _trading_day_or_none(value: Any) -> str | None:
     """The ISO day itself, or ``None`` (shape rejected, or not a real date)."""
     if not isinstance(value, str) or not _TRADING_DAY_RE.fullmatch(value):
         return None
@@ -194,7 +194,7 @@ def _trading_day_or_none(value: Any) -> Optional[str]:
     return value
 
 
-def _basis_code_or_none(value: Any) -> Optional[str]:
+def _basis_code_or_none(value: Any) -> str | None:
     """The adjustment-basis code itself, or ``None`` when out of shape."""
     if not isinstance(value, str) or len(value) > _MAX_CODE_LENGTH:
         return None
@@ -203,7 +203,7 @@ def _basis_code_or_none(value: Any) -> Optional[str]:
     return value
 
 
-def _price_or_none(value: Any) -> Optional[tuple[str, Decimal]]:
+def _price_or_none(value: Any) -> tuple[str, Decimal] | None:
     """The verbatim price string AND its Decimal, or ``None`` when out of
     shape. Guarantees that what is relayed verbatim is a plain decimal."""
     if not isinstance(value, str) or not _PRICE_RE.fullmatch(value):
@@ -230,7 +230,7 @@ class BarRecord:
 
     event_id: str
     source: str
-    instrument_ref: Optional[str]
+    instrument_ref: str | None
     as_of: datetime
     quality_status: str
     rights: str
@@ -308,7 +308,7 @@ def load_daily_bar_records(
         Observation.schema_version.like(f"{prefix}%")
         for prefix in DAILY_BARS_SCHEMA_PREFIXES
     ]
-    schema_filter = filters[0]
+    schema_filter: ColumnElement[bool] = filters[0]
     for extra in filters[1:]:
         schema_filter = schema_filter | extra
     rows = (
@@ -360,7 +360,7 @@ def _calculation_meta(record: CalculationRecord) -> dict[str, Any]:
     }
 
 
-def _decimal_or_none(value: Any) -> Optional[Decimal]:
+def _decimal_or_none(value: Any) -> Decimal | None:
     if not isinstance(value, str) or not value:
         return None
     try:
@@ -370,7 +370,7 @@ def _decimal_or_none(value: Any) -> Optional[Decimal]:
     return parsed if parsed.is_finite() else None
 
 
-def _validate_bar(raw: Any) -> tuple[Optional[dict[str, Any]], Optional[str]]:
+def _validate_bar(raw: Any) -> tuple[dict[str, Any] | None, str | None]:
     """Validate one OHLCV bar fail-closed.
 
     Returns ``(bar, None)`` for an admitted bar — relayed VERBATIM — or
@@ -407,7 +407,7 @@ def _validate_bar(raw: Any) -> tuple[Optional[dict[str, Any]], Optional[str]]:
 
 
 def _build_evidence(
-    evidence_records: Sequence["ObservationRecord"],
+    evidence_records: Sequence[ObservationRecord],
     *,
     instrument: str,
     config: AnalysisConfig,
@@ -415,11 +415,11 @@ def _build_evidence(
     """Short evidence rail from the deterministic fusion of the ticker's
     content observations (title-carrying observations mentioning the
     instrument). Dedup only — no relevance invention here."""
+    from vertex_core.fusion import ContentObservation
     from vertex_worker.handlers import (  # local import: cycle avoidance
         DEFAULT_SOURCE_TIER,
         is_synthetic_record,
     )
-    from vertex_core.fusion import ContentObservation
 
     observations = []
     record_by_id: dict[str, Any] = {}
@@ -491,11 +491,11 @@ def _build_evidence(
 
 def _pick_healthy_contract(
     chain_content: Mapping[str, Any],
-) -> Optional[dict[str, Any]]:
+) -> dict[str, Any] | None:
     """First contract with a sane quote AND a resolved Vertex IV, plus its
     group context. CALL contracts are preferred (simple long-call scenario);
     a healthy PUT is used only when no CALL qualifies."""
-    fallback: Optional[dict[str, Any]] = None
+    fallback: dict[str, Any] | None = None
     expirations = chain_content.get("expirations")
     if not isinstance(expirations, list):
         return None
@@ -530,6 +530,9 @@ def _pick_healthy_contract(
                 continue
             if not isinstance(multiplier, int) or multiplier <= 0:
                 continue
+            # `None in (...)` ci-dessus refuse déjà l'absence, mais ne
+            # restreint aucun des noms testés.
+            assert ask is not None and maturity is not None  # noqa: S101
             if ask <= 0 or maturity <= 0:
                 continue
             candidate = {
@@ -552,9 +555,9 @@ def _pick_healthy_contract(
 
 
 def _build_scenarios(
-    chain_content: Optional[Mapping[str, Any]],
+    chain_content: Mapping[str, Any] | None,
     *,
-    chain_version: Optional[int],
+    chain_version: int | None,
     now: datetime,
 ) -> dict[str, Any]:
     """Scenario block: ``scenario_grid`` on ONE healthy long option leg, or
@@ -644,12 +647,12 @@ def build_analysis_content(
     bar_records: Sequence[BarRecord],
     *,
     instrument: str,
-    evidence_records: Sequence["ObservationRecord"],
-    option_chain_content: Optional[Mapping[str, Any]],
-    option_chain_version: Optional[int],
+    evidence_records: Sequence[ObservationRecord],
+    option_chain_content: Mapping[str, Any] | None,
+    option_chain_version: int | None,
     now: datetime,
     config: AnalysisConfig,
-    engine: Optional[AdviceEngine] = None,
+    engine: AdviceEngine | None = None,
 ) -> dict[str, Any]:
     """Build the ``analysis/{instrument}`` snapshot content (pure).
 
@@ -666,7 +669,7 @@ def build_analysis_content(
 
     # -- pick the latest usable bars record for this instrument --------------
     rejected_records: list[dict[str, str]] = []
-    chosen: Optional[BarRecord] = None
+    chosen: BarRecord | None = None
     considered = 0
     for record in sorted(bar_records, key=lambda r: (r.as_of, r.event_id)):
         payload = record.payload if isinstance(record.payload, Mapping) else {}

@@ -40,7 +40,6 @@ reuses this linear formula.
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Optional
 
 from pydantic import model_validator
 
@@ -77,13 +76,13 @@ class RiskRewardResult(ContractModel):
     """
 
     status: CalculationStatus
-    ratio: Optional[FiniteDecimal] = None
-    risk: Optional[FiniteDecimal] = None
-    reward: Optional[FiniteDecimal] = None
-    reason: Optional[NonEmptyStr] = None
+    ratio: FiniteDecimal | None = None
+    risk: FiniteDecimal | None = None
+    reward: FiniteDecimal | None = None
+    reason: NonEmptyStr | None = None
 
     @model_validator(mode="after")
-    def _check_shape(self) -> "RiskRewardResult":
+    def _check_shape(self) -> RiskRewardResult:
         if self.status not in _RESULT_STATUSES:
             raise ValueError("risk_reward status must be OK or INVALID")
         if self.status is CalculationStatus.OK:
@@ -118,13 +117,13 @@ def _check_bool_type(name: str, value: object) -> None:
 
 
 def risk_reward(
-    entry: Optional[Decimal],
-    stop: Optional[Decimal],
-    target: Optional[Decimal],
-    multiplier: Optional[int],
-    costs: Optional[Decimal],
-    currency_match: Optional[bool],
-    horizon_defined: Optional[bool],
+    entry: Decimal | None,
+    stop: Decimal | None,
+    target: Decimal | None,
+    multiplier: int | None,
+    costs: Decimal | None,
+    currency_match: bool | None,
+    horizon_defined: bool | None,
 ) -> RiskRewardResult:
     """Exact risk:reward ratio of a long directional scenario (registry ``decision.risk_reward``).
 

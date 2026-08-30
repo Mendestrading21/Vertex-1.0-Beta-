@@ -12,7 +12,7 @@ never coexist with ``OBSERVE``, ``REVIEW`` or ``QUALIFIED``.
 from __future__ import annotations
 
 from types import MappingProxyType
-from typing import Annotated, Optional
+from typing import Annotated, Any
 
 from pydantic import Field, model_validator
 
@@ -29,7 +29,7 @@ __all__ = ["AdviceResult", "GateResult"]
 _BLOCK_COMPATIBLE_STATUSES = frozenset({AdviceStatus.BLOCKED, AdviceStatus.INSUFFICIENT_DATA})
 
 
-def _empty_frozen_mapping() -> MappingProxyType:
+def _empty_frozen_mapping() -> MappingProxyType[str, Any]:
     return MappingProxyType({})
 
 
@@ -73,13 +73,13 @@ class AdviceResult(ContractModel):
     evidence_ids: tuple[str, ...] = ()
     risk_summary: NonEmptyStr
     scenario_ids: tuple[str, ...] = ()
-    probability_evidence: Optional[FrozenStrMapping] = None
+    probability_evidence: FrozenStrMapping | None = None
     limitations: tuple[str, ...] = ()
     explanation_facts: tuple[str, ...] = ()
-    supersedes: Optional[NonEmptyStr] = None
+    supersedes: NonEmptyStr | None = None
 
     @model_validator(mode="after")
-    def _check_invariants(self) -> "AdviceResult":
+    def _check_invariants(self) -> AdviceResult:
         if self.valid_until < self.as_of:
             raise ValueError("valid_until must not precede as_of")
         if any(gate.status is GateStatus.BLOCK for gate in self.gates):

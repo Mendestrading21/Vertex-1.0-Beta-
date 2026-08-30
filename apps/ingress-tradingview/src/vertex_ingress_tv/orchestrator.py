@@ -39,10 +39,11 @@ store and quote provider are all injected.
 from __future__ import annotations
 
 import json
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from enum import Enum, unique
-from typing import Any, Callable, Dict, List, Mapping, Optional, Protocol, Sequence
+from typing import Any, Protocol
 
 from vertex_ingress_tv.registry import AlertRegistry
 from vertex_ingress_tv.schema import (
@@ -59,9 +60,9 @@ __all__ = [
     "QUEUE_ENVELOPE_SCHEMA_ID",
     "IngestOutcome",
     "IngressRejection",
-    "Quote",
     "QueueClient",
     "QueueMessage",
+    "Quote",
     "QuoteProvider",
     "SignalStore",
     "TradingViewOrchestrator",
@@ -132,9 +133,9 @@ class SignalStore(Protocol):
 
     def persist_signal(self, event_id: str, record: Mapping[str, Any]) -> bool: ...
 
-    def set_state(self, event_id: str, state: TriggerState, reason: Optional[str]) -> None: ...
+    def set_state(self, event_id: str, state: TriggerState, reason: str | None) -> None: ...
 
-    def get_state(self, event_id: str) -> Optional[TriggerState]: ...
+    def get_state(self, event_id: str) -> TriggerState | None: ...
 
 
 @dataclass(frozen=True)
@@ -153,7 +154,7 @@ class Quote:
 class QuoteProvider(Protocol):
     """Provider of the freshest available IBKR observation for an instrument."""
 
-    def get_quote(self, exchange: str, ticker: str) -> Optional[Quote]: ...
+    def get_quote(self, exchange: str, ticker: str) -> Quote | None: ...
 
 
 @dataclass(frozen=True)
@@ -170,11 +171,11 @@ class IngressRejection:
 class IngestOutcome:
     """Result of processing one queue message or one revalidation step."""
 
-    message_id: Optional[str]
-    event_id: Optional[str]
+    message_id: str | None
+    event_id: str | None
     status: str  # PERSISTED | DUPLICATE | REJECTED | PERSIST_FAILED |
     #              WAITING | REVALIDATED | BLOCKED | EXPIRED
-    reason: Optional[str] = None
+    reason: str | None = None
 
 
 @dataclass
@@ -189,7 +190,7 @@ class _PendingTrigger:
 def _ensure_aware_utc(value: datetime, what: str) -> datetime:
     if value.tzinfo is None or value.tzinfo.utcoffset(value) is None:
         raise AlertRejected("naive_timestamp", f"{what} must be timezone-aware")
-    return value.astimezone(timezone.utc)
+    return value.astimezone(UTC)
 
 
 class TradingViewOrchestrator:
@@ -234,11 +235,11 @@ class TradingViewOrchestrator:
         self._deadline = revalidation_deadline
         self._max_received_at_skew = max_received_at_skew
         self._max_received_at_age = max_received_at_age
-        self._pending: Dict[str, _PendingTrigger] = {}
+        self._pending: dict[str, _PendingTrigger] = {}
 
     # ------------------------------------------------------------------ pull
 
-    def pull_and_ingest(self, max_messages: int = 10) -> List[IngestOutcome]:
+    def pull_and_ingest(self, max_messages: int = 10) -> list[IngestOutcome]:
         """Pull up to ``max_messages`` and ingest each one independently."""
         return [self.ingest_message(msg) for msg in self._queue.pull(max_messages)]
 
@@ -262,7 +263,7 @@ class TradingViewOrchestrator:
 
         decision = self._registry.check(alert)
         if not decision.accepted:
-            assert decision.rejection is not None
+            assert decision.rejection is not None  # noqa: S101 (narrowing mypy, garde réelle au-dessus)
             # The registry already pushed its own auditable rejection.
             return self._reject(
                 message,
@@ -297,7 +298,9 @@ class TradingViewOrchestrator:
                 received_at=received_at,
                 deadline=received_at + self._deadline,
             )
-            return IngestOutcome(message_id=message.message_id, event_id=event_id, status="PERSISTED")
+            return IngestOutcome(
+                message_id=message.message_id, event_id=event_id, status="PERSISTED"
+            )
 
         # Redelivery of an already-persisted signal: keep counting nothing,
         # change nothing terminal, but re-attach a lost pending entry (e.g.
@@ -319,7 +322,7 @@ class TradingViewOrchestrator:
 
     # ----------------------------------------------------------- revalidate
 
-    def advance_pending(self) -> List[IngestOutcome]:
+    def advance_pending(self) -> list[IngestOutcome]:
         """WAITING_FOR_IBKR -> REVALIDATED | BLOCKED | EXPIRED.
 
         Deadline is evaluated FIRST: a quote arriving after the HP-02 deadline
@@ -329,14 +332,16 @@ class TradingViewOrchestrator:
         re-evaluation request, not a verdict); anything else means BLOCKED
         with an explicit reason. No quote means the trigger keeps WAITING.
         """
-        outcomes: List[IngestOutcome] = []
+        outcomes: list[IngestOutcome] = []
         for event_id in list(self._pending):
             trigger = self._pending[event_id]
             now = self._clock()
             _ensure_aware_utc(now, "clock()")
 
             if now >= trigger.deadline:
-                outcomes.append(self._finish(trigger, TriggerState.EXPIRED, "IBKR_QUOTE_DEADLINE_EXCEEDED"))
+                outcomes.append(
+                    self._finish(trigger, TriggerState.EXPIRED, "IBKR_QUOTE_DEADLINE_EXCEEDED")
+                )
                 continue
 
             quote = self._quotes.get_quote(trigger.alert.exchange, trigger.alert.ticker)
@@ -353,7 +358,9 @@ class TradingViewOrchestrator:
 
             observed_at = quote.observed_at
             if observed_at.tzinfo is None or observed_at.tzinfo.utcoffset(observed_at) is None:
-                outcomes.append(self._finish(trigger, TriggerState.BLOCKED, "QUOTE_TIMESTAMP_NAIVE"))
+                outcomes.append(
+                    self._finish(trigger, TriggerState.BLOCKED, "QUOTE_TIMESTAMP_NAIVE")
+                )
                 continue
             # Freshness is proved by ``observed_at >= received_at`` below, and
             # ``observed_at`` is provider-supplied: without an upper bound
@@ -366,7 +373,9 @@ class TradingViewOrchestrator:
                 continue
             current_epoch = self._epoch()
             if quote.connection_epoch != current_epoch:
-                outcomes.append(self._finish(trigger, TriggerState.BLOCKED, "STALE_CONNECTION_EPOCH"))
+                outcomes.append(
+                    self._finish(trigger, TriggerState.BLOCKED, "STALE_CONNECTION_EPOCH")
+                )
                 continue
             if observed_at < trigger.received_at:
                 outcomes.append(
@@ -383,7 +392,7 @@ class TradingViewOrchestrator:
             )
         return outcomes
 
-    def pending_event_ids(self) -> List[str]:
+    def pending_event_ids(self) -> list[str]:
         """Event ids currently waiting for an IBKR observation."""
         return list(self._pending)
 
@@ -392,7 +401,9 @@ class TradingViewOrchestrator:
     def _finish(self, trigger: _PendingTrigger, state: TriggerState, reason: str) -> IngestOutcome:
         self._store.set_state(trigger.event_id, state, reason)
         del self._pending[trigger.event_id]
-        return IngestOutcome(message_id=None, event_id=trigger.event_id, status=state.value, reason=reason)
+        return IngestOutcome(
+            message_id=None, event_id=trigger.event_id, status=state.value, reason=reason
+        )
 
     def _reject(
         self,

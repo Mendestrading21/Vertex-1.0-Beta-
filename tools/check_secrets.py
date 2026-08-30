@@ -40,8 +40,9 @@ import re
 import subprocess
 import sys
 from collections import Counter
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Iterable, NamedTuple
+from typing import NamedTuple
 
 import yaml
 
@@ -172,7 +173,7 @@ _SECRET_NAME = r"""[A-Za-z0-9_.-]*
            # Formes courtes et matière cryptographique dont le nom ne contient
            # ni « secret » ni « password ».
            pwd|salt|pepper|cookie[_-]?key|bearer|nonce[_-]?key|seed[_-]?key)
-     [A-Za-z0-9_.-]*"""
+     [A-Za-z0-9_.-]*"""  # noqa: S105 (motif de DÉTECTION de noms de secrets, pas un secret)
 
 ASSIGNMENT = re.compile(
     r"""(?ix)
@@ -282,8 +283,8 @@ def load_allowlist() -> dict[str, str]:
 
 
 def tracked_files() -> list[Path]:
-    out = subprocess.run(
-        ["git", "-C", str(REPO_ROOT), "ls-files", "-z"],
+    out = subprocess.run(  # noqa: S603 (argv littéral, sans shell)
+        ["git", "-C", str(REPO_ROOT), "ls-files", "-z"],  # noqa: S607 (git résolu par PATH, argv littéral)
         check=True,
         capture_output=True,
     ).stdout

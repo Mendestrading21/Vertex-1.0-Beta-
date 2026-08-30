@@ -20,29 +20,30 @@ manifest is authoritative; a sync test enforces exact equality).
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from datetime import datetime
 from types import MappingProxyType
-from typing import Mapping, Sequence, Union
+from typing import Any
 
 from pydantic import Field, model_validator
 
 from vertex_core.contracts import (
     ContractModel,
+    EnvelopeQuality,
     IdentityStatus,
     NonEmptyStr,
     UtcDatetime,
-    EnvelopeQuality,
     ensure_utc,
 )
 from vertex_core.fusion.models import ContentObservation, SourceTier
 
 __all__ = [
     "ATTENTION_BUDGETS",
-    "GATE_RIGHTS_OK",
     "GATE_IDENTITY_OK",
-    "GATE_TIME_OK",
-    "GATE_SOURCE_OK",
     "GATE_QUALITY_OK",
+    "GATE_RIGHTS_OK",
+    "GATE_SOURCE_OK",
+    "GATE_TIME_OK",
     "PENALTY_CODES",
     "PENALTY_MISSING_RIGHTS",
     "POLICY_AUTHORITY",
@@ -103,7 +104,7 @@ PENALTY_MISSING_RIGHTS = "missing_rights"
 """Penalty code carrying a rights problem: it closes the ``RIGHTS_OK`` gate
 regardless of the upstream ``rights_usable`` boolean (fail-closed)."""
 
-ATTENTION_BUDGETS: Mapping[str, Mapping[str, Union[int, str]]] = MappingProxyType(
+ATTENTION_BUDGETS: Mapping[str, Mapping[str, int | str]] = MappingProxyType(
     {
         "today": MappingProxyType(
             {"major_events": 3, "changes": 3, "blockers": UNLIMITED}
@@ -165,7 +166,7 @@ class RelevanceInput(ContractModel):
     penalties: tuple[NonEmptyStr, ...] = ()
 
     @model_validator(mode="after")
-    def _check_penalties(self) -> "RelevanceInput":
+    def _check_penalties(self) -> RelevanceInput:
         unknown = [code for code in self.penalties if code not in PENALTY_CODES]
         if unknown:
             raise ValueError(f"unknown penalty codes rejected: {unknown!r}")
@@ -305,7 +306,7 @@ def _age_seconds(item: RelevanceInput, as_of: datetime) -> int:
     return delta.days * 86400 + delta.seconds
 
 
-def _sort_key(item: RelevanceInput, age_seconds: int) -> tuple:
+def _sort_key(item: RelevanceInput, age_seconds: int) -> tuple[Any, ...]:
     """Lexicographic key over the documented priorities; no summed score.
 
     Manifest penalties demote strictly within an identical priority-flag
@@ -373,7 +374,7 @@ def rank_items(
             )
         seen.add(item.item_id)
 
-    admitted: list[tuple[tuple, RankedItem]] = []
+    admitted: list[tuple[tuple[Any, ...], RankedItem]] = []
     rejected: list[RelevanceRejection] = []
     for item in items:
         gates = evaluate_gates(item, as_of)
@@ -442,5 +443,5 @@ def apply_attention_budget(
         ) from None
     if budget == UNLIMITED:
         return tuple(ranked)
-    assert isinstance(budget, int)
+    assert isinstance(budget, int)  # noqa: S101 (narrowing mypy, garde réelle au-dessus)
     return tuple(ranked[:budget])

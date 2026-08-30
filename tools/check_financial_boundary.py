@@ -100,7 +100,13 @@ CODE_SUFFIXES = {
     ".sh", ".bash", ".zsh",
     ".html", ".pine",
     # déclaratifs : routes, permissions, dépendances, outils IA
-    ".json", ".yaml", ".yml", ".toml", ".ini", ".cfg",
+    # `.jsonc` est du JSON commenté : même rôle déclaratif que `.json`, et le
+    # commentaire y est un endroit tout aussi plausible pour nommer une route
+    # ou une permission. Il est arrivé au dépôt avec `apps/web/biome.jsonc` et
+    # a été signalé par
+    # `test_aucun_format_du_depot_n_echappe_sans_decision_ecrite` — le test qui
+    # existe précisément pour qu'un format nouveau ne s'installe pas en silence.
+    ".json", ".jsonc", ".yaml", ".yml", ".toml", ".ini", ".cfg",
     ".csv", ".txt", ".example", ".npmrc", ".sql", ".env",
 }
 # Fichiers dont le NOM porte le sens : un point initial vide `Path.suffix`
@@ -118,7 +124,23 @@ CODE_FILENAME_PREFIXES = ("Dockerfile", "Makefile")
 # `apps/api/src/vertex_api/fixtures/accounts.py` étaient invisibles (7e audit).
 # Ce qui nomme légitimement une capacité interdite passe par l'allowlist, qui
 # est NOMMÉE et n'exempte que la mention.
-SKIP_PARTS = {".git", ".venv", "node_modules", "__pycache__", ".pytest_cache", "dist", ".vite"}
+# `.mypy_cache` et `.ruff_cache` sont des caches d'outil : jamais suivis par
+# Git (`.gitignore`), jamais livrés, régénérés à chaque exécution. Le cache de
+# mypy sérialise les types des bibliothèques analysées — dont `ib_async` et
+# donc les NOMS des capacités interdites. Les écarter est la même décision que
+# pour `.venv`, qui contient déjà le code source d'`ib_async` : la porte
+# protège ce que le dépôt CONTIENT, pas le cache local d'un vérificateur.
+SKIP_PARTS = {
+    ".git",
+    ".venv",
+    "node_modules",
+    "__pycache__",
+    ".pytest_cache",
+    ".mypy_cache",
+    ".ruff_cache",
+    "dist",
+    ".vite",
+}
 
 ALLOWLIST_FILENAME = "financial-boundary-allowlist.yaml"
 
@@ -134,7 +156,8 @@ OUT_OF_STATIC_REACH = (
     "importlib.import_module(variable), __import__(variable)",
     "réflexion inverse : parcours de dir(ib) ou de vars(ib) filtré à l'exécution",
     "répertoires écartés par SKIP_PARTS : code généré au build ou vendu "
-    "(node_modules, dist, .vite) — s'il devient exécutable, il faut l'analyser",
+    "(node_modules, dist, .vite) et caches d'outil non suivis "
+    "(.mypy_cache, .ruff_cache) — s'il devient exécutable, il faut l'analyser",
     "classement textuel hors Python : sans arbre syntaxique, `call`, "
     "`attribute` et `import` sont déduits de la ligne ; un symbole cité dans un "
     "commentaire posé sur une ligne d'import est classé `import`, donc refusé "
@@ -154,7 +177,7 @@ def load_manifest(root: Path) -> tuple[set[str], set[str]]:
     """Return (symbols, endpoint fragments) from the manifest, or fallbacks."""
     manifest = root / "manifests" / "forbidden-capabilities.yaml"
     try:
-        import yaml  # type: ignore
+        import yaml
     except ImportError:
         return set(FALLBACK_CALLS), set(FALLBACK_FRAGMENTS)
     if not manifest.is_file():
@@ -241,7 +264,7 @@ def load_allowlist(root: Path) -> dict[str, str]:
     if not path.is_file():
         return {}
     try:
-        import yaml  # type: ignore
+        import yaml
 
         data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
     except Exception:

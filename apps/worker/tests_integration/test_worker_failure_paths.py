@@ -8,7 +8,7 @@ boundary guard holds through the real chain.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 
@@ -20,17 +20,17 @@ from vertex_persistence.repository.outbox import enqueue_outbox
 from vertex_persistence.repository.snapshots import get_current_snapshot
 from vertex_worker.errors import HandlerError
 from vertex_worker.handlers import (
-    FusionConfig,
     POPULATION_SYNTHETIC,
     SNAPSHOT_KEY_GLOBAL,
     SNAPSHOT_KIND_ATTENTION,
+    FusionConfig,
     build_registry,
 )
 from vertex_worker.ingest import ingest_envelope
 from vertex_worker.registry import HandlerRegistry
 from vertex_worker.runner import WorkerRunner
 
-NOW = datetime(2026, 8, 25, 12, 0, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 25, 12, 0, 0, tzinfo=UTC)
 BASE_TIME = NOW - timedelta(minutes=30)
 
 

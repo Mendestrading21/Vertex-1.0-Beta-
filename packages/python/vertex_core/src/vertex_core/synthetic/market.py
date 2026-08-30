@@ -19,9 +19,10 @@ entropy, no system clock.
 from __future__ import annotations
 
 import random
+from collections.abc import Mapping
 from datetime import datetime, timedelta
 from types import MappingProxyType
-from typing import Mapping
+from typing import Any
 
 from vertex_core.contracts import (
     DataEnvelope,
@@ -39,9 +40,9 @@ __all__ = [
     "SYNTHETIC_MARKET_CURRENCY",
     "SYNTHETIC_SCHEMA_DAILY_BARS",
     "SYNTHETIC_SCHEMA_DAILY_QUOTE",
+    "SYNTHETIC_SECTORS",
     "SYNTHETIC_SECTOR_LABELS_FR",
     "SYNTHETIC_SECTOR_TICKERS",
-    "SYNTHETIC_SECTORS",
     "generate_daily_bar_envelopes",
     "generate_daily_quote_envelopes",
 ]
@@ -156,7 +157,7 @@ def _validate_inputs(seed: int, base_time: datetime, missing_close_count: int) -
 
 def _quote_payload(
     *, ticker: str, sector: str, trading_day: str, close_cents: int
-) -> dict:
+) -> dict[str, Any]:
     return {
         "type": "daily_quote",
         "synthetic": True,
@@ -175,7 +176,7 @@ def _quote_payload(
 
 def generate_daily_quote_envelopes(
     *, seed: int, base_time: datetime, missing_close_count: int = 2
-) -> tuple[DataEnvelope[dict], ...]:
+) -> tuple[DataEnvelope[dict[str, Any]], ...]:
     """Generate the deterministic two-day synthetic daily-quote envelope set.
 
     Pure function of its inputs (mandatory seed, aware ``base_time``). Every
@@ -194,7 +195,7 @@ def generate_daily_quote_envelopes(
       the fully covered tickers.
     """
     base = _validate_inputs(seed, base_time, missing_close_count)
-    rng = random.Random(seed)
+    rng = random.Random(seed)  # noqa: S311 (données SYNTHETIC, aucun usage cryptographique)
     tickers = _all_tickers()
 
     missing = set(rng.sample(tickers, missing_close_count)) if missing_close_count else set()
@@ -231,7 +232,7 @@ def generate_daily_quote_envelopes(
     latest_published = base - _LATEST_OFFSET
     older_published = latest_published - _DAY_SPACING
 
-    envelopes: list[DataEnvelope[dict]] = []
+    envelopes: list[DataEnvelope[dict[str, Any]]] = []
     index = 0
     for ticker in tickers:
         days = (
@@ -261,7 +262,7 @@ def generate_daily_quote_envelopes(
                 else received_at + _STALE_GRACE
             )
             envelopes.append(
-                DataEnvelope[dict](
+                DataEnvelope[dict[str, Any]](
                     event_id=f"{SYNTHETIC_SOURCE}:{seed}:dq{index:04d}",
                     schema_version=SYNTHETIC_SCHEMA_DAILY_QUOTE,
                     source=SYNTHETIC_SOURCE,
@@ -287,7 +288,7 @@ def generate_daily_quote_envelopes(
 
 def generate_daily_bar_envelopes(
     *, seed: int, base_time: datetime, tickers: tuple[str, ...] = SYNTHETIC_FOCUS_TICKERS
-) -> tuple[DataEnvelope[dict], ...]:
+) -> tuple[DataEnvelope[dict[str, Any]], ...]:
     """Generate one deterministic daily-OHLCV-bars envelope per focus ticker.
 
     SEPARATE function from :func:`generate_daily_quote_envelopes` (whose
@@ -310,7 +311,7 @@ def generate_daily_bar_envelopes(
     if unknown:
         raise ValueError(f"tickers: not in the declared synthetic universe: {unknown}")
 
-    rng = random.Random(seed)
+    rng = random.Random(seed)  # noqa: S311 (données SYNTHETIC, aucun usage cryptographique)
     sector_of = {
         ticker: sector
         for sector in SYNTHETIC_SECTORS
@@ -320,11 +321,11 @@ def generate_daily_bar_envelopes(
     received_at = published_at + _RECEIVE_LAG
     last_day = (base - timedelta(days=1)).date()
 
-    envelopes: list[DataEnvelope[dict]] = []
+    envelopes: list[DataEnvelope[dict[str, Any]]] = []
     for index, ticker in enumerate(tickers):
         low_band, high_band = _SECTOR_PRICE_BANDS_CENTS[sector_of[ticker]]
         close_cents = rng.randrange(low_band, high_band)
-        bars: list[dict] = []
+        bars: list[dict[str, Any]] = []
         for day_index in range(SYNTHETIC_BAR_COUNT):
             trading_day = last_day - timedelta(days=SYNTHETIC_BAR_COUNT - 1 - day_index)
             open_cents = close_cents
@@ -358,7 +359,7 @@ def generate_daily_bar_envelopes(
             ),
         }
         envelopes.append(
-            DataEnvelope[dict](
+            DataEnvelope[dict[str, Any]](
                 event_id=f"{SYNTHETIC_SOURCE}:{seed}:db{index:04d}",
                 schema_version=SYNTHETIC_SCHEMA_DAILY_BARS,
                 source=SYNTHETIC_SOURCE,

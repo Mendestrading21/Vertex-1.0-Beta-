@@ -3,7 +3,8 @@
 from decimal import Decimal
 
 import pytest
-from hypothesis import given, strategies as st
+from hypothesis import given
+from hypothesis import strategies as st
 from pydantic import ValidationError
 
 from vertex_core.data import CoverageReport, coverage_ratio
@@ -94,14 +95,14 @@ def consistent_counts(draw):
     valid = draw(st.integers(min_value=0, max_value=received))
     delayed = draw(st.integers(min_value=0, max_value=received - valid))
     stale = draw(st.integers(min_value=0, max_value=received - valid - delayed))
-    return dict(
-        expected=expected,
-        received=received,
-        valid=valid,
-        delayed=delayed,
-        stale=stale,
-        missing=expected - received,
-    )
+    return {
+        "expected": expected,
+        "received": received,
+        "valid": valid,
+        "delayed": delayed,
+        "stale": stale,
+        "missing": expected - received,
+    }
 
 
 @pytest.mark.property

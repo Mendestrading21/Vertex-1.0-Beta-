@@ -31,12 +31,14 @@ result with a reason, never a fabricated number.
 
 from __future__ import annotations
 
+import itertools
 import math
 from collections.abc import Sequence
+from datetime import datetime
 from decimal import Decimal, localcontext
 from functools import reduce
 from operator import mul
-from typing import Annotated, Optional
+from typing import Annotated, Any
 
 from pydantic import AfterValidator, Field, model_validator
 from scipy.optimize import brentq
@@ -55,17 +57,17 @@ __all__ = [
     "DECIMAL_PRECISION",
     "XIRR_BRACKET_GRID",
     "XIRR_NPV_TOLERANCE_SCALE",
-    "PerformanceCalculationError",
     "CashflowBoundaryError",
-    "SignChangeError",
-    "Valuation",
     "CashflowEvent",
-    "TwrResult",
-    "XirrResult",
     "DrawdownResult",
+    "PerformanceCalculationError",
+    "SignChangeError",
+    "TwrResult",
+    "Valuation",
+    "XirrResult",
+    "drawdown",
     "twr",
     "xirr",
-    "drawdown",
 ]
 
 DECIMAL_PRECISION = 28
@@ -77,7 +79,7 @@ DAYS_PER_YEAR = 365.0
 XIRR_NPV_TOLERANCE_SCALE = 1e-9
 """Accepted |NPV(root)| as a fraction of the summed absolute cashflows."""
 
-XIRR_BRACKET_GRID: "tuple[float, ...]" = (
+XIRR_BRACKET_GRID: tuple[float, ...] = (
     -0.999999,
     -0.9999,
     -0.999,
@@ -128,7 +130,9 @@ class SignChangeError(PerformanceCalculationError):
 
 def _ensure_finite_float(value: float) -> float:
     if not math.isfinite(value):
-        raise ValueError("non-finite float rejected: NaN and infinities are not valid contract values")
+        raise ValueError(
+            "non-finite float rejected: NaN and infinities are not valid contract values"
+        )
     return value
 
 
@@ -174,12 +178,12 @@ class XirrResult(ContractModel):
     """
 
     status: CalculationStatus
-    rate: Optional[FiniteFloat] = None
-    npv_at_rate: Optional[FiniteFloat] = None
-    reason: Optional[NonEmptyStr] = None
+    rate: FiniteFloat | None = None
+    npv_at_rate: FiniteFloat | None = None
+    reason: NonEmptyStr | None = None
 
     @model_validator(mode="after")
-    def _check_status_shape(self) -> "XirrResult":
+    def _check_status_shape(self) -> XirrResult:
         if self.status is CalculationStatus.OK:
             if self.rate is None or self.npv_at_rate is None:
                 raise ValueError("an OK xirr result requires rate and npv_at_rate")
@@ -204,11 +208,11 @@ class DrawdownResult(ContractModel):
 
     max_drawdown: FiniteDecimal
     drawdowns: tuple[FiniteDecimal, ...] = Field(min_length=1)
-    peak_at: Optional[UtcDatetime] = None
-    trough_at: Optional[UtcDatetime] = None
+    peak_at: UtcDatetime | None = None
+    trough_at: UtcDatetime | None = None
 
     @model_validator(mode="after")
-    def _check_non_positive(self) -> "DrawdownResult":
+    def _check_non_positive(self) -> DrawdownResult:
         if self.max_drawdown > _ZERO:
             raise ValueError("max_drawdown must be <= 0")
         if any(dd > _ZERO for dd in self.drawdowns):
@@ -220,20 +224,25 @@ class DrawdownResult(ContractModel):
         return self
 
 
-def _as_tuple_of(values: Sequence[object], expected_type: type, name: str) -> tuple:
+def _as_tuple_of(
+    values: Sequence[object], expected_type: type, name: str
+) -> tuple[Any, ...]:
     if isinstance(values, (str, bytes)):
-        raise PerformanceCalculationError(f"{name} must be a sequence of {expected_type.__name__} instances")
+        raise PerformanceCalculationError(
+            f"{name} must be a sequence of {expected_type.__name__} instances"
+        )
     items = tuple(values)
     for item in items:
         if not isinstance(item, expected_type):
             raise PerformanceCalculationError(
-                f"{name} must contain only {expected_type.__name__} instances, got {type(item).__name__}"
+                f"{name} must contain only {expected_type.__name__} instances, "
+                f"got {type(item).__name__}"
             )
     return items
 
 
-def _require_strictly_increasing(points: tuple, name: str) -> None:
-    for prev, curr in zip(points, points[1:]):
+def _require_strictly_increasing(points: tuple[Any, ...], name: str) -> None:
+    for prev, curr in itertools.pairwise(points):
         if curr.at <= prev.at:
             raise PerformanceCalculationError(
                 f"{name} must be strictly increasing in time "
@@ -274,7 +283,7 @@ def twr(
 
     with localcontext() as ctx:
         ctx.prec = DECIMAL_PRECISION
-        net_flow: dict = {}
+        net_flow: dict[datetime, Decimal] = {}
         for flow in flows:
             if flow.at not in valuation_times:
                 raise CashflowBoundaryError(
@@ -284,7 +293,7 @@ def twr(
             net_flow[flow.at] = net_flow.get(flow.at, _ZERO) + flow.amount
 
         growth_factors = []
-        for prev, curr in zip(vals, vals[1:]):
+        for prev, curr in itertools.pairwise(vals):
             start_capital = prev.value + net_flow.get(prev.at, _ZERO)
             if start_capital <= _ZERO:
                 raise PerformanceCalculationError(
@@ -332,16 +341,18 @@ def xirr(dated_cashflows: Sequence[CashflowEvent]) -> XirrResult:
     t0 = ordered[0].at
     times = [(flow.at - t0).total_seconds() / (86400.0 * DAYS_PER_YEAR) for flow in ordered]
     if times[-1] == 0.0:
-        raise PerformanceCalculationError("xirr is undefined when every cashflow shares one instant")
+        raise PerformanceCalculationError(
+            "xirr is undefined when every cashflow shares one instant"
+        )
     amounts = [float(flow.amount) for flow in ordered]
     npv_tolerance = XIRR_NPV_TOLERANCE_SCALE * sum(abs(amount) for amount in amounts)
 
-    def npv_or_none(rate: float) -> Optional[float]:
+    def npv_or_none(rate: float) -> float | None:
         base = 1.0 + rate
         if base <= 0.0:
             return None
         total = 0.0
-        for amount, t in zip(amounts, times):
+        for amount, t in zip(amounts, times, strict=True):
             try:
                 total += amount * base ** (-t)
             except OverflowError:
@@ -353,16 +364,22 @@ def xirr(dated_cashflows: Sequence[CashflowEvent]) -> XirrResult:
     def npv_strict(rate: float) -> float:
         value = npv_or_none(rate)
         if value is None:
-            raise PerformanceCalculationError(f"NPV overflowed during root refinement at rate {rate!r}")
+            raise PerformanceCalculationError(
+                f"NPV overflowed during root refinement at rate {rate!r}"
+            )
         return value
 
     grid_values = [npv_or_none(rate) for rate in XIRR_BRACKET_GRID]
     roots_at_grid = [
-        rate for rate, value in zip(XIRR_BRACKET_GRID, grid_values) if value is not None and value == 0.0
+        rate
+        for rate, value in zip(XIRR_BRACKET_GRID, grid_values, strict=True)
+        if value is not None and value == 0.0
     ]
     brackets = []
     for (rate_a, value_a), (rate_b, value_b) in zip(
-        zip(XIRR_BRACKET_GRID, grid_values), zip(XIRR_BRACKET_GRID[1:], grid_values[1:])
+        zip(XIRR_BRACKET_GRID, grid_values, strict=True),
+        zip(XIRR_BRACKET_GRID[1:], grid_values[1:], strict=True),
+        strict=False,
     ):
         if value_a is None or value_b is None:
             continue
@@ -378,7 +395,10 @@ def xirr(dated_cashflows: Sequence[CashflowEvent]) -> XirrResult:
     if candidate_count > 1:
         return XirrResult(
             status=CalculationStatus.INVALID,
-            reason="multiple NPV sign changes on the documented search grid: the root is not unique",
+            reason=(
+                "multiple NPV sign changes on the documented search grid: "
+                "the root is not unique"
+            ),
         )
 
     if roots_at_grid:
@@ -425,7 +445,7 @@ def drawdown(equity_curve: Sequence[Valuation]) -> DrawdownResult:
         running_max = points[0].value
         running_max_at = points[0].at
         drawdowns = []
-        max_dd: Optional[Decimal] = None
+        max_dd: Decimal | None = None
         peak_at = None
         trough_at = None
         for point in points:
@@ -439,7 +459,8 @@ def drawdown(equity_curve: Sequence[Valuation]) -> DrawdownResult:
                 peak_at = running_max_at
                 trough_at = point.at
 
-    assert max_dd is not None  # points is non-empty
+    # narrowing mypy, garde réelle au-dessus
+    assert max_dd is not None  # points is non-empty  # noqa: S101
     if max_dd == _ZERO:
         peak_at = None
         trough_at = None

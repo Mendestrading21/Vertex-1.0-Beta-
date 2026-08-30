@@ -9,8 +9,10 @@ are strict, frozen, timezone-aware and fail-closed: absent metadata stays
 
 from __future__ import annotations
 
+import itertools
+from collections.abc import Sequence
 from enum import Enum, unique
-from typing import Annotated, Optional, Sequence
+from typing import Annotated
 
 from pydantic import Field, StringConstraints, model_validator
 
@@ -32,7 +34,7 @@ SourceTier = Annotated[str, StringConstraints(pattern=r"^P[0-4]$")]
 
 def _require_strictly_sorted_unique(values: Sequence[str], field_name: str) -> None:
     """Reject a sequence that is not strictly sorted (implies uniqueness)."""
-    if any(a >= b for a, b in zip(values, values[1:])):
+    if any(a >= b for a, b in itertools.pairwise(values)):
         raise ValueError(f"{field_name} must be strictly sorted and unique")
 
 
@@ -74,11 +76,11 @@ class ContentObservation(ContractModel):
     content_id: NonEmptyStr
     source: NonEmptyStr
     source_tier: SourceTier
-    native_id: Optional[NonEmptyStr] = None
-    canonical_url: Optional[NonEmptyStr] = None
+    native_id: NonEmptyStr | None = None
+    canonical_url: NonEmptyStr | None = None
     title: NonEmptyStr
     entities: tuple[NonEmptyStr, ...]
-    published_at: Optional[UtcDatetime] = None
+    published_at: UtcDatetime | None = None
     received_at: UtcDatetime
     rights: NonEmptyStr
     quality: EnvelopeQuality
@@ -103,7 +105,7 @@ class FusionDecision(ContractModel):
     reversible: bool
 
     @model_validator(mode="after")
-    def _check_decision_invariants(self) -> "FusionDecision":
+    def _check_decision_invariants(self) -> FusionDecision:
         if self.action in REVERSIBLE_FLAG_ACTIONS and not self.reversible:
             raise ValueError(f"{self.action.value} decisions must be reversible")
         if self.action is FusionAction.KEPT_DISTINCT:
@@ -129,12 +131,12 @@ class ContentCluster(ContractModel):
     sources: tuple[NonEmptyStr, ...] = Field(min_length=1)
     tiers: tuple[SourceTier, ...] = Field(min_length=1)
     rights: tuple[NonEmptyStr, ...] = Field(min_length=1)
-    first_published_at: Optional[UtcDatetime] = None
+    first_published_at: UtcDatetime | None = None
     last_received_at: UtcDatetime
     decisions: tuple[FusionDecision, ...] = Field(min_length=1)
 
     @model_validator(mode="after")
-    def _check_cluster_invariants(self) -> "ContentCluster":
+    def _check_cluster_invariants(self) -> ContentCluster:
         _require_strictly_sorted_unique(self.member_ids, "member_ids")
         _require_strictly_sorted_unique(self.sources, "sources")
         _require_strictly_sorted_unique(self.tiers, "tiers")

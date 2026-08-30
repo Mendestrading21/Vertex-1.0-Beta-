@@ -8,7 +8,7 @@ every blocking gate at UNEVALUABLE — the builder never forces a status.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -31,7 +31,7 @@ from vertex_worker.analysis import (
 )
 from vertex_worker.handlers import DEV_SYNTHETIC_CONFIG, ObservationRecord, build_registry
 
-NOW = datetime(2026, 8, 25, 12, 0, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 25, 12, 0, 0, tzinfo=UTC)
 INSTRUMENT = "SYN-TECH-01"
 
 CONFIG = AnalysisConfig(
@@ -448,7 +448,9 @@ def test_source_controlled_adjustment_basis_must_be_a_code(bad_basis) -> None:
     ],
 )
 def test_source_controlled_trading_day_must_be_an_iso_date(bad_day) -> None:
-    content = build([bars_record(bars=[*good_bars(), bar(bad_day, "100.00", "101.00", "99.00", "100.00")])])
+    content = build(
+        [bars_record(bars=[*good_bars(), bar(bad_day, "100.00", "101.00", "99.00", "100.00")])]
+    )
     bars_block = content["bars"]
     # The bar is discarded WITH its typed reason; the healthy series remains.
     assert bars_block["discarded"] == [
@@ -467,7 +469,11 @@ def test_prices_relayed_verbatim_must_be_plain_decimal_strings(bad_price) -> Non
     """``Decimal`` accepts all of these; a value relayed VERBATIM into a FACT
     sentence must not. Out of shape -> the bar is discarded, never repaired."""
     content = build(
-        [bars_record(bars=[*good_bars(), bar("2026-08-25", bad_price, "999.00", "0.01", bad_price)])]
+        [
+            bars_record(
+                bars=[*good_bars(), bar("2026-08-25", bad_price, "999.00", "0.01", bad_price)]
+            )
+        ]
     )
     bars_block = content["bars"]
     assert bars_block["discarded"] == [{"index": 3, "reason": REASON_INVALID_BAR}]

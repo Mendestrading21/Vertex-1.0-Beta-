@@ -100,12 +100,13 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
-from typing import Any, Callable, Mapping, Optional, Sequence
+from datetime import UTC, datetime, timedelta
+from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from sqlalchemy import select
+from sqlalchemy import ColumnElement, select
 from sqlalchemy.orm import Session
 
 from vertex_core.synthetic import (
@@ -123,10 +124,10 @@ from vertex_core.synthetic import (
 from vertex_persistence.models import Observation, Portfolio
 from vertex_persistence.repository.outbox import ClaimedOutboxMessage
 from vertex_persistence.repository.theses import list_theses
-
 from vertex_worker.registry import HandlerRegistry
 
 __all__ = [
+    "AGENDA_STATES",
     "CALENDAR_EVENT_SCHEMA_PREFIXES",
     "CALENDAR_SCHEMA_VERSION",
     "CONFLICT_ELECTION_RULE_VERSION",
@@ -152,7 +153,6 @@ __all__ = [
     "TOPIC_CALENDAR_INGESTED",
     "VERSION_STATE_CONFLICTING",
     "VERSION_STATE_RESOLVED",
-    "AGENDA_STATES",
     "CalendarConfig",
     "CalendarEventRecord",
     "CalendarEventWindow",
@@ -297,7 +297,7 @@ class CalendarEventRecord:
 
     event_id: str
     source: str
-    instrument_ref: Optional[str]
+    instrument_ref: str | None
     as_of: datetime
     stale_after: datetime
     quality_status: str
@@ -353,7 +353,7 @@ def _require_aware_utc(now: datetime) -> datetime:
         raise TypeError(f"now: expected datetime, got {type(now).__name__}")
     if now.tzinfo is None or now.tzinfo.utcoffset(now) is None:
         raise ValueError("now: naive datetime rejected, aware UTC required")
-    return now.astimezone(timezone.utc)
+    return now.astimezone(UTC)
 
 
 # --------------------------------------------------------------------------
@@ -388,7 +388,7 @@ def load_calendar_event_records(
         Observation.schema_version.like(f"{prefix}%")
         for prefix in CALENDAR_EVENT_SCHEMA_PREFIXES
     ]
-    schema_filter = filters[0]
+    schema_filter: ColumnElement[bool] = filters[0]
     for extra in filters[1:]:
         schema_filter = schema_filter | extra
     rows = (
@@ -431,7 +431,7 @@ def load_calendar_event_records(
 # --------------------------------------------------------------------------
 
 
-def _aware_utc_or_none(value: Any) -> Optional[datetime]:
+def _aware_utc_or_none(value: Any) -> datetime | None:
     """``value`` as an aware UTC datetime, or ``None`` when unusable.
 
     A naive observation instant cannot be compared to a declared revision
@@ -442,10 +442,10 @@ def _aware_utc_or_none(value: Any) -> Optional[datetime]:
         return None
     if value.tzinfo is None or value.tzinfo.utcoffset(value) is None:
         return None
-    return value.astimezone(timezone.utc)
+    return value.astimezone(UTC)
 
 
-def _aware_iso_or_none(value: Any) -> Optional[datetime]:
+def _aware_iso_or_none(value: Any) -> datetime | None:
     if not isinstance(value, str) or not value:
         return None
     try:
@@ -463,11 +463,11 @@ class _RevisionPartition:
 
     accepted: list[dict[str, Any]]
     rejected: list[dict[str, Any]]
-    latest_revised_at: Optional[datetime]
+    latest_revised_at: datetime | None
 
 
 def _rejected_revision(
-    index: Optional[int], reason: str, declared: Any
+    index: int | None, reason: str, declared: Any
 ) -> dict[str, Any]:
     """One READABLE rejected revision: what was declared, and why it fails."""
     return {
@@ -478,7 +478,7 @@ def _rejected_revision(
 
 
 def _partition_revisions(
-    revisions: Any, *, observed_at: Optional[datetime], now: datetime
+    revisions: Any, *, observed_at: datetime | None, now: datetime
 ) -> _RevisionPartition:
     """Split the DECLARED revisions into usable and unusable ones.
 
@@ -502,7 +502,7 @@ def _partition_revisions(
         )
     accepted: list[dict[str, Any]] = []
     rejected: list[dict[str, Any]] = []
-    latest: Optional[datetime] = None
+    latest: datetime | None = None
     for index, entry in enumerate(revisions):
         if not isinstance(entry, Mapping):
             rejected.append(
@@ -516,7 +516,7 @@ def _partition_revisions(
                 _rejected_revision(index, REVISION_REASON_NOT_DATED, declared)
             )
             continue
-        revised_at = revised_at.astimezone(timezone.utc)
+        revised_at = revised_at.astimezone(UTC)
         if revised_at > now:
             rejected.append(
                 _rejected_revision(index, REVISION_REASON_IN_THE_FUTURE, declared)
@@ -590,7 +590,7 @@ def _record_fingerprint(event: Mapping[str, Any]) -> str:
 
 def _validate_event(
     record: CalendarEventRecord, config: CalendarConfig, now: datetime
-) -> tuple[Optional[dict[str, Any]], Optional[str]]:
+) -> tuple[dict[str, Any] | None, str | None]:
     """Fail-closed validation of one event record: (validated, reason)."""
     if record.source not in config.allowed_sources:
         return None, REASON_SOURCE_NOT_ALLOWED
@@ -662,7 +662,7 @@ def _validate_event(
         "event_time_utc": payload["event_time_utc"],
         "event_time_local": payload["event_time_local"],
         "exchange_timezone": exchange_timezone,
-        "event_time_utc_parsed": event_time_utc.astimezone(timezone.utc),
+        "event_time_utc_parsed": event_time_utc.astimezone(UTC),
         "revisions": partition.accepted,
         "rejected_revisions": partition.rejected,
         "latest_revised_at": partition.latest_revised_at,
@@ -715,7 +715,7 @@ def _importance(
 
 
 def _event_context(
-    ticker: Optional[str],
+    ticker: str | None,
     *,
     positions_by_ticker: Mapping[str, Sequence[int]],
     theses_by_ticker: Mapping[str, Sequence[Mapping[str, Any]]],
@@ -746,7 +746,7 @@ def _event_context(
     }
 
 
-_NO_DECLARED_REVISION = datetime.min.replace(tzinfo=timezone.utc)
+_NO_DECLARED_REVISION = datetime.min.replace(tzinfo=UTC)
 """Business instant of a record declaring NO usable revision. It only ranks
 records that share an ``as_of``: within ONE generation, a record carrying a
 dated revision states later knowledge than one carrying none."""
@@ -797,7 +797,7 @@ _CONSERVATIVE_STATUS_RANK: Mapping[str, int] = {
 }
 """Higher rank = displayed first at a conflict (rule 1 above)."""
 
-_INSTANT_ORDER_ORIGIN = datetime.max.replace(tzinfo=timezone.utc)
+_INSTANT_ORDER_ORIGIN = datetime.max.replace(tzinfo=UTC)
 """Origin inverting the instant order EXACTLY (rule 2 above): the earliest
 declared instant yields the largest key, with no float conversion."""
 
@@ -869,7 +869,7 @@ def _agenda_state(
     displayed: int,
     stale: int,
     rejected_reasons: Mapping[str, int],
-) -> tuple[str, Optional[str]]:
+) -> tuple[str, str | None]:
     """The published agenda state and its EXACT reason.
 
     ``NOT_ENTITLED`` is reserved for a population whose rejections are ALL
@@ -932,7 +932,7 @@ def build_calendar_content(
     for record in records:
         validated, reason = _validate_event(record, config, now)
         if validated is None:
-            assert reason is not None
+            assert reason is not None  # noqa: S101 (narrowing mypy, garde réelle au-dessus)
             rejected.append({"event_id": record.event_id, "reason": reason})
             rejected_reasons[reason] = rejected_reasons.get(reason, 0) + 1
             continue
@@ -1177,12 +1177,12 @@ class CalendarHandler:
         theses_by_ticker: dict[str, list[dict[str, Any]]] = {}
         for entry in list_theses(session, now=now):
             instrument = entry.thesis.instrument
-            ticker = (
+            thesis_ticker = (
                 instrument.get("ticker") if isinstance(instrument, Mapping) else None
             )
-            if not isinstance(ticker, str) or not ticker:
+            if not isinstance(thesis_ticker, str) or not thesis_ticker:
                 continue
-            theses_by_ticker.setdefault(ticker, []).append(
+            theses_by_ticker.setdefault(thesis_ticker, []).append(
                 {
                     "thesis_id": entry.thesis.id,
                     "title": entry.thesis.title,

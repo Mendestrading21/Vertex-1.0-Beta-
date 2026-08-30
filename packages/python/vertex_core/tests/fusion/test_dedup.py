@@ -4,23 +4,23 @@ import random
 from datetime import timedelta
 
 import pytest
-from hypothesis import given, settings, strategies as st
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
-from vertex_core.contracts import EnvelopeQuality
+from tests.fusion.factories import BASE_TIME, make_observation, make_random_observations
 from vertex_core.fusion import (
     FUSION_RULESET_VERSION,
+    RULE_POLARITY_CONFLICT,
     FusionAction,
     FusionInputError,
     fuse,
     fusion_result_hash,
-    RULE_POLARITY_CONFLICT,
     normalize_canonical_url,
     normalize_title,
     opposed_markers,
     title_fingerprint,
     title_polarity_markers,
 )
-from tests.fusion.factories import BASE_TIME, make_observation, make_random_observations
 
 
 def _actions(result):
@@ -91,7 +91,9 @@ class TestLevel1NativeId:
     def test_same_native_id_different_source_not_linked(self):
         result = fuse(
             [
-                make_observation("a", source="ibkr_news", native_id="n1", title="One", entities=("E1",)),
+                make_observation(
+                    "a", source="ibkr_news", native_id="n1", title="One", entities=("E1",)
+                ),
                 make_observation("b", source="sec", native_id="n1", title="Two", entities=("E2",)),
             ]
         )
@@ -200,8 +202,15 @@ class TestLevel3Fingerprint:
     def test_title_variants_with_same_entities_linked(self):
         result = fuse(
             [
-                make_observation("a", title="Compàny One réports, quarterly results!", entities=("ACME",)),
-                make_observation("b", source="sec", title="company one REPORTS quarterly results", entities=("acme",)),
+                make_observation(
+                    "a", title="Compàny One réports, quarterly results!", entities=("ACME",)
+                ),
+                make_observation(
+                    "b",
+                    source="sec",
+                    title="company one REPORTS quarterly results",
+                    entities=("acme",),
+                ),
             ]
         )
         assert len(result.clusters) == 1
@@ -210,8 +219,18 @@ class TestLevel3Fingerprint:
     def test_same_title_different_entities_not_linked(self):
         result = fuse(
             [
-                make_observation("a", title="Quarterly results announced", entities=("ACME",), received_at=BASE_TIME + timedelta(hours=30)),
-                make_observation("b", title="Quarterly results announced", entities=("GLOBEX",), received_at=BASE_TIME),
+                make_observation(
+                    "a",
+                    title="Quarterly results announced",
+                    entities=("ACME",),
+                    received_at=BASE_TIME + timedelta(hours=30),
+                ),
+                make_observation(
+                    "b",
+                    title="Quarterly results announced",
+                    entities=("GLOBEX",),
+                    received_at=BASE_TIME,
+                ),
             ]
         )
         assert len(result.clusters) == 2

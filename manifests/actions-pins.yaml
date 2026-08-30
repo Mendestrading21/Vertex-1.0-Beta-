@@ -1,0 +1,54 @@
+# Épinglage des GitHub Actions — FAITS résolus, pas intentions.
+#
+# Comment ces valeurs ont été obtenues (aucune n'est devinée) :
+#
+#   git ls-remote https://github.com/<dépôt> refs/tags/<tag> refs/tags/<tag>^{}
+#
+# `refs/tags/<tag>` donne l'objet pointé par le tag. Si le tag est ANNOTÉ, cet
+# objet est un objet-tag, PAS un commit, et une deuxième ligne `<tag>^{}` donne
+# le commit pelé. Épingler l'objet-tag est une erreur silencieuse : GitHub
+# l'accepte, mais l'ancrage n'est plus un commit et le contenu de l'action peut
+# différer de ce qui a été relu.
+#
+# `pnpm/action-setup@v4.2.0` est précisément dans ce cas : l'objet-tag est
+# 9fd676a1… et le commit est 41ff7265…. Le workflow doit épingler 41ff7265….
+#
+# La porte `tools/check_policy.py` vérifie HORS LIGNE que chaque `uses:` du
+# dépôt épingle `commit_sha` et jamais `tag_object_sha`. L'option
+# `--resolve-remote` re-résout ces valeurs par le réseau et échoue en cas de
+# dérive ; elle n'est PAS exécutée dans la porte ordinaire (une porte de
+# sécurité ne doit pas dépendre d'un service tiers pour rendre son verdict).
+schema_version: 1
+resolved_at: "2026-08-30"
+resolved_with: "git ls-remote <repo> refs/tags/<tag> refs/tags/<tag>^{}"
+
+actions:
+  - repository: actions/checkout
+    tag: v5.0.0
+    tag_kind: lightweight
+    commit_sha: 08c6903cd8c0fde910a37f88322edcfb5dd907a8
+    tag_object_sha: null
+
+  - repository: astral-sh/setup-uv
+    tag: v7.1.1
+    tag_kind: lightweight
+    commit_sha: 2ddd2b9cb38ad8efd50337e8ab201519a34c9f24
+    tag_object_sha: null
+
+  - repository: pnpm/action-setup
+    tag: v4.2.0
+    tag_kind: annotated
+    commit_sha: 41ff72655975bd51cab0327fa583b6e92b6d3061
+    tag_object_sha: 9fd676a19091d4595eefd76e4bd31c97133911f1
+
+  - repository: actions/setup-node
+    tag: v6.0.0
+    tag_kind: lightweight
+    commit_sha: 2028fbc5c25fe9cf00d9f06a71cc4710d4507903
+    tag_object_sha: null
+
+  - repository: actions/upload-artifact
+    tag: v5.0.0
+    tag_kind: lightweight
+    commit_sha: 330a01c490aca151604b8cf639adc76d48f6c5d4
+    tag_object_sha: null

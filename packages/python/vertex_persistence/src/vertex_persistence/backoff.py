@@ -16,10 +16,10 @@ from __future__ import annotations
 from vertex_persistence.errors import ValidationFailedError
 
 __all__ = [
-    "DEFAULT_MAX_ATTEMPTS",
     "DEFAULT_BASE_SECONDS",
-    "DEFAULT_FACTOR",
     "DEFAULT_CAP_SECONDS",
+    "DEFAULT_FACTOR",
+    "DEFAULT_MAX_ATTEMPTS",
     "compute_backoff_seconds",
 ]
 

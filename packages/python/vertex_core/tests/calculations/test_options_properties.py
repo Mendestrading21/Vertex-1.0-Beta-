@@ -11,7 +11,8 @@ import math
 from decimal import Decimal
 
 import pytest
-from hypothesis import assume, given, settings, strategies as st
+from hypothesis import assume, given, settings
+from hypothesis import strategies as st
 
 from vertex_core.calculations.options import (
     IV_BRACKET_HI,

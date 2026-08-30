@@ -25,9 +25,9 @@ import hmac
 import secrets
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import Any, cast
 
-from sqlalchemy import delete, func, or_, select, update
+from sqlalchemy import CursorResult, delete, func, or_, select, update
 from sqlalchemy.orm import Session
 
 from vertex_persistence.errors import (
@@ -50,17 +50,17 @@ __all__ = [
     "CredentialRecord",
     "IssuedSession",
     "ValidatedSession",
-    "hash_token",
-    "register_credential",
     "count_credentials",
-    "get_credential",
-    "list_active_credentials",
-    "update_sign_count",
     "create_session",
-    "validate_session",
-    "validate_csrf",
-    "revoke_session",
+    "get_credential",
+    "hash_token",
+    "list_active_credentials",
     "purge_expired",
+    "register_credential",
+    "revoke_session",
+    "update_sign_count",
+    "validate_csrf",
+    "validate_session",
 ]
 
 DEFAULT_SESSION_TTL = timedelta(hours=8)
@@ -80,10 +80,10 @@ class CredentialRecord:
     credential_id: bytes
     public_key: bytes
     sign_count: int
-    transports: Optional[str]
+    transports: str | None
     label: str
     created_at: datetime
-    revoked_at: Optional[datetime]
+    revoked_at: datetime | None
 
 
 @dataclass(frozen=True)
@@ -155,7 +155,7 @@ def register_credential(
     credential_id: bytes,
     public_key: bytes,
     sign_count: int,
-    transports: Optional[str],
+    transports: str | None,
     label: str,
     now: datetime,
 ) -> CredentialRecord:
@@ -201,7 +201,7 @@ def count_credentials(session: Session) -> int:
     )
 
 
-def get_credential(session: Session, *, credential_id: bytes) -> Optional[CredentialRecord]:
+def get_credential(session: Session, *, credential_id: bytes) -> CredentialRecord | None:
     """Return the credential with this authenticator id, or ``None``.
 
     The record is returned with its ``revoked_at`` as stored; callers must
@@ -340,7 +340,7 @@ def create_session(
 
 def validate_session(
     session: Session, *, session_token: str, now: datetime
-) -> Optional[ValidatedSession]:
+) -> ValidatedSession | None:
     """Return the live session matching this token, or ``None`` (fail-closed).
 
     ``None`` — never an exception — for every rejection cause: unknown token,
@@ -393,7 +393,9 @@ def revoke_session(session: Session, *, session_token: str, now: datetime) -> bo
         .values(revoked_at=now)
     )
     session.flush()
-    return result.rowcount == 1
+    # UPDATE : SQLAlchemy rend un `CursorResult`, seul porteur de
+    # `rowcount`. Le type statique de `execute()` reste `Result`.
+    return cast(CursorResult[Any], result).rowcount == 1
 
 
 def purge_expired(session: Session, *, now: datetime) -> int:
@@ -409,4 +411,4 @@ def purge_expired(session: Session, *, now: datetime) -> int:
         )
     )
     session.flush()
-    return int(result.rowcount or 0)
+    return int(cast(CursorResult[Any], result).rowcount or 0)

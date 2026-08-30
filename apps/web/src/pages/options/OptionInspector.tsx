@@ -22,7 +22,10 @@ import { greeksViewOf, ivAbsentLabel, ivViewOf, quoteViewOf } from './optionsVie
 
 function AbsentValue({ label }: { readonly label: string }) {
   return (
-    <span className="vx-cell-absent" aria-label={label} title={label}>
+    // Voir AttentionQueue.tsx : `aria-label` est interdit sur le rôle
+    // implicite `generic` d'un <span> ; `title` seul ne fournit pas un
+    // nom accessible fiable.
+    <span className="vx-cell-absent" role="img" aria-label={label} title={label}>
       —
     </span>
   );

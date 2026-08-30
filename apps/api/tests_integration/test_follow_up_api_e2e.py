@@ -9,15 +9,15 @@ client key), the real outbox and a bounded REAL worker run publishing the
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
-from typing import Iterator
+from collections.abc import Iterator
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
+from soft_passkey import SoftPasskey, login_passkey, register_passkey
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session
 
-from soft_passkey import SoftPasskey, login_passkey, register_passkey
 from vertex_core.contracts import DataEnvelope, canonical_json_hash
 from vertex_core.contracts.enums import DelayStatus, EnvelopeQuality
 from vertex_persistence.enums import OutboxStatus
@@ -32,7 +32,7 @@ CSRF_COOKIE = "vertex_csrf"
 TOPIC_REVIEW_QUEUE = "review_queue.refresh"
 TICKER = "SYN-TECH-01"
 
-NOW = datetime.now(timezone.utc).replace(microsecond=0)
+NOW = datetime.now(UTC).replace(microsecond=0)
 PAST_DUE = (NOW - timedelta(days=2)).isoformat()
 OLDER_DUE = (NOW - timedelta(days=6)).isoformat()
 
@@ -75,11 +75,11 @@ def drain_worker(database_url: str):
         runner = WorkerRunner(
             session_factory=factory,
             registry=build_registry(
-                clock=lambda: datetime.now(timezone.utc),
+                clock=lambda: datetime.now(UTC),
                 fusion_config=DEV_SYNTHETIC_CONFIG,
             ),
             poll_interval_seconds=0.05,
-            clock=lambda: datetime.now(timezone.utc),
+            clock=lambda: datetime.now(UTC),
         )
         runner.drain(max_batches=30)
         stats = runner.stats()
@@ -240,7 +240,7 @@ def test_thesis_write_refreshes_queue_and_new_information_never_writes(
 
     # --- new contradictory information: urgency up, thesis untouched -------
     ingest_envelope(
-        db_session, _news_envelope("e2e-news-1", received_at=datetime.now(timezone.utc))
+        db_session, _news_envelope("e2e-news-1", received_at=datetime.now(UTC))
     )
     db_session.commit()
     drain_worker()
@@ -275,7 +275,7 @@ def test_snooze_defers_then_expires_back_to_due(
 
     # An EXPIRED snooze instant: the thesis is immediately ACTIVE and DUE
     # again, with the snooze instant as its effective due (projection rule).
-    snooze_until = (datetime.now(timezone.utc) - timedelta(hours=1)).replace(microsecond=0)
+    snooze_until = (datetime.now(UTC) - timedelta(hours=1)).replace(microsecond=0)
     snoozed = authenticated.post(
         f"/api/v1/theses/{thesis_id}/revisions",
         json={

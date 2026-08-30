@@ -1,6 +1,6 @@
 """portfolio calculations: fx conversion, realized/unrealized P&L, concentration."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal, localcontext
 
 import pytest
@@ -27,9 +27,9 @@ from vertex_core.calculations.portfolio import (
     unrealized_pnl,
 )
 
-OPENED_AT = datetime(2026, 1, 5, 14, 30, tzinfo=timezone.utc)
-CLOSED_AT = datetime(2026, 2, 10, 15, 0, tzinfo=timezone.utc)
-QUOTE_AS_OF = datetime(2026, 2, 2, 16, 0, tzinfo=timezone.utc)
+OPENED_AT = datetime(2026, 1, 5, 14, 30, tzinfo=UTC)
+CLOSED_AT = datetime(2026, 2, 10, 15, 0, tzinfo=UTC)
+QUOTE_AS_OF = datetime(2026, 2, 2, 16, 0, tzinfo=UTC)
 
 ONE = Decimal("1")
 
@@ -67,7 +67,7 @@ class TestInputModels:
                 quantity=Decimal("1"),
                 unit_cost=Decimal("1"),
                 currency="USD",
-                opened_at=datetime(2026, 1, 5, 14, 30),
+                opened_at=datetime(2026, 1, 5, 14, 30),  # noqa: DTZ001 (naïf délibéré : rejet vérifié)
             )
 
     def test_non_positive_quantity_rejected(self):
@@ -101,7 +101,7 @@ class TestFxConversion:
 
     def test_naive_quote_as_of_rejected(self):
         with pytest.raises(FxRateError, match="naive"):
-            fx_conversion(Decimal("1"), Decimal("1"), datetime(2026, 2, 2, 16, 0))
+            fx_conversion(Decimal("1"), Decimal("1"), datetime(2026, 2, 2, 16, 0))  # noqa: DTZ001 (naïf délibéré : rejet vérifié)
 
     def test_non_decimal_money_rejected(self):
         with pytest.raises(FxRateError, match="Decimal"):
@@ -128,10 +128,18 @@ class TestFxConversion:
     @settings(max_examples=200, deadline=None)
     @given(
         money=st.decimals(
-            min_value=Decimal("-1e9"), max_value=Decimal("1e9"), places=6, allow_nan=False, allow_infinity=False
+            min_value=Decimal("-1e9"),
+            max_value=Decimal("1e9"),
+            places=6,
+            allow_nan=False,
+            allow_infinity=False,
         ),
         rate=st.decimals(
-            min_value=Decimal("1e-6"), max_value=Decimal("1e6"), places=8, allow_nan=False, allow_infinity=False
+            min_value=Decimal("1e-6"),
+            max_value=Decimal("1e6"),
+            places=8,
+            allow_nan=False,
+            allow_infinity=False,
         ),
     )
     def test_round_trip_within_documented_tolerance(self, money, rate):
@@ -215,7 +223,9 @@ class TestRealizedPnl:
 
     def test_duplicate_transaction_id_rejected(self):
         with pytest.raises(LedgerError, match="duplicate transaction_id"):
-            realized_pnl([make_lot()], [make_tx("T1", quantity="1"), make_tx("T1", quantity="1")], [])
+            realized_pnl(
+                [make_lot()], [make_tx("T1", quantity="1"), make_tx("T1", quantity="1")], []
+            )
 
     def test_currency_mismatch_rejected(self):
         with pytest.raises(CurrencyMismatchError):
@@ -309,10 +319,34 @@ class TestUnrealizedPnl:
     @given(
         entries=st.lists(
             st.tuples(
-                st.decimals(min_value=Decimal("0.0001"), max_value=Decimal("1e4"), places=4, allow_nan=False, allow_infinity=False),
-                st.decimals(min_value=Decimal("0"), max_value=Decimal("1e4"), places=4, allow_nan=False, allow_infinity=False),
-                st.decimals(min_value=Decimal("0"), max_value=Decimal("1e4"), places=4, allow_nan=False, allow_infinity=False),
-                st.decimals(min_value=Decimal("0"), max_value=Decimal("100"), places=2, allow_nan=False, allow_infinity=False),
+                st.decimals(
+                    min_value=Decimal("0.0001"),
+                    max_value=Decimal("1e4"),
+                    places=4,
+                    allow_nan=False,
+                    allow_infinity=False,
+                ),
+                st.decimals(
+                    min_value=Decimal("0"),
+                    max_value=Decimal("1e4"),
+                    places=4,
+                    allow_nan=False,
+                    allow_infinity=False,
+                ),
+                st.decimals(
+                    min_value=Decimal("0"),
+                    max_value=Decimal("1e4"),
+                    places=4,
+                    allow_nan=False,
+                    allow_infinity=False,
+                ),
+                st.decimals(
+                    min_value=Decimal("0"),
+                    max_value=Decimal("100"),
+                    places=2,
+                    allow_nan=False,
+                    allow_infinity=False,
+                ),
             ),
             min_size=1,
             max_size=8,
@@ -337,7 +371,8 @@ class TestUnrealizedPnl:
             fees.append(Fee(fee_id=f"F{i}", applies_to=lot_id, amount=fee_amount, currency="USD"))
         combined = unrealized_pnl(lots, marks, fees)
         singles = [
-            unrealized_pnl([lot], marks, [fee]).total_unrealized for lot, fee in zip(lots, fees)
+            unrealized_pnl([lot], marks, [fee]).total_unrealized
+            for lot, fee in zip(lots, fees, strict=True)
         ]
         assert combined.total_unrealized == sum(singles)
         assert combined.total_unrealized == sum(entry.unrealized_pnl for entry in combined.lots)
@@ -393,7 +428,13 @@ class TestConcentration:
     @settings(max_examples=100, deadline=None)
     @given(
         values=st.lists(
-            st.decimals(min_value=Decimal("0"), max_value=Decimal("1e9"), places=4, allow_nan=False, allow_infinity=False),
+            st.decimals(
+                min_value=Decimal("0"),
+                max_value=Decimal("1e9"),
+                places=4,
+                allow_nan=False,
+                allow_infinity=False,
+            ),
             min_size=1,
             max_size=12,
         )

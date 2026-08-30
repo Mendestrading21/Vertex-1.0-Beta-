@@ -7,7 +7,7 @@ code path can construct or receive these objects.
 
 from __future__ import annotations
 
-from typing import Mapping, Optional
+from collections.abc import Mapping
 
 from vertex_api.auth import SessionContext
 from vertex_persistence.repository.snapshots import CurrentSnapshot
@@ -25,17 +25,17 @@ class FakeSnapshotReader:
 
     def __init__(
         self,
-        snapshots: Optional[Mapping[tuple[str, str], CurrentSnapshot]] = None,
+        snapshots: Mapping[tuple[str, str], CurrentSnapshot] | None = None,
         *,
         db_ok: bool = True,
     ) -> None:
         self.snapshots: dict[tuple[str, str], CurrentSnapshot] = dict(snapshots or {})
         self.db_ok = db_ok
 
-    def current(self, *, kind: str, key: str) -> Optional[CurrentSnapshot]:
+    def current(self, *, kind: str, key: str) -> CurrentSnapshot | None:
         return self.snapshots.get((kind, key))
 
-    def head_version(self, *, kind: str, key: str) -> Optional[int]:
+    def head_version(self, *, kind: str, key: str) -> int | None:
         snapshot = self.snapshots.get((kind, key))
         return None if snapshot is None else snapshot.version
 

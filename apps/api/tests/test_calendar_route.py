@@ -7,15 +7,15 @@ worker publishes (``vertex_worker.calendar.build_calendar_content``).
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-
 from snapshot_fakes import FakeSnapshotReader, synthetic_session
-from vertex_api.auth import require_session
+
 from vertex_api import calendar as calendar_module
+from vertex_api.auth import require_session
 from vertex_api.calendar import (
     CALENDAR_FRESHNESS_POLICY,
     CALENDAR_MAX_AGE,
@@ -25,7 +25,7 @@ from vertex_api.snapshot_reader import get_snapshot_reader
 from vertex_api.snapshot_views import SnapshotContentError
 from vertex_persistence.repository.snapshots import CurrentSnapshot
 
-AS_OF = datetime(2026, 8, 25, 12, 0, 0, tzinfo=timezone.utc)
+AS_OF = datetime(2026, 8, 25, 12, 0, 0, tzinfo=UTC)
 NOW = AS_OF + timedelta(minutes=5)
 """Relay instant of every test: no assertion here depends on real time."""
 
@@ -337,8 +337,8 @@ def test_a_naive_event_time_is_refused_with_and_without_window() -> None:
     refused whether or not a window is requested."""
     broken = snapshot([event("syn-ev-1", when="2026-09-01T15:30:00")])
     window = (
-        datetime(2026, 8, 1, tzinfo=timezone.utc),
-        datetime(2026, 10, 1, tzinfo=timezone.utc),
+        datetime(2026, 8, 1, tzinfo=UTC),
+        datetime(2026, 10, 1, tzinfo=UTC),
     )
     with pytest.raises(SnapshotContentError):
         build_calendar_response(broken, window=None, now=NOW)
@@ -515,9 +515,8 @@ def test_every_state_the_worker_can_publish_is_mapped() -> None:
     """P1-6 (root cause) — the relay must know EVERY state the worker can
     publish: an unmapped one would fail closed at runtime and take page 02
     down, exactly like the missing field did."""
-    from vertex_worker.calendar import AGENDA_STATES
-
     from vertex_api.calendar import AGENDA_STATE_TO_RESPONSE_STATE
+    from vertex_worker.calendar import AGENDA_STATES
 
     assert set(AGENDA_STATES) == set(AGENDA_STATE_TO_RESPONSE_STATE)
 
@@ -653,14 +652,14 @@ def test_the_fresh_flag_is_never_a_frozen_lie() -> None:
     before = build_calendar_response(
         published,
         window=None,
-        now=datetime(2026, 8, 25, 17, 0, tzinfo=timezone.utc),
+        now=datetime(2026, 8, 25, 17, 0, tzinfo=UTC),
     )
     assert before.agenda[0]["fresh"] is True
 
     after = build_calendar_response(
         published,
         window=None,
-        now=datetime(2026, 8, 25, 19, 0, tzinfo=timezone.utc),
+        now=datetime(2026, 8, 25, 19, 0, tzinfo=UTC),
     )
     assert after.agenda[0]["fresh"] is False
     # ...and the published ``stale_after`` stays relayed verbatim beside it.
@@ -693,7 +692,7 @@ def test_an_agenda_whose_every_served_event_is_stale_is_not_ok() -> None:
     response = build_calendar_response(
         published,
         window=None,
-        now=datetime(2026, 8, 25, 19, 0, tzinfo=timezone.utc),
+        now=datetime(2026, 8, 25, 19, 0, tzinfo=UTC),
     )
     assert response.state == "stale"
     assert response.agenda[0]["fresh"] is False
@@ -724,5 +723,5 @@ def test_a_naive_relay_clock_is_refused() -> None:
     published = snapshot([event("syn-ev-1")])
     with pytest.raises(ValueError):
         build_calendar_response(
-            published, window=None, now=datetime(2026, 8, 25, 12, 5)
+            published, window=None, now=datetime(2026, 8, 25, 12, 5)  # noqa: DTZ001 (naïf délibéré : rejet vérifié)
         )

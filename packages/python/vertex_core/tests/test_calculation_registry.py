@@ -27,7 +27,9 @@ REGISTRY_PATH = REPO_ROOT / "docs" / "03-domain" / "calculations" / "CALCULATION
 
 
 def load_checker():
-    spec = importlib.util.spec_from_file_location("_vertex_check_calculation_registry", CHECKER_PATH)
+    spec = importlib.util.spec_from_file_location(
+        "_vertex_check_calculation_registry", CHECKER_PATH
+    )
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
@@ -50,7 +52,7 @@ class TestRealRepository:
         assert report["ok"], json.dumps(report["findings"], indent=2, sort_keys=True)
 
     def test_guard_runs_as_a_script_and_exits_zero(self):
-        completed = subprocess.run(
+        completed = subprocess.run(  # noqa: S603 (argv littéral, sans shell)
             [sys.executable, str(CHECKER_PATH), str(REPO_ROOT)],
             capture_output=True,
             text=True,
@@ -183,7 +185,16 @@ class TestScannerDetectsDrift:
 
     @pytest.mark.parametrize(
         "field",
-        ["spec_version", "method", "assumptions", "parameter_schema", "tolerances", "oracle", "criticality", "tests"],
+        [
+            "spec_version",
+            "method",
+            "assumptions",
+            "parameter_schema",
+            "tolerances",
+            "oracle",
+            "criticality",
+            "tests",
+        ],
     )
     def test_missing_runtime_field_detected(self, tmp_path, field):
         body = "\n".join(
@@ -213,7 +224,9 @@ class TestScannerDetectsDrift:
         assert finding["path"] == "tests/test_absent.py"
 
     def test_declared_implementation_file_that_does_not_exist_detected(self, tmp_path):
-        body = MINIMAL_ENTRY.rstrip("\n") + "\n    implementation: packages/absent.py::simple_return\n"
+        body = (
+            MINIMAL_ENTRY.rstrip("\n") + "\n    implementation: packages/absent.py::simple_return\n"
+        )
         root = build_repo(tmp_path, body, APPROVED_USAGE)
         report = checker.check(root)
         assert report["ok"] is False
@@ -260,7 +273,9 @@ class TestScannerDetectionRules:
 
     def test_phantom_identifier_inside_authority_directory_detected(self, tmp_path):
         root = build_repo(tmp_path, MINIMAL_ENTRY, APPROVED_USAGE)
-        authority = root / "packages" / "python" / "vertex_core" / "src" / "vertex_core" / "calculations"
+        authority = (
+            root / "packages" / "python" / "vertex_core" / "src" / "vertex_core" / "calculations"
+        )
         authority.mkdir(parents=True)
         (authority / "market.py").write_text(
             'def f(v):\n    return _finite_result(v, "market.sortino_ratio")\n', encoding="utf-8"

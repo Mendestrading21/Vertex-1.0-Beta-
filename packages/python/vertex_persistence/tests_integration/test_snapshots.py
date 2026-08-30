@@ -7,7 +7,7 @@ the same SQL trigger as observations/ledger_transactions (migration 0003).
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy import func, select, text
@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 from vertex_persistence.models import Snapshot, SnapshotHead
 from vertex_persistence.repository import get_current_snapshot, publish_snapshot
 
-UTC = timezone.utc
+UTC = UTC
 T0 = datetime(2026, 8, 28, 12, 0, 0, tzinfo=UTC)
 
 
@@ -42,7 +42,9 @@ def test_versions_accumulate_and_head_follows(db_session: Session) -> None:
             as_of=T0 + timedelta(minutes=index),
         )
         db_session.commit()
-    versions = db_session.execute(select(Snapshot.version).order_by(Snapshot.version)).scalars().all()
+    versions = (
+        db_session.execute(select(Snapshot.version).order_by(Snapshot.version)).scalars().all()
+    )
     assert versions == [1, 2, 3]
     current = get_current_snapshot(db_session, kind="market_overview", key="SYN")
     assert current is not None
@@ -55,7 +57,9 @@ def test_head_update_is_transactional_with_version_insert(db_session: Session) -
     db_session.commit()
 
     # A publish that rolls back leaves neither a version row nor a moved head.
-    publish_snapshot(db_session, kind="k", key="x", content={"v": 2}, as_of=T0 + timedelta(minutes=1))
+    publish_snapshot(
+        db_session, kind="k", key="x", content={"v": 2}, as_of=T0 + timedelta(minutes=1)
+    )
     db_session.rollback()
 
     assert db_session.execute(select(func.count()).select_from(Snapshot)).scalar_one() == 1
@@ -115,7 +119,9 @@ def test_snapshot_delete_forbidden_by_trigger(db_session: Session) -> None:
 def test_snapshot_heads_stays_mutable(db_session: Session) -> None:
     """The head pointer is NOT append-only: it moves with each publish."""
     publish_snapshot(db_session, kind="k", key="x", content={"v": 1}, as_of=T0)
-    publish_snapshot(db_session, kind="k", key="x", content={"v": 2}, as_of=T0 + timedelta(minutes=1))
+    publish_snapshot(
+        db_session, kind="k", key="x", content={"v": 2}, as_of=T0 + timedelta(minutes=1)
+    )
     db_session.commit()
     head = db_session.execute(select(SnapshotHead)).scalar_one()
     assert head.version == 2  # an UPDATE on snapshot_heads succeeded

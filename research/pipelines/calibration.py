@@ -18,19 +18,19 @@ from __future__ import annotations
 
 import math
 import random
+from collections.abc import Sequence
 from dataclasses import dataclass
 from enum import Enum
-from typing import Sequence
 
 __all__ = [
-    "CalibrationStatus",
     "CalibrationReport",
+    "CalibrationStatus",
     "ReliabilityBin",
+    "assess_calibration",
+    "block_bootstrap_interval",
     "brier_score",
     "log_loss",
     "reliability_diagram",
-    "block_bootstrap_interval",
-    "assess_calibration",
 ]
 
 # Bornes de sécurité numérique : une probabilité exactement 0 ou 1 rend la
@@ -91,14 +91,14 @@ def _validate(predicted: Sequence[float], observed: Sequence[int]) -> None:
 def brier_score(predicted: Sequence[float], observed: Sequence[int]) -> float:
     """Erreur quadratique moyenne. 0 = parfait, 0.25 = pièce non biaisée."""
     _validate(predicted, observed)
-    return sum((p - o) ** 2 for p, o in zip(predicted, observed)) / len(predicted)
+    return sum((p - o) ** 2 for p, o in zip(predicted, observed, strict=True)) / len(predicted)
 
 
 def log_loss(predicted: Sequence[float], observed: Sequence[int]) -> float:
     """Log-loss, bornée pour rester finie sur les probabilités extrêmes."""
     _validate(predicted, observed)
     total = 0.0
-    for probability, outcome in zip(predicted, observed):
+    for probability, outcome in zip(predicted, observed, strict=True):
         bounded = min(max(probability, _EPSILON), 1.0 - _EPSILON)
         total -= math.log(bounded) if outcome == 1 else math.log(1.0 - bounded)
     return total / len(predicted)
@@ -118,7 +118,7 @@ def reliability_diagram(
         raise ValueError("bins: entier >= 2 requis")
 
     buckets: list[list[tuple[float, int]]] = [[] for _ in range(bins)]
-    for probability, outcome in zip(predicted, observed):
+    for probability, outcome in zip(predicted, observed, strict=True):
         # La borne haute 1.0 appartient à la dernière tranche.
         position = min(int(probability * bins), bins - 1)
         buckets[position].append((probability, outcome))
@@ -175,7 +175,7 @@ def block_bootstrap_interval(
 
     size = len(predicted)
     blocks = max(1, size // block_size)
-    generator = random.Random(seed)
+    generator = random.Random(seed)  # noqa: S311 (données SYNTHETIC, aucun usage cryptographique)
     scores: list[float] = []
     for _ in range(resamples):
         sample_p: list[float] = []

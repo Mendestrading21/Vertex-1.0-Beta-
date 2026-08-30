@@ -14,8 +14,9 @@ Pure module: deterministic output for any permutation of the input.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+from datetime import datetime
 from decimal import Decimal
-from typing import Optional, Sequence
 
 from pydantic import Field, model_validator
 
@@ -54,8 +55,8 @@ class FieldObservation(ContractModel):
     field_name: NonEmptyStr
     value: FiniteDecimal
     as_of: UtcDatetime
-    unit: Optional[NonEmptyStr] = None
-    event_id: Optional[NonEmptyStr] = None
+    unit: NonEmptyStr | None = None
+    event_id: NonEmptyStr | None = None
 
 
 class ConflictRecord(ContractModel):
@@ -74,11 +75,11 @@ class ConflictRecord(ContractModel):
     code: NonEmptyStr
     observations: tuple[FieldObservation, ...] = Field(min_length=2)
     tolerance: NonNegativeDecimal
-    divergence: Optional[NonNegativeDecimal] = None
+    divergence: NonNegativeDecimal | None = None
     message: str
 
     @model_validator(mode="after")
-    def _check_invariants(self) -> "ConflictRecord":
+    def _check_invariants(self) -> ConflictRecord:
         if any(obs.field_name != self.field_name for obs in self.observations):
             raise ValueError("every observation must concern the record's field_name")
         if len({obs.source for obs in self.observations}) < 2:
@@ -86,7 +87,9 @@ class ConflictRecord(ContractModel):
         return self
 
 
-def _observation_sort_key(obs: FieldObservation) -> tuple:
+def _observation_sort_key(
+    obs: FieldObservation,
+) -> tuple[str, datetime, Decimal, str, str]:
     """Deterministic ordering key: input permutation never changes the output."""
     return (obs.source, obs.as_of, obs.value, obs.unit or "", obs.event_id or "")
 
@@ -151,7 +154,7 @@ def detect_conflicts(
                 )
             )
             continue
-        max_divergence: Optional[Decimal] = None
+        max_divergence: Decimal | None = None
         for i, left in enumerate(group):
             for right in group[i + 1 :]:
                 if left.source == right.source:

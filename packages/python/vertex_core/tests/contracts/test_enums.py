@@ -3,6 +3,8 @@
 import pytest
 
 from vertex_core.contracts import (
+    AFFIRMATIVE_STATUSES,
+    NON_AFFIRMATIVE_STATUSES,
     AdviceStatus,
     AssetClass,
     CalculationStatus,
@@ -65,3 +67,40 @@ def test_no_legacy_vocabulary():
 def test_quality_namespaces_are_distinct_types():
     assert EnvelopeQuality.PARTIAL is not SnapshotQuality.PARTIAL
     assert EnvelopeQuality.PARTIAL.__class__ is not SnapshotQuality.PARTIAL.__class__
+
+
+class TestStatusPartition:
+    """La partition affirmative / non affirmative est UNE seule autorité.
+
+    Deux littéraux concurrents avaient dérivé : `vertex_worker.opportunities`
+    comptait `OBSERVE` parmi les statuts qualifiés, une campagne de dégradation
+    ne le comptait pas. Un scénario produisant `OBSERVE` aurait donc satisfait
+    un invariant écrit pour l'interdire. Ces tests empêchent la dérive de
+    revenir.
+    """
+
+    def test_la_partition_couvre_exactement_AdviceStatus(self) -> None:
+        assert AFFIRMATIVE_STATUSES | NON_AFFIRMATIVE_STATUSES == set(AdviceStatus)
+
+    def test_les_deux_groupes_sont_disjoints(self) -> None:
+        assert AFFIRMATIVE_STATUSES & NON_AFFIRMATIVE_STATUSES == set()
+
+    def test_aucun_groupe_n_est_vide(self) -> None:
+        # Une partition dont un côté serait vide passerait les deux tests
+        # précédents tout en ne partitionnant rien.
+        assert AFFIRMATIVE_STATUSES
+        assert NON_AFFIRMATIVE_STATUSES
+
+    def test_un_statut_ferme_n_est_jamais_affirmatif(self) -> None:
+        assert AdviceStatus.BLOCKED in NON_AFFIRMATIVE_STATUSES
+        assert AdviceStatus.INSUFFICIENT_DATA in NON_AFFIRMATIVE_STATUSES
+
+    def test_observe_est_affirmatif(self) -> None:
+        """Le point exact de la dérive : `OBSERVE` met une carte devant l'œil.
+
+        `vertex_worker.opportunities` route `OBSERVE` dans le groupe qualifié,
+        donc un dossier `OBSERVE` atteint l'utilisateur comme une opportunité.
+        Le traiter comme non affirmatif ouvrirait un trou dans tout invariant
+        de dégradation.
+        """
+        assert AdviceStatus.OBSERVE in AFFIRMATIVE_STATUSES

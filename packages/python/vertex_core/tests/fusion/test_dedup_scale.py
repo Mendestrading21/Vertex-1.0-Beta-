@@ -18,8 +18,8 @@ import random
 from collections import Counter
 from datetime import timedelta
 
-from vertex_core.fusion import FusionAction, fuse
 from tests.fusion.factories import BASE_TIME, SOURCES, make_observation
+from vertex_core.fusion import FusionAction, fuse
 
 
 def _build_corpus():

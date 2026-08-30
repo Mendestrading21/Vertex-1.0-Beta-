@@ -28,9 +28,10 @@ from __future__ import annotations
 import json
 import math
 import re
-from datetime import datetime, timedelta, timezone
+from collections.abc import Mapping
+from datetime import UTC, datetime, timedelta
 from enum import Enum, unique
-from typing import Annotated, Any, Mapping, Optional, Union
+from typing import Annotated, Any
 
 from pydantic import (
     BaseModel,
@@ -116,7 +117,7 @@ def _parse_wire_timestamp(value: Any) -> Any:
     parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     if parsed.tzinfo is None or parsed.tzinfo.utcoffset(parsed) is None:
         raise ValueError("naive timestamp rejected")
-    return parsed.astimezone(timezone.utc)
+    return parsed.astimezone(UTC)
 
 
 WireUtcTimestamp = Annotated[datetime, BeforeValidator(_parse_wire_timestamp)]
@@ -138,7 +139,7 @@ def _parse_signal(value: Any) -> Any:
 
 WireSignal = Annotated[TradingViewSignal, BeforeValidator(_parse_signal)]
 
-_ScalarValue = Union[str, int, float, bool, None]
+_ScalarValue = str | int | float | bool | None
 
 
 class TradingViewAlertV1(BaseModel):
@@ -160,8 +161,8 @@ class TradingViewAlertV1(BaseModel):
     ticker: Annotated[str, StringConstraints(min_length=1, max_length=48)]
     interval: Annotated[str, StringConstraints(min_length=1, max_length=16)]
     signal: WireSignal
-    price: Optional[str] = None
-    values: Optional[Mapping[str, _ScalarValue]] = None
+    price: str | None = None
+    values: Mapping[str, _ScalarValue] | None = None
 
     @field_validator("schema_id")
     @classmethod
@@ -179,7 +180,7 @@ class TradingViewAlertV1(BaseModel):
 
     @field_validator("price")
     @classmethod
-    def _check_price(cls, value: Optional[str]) -> Optional[str]:
+    def _check_price(cls, value: str | None) -> str | None:
         if value is not None and not _PRICE_RE.match(value):
             raise ValueError("price must match ^-?[0-9]+(\\.[0-9]+)?$ or be null")
         return value
@@ -187,8 +188,8 @@ class TradingViewAlertV1(BaseModel):
     @field_validator("values")
     @classmethod
     def _check_values(
-        cls, value: Optional[Mapping[str, _ScalarValue]]
-    ) -> Optional[Mapping[str, _ScalarValue]]:
+        cls, value: Mapping[str, _ScalarValue] | None
+    ) -> Mapping[str, _ScalarValue] | None:
         if value is None:
             return None
         if len(value) > MAX_VALUES_PROPERTIES:
@@ -201,7 +202,7 @@ class TradingViewAlertV1(BaseModel):
         return dict(value)
 
     @model_validator(mode="after")
-    def _check_nonce_policy(self) -> "TradingViewAlertV1":
+    def _check_nonce_policy(self) -> TradingViewAlertV1:
         # Ingress policy: values.nonce required (see module docstring).
         if self.values is None or NONCE_KEY not in self.values:
             raise ValueError("missing_nonce: values.nonce is required by the ingress policy")
@@ -211,7 +212,7 @@ class TradingViewAlertV1(BaseModel):
         return self
 
     @model_validator(mode="after")
-    def _check_bar_time_coherence(self) -> "TradingViewAlertV1":
+    def _check_bar_time_coherence(self) -> TradingViewAlertV1:
         # Ingress policy: a bar cannot close after the alert reporting it.
         if self.bar_time - self.sent_at > MAX_BAR_TIME_AHEAD:
             raise ValueError(
@@ -223,9 +224,10 @@ class TradingViewAlertV1(BaseModel):
     @property
     def nonce(self) -> str:
         """Deduplication nonce (validated ``values.nonce``)."""
-        assert self.values is not None  # guaranteed by _check_nonce_policy
+        # narrowing mypy, garde réelle au-dessus
+        assert self.values is not None  # guaranteed by _check_nonce_policy  # noqa: S101
         nonce = self.values[NONCE_KEY]
-        assert isinstance(nonce, str)
+        assert isinstance(nonce, str)  # noqa: S101 (narrowing mypy, garde réelle au-dessus)
         return nonce
 
     @property
@@ -247,7 +249,7 @@ class TradingViewAlertV1(BaseModel):
         }
 
 
-def parse_alert(raw: Union[bytes, bytearray, str, Mapping[str, Any]]) -> TradingViewAlertV1:
+def parse_alert(raw: bytes | bytearray | str | Mapping[str, Any]) -> TradingViewAlertV1:
     """Parse and strictly validate one alert payload (fail-closed).
 
     Accepts raw bytes/str (size-checked against 16 KiB, strict UTF-8, strict

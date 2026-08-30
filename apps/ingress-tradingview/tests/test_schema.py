@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
-
 from conftest import make_alert_payload
+
 from vertex_ingress_tv.schema import (
     MAX_PAYLOAD_BYTES,
     AlertRejected,
@@ -17,7 +17,7 @@ from vertex_ingress_tv.schema import (
     parse_alert,
 )
 
-T_REF = datetime(2026, 8, 29, 12, 0, 0, tzinfo=timezone.utc)
+T_REF = datetime(2026, 8, 29, 12, 0, 0, tzinfo=UTC)
 WINDOW = timedelta(seconds=300)
 
 
@@ -34,7 +34,7 @@ class TestValidAlert:
         assert alert.schema_id == "vertex.tradingview.alert.v1"
         assert alert.alert_id == "syn-market-regime-v1"
         assert alert.signal is TradingViewSignal.REGIME_CHANGE
-        assert alert.sent_at == datetime(2026, 8, 29, 11, 59, 30, tzinfo=timezone.utc)
+        assert alert.sent_at == datetime(2026, 8, 29, 11, 59, 30, tzinfo=UTC)
         assert alert.sent_at.tzinfo is not None  # aware, always
 
     def test_valid_payload_parses_from_bytes_and_str(self) -> None:
@@ -49,7 +49,7 @@ class TestValidAlert:
 
     def test_offset_timestamps_normalize_to_utc(self) -> None:
         alert = parse_alert(make_alert_payload(sent_at="2026-08-29T13:59:30+02:00"))
-        assert alert.sent_at == datetime(2026, 8, 29, 11, 59, 30, tzinfo=timezone.utc)
+        assert alert.sent_at == datetime(2026, 8, 29, 11, 59, 30, tzinfo=UTC)
 
     def test_null_and_absent_price_are_distinct_from_zero(self) -> None:
         assert parse_alert(make_alert_payload(price=None)).price is None
@@ -232,7 +232,7 @@ class TestSentAtWindow:
         with pytest.raises(AlertRejected) as exc_info:
             ensure_sent_at_in_window(
                 self._alert("2026-08-29T11:59:30Z"),
-                reference=datetime(2026, 8, 29, 12, 0, 0),
+                reference=datetime(2026, 8, 29, 12, 0, 0),  # noqa: DTZ001 (naïf délibéré : rejet vérifié)
                 window=WINDOW,
             )
         assert exc_info.value.reason_code == "naive_reference_clock"

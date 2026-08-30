@@ -9,9 +9,8 @@ real chain (routes -> outbox -> worker -> snapshot -> export) runs in
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Optional
 
 from vertex_worker.markets import DEV_SYNTHETIC_MARKETS_CONFIG, QuoteRecord
 from vertex_worker.performance import (
@@ -24,7 +23,7 @@ from vertex_worker.performance import (
 )
 from vertex_worker.portfolio import LedgerEventView, PortfolioView
 
-NOW = datetime(2026, 9, 2, 12, 0, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 9, 2, 12, 0, 0, tzinfo=UTC)
 TICKER = "SYN-TECH-01"
 SECTOR = "SYN-TECH"
 CURRENCY = "SYN"  # the synthetic mark universe's fictional currency code
@@ -36,7 +35,7 @@ D1, D2, D3 = "2026-08-24", "2026-08-25", "2026-08-26"
 
 def utc(day: str, hour: int) -> datetime:
     year, month, dom = (int(part) for part in day.split("-"))
-    return datetime(year, month, dom, hour, 0, 0, tzinfo=timezone.utc)
+    return datetime(year, month, dom, hour, 0, 0, tzinfo=UTC)
 
 
 _EVENT_SEQ = iter(range(1, 10_000))
@@ -48,11 +47,11 @@ def make_event(
     day: str,
     hour: int = 10,
     amount: str,
-    quantity: Optional[str] = None,
-    price: Optional[str] = None,
+    quantity: str | None = None,
+    price: str | None = None,
     fees: str = "0",
     currency: str = CURRENCY,
-    ticker: Optional[str] = None,
+    ticker: str | None = None,
 ) -> LedgerEventView:
     return LedgerEventView(
         id=next(_EVENT_SEQ),
@@ -102,9 +101,13 @@ def build(events, quotes, **kwargs):
 
 NOMINAL_EVENTS = [
     make_event("DEPOSIT", day=D1, hour=9, amount="10000"),
-    make_event("BUY_RECORDED", day=D1, hour=11, amount="-1000", quantity="10", price="100", ticker=TICKER),
+    make_event(
+        "BUY_RECORDED", day=D1, hour=11, amount="-1000", quantity="10", price="100", ticker=TICKER
+    ),
     make_event("DEPOSIT", day=D2, hour=12, amount="1000"),
-    make_event("SELL_RECORDED", day=D2, hour=13, amount="550", quantity="5", price="110", ticker=TICKER),
+    make_event(
+        "SELL_RECORDED", day=D2, hour=13, amount="550", quantity="5", price="110", ticker=TICKER
+    ),
 ]
 NOMINAL_QUOTES = [make_quote(D1, "100"), make_quote(D2, "110"), make_quote(D3, "121")]
 
@@ -217,7 +220,15 @@ def test_single_valuation_day_is_insufficient_for_twr() -> None:
 
 def test_xirr_without_any_external_cashflow_is_insufficient() -> None:
     events = [
-        make_event("BUY_RECORDED", day=D1, hour=11, amount="-1000", quantity="10", price="100", ticker=TICKER),
+        make_event(
+            "BUY_RECORDED",
+            day=D1,
+            hour=11,
+            amount="-1000",
+            quantity="10",
+            price="100",
+            ticker=TICKER,
+        ),
     ]
     content = build(events, NOMINAL_QUOTES)
     for name in ("xirr_gross", "xirr_net"):
@@ -229,7 +240,15 @@ def test_xirr_without_sign_change_is_invalid_with_reason() -> None:
     # Withdrawal only: investor flows are +50 and the terminal value +505 —
     # no strictly negative flow, the sign-change gate closes.
     events = [
-        make_event("BUY_RECORDED", day=D1, hour=11, amount="-1000", quantity="10", price="100", ticker=TICKER),
+        make_event(
+            "BUY_RECORDED",
+            day=D1,
+            hour=11,
+            amount="-1000",
+            quantity="10",
+            price="100",
+            ticker=TICKER,
+        ),
         make_event("WITHDRAWAL", day=D2, hour=12, amount="-50"),
     ]
     content = build(events, NOMINAL_QUOTES)
@@ -253,7 +272,8 @@ def test_population_is_explicit_and_never_blended() -> None:
 
 
 def test_multi_currency_ledger_fails_closed_not_blended() -> None:
-    events = list(NOMINAL_EVENTS) + [
+    events = [
+        *list(NOMINAL_EVENTS),
         make_event("DEPOSIT", day=D1, hour=10, amount="500", currency="EUR"),
     ]
     content = build(events, NOMINAL_QUOTES)
@@ -275,7 +295,15 @@ def test_multi_currency_ledger_fails_closed_not_blended() -> None:
 def test_day_with_missing_mark_is_excluded_with_reason_never_zero() -> None:
     events = [
         make_event("DEPOSIT", day=D1, hour=9, amount="10000"),
-        make_event("BUY_RECORDED", day=D1, hour=11, amount="-1000", quantity="10", price="100", ticker=TICKER),
+        make_event(
+            "BUY_RECORDED",
+            day=D1,
+            hour=11,
+            amount="-1000",
+            quantity="10",
+            price="100",
+            ticker=TICKER,
+        ),
     ]
     quotes = [
         make_quote(D1, "100"),
@@ -311,7 +339,7 @@ def test_heatmap_marks_incomplete_months_and_preserves_chaining() -> None:
             quantity="10", price="100", ticker=TICKER,
         ),
     ]
-    quotes = [make_quote(day, close) for day, close in zip(days, closes)]
+    quotes = [make_quote(day, close) for day, close in zip(days, closes, strict=True)]
     content = build(events, quotes)
     twr = content["metrics"]["twr_gross"]
     assert twr["status"] == "OK"

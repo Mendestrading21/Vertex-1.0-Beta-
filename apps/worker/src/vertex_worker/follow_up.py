@@ -48,8 +48,9 @@ nothing.
 from __future__ import annotations
 
 import logging
-from datetime import datetime, timezone
-from typing import TYPE_CHECKING, Any, Callable, Mapping, Optional, Sequence
+from collections.abc import Callable, Mapping, Sequence
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy.orm import Session
 
@@ -60,7 +61,6 @@ from vertex_persistence.repository.theses import (
     list_theses,
     review_queue_due,
 )
-
 from vertex_worker.registry import HandlerRegistry
 
 if TYPE_CHECKING:  # import-time cycle avoidance (ingest -> follow_up -> handlers -> ingest)
@@ -114,14 +114,14 @@ def _require_aware_utc(now: datetime) -> datetime:
         raise TypeError(f"now: expected datetime, got {type(now).__name__}")
     if now.tzinfo is None or now.tzinfo.utcoffset(now) is None:
         raise ValueError("now: naive datetime rejected, aware UTC required")
-    return now.astimezone(timezone.utc)
+    return now.astimezone(UTC)
 
 
-def _iso(value: Optional[datetime]) -> Optional[str]:
-    return None if value is None else value.astimezone(timezone.utc).isoformat()
+def _iso(value: datetime | None) -> str | None:
+    return None if value is None else value.astimezone(UTC).isoformat()
 
 
-def _thesis_ticker(entry: ProjectedThesis) -> Optional[str]:
+def _thesis_ticker(entry: ProjectedThesis) -> str | None:
     instrument = entry.thesis.instrument
     if not isinstance(instrument, Mapping):
         return None
@@ -139,7 +139,8 @@ def due_sort_key(entry: ProjectedThesis) -> tuple[datetime, datetime, datetime, 
     has no base ``review_due_at`` (expired snooze without base deadline).
     """
     effective_due = entry.state.review_due_at
-    assert effective_due is not None  # guaranteed by review_queue_due
+    # narrowing mypy, garde réelle au-dessus
+    assert effective_due is not None  # guaranteed by review_queue_due  # noqa: S101
     base_due = entry.thesis.review_due_at
     return (
         effective_due,
@@ -155,7 +156,7 @@ def due_sort_key(entry: ProjectedThesis) -> tuple[datetime, datetime, datetime, 
 
 
 def _cluster_context(
-    records: Sequence["ObservationRecord"], config: "FusionConfig"
+    records: Sequence[ObservationRecord], config: FusionConfig
 ) -> tuple[dict[str, list[dict[str, Any]]], str, int, int]:
     """Fuse the recent observation window into per-ticker cluster context.
 
@@ -169,12 +170,12 @@ def _cluster_context(
         POPULATION_EMPTY,
         POPULATION_REAL,
         POPULATION_SYNTHETIC,
-        _content_title,
         _content_observation,
+        _content_title,
         is_synthetic_record,
     )
 
-    content_records: dict[str, "ObservationRecord"] = {}
+    content_records: dict[str, ObservationRecord] = {}
     observations = []
     for record in sorted(records, key=lambda r: (r.as_of, r.event_id)):
         title = _content_title(record)
@@ -261,10 +262,10 @@ def _urgency(
 def build_review_queue_content(
     projected: Sequence[ProjectedThesis],
     due: Sequence[ProjectedThesis],
-    records: Sequence["ObservationRecord"],
+    records: Sequence[ObservationRecord],
     *,
     now: datetime,
-    config: "FusionConfig",
+    config: FusionConfig,
 ) -> dict[str, Any]:
     """Build the review queue snapshot content. Pure and deterministic.
 
@@ -330,7 +331,8 @@ def build_review_queue_content(
     due_entries: list[dict[str, Any]] = []
     for rank, entry in enumerate(sorted(due, key=due_sort_key), start=1):
         effective_due = entry.state.review_due_at
-        assert effective_due is not None  # due entries always carry one
+        # narrowing mypy, garde réelle au-dessus
+        assert effective_due is not None  # due entries always carry one  # noqa: S101
         has_new, reasons = urgency_by_id.get(entry.thesis.id, (False, []))
         due_entries.append(
             {
@@ -390,7 +392,7 @@ class ReviewQueueHandler:
     revision or ledger row is ever created, updated or deleted here.
     """
 
-    def __init__(self, *, config: "FusionConfig", clock: Clock) -> None:
+    def __init__(self, *, config: FusionConfig, clock: Clock) -> None:
         self._config = config
         self._clock = clock
 
@@ -431,7 +433,7 @@ class ReviewQueueHandler:
 
 
 def register_follow_up_handler(
-    registry: HandlerRegistry, *, clock: Clock, config: "FusionConfig"
+    registry: HandlerRegistry, *, clock: Clock, config: FusionConfig
 ) -> None:
     """Register the review queue handler on ``review_queue.refresh``."""
     registry.register(

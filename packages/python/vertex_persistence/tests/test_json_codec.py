@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import json
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta, timezone
 from decimal import Decimal
 from enum import Enum
 
@@ -13,7 +13,7 @@ from pydantic import BaseModel
 from vertex_persistence.errors import JsonEncodingError
 from vertex_persistence.json_codec import to_jsonb, to_jsonb_object
 
-UTC = timezone.utc
+UTC = UTC
 
 
 def test_decimal_becomes_exact_string() -> None:
@@ -36,7 +36,7 @@ def test_aware_datetime_becomes_utc_iso() -> None:
 
 def test_naive_datetime_rejected() -> None:
     with pytest.raises(JsonEncodingError):
-        to_jsonb(datetime(2026, 8, 28, 12, 0, 0))
+        to_jsonb(datetime(2026, 8, 28, 12, 0, 0))  # noqa: DTZ001 (naïf délibéré : rejet vérifié)
 
 
 def test_date_becomes_iso() -> None:

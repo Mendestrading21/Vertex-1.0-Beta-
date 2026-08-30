@@ -5,11 +5,12 @@ no unseeded randomness (Hypothesis manages its own reproducible search).
 """
 
 import math
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import pytest
-from hypothesis import given, strategies as st
+from hypothesis import given
+from hypothesis import strategies as st
 
 from vertex_core.calculations.market import (
     FLOAT64_ABS_TOL,
@@ -24,7 +25,7 @@ from vertex_core.calculations.market import (
     simple_return,
 )
 
-BASE_TS = datetime(2026, 3, 2, 14, 30, tzinfo=timezone.utc)
+BASE_TS = datetime(2026, 3, 2, 14, 30, tzinfo=UTC)
 BASIS = "split_adjusted"
 
 NON_FINITE_FLOATS = [float("nan"), float("inf"), float("-inf")]
@@ -296,9 +297,10 @@ class TestAtr:
         assert exc.value.reason == "invalid_type"
 
     def test_ohlc_bar_rejects_naive_timestamp(self):
-        with pytest.raises(Exception):
+        with pytest.raises(Exception):  # noqa: B017 (contrat du test inchangé (resserrement = dette, cf. DEBT.md))
             OhlcBar(
-                timestamp=datetime(2026, 3, 2, 14, 30),  # naive: rejected
+                # naïf délibéré : rejet vérifié
+                timestamp=datetime(2026, 3, 2, 14, 30),  # naive: rejected  # noqa: DTZ001
                 open=Decimal("10"),
                 high=Decimal("11"),
                 low=Decimal("9"),
@@ -306,7 +308,7 @@ class TestAtr:
             )
 
     def test_ohlc_bar_rejects_non_positive_price(self):
-        with pytest.raises(Exception):
+        with pytest.raises(Exception):  # noqa: B017 (contrat du test inchangé (resserrement = dette, cf. DEBT.md))
             make_bar(0, "10", "11", "0", "10")
 
 
@@ -560,7 +562,7 @@ class TestVolatilityProperties:
     )
     def test_any_non_finite_return_rejected(self, returns, bad, ppy):
         with pytest.raises(CalculationInputError) as exc:
-            realized_volatility(returns + [bad], ppy)
+            realized_volatility([*returns, bad], ppy)
         assert exc.value.reason == "non_finite_input"
 
 

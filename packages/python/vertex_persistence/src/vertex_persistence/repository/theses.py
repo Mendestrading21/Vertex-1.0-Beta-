@@ -45,17 +45,17 @@ verdict belong to ``vertex_core`` / ``AdviceEngine``.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum, unique
-from typing import Any, Optional, Sequence
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.orm import Session
 
 from vertex_core.contracts import canonical_json_hash
-
 from vertex_persistence.enums import (
     THESIS_REVISION_ACTIONS,
     ThesisRevisionAction,
@@ -79,18 +79,18 @@ from vertex_persistence.repository._validation import (
 )
 
 __all__ = [
-    "ThesisStatus",
+    "CreatedThesis",
+    "ProjectedThesis",
+    "RecordedRevision",
     "ThesisRecord",
     "ThesisRevisionRecord",
     "ThesisState",
-    "ProjectedThesis",
-    "CreatedThesis",
-    "RecordedRevision",
+    "ThesisStatus",
     "create_thesis",
-    "record_thesis_revision",
-    "project_thesis_state",
-    "list_theses",
     "list_revisions",
+    "list_theses",
+    "project_thesis_state",
+    "record_thesis_revision",
     "review_queue_due",
 ]
 
@@ -111,13 +111,13 @@ class ThesisRecord:
     """Immutable view of one stored thesis (statement only, no status)."""
 
     id: int
-    portfolio_id: Optional[int]
-    instrument: Optional[dict[str, Any]]
+    portfolio_id: int | None
+    instrument: dict[str, Any] | None
     title: str
     hypotheses: str
     invalidation: str
-    horizon: Optional[str]
-    review_due_at: Optional[datetime]
+    horizon: str | None
+    review_due_at: datetime | None
     created_at: datetime
 
 
@@ -128,13 +128,13 @@ class ThesisRevisionRecord:
     id: int
     thesis_id: int
     action: str
-    note: Optional[str]
-    snapshot_ref: Optional[str]
+    note: str | None
+    snapshot_ref: str | None
     content_hash: str
     idempotency_key: str
     author: str
     recorded_at: datetime
-    snooze_until: Optional[datetime]
+    snooze_until: datetime | None
 
 
 @dataclass(frozen=True)
@@ -148,10 +148,10 @@ class ThesisState:
     """
 
     status: str
-    review_due_at: Optional[datetime]
+    review_due_at: datetime | None
     is_due: bool
-    snooze_until: Optional[datetime]
-    last_reviewed_at: Optional[datetime]
+    snooze_until: datetime | None
+    last_reviewed_at: datetime | None
     last_action: str
     last_recorded_at: datetime
     revision_count: int
@@ -211,7 +211,7 @@ def _revision_record(row: ThesisRevision) -> ThesisRevisionRecord:
     )
 
 
-def _find_revision_by_key(session: Session, idempotency_key: str) -> Optional[ThesisRevision]:
+def _find_revision_by_key(session: Session, idempotency_key: str) -> ThesisRevision | None:
     return session.execute(
         select(ThesisRevision).where(ThesisRevision.idempotency_key == idempotency_key)
     ).scalar_one_or_none()
@@ -243,11 +243,11 @@ def create_thesis(
     invalidation: str,
     idempotency_key: str,
     now: datetime,
-    portfolio_id: Optional[int] = None,
+    portfolio_id: int | None = None,
     instrument: Any = None,
-    horizon: Optional[str] = None,
-    review_due_at: Optional[datetime] = None,
-    note: Optional[str] = None,
+    horizon: str | None = None,
+    review_due_at: datetime | None = None,
+    note: str | None = None,
     author: str = _DEFAULT_AUTHOR,
 ) -> CreatedThesis:
     """Insert one thesis AND its CREATED revision in the same transaction.
@@ -354,9 +354,9 @@ def record_thesis_revision(
     action: str,
     idempotency_key: str,
     recorded_at: datetime,
-    note: Optional[str] = None,
-    snapshot_ref: Optional[str] = None,
-    snooze_until: Optional[datetime] = None,
+    note: str | None = None,
+    snapshot_ref: str | None = None,
+    snooze_until: datetime | None = None,
     author: str = _DEFAULT_AUTHOR,
 ) -> RecordedRevision:
     """Append one review-lifecycle revision; idempotent by ``idempotency_key``.
@@ -435,7 +435,7 @@ def record_thesis_revision(
 def project_thesis_state(
     revisions: Sequence[ThesisRevisionRecord],
     *,
-    review_due_at: Optional[datetime],
+    review_due_at: datetime | None,
     now: datetime,
 ) -> ThesisState:
     """Pure fold of a revision history into the thesis state at ``now``.
@@ -460,8 +460,8 @@ def project_thesis_state(
         )
 
     status = ThesisStatus.ACTIVE
-    snooze_until: Optional[datetime] = None
-    last_reviewed_at: Optional[datetime] = None
+    snooze_until: datetime | None = None
+    last_reviewed_at: datetime | None = None
     for revision in ordered[1:]:
         action = revision.action
         if action not in THESIS_REVISION_ACTIONS:
@@ -491,8 +491,9 @@ def project_thesis_state(
     # Resolve the now-dependent part: an expired snooze makes the thesis
     # ACTIVE and DUE again (the snooze instant IS the effective due).
     if status is ThesisStatus.SNOOZED:
-        assert snooze_until is not None  # guaranteed by the fold above
-        effective_due: Optional[datetime] = snooze_until
+        # narrowing mypy, garde réelle au-dessus
+        assert snooze_until is not None  # guaranteed by the fold above  # noqa: S101
+        effective_due: datetime | None = snooze_until
         if snooze_until <= now:
             status = ThesisStatus.ACTIVE
     elif status is ThesisStatus.ACTIVE:

@@ -37,6 +37,13 @@ dev = [
     "jsonschema>=4.21",
     "PyYAML>=6",
     "psycopg>=3.1",
+    # Porte `python-quality` (docs/06-quality/CI_GATES.md). Versions EXACTES :
+    # un lint dont la version flotte produit un compte de violations non
+    # reproductible — le registre de dette a déjà publié deux chiffres
+    # incompatibles pour cette raison. `uv.lock` fige ensuite les hachages.
+    "ruff==0.15.8",
+    "mypy==1.19.1",
+    "types-PyYAML==6.0.12.20250915",
 ]
 
 [tool.uv]
@@ -86,6 +93,22 @@ ignore = [
     # Ruff ne sait pas distinguer un texte français d'un identifiant ambigu ;
     # la documentation et les libellés du produit sont en français.
     "RUF001", "RUF002", "RUF003",
+    # UP042 (`class X(str, Enum)` -> `StrEnum`) est REFUSÉ ici, et ce n'est pas
+    # un contournement de confort : la conversion CHANGE la sémantique.
+    # Mesuré sur CPython 3.11.15 :
+    #     class A(str, Enum): X = "x"   ->  f"{A.X}" == "A.X"
+    #     class B(StrEnum):   X = "x"   ->  f"{B.X}" == "x"
+    # Les 30 occurrences sont les énumérations de CONTRAT canoniques
+    # (AdviceStatus, GateStatus, Direction, EnvelopeQuality, FreshnessStatus,
+    # OutboxStatus, ThesisStatus...) : elles traversent PostgreSQL, le JSON,
+    # OpenAPI et les journaux. Toute interpolation existante changerait de
+    # sortie silencieusement, et le comportement de `__format__` des Enum à
+    # mixin a déjà bougé entre 3.11 et 3.12 : le poste de développement (3.11)
+    # ne pourrait donc PAS prouver la cible (3.13).
+    # Lever cet ignore est un lot à part entière : inventaire des
+    # interpolations, tests de sérialisation DB/JSON/OpenAPI sur 3.13, puis
+    # conversion. Suivi dans docs/99-status/DEBT.md.
+    "UP042",
 ]
 
 [tool.ruff.lint.per-file-ignores]
@@ -100,6 +123,56 @@ known-first-party = [
     "vertex_core", "vertex_persistence", "vertex_api",
     "vertex_worker", "vertex_edge_ibkr", "vertex_ingress_tv",
 ]
+
+# ── Porte `python-quality` : typage strict ──────────────────────────────────
+# Le monorepo est en src-layout : sans `mypy_path`, mypy ne trouve AUCUN
+# paquet du dépôt et rend 90 faux `import-not-found`. Ce n'était pas une
+# dette de typage mais une absence de configuration : mypy n'avait jamais
+# été configuré ici.
+#
+# `python_version` n'est PAS épinglé : mypy suit l'interpréteur qui l'exécute
+# (3.11 en local, 3.13 en CI), comme `target-version` côté Ruff. La preuve sur
+# la cible 3.13 est donc celle de la CI, pas celle du poste.
+[tool.mypy]
+strict = true
+mypy_path = [
+    "packages/python/vertex_core/src",
+    "packages/python/vertex_persistence/src",
+    "apps/api/src",
+    "apps/worker/src",
+    "apps/edge-ibkr/src",
+    "apps/ingress-tradingview/src",
+    "research",
+]
+# Périmètre de la porte : le code de PRODUCTION et les portes CI.
+# Les suites de tests ne sont PAS couvertes — c'est une dette assumée et
+# inscrite dans docs/99-status/DEBT.md, pas un oubli.
+files = [
+    "packages/python/vertex_core/src",
+    "packages/python/vertex_persistence/src",
+    "apps/api/src",
+    "apps/worker/src",
+    "apps/edge-ibkr/src",
+    "apps/ingress-tradingview/src",
+    "research/pipelines",
+    "tools",
+]
+# Le périmètre s'arrête aux sources : aucune suite de tests n'est vérifiée,
+# y compris `tools/tests`. C'est une frontière assumée et uniforme, pas un
+# contournement fichier par fichier.
+exclude = ["/tests/", "/tests_integration/"]
+warn_unused_ignores = true
+show_error_codes = true
+
+# Frontière des bibliothèques NON typées (.claude/rules/python.md : isoler
+# `Any` à la frontière d'une bibliothèque non typée et valider immédiatement).
+# QuantLib ne publie ni stubs ni `py.typed` ; scipy n'expose pas de stubs
+# dans la version verrouillée. Ces deux modules sont utilisés uniquement
+# derrière les fonctions de calcul de `vertex_core`, dont les signatures
+# publiques restent, elles, entièrement typées.
+[[tool.mypy.overrides]]
+module = ["QuantLib", "scipy.*"]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 # tests_integration/ (PostgreSQL réel) s'exécute explicitement :

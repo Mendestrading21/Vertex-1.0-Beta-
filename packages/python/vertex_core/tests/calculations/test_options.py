@@ -13,9 +13,9 @@ from pydantic import ValidationError
 
 from vertex_core.calculations.options import (
     AMERICAN_MIN_STEPS,
+    IV_BRACKET_HI,
     DefinedRiskResult,
     GreeksResult,
-    IV_BRACKET_HI,
     IVNoSolutionError,
     OptionInputError,
     OptionLeg,
@@ -215,20 +215,20 @@ class TestEuropeanPrice:
     @pytest.mark.parametrize(
         "kwargs, reason",
         [
-            (dict(spot=0), "non_positive_spot"),
-            (dict(spot=-5), "non_positive_spot"),
-            (dict(strike=0), "non_positive_strike"),
-            (dict(maturity=-0.5), "negative_maturity"),
-            (dict(maturity=101.0), "maturity_out_of_domain"),
-            (dict(vol=-0.1), "negative_volatility"),
-            (dict(vol=10.5), "volatility_out_of_domain"),
-            (dict(rate=1.5), "rate_out_of_domain"),
-            (dict(div=-1.5), "rate_out_of_domain"),
-            (dict(spot=2e12), "spot_out_of_domain"),
+            ({"spot": 0}, "non_positive_spot"),
+            ({"spot": -5}, "non_positive_spot"),
+            ({"strike": 0}, "non_positive_strike"),
+            ({"maturity": -0.5}, "negative_maturity"),
+            ({"maturity": 101.0}, "maturity_out_of_domain"),
+            ({"vol": -0.1}, "negative_volatility"),
+            ({"vol": 10.5}, "volatility_out_of_domain"),
+            ({"rate": 1.5}, "rate_out_of_domain"),
+            ({"div": -1.5}, "rate_out_of_domain"),
+            ({"spot": 2e12}, "spot_out_of_domain"),
         ],
     )
     def test_domain_gates(self, kwargs, reason):
-        params = dict(spot=100, strike=100, maturity=1.0, rate=0.03, div=0.0, vol=0.2)
+        params = {"spot": 100, "strike": 100, "maturity": 1.0, "rate": 0.03, "div": 0.0, "vol": 0.2}
         params.update(kwargs)
         with pytest.raises(OptionInputError) as err:
             european_price(
@@ -344,7 +344,7 @@ class TestGreeks:
     S, K, T, R, Q, VOL = 100.0, 105.0, 0.75, 0.03, 0.02, 0.3
 
     def g(self, right="CALL", **overrides):
-        params = dict(s=self.S, k=self.K, t=self.T, r=self.R, q=self.Q, vol=self.VOL)
+        params = {"s": self.S, "k": self.K, "t": self.T, "r": self.R, "q": self.Q, "vol": self.VOL}
         params.update(overrides)
         return greeks(
             params["s"], params["k"], params["t"], params["r"], params["q"],
@@ -352,7 +352,7 @@ class TestGreeks:
         )
 
     def price(self, right="CALL", **overrides):
-        params = dict(s=self.S, k=self.K, t=self.T, r=self.R, q=self.Q, vol=self.VOL)
+        params = {"s": self.S, "k": self.K, "t": self.T, "r": self.R, "q": self.Q, "vol": self.VOL}
         params.update(overrides)
         return european_price(
             params["s"], params["k"], params["t"], params["r"], params["q"],
@@ -688,7 +688,7 @@ class TestPayoffAtExpiry:
         # the exact per-leg formula sum(q*M*(h(S)-p)) computed by hand.
         grid = [Decimal("80"), Decimal("103"), Decimal("110"), Decimal("140")]
         combined = payoff_at_expiry(self.bull_call(), grid, Decimal("0"))
-        for spot, total in zip(grid, combined):
+        for spot, total in zip(grid, combined, strict=True):
             long_leg = 100 * (max(spot - Decimal("100"), Decimal(0)) - Decimal("5"))
             short_leg = -100 * (max(spot - Decimal("110"), Decimal(0)) - Decimal("2"))
             assert total == long_leg + short_leg
@@ -798,7 +798,7 @@ class TestScenarioGrid:
         spots = [90.0, 100.0, 103.0, 110.0, 130.0]
         grid = scenario_grid(legs, spots, [0.0], [(0.25, 0.25)], 0.03, 0.01)
         payoff = payoff_at_expiry(legs, spots, Decimal("0"))
-        for cell, exact in zip(grid[0][0], payoff):
+        for cell, exact in zip(grid[0][0], payoff, strict=True):
             assert cell == pytest.approx(float(exact), abs=1e-9)
 
     def test_stock_leg_requires_none_volatility(self):

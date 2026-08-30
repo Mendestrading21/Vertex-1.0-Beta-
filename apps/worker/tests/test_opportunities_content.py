@@ -15,13 +15,15 @@ refuses to publish a false card.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import replace
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any, Mapping, Optional
+from typing import Any
 
 import pytest
 import yaml
+from test_calendar_content import record_from_envelope
 
 from vertex_core.contracts.decision import AdviceResult, GateResult
 from vertex_core.contracts.enums import AdviceStatus, Direction, GateStatus
@@ -30,12 +32,11 @@ from vertex_core.synthetic import (
     generate_calendar_event_envelopes,
     generate_daily_bar_envelopes,
 )
+from vertex_worker.analysis import AnalysisConfig, BarRecord
 from vertex_worker.calendar import (
     DEV_SYNTHETIC_CALENDAR_CONFIG,
     build_calendar_content,
 )
-from vertex_worker.analysis import AnalysisConfig, BarRecord
-from vertex_worker.registry import HandlerRegistry
 from vertex_worker.opportunities import (
     CALENDAR_REF_ABSENT,
     CALENDAR_REF_FUTURE,
@@ -57,9 +58,9 @@ from vertex_worker.opportunities import (
     load_strategy_profile,
     register_opportunities_handler,
 )
-from test_calendar_content import record_from_envelope
+from vertex_worker.registry import HandlerRegistry
 
-NOW = datetime(2026, 8, 25, 12, 0, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 25, 12, 0, 0, tzinfo=UTC)
 BASE_TIME = NOW - timedelta(minutes=30)
 SEED = 20260825
 
@@ -103,7 +104,7 @@ class CanonicalEngineDouble:
         *,
         statuses: Mapping[str, str],
         default_status: str = "OBSERVE",
-        degraded: Optional[Mapping[str, int]] = None,
+        degraded: Mapping[str, int] | None = None,
     ) -> None:
         self._statuses = dict(statuses)
         self._default = default_status
@@ -180,7 +181,7 @@ class ForgedEngineDouble:
                             "critical_contradictions_resolved",
                             "user_constraints_versioned",
                         ),
-                        self._gate_statuses,
+                        self._gate_statuses, strict=False,
                     )
                 ],
                 "evidence_ids": [],
@@ -232,14 +233,14 @@ def content(profile, calendar_content):
 
 def build(**overrides):
     """Build one snapshot on empty market inputs unless overridden."""
-    kwargs: dict[str, Any] = dict(
-        chain_by_instrument={},
-        calendar_content=None,
-        calendar_ref=None,
-        theses_by_ticker={},
-        now=NOW,
-        config=DEV_SYNTHETIC_OPPORTUNITIES_CONFIG,
-    )
+    kwargs: dict[str, Any] = {
+        "chain_by_instrument": {},
+        "calendar_content": None,
+        "calendar_ref": None,
+        "theses_by_ticker": {},
+        "now": NOW,
+        "config": DEV_SYNTHETIC_OPPORTUNITIES_CONFIG,
+    }
     bars = overrides.pop("bars", [])
     kwargs.update(overrides)
     return build_opportunities_content(bars, [], **kwargs)
@@ -591,7 +592,7 @@ def past_calendar(as_of: str) -> dict[str, Any]:
 def test_past_calendar_events_are_not_counted_as_catalysts(profile) -> None:
     # F17: an event of 2019 is not an upcoming catalyst in 2026, and the
     # consumed calendar snapshot publishes its provenance.
-    stale_as_of = datetime(2020, 1, 1, tzinfo=timezone.utc)
+    stale_as_of = datetime(2020, 1, 1, tzinfo=UTC)
     content = build(
         profile=profile,
         calendar_content=past_calendar(stale_as_of.isoformat()),
@@ -786,15 +787,15 @@ def test_determinism_under_a_reversed_input_order(
     profile, calendar_content
 ) -> None:
     bars = synthetic_bars()
-    kwargs = dict(
-        chain_by_instrument={},
-        calendar_content=calendar_content,
-        calendar_ref=CALENDAR_REF,
-        theses_by_ticker={},
-        now=NOW,
-        config=DEV_SYNTHETIC_OPPORTUNITIES_CONFIG,
-        profile=profile,
-    )
+    kwargs = {
+        "chain_by_instrument": {},
+        "calendar_content": calendar_content,
+        "calendar_ref": CALENDAR_REF,
+        "theses_by_ticker": {},
+        "now": NOW,
+        "config": DEV_SYNTHETIC_OPPORTUNITIES_CONFIG,
+        "profile": profile,
+    }
     reversed_bars = list(reversed(bars))
     assert [r.event_id for r in reversed_bars] != [r.event_id for r in bars]
     assert build_opportunities_content(bars, [], **kwargs) == (

@@ -33,16 +33,16 @@ No randomness is used anywhere in this module.
 from __future__ import annotations
 
 import math
+from collections.abc import Sequence
 from datetime import datetime
 from decimal import Decimal
-from typing import Sequence, Union
 
 from vertex_core.contracts.types import ContractModel, PositiveDecimal, UtcDatetime
 
 __all__ = [
-    "CalculationInputError",
     "FLOAT64_ABS_TOL",
     "FLOAT64_REL_TOL",
+    "CalculationInputError",
     "NumberLike",
     "OhlcBar",
     "atr",
@@ -59,7 +59,7 @@ FLOAT64_REL_TOL = 1e-9
 FLOAT64_ABS_TOL = 1e-12
 """Documented absolute tolerance for float64 comparisons near zero."""
 
-NumberLike = Union[int, float, Decimal]
+NumberLike = int | float | Decimal
 """Accepted numeric boundary types; converted explicitly to float64 inside."""
 
 
@@ -98,7 +98,7 @@ class OhlcBar(ContractModel):
     close: PositiveDecimal
 
 
-def _to_float(value: NumberLike, name: str) -> float:
+def _to_float(value: object, name: str) -> float:
     """Convert a boundary number to finite float64; reject everything else.
 
     Rejects ``bool``, non-numeric types, ``NaN``, infinities, and any value
@@ -137,7 +137,7 @@ def _to_float(value: NumberLike, name: str) -> float:
     return 0.0 if result == 0.0 else result
 
 
-def _require_positive_price(value: NumberLike, name: str) -> float:
+def _require_positive_price(value: object, name: str) -> float:
     price = _to_float(value, name)
     if price <= 0.0:
         raise CalculationInputError(
@@ -363,7 +363,7 @@ def atr(bars: Sequence[OhlcBar], lookback: int) -> float:
             f"ATR with lookback {lb} requires at least {lb + 1} bars, "
             f"got {len(typed_bars)}",
         )
-    previous_ts: Union[datetime, None] = None
+    previous_ts: datetime | None = None
     for i, bar in enumerate(typed_bars):
         if previous_ts is not None and bar.timestamp <= previous_ts:
             raise CalculationInputError(
@@ -435,7 +435,7 @@ def relative_strength(
             f"horizon {h} exceeds the {len(asset_seq)} aligned periods available",
         )
 
-    def _compound(seq: Sequence[NumberLike], name: str) -> float:
+    def _compound(seq: Sequence[object], name: str) -> float:
         growth = 1.0
         for offset in range(len(seq) - h, len(seq)):
             value = _to_float(seq[offset], f"{name}[{offset}]")

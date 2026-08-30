@@ -6,7 +6,7 @@ Safety invariants enforced here (ADR-004, docs/04-integrations/IBKR.md):
 - ``client_id`` is mandatory and non-zero (default 71, never the master 0);
 - ``readonly=True`` is ALWAYS passed to ``IB.connectAsync``, and the startup
   fetch mask is empty so the session never requests account-scoped data;
-- every outgoing observation is a ``vertex_core`` ``DataEnvelope`` with
+- every outgoing observation is a ``vertex_core`` ``DataEnvelope[Any]`` with
   ``source='ibkr'``, the current connection epoch, aware UTC
   ``observed_at``/``received_at`` and an honest ``delay_status``;
 - tick semantics follow the capability manifest: live option computations
@@ -29,9 +29,10 @@ from __future__ import annotations
 import asyncio
 import math
 import uuid
-from datetime import datetime, timedelta, timezone
+from collections.abc import Awaitable, Callable
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
-from typing import Any, Awaitable, Callable, Optional
+from typing import Any
 
 from ib_async import IB
 from ib_async.contract import Contract
@@ -44,7 +45,6 @@ from vertex_core.contracts import (
     EnvelopeQuality,
     canonical_json_hash,
 )
-
 from vertex_edge_ibkr.pacing import LineBudget
 from vertex_edge_ibkr.port import (
     DELAYED_GREEK_TICKS,
@@ -75,9 +75,9 @@ from vertex_edge_ibkr.state import ConnectionStateMachine
 __all__ = [
     "CONTEXT_GREEK_FIELDS",
     "DEFAULT_CLIENT_ID",
-    "IbAsyncInformationAdapter",
     "LOOPBACK_HOST",
     "REQUIRED_GREEK_FIELDS",
+    "IbAsyncInformationAdapter",
 ]
 
 #: The only host this adapter will ever talk to.
@@ -126,10 +126,10 @@ CONTEXT_GREEK_FIELDS: tuple[str, ...] = (
 
 
 def _utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
-def _derive_quality(required: tuple[Optional[Decimal], ...]) -> EnvelopeQuality:
+def _derive_quality(required: tuple[Decimal | None, ...]) -> EnvelopeQuality:
     """Derive an envelope quality from the REQUIRED fields of one observation.
 
     The SAME rule serves every observation kind (top-of-book quote, option
@@ -157,7 +157,7 @@ def _is_unset(value: Any) -> bool:
     return math.isnan(as_float) or math.isinf(as_float)
 
 
-def _price(value: Any) -> Optional[Decimal]:
+def _price(value: Any) -> Decimal | None:
     """Price sanitizer: NaN/inf/absent/-1 sentinel -> None, never zero."""
     if _is_unset(value):
         return None
@@ -166,7 +166,7 @@ def _price(value: Any) -> Optional[Decimal]:
     return Decimal(str(value))
 
 
-def _size(value: Any) -> Optional[Decimal]:
+def _size(value: Any) -> Decimal | None:
     """Size/volume sanitizer: NaN/inf/absent/negative sentinel -> None."""
     if _is_unset(value):
         return None
@@ -175,7 +175,7 @@ def _size(value: Any) -> Optional[Decimal]:
     return Decimal(str(value))
 
 
-def _non_negative(value: Any) -> Optional[Decimal]:
+def _non_negative(value: Any) -> Decimal | None:
     """Non-negative metric sanitizer (volatilities): negative -> None."""
     if _is_unset(value):
         return None
@@ -184,7 +184,7 @@ def _non_negative(value: Any) -> Optional[Decimal]:
     return Decimal(str(value))
 
 
-def _greek(value: Any, sentinel: float) -> Optional[Decimal]:
+def _greek(value: Any, sentinel: float) -> Decimal | None:
     """Greek sanitizer: the protocol sentinel and NaN/inf stay None."""
     if _is_unset(value):
         return None
@@ -193,7 +193,7 @@ def _greek(value: Any, sentinel: float) -> Optional[Decimal]:
     return Decimal(str(value))
 
 
-def _halted(value: Any) -> Optional[bool]:
+def _halted(value: Any) -> bool | None:
     if _is_unset(value):
         return None
     numeric = float(value)
@@ -202,12 +202,12 @@ def _halted(value: Any) -> Optional[bool]:
     return numeric >= 1.0
 
 
-def _aware_or_none(value: Any) -> Optional[datetime]:
+def _aware_or_none(value: Any) -> datetime | None:
     if not isinstance(value, datetime):
         return None
     if value.tzinfo is None or value.tzinfo.utcoffset(value) is None:
         return None  # a naive provider timestamp is ambiguous: drop it
-    return value.astimezone(timezone.utc)
+    return value.astimezone(UTC)
 
 
 class IbAsyncInformationAdapter:
@@ -221,11 +221,11 @@ class IbAsyncInformationAdapter:
     def __init__(
         self,
         *,
-        ib: Optional[IB] = None,
+        ib: IB | None = None,
         host: str = LOOPBACK_HOST,
         port: int = 7497,
         client_id: int = DEFAULT_CLIENT_ID,
-        state: Optional[ConnectionStateMachine] = None,
+        state: ConnectionStateMachine | None = None,
         clock: Callable[[], datetime] = _utc_now,
         sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
         connect_timeout_seconds: float = 4.0,
@@ -235,7 +235,7 @@ class IbAsyncInformationAdapter:
         bars_stale_after_seconds: float = 3600.0,
         reference_stale_after_seconds: float = 21600.0,
         rights: str = "IBKR_MARKET_DATA_DISPLAY_ONLY",
-        line_budget: Optional[LineBudget] = None,
+        line_budget: LineBudget | None = None,
         event_id_factory: Callable[[], str] = lambda: uuid.uuid4().hex,
     ) -> None:
         if host != LOOPBACK_HOST:
@@ -309,7 +309,7 @@ class IbAsyncInformationAdapter:
         results: list[ContractSpec] = []
         failures: list[int] = []
         for index, item in enumerate(qualified):
-            if isinstance(item, Contract) and getattr(item, "conId", 0):
+            if isinstance(item, Contract) and item.conId:
                 results.append(self._from_contract(item))
             else:
                 failures.append(index)
@@ -319,7 +319,9 @@ class IbAsyncInformationAdapter:
             )
         return tuple(results)
 
-    async def sec_def_opt_params(self, underlying: ContractSpec) -> tuple[OptionChainDefinition, ...]:
+    async def sec_def_opt_params(
+        self, underlying: ContractSpec
+    ) -> tuple[OptionChainDefinition, ...]:
         if underlying.con_id is None:
             raise ValueError("sec_def_opt_params requires an exact underlying con_id")
         chains = await self._ib.reqSecDefOptParamsAsync(
@@ -350,7 +352,7 @@ class IbAsyncInformationAdapter:
         *,
         generic_ticks: tuple[int, ...] = (),
         market_data_type: int = 1,
-        timeout_seconds: Optional[float] = None,
+        timeout_seconds: float | None = None,
     ) -> MarketDataSnapshotResult:
         if market_data_type not in (1, 2, 3, 4):
             raise ValueError("market_data_type must be 1, 2, 3 or 4")
@@ -405,12 +407,12 @@ class IbAsyncInformationAdapter:
         self,
         spec: ContractSpec,
         *,
-        end: Optional[datetime] = None,
+        end: datetime | None = None,
         duration: str = "1 D",
         bar_size: str = "1 hour",
         what_to_show: str = "TRADES",
         use_rth: bool = True,
-    ) -> DataEnvelope:
+    ) -> DataEnvelope[Any]:
         if end is not None and _aware_or_none(end) is None:
             raise ValueError("end must be timezone-aware when present")
         bars = await self._ib.reqHistoricalDataAsync(
@@ -429,7 +431,7 @@ class IbAsyncInformationAdapter:
                 bar_time = _aware_or_none(time_value)
             else:
                 bar_time = datetime(
-                    time_value.year, time_value.month, time_value.day, tzinfo=timezone.utc
+                    time_value.year, time_value.month, time_value.day, tzinfo=UTC
                 )
             if bar_time is None:
                 continue  # ambiguous naive timestamp: refuse rather than guess
@@ -464,7 +466,7 @@ class IbAsyncInformationAdapter:
 
     # -- scanner -----------------------------------------------------------
 
-    async def scanner_run(self, definition: ScannerDefinition) -> DataEnvelope:
+    async def scanner_run(self, definition: ScannerDefinition) -> DataEnvelope[Any]:
         subscription = ScannerSubscription(
             numberOfRows=definition.number_of_rows,
             instrument=definition.instrument,
@@ -503,7 +505,7 @@ class IbAsyncInformationAdapter:
 
     # -- news --------------------------------------------------------------
 
-    async def news_providers(self) -> DataEnvelope:
+    async def news_providers(self) -> DataEnvelope[Any]:
         providers = await self._ib.reqNewsProvidersAsync()
         # Same rule as the scanner: no answer at all is INSUFFICIENT_DATA, an
         # empty provider list is a real (VALID) answer.
@@ -531,7 +533,7 @@ class IbAsyncInformationAdapter:
         start: str = "",
         end: str = "",
         max_results: int = 100,
-    ) -> DataEnvelope:
+    ) -> DataEnvelope[Any]:
         if con_id <= 0:
             raise ValueError("con_id must be strictly positive")
         if not (1 <= max_results <= 300):
@@ -565,7 +567,7 @@ class IbAsyncInformationAdapter:
             stale_seconds=self._reference_stale,
         )
 
-    async def news_article(self, provider_code: str, article_id: str) -> DataEnvelope:
+    async def news_article(self, provider_code: str, article_id: str) -> DataEnvelope[Any]:
         if not provider_code or not article_id:
             raise ValueError("provider_code and article_id are required")
         article = await self._ib.reqNewsArticleAsync(provider_code, article_id)
@@ -573,7 +575,11 @@ class IbAsyncInformationAdapter:
         payload = NewsArticlePayload(
             provider_code=provider_code,
             article_id=article_id,
-            article_type=int(article_type) if article_type not in (None, "") else None,
+            article_type=(
+                int(article_type)
+                if article_type is not None and article_type != ""
+                else None
+            ),
             text=getattr(article, "articleText", None) or "",
         )
         return self._envelope(
@@ -581,13 +587,15 @@ class IbAsyncInformationAdapter:
             con_id=None,
             observed_at=None,
             delay_status=DelayStatus.UNKNOWN,
-            quality=EnvelopeQuality.VALID if article is not None else EnvelopeQuality.INSUFFICIENT_DATA,
+            quality=EnvelopeQuality.VALID
+            if article is not None
+            else EnvelopeQuality.INSUFFICIENT_DATA,
             stale_seconds=self._reference_stale,
         )
 
     # -- WSH events --------------------------------------------------------
 
-    async def wsh_events(self, request: WshEventRequest) -> DataEnvelope:
+    async def wsh_events(self, request: WshEventRequest) -> DataEnvelope[Any]:
         kwargs: dict[str, Any] = {
             "filter": "",
             # Market-event data only: every account-adjacent fill flag is
@@ -615,7 +623,9 @@ class IbAsyncInformationAdapter:
 
     # -- internals ---------------------------------------------------------
 
-    def _on_error_event(self, req_id: Any, code: Any, message: Any = "", contract: Any = None, *extra: Any) -> None:
+    def _on_error_event(
+        self, req_id: Any, code: Any, message: Any = "", contract: Any = None, *extra: Any
+    ) -> None:
         try:
             numeric_code = int(code)
         except (TypeError, ValueError):
@@ -628,9 +638,10 @@ class IbAsyncInformationAdapter:
             req_id=int(req_id) if isinstance(req_id, int) else None,
         )
         for sub_contract, errors in self._subscriptions.values():
+            contract_con_id = getattr(contract, "conId", 0)
+            sub_con_id = getattr(sub_contract, "conId", -1)
             if contract is None or contract is sub_contract or (
-                getattr(contract, "conId", 0)
-                and getattr(contract, "conId", 0) == getattr(sub_contract, "conId", -1)
+                contract_con_id and contract_con_id == sub_con_id
             ):
                 errors.append(info)
 
@@ -641,13 +652,13 @@ class IbAsyncInformationAdapter:
             and not _is_unset(getattr(ticker, "last", None))
         )
 
-    def _reported_type(self, ticker: Any) -> Optional[int]:
+    def _reported_type(self, ticker: Any) -> int | None:
         value = getattr(ticker, "marketDataType", None)
         if value in (1, 2, 3, 4):
             return int(value)
         return None
 
-    def _delay_status(self, requested: int, reported: Optional[int]) -> DelayStatus:
+    def _delay_status(self, requested: int, reported: int | None) -> DelayStatus:
         if requested in (3, 4) and reported in (1, 2):
             # Contradictory evidence: asked delayed, told live. Never label
             # LIVE on doubt — the observation stays UNKNOWN (fail-closed).
@@ -658,7 +669,7 @@ class IbAsyncInformationAdapter:
 
     def _build_snapshot_envelopes(
         self, spec: ContractSpec, ticker: Any, requested_type: int
-    ) -> tuple[DataEnvelope, ...]:
+    ) -> tuple[DataEnvelope[Any], ...]:
         reported = self._reported_type(ticker)
         delay = self._delay_status(requested_type, reported)
         delayed_regime = requested_type in (3, 4) or reported in (3, 4)
@@ -748,12 +759,12 @@ class IbAsyncInformationAdapter:
         self,
         payload: Any,
         *,
-        con_id: Optional[int],
-        observed_at: Optional[datetime],
+        con_id: int | None,
+        observed_at: datetime | None,
         delay_status: DelayStatus,
         quality: EnvelopeQuality,
         stale_seconds: float,
-    ) -> DataEnvelope:
+    ) -> DataEnvelope[Any]:
         received_at = self._clock()
         if observed_at is not None and observed_at > received_at:
             observed_at = None  # clock skew: an impossible timestamp is dropped

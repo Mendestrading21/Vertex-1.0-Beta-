@@ -5,7 +5,7 @@ All data is SYNTHETIC user input — no broker feed exists or is simulated.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import pytest
@@ -29,7 +29,7 @@ from vertex_persistence.repository import (
     record_ledger_event,
 )
 
-UTC = timezone.utc
+UTC = UTC
 T0 = datetime(2026, 8, 28, 12, 0, 0, tzinfo=UTC)
 INSTRUMENT = {"symbol": "SYN", "asset_class": "STOCK", "exchange": "SYNTH", "currency": "USD"}
 
@@ -42,19 +42,19 @@ def portfolio_id(db_session: Session) -> int:
 
 
 def _record_buy(session: Session, portfolio_id: int, **overrides) -> int:
-    values = dict(
-        portfolio_id=portfolio_id,
-        kind="BUY_RECORDED",
-        amount=Decimal("-1012.50"),
-        currency="USD",
-        fees=Decimal("1.25"),
-        effective_at=T0,
-        recorded_at=T0 + timedelta(hours=1),
-        instrument=INSTRUMENT,
-        quantity=Decimal("10"),
-        price=Decimal("101.25"),
-        note="user-typed past fact",
-    )
+    values = {
+        "portfolio_id": portfolio_id,
+        "kind": "BUY_RECORDED",
+        "amount": Decimal("-1012.50"),
+        "currency": "USD",
+        "fees": Decimal("1.25"),
+        "effective_at": T0,
+        "recorded_at": T0 + timedelta(hours=1),
+        "instrument": INSTRUMENT,
+        "quantity": Decimal("10"),
+        "price": Decimal("101.25"),
+        "note": "user-typed past fact",
+    }
     values.update(overrides)
     return record_ledger_event(session, **values)
 

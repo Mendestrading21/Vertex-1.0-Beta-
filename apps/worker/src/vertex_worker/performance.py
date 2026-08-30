@@ -63,12 +63,13 @@ Enqueue topology (documented choice): ``performance.refresh`` is enqueued by
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from datetime import date, datetime, timezone
+from datetime import UTC, date, datetime
 from decimal import ROUND_HALF_EVEN, Decimal, localcontext
-from typing import Any, Callable, Mapping, Optional, Sequence
+from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import ColumnElement, select
 from sqlalchemy.orm import Session
 
 from vertex_core.calculations.performance import (
@@ -85,7 +86,6 @@ from vertex_core.contracts.enums import CalculationStatus
 from vertex_core.version import ENGINE_VERSION
 from vertex_persistence.models import Observation, Portfolio
 from vertex_persistence.repository.outbox import ClaimedOutboxMessage
-
 from vertex_worker.errors import HandlerError
 from vertex_worker.markets import (
     DAILY_QUOTE_SCHEMA_PREFIXES,
@@ -175,7 +175,7 @@ def _require_aware_utc(now: datetime) -> datetime:
         raise TypeError(f"now: expected datetime, got {type(now).__name__}")
     if now.tzinfo is None or now.tzinfo.utcoffset(now) is None:
         raise ValueError("now: naive datetime rejected, aware UTC required")
-    return now.astimezone(timezone.utc)
+    return now.astimezone(UTC)
 
 
 def _decimal_text(value: Decimal) -> str:
@@ -204,7 +204,7 @@ def _calculation_meta(record: CalculationRecord) -> dict[str, Any]:
     }
 
 
-def _insufficient(reason: str, detail: Optional[Any] = None) -> dict[str, Any]:
+def _insufficient(reason: str, detail: Any | None = None) -> dict[str, Any]:
     block: dict[str, Any] = {
         "status": STATUS_INSUFFICIENT,
         "reason": reason,
@@ -219,12 +219,12 @@ def _invalid(reason: str) -> dict[str, Any]:
     return {"status": STATUS_INVALID, "reason": reason, "calculation": None}
 
 
-def _valuation_instant(trading_day: str) -> Optional[datetime]:
+def _valuation_instant(trading_day: str) -> datetime | None:
     try:
         day = date.fromisoformat(trading_day)
     except ValueError:
         return None
-    return datetime(day.year, day.month, day.day, 23, 59, 59, tzinfo=timezone.utc)
+    return datetime(day.year, day.month, day.day, 23, 59, 59, tzinfo=UTC)
 
 
 # --------------------------------------------------------------------------
@@ -245,7 +245,7 @@ def load_all_daily_quote_records(
         Observation.schema_version.like(f"{prefix}%")
         for prefix in DAILY_QUOTE_SCHEMA_PREFIXES
     ]
-    schema_filter = filters[0]
+    schema_filter: ColumnElement[bool] = filters[0]
     for extra in filters[1:]:
         schema_filter = schema_filter | extra
     rows = (
@@ -304,7 +304,7 @@ def _marks_by_day(
     for record in sorted(quotes, key=lambda r: (r.as_of, r.event_id)):
         quote, reason = _parse_quote(record, config)
         if quote is None:
-            assert reason is not None
+            assert reason is not None  # noqa: S101 (narrowing mypy, garde réelle au-dessus)
             rejected.append({"event_id": record.event_id, "reason": reason})
             continue
         by_day.setdefault(quote.trading_day, {})[quote.ticker] = quote
@@ -322,7 +322,7 @@ def _derive_daily_points(
     counted. Nothing absent is replaced by zero.
     """
     ordered_events = sorted(events, key=lambda e: (e.effective_at, e.id))
-    first_event_day = ordered_events[0].effective_at.astimezone(timezone.utc).date()
+    first_event_day = ordered_events[0].effective_at.astimezone(UTC).date()
 
     points: list[_DayPoint] = []
     excluded: list[dict[str, Any]] = []
@@ -362,7 +362,7 @@ def _derive_daily_points(
             marks = marks_by_day[trading_day]
             open_lots = [lot for lot in derived.lots if lot.remaining > 0]
             position_value = Decimal("0")
-            day_reason: Optional[dict[str, Any]] = None
+            day_reason: dict[str, Any] | None = None
             lots_valued = 0
             for lot in open_lots:
                 quote = marks.get(lot.ticker)
@@ -417,7 +417,7 @@ def _derive_daily_points(
 
 def _twr_flow_mapping(
     points: Sequence[_DayPoint], flow_events: Sequence[LedgerEventView]
-) -> tuple[Optional[list[CashflowEvent]], list[str], int, int]:
+) -> tuple[list[CashflowEvent] | None, list[str], int, int]:
     """Map dated external flows onto the valuation boundaries (docstring).
 
     Returns ``(flows, missing_boundary_days, embedded_count, after_count)``;
@@ -432,7 +432,7 @@ def _twr_flow_mapping(
     missing: list[str] = []
     flows: list[CashflowEvent] = []
     for event in sorted(flow_events, key=lambda e: (e.effective_at, e.id)):
-        flow_day = event.effective_at.astimezone(timezone.utc).date().isoformat()
+        flow_day = event.effective_at.astimezone(UTC).date().isoformat()
         if flow_day <= first_day:
             embedded += 1  # part of the opening valuation's capital
             continue
@@ -460,7 +460,7 @@ def _twr_block(
     value_of: Callable[[_DayPoint], Decimal],
     basis: str,
     now: datetime,
-) -> tuple[dict[str, Any], Optional[list[tuple[str, str, Decimal]]]]:
+) -> tuple[dict[str, Any], list[tuple[str, str, Decimal]] | None]:
     """One TWR computation (gross or net). Returns (block, periods|None)."""
     if len(points) < 2:
         return _insufficient(REASON_INSUFFICIENT_VALUATIONS), None
@@ -544,7 +544,7 @@ def _xirr_block(
     skipped_after = len(flow_events) - len(investor_flows)
     if not investor_flows:
         return _insufficient(REASON_NO_EXTERNAL_CASHFLOW)
-    flows = investor_flows + [CashflowEvent(at=terminal_at, amount=value_of(points[-1]))]
+    flows = [*investor_flows, CashflowEvent(at=terminal_at, amount=value_of(points[-1]))]
     try:
         result = xirr(flows)
     except PerformanceCalculationError as exc:
@@ -579,7 +579,7 @@ def _xirr_block(
             "reason": result.reason,
             "calculation": _calculation_meta(record),
         }
-    assert result.rate is not None and result.npv_at_rate is not None
+    assert result.rate is not None and result.npv_at_rate is not None  # noqa: S101 (narrowing mypy, garde réelle au-dessus)
     return {
         "status": STATUS_OK,
         "reason": None,
@@ -628,7 +628,7 @@ def _drawdown_block(
         "trough_at": None if result.trough_at is None else result.trough_at.isoformat(),
         "points": [
             {"trading_day": point.trading_day, "drawdown": _decimal_text(dd)}
-            for point, dd in zip(points, result.drawdowns)
+            for point, dd in zip(points, result.drawdowns, strict=True)
         ],
         "calculation": _calculation_meta(record),
     }
@@ -636,7 +636,7 @@ def _drawdown_block(
 
 def _heatmap_block(
     twr_gross: Mapping[str, Any],
-    periods: Optional[Sequence[tuple[str, str, Decimal]]],
+    periods: Sequence[tuple[str, str, Decimal]] | None,
     excluded_days: Sequence[Mapping[str, Any]],
     points: Sequence[_DayPoint],
 ) -> dict[str, Any]:
@@ -726,7 +726,7 @@ def build_performance_content(
     now = _require_aware_utc(now)
     marks_by_day, rejected_records = _marks_by_day(quotes, config)
 
-    series_reason: Optional[str] = None
+    series_reason: str | None = None
     if observations_truncated:
         series_reason = REASON_OBSERVATIONS_TRUNCATED
     elif not events:
@@ -742,7 +742,7 @@ def build_performance_content(
         points: list[_DayPoint] = []
         excluded_days: list[dict[str, Any]] = []
         days_before_window = 0
-        currency: Optional[str] = None
+        currency: str | None = None
     else:
         currency = events[0].currency
         points, excluded_days, days_before_window = _derive_daily_points(
@@ -762,7 +762,7 @@ def build_performance_content(
         xirr_net: dict[str, Any] = _insufficient(series_reason)
         drawdown_gross: dict[str, Any] = _insufficient(series_reason)
         drawdown_net: dict[str, Any] = _insufficient(series_reason)
-        gross_periods: Optional[list[tuple[str, str, Decimal]]] = None
+        gross_periods: list[tuple[str, str, Decimal]] | None = None
     else:
         twr_gross, gross_periods = _twr_block(
             points, flow_events, value_of=lambda p: p.gross_value, basis="gross", now=now
@@ -786,7 +786,7 @@ def build_performance_content(
     heatmap = _heatmap_block(twr_gross, gross_periods, excluded_days, points)
 
     days_total = len(points) + len(excluded_days)
-    coverage_ratio: Optional[str] = None
+    coverage_ratio: str | None = None
     if days_total > 0:
         with localcontext() as ctx:
             ctx.prec = DECIMAL_PRECISION
@@ -854,7 +854,7 @@ def build_performance_content(
                 "kind": event.kind,
                 "amount": _decimal_text(event.amount),
                 "currency": event.currency,
-                "effective_at": event.effective_at.astimezone(timezone.utc).isoformat(),
+                "effective_at": event.effective_at.astimezone(UTC).isoformat(),
             }
             for event in flow_events
         ],

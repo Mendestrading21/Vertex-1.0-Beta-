@@ -34,12 +34,12 @@ from __future__ import annotations
 
 import csv
 import io
-from typing import Any, Literal, Mapping, Optional
+from collections.abc import Mapping
+from typing import Any, Final, Literal
 
 from vertex_api.portfolio import neutralize_csv_cell
 from vertex_api.snapshot_views import (
     SnapshotContentError,
-    checked_relayed_content,
     _optional_str,
     _parse_utc,
     _require_bool,
@@ -49,6 +49,7 @@ from vertex_api.snapshot_views import (
     _require_positive_int,
     _require_str,
     _wire_mapping,
+    checked_relayed_content,
 )
 from vertex_core.contracts.types import (
     ContractModel,
@@ -74,7 +75,7 @@ __all__ = [
 SNAPSHOT_KIND_PERFORMANCE = "performance"
 """Snapshot kind published by the worker; the key is the portfolio id."""
 
-EXPORT_SCHEMA_VERSION = "vertex.performance-export/1.0"
+EXPORT_SCHEMA_VERSION: Final = "vertex.performance-export/1.0"
 
 REASON_NO_SNAPSHOT_PUBLISHED = "no snapshot published"
 
@@ -312,10 +313,10 @@ class PerformanceSnapshotResponse(ContractModel):
 
     state: Literal["ok", "empty"]
     portfolio_id: PositiveInt
-    snapshot_version: Optional[PositiveInt]
-    as_of: Optional[UtcDatetime]
-    content: Optional[FrozenStrMapping]
-    reason: Optional[NonEmptyStr]
+    snapshot_version: PositiveInt | None
+    as_of: UtcDatetime | None
+    content: FrozenStrMapping | None
+    reason: NonEmptyStr | None
 
 
 class PerformanceExportResponse(ContractModel):
@@ -337,7 +338,7 @@ class PerformanceExportResponse(ContractModel):
 
 
 def build_performance_response(
-    snapshot: Optional[CurrentSnapshot], *, portfolio_id: int
+    snapshot: CurrentSnapshot | None, *, portfolio_id: int
 ) -> PerformanceSnapshotResponse:
     """Relay the last performance snapshot verbatim, or the honest empty state.
 

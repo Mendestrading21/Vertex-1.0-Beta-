@@ -30,14 +30,14 @@ a CLOCK problem.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
-from typing import Any, Optional
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-
 from snapshot_fakes import FakeSnapshotReader, synthetic_session
+
 from vertex_api import opportunities as opportunities_module
 from vertex_api.auth import require_session
 from vertex_api.opportunities import (
@@ -50,7 +50,7 @@ from vertex_api.snapshot_views import SnapshotContentError
 from vertex_core.decision.gates import GATE_CATALOG
 from vertex_persistence.repository.snapshots import CurrentSnapshot
 
-AS_OF = datetime(2026, 8, 25, 12, 0, 0, tzinfo=timezone.utc)
+AS_OF = datetime(2026, 8, 25, 12, 0, 0, tzinfo=UTC)
 
 #: Injected relay clock: the snapshots below are FRESH at this instant (no
 #: system clock ever reaches a test).
@@ -106,7 +106,7 @@ def candidate(
     ticker: str,
     status: str,
     *,
-    gate_status: Optional[str] = None,
+    gate_status: str | None = None,
     evidence_present: bool = True,
     absent_evidence: tuple[str, ...] = (),
     horizon: str = PROFILE_HORIZON,
@@ -223,7 +223,7 @@ def opportunities_content(qualified: list[dict], excluded: list[dict]) -> dict:
 
 
 def snapshot(
-    content: dict, version: int = 1, *, as_of: Optional[datetime] = None
+    content: dict, version: int = 1, *, as_of: datetime | None = None
 ) -> CurrentSnapshot:
     return CurrentSnapshot(
         kind="opportunities",
@@ -235,7 +235,7 @@ def snapshot(
     )
 
 
-def relay(content: dict, *, as_of: Optional[datetime] = None, now: datetime = NOW):
+def relay(content: dict, *, as_of: datetime | None = None, now: datetime = NOW):
     """Build the response with an INJECTED clock (never the system clock)."""
     return build_opportunities_response(snapshot(content, as_of=as_of), now=now)
 

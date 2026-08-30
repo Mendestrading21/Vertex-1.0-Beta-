@@ -89,6 +89,29 @@ profiles:
       - local_http_and_network_baseline
       - concurrent_processes
       - temperature_or_throttling_state
+  P-DEV:
+    # Miroir local (`tools/run_checks.sh`). AUCUNE autorité de publication :
+    # une machine de développement n'est pas un profil de référence au sens de
+    # `enforcement.activation_requirements`, et ses chiffres ne peuvent pas
+    # servir de base absolue.
+    #
+    # Il existe parce que P-CI exige `runner_image`, qui n'a de sens que sur un
+    # coureur GitHub : hors CI, ce champ ne peut pas être renseigné sans être
+    # inventé. Les métadonnées exigées ici sont exactement celles qu'une machine
+    # de développement peut affirmer d'elle-même sans mentir. La couverture des
+    # mesures, les minimums d'échantillons, les échecs durs, les étiquettes
+    # interdites et les régressions relatives restent, eux, pleinement
+    # appliqués.
+    purpose: local_mirror_no_release_authority
+    absolute_release_gate: false
+    required_metadata:
+      - cpu
+      - ram_mib
+      - disk
+      - os_kernel
+      - python_version
+      - node_version
+      - browser_version
   P-DESKTOP:
     purpose: beta_desktop_viewport_matrix
     absolute_release_gate: true
@@ -503,3 +526,116 @@ hard_failures:
   - secret_or_real_data_in_fixture_trace_metric_or_report
   - forbidden_ibkr_capability
   - dependency_or_redis_adopted_without_benchmark_and_adr
+
+# ---------------------------------------------------------------------------
+# Mesures exigées — autorité de la porte `tools/check_performance_budgets.py`.
+#
+# Cette liste vit dans le MANIFESTE, jamais dans le rapport de mesure. Si le
+# rapport déclarait lui-même son périmètre, il suffirait de livrer un rapport
+# vide pour que la porte passe : la couverture serait auto-attestée. Ici, une
+# entrée `MEASURED` sans mesure correspondante échoue
+# (`policy.missing_measurement_is_pass: false`).
+#
+# `status` :
+#   MEASURED         — la mesure existe et doit être présente à chaque exécution.
+#   NOT_YET_MEASURED — la mesure n'existe pas encore. Elle DOIT alors porter
+#                      `owner`, `reason`, `expires_at` et `closure_criterion`
+#                      (mêmes champs que `regression.exception_fields`). Une
+#                      entrée sans ces champs, ou dont `expires_at` est passée,
+#                      BLOQUE. Une dette non mesurée reste donc visible et
+#                      datée ; elle ne peut pas dormir indéfiniment.
+#
+# `kind` :
+#   max           — la valeur mesurée ne doit pas dépasser le budget.
+#   boolean_true  — la valeur mesurée doit être exactement `true`.
+#
+# `budget_path` : chemin pointé dans ce manifeste. `a.b.c` descend dans les
+# tables ; `segments#identifiant` sélectionne l'élément de liste dont le champ
+# `id` vaut `identifiant`. Un chemin qui ne résout pas fait échouer la porte :
+# un budget introuvable n'est pas un budget satisfait.
+required_measurements:
+  - metric_id: frontend.bundles.initial_gzip_bytes
+    kind: max
+    budget_path: frontend.bundles.initial_gzip_recommended_max_bytes
+    unit: byte
+    status: MEASURED
+    producer: tools/measure_web_bundle.py
+    note: >-
+      Fermeture statique transitive du graphe d'import Vite, gzip niveau 9
+      calculé par l'outil lui-même. Les `dynamicImports` sont exclus : c'est
+      précisément la frontière que le budget de découpage vérifie.
+
+  - metric_id: frontend.bundles.chart_engines_route_chunked
+    kind: boolean_true
+    budget_path: frontend.bundles.chart_engines_route_chunked
+    unit: boolean
+    status: MEASURED
+    producer: tools/measure_web_bundle.py
+    note: >-
+      ECharts et Lightweight Charts doivent rester hors de la fermeture
+      statique. Le mesureur échoue si aucun module de graphe n'existe, sinon
+      supprimer les graphes rendrait ce budget vrai par disparition.
+
+  - metric_id: api.page_snapshot.hot_api_snapshot_server.latency_ms.p95
+    kind: max
+    budget_path: hot_paths.HP-03.segments#hot_api_snapshot_server.objective_p95_ms
+    unit: ms
+    status: NOT_YET_MEASURED
+    owner: programme Vertex One
+    reason: >-
+      Aucune mesure de latence API n'a jamais été exécutée. `measurement.
+      minimum_samples.p95` impose 1 000 échantillons hors préchauffage ;
+      publier un p95 en dessous serait un chiffre inventé, pas une mesure. Le
+      profil P-CI n'a pas d'autorité absolue et le profil P-LOCAL exige la
+      machine cible, qui n'existe pas encore (LOT-24).
+    expires_at: "2026-12-31"
+    closure_criterion: >-
+      Cinq exécutions valides du scénario `api_clients` sur la machine cible,
+      jeu de données synthétique versionné, au moins 1 000 échantillons,
+      publiées en P-LOCAL.
+
+  - metric_id: api.page_snapshot.hot_api_snapshot_server.latency_ms.p99
+    kind: max
+    budget_path: hot_paths.HP-03.segments#hot_api_snapshot_server.objective_p99_ms
+    unit: ms
+    status: NOT_YET_MEASURED
+    owner: programme Vertex One
+    reason: >-
+      `measurement.minimum_samples.p99` impose 10 000 échantillons. Aucune
+      exécution de cette taille n'a eu lieu.
+    expires_at: "2026-12-31"
+    closure_criterion: >-
+      Même critère que le p95, avec au moins 10 000 échantillons hors
+      préchauffage.
+
+  - metric_id: api.page_snapshot.hot_postgresql_query.latency_ms.p95
+    kind: max
+    budget_path: hot_paths.HP-03.segments#hot_postgresql_query.objective_p95_ms
+    unit: ms
+    status: NOT_YET_MEASURED
+    owner: programme Vertex One
+    reason: >-
+      La requête PostgreSQL chaude se mesure sur le jeu de données de
+      référence `datasets`, qui n'est pas encore matérialisé. Mesurer sur une
+      base de test vide donnerait un chiffre flatteur et faux.
+    expires_at: "2026-12-31"
+    closure_criterion: >-
+      Jeu de données versionné chargé, cinq exécutions comparables, au moins
+      1 000 échantillons.
+
+  - metric_id: frontend.tables.rendered_dom_rows_max
+    kind: max
+    budget_path: frontend.tables.rendered_dom_rows_max
+    unit: row
+    status: NOT_YET_MEASURED
+    owner: programme Vertex One
+    reason: >-
+      Aucune table de l'interface n'est virtualisée aujourd'hui : le nombre de
+      lignes rendues dans le DOM suit le nombre de lignes reçues. Le budget ne
+      peut donc pas être satisfait par une mesure, il doit d'abord être rendu
+      atteignable par la virtualisation
+      (`frontend.tables.virtualization_initial_threshold_rows`).
+    expires_at: "2026-12-31"
+    closure_criterion: >-
+      Virtualisation livrée, puis mesure du DOM rendu sur le scénario
+      `table_row_counts` à 10 000 lignes, clavier et lecteur d'écran vérifiés.

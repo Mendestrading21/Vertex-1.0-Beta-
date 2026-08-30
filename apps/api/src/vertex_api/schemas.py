@@ -8,7 +8,8 @@ canonical enum values the gates expect. No decision logic lives here; the API
 never redefines a contract, it only names its wire boundary.
 """
 
-from typing import Annotated, Literal, Mapping, Optional
+from collections.abc import Mapping
+from typing import Annotated, Literal
 
 from pydantic import AfterValidator, Field, PlainSerializer
 
@@ -73,7 +74,7 @@ class CalculationStatusesInput(CalculationsInput):
     the gate), never an empty default.
     """
 
-    calculation_statuses: Optional[FrozenCalculationStatusMapping] = None
+    calculation_statuses: FrozenCalculationStatusMapping | None = None
 
 
 class AdvicePreviewRequest(AdviceInputs):
@@ -142,13 +143,13 @@ class AttentionSnapshotResponse(ContractModel):
     """
 
     state: Literal["ok", "empty"]
-    snapshot_version: Optional[PositiveInt]
-    as_of: Optional[UtcDatetime]
-    population: Optional[NonEmptyStr]
-    coverage: Optional[FrozenStrMapping]
+    snapshot_version: PositiveInt | None
+    as_of: UtcDatetime | None
+    population: NonEmptyStr | None
+    coverage: FrozenStrMapping | None
     items: tuple[AttentionItem, ...]
-    rejected_count: Optional[Annotated[int, Field(ge=0)]]
-    reason: Optional[NonEmptyStr]
+    rejected_count: Annotated[int, Field(ge=0)] | None
+    reason: NonEmptyStr | None
 
 
 # ---------------------------------------------------------------------------
@@ -173,7 +174,7 @@ class MarketsTicker(ContractModel):
     previous_trading_day: NonEmptyStr
     last_close: NonEmptyStr
     previous_close: NonEmptyStr
-    currency: Optional[NonEmptyStr]
+    currency: NonEmptyStr | None
     return_1d: NonEmptyStr
     return_1d_pct: NonEmptyStr
     weight_in_sector: NonEmptyStr
@@ -204,16 +205,16 @@ class MarketsBreadth(ContractModel):
     """
 
     status: Literal["OK", "INVALID"]
-    reason: Optional[NonEmptyStr]
-    value: Optional[NonEmptyStr]
-    value_pct: Optional[NonEmptyStr]
+    reason: NonEmptyStr | None
+    value: NonEmptyStr | None
+    value_pct: NonEmptyStr | None
     above_count: Annotated[int, Field(ge=0)]
     covered_count: Annotated[int, Field(ge=0)]
     universe_size: PositiveInt
     coverage_pct: NonEmptyStr
     coverage_threshold: NonEmptyStr
     coverage_threshold_pct: NonEmptyStr
-    calculation: Optional[FrozenStrMapping]
+    calculation: FrozenStrMapping | None
 
 
 class MarketsDiscardedTicker(ContractModel):
@@ -259,18 +260,18 @@ class MarketsOverviewResponse(ContractModel):
     """
 
     state: Literal["ok", "empty"]
-    snapshot_version: Optional[PositiveInt]
-    as_of: Optional[UtcDatetime]
-    population: Optional[NonEmptyStr]
-    data_state: Optional[Literal["ok", "partial", "stale"]]
-    unit: Optional[NonEmptyStr]
-    display_unit: Optional[NonEmptyStr]
-    engine_version: Optional[NonEmptyStr]
-    conclusion: Optional[NonEmptyStr]
+    snapshot_version: PositiveInt | None
+    as_of: UtcDatetime | None
+    population: NonEmptyStr | None
+    data_state: Literal["ok", "partial", "stale"] | None
+    unit: NonEmptyStr | None
+    display_unit: NonEmptyStr | None
+    engine_version: NonEmptyStr | None
+    conclusion: NonEmptyStr | None
     sectors: tuple[MarketsSector, ...]
-    breadth: Optional[MarketsBreadth]
-    coverage: Optional[MarketsCoverage]
-    reason: Optional[NonEmptyStr]
+    breadth: MarketsBreadth | None
+    coverage: MarketsCoverage | None
+    reason: NonEmptyStr | None
 
 
 # ---------------------------------------------------------------------------
@@ -299,17 +300,17 @@ class AnalysisResponse(ContractModel):
     """
 
     state: Literal["ok", "empty"]
-    snapshot_version: Optional[PositiveInt]
-    as_of: Optional[UtcDatetime]
-    population: Optional[NonEmptyStr]
+    snapshot_version: PositiveInt | None
+    as_of: UtcDatetime | None
+    population: NonEmptyStr | None
     instrument: NonEmptyStr
-    engine_version: Optional[NonEmptyStr]
-    bars: Optional[FrozenStrMapping]
-    evidence: Optional[FrozenStrMapping]
-    scenarios: Optional[FrozenStrMapping]
-    advice: Optional[FrozenStrMapping]
-    coverage: Optional[FrozenStrMapping]
-    reason: Optional[NonEmptyStr]
+    engine_version: NonEmptyStr | None
+    bars: FrozenStrMapping | None
+    evidence: FrozenStrMapping | None
+    scenarios: FrozenStrMapping | None
+    advice: FrozenStrMapping | None
+    coverage: FrozenStrMapping | None
+    reason: NonEmptyStr | None
 
 
 # ---------------------------------------------------------------------------
@@ -330,9 +331,9 @@ class OptionChainContract(ContractModel):
     with the typed refusal reason. The API recomputes nothing.
     """
 
-    con_id: Optional[PositiveInt]
-    strike: Optional[NonEmptyStr]
-    right: Optional[Literal["CALL", "PUT"]]
+    con_id: PositiveInt | None
+    strike: NonEmptyStr | None
+    right: Literal["CALL", "PUT"] | None
     expiration: NonEmptyStr
     trading_class: NonEmptyStr
     multiplier: PositiveInt
@@ -341,9 +342,9 @@ class OptionChainContract(ContractModel):
     style: NonEmptyStr
     settlement: NonEmptyStr
     quote: FrozenStrMapping
-    volume: Optional[Annotated[int, Field(ge=0)]]
-    open_interest: Optional[Annotated[int, Field(ge=0)]]
-    open_interest_status: Optional[NonEmptyStr]
+    volume: Annotated[int, Field(ge=0)] | None
+    open_interest: Annotated[int, Field(ge=0)] | None
+    open_interest_status: NonEmptyStr | None
     iv: FrozenStrMapping
     greeks: FrozenStrMapping
     synthetic: bool
@@ -384,18 +385,18 @@ class OptionChainResponse(ContractModel):
     """
 
     state: Literal["ok", "empty"]
-    snapshot_version: Optional[PositiveInt]
-    as_of: Optional[UtcDatetime]
-    population: Optional[NonEmptyStr]
+    snapshot_version: PositiveInt | None
+    as_of: UtcDatetime | None
+    population: NonEmptyStr | None
     underlying: NonEmptyStr
-    engine_version: Optional[NonEmptyStr]
-    value_nature: Optional[Literal["THEORETICAL"]]
-    spot: Optional[FrozenStrMapping]
-    assumptions: Optional[FrozenStrMapping]
+    engine_version: NonEmptyStr | None
+    value_nature: Literal["THEORETICAL"] | None
+    spot: FrozenStrMapping | None
+    assumptions: FrozenStrMapping | None
     expirations: tuple[OptionChainExpiration, ...]
-    row_budget: Optional[FrozenStrMapping]
-    coverage: Optional[FrozenStrMapping]
-    reason: Optional[NonEmptyStr]
+    row_budget: FrozenStrMapping | None
+    coverage: FrozenStrMapping | None
+    reason: NonEmptyStr | None
 
 
 # ---------------------------------------------------------------------------
@@ -414,10 +415,10 @@ class CapabilityStatusEntry(ContractModel):
     capability_id: NonEmptyStr
     family: NonEmptyStr
     declared_mode: NonEmptyStr
-    description: Optional[NonEmptyStr]
+    description: NonEmptyStr | None
     tested_status: SourceCapabilityStatus
-    tested_at: Optional[UtcDatetime]
-    reason: Optional[NonEmptyStr]
+    tested_at: UtcDatetime | None
+    reason: NonEmptyStr | None
 
 
 class DbHealth(ContractModel):
@@ -430,9 +431,9 @@ class SnapshotHealth(ContractModel):
     """Presence and age of one published snapshot head (no content)."""
 
     present: bool
-    version: Optional[PositiveInt]
-    as_of: Optional[UtcDatetime]
-    age_seconds: Optional[int]
+    version: PositiveInt | None
+    as_of: UtcDatetime | None
+    age_seconds: int | None
     """May be negative under clock drift — reported honestly, never clamped."""
 
 
@@ -445,8 +446,8 @@ class WorkerHealth(ContractModel):
     """
 
     method: Literal["heartbeat_proxy"]
-    last_snapshot_as_of: Optional[UtcDatetime]
-    age_seconds: Optional[int]
+    last_snapshot_as_of: UtcDatetime | None
+    age_seconds: int | None
     """May be negative under clock drift — reported honestly, never clamped."""
 
 
@@ -470,8 +471,8 @@ class SystemCapabilitiesResponse(ContractModel):
     """
 
     checked_at: UtcDatetime
-    snapshot_version: Optional[PositiveInt]
-    as_of: Optional[UtcDatetime]
+    snapshot_version: PositiveInt | None
+    as_of: UtcDatetime | None
     total: Annotated[int, Field(ge=0)]
     capabilities: tuple[CapabilityStatusEntry, ...]
     unknown_probed_capability_ids: tuple[NonEmptyStr, ...]

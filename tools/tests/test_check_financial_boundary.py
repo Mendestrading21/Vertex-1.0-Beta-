@@ -51,10 +51,26 @@ def _scan(tmp_path: Path, source: str, name: str = "module.py") -> set[tuple[str
 @pytest.mark.parametrize(
     ("label", "source", "expected"),
     [
-        ("appel direct (témoin)", "def f(ib):\n    return ib.placeOrder(1, 2)\n", ("placeOrder", "call")),
-        ("méthode liée", "def f(ib):\n    send = ib.placeOrder\n    return send\n", ("placeOrder", "attribute")),
-        ("nom en chaîne", 'def f(ib):\n    return getattr(ib, "reqPositions")\n', ("reqPositions", "string")),
-        ("valeur de dictionnaire", 'def f(ib):\n    return {"p": ib.reqAccountSummary}["p"]\n', ("reqAccountSummary", "attribute")),
+        (
+            "appel direct (témoin)",
+            "def f(ib):\n    return ib.placeOrder(1, 2)\n",
+            ("placeOrder", "call"),
+        ),
+        (
+            "méthode liée",
+            "def f(ib):\n    send = ib.placeOrder\n    return send\n",
+            ("placeOrder", "attribute"),
+        ),
+        (
+            "nom en chaîne",
+            'def f(ib):\n    return getattr(ib, "reqPositions")\n',
+            ("reqPositions", "string"),
+        ),
+        (
+            "valeur de dictionnaire",
+            'def f(ib):\n    return {"p": ib.reqAccountSummary}["p"]\n',
+            ("reqAccountSummary", "attribute"),
+        ),
         ("alias", "def f(ib):\n    g = ib.reqPnL\n    return g\n", ("reqPnL", "attribute")),
     ],
 )
@@ -94,7 +110,7 @@ def test_les_tests_sont_desormais_inspectes(tmp_path: Path) -> None:
 
 def test_la_porte_est_verte_sur_le_depot() -> None:
     """Exécution réelle sur le dépôt tel qu'il est."""
-    completed = subprocess.run(
+    completed = subprocess.run(  # noqa: S603 (argv littéral, sans shell)
         [sys.executable, str(_GATE)], cwd=_REPO_ROOT, capture_output=True, text=True
     )
     payload = json.loads(completed.stdout)
@@ -194,7 +210,8 @@ def test_les_deux_ensembles_de_formes_sont_disjoints_et_complets() -> None:
     assert not (EXEMPTABLE_KINDS & gate.NEVER_EXEMPTABLE_KINDS)
     produced = {
         str(f["kind"])
-        for f in gate.scan_python(_GATE, FORBIDDEN) + gate.scan_python_fragments(_GATE, gate.FALLBACK_FRAGMENTS)
+        for f in gate.scan_python(_GATE, FORBIDDEN)
+        + gate.scan_python_fragments(_GATE, gate.FALLBACK_FRAGMENTS)
     }
     assert produced <= EXEMPTABLE_KINDS | gate.NEVER_EXEMPTABLE_KINDS
 
@@ -220,7 +237,7 @@ def test_les_angles_morts_structurels_sont_fermes(
     target = tmp_path / relative
     target.parent.mkdir(parents=True, exist_ok=True)
     target.write_text(source, encoding="utf-8")
-    completed = subprocess.run(
+    completed = subprocess.run(  # noqa: S603 (argv littéral, sans shell)
         [sys.executable, str(_GATE), str(tmp_path)], capture_output=True, text=True
     )
     payload = json.loads(completed.stdout)
@@ -229,13 +246,24 @@ def test_les_angles_morts_structurels_sont_fermes(
 
 
 def test_les_repertoires_ecartes_sont_seulement_generes_ou_vendus() -> None:
-    """Un nom qui peut désigner du code de production ne s'écarte pas."""
+    """Un nom qui peut désigner du code de production ne s'écarte pas.
+
+    `.mypy_cache` et `.ruff_cache` sont des caches d'OUTIL : ignorés par Git,
+    jamais livrés, régénérés à chaque exécution. Le cache de mypy sérialise
+    les types des bibliothèques analysées — dont `ib_async`, donc les NOMS des
+    capacités interdites : sans cet écart, la porte `python-quality` rendrait
+    la porte `frontière financière` rouge à la deuxième exécution locale.
+    C'est la même décision que pour `.venv`, qui contient déjà le code source
+    d'`ib_async`. La porte protège ce que le dépôt CONTIENT.
+    """
     assert gate.SKIP_PARTS == {
         ".git",
         ".venv",
         "node_modules",
         "__pycache__",
         ".pytest_cache",
+        ".mypy_cache",
+        ".ruff_cache",
         "dist",
         ".vite",
     }
@@ -268,7 +296,7 @@ def _scan_ts(tmp_path: Path, source: str, name: str = "module.ts") -> set[tuple[
 
 
 def _run_gate_on(root: Path) -> dict[str, object]:
-    completed = subprocess.run(
+    completed = subprocess.run(  # noqa: S603 (argv littéral, sans shell)
         [sys.executable, str(_GATE), str(root)], capture_output=True, text=True
     )
     return json.loads(completed.stdout)
@@ -279,7 +307,8 @@ def _run_gate_on(root: Path) -> dict[str, object]:
     [
         (
             "import avec alias",
-            "from ib_insync.ib import placeOrder as _send\n\n\ndef go(ib, c, o):\n    return _send(ib, c, o)\n",
+            "from ib_insync.ib import placeOrder as _send\n\n\n"
+            "def go(ib, c, o):\n    return _send(ib, c, o)\n",
             ("placeOrder", "import"),
         ),
         (
@@ -331,7 +360,8 @@ def test_un_import_est_une_obtention_de_reference(
         ),
         (
             "chemin pointé en chaîne",
-            'import importlib\n\n\ndef go():\n    return importlib.import_module("ib_insync.placeOrder")\n',
+            'import importlib\n\n\ndef go():\n'
+            '    return importlib.import_module("ib_insync.placeOrder")\n',
             "placeOrder",
         ),
     ],
@@ -346,15 +376,51 @@ def test_les_litteraux_composes_sont_resolus(
 @pytest.mark.parametrize(
     ("label", "source", "expected"),
     [
-        ("appel (témoin)", "export const f = (ib: any) => ib.placeOrder(1);\n", ("placeOrder", "call")),
-        ("accès d'attribut", "export const f = (ib: any) => ib.placeOrder;\n", ("placeOrder", "attribute")),
-        ("chaînage optionnel", "export const f = (ib: any) => ib?.reqAccountSummary;\n", ("reqAccountSummary", "attribute")),
-        ("indexation par nom", 'export const f = (ib: any) => ib["reqPositions"];\n', ("reqPositions", "reference")),
-        ("destructuration", "export const f = (ib: any) => { const { placeOrder } = ib; return placeOrder; };\n", ("placeOrder", "reference")),
-        ("destructuration avec alias", "export const f = (ib: any) => { const { reqPnL: r } = ib; return r; };\n", ("reqPnL", "reference")),
-        ("import nommé", 'import { cancelOrder } from "./ib";\nexport const f = cancelOrder;\n', ("cancelOrder", "import")),
-        ("import avec alias", 'import { reqPositions as read } from "./ib";\nexport const f = read;\n', ("reqPositions", "import")),
-        ("import dynamique", 'export const f = async () => (await import("./ib")).whatIfOrder;\n', ("whatIfOrder", "attribute")),
+        (
+            "appel (témoin)",
+            "export const f = (ib: any) => ib.placeOrder(1);\n",
+            ("placeOrder", "call"),
+        ),
+        (
+            "accès d'attribut",
+            "export const f = (ib: any) => ib.placeOrder;\n",
+            ("placeOrder", "attribute"),
+        ),
+        (
+            "chaînage optionnel",
+            "export const f = (ib: any) => ib?.reqAccountSummary;\n",
+            ("reqAccountSummary", "attribute"),
+        ),
+        (
+            "indexation par nom",
+            'export const f = (ib: any) => ib["reqPositions"];\n',
+            ("reqPositions", "reference"),
+        ),
+        (
+            "destructuration",
+            "export const f = (ib: any) => { const { placeOrder } = ib; return placeOrder; };\n",
+            ("placeOrder", "reference"),
+        ),
+        (
+            "destructuration avec alias",
+            "export const f = (ib: any) => { const { reqPnL: r } = ib; return r; };\n",
+            ("reqPnL", "reference"),
+        ),
+        (
+            "import nommé",
+            'import { cancelOrder } from "./ib";\nexport const f = cancelOrder;\n',
+            ("cancelOrder", "import"),
+        ),
+        (
+            "import avec alias",
+            'import { reqPositions as read } from "./ib";\nexport const f = read;\n',
+            ("reqPositions", "import"),
+        ),
+        (
+            "import dynamique",
+            'export const f = async () => (await import("./ib")).whatIfOrder;\n',
+            ("whatIfOrder", "attribute"),
+        ),
         ("require", 'const { reqExecutions } = require("./ib");\n', ("reqExecutions", "import")),
     ],
 )
@@ -368,22 +434,47 @@ def test_l_analyseur_texte_est_aligne_sur_l_analyseur_python(
 @pytest.mark.parametrize(
     ("label", "relative", "source"),
     [
-        ("script shell — route courtier", "deploy.sh",
-         '#!/usr/bin/env bash\ncurl -s "https://localhost:5000/v1/api/iserver/account/orders" -X POST\n'),
-        ("script shell — symbole appelé", "infra/publish.sh",
-         '#!/usr/bin/env bash\npython3 -c "import x; x.placeOrder(1, 2)"\n'),
-        ("OpenAPI — route", "apps/api/openapi.json",
-         '{"paths": {"/v1/api/iserver/account/orders": {"post": {}}}}\n'),
-        ("YAML — permission", "manifests/tooling.yaml",
-         'tools:\n  - name: broker\n    allowed_methods: [placeOrder]\n'),
-        ("TOML — route de worker", "worker/wrangler.toml",
-         'routes = ["https://x/v1/api/iserver/account/orders"]\n'),
-        ("HTML — script en ligne", "apps/web/index.html",
-         '<script>fetch("/v1/api/iserver/account/orders");</script>\n'),
-        ("Dockerfile — appel réseau", "infra/Dockerfile.python",
-         'RUN curl "https://x/v1/api/iserver/account/orders"\n'),
-        ("workflow CI — étape shell", ".github/workflows/deploy.yml",
-         'jobs:\n  a:\n    steps:\n      - run: curl "https://x/v1/api/iserver/account/orders"\n'),
+        (
+            "script shell — route courtier",
+            "deploy.sh",
+            '#!/usr/bin/env bash\n'
+            'curl -s "https://localhost:5000/v1/api/iserver/account/orders" -X POST\n',
+        ),
+        (
+            "script shell — symbole appelé",
+            "infra/publish.sh",
+            '#!/usr/bin/env bash\npython3 -c "import x; x.placeOrder(1, 2)"\n',
+        ),
+        (
+            "OpenAPI — route",
+            "apps/api/openapi.json",
+            '{"paths": {"/v1/api/iserver/account/orders": {"post": {}}}}\n',
+        ),
+        (
+            "YAML — permission",
+            "manifests/tooling.yaml",
+            "tools:\n  - name: broker\n    allowed_methods: [placeOrder]\n",
+        ),
+        (
+            "TOML — route de worker",
+            "worker/wrangler.toml",
+            'routes = ["https://x/v1/api/iserver/account/orders"]\n',
+        ),
+        (
+            "HTML — script en ligne",
+            "apps/web/index.html",
+            '<script>fetch("/v1/api/iserver/account/orders");</script>\n',
+        ),
+        (
+            "Dockerfile — appel réseau",
+            "infra/Dockerfile.python",
+            'RUN curl "https://x/v1/api/iserver/account/orders"\n',
+        ),
+        (
+            "workflow CI — étape shell",
+            ".github/workflows/deploy.yml",
+            'jobs:\n  a:\n    steps:\n      - run: curl "https://x/v1/api/iserver/account/orders"\n',
+        ),
     ],
 )
 def test_la_surface_couvre_le_perimetre_declare(
@@ -555,13 +646,30 @@ def test_les_limites_de_la_porte_sont_ecrites_dans_la_porte() -> None:
     ("label", "source", "expected"),
     [
         ("fonction", "def placeOrder(ib, c, o):\n    return None\n", ("placeOrder", "definition")),
-        ("fonction asynchrone", "async def reqPositions(ib):\n    return None\n", ("reqPositions", "definition")),
+        (
+            "fonction asynchrone",
+            "async def reqPositions(ib):\n    return None\n",
+            ("reqPositions", "definition"),
+        ),
         ("classe", "class whatIfOrder:\n    pass\n", ("whatIfOrder", "definition")),
         ("affectation", "def f(x):\n    reqPnL = x\n    return reqPnL\n", ("reqPnL", "binding")),
         ("paramètre", "def f(cancelOrder):\n    return cancelOrder\n", ("cancelOrder", "binding")),
-        ("boucle", "def f(xs):\n    for reqExecutions in xs:\n        return reqExecutions\n", ("reqExecutions", "binding")),
-        ("gestionnaire d'exception", "def f():\n    try:\n        pass\n    except ValueError as reqIds:\n        return reqIds\n", ("reqIds", "binding")),
-        ("global", "def f():\n    global reqGlobalCancel\n    return 1\n", ("reqGlobalCancel", "binding")),
+        (
+            "boucle",
+            "def f(xs):\n    for reqExecutions in xs:\n        return reqExecutions\n",
+            ("reqExecutions", "binding"),
+        ),
+        (
+            "gestionnaire d'exception",
+            "def f():\n    try:\n        pass\n"
+            "    except ValueError as reqIds:\n        return reqIds\n",
+            ("reqIds", "binding"),
+        ),
+        (
+            "global",
+            "def f():\n    global reqGlobalCancel\n    return 1\n",
+            ("reqGlobalCancel", "binding"),
+        ),
     ],
 )
 def test_recreer_la_capacite_sous_un_autre_toit_est_vu(
@@ -663,8 +771,6 @@ DELIBERATELY_UNSCANNED = {
     ".editorconfig": "réglages d'éditeur",
     ".css": "feuille de style — aucune capacité atteignable",
     ".pyc": "octet-code généré",
-    ".gitignore": "règles d'ignorance Git",
-    ".gitkeep": "marqueur de répertoire vide",
 }
 
 
@@ -677,7 +783,7 @@ def test_aucun_format_du_depot_n_echappe_sans_decision_ecrite() -> None:
     nouveau apparaît sans avoir été soit analysé, soit écarté par écrit.
     """
     tracked = subprocess.run(
-        ["git", "ls-files", "-z"],
+        ["git", "ls-files", "-z"],  # noqa: S607 (git résolu par PATH, argv littéral)
         cwd=_REPO_ROOT, capture_output=True, text=True, check=True,
     ).stdout.split("\0")
     undecided: dict[str, str] = {}
@@ -703,7 +809,7 @@ def test_les_scripts_shell_du_depot_sont_bien_analyses() -> None:
     shell = [
         _REPO_ROOT / n
         for n in subprocess.run(
-            ["git", "ls-files", "*.sh"],
+            ["git", "ls-files", "*.sh"],  # noqa: S607 (git résolu par PATH, argv littéral)
             cwd=_REPO_ROOT, capture_output=True, text=True, check=True,
         ).stdout.split()
     ]
@@ -714,5 +820,6 @@ def test_les_scripts_shell_du_depot_sont_bien_analyses() -> None:
 
 def test_les_repertoires_ecartes_restent_seulement_generes_ou_vendus() -> None:
     assert gate.SKIP_PARTS == {
-        ".git", ".venv", "node_modules", "__pycache__", ".pytest_cache", "dist", ".vite",
+        ".git", ".venv", "node_modules", "__pycache__", ".pytest_cache",
+        ".mypy_cache", ".ruff_cache", "dist", ".vite",
     }

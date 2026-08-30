@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pytest
@@ -33,24 +33,24 @@ from vertex_worker.calendar import (
     load_calendar_event_records,
 )
 
-NOW = datetime(2026, 8, 25, 12, 0, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 25, 12, 0, 0, tzinfo=UTC)
 BASE_TIME = NOW - timedelta(minutes=30)
 SEED = 20260825
 
 
 def record_from_envelope(envelope, **overrides: Any) -> CalendarEventRecord:
-    fields = dict(
-        event_id=envelope.event_id,
-        source=envelope.source,
-        instrument_ref=envelope.instrument_id,
-        as_of=envelope.as_of,
-        stale_after=envelope.stale_after,
-        quality_status=envelope.quality_status.value,
-        delay_status=envelope.delay_status.value,
-        rights=envelope.rights,
-        schema_version=envelope.schema_version,
-        payload=dict(envelope.payload),
-    )
+    fields = {
+        "event_id": envelope.event_id,
+        "source": envelope.source,
+        "instrument_ref": envelope.instrument_id,
+        "as_of": envelope.as_of,
+        "stale_after": envelope.stale_after,
+        "quality_status": envelope.quality_status.value,
+        "delay_status": envelope.delay_status.value,
+        "rights": envelope.rights,
+        "schema_version": envelope.schema_version,
+        "payload": dict(envelope.payload),
+    }
     fields.update(overrides)
     return CalendarEventRecord(**fields)
 
@@ -62,12 +62,12 @@ def records() -> list[CalendarEventRecord]:
 
 
 def build(records, **kwargs):
-    defaults = dict(
-        now=NOW,
-        config=DEV_SYNTHETIC_CALENDAR_CONFIG,
-        positions_by_ticker={},
-        theses_by_ticker={},
-    )
+    defaults = {
+        "now": NOW,
+        "config": DEV_SYNTHETIC_CALENDAR_CONFIG,
+        "positions_by_ticker": {},
+        "theses_by_ticker": {},
+    }
     defaults.update(kwargs)
     return build_calendar_content(records, **defaults)
 
@@ -298,7 +298,7 @@ def test_config_validation_fails_closed() -> None:
 
 def test_naive_clock_is_rejected(records) -> None:
     with pytest.raises(ValueError):
-        build(records, now=datetime(2026, 8, 25, 12, 0, 0))
+        build(records, now=datetime(2026, 8, 25, 12, 0, 0))  # noqa: DTZ001 (naïf délibéré : rejet vérifié)
 
 
 # --------------------------------------------------------------------------
@@ -771,18 +771,18 @@ def sibling(
     states what it really changes.
     """
     payload_changes = overrides.pop("payload_changes", {})
-    fields = dict(
-        event_id=event_id,
-        source=record.source,
-        instrument_ref=record.instrument_ref,
-        as_of=record.as_of,
-        stale_after=record.stale_after,
-        quality_status=record.quality_status,
-        delay_status=record.delay_status,
-        rights=record.rights,
-        schema_version=record.schema_version,
-        payload=with_payload(record, **payload_changes),
-    )
+    fields = {
+        "event_id": event_id,
+        "source": record.source,
+        "instrument_ref": record.instrument_ref,
+        "as_of": record.as_of,
+        "stale_after": record.stale_after,
+        "quality_status": record.quality_status,
+        "delay_status": record.delay_status,
+        "rights": record.rights,
+        "schema_version": record.schema_version,
+        "payload": with_payload(record, **payload_changes),
+    }
     fields.update(overrides)
     return CalendarEventRecord(**fields)
 

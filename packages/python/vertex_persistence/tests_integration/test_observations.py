@@ -5,7 +5,7 @@ All fixture data is SYNTHETIC (source="SYNTHETIC_TEST") — no real market data.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -18,23 +18,23 @@ from vertex_persistence.errors import EnumValidationError, JsonEncodingError, Va
 from vertex_persistence.models import Observation
 from vertex_persistence.repository import insert_observation
 
-UTC = timezone.utc
+UTC = UTC
 T0 = datetime(2026, 8, 28, 12, 0, 0, tzinfo=UTC)
 
 
 def _insert(session: Session, event_id: str = "evt-1", **overrides: Any) -> bool:
-    values: dict[str, Any] = dict(
-        event_id=event_id,
-        schema_version="1.0.0",
-        source="SYNTHETIC_TEST",
-        received_at=T0,
-        as_of=T0,
-        stale_after=T0 + timedelta(minutes=5),
-        quality_status="VALID",
-        delay_status="LIVE",
-        rights="DELAYED_ENTITLED",
-        payload={"symbol": "SYN", "last": Decimal("101.25"), "bid": None},
-    )
+    values: dict[str, Any] = {
+        "event_id": event_id,
+        "schema_version": "1.0.0",
+        "source": "SYNTHETIC_TEST",
+        "received_at": T0,
+        "as_of": T0,
+        "stale_after": T0 + timedelta(minutes=5),
+        "quality_status": "VALID",
+        "delay_status": "LIVE",
+        "rights": "DELAYED_ENTITLED",
+        "payload": {"symbol": "SYN", "last": Decimal("101.25"), "bid": None},
+    }
     values.update(overrides)
     return insert_observation(session, **values)
 
@@ -101,7 +101,7 @@ def test_absent_value_stays_null_not_zero(db_session: Session) -> None:
 
 def test_naive_datetime_rejected(db_session: Session) -> None:
     with pytest.raises(ValidationFailedError, match="naive"):
-        _insert(db_session, as_of=datetime(2026, 8, 28, 12, 0, 0))
+        _insert(db_session, as_of=datetime(2026, 8, 28, 12, 0, 0))  # noqa: DTZ001 (naïf délibéré : rejet vérifié)
 
 
 def test_non_canonical_quality_status_rejected(db_session: Session) -> None:

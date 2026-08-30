@@ -1,6 +1,6 @@
 """DataEnvelope: temporal invariants, strictness, generic payload typing."""
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import pytest
@@ -14,24 +14,24 @@ from vertex_core.contracts import (
     canonical_json_hash,
 )
 
-RECEIVED_AT = datetime(2026, 3, 2, 15, 0, tzinfo=timezone.utc)
+RECEIVED_AT = datetime(2026, 3, 2, 15, 0, tzinfo=UTC)
 PAYLOAD = {"last": Decimal("187.25")}
 
 
 def make_envelope(**overrides):
-    kwargs = dict(
-        event_id="evt-0001",
-        schema_version="1.0.0",
-        source="ibkr.market_data",
-        received_at=RECEIVED_AT,
-        as_of=RECEIVED_AT,
-        stale_after=RECEIVED_AT + timedelta(seconds=30),
-        quality_status=EnvelopeQuality.VALID,
-        delay_status=DelayStatus.DELAYED,
-        rights="display-only",
-        payload_hash=canonical_json_hash(PAYLOAD),
-        payload=PAYLOAD,
-    )
+    kwargs = {
+        "event_id": "evt-0001",
+        "schema_version": "1.0.0",
+        "source": "ibkr.market_data",
+        "received_at": RECEIVED_AT,
+        "as_of": RECEIVED_AT,
+        "stale_after": RECEIVED_AT + timedelta(seconds=30),
+        "quality_status": EnvelopeQuality.VALID,
+        "delay_status": DelayStatus.DELAYED,
+        "rights": "display-only",
+        "payload_hash": canonical_json_hash(PAYLOAD),
+        "payload": PAYLOAD,
+    }
     kwargs.update(overrides)
     return DataEnvelope(**kwargs)
 
@@ -46,15 +46,15 @@ class TestDataEnvelope:
 
     def test_naive_received_at_rejected(self):
         with pytest.raises(ValidationError, match="naive datetime"):
-            make_envelope(received_at=datetime(2026, 3, 2, 15, 0))
+            make_envelope(received_at=datetime(2026, 3, 2, 15, 0))  # noqa: DTZ001 (naïf délibéré : rejet vérifié)
 
     def test_naive_as_of_rejected(self):
         with pytest.raises(ValidationError, match="naive datetime"):
-            make_envelope(as_of=datetime(2026, 3, 2, 15, 0))
+            make_envelope(as_of=datetime(2026, 3, 2, 15, 0))  # noqa: DTZ001 (naïf délibéré : rejet vérifié)
 
     def test_naive_observed_at_rejected(self):
         with pytest.raises(ValidationError, match="naive datetime"):
-            make_envelope(observed_at=datetime(2026, 3, 2, 14, 59))
+            make_envelope(observed_at=datetime(2026, 3, 2, 14, 59))  # noqa: DTZ001 (naïf délibéré : rejet vérifié)
 
     def test_observed_after_received_rejected(self):
         with pytest.raises(ValidationError, match="observed_at"):

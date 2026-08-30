@@ -8,12 +8,6 @@ import time
 from datetime import datetime
 
 import pytest
-
-from vertex_persistence.enums import OutboxStatus
-from vertex_worker.errors import HandlerError
-from vertex_worker.registry import HandlerRegistry
-from vertex_worker.runner import WorkerRunner, WorkerStats
-
 from worker_fakes import (
     FIXED_NOW,
     FakeGateway,
@@ -22,15 +16,20 @@ from worker_fakes import (
     make_message,
 )
 
+from vertex_persistence.enums import OutboxStatus
+from vertex_worker.errors import HandlerError
+from vertex_worker.registry import HandlerRegistry
+from vertex_worker.runner import WorkerRunner, WorkerStats
+
 
 def make_runner(registry, gateway, **kwargs):
-    defaults = dict(
-        session_factory=FakeSessionFactory(),
-        registry=registry,
-        poll_interval_seconds=0.02,
-        clock=fixed_clock,
-        gateway=gateway,
-    )
+    defaults = {
+        "session_factory": FakeSessionFactory(),
+        "registry": registry,
+        "poll_interval_seconds": 0.02,
+        "clock": fixed_clock,
+        "gateway": gateway,
+    }
     defaults.update(kwargs)
     return WorkerRunner(**defaults)
 
@@ -199,7 +198,7 @@ class TestClockValidation:
         runner = make_runner(
             make_registry(lambda s, m: None),
             FakeGateway(),
-            clock=lambda: datetime(2026, 8, 25, 12, 0, 0),
+            clock=lambda: datetime(2026, 8, 25, 12, 0, 0),  # noqa: DTZ001 (naïf délibéré : rejet vérifié)
         )
         with pytest.raises(ValueError):
             runner.run_once()

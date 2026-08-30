@@ -1,0 +1,148 @@
+# Configuration de la porte `policy` (tools/check_policy.py) et du volet
+# `notices` de la porte `release` (tools/check_notices.py).
+#
+# Ce fichier est une POLITIQUE, pas un inventaire : il déclare ce qui est
+# autorisé. Les faits (SHA résolus, licences observées) vivent dans
+# `manifests/actions-pins.yaml` et `manifests/licenses.yaml`.
+schema_version: 1
+
+runners:
+  # Labels `runs-on` acceptés. Tout autre label — y compris `self-hosted`, un
+  # groupe auto-hébergé, une expression `${{ }}` non vérifiable — est refusé.
+  # Règle .claude/rules/security.md : aucun runner de PR sur l'ordinateur TWS.
+  allowed:
+    - ubuntu-24.04
+    - ubuntu-22.04
+
+permissions:
+  # Valeur exigée au niveau du workflow quand aucun job ne déclare la sienne.
+  workflow_default: read-all
+  # Une portée en écriture (`write`) ou `write-all` n'est acceptée que si le
+  # fichier de workflow porte un commentaire contenant ce marqueur SUIVI du nom
+  # de la portée élevée. Sans motif écrit, l'élévation échoue.
+  motive_marker: "MOTIF-PERMISSION:"
+
+dependencies:
+  # Ces composants doivent être épinglés EXACTEMENT (`==` en Python,
+  # `x.y.z` en npm) dans le manifeste lui-même, pas seulement dans le verrou.
+  # Motif : leur sortie EST le verdict d'une porte ; une version flottante rend
+  # le compte de violations non reproductible d'une machine à l'autre.
+  # (docs/99-status/DEBT.md a publié deux comptes ruff incompatibles pour
+  # exactement cette raison.)
+  exact_pin_required:
+    - ruff
+    - mypy
+    - "@biomejs/biome"
+    - typescript
+  # Membres du workspace : première partie, hors périmètre tiers.
+  first_party_python:
+    - vertex-one
+    - vertex-core
+    - vertex-persistence
+    - vertex-api
+    - vertex-worker
+    - vertex-edge-ibkr
+    - vertex-ingress-tradingview
+
+containers:
+  # Toute image doit porter `@sha256:<64 hex>`. Un tag seul n'a aucune autorité.
+  digest_prefix: "sha256:"
+  forbidden_tags:
+    - latest
+
+gates:
+  # Chaque script listé ici DOIT être invoqué par `.github/workflows/ci.yml`
+  # ET par `tools/run_checks.sh`, par une invocation qui PROPAGE son code de
+  # retour.
+  #
+  # Le contrôle a d'abord été un simple `script in text`, ce qui rendait vraies
+  # trois choses fausses : un nom en commentaire, une étape `if: false` et un
+  # `|| true` le satisfaisaient tous les trois. La frontière financière avait
+  # déjà été débranchée trois fois ; un quatrième contournement, par la
+  # sémantique du shell (`porte && echo OK`, exemptée de `set -e`), rendait onze
+  # portes du miroir local incapables d'échouer. La porte analyse désormais
+  # l'invocation elle-même et distingue « absente » de « présente mais
+  # neutralisée ».
+  must_be_wired:
+    - tools/check_repository_role.py
+    - tools/check_financial_boundary.py
+    - tools/check_calculation_registry.py
+    - tools/check_secrets.py
+    - tools/check_policy.py
+    - tools/check_notices.py
+    - tools/check_performance_budgets.py
+    - tools/check_traceability.py
+  # Portes qui ne peuvent JAMAIS être mises en sommeil, quel que soit le motif.
+  # `known_not_wired` n'exigeait qu'une phrase : il suffisait donc d'écrire
+  # « suspendue le temps d'un refactor » pour désarmer la frontière financière,
+  # et la porte restait verte. Une porte listée ici ne peut pas y entrer.
+  never_dormant:
+    - tools/check_repository_role.py
+    - tools/check_financial_boundary.py
+    - tools/check_secrets.py
+    - tools/check_policy.py
+
+  # Portes présentes sur le disque et DÉLIBÉRÉMENT pas encore branchées.
+  # Chaque entrée exige `reason`, `owner`, `expires_at` ET `closure_criterion`
+  # — les mêmes quatre champs que les écarts des portes `traceability` et
+  # `performance`, parce qu'endormir une porte est au moins aussi grave que ne
+  # pas prouver une règle. Une échéance passée fait ÉCHOUER la porte.
+  # Elle échoue aussi si une entrée se révèle en fait branchée partout (elle
+  # doit alors passer dans `must_be_wired`).
+  known_not_wired: []
+
+  # Tout fichier `tools/check_*.py` absent des DEUX listes ci-dessus fait
+  # échouer la porte : on ne peut pas ajouter une porte et oublier de la
+  # brancher, ni la laisser dormir sans le dire.
+
+licenses:
+  # Identifiants SPDX acceptés pour un composant tiers. Une licence absente,
+  # `UNKNOWN`, `NOASSERTION` ou hors de cette liste BLOQUE
+  # (.claude/rules/security.md : « Toute licence inconnue […] bloque la
+  # fusion »). Cette liste est permissive/copyleft-faible uniquement.
+  allowed_spdx:
+    - 0BSD
+    - Apache-2.0
+    - BlueOak-1.0.0
+    - BSD-2-Clause
+    - BSD-3-Clause
+    - CC0-1.0
+    - CC-BY-4.0
+    - ISC
+    - MIT
+    - MIT-0
+    - MPL-2.0
+    - OFL-1.1
+    - Python-2.0
+    - PSF-2.0
+    - Unlicense
+    - Zlib
+  # Licences NON permissives présentes dans les verrous et reconnues
+  # explicitement, avec la décision qui les a introduites. Une entrée sans
+  # `reason` fait ÉCHOUER la porte : une reconnaissance ne peut pas être
+  # silencieuse. La porte les signale à chaque exécution sans bloquer.
+  #
+  # Ce champ n'est PAS un avis juridique : il documente une adoption déjà
+  # inscrite au dépôt, il ne la valide pas. La revue de licence avant toute
+  # distribution reste une décision humaine ouverte (docs/99-status/DEBT.md).
+  acknowledged_spdx:
+    - id: LGPL-3.0-only
+      reason: >-
+        `psycopg` v3 (pilote PostgreSQL) est adopté par
+        manifests/dependencies.yaml (`adopt.python: psycopg-v3`). Il est utilisé
+        tel quel, comme bibliothèque, sans modification. Vertex 1.0 Beta ne
+        distribue aujourd'hui aucun artefact. Une distribution future exige une
+        revue humaine de cette licence copyleft faible avant publication.
+
+  # Licences explicitement refusées, même si elles apparaissaient un jour dans
+  # un verrou : elles imposeraient des obligations non étudiées à Vertex.
+  denied_spdx:
+    - AGPL-1.0-only
+    - AGPL-3.0-only
+    - AGPL-3.0-or-later
+    - GPL-2.0-only
+    - GPL-3.0-only
+    - GPL-3.0-or-later
+    - SSPL-1.0
+    - BUSL-1.1
+    - Commons-Clause

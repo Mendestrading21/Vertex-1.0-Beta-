@@ -1,10 +1,11 @@
 """Fusion contracts: strictness, immutability and fail-closed invariants."""
 
-from datetime import datetime, timezone
+from datetime import datetime
 
 import pytest
 from pydantic import ValidationError
 
+from tests.fusion.factories import BASE_TIME, make_observation
 from vertex_core.contracts import EnvelopeQuality
 from vertex_core.fusion import (
     ContentCluster,
@@ -12,34 +13,33 @@ from vertex_core.fusion import (
     FusionAction,
     FusionDecision,
 )
-from tests.fusion.factories import BASE_TIME, make_observation
 
 
 def _decision(**overrides) -> FusionDecision:
-    values = dict(
-        decision_id="d-1",
-        rule_id="fusion.dedup.native_id",
-        rule_version="1.0.0",
-        inputs=("a", "b"),
-        action=FusionAction.LINKED_NATIVE_ID,
-        rationale="same provider native id",
-        reversible=False,
-    )
+    values = {
+        "decision_id": "d-1",
+        "rule_id": "fusion.dedup.native_id",
+        "rule_version": "1.0.0",
+        "inputs": ("a", "b"),
+        "action": FusionAction.LINKED_NATIVE_ID,
+        "rationale": "same provider native id",
+        "reversible": False,
+    }
     values.update(overrides)
     return FusionDecision(**values)
 
 
 def _cluster(**overrides) -> ContentCluster:
-    values = dict(
-        cluster_id="sha256:" + "0" * 64,
-        member_ids=("a", "b"),
-        sources=("ibkr_news",),
-        tiers=("P1",),
-        rights=("display_only",),
-        first_published_at=None,
-        last_received_at=BASE_TIME,
-        decisions=(_decision(),),
-    )
+    values = {
+        "cluster_id": "sha256:" + "0" * 64,
+        "member_ids": ("a", "b"),
+        "sources": ("ibkr_news",),
+        "tiers": ("P1",),
+        "rights": ("display_only",),
+        "first_published_at": None,
+        "last_received_at": BASE_TIME,
+        "decisions": (_decision(),),
+    }
     values.update(overrides)
     return ContentCluster(**values)
 
@@ -54,11 +54,11 @@ class TestContentObservation:
 
     def test_naive_received_at_rejected(self):
         with pytest.raises(ValidationError, match="naive datetime"):
-            make_observation("a", received_at=datetime(2026, 8, 1, 12, 0))
+            make_observation("a", received_at=datetime(2026, 8, 1, 12, 0))  # noqa: DTZ001 (naïf délibéré : rejet vérifié)
 
     def test_naive_published_at_rejected(self):
         with pytest.raises(ValidationError, match="naive datetime"):
-            make_observation("a", published_at=datetime(2026, 8, 1, 11, 0))
+            make_observation("a", published_at=datetime(2026, 8, 1, 11, 0))  # noqa: DTZ001 (naïf délibéré : rejet vérifié)
 
     @pytest.mark.parametrize("tier", ["P5", "p0", "P", "X1", ""])
     def test_invalid_source_tier_rejected(self, tier):

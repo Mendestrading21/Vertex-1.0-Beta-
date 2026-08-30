@@ -9,7 +9,7 @@ never defaulted to a fabricated value.
 
 from __future__ import annotations
 
-from typing import Generic, Optional, TypeVar
+from typing import Generic, TypeVar
 
 from pydantic import model_validator
 
@@ -37,23 +37,23 @@ class DataEnvelope(ContractModel, Generic[TPayload]):
     event_id: NonEmptyStr
     schema_version: NonEmptyStr
     source: NonEmptyStr
-    source_event_id: Optional[NonEmptyStr] = None
-    entitlement_id: Optional[NonEmptyStr] = None
-    instrument_id: Optional[NonEmptyStr] = None
-    observed_at: Optional[UtcDatetime] = None
-    published_at: Optional[UtcDatetime] = None
+    source_event_id: NonEmptyStr | None = None
+    entitlement_id: NonEmptyStr | None = None
+    instrument_id: NonEmptyStr | None = None
+    observed_at: UtcDatetime | None = None
+    published_at: UtcDatetime | None = None
     received_at: UtcDatetime
     as_of: UtcDatetime
     stale_after: UtcDatetime
     quality_status: EnvelopeQuality
     delay_status: DelayStatus
-    connection_epoch: Optional[int] = None
+    connection_epoch: int | None = None
     rights: NonEmptyStr
     payload_hash: Sha256Ref
     payload: TPayload
 
     @model_validator(mode="after")
-    def _check_temporal_consistency(self) -> "DataEnvelope[TPayload]":
+    def _check_temporal_consistency(self) -> DataEnvelope[TPayload]:
         if self.observed_at is not None and self.observed_at > self.received_at:
             raise ValueError("observed_at must not be later than received_at")
         return self

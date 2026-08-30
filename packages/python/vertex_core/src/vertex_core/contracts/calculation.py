@@ -9,8 +9,9 @@ recorded with status ``NOT_IMPLEMENTED`` — never presented as pending.
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 from datetime import datetime
-from typing import Any, Mapping, Optional, Sequence
+from typing import Any
 
 from pydantic import model_validator
 
@@ -45,7 +46,7 @@ class CalculationRecord(ContractModel):
     assumptions: tuple[str, ...] = ()
     method: NonEmptyStr
     parameters: FrozenStrMapping
-    random_seed: Optional[int] = None
+    random_seed: int | None = None
     started_at: UtcDatetime
     completed_at: UtcDatetime
     status: CalculationStatus
@@ -54,7 +55,7 @@ class CalculationRecord(ContractModel):
     result: Any
 
     @model_validator(mode="after")
-    def _check_temporal_consistency(self) -> "CalculationRecord":
+    def _check_temporal_consistency(self) -> CalculationRecord:
         if self.completed_at < self.started_at:
             raise ValueError("completed_at must not precede started_at")
         return self
@@ -73,8 +74,8 @@ def make_calculation_record(
     status: CalculationStatus = CalculationStatus.OK,
     source_event_ids: Sequence[str] = (),
     assumptions: Sequence[str] = (),
-    parameters: Optional[Mapping[str, Any]] = None,
-    random_seed: Optional[int] = None,
+    parameters: Mapping[str, Any] | None = None,
+    random_seed: int | None = None,
     warnings: Sequence[str] = (),
     engine_version: str = ENGINE_VERSION,
 ) -> CalculationRecord:

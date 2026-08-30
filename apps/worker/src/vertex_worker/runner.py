@@ -24,13 +24,14 @@ import logging
 import re
 import signal
 import threading
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from datetime import datetime, timezone
-from typing import Callable, Optional, Sequence
+from datetime import UTC, datetime
 
 from sqlalchemy.orm import Session
 
 from vertex_persistence.backoff import DEFAULT_MAX_ATTEMPTS
+
 # Autorité unique de la conversion SQLAlchemy -> libpq : elle appartient à
 # la persistance, pas au worker, et les outils d'exploitation doivent
 # pouvoir l'utiliser sans importer le worker.
@@ -43,7 +44,6 @@ from vertex_persistence.repository.outbox import (
     claim_outbox_batch,
     fail_outbox,
 )
-
 from vertex_worker.errors import GENERIC_HANDLER_CODE, HandlerError, UnregisteredTopicError
 from vertex_worker.registry import HandlerRegistry
 
@@ -63,7 +63,7 @@ SessionFactory = Callable[[], Session]
 
 
 def _utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def _require_aware_utc_now(now: datetime) -> datetime:
@@ -71,7 +71,7 @@ def _require_aware_utc_now(now: datetime) -> datetime:
         raise TypeError(f"clock returned {type(now).__name__}, expected datetime")
     if now.tzinfo is None or now.tzinfo.utcoffset(now) is None:
         raise ValueError("clock returned a naive datetime; aware UTC required")
-    return now.astimezone(timezone.utc)
+    return now.astimezone(UTC)
 
 
 @dataclass(frozen=True)
@@ -144,8 +144,8 @@ class WorkerRunner:
         lease_seconds: int = 60,
         poll_interval_seconds: float = 1.0,
         max_attempts: int = DEFAULT_MAX_ATTEMPTS,
-        clock: Optional[Clock] = None,
-        gateway: Optional[RepositoryOutboxGateway] = None,
+        clock: Clock | None = None,
+        gateway: RepositoryOutboxGateway | None = None,
     ) -> None:
         if not registry.topics:
             raise ValueError("registry has no registered topic; nothing to claim")
@@ -390,16 +390,16 @@ class PostgresNotifyListener:
         self._on_notify = on_notify
         self._poll_timeout = float(poll_timeout_seconds)
         self._stopped = threading.Event()
-        self._thread: Optional[threading.Thread] = None
+        self._thread: threading.Thread | None = None
         self._failed = False
-        self._last_error_type: Optional[str] = None
+        self._last_error_type: str | None = None
 
     @property
     def failed(self) -> bool:
         return self._failed
 
     @property
-    def last_error_type(self) -> Optional[str]:
+    def last_error_type(self) -> str | None:
         return self._last_error_type
 
     def start(self) -> None:

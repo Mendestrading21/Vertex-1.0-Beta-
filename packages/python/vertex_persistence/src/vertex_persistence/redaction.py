@@ -24,7 +24,7 @@ import re
 
 from vertex_persistence.errors import ValidationFailedError
 
-__all__ = ["REDACTED", "redact_error", "format_last_error"]
+__all__ = ["REDACTED", "format_last_error", "redact_error"]
 
 REDACTED = "[REDACTED]"
 

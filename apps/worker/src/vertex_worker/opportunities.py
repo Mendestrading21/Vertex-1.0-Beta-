@@ -72,20 +72,21 @@ nothing.
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
-from typing import Any, Callable, Mapping, Optional, Sequence
+from typing import Any
 
 import yaml
 from sqlalchemy.orm import Session
 
+from vertex_core.contracts import AFFIRMATIVE_STATUSES, NON_AFFIRMATIVE_STATUSES
 from vertex_core.decision import AdviceEngine
 from vertex_core.synthetic import SYNTHETIC_SECTOR_TICKERS
 from vertex_core.version import ENGINE_VERSION
 from vertex_persistence.repository.outbox import ClaimedOutboxMessage
 from vertex_persistence.repository.theses import list_theses
-
 from vertex_worker.analysis import AnalysisConfig, build_analysis_content
 from vertex_worker.registry import HandlerRegistry
 
@@ -95,8 +96,8 @@ __all__ = [
     "CALENDAR_REF_FUTURE",
     "CALENDAR_REF_STALE",
     "CALENDAR_REF_USED",
-    "DEFAULT_PROFILE_ID",
     "DEFAULT_PROFILES_PATH",
+    "DEFAULT_PROFILE_ID",
     "DEV_SYNTHETIC_OPPORTUNITIES_CONFIG",
     "EXCLUDED_STATUSES",
     "EXCLUSION_KIND_CLOSED_STATUS",
@@ -130,11 +131,21 @@ SNAPSHOT_KIND_OPPORTUNITIES = "opportunities"
 SNAPSHOT_KEY_GLOBAL = "global"
 OPPORTUNITIES_SCHEMA_VERSION = "vertex.opportunities/1.0"
 
-QUALIFIED_STATUSES = ("OBSERVE", "REVIEW", "QUALIFIED")
-"""Open statuses. NECESSARY but NOT sufficient to enter the qualified group."""
+QUALIFIED_STATUSES = tuple(sorted(status.value for status in AFFIRMATIVE_STATUSES))
+"""Open statuses. NECESSARY but NOT sufficient to enter the qualified group.
 
-EXCLUDED_STATUSES = ("BLOCKED", "INSUFFICIENT_DATA")
-"""Statuses of the excluded group (closed verdicts). NEVER in qualified."""
+DERIVED from ``vertex_core.contracts.AFFIRMATIVE_STATUSES``, never written out
+again here: this module and a degradation campaign each kept their own literal,
+the two disagreed on ``OBSERVE``, and an invariant meant to forbid an
+affirmative verdict would have accepted one.
+"""
+
+EXCLUDED_STATUSES = tuple(sorted(status.value for status in NON_AFFIRMATIVE_STATUSES))
+"""Statuses of the excluded group (closed verdicts). NEVER in qualified.
+
+Derived from the same partition, so the two groups cover ``AdviceStatus``
+exactly and a sixth member added tomorrow cannot land in neither.
+"""
 
 GATE_STATUS_BLOCK = "BLOCK"
 GATE_STATUS_DEGRADE = "DEGRADE"
@@ -233,7 +244,7 @@ class StrategyProfile:
 def load_strategy_profile(
     profile_id: str = DEFAULT_PROFILE_ID,
     *,
-    path: Optional[Path] = None,
+    path: Path | None = None,
 ) -> StrategyProfile:
     """Parse ONE profile from the INJECTED manifest path (fail-closed).
 
@@ -366,7 +377,7 @@ def _require_aware_utc(now: datetime) -> datetime:
         raise TypeError(f"now: expected datetime, got {type(now).__name__}")
     if now.tzinfo is None or now.tzinfo.utcoffset(now) is None:
         raise ValueError("now: naive datetime rejected, aware UTC required")
-    return now.astimezone(timezone.utc)
+    return now.astimezone(UTC)
 
 
 # --------------------------------------------------------------------------
@@ -384,7 +395,7 @@ class CalendarSnapshotRef:
     as_of: datetime
 
 
-def _parse_aware(value: Any) -> Optional[datetime]:
+def _parse_aware(value: Any) -> datetime | None:
     if not isinstance(value, str) or not value:
         return None
     try:
@@ -393,12 +404,12 @@ def _parse_aware(value: Any) -> Optional[datetime]:
         return None
     if parsed.tzinfo is None or parsed.tzinfo.utcoffset(parsed) is None:
         return None
-    return parsed.astimezone(timezone.utc)
+    return parsed.astimezone(UTC)
 
 
 def _calendar_evidence(
-    calendar_content: Optional[Mapping[str, Any]],
-    calendar_ref: Optional[CalendarSnapshotRef],
+    calendar_content: Mapping[str, Any] | None,
+    calendar_ref: CalendarSnapshotRef | None,
     *,
     now: datetime,
     max_age: timedelta,
@@ -495,7 +506,7 @@ def _live_theses(
 def _required_evidence_checks(
     *,
     profile: StrategyProfile,
-    sector: Optional[str],
+    sector: str | None,
     bars_ok: bool,
     catalyst_events: int,
     theses: Sequence[Mapping[str, Any]],
@@ -514,7 +525,7 @@ def _required_evidence_checks(
         for entry in live
     )
     parked_note = f" ({parked} parked thesis(es) ignored)" if parked else ""
-    known: dict[str, tuple[bool, Optional[str]]] = {
+    known: dict[str, tuple[bool, str | None]] = {
         "regime": (False, "no regime assessment exists for this population"),
         "sector": (
             sector is not None,
@@ -590,13 +601,13 @@ def build_opportunities_content(
     evidence_records: Sequence[Any],
     *,
     chain_by_instrument: Mapping[str, tuple[Mapping[str, Any], int]],
-    calendar_content: Optional[Mapping[str, Any]],
+    calendar_content: Mapping[str, Any] | None,
     theses_by_ticker: Mapping[str, Sequence[Mapping[str, Any]]],
     now: datetime,
     config: AnalysisConfig,
     profile: StrategyProfile,
-    calendar_ref: Optional[CalendarSnapshotRef] = None,
-    engine: Optional[AdviceEngine] = None,
+    calendar_ref: CalendarSnapshotRef | None = None,
+    engine: AdviceEngine | None = None,
 ) -> dict[str, Any]:
     """Build the ``opportunities/global`` snapshot content (pure).
 
@@ -869,6 +880,8 @@ class OpportunitiesHandler:
         from vertex_worker.analysis import load_daily_bar_records
         from vertex_worker.calendar import (
             SNAPSHOT_KEY_GLOBAL as CALENDAR_KEY,
+        )
+        from vertex_worker.calendar import (
             SNAPSHOT_KIND_CALENDAR,
         )
         from vertex_worker.handlers import (
@@ -912,13 +925,15 @@ class OpportunitiesHandler:
         )
         theses_by_ticker: dict[str, list[dict[str, Any]]] = {}
         for entry in list_theses(session, now=now):
-            instrument = entry.thesis.instrument
-            ticker = (
-                instrument.get("ticker") if isinstance(instrument, Mapping) else None
+            thesis_instrument = entry.thesis.instrument
+            thesis_ticker = (
+                thesis_instrument.get("ticker")
+                if isinstance(thesis_instrument, Mapping)
+                else None
             )
-            if not isinstance(ticker, str) or not ticker:
+            if not isinstance(thesis_ticker, str) or not thesis_ticker:
                 continue
-            theses_by_ticker.setdefault(ticker, []).append(
+            theses_by_ticker.setdefault(thesis_ticker, []).append(
                 {
                     "thesis_id": entry.thesis.id,
                     "title": entry.thesis.title,
@@ -963,8 +978,8 @@ def register_opportunities_handler(
     *,
     clock: Clock,
     config: AnalysisConfig,
-    profile: Optional[StrategyProfile] = None,
-    profiles_path: Optional[Path] = None,
+    profile: StrategyProfile | None = None,
+    profiles_path: Path | None = None,
 ) -> None:
     """Register the opportunities handler on ``opportunities.refresh``.
 

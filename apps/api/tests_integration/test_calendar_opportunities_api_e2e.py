@@ -21,15 +21,16 @@ Hard proofs:
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
-from typing import Any, Iterator
+from collections.abc import Iterator
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
+from soft_passkey import SoftPasskey, login_passkey, register_passkey
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session
 
-from soft_passkey import SoftPasskey, login_passkey, register_passkey
 from vertex_core.synthetic import (
     generate_calendar_event_envelopes,
     generate_daily_bar_envelopes,
@@ -44,7 +45,7 @@ from vertex_worker.ingest import ingest_envelope
 from vertex_worker.opportunities import SNAPSHOT_KIND_OPPORTUNITIES
 from vertex_worker.runner import WorkerRunner
 
-NOW = datetime.now(timezone.utc).replace(microsecond=0)
+NOW = datetime.now(UTC).replace(microsecond=0)
 BASE_TIME = NOW - timedelta(minutes=30)
 SEED = 20260825
 
@@ -76,7 +77,7 @@ def published(database_url: str) -> Iterator[dict[str, Any]]:
                 ingest_envelope(session, envelope)
             session.commit()
 
-        clock = lambda: datetime.now(timezone.utc)  # noqa: E731
+        clock = lambda: datetime.now(UTC)  # noqa: E731
         runner = WorkerRunner(
             session_factory=factory,
             registry=build_registry(clock=clock, fusion_config=DEV_SYNTHETIC_CONFIG),
@@ -106,7 +107,7 @@ def published(database_url: str) -> Iterator[dict[str, Any]]:
 
 
 def _iso(value: datetime) -> str:
-    return value.astimezone(timezone.utc).isoformat()
+    return value.astimezone(UTC).isoformat()
 
 
 class TestCalendarRoute:
@@ -200,7 +201,7 @@ class TestCalendarRoute:
         end = start + (distinct[1] - start) / 2
         expected = [
             event
-            for event, instant in zip(agenda, instants)
+            for event, instant in zip(agenda, instants, strict=True)
             if start <= instant <= end
         ]
         assert 0 < len(expected) < len(agenda)  # a real, strict selection

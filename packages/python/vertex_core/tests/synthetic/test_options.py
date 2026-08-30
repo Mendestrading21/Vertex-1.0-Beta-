@@ -8,7 +8,7 @@ single financial-calculation authority — never against a re-implementation.
 
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
 import pytest
@@ -29,7 +29,7 @@ from vertex_core.synthetic.options import (
 )
 
 SEED = 20260829
-BASE_TIME = datetime(2026, 8, 25, 12, 0, 0, tzinfo=timezone.utc)
+BASE_TIME = datetime(2026, 8, 25, 12, 0, 0, tzinfo=UTC)
 
 
 @pytest.fixture(scope="module")
@@ -64,7 +64,7 @@ class TestDeterminismAndMarkers:
     def test_naive_base_time_rejected(self) -> None:
         with pytest.raises(ValueError):
             generate_option_chain_envelopes(
-                seed=SEED, base_time=datetime(2026, 8, 25, 12, 0, 0)
+                seed=SEED, base_time=datetime(2026, 8, 25, 12, 0, 0)  # noqa: DTZ001 (naïf délibéré : rejet vérifié)
             )
 
 
@@ -150,7 +150,7 @@ class TestQuotes:
                 assert bid < ask
                 assert bid > 0
                 mid = (bid + ask) / 2
-                lower, upper = no_arbitrage_bounds(
+                _lower, upper = no_arbitrage_bounds(
                     spot,
                     Decimal(contract["strike"]),
                     maturity_years,

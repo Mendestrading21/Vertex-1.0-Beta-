@@ -6,7 +6,7 @@ from explicit decimal strings; no database, no clock, no network.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import pytest
@@ -26,7 +26,7 @@ from vertex_worker.markets import (
     is_daily_quote_schema,
 )
 
-NOW = datetime(2026, 8, 25, 12, 0, 0, tzinfo=timezone.utc)
+NOW = datetime(2026, 8, 25, 12, 0, 0, tzinfo=UTC)
 
 SMALL_CONFIG = MarketsConfig(
     universe={
@@ -196,10 +196,10 @@ def test_breadth_fails_closed_below_coverage_threshold() -> None:
 
 
 def test_undeclared_source_rights_and_ticker_are_rejected() -> None:
-    records = full_records() + [
+    records = [
+        *full_records(),
         quote("SYN-AAA-01", "SYN-AAA", "2026-08-24", "1.00", source="not-declared"),
-        quote("SYN-AAA-01", "SYN-AAA", "2026-08-24", "1.00", rights="REAL",
-              event_id="x:rights"),
+        quote("SYN-AAA-01", "SYN-AAA", "2026-08-24", "1.00", rights="REAL", event_id="x:rights"),
         quote("SYN-ZZZ-01", "SYN-ZZZ", "2026-08-24", "1.00", event_id="x:univ"),
     ]
     content = build_markets_overview_content(records, now=NOW, config=SMALL_CONFIG)

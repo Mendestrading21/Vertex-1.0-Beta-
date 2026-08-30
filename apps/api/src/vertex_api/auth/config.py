@@ -21,13 +21,13 @@ network boundary.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import timedelta
-from typing import Mapping
 
 __all__ = [
-    "AUTH_DEV_ORIGIN_PORTS_ENV_VAR",
     "AUTH_COOKIE_INSECURE_DEV_ENV_VAR",
+    "AUTH_DEV_ORIGIN_PORTS_ENV_VAR",
     "AuthConfig",
     "AuthConfigError",
     "load_auth_config",

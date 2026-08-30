@@ -1,0 +1,376 @@
+# Matrice de traçabilité — interdiction → preuve.
+#
+# Autorité de la porte `tools/check_traceability.py`.
+#
+# Chaque entrée est indexée par le CONDENSÉ du texte exact de la règle, dans
+# `CLAUDE.md § Interdictions absolues` et `.claude/rules/financial-safety.md`.
+# Modifier une règle change son condensé : la porte signale alors à la fois
+# l'interdiction non déclarée et l'entrée devenue orpheline, ce qui force à
+# relire la correspondance au lieu de la reconduire.
+#
+# `status` :
+#   PROVEN                — au moins une preuve, chaque citation résolue.
+#   NOT_YET_PROVEN        — aucune preuve encore ; exige propriétaire, motif,
+#                           échéance et critère de clôture.
+#   NOT_PROVABLE_BY_TEST  — aucun test ne peut la prouver ici ; exige un
+#                           propriétaire et un argument écrit.
+#
+# Une preuve s'écrit `chemin` (le fichier entier prouve la règle) ou
+# `chemin::nom_de_test`. Une citation qui ne résout pas fait échouer la porte :
+# elle ressemblerait à une couverture.
+#
+# Les entrées non prouvées sont IMPRIMÉES à chaque exécution, même quand la
+# porte passe.
+schema_version: 1
+
+invariants:
+  # ── Périmètre IBKR strictement informationnel ────────────────────────────
+  - id: ORDRE-IBKR-CLAUDE
+    digest: 7cde43997322
+    text: "Envoyer, modifier, annuler ou prévisualiser un ordre IBKR."
+    status: PROVEN
+    proofs:
+      - apps/edge-ibkr/tests/test_denylist.py
+      - tools/tests/test_check_financial_boundary.py
+    note: >-
+      Deux preuves indépendantes : une liste de refus AST sur les sources de
+      l'adaptateur, et la porte CI qui balaie tout le dépôt. Le second niveau
+      existe parce que la première a été contournée par débranchement, pas par
+      contournement de son code.
+
+  - id: ORDRE-IBKR-SAFETY
+    digest: 2d166c2b4257
+    text: "Ne jamais créer, prévisualiser, transmettre, modifier, annuler ou simuler un ordre via IBKR."
+    status: PROVEN
+    proofs:
+      - apps/edge-ibkr/tests/test_denylist.py
+      - tools/tests/test_check_financial_boundary.py
+
+  - id: API-COMPTE-CLAUDE
+    digest: 118726205cca
+    text: "Appeler les API IBKR de compte, positions, P&L, ordres ou exécutions."
+    status: PROVEN
+    proofs:
+      - apps/edge-ibkr/tests/test_denylist.py
+      - tools/tests/test_check_financial_boundary.py
+      - packages/python/vertex_persistence/tests_integration/test_no_account_columns.py
+
+  - id: API-COMPTE-SAFETY
+    digest: 9cb0cad4723b
+    text: "Ne jamais appeler ni exposer les API IBKR de compte, portefeuille, positions, P&L, ordres, exécutions."
+    status: PROVEN
+    proofs:
+      - apps/edge-ibkr/tests/test_denylist.py
+      - packages/python/vertex_persistence/tests_integration/test_no_account_columns.py
+    note: >-
+      La preuve de persistance est la plus forte des trois : aucune colonne du
+      schéma ne peut porter la notion de compte courtier. Une capacité qu'on ne
+      peut nulle part stocker est difficile à exploiter en silence.
+
+  - id: IDENTIFIANT-COMPTE
+    digest: 853bb7bef452
+    text: "Ne jamais demander un identifiant de compte, lire un compte connecté ni inférer une position depuis TWS."
+    status: PROVEN
+    proofs:
+      - packages/python/vertex_persistence/tests_integration/test_no_account_columns.py
+      - apps/edge-ibkr/tests/test_denylist.py
+
+  - id: DECLENCHEUR-TRANSACTION
+    digest: 2dbe8f1a7af2
+    text: "Ne jamais ajouter de bouton, route, outil IA, commande ou permission pouvant déclencher une transaction."
+    status: PROVEN
+    proofs:
+      - apps/web/src/design/no-raw-colors.test.ts
+      - apps/api/tests/test_ai_explain.py::test_no_transactional_vocabulary_in_any_produced_text
+      - apps/api/tests/test_capability_manifest.py
+    note: >-
+      Le garde web balaie tout le code et l'interface à la recherche du
+      vocabulaire d'ordre boursier ; le manifeste de capacités refuse par
+      défaut ; l'IA ne peut produire aucun texte transactionnel.
+
+  - id: TWS-LECTURE-SEULE
+    digest: 616ccc6ac26a
+    text: "TWS en lecture seule, sur loopback, `client_id` non nul, permissions minimales."
+    status: PROVEN
+    proofs:
+      - apps/edge-ibkr/tests/test_adapter.py
+      - apps/api/tests/test_local_server.py
+    note: >-
+      La session de l'adaptateur est prouvée en lecture seule et sur loopback ;
+      le serveur d'API refuse tout hôte non-loopback (échec fermé).
+
+  - id: CAPACITE-INTERDITE-CI
+    digest: 5dffc66e7a58
+    text: "Toute méthode interdite de `manifests/forbidden-capabilities.yaml` échoue en CI et bloque la release."
+    status: PROVEN
+    proofs:
+      - tools/tests/test_check_financial_boundary.py
+      - tools/tests/test_check_policy.py
+    note: >-
+      Le premier prouve que la porte détecte ; le second prouve qu'elle est
+      RÉELLEMENT APPELÉE par la CI et par `run_checks.sh`. Les deux sont
+      nécessaires : la porte a été contournée trois fois par débranchement.
+
+  # ── Verdict fail-closed ──────────────────────────────────────────────────
+  - id: ENTREE-DEFAILLANTE-FERME-LA-GATE
+    digest: a14bb3fe12c6
+    text: "Une entrée absente, partielle, périmée, retardée, future, contradictoire ou sans droit ferme la gate."
+    status: PROVEN
+    proofs:
+      - packages/python/vertex_core/tests/decision/test_gates.py
+      - packages/python/vertex_core/tests/data/test_quality.py
+      - packages/python/vertex_core/tests/data/test_freshness.py
+      - apps/worker/tests_integration/test_chaos_degradation.py
+
+  - id: AVIS-POSITIF-INTERDIT
+    digest: 8934dd7c05e3
+    text: "Produire un avis positif avec une donnée requise absente, partielle, périmée, retardée ou contradictoire."
+    status: PROVEN
+    proofs:
+      - packages/python/vertex_core/tests/decision/test_advice.py::TestBlockDominance
+      - apps/worker/tests_integration/test_chaos_degradation.py
+    note: >-
+      La campagne chaos vérifie l'invariant de bout en bout sur PostgreSQL
+      réel : aucune dégradation ne produit QUALIFIED ni REVIEW.
+
+  - id: EXCEPTION-JAMAIS-QUALIFIED
+    digest: 034a79aaffb3
+    text: "Une exception, un timeout ou une source indisponible ne peut jamais produire `QUALIFIED` ni conserver silencieusement un ancien verdict."
+    status: PROVEN
+    proofs:
+      - packages/python/vertex_core/tests/decision/test_advice.py::test_unevaluable_block_maps_to_insufficient_data
+      - apps/worker/tests_integration/test_worker_failure_paths.py
+      - apps/worker/tests_integration/test_chaos_degradation.py::test_le_vieillissement_d_un_dossier_n_est_pas_blanchi_par_une_activite_ulterieure
+
+  - id: AUCUN-DEFAUT-REMPLACE
+    digest: bdf6b44222f1
+    text: "Aucun défaut remplacé par zéro, moyenne, valeur théorique, autre source ou dernier cache."
+    status: PROVEN
+    proofs:
+      - packages/python/vertex_core/tests/data/test_coverage.py
+      - packages/python/vertex_core/tests/data/test_conflict.py
+      - packages/python/vertex_core/tests/data/test_quality.py
+    note: >-
+      `test_conflict` prouve le point le plus subtil : deux sources qui se
+      contredisent sont TOUTES DEUX conservées ; aucun vote, aucune moyenne.
+
+  - id: STATUT-DISTINCT-DE-DIRECTION
+    digest: f70a26b052f8
+    text: "`BLOCKED`, `INSUFFICIENT_DATA`, `OBSERVE`, `REVIEW`, `QUALIFIED` sont distincts de la direction."
+    status: PROVEN
+    proofs:
+      - packages/python/vertex_core/tests/contracts/test_enums.py
+      - packages/python/vertex_core/tests/contracts/test_decision.py
+
+  - id: PROBABILITE-CALIBREE-SAFETY
+    digest: 7069c96a4743
+    text: "Une probabilité prédictive n'est affichée que si calibration, horizon, population, validation hors échantillon et version sont présents et valides."
+    status: NOT_YET_PROVEN
+    owner: programme Vertex One
+    reason: >-
+      `research/tests/test_calibration.py` prouve la règle d'abstention côté
+      recherche : une calibration invalide, instable ou d'échantillon
+      insuffisant ne produit pas de probabilité. Mais AUCUNE probabilité
+      prédictive n'atteint aujourd'hui l'interface, et aucun test ne prouve que
+      l'interface REFUSERAIT d'en afficher une mal formée. La règle n'est donc
+      pas prouvée là où elle doit l'être — au point d'affichage.
+    expires_at: "2026-12-31"
+    closure_criterion: >-
+      Un test d'interface qui refuse d'afficher une probabilité dont l'un des
+      cinq champs manque ou est invalide, et un test de contrat API qui la
+      rejette avant l'interface.
+
+  - id: PROBABILITE-CALIBREE-CLAUDE
+    digest: 137d39244b07
+    text: "Afficher une probabilité prédictive non calibrée et non validée hors échantillon."
+    status: NOT_YET_PROVEN
+    owner: programme Vertex One
+    reason: >-
+      Même écart que `PROBABILITE-CALIBREE-SAFETY` : la règle est prouvée côté
+      recherche, pas au point d'affichage.
+    expires_at: "2026-12-31"
+    closure_criterion: >-
+      Identique à `PROBABILITE-CALIBREE-SAFETY`.
+
+  # ── Exactitude et traçabilité ────────────────────────────────────────────
+  - id: DECIMAL-OBLIGATOIRE
+    digest: 464d0659d9d8
+    text: "Argent, primes, strikes et quantités contractuelles utilisent `Decimal` selon le registre."
+    status: PROVEN
+    proofs:
+      - packages/python/vertex_core/tests/test_calculation_registry.py
+      - packages/python/vertex_core/tests/calculations/test_portfolio.py
+      - packages/python/vertex_core/tests/calculations/test_options.py
+
+  - id: UNITES-AUX-FRONTIERES
+    digest: ec52a0572dfe
+    text: "Unité, devise, multiplicateur, convention de signe et timezone obligatoires aux frontières."
+    status: PROVEN
+    proofs:
+      - packages/python/vertex_core/tests/contracts/test_identity.py
+      - packages/python/vertex_core/tests/contracts/test_envelope.py
+      - apps/api/tests/test_relay_value_contracts.py
+      - apps/api/tests_integration/test_relay_value_contracts_e2e.py
+
+  - id: LINEAGE-DU-RESULTAT
+    digest: e89dd7dad61e
+    text: "Chaque résultat financier conserve version du calcul, hash des entrées, hypothèses, provenance et instant de calcul."
+    status: PROVEN
+    proofs:
+      - packages/python/vertex_core/tests/contracts/test_calculation.py::TestFactory
+      - packages/python/vertex_core/tests/contracts/test_hashing.py
+
+  - id: ORACLE-INDEPENDANT
+    digest: 77e04d9d17f0
+    text: "Les calculs critiques ont invariants, tests de propriétés, limites numériques et oracle indépendant."
+    status: PROVEN
+    proofs:
+      - packages/python/vertex_core/tests/calculations/test_options_oracle.py
+      - packages/python/vertex_core/tests/calculations/test_options_properties.py
+      - packages/python/vertex_core/tests/decision/test_risk_reward.py
+    note: >-
+      Couvert pour les options et le risque/récompense. Les autres familles du
+      registre (marché, performance, portefeuille) ont invariants et propriétés
+      mais PAS d'oracle indépendant ; c'est inscrit à `docs/99-status/DEBT.md`.
+
+  - id: NATURES-JAMAIS-CONFONDUES
+    digest: fd112b933e74
+    text: "Réel, retardé, théorique, simulé et démonstration ne partagent jamais le même statut visuel ou sémantique."
+    status: PROVEN
+    proofs:
+      - apps/web/src/components/SyntheticBanner.test.tsx
+      - apps/web/src/components/DataStateBoundary.test.tsx
+      - apps/web/src/components/FreshnessBadge.test.tsx
+      - apps/web/src/pages/opportunities/OpportunityTable.test.tsx
+
+  - id: FALLBACK-JAMAIS-PRESENTE-COMME-REEL
+    digest: 8e86331f3718
+    text: "Présenter un fallback, mock, cache ou résultat théorique comme une donnée réelle ou live."
+    status: PROVEN
+    proofs:
+      - apps/web/src/components/SyntheticBanner.test.tsx
+      - apps/web/src/components/DataStateBoundary.test.tsx
+      - apps/web/e2e/smoke.spec.ts
+
+  - id: SYNTHETIQUE-JAMAIS-MONTRE-COMME-REEL
+    digest: 9ca3d8827748
+    text: "Aucun mock, fixture, placeholder ou résultat synthétique montré comme réel, live ou issu d'un abonnement."
+    status: PROVEN
+    proofs:
+      - apps/web/src/components/SyntheticBanner.test.tsx
+      - apps/web/e2e/smoke.spec.ts
+      - apps/worker/tests/test_capabilities_content.py
+
+  # ── IA et présentation ───────────────────────────────────────────────────
+  - id: IA-EXPLIQUE-SEULEMENT
+    digest: 88ea4899bbc5
+    text: "L'IA explique uniquement un DTO validé ; elle ne lit pas les sources, ne complète rien et ne décide pas."
+    status: PROVEN
+    proofs:
+      - apps/api/tests/test_ai_explain.py::test_every_claim_cites_catalog_evidence
+      - apps/api/tests/test_ai_explain.py::test_claim_without_reference_is_impossible_by_contract
+      - apps/api/tests/test_ai_explain.py::test_numbers_in_claims_are_verbatim_snapshot_strings
+      - apps/api/tests_integration/test_ai_explain_e2e.py
+
+  - id: PINE-NON-AUTORITAIRE
+    digest: e9b4b883d3a1
+    text: "Pine/TradingView fournit un signal ou un contexte, jamais une vérité d'exécution ni un verdict final."
+    status: PROVEN
+    proofs:
+      - apps/ingress-tradingview/tests/test_orchestrator.py
+      - apps/ingress-tradingview/tests/test_registry.py
+    note: >-
+      L'orchestrateur revalide sur une observation fraîche avant tout nouveau
+      verdict ; le registre n'accepte qu'un `alert_id` enregistré à la version
+      attendue.
+
+  - id: AUCUN-VOCABULAIRE-D-ORDRE
+    digest: 078fe3341f41
+    text: "Toute action proposée reste une analyse humaine ; ne jamais écrire « acheter », « vendre » ou une instruction d'ordre."
+    status: PROVEN
+    proofs:
+      - apps/web/src/design/no-raw-colors.test.ts
+      - apps/api/tests/test_ai_explain.py::test_no_transactional_vocabulary_in_any_produced_text
+
+  # ── Calcul, secrets, gouvernance ─────────────────────────────────────────
+  - id: AUCUN-CALCUL-AUTORITAIRE-EN-TS
+    digest: 2e50da85a002
+    text: "Calculer côté TypeScript un prix, Greek, IV, risque, R:R, score, probabilité ou verdict faisant autorité."
+    status: PROVEN
+    proofs:
+      - apps/web/src/pages/markets/marketsView.test.ts
+      - apps/web/src/pages/portfolio/PortfolioPage.test.tsx
+      - apps/web/src/pages/performance/PerformancePage.test.tsx
+    note: >-
+      `marketsView.test.ts` prouve le cas le plus tentant : le SIGNE d'une
+      variation est lu TEXTUELLEMENT dans la chaîne servie, sans aucune
+      arithmétique côté client. Les pages Portefeuille et Performance affichent
+      les totaux serveur verbatim.
+      Limite : ces tests prouvent l'absence de calcul dans les vues COUVERTES,
+      pas dans tout le code TypeScript. Un balayage statique du dépôt web
+      équivalent à `check_financial_boundary` n'existe pas ; c'est inscrit à
+      `docs/99-status/DEBT.md`.
+
+  - id: AUCUN-SECRET-DANS-GIT-NI-LOGS
+    digest: 73a0844203bc
+    text: "Mettre un secret, token, compte, payload sensible ou URL secrète dans Git ou les logs."
+    status: PROVEN
+    proofs:
+      - tools/tests/test_check_secrets.py
+      - packages/python/vertex_persistence/tests/test_redaction.py
+    note: >-
+      Deux frontières distinctes : ce qui entre dans Git, et ce qui sort dans
+      les journaux. `test_redaction` prouve que rien qui ressemble à une charge
+      utile ne survit à `redact_error`.
+
+  - id: COPIE-DU-DONNEUR
+    digest: 1fc292836708
+    text: "Copier globalement un fichier ou dossier du dépôt donneur sans inventaire, provenance, licence, tests indépendants et plan de rollback."
+    status: NOT_YET_PROVEN
+    owner: programme Vertex One
+    reason: >-
+      `tools/inventory_donor.py` existe et `manifests/current-vertex-salvage.yaml`
+      recense les capacités du donneur, mais AUCUN test ne vérifie qu'un fichier
+      copié sans inventaire serait détecté. La règle repose aujourd'hui sur la
+      discipline, pas sur une porte. La preuve indirecte est que le dépôt ne
+      déclare aucun remote vers le donneur (`tools/check_repository_role.py`),
+      ce qui est une condition nécessaire, pas suffisante.
+    expires_at: "2026-12-31"
+    closure_criterion: >-
+      Une porte qui compare les fichiers suivis à l'inventaire du donneur par
+      empreinte de contenu, et un test qui prouve qu'une copie non inventoriée
+      est détectée.
+
+  - id: FRAMEWORK-SANS-ADR
+    digest: d21cce8876f7
+    text: "Ajouter un framework, une base ou un service sans ADR."
+    status: NOT_YET_PROVEN
+    owner: programme Vertex One
+    reason: >-
+      `tools/check_policy.py` prouve qu'une dépendance est épinglée et
+      verrouillée, et `check_notices.py` qu'elle est inventoriée avec sa
+      licence. Aucune des deux ne vérifie qu'un ADR ACCEPTÉ l'autorise :
+      `manifests/dependencies.yaml` déclare les adoptions, mais rien ne relie
+      une entrée de verrou à une décision d'architecture.
+    expires_at: "2026-12-31"
+    closure_criterion: >-
+      Une porte qui exige, pour chaque dépendance de premier niveau ajoutée,
+      une entrée dans `manifests/dependencies.yaml` référençant un ADR existant
+      au statut accepté, et un test prouvant qu'une dépendance sans ADR échoue.
+
+  - id: JAMAIS-MAIN-NI-FUSION-SANS-HUMAIN
+    digest: dbac67cdd545
+    text: "Travailler directement sur `main`, force-push, fusionner ou publier sans validation humaine."
+    status: NOT_PROVABLE_BY_TEST
+    owner: programme Vertex One
+    reason: >-
+      Cette règle porte sur des actions qui se produisent HORS du dépôt : les
+      protections de branche, les droits de fusion et l'approbation humaine
+      vivent dans la configuration GitHub, qu'aucun test exécuté dans un
+      checkout ne peut lire ni contraindre. Un test qui prétendrait la prouver
+      mesurerait autre chose et donnerait une fausse assurance.
+      Ce qui EST vérifié par ailleurs : `tools/check_repository_role.py`
+      empêche d'écrire dans le dépôt donneur, et `tools/check_policy.py` refuse
+      un workflow qui exécuterait du code de PR non fiable ou qui s'accorderait
+      des permissions en écriture sans motif écrit. La protection de `main`
+      elle-même reste une configuration humaine, à vérifier humainement.

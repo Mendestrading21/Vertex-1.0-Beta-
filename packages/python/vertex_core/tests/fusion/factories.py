@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 import random
-from datetime import datetime, timedelta, timezone
-from typing import Optional
+from datetime import UTC, datetime, timedelta
 
 from vertex_core.contracts import EnvelopeQuality
 from vertex_core.fusion import ContentObservation
 
-BASE_TIME = datetime(2026, 8, 1, 12, 0, tzinfo=timezone.utc)
+BASE_TIME = datetime(2026, 8, 1, 12, 0, tzinfo=UTC)
 
 SOURCES = ("ibkr_news", "sec", "primary_ir")
 
@@ -19,12 +18,12 @@ def make_observation(
     *,
     source: str = "ibkr_news",
     source_tier: str = "P1",
-    native_id: Optional[str] = None,
-    canonical_url: Optional[str] = None,
+    native_id: str | None = None,
+    canonical_url: str | None = None,
     title: str = "Synthetic headline",
     entities: tuple[str, ...] = (),
-    published_at: Optional[datetime] = None,
-    received_at: Optional[datetime] = None,
+    published_at: datetime | None = None,
+    received_at: datetime | None = None,
     rights: str = "display_only",
     quality: EnvelopeQuality = EnvelopeQuality.VALID,
     is_deleted: bool = False,

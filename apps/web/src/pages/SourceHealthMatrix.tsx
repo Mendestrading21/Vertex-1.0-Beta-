@@ -38,7 +38,10 @@ function countBy<K extends string>(entries: readonly CapabilityEntry[], key: (en
 
 function AbsentCell({ label }: { readonly label: string }) {
   return (
-    <span className="vx-cell-absent" aria-label={label}>
+    // Voir AttentionQueue.tsx : `aria-label` est interdit sur le rôle
+    // implicite `generic` d'un <span> ; sans `role="img"` le libellé
+    // d'absence est ignoré par les lecteurs d'écran.
+    <span className="vx-cell-absent" role="img" aria-label={label}>
       —
     </span>
   );
