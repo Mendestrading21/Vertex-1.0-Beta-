@@ -41,6 +41,24 @@ uv --version
 claude --version  # si CLI utilisée
 ```
 
+## Premier démarrage de Vertex
+
+Une fois les outils installés, Vertex se lance sans Docker, sans IBKR et sans
+aucune source réelle :
+
+```bash
+createdb vertex
+export VERTEX_DATABASE_URL='postgresql+psycopg://vertex:<mot-de-passe>@127.0.0.1:5432/vertex'
+python3 tools/bootstrap_local.py --with-demo-data
+bash tools/start_local.sh
+```
+
+Puis ouvrir `http://127.0.0.1:4173/system` — cette page d'abord. Le détail,
+les refus fail-closed et le tableau de dépannage sont dans `START_LOCAL.md`.
+
+Tout ce qui s'affiche alors porte `population = SYNTHETIC`. Brancher TWS et
+les droits IBKR réels appartient au LOT-24 et exige la machine cible.
+
 ## Démarrage Claude
 
 1. Ouvrir Claude Code à la racine de `/home/user/Vertex-1.0-Beta-` et vérifier

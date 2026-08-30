@@ -401,6 +401,37 @@ rétrogradée** en `NOT_YET_PROVEN`, avec la mesure exacte, un propriétaire, un
 dans `snapshot_views.py`, plus un test montrant qu'un dossier publié au-delà
 de son TTL cesse de se déclarer frais. Le défaut LUI-MÊME reste ouvert.
 
+### Fraîcheur au relais — ce qu'une sonde a mesuré avant d'écrire le lot
+
+En préparant la correction, une sonde a mesuré un écart qui change le plan :
+le TTL de séance FERMÉE de la politique `daily_bar` vaut **72 h**
+(`vertex_core.data.freshness`), alors que le worker juge les barres fraîches
+sous **48 h** (`AnalysisConfig.bars_freshness`). Un relais qui prendrait
+`daily_bar` comme budget — c'est ce que fait déjà `opportunities.py`, avec
+son motif écrit — ne déclarerait donc PAS périmé le dossier mesuré à +71 h.
+
+Deux conséquences pour le lot à venir :
+
+1. **Le correctif utile n'est pas de resserrer un budget.** Inventer un TTL
+   plus court pour que le chiffre paraisse meilleur serait exactement la
+   valeur non justifiée que ce dépôt refuse ailleurs. Ce qui ferme le défaut,
+   c'est que le relais PUBLIE l'âge (`age_seconds`) et l'état dans tous les
+   cas : à +71 h le dossier est servi avec « 255 600 s », donc le verdict gelé
+   n'est plus présenté SANS SA DATE — et c'est le mot *silencieusement* que
+   `financial-safety.md` interdit.
+2. **Il reste une bande de 24 h** où un dossier est servi `ok` alors que sa
+   propre gate a été calculée sous une règle plus stricte. Resserrer
+   `daily_bar` a un coût réel (déclarer périmé pendant un long week-end) : la
+   décision appartient au registre des politiques, pas à un relais, et exige
+   un ADR.
+
+Un module partagé `vertex_api.freshness` a été écrit puis RETIRÉ de ce lot :
+sans appelant il aurait été du code mort, et migrer `calendar.py` et
+`opportunities.py` dessus — ils dupliquent déjà cette logique, avec des
+tolérances de dérive différentes (5 s côté opportunités) — est un lot à part
+entière. `.claude/rules/architecture.md` interdit de mélanger une refonte du
+chemin de fraîcheur avec un lot de démarrage.
+
 ### Encore ouverts, mesurés, non corrigés
 
 - ~~**La matrice compte des déclarations, pas des preuves.**~~ — **FERMÉ**.

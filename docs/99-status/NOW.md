@@ -1,11 +1,11 @@
 # État courant
 
 ```yaml
-phase: douze_pages_livrees_portes_ci_completees_lot_23_entame
-lot: LOT-23 — qualité, politique, performance, chaos, accessibilité
+phase: lot_23_fusionne_demarrage_local_reel_livre
+lot: LOT-24a — démarrage local réel (après fusion de LOT-23, PR #5)
 branch: claude/vertex-connection-kgkntr
-status: neuvieme_audit_ferme_batterie_locale_TOUT_VERT_nightly_en_cours
-last_good_commit: 9310b1f (= origin/main, PR #4 fusionnée)
+status: vertex_demarre_et_repond_sur_loopback_batterie_verte
+last_good_commit: 940e3a7 (= origin/main, PR #5 fusionnée)
 completed:
   - vagues_1_a_5: 13 routes sur 13 réelles (PR #1, #2 et #3 fusionnées)
   - ci: 7 jobs, 25 portes nommées — VERTE sur 5a40bc8 ; actions épinglées par SHA de COMMIT
@@ -50,17 +50,26 @@ audits:
      absolue sans métadonnées"
   - "SIX chiffres de ce registre se sont révélés faux, dont un trois fois ;
      deux affirmations de sécurité ont été démenties par exécution"
+demarrage_local:
+  commande: "bash tools/start_local.sh (après tools/bootstrap_local.py)"
+  mesure: "API /api/v1/health → alive ; capabilities sans session → 401
+     AUTH_REQUIRED ; interface → 200 ; depuis l'adresse non-loopback de la
+     machine, les deux ports REFUSENT la connexion"
+  semis: "48 enveloppes, 46 quotes, 12 chaînes, 4 barres, 21 événements,
+     490 messages traités, 10 familles de snapshots publiées — tout SYNTHETIC"
+  refus_verifies: "aucun DSN → code 2 ; base contenant déjà un journal → refus
+     nommant la table et le compte ; base au nom de test → refus"
 mesures_reelles:
   bundle_initial_gzip: "118 317 octets (budget 307 200)"
   moteurs_de_graphes: "hors charge initiale — ECharts 205 ko, Lightweight 53 ko"
   accessibilite: "168 cas de test verts, 14 chemins × 3 viewports (Chromium)"
   navigateurs: "Chromium, Firefox et WebKit VERTS — 665 passed, 2 skipped"
 checks_locaux:
-  - "pytest 3501 passed / 0 failed"
+  - "pytest 3508 passed / 0 failed"
   - "intégration PostgreSQL : 96 (persistance) + 32 (worker, dont 15 chaos)
      + 65 (api) — exécution SÉRIELLE obligatoire, base partagée"
   - "vitest 384 passed ; tsc 0 erreur ; biome 0 violation (125 fichiers)"
-  - "playwright Chromium 402 passed (dont 168 d'accessibilité)"
+  - "playwright Chromium 405 passed (dont 168 d'accessibilité)"
   - "playwright 3 moteurs (nightly 33314910817) : 665 passed, 2 skipped,
      0 failed en 11,2 min — Chromium, Firefox et WebKit. Première mesure
      verte hors Chromium ; les 2 sautés sont la passkey, intestable hors CDP"
@@ -77,7 +86,7 @@ ecarts_declares:
      10 000, et le profil de référence n'existe pas avant LOT-24"
   - "tables non virtualisées : le budget de 160 lignes rendues n'est pas
      atteignable en l'état"
-  - "Firefox et WebKit : workflow nocturne écrit, JAMAIS exécuté"
+  - "Firefox et WebKit : VERTS (nightly 33314910817, 665 passed, 2 skipped)"
   - "provenance et signature de release : NON FAISABLES ici, déclarées absentes"
   - "mutation testing : TENTÉ deux fois avec mutmut, 6 017 mutants tous
      ignorés — la copie mutée n'est pas celle qu'importent les tests dans un
@@ -94,5 +103,5 @@ blocages_humains:
   - "B-05 : fournisseur d'IA (l'IA reste DISABLED, gabarit déterministe)"
   - "connecteur MCP Interactive_Brokers_IBKR : autorisation OAuth à faire
      depuis les réglages de connecteurs claude.ai (session non interactive)"
-prochaine_commande: "AUDITE LOT 23"
+prochaine_commande: "CORRIGE la fraîcheur au relais (P0 : 8 relais sur 10 ne la recalculent pas)"
 ```
