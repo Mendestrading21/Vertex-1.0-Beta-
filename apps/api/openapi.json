@@ -610,7 +610,7 @@
       },
       "AnalysisResponse": {
         "additionalProperties": false,
-        "description": "The last ``analysis/{instrument}`` snapshot — or an honest empty state.\n\n``state = \"empty\"`` means NO dossier was ever published for this\ninstrument: every snapshot-derived field is ``None`` (never invented)\nand ``reason`` says why. ``state = \"ok\"`` relays the persisted content\nverbatim:\n\n- ``advice`` is the canonical ``AdviceResult`` produced by THE single\n  ``AdviceEngine`` — status, direction, the ten gates with their reason\n  codes, limitations — exactly as published; the API neither recomputes\n  nor softens it;\n- ``bars`` carries the validated synthetic OHLCV series (decimal\n  strings) with its per-bar discard account;\n- ``evidence`` is the fusion-cluster rail of the instrument;\n- ``scenarios`` is either the ``THEORETICAL`` scenario grid with its\n  ``CalculationRecord`` lineage or an honest ``ABSENT`` block with its\n  typed reason.",
+        "description": "The last ``analysis/{instrument}`` snapshot — or an honest empty state.\n\n``state = \"empty\"`` means NO dossier was ever published for this\ninstrument: every snapshot-derived field is ``None`` (never invented)\nand ``reason`` says why. ``state = \"ok\"`` relays the persisted content\nverbatim:\n\n- ``advice`` is the canonical ``AdviceResult`` produced by THE single\n  ``AdviceEngine`` — status, direction, the ten gates with their reason\n  codes, limitations — exactly as published; the API neither recomputes\n  nor softens it;\n- ``bars`` carries the validated synthetic OHLCV series (decimal\n  strings) with its per-bar discard account;\n- ``evidence`` is the fusion-cluster rail of the instrument;\n- ``scenarios`` is either the ``THEORETICAL`` scenario grid with its\n  ``CalculationRecord`` lineage or an honest ``ABSENT`` block with its\n  typed reason.\n\n``state = \"stale\"`` relaie le MÊME contenu, mais dit que l'instantané\na dépassé son budget de fraîcheur (daily_bar) : le worker n'a rien\npublié de plus récent. ``age_seconds`` est publié dans TOUS les états\ndatables — son absence faisait passer un instantané de trois jours\npour un instantané d'une minute.",
         "properties": {
           "advice": {
             "anyOf": [
@@ -623,6 +623,17 @@
               }
             ],
             "title": "Advice"
+          },
+          "age_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age Seconds"
           },
           "as_of": {
             "anyOf": [
@@ -740,6 +751,7 @@
           "state": {
             "enum": [
               "ok",
+              "stale",
               "empty"
             ],
             "title": "State",
@@ -750,6 +762,7 @@
           "state",
           "snapshot_version",
           "as_of",
+          "age_seconds",
           "population",
           "instrument",
           "engine_version",
@@ -837,8 +850,19 @@
       },
       "AttentionSnapshotResponse": {
         "additionalProperties": false,
-        "description": "The last ``attention/global`` snapshot — or an honest empty state.\n\n``state = \"empty\"`` means NO snapshot was ever published: every\nsnapshot-derived field is ``None`` (never zero, never invented) and\n``reason`` says why. ``state = \"ok\"`` carries the persisted snapshot\nversion, ``as_of``, ``population`` (``SYNTHETIC`` shown as-is),\nthe full coverage block and the published items.",
+        "description": "The last ``attention/global`` snapshot — or an honest empty state.\n\n``state = \"empty\"`` means NO snapshot was ever published: every\nsnapshot-derived field is ``None`` (never zero, never invented) and\n``reason`` says why. ``state = \"ok\"`` carries the persisted snapshot\nversion, ``as_of``, ``population`` (``SYNTHETIC`` shown as-is),\nthe full coverage block and the published items.\n\n``state = \"stale\"`` relaie le MÊME contenu, mais dit que l'instantané\na dépassé son budget de fraîcheur (news_attention) : le worker n'a rien\npublié de plus récent. ``age_seconds`` est publié dans TOUS les états\ndatables — son absence faisait passer un instantané de trois jours\npour un instantané d'une minute.",
         "properties": {
+          "age_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age Seconds"
+          },
           "as_of": {
             "anyOf": [
               {
@@ -921,6 +945,7 @@
           "state": {
             "enum": [
               "ok",
+              "stale",
               "empty"
             ],
             "title": "State",
@@ -931,6 +956,7 @@
           "state",
           "snapshot_version",
           "as_of",
+          "age_seconds",
           "population",
           "coverage",
           "items",
@@ -1614,8 +1640,19 @@
       },
       "FollowUpQueueResponse": {
         "additionalProperties": false,
-        "description": "The last published review queue snapshot — or an honest empty state.\n\n``state = \"ok\"`` relays the persisted content VERBATIM (projected states,\ndocumented ordering, urgency flags, populations kept separate); the API\nrecomputes nothing. ``state = \"empty\"`` means the worker never published\nthe queue: nothing is invented, ``reason`` says why.",
+        "description": "The last published review queue snapshot — or an honest empty state.\n\n``state = \"ok\"`` relays the persisted content VERBATIM (projected states,\ndocumented ordering, urgency flags, populations kept separate); the API\nrecomputes nothing. ``state = \"empty\"`` means the worker never published\nthe queue: nothing is invented, ``reason`` says why.\n\n``state = \"stale\"`` relaie le MÊME contenu, mais dit que l'instantané a\ndépassé le budget de séance fermée de ``news_attention`` : le worker n'a\nrien publié de plus récent. ``age_seconds`` est publié dans TOUS les états\ndatables — son absence faisait passer une file de trois jours pour une\nfile d'une minute.",
         "properties": {
+          "age_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age Seconds"
+          },
           "as_of": {
             "anyOf": [
               {
@@ -1667,6 +1704,7 @@
           "state": {
             "enum": [
               "ok",
+              "stale",
               "empty"
             ],
             "title": "State",
@@ -1677,6 +1715,7 @@
           "state",
           "snapshot_version",
           "as_of",
+          "age_seconds",
           "content",
           "reason"
         ],
@@ -2538,8 +2577,19 @@
       },
       "MarketsOverviewResponse": {
         "additionalProperties": false,
-        "description": "The last ``markets_overview/global`` snapshot — or an honest empty state.\n\n``state = \"empty\"`` means NO snapshot was ever published: every\nsnapshot-derived field is ``None`` (never zero, never invented) and\n``reason`` says why. ``state = \"ok\"`` relays the persisted content\nverbatim: population (``SYNTHETIC`` shown as-is), the worker's own\n``data_state`` (``ok``/``partial``/``stale``), the deterministic French\nconclusion sentence, sectors/tickers, breadth and the coverage account.",
+        "description": "The last ``markets_overview/global`` snapshot — or an honest empty state.\n\n``state = \"empty\"`` means NO snapshot was ever published: every\nsnapshot-derived field is ``None`` (never zero, never invented) and\n``reason`` says why. ``state = \"ok\"`` relays the persisted content\nverbatim: population (``SYNTHETIC`` shown as-is), the worker's own\n``data_state`` (``ok``/``partial``/``stale``), the deterministic French\nconclusion sentence, sectors/tickers, breadth and the coverage account.\n\n``state = \"stale\"`` relaie le MÊME contenu, mais dit que l'instantané\na dépassé son budget de fraîcheur (daily_bar) : le worker n'a rien\npublié de plus récent. ``age_seconds`` est publié dans TOUS les états\ndatables — son absence faisait passer un instantané de trois jours\npour un instantané d'une minute.",
         "properties": {
+          "age_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age Seconds"
+          },
           "as_of": {
             "anyOf": [
               {
@@ -2670,6 +2720,7 @@
           "state": {
             "enum": [
               "ok",
+              "stale",
               "empty"
             ],
             "title": "State",
@@ -2692,6 +2743,7 @@
           "state",
           "snapshot_version",
           "as_of",
+          "age_seconds",
           "population",
           "data_state",
           "unit",
@@ -3210,8 +3262,19 @@
       },
       "OptionChainResponse": {
         "additionalProperties": false,
-        "description": "The last ``option_chain/{underlying}`` snapshot — or an honest empty.\n\n``state = \"empty\"`` means NO snapshot was ever published for this\nunderlying: every snapshot-derived field is ``None`` (never invented) and\n``reason`` says why. ``state = \"ok\"`` relays the persisted content\nverbatim: population (``SYNTHETIC`` shown as-is), the synthetic spot,\nthe pricing assumptions, the per-(expiration, trading_class) groups and\nthe displayed row budget.",
+        "description": "The last ``option_chain/{underlying}`` snapshot — or an honest empty.\n\n``state = \"empty\"`` means NO snapshot was ever published for this\nunderlying: every snapshot-derived field is ``None`` (never invented) and\n``reason`` says why. ``state = \"ok\"`` relays the persisted content\nverbatim: population (``SYNTHETIC`` shown as-is), the synthetic spot,\nthe pricing assumptions, the per-(expiration, trading_class) groups and\nthe displayed row budget.\n\n``state = \"stale\"`` relaie le MÊME contenu, mais dit que l'instantané\na dépassé son budget de fraîcheur (option_surface) : le worker n'a rien\npublié de plus récent. ``age_seconds`` est publié dans TOUS les états\ndatables — son absence faisait passer un instantané de trois jours\npour un instantané d'une minute.",
         "properties": {
+          "age_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age Seconds"
+          },
           "as_of": {
             "anyOf": [
               {
@@ -3330,6 +3393,7 @@
           "state": {
             "enum": [
               "ok",
+              "stale",
               "empty"
             ],
             "title": "State",
@@ -3357,6 +3421,7 @@
           "state",
           "snapshot_version",
           "as_of",
+          "age_seconds",
           "population",
           "underlying",
           "engine_version",
@@ -3479,8 +3544,19 @@
       },
       "PerformanceSnapshotResponse": {
         "additionalProperties": false,
-        "description": "The last published performance snapshot — or an honest empty state.\n\n``state = \"ok\"`` relays the persisted content VERBATIM (series, gates,\ngross/net metrics with their lineage, heatmap, coverage, population\n``SYNTHETIC_MARKS_REAL_LEDGER`` shown as-is); the API computes no return,\ndrawdown or ratio. ``state = \"empty\"`` means the worker never published\nfor this portfolio: nothing is invented, ``reason`` says why.",
+        "description": "The last published performance snapshot — or an honest empty state.\n\n``state = \"ok\"`` relays the persisted content VERBATIM (series, gates,\ngross/net metrics with their lineage, heatmap, coverage, population\n``SYNTHETIC_MARKS_REAL_LEDGER`` shown as-is); the API computes no return,\ndrawdown or ratio. ``state = \"empty\"`` means the worker never published\nfor this portfolio: nothing is invented, ``reason`` says why.\n\n``state = \"stale\"`` relaie le MÊME contenu, mais dit que l'instantané a\ndépassé le budget de séance fermée de ``daily_bar`` : le worker n'a rien\npublié de plus récent. ``age_seconds`` est publié dans TOUS les états\ndatables — son absence faisait passer une performance de trois jours pour\nune performance d'une minute.",
         "properties": {
+          "age_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age Seconds"
+          },
           "as_of": {
             "anyOf": [
               {
@@ -3537,6 +3613,7 @@
           "state": {
             "enum": [
               "ok",
+              "stale",
               "empty"
             ],
             "title": "State",
@@ -3548,6 +3625,7 @@
           "portfolio_id",
           "snapshot_version",
           "as_of",
+          "age_seconds",
           "content",
           "reason"
         ],
@@ -3727,8 +3805,19 @@
       },
       "PortfolioValuationView": {
         "additionalProperties": false,
-        "description": "The last published valuation snapshot — or an honest empty state.\n\n``state = \"empty\"`` means the worker never published a valuation for this\nportfolio: nothing is invented, ``reason`` says why. ``state = \"ok\"``\nrelays the persisted snapshot content VERBATIM (``mark_population``\n``SYNTHETIC`` shown as-is); the API computes no P&L, weight or total.",
+        "description": "The last published valuation snapshot — or an honest empty state.\n\n``state = \"empty\"`` means the worker never published a valuation for this\nportfolio: nothing is invented, ``reason`` says why. ``state = \"ok\"``\nrelays the persisted snapshot content VERBATIM (``mark_population``\n``SYNTHETIC`` shown as-is); the API computes no P&L, weight or total.\n\n``state = \"stale\"`` relaie la MÊME valorisation, mais dit qu'elle a\ndépassé le budget de séance fermée de ``portfolio_mark`` : aucune marque\nplus récente n'a été publiée. ``age_seconds`` est publié dans TOUS les\nétats datables — son absence faisait passer une valorisation de trois\njours pour une valorisation d'une minute.",
         "properties": {
+          "age_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age Seconds"
+          },
           "as_of": {
             "anyOf": [
               {
@@ -3780,6 +3869,7 @@
           "state": {
             "enum": [
               "ok",
+              "stale",
               "empty"
             ],
             "title": "State",
@@ -3790,6 +3880,7 @@
           "state",
           "snapshot_version",
           "as_of",
+          "age_seconds",
           "content",
           "reason"
         ],
@@ -4488,8 +4579,19 @@
       },
       "SystemCapabilitiesResponse": {
         "additionalProperties": false,
-        "description": "Every declared capability with its really-tested status, plus health.\n\n``total`` equals the exact number of manifest entries; ``as_of`` and\n``snapshot_version`` describe the persisted capabilities snapshot\n(``None`` when never published). ``unknown_probed_capability_ids`` lists\nprobed ids absent from the manifest — never silently dropped, never\nmerged into the declared set. ``checked_at`` is the response instant.",
+        "description": "Every declared capability with its really-tested status, plus health.\n\n``total`` equals the exact number of manifest entries; ``as_of`` and\n``snapshot_version`` describe the persisted capabilities snapshot\n(``None`` when never published). ``unknown_probed_capability_ids`` lists\nprobed ids absent from the manifest — never silently dropped, never\nmerged into the declared set. ``checked_at`` is the response instant.\n\n``age_seconds`` dit depuis combien de temps cette matrice a été publiée.\nAucun état ``stale`` n'est ajouté ici et ce n'est PAS un oubli : la\npéremption d'une capacité est portée champ par champ par le\n``expires_at`` de la sonde qui l'a établie. Déclarer un budget de relais\npour cette famille inventerait un TTL que le registre ne contient pas.",
         "properties": {
+          "age_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age Seconds"
+          },
           "as_of": {
             "anyOf": [
               {
@@ -4547,6 +4649,7 @@
           "checked_at",
           "snapshot_version",
           "as_of",
+          "age_seconds",
           "total",
           "capabilities",
           "unknown_probed_capability_ids",

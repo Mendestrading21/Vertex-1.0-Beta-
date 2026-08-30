@@ -9,7 +9,7 @@ through the protected API — no dependency override anywhere.
 from __future__ import annotations
 
 from collections.abc import Iterator
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import pytest
@@ -27,6 +27,14 @@ from vertex_worker.markets import (
 )
 
 NOW = datetime(2026, 8, 25, 12, 0, 0, tzinfo=UTC)
+
+#: Instant de PUBLICATION de la ligne d'instantané, distinct du `as_of`
+#: du CONTENU ci-dessus. Le relais mesure la fraîcheur sur celui-ci :
+#: le contenu date sa vérité métier, la ligne date sa publication. Ancré
+#: sur l'horloge réelle, comme le fait déjà
+#: `test_calendar_opportunities_api_e2e.py`, sinon ce test se déclarerait
+#: périmé tout seul avec le temps.
+PUBLIE_A = datetime.now(UTC) - timedelta(minutes=5)
 
 CONFIG = MarketsConfig(
     universe={"SYN-AAA": ("SYN-AAA-01", "SYN-AAA-02")},
@@ -109,7 +117,7 @@ class TestMarketsOverview:
             kind="markets_overview",
             key="global",
             content=MARKETS_CONTENT,
-            as_of=NOW,
+            as_of=PUBLIE_A,
         )
         db_session.commit()
 

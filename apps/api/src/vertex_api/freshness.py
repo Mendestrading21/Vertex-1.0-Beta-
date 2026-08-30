@@ -108,15 +108,22 @@ def evaluate_relay_freshness(
     as_of: datetime,
     *,
     now: datetime,
-    policy: FreshnessPolicy,
+    policy: FreshnessPolicy | None,
     drift_tolerance: timedelta = NO_DRIFT_TOLERANCE,
 ) -> RelayFreshness:
-    """Mesure l'âge d'un instantané contre le budget de ``policy``.
+    """Mesure l'âge d'un instantané, et le compare au budget de ``policy``.
 
     ``as_of`` et ``now`` doivent être avertis (la validation du contenu
     persisté appartient à l'appelant). L'âge est mesuré sur les horodatages
     SERVEUR, jamais sur le contenu : un contenu peut dater sa propre vérité
     métier, il ne date pas sa publication.
+
+    ``policy=None`` est un cas DÉCLARÉ, pas un défaut : la famille servie n'a
+    aucun budget au registre, l'âge est donc publié et ``stale`` reste faux.
+    C'est le cas de la matrice de capacités, dont la péremption est portée
+    champ par champ par le ``expires_at`` de la sonde elle-même. Inventer ici
+    un TTL pour cette famille serait exactement la valeur non justifiée que ce
+    dépôt refuse ailleurs.
 
     Une avance de l'instantané sur l'horloge du relais est une réalité à deux
     processus, pas un défaut de contenu. Jusqu'à ``drift_tolerance`` elle est
@@ -147,6 +154,17 @@ def evaluate_relay_freshness(
 
     # Dérive tolérée : l'âge est borné, jamais publié négatif.
     age = signed if signed > _ZERO else _ZERO
+    if policy is None:
+        # Aucun budget déclaré : l'âge est publié, rien n'est jugé périmé.
+        return RelayFreshness(
+            age=age,
+            age_seconds=int(age.total_seconds()),
+            stale=False,
+            clock_inconsistent=False,
+            drift_seconds=0,
+            stale_reason=None,
+            clock_reason=None,
+        )
     budget = closed_session_budget(policy)
     stale = age > budget
     return RelayFreshness(

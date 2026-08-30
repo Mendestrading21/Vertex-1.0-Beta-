@@ -57,7 +57,8 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from vertex_api.auth.db import open_db_session
-from vertex_api.snapshot_views import checked_relayed_content
+from vertex_api.freshness import closed_session_budget, evaluate_relay_freshness
+from vertex_api.snapshot_views import checked_relayed_content, require_snapshot_as_of
 from vertex_core.contracts.types import (
     ContractModel,
     CurrencyCode,
@@ -66,6 +67,7 @@ from vertex_core.contracts.types import (
     PositiveInt,
     UtcDatetime,
 )
+from vertex_core.data.freshness import get_freshness_policy
 from vertex_persistence.enums import (
     LEDGER_EVENT_KINDS,
     LedgerEventKind,
@@ -486,11 +488,18 @@ class PortfolioValuationView(ContractModel):
     portfolio: nothing is invented, ``reason`` says why. ``state = "ok"``
     relays the persisted snapshot content VERBATIM (``mark_population``
     ``SYNTHETIC`` shown as-is); the API computes no P&L, weight or total.
+
+    ``state = "stale"`` relaie la MÊME valorisation, mais dit qu'elle a
+    dépassé le budget de séance fermée de ``portfolio_mark`` : aucune marque
+    plus récente n'a été publiée. ``age_seconds`` est publié dans TOUS les
+    états datables — son absence faisait passer une valorisation de trois
+    jours pour une valorisation d'une minute.
     """
 
-    state: Literal["ok", "empty"]
+    state: Literal["ok", "stale", "empty"]
     snapshot_version: PositiveInt | None
     as_of: UtcDatetime | None
+    age_seconds: int | None
     content: FrozenStrMapping | None
     reason: NonEmptyStr | None
 
@@ -1218,7 +1227,18 @@ def _optional_decimal_str(value: Decimal | None) -> str | None:
     return None if value is None else _decimal_text(value)
 
 
-def build_portfolio_response(overview: PortfolioOverview) -> PortfolioResponse:
+#: La valorisation est la MARQUE d'un portefeuille déclaré à la main : le
+#: registre possède exactement cette politique. Le choix ne s'invente pas ici.
+PORTFOLIO_FRESHNESS_POLICY = "portfolio_mark"
+
+_FRESHNESS_POLICY = get_freshness_policy(PORTFOLIO_FRESHNESS_POLICY)
+
+PORTFOLIO_MAX_AGE = closed_session_budget(_FRESHNESS_POLICY)
+
+
+def build_portfolio_response(
+    overview: PortfolioOverview, *, now: datetime
+) -> PortfolioResponse:
     """Render the journal + lots + last valuation, presentation only.
 
     ``compensated_by`` is a ledger RELATION (which row corrects which), read
@@ -1235,14 +1255,21 @@ def build_portfolio_response(overview: PortfolioOverview) -> PortfolioResponse:
             state="empty",
             snapshot_version=None,
             as_of=None,
+            age_seconds=None,
             content=None,
             reason="no valuation snapshot published",
         )
     else:
+        freshness = evaluate_relay_freshness(
+            require_snapshot_as_of(overview.valuation),
+            now=now,
+            policy=_FRESHNESS_POLICY,
+        )
         valuation = PortfolioValuationView(
-            state="ok",
+            state="stale" if freshness.stale else "ok",
             snapshot_version=overview.valuation.version,
             as_of=overview.valuation.as_of,
+            age_seconds=freshness.age_seconds,
             # Le contenu de valorisation était relayé sans AUCUNE validation :
             # 100 % de ses champs chaîne passaient verbatim, valeurs monétaires
             # et étiquette `population` comprises. Il subit désormais le même
@@ -1260,7 +1287,7 @@ def build_portfolio_response(overview: PortfolioOverview) -> PortfolioResponse:
             # (voir `snapshot_views.NATURE_LEAF_KEYS`) ; ce relais échoue donc
             # fermé sur cette charge au lieu de la servir.
             content=dict(checked_relayed_content(overview.valuation.content)),
-            reason=None,
+            reason=freshness.stale_reason,
         )
 
     return PortfolioResponse(

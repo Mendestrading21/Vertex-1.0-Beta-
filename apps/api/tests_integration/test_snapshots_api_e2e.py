@@ -21,6 +21,13 @@ from vertex_api.capability_manifest import load_capability_manifest
 from vertex_persistence.repository.snapshots import publish_snapshot
 
 NOW = datetime(2026, 8, 25, 12, 0, 0, tzinfo=UTC)
+
+#: Instant de PUBLICATION de la ligne d'instantané, distinct du `as_of` du
+#: CONTENU : le relais mesure la fraîcheur sur celui-ci. Le contenu date sa
+#: vérité métier, la ligne date sa publication. Ancré sur l'horloge réelle,
+#: comme le fait déjà `test_calendar_opportunities_api_e2e.py`, sinon ces
+#: tests se déclareraient périmés tout seuls avec le temps.
+PUBLIE_A = datetime.now(UTC) - timedelta(minutes=5)
 MANIFEST = load_capability_manifest()
 
 ATTENTION_CONTENT = {
@@ -131,7 +138,7 @@ class TestTodayAttention:
         self, authenticated: TestClient, db_session: Session
     ) -> None:
         published = publish_snapshot(
-            db_session, kind="attention", key="global", content=ATTENTION_CONTENT, as_of=NOW
+            db_session, kind="attention", key="global", content=ATTENTION_CONTENT, as_of=PUBLIE_A
         )
         db_session.commit()
 

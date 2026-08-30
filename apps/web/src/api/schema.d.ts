@@ -1051,12 +1051,20 @@ export interface components {
          *     - ``scenarios`` is either the ``THEORETICAL`` scenario grid with its
          *       ``CalculationRecord`` lineage or an honest ``ABSENT`` block with its
          *       typed reason.
+         *
+         *     ``state = "stale"`` relaie le MÊME contenu, mais dit que l'instantané
+         *     a dépassé son budget de fraîcheur (daily_bar) : le worker n'a rien
+         *     publié de plus récent. ``age_seconds`` est publié dans TOUS les états
+         *     datables — son absence faisait passer un instantané de trois jours
+         *     pour un instantané d'une minute.
          */
         AnalysisResponse: {
             /** Advice */
             advice: {
                 [key: string]: unknown;
             } | null;
+            /** Age Seconds */
+            age_seconds: number | null;
             /** As Of */
             as_of: string | null;
             /** Bars */
@@ -1089,7 +1097,7 @@ export interface components {
              * State
              * @enum {string}
              */
-            state: "ok" | "empty";
+            state: "ok" | "stale" | "empty";
         };
         /**
          * AssetClass
@@ -1134,8 +1142,16 @@ export interface components {
          *     ``reason`` says why. ``state = "ok"`` carries the persisted snapshot
          *     version, ``as_of``, ``population`` (``SYNTHETIC`` shown as-is),
          *     the full coverage block and the published items.
+         *
+         *     ``state = "stale"`` relaie le MÊME contenu, mais dit que l'instantané
+         *     a dépassé son budget de fraîcheur (news_attention) : le worker n'a rien
+         *     publié de plus récent. ``age_seconds`` est publié dans TOUS les états
+         *     datables — son absence faisait passer un instantané de trois jours
+         *     pour un instantané d'une minute.
          */
         AttentionSnapshotResponse: {
+            /** Age Seconds */
+            age_seconds: number | null;
             /** As Of */
             as_of: string | null;
             /** Coverage */
@@ -1156,7 +1172,7 @@ export interface components {
              * State
              * @enum {string}
              */
-            state: "ok" | "empty";
+            state: "ok" | "stale" | "empty";
         };
         /**
          * CalculationStatus
@@ -1473,8 +1489,16 @@ export interface components {
          *     documented ordering, urgency flags, populations kept separate); the API
          *     recomputes nothing. ``state = "empty"`` means the worker never published
          *     the queue: nothing is invented, ``reason`` says why.
+         *
+         *     ``state = "stale"`` relaie le MÊME contenu, mais dit que l'instantané a
+         *     dépassé le budget de séance fermée de ``news_attention`` : le worker n'a
+         *     rien publié de plus récent. ``age_seconds`` est publié dans TOUS les états
+         *     datables — son absence faisait passer une file de trois jours pour une
+         *     file d'une minute.
          */
         FollowUpQueueResponse: {
+            /** Age Seconds */
+            age_seconds: number | null;
             /** As Of */
             as_of: string | null;
             /** Content */
@@ -1489,7 +1513,7 @@ export interface components {
              * State
              * @enum {string}
              */
-            state: "ok" | "empty";
+            state: "ok" | "stale" | "empty";
         };
         /**
          * GateResult
@@ -1868,8 +1892,16 @@ export interface components {
          *     verbatim: population (``SYNTHETIC`` shown as-is), the worker's own
          *     ``data_state`` (``ok``/``partial``/``stale``), the deterministic French
          *     conclusion sentence, sectors/tickers, breadth and the coverage account.
+         *
+         *     ``state = "stale"`` relaie le MÊME contenu, mais dit que l'instantané
+         *     a dépassé son budget de fraîcheur (daily_bar) : le worker n'a rien
+         *     publié de plus récent. ``age_seconds`` est publié dans TOUS les états
+         *     datables — son absence faisait passer un instantané de trois jours
+         *     pour un instantané d'une minute.
          */
         MarketsOverviewResponse: {
+            /** Age Seconds */
+            age_seconds: number | null;
             /** As Of */
             as_of: string | null;
             breadth: components["schemas"]["MarketsBreadth"] | null;
@@ -1894,7 +1926,7 @@ export interface components {
              * State
              * @enum {string}
              */
-            state: "ok" | "empty";
+            state: "ok" | "stale" | "empty";
             /** Unit */
             unit: string | null;
         };
@@ -2114,8 +2146,16 @@ export interface components {
          *     verbatim: population (``SYNTHETIC`` shown as-is), the synthetic spot,
          *     the pricing assumptions, the per-(expiration, trading_class) groups and
          *     the displayed row budget.
+         *
+         *     ``state = "stale"`` relaie le MÊME contenu, mais dit que l'instantané
+         *     a dépassé son budget de fraîcheur (option_surface) : le worker n'a rien
+         *     publié de plus récent. ``age_seconds`` est publié dans TOUS les états
+         *     datables — son absence faisait passer un instantané de trois jours
+         *     pour un instantané d'une minute.
          */
         OptionChainResponse: {
+            /** Age Seconds */
+            age_seconds: number | null;
             /** As Of */
             as_of: string | null;
             /** Assumptions */
@@ -2148,7 +2188,7 @@ export interface components {
              * State
              * @enum {string}
              */
-            state: "ok" | "empty";
+            state: "ok" | "stale" | "empty";
             /** Underlying */
             underlying: string;
             /** Value Nature */
@@ -2233,8 +2273,16 @@ export interface components {
          *     ``SYNTHETIC_MARKS_REAL_LEDGER`` shown as-is); the API computes no return,
          *     drawdown or ratio. ``state = "empty"`` means the worker never published
          *     for this portfolio: nothing is invented, ``reason`` says why.
+         *
+         *     ``state = "stale"`` relaie le MÊME contenu, mais dit que l'instantané a
+         *     dépassé le budget de séance fermée de ``daily_bar`` : le worker n'a rien
+         *     publié de plus récent. ``age_seconds`` est publié dans TOUS les états
+         *     datables — son absence faisait passer une performance de trois jours pour
+         *     une performance d'une minute.
          */
         PerformanceSnapshotResponse: {
+            /** Age Seconds */
+            age_seconds: number | null;
             /** As Of */
             as_of: string | null;
             /** Content */
@@ -2251,7 +2299,7 @@ export interface components {
              * State
              * @enum {string}
              */
-            state: "ok" | "empty";
+            state: "ok" | "stale" | "empty";
         };
         /**
          * PortfolioInfo
@@ -2333,8 +2381,16 @@ export interface components {
          *     portfolio: nothing is invented, ``reason`` says why. ``state = "ok"``
          *     relays the persisted snapshot content VERBATIM (``mark_population``
          *     ``SYNTHETIC`` shown as-is); the API computes no P&L, weight or total.
+         *
+         *     ``state = "stale"`` relaie la MÊME valorisation, mais dit qu'elle a
+         *     dépassé le budget de séance fermée de ``portfolio_mark`` : aucune marque
+         *     plus récente n'a été publiée. ``age_seconds`` est publié dans TOUS les
+         *     états datables — son absence faisait passer une valorisation de trois
+         *     jours pour une valorisation d'une minute.
          */
         PortfolioValuationView: {
+            /** Age Seconds */
+            age_seconds: number | null;
             /** As Of */
             as_of: string | null;
             /** Content */
@@ -2349,7 +2405,7 @@ export interface components {
              * State
              * @enum {string}
              */
-            state: "ok" | "empty";
+            state: "ok" | "stale" | "empty";
         };
         /**
          * ProbabilityInput
@@ -2644,8 +2700,16 @@ export interface components {
          *     (``None`` when never published). ``unknown_probed_capability_ids`` lists
          *     probed ids absent from the manifest — never silently dropped, never
          *     merged into the declared set. ``checked_at`` is the response instant.
+         *
+         *     ``age_seconds`` dit depuis combien de temps cette matrice a été publiée.
+         *     Aucun état ``stale`` n'est ajouté ici et ce n'est PAS un oubli : la
+         *     péremption d'une capacité est portée champ par champ par le
+         *     ``expires_at`` de la sonde qui l'a établie. Déclarer un budget de relais
+         *     pour cette famille inventerait un TTL que le registre ne contient pas.
          */
         SystemCapabilitiesResponse: {
+            /** Age Seconds */
+            age_seconds: number | null;
             /** As Of */
             as_of: string | null;
             /** Capabilities */

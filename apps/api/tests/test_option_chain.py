@@ -15,7 +15,7 @@ from fastapi.testclient import TestClient
 from snapshot_fakes import FakeSnapshotReader, synthetic_session
 
 from vertex_api.auth import require_session
-from vertex_api.snapshot_reader import get_snapshot_reader
+from vertex_api.snapshot_reader import get_clock, get_snapshot_reader
 from vertex_api.snapshot_views import (
     SnapshotContentError,
     build_option_chain_response,
@@ -23,6 +23,11 @@ from vertex_api.snapshot_views import (
 from vertex_persistence.repository.snapshots import CurrentSnapshot
 
 AS_OF = datetime(2026, 8, 25, 12, 0, 0, tzinfo=UTC)
+
+#: Horloge du relais, injectée (voir test_today_attention.py) : une horloge
+#: RÉELLE rendrait l'instantané périmé au fil des jours et ferait échouer ces
+#: tests sans qu'aucun comportement ait changé.
+_NOW = AS_OF + timedelta(minutes=30)
 UNDERLYING = "SYN-TECH-01"
 
 
@@ -161,6 +166,10 @@ def reader() -> FakeSnapshotReader:
 def option_client(app: FastAPI, reader: FakeSnapshotReader) -> TestClient:
     app.dependency_overrides[require_session] = synthetic_session
     app.dependency_overrides[get_snapshot_reader] = lambda: reader
+    # Horloge FIXE : sans elle, le relais mesurerait l'âge de l'instantané
+    # contre l'heure réelle et le déclarerait périmé quelques jours après
+    # l'écriture de ce test, sans qu'aucun code ait changé.
+    app.dependency_overrides[get_clock] = lambda: (lambda: _NOW)
     client = TestClient(app)
     try:
         yield client
@@ -226,18 +235,20 @@ def test_published_snapshot_is_relayed_verbatim(
 def test_snapshot_for_another_underlying_is_refused(reader) -> None:
     content = chain_content()
     with pytest.raises(SnapshotContentError):
-        build_option_chain_response(snapshot(content), underlying="SYN-TECH-02")
+        build_option_chain_response(
+            snapshot(content), underlying="SYN-TECH-02", now=_NOW
+        )
 
 
 def test_missing_value_nature_is_refused() -> None:
     content = chain_content()
     del content["value_nature"]
     with pytest.raises(SnapshotContentError):
-        build_option_chain_response(snapshot(content), underlying=UNDERLYING)
+        build_option_chain_response(snapshot(content), underlying=UNDERLYING, now=_NOW)
 
 
 def test_iv_block_without_status_is_refused() -> None:
     content = chain_content()
     del content["expirations"][0]["contracts"][0]["iv"]["status"]
     with pytest.raises(SnapshotContentError):
-        build_option_chain_response(snapshot(content), underlying=UNDERLYING)
+        build_option_chain_response(snapshot(content), underlying=UNDERLYING, now=_NOW)

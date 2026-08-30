@@ -7,7 +7,7 @@ worker publishes (``vertex_worker.markets.build_markets_overview_content``).
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi import FastAPI
@@ -15,7 +15,7 @@ from fastapi.testclient import TestClient
 from snapshot_fakes import FakeSnapshotReader, synthetic_session
 
 from vertex_api.auth import require_session
-from vertex_api.snapshot_reader import get_snapshot_reader
+from vertex_api.snapshot_reader import get_clock, get_snapshot_reader
 from vertex_api.snapshot_views import (
     SnapshotContentError,
     build_markets_overview_response,
@@ -23,6 +23,11 @@ from vertex_api.snapshot_views import (
 from vertex_persistence.repository.snapshots import CurrentSnapshot
 
 AS_OF = datetime(2026, 8, 25, 12, 0, 0, tzinfo=UTC)
+
+#: Horloge du relais, injectée (voir test_today_attention.py) : une horloge
+#: RÉELLE rendrait l'instantané périmé au fil des jours et ferait échouer ces
+#: tests sans qu'aucun comportement ait changé.
+_NOW = AS_OF + timedelta(minutes=30)
 
 
 def ticker_entry(ticker: str, sector: str, *, pct: str = "+10.00") -> dict:
@@ -139,6 +144,10 @@ def markets_snapshot(version: int = 3) -> CurrentSnapshot:
 def override(app: FastAPI, reader: FakeSnapshotReader) -> None:
     app.dependency_overrides[require_session] = synthetic_session
     app.dependency_overrides[get_snapshot_reader] = lambda: reader
+    # Horloge FIXE : sans elle, le relais mesurerait l'âge de l'instantané
+    # contre l'heure réelle et le déclarerait périmé quelques jours après
+    # l'écriture de ce test, sans qu'aucun code ait changé.
+    app.dependency_overrides[get_clock] = lambda: (lambda: _NOW)
 
 
 def test_requires_authentication(app: FastAPI, client: TestClient) -> None:
@@ -264,4 +273,4 @@ def test_malformed_content_fails_closed(mutate) -> None:
         as_of=AS_OF,
     )
     with pytest.raises(SnapshotContentError):
-        build_markets_overview_response(snapshot)
+        build_markets_overview_response(snapshot, now=_NOW)

@@ -47,6 +47,15 @@ export function performanceFrameStateOf(
   if (view === null) {
     return { state: 'error', view: null };
   }
+  // Le relais publie l'âge de l'instantané et bascule en `stale` au-delà
+  // du budget de fraîcheur du registre. Le contenu reste VISIBLE sous un
+  // bandeau « Données périmées » : ce qui était interdit, c'est de le
+  // servir sans dire son âge, pas de le servir. Testé AVANT `partial` :
+  // un instantané périmé l'est en entier, la partialité de son contenu
+  // est la moins forte des deux affirmations.
+  if (data.state === 'stale') {
+    return { state: 'stale', view };
+  }
   // Dégradation signalée PAR LE SERVEUR : jours exclus ou série insuffisante.
   if (view.seriesStatus !== 'OK' || view.excludedDays.length > 0) {
     return { state: 'partial', view };

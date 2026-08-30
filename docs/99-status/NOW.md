@@ -2,9 +2,9 @@
 
 ```yaml
 phase: lot_24a_fusionne_sonde_entitlements_executable
-lot: LOT-24b — sonde de droits IBKR exécutable (après fusion de LOT-24a, PR #6)
+lot: LOT-24b (sonde IBKR exécutable) + LOT-24c (fraîcheur au relais, P0)
 branch: claude/vertex-connection-kgkntr
-status: la_sonde_de_droits_a_enfin_une_commande_aucune_donnee_reelle_encore
+status: plus_aucun_relais_ne_sert_une_valeur_sans_dire_son_age
 last_good_commit: 37a7097 (= origin/main, PR #6 fusionnée)
 completed:
   - vagues_1_a_5: 13 routes sur 13 réelles (PR #1, #2 et #3 fusionnées)
@@ -53,6 +53,27 @@ audits:
      septième est le compte d'interdictions non prouvées ci-dessous : il
      disait 5, la porte dit 6 depuis la rétrogradation de
      EXCEPTION-JAMAIS-QUALIFIED"
+fraicheur_au_relais:
+  etat: "P0 FERMÉ — les 10 relais publient age_seconds dans tous les états
+     datables ; 8 ne le faisaient pas"
+  proprietaire_unique: "apps/api/src/vertex_api/freshness.py — calcul, budget et
+     vocabulaire. Il MESURE et renvoie ; il ne décide pas, parce que calendar et
+     opportunities ne décident pas pareil"
+  budgets: "TTL de séance FERMÉE du registre versionné vertex_core.data.freshness.
+     Aucun TTL n'est écrit dans l'API. Politique par relais LUE dans le worker :
+     attention et review_queue -> news_attention, markets_overview, analysis et
+     performance -> daily_bar, option_chain -> option_surface, portfolio ->
+     portfolio_mark"
+  capacites: "publient leur âge SANS budget — aucune politique du registre ne
+     couvre cette famille, et la péremption d'une capacité appartient au
+     expires_at de la sonde, champ par champ. Inventer un TTL ici aurait été la
+     valeur non justifiée que ce dépôt refuse ailleurs"
+  ce_qui_reste_ouvert: "la gate INTERNE au dossier affirme encore
+     FRESH_AND_COHERENT à +71 h alors que sa fenêtre vaut 48 h. Le dossier n'est
+     plus SILENCIEUX — il porte ses 255 600 secondes — mais il se CONTREDIT.
+     EXCEPTION-JAMAIS-QUALIFIED reste donc NOT_YET_PROVEN, avec un critère de
+     fermeture RESSERRÉ : promouvoir l'entrée sur son ancien critère aurait été
+     gagner contre ma propre formulation, pas contre la règle"
 sonde_entitlements:
   commande: "python3 tools/probe_entitlements.py --symbol <SYMBOLE> --dry-run"
   etat: "LIVRÉE et prouvée contre un port SIMULÉ — 16 tests. JAMAIS exécutée
@@ -82,12 +103,14 @@ mesures_reelles:
   accessibilite: "168 cas de test verts, 14 chemins × 3 viewports (Chromium)"
   navigateurs: "Chromium, Firefox et WebKit VERTS — 665 passed, 2 skipped"
 checks_locaux:
-  - "pytest 3520 passed, 4 skipped, 0 failed (les 4 sautés exigent
+  - "pytest 3559 passed, 4 skipped, 0 failed (les 4 sautés exigent
      PostgreSQL réel : bootstrap local)"
   - "intégration PostgreSQL : 96 (persistance) + 32 (worker, dont 15 chaos)
-     + 65 (api) — exécution SÉRIELLE obligatoire, base partagée"
-  - "vitest 384 passed ; tsc 0 erreur ; biome 0 violation (125 fichiers)"
-  - "playwright Chromium 405 passed (dont 168 d'accessibilité)"
+     + 65 (api) — exécution SÉRIELLE obligatoire, base partagée. TOUS VERTS"
+  - "vitest 386 passed ; tsc 0 erreur ; biome 0 violation (125 fichiers).
+     Le 384 précédent était FAUX : mesuré à 383 sur le tree d'avant ce lot,
+     huitième chiffre erroné de ce registre"
+  - "playwright 405 passed sur les 4 profils desktop (dont 168 d'accessibilité)"
   - "playwright 3 moteurs (nightly 33314910817) : 665 passed, 2 skipped,
      0 failed en 11,2 min — Chromium, Firefox et WebKit. Première mesure
      verte hors Chromium ; les 2 sautés sont la passkey, intestable hors CDP"
@@ -121,5 +144,5 @@ blocages_humains:
   - "B-05 : fournisseur d'IA (l'IA reste DISABLED, gabarit déterministe)"
   - "connecteur MCP Interactive_Brokers_IBKR : autorisation OAuth à faire
      depuis les réglages de connecteurs claude.ai (session non interactive)"
-prochaine_commande: "CORRIGE la fraîcheur au relais (P0 : 8 relais sur 10 ne la recalculent pas)"
+prochaine_commande: "Allumer TWS et lancer python3 tools/probe_entitlements.py --symbol <SYMBOLE> --dry-run"
 ```

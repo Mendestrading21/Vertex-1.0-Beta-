@@ -102,6 +102,15 @@ describe('performanceFrameStateOf', () => {
       ).state,
     ).toBe('partial');
   });
+
+  it('un instantané périmé garde sa performance VISIBLE sous le bandeau', () => {
+    const frame = performanceFrameStateOf(
+      'ready',
+      makePerformanceSnapshot({ state: 'stale', age_seconds: 300_000, reason: 'snapshot older…' }),
+    );
+    expect(frame.state).toBe('stale');
+    expect(frame.view).not.toBeNull();
+  });
 });
 
 describe('performanceView — lecture verbatim', () => {

@@ -86,12 +86,25 @@ describe('valuationFrameStateOf — états dérivés de faits serveur uniquement
     expect(frame.view).not.toBeNull();
   });
 
+  it('valorisation périmée → stale, et elle prime sur partial', () => {
+    // Un instantané périmé l'est EN ENTIER : la partialité de son contenu
+    // est la moins forte des deux affirmations. Le contenu reste visible.
+    const base = makePortfolioResponse();
+    const frame = valuationFrameStateOf('ready', {
+      ...base,
+      valuation: { ...base.valuation, state: 'stale', age_seconds: 200_000, reason: 'snapshot older…' },
+    });
+    expect(frame.state).toBe('stale');
+    expect(frame.view).not.toBeNull();
+  });
+
   it('aucun exclu et marques OK → ready', () => {
     const data = makePortfolioResponse({
       valuation: {
         state: 'ok',
         snapshot_version: 3,
         as_of: '2026-08-25T12:00:00+00:00',
+        age_seconds: 60,
         reason: null,
         content: makeValuationContent({
           excluded_lots: [],
@@ -118,6 +131,7 @@ describe('valuationFrameStateOf — états dérivés de faits serveur uniquement
         state: 'ok',
         snapshot_version: 3,
         as_of: null,
+        age_seconds: null,
         reason: null,
         content: { schema_version: 'autre/9.9' },
       },
@@ -132,6 +146,7 @@ describe('portfolioView — lecture verbatim, jamais un calcul', () => {
       state: 'ok',
       snapshot_version: 3,
       as_of: '2026-08-25T12:00:00+00:00',
+      age_seconds: 60,
       reason: null,
       content: makeValuationContent(),
     });

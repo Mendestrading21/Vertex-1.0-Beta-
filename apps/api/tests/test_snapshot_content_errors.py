@@ -50,7 +50,7 @@ from fastapi.testclient import TestClient
 
 from vertex_api.app import create_app
 from vertex_api.auth import require_session
-from vertex_api.snapshot_reader import get_snapshot_reader
+from vertex_api.snapshot_reader import get_clock, get_snapshot_reader
 
 #: Fixed SYNTHETIC instants — no test ever reads the real clock.
 AS_OF_DATETIME = datetime(2026, 8, 25, 12, 0, 0, tzinfo=UTC)
@@ -357,6 +357,12 @@ def _client(content: Any) -> TestClient:
     app = create_app()
     app.dependency_overrides[require_session] = lambda: None
     app.dependency_overrides[get_snapshot_reader] = lambda: BrokenSnapshotReader(content)
+    # Horloge FIXE, alignée sur le `as_of` du faux lecteur : les relais
+    # publient désormais l'âge et basculent en `stale` au-delà du budget.
+    # Sans elle, ces tests deviendraient rouges tout seuls avec le temps, ce
+    # qui masquerait la vraie question qu'ils posent : le contenu MALFORMÉ
+    # est-il refusé, et le contenu honnête encore servi ?
+    app.dependency_overrides[get_clock] = lambda: (lambda: AS_OF_DATETIME)
     return TestClient(app, raise_server_exceptions=False)
 
 

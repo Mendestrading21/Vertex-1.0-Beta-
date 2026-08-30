@@ -24,7 +24,7 @@ from fastapi.testclient import TestClient
 from snapshot_fakes import FakeSnapshotReader, synthetic_session
 
 from vertex_api.auth import require_session
-from vertex_api.snapshot_reader import get_snapshot_reader
+from vertex_api.snapshot_reader import get_clock, get_snapshot_reader
 from vertex_persistence.repository.snapshots import CurrentSnapshot
 
 FIXED_NOW = datetime(2026, 8, 25, 12, 0, 0, tzinfo=UTC)
@@ -139,6 +139,10 @@ def reader() -> FakeSnapshotReader:
 def performance_client(app: FastAPI, reader: FakeSnapshotReader) -> Iterator[TestClient]:
     app.dependency_overrides[require_session] = synthetic_session
     app.dependency_overrides[get_snapshot_reader] = lambda: reader
+    # Horloge FIXE : le relais publie désormais l'âge de l'instantané et
+    # bascule en `stale` au-delà du budget. Sans horloge injectée, ce test
+    # deviendrait rouge tout seul quelques jours après son écriture.
+    app.dependency_overrides[get_clock] = lambda: (lambda: FIXED_NOW)
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()

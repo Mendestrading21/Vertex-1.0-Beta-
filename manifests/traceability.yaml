@@ -166,18 +166,33 @@ invariants:
     La première moitié de la règle est prouvée : `test_worker_failure_paths.py`
     montre qu'un gestionnaire en échec enregistre `failed` avec code et backoff,
     sans publier d'avis. La SECONDE moitié — « ni conserver silencieusement un
-    ancien verdict » — est CONTREDITE par une mesure : un dossier d'analyse publié
-    conserve `snapshot_fresh_and_coherent = PASS / FRESH_AND_COHERENT` à +47 h
-    ET à +71 h, parce qu'aucune observation nouvelle ne le fait republier et qu'aucune
-    relecture ne recalcule sa fraîcheur. Le défaut est épinglé par `test_chaos_degradation.py::test_defaut_connu_un_dossier_publie_se_dit_encore_frais_bien_plus_tard`,
-    qui le CARACTÉRISE au lieu de le masquer. Cette entrée était marquée PROVEN
-    : c'était faux.
+    ancien verdict » — était CONTREDITE par une mesure : un dossier d'analyse
+    publié conserve `snapshot_fresh_and_coherent = PASS / FRESH_AND_COHERENT` à
+    +47 h ET à +71 h, et AUCUN des 8 relais concernés ne publiait l'âge de ce
+    qu'il servait. Cette entrée était marquée PROVEN : c'était faux.
+    CE QUI EST DÉSORMAIS CLOS (LOT-24c) : le mot « silencieusement ». Les dix
+    relais publient `age_seconds` dans tous les états datables et basculent sur
+    `stale` au-delà du budget de séance fermée de leur politique déclarée, via
+    l'unique propriétaire `vertex_api/freshness.py`. À +71 h le dossier est servi
+    avec ses 255 600 secondes.
+    CE QUI RESTE OUVERT, ET POURQUOI CETTE ENTRÉE N'EST PAS PROMUE : la gate
+    INTERNE au dossier continue d'affirmer `FRESH_AND_COHERENT` à +71 h alors que
+    sa propre fenêtre (`AnalysisConfig.bars_freshness`, 48 h) est dépassée, et le
+    budget de relais de `daily_bar` (72 h en séance fermée) ne la contredit pas
+    encore à cet instant. Le dossier n'est donc plus SILENCIEUX, mais il se
+    CONTREDIT — un âge de 255 600 s à côté d'une gate qui se dit fraîche. Promouvoir
+    l'entrée sur le seul critère de clôture écrit ci-dessous serait gagner contre
+    ma propre formulation, pas contre la règle. Le défaut résiduel reste épinglé
+    par `test_chaos_degradation.py::test_defaut_connu_un_dossier_publie_se_dit_encore_frais_bien_plus_tard`.
   expires_at: '2026-12-31'
   closure_criterion: >-
-    Le recalcul de fraîcheur à la LECTURE dans `snapshot_views.py` (les 8 relais
-    sur 10 recensés par `docs/99-status/DEBT.md` qui n'en font aucun), et un test
-    montrant qu'un dossier publié depuis plus longtemps que son TTL cesse de se
-    déclarer frais.
+    Critère RESSERRÉ après le LOT-24c, qui a livré l'ancien (le recalcul de
+    fraîcheur à la lecture dans les 8 relais, prouvé par
+    `apps/api/tests/test_relay_freshness_is_published.py`). Ce qui reste exigé :
+    que la gate `snapshot_fresh_and_coherent` d'un dossier cesse elle-même de se
+    déclarer `FRESH_AND_COHERENT` au-delà de la fenêtre de fraîcheur des barres
+    qu'elle invoque — par republication, par relecture ou par une gate évaluée à
+    la lecture — et un test montrant qu'à +71 h elle ne l'affirme plus.
 - id: AUCUN-DEFAUT-REMPLACE
   digest: bdf6b44222f1
   text: >-

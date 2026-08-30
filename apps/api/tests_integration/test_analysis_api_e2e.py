@@ -8,7 +8,7 @@ dependency override anywhere.
 from __future__ import annotations
 
 from collections.abc import Iterator
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
@@ -19,6 +19,13 @@ from sqlalchemy.orm import Session
 from vertex_persistence.repository.snapshots import publish_snapshot
 
 NOW = datetime(2026, 8, 25, 12, 0, 0, tzinfo=UTC)
+
+#: Instant de PUBLICATION de la ligne d'instantané, distinct du `as_of` du
+#: CONTENU : le relais mesure la fraîcheur sur celui-ci. Le contenu date sa
+#: vérité métier, la ligne date sa publication. Ancré sur l'horloge réelle,
+#: comme le fait déjà `test_calendar_opportunities_api_e2e.py`, sinon ces
+#: tests se déclareraient périmés tout seuls avec le temps.
+PUBLIE_A = datetime.now(UTC) - timedelta(minutes=5)
 INSTRUMENT = "SYN-TECH-01"
 
 
@@ -139,7 +146,7 @@ def test_published_dossier_round_trips_exactly(
         kind="analysis",
         key=INSTRUMENT,
         content=ANALYSIS_CONTENT,
-        as_of=NOW,
+        as_of=PUBLIE_A,
     )
     db_session.commit()
 
