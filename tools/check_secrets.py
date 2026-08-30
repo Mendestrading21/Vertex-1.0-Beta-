@@ -13,6 +13,24 @@ extension n'est acceptée.
 
 Ce script ne remplace pas un scanner d'historique : il inspecte l'arbre de
 travail suivi, pas les commits antérieurs (voir docs/99-status/DEBT.md).
+
+Limites ASSUMÉES et documentées, à ne pas confondre avec une couverture :
+
+* la détection reste une HEURISTIQUE de forme et d'entropie ; un secret sans
+  clé nommante, découpé, encodé (base64, hexadécimal, rot13), stocké dans un
+  binaire non listé ou construit à l'exécution n'est pas vu ;
+* les scalaires blocs YAML (``clé: |`` / ``clé: >``) sont reconstitués dans
+  les fichiers ``.yaml``/``.yml`` uniquement. Dans du YAML EMBARQUÉ — bloc
+  clôturé d'un Markdown, heredoc shell, chaîne Python — l'indentation n'a pas
+  le sens d'un document YAML et le bloc n'est pas reconstitué ; seules les
+  règles à motif fixe (clé privée, jeton de fournisseur, JWT, DSN) s'y
+  appliquent, ligne à ligne ;
+* une valeur NON quotée n'est traitée comme une donnée que dans un fichier de
+  configuration : dans du code, ``token = build_session_token()`` est une
+  expression, pas un secret ;
+* la reconstitution YAML est textuelle et n'utilise pas d'analyseur : les
+  ancres/alias (``*ref``), les clés multi-documents fusionnées et les flux
+  JSON multi-lignes ne sont pas résolus.
 """
 
 from __future__ import annotations
@@ -68,7 +86,15 @@ RULES: tuple[Rule, ...] = (
     Rule(
         "DSN_PASSWORD",
         "mot de passe dans une URL de connexion",
-        re.compile(r"\b[a-z][a-z0-9+.-]*://[A-Za-z0-9._%-]+:([^@\s/'\"]{4,})@"),
+        # Le userinfo d'un URI admet bien plus que ``[A-Za-z0-9._%-]`` : la
+        # RFC 3986 y autorise aussi ``~`` et les « sub-delims » ``!$&'()*+,;=``.
+        # Un seul ``+`` dans le nom d'utilisateur (``user+ro``, syntaxe courante
+        # des rôles en lecture seule) suffisait donc à contourner la règle.
+        # ``/``, ``?``, ``#`` et ``@`` restent EXCLUS : ils terminent le
+        # userinfo, les admettre ferait déborder le motif sur le chemin.
+        re.compile(
+            r"\b[a-z][a-z0-9+.-]*://[A-Za-z0-9._~%!$&'()*+,;=-]+:([^@\s/'\"]{4,})@"
+        ),
     ),
 )
 
@@ -84,9 +110,20 @@ RULES: tuple[Rule, ...] = (
 # IDENTIFIANT (`credential_id`) ou son EMPREINTE (`csrf_token_hash`) ne désigne
 # pas le secret lui-même : le signaler serait un faux positif systématique, et
 # un détecteur qui crie tout le temps n'est plus lu.
-_NOT_THE_SECRET = r"(?!.*(?:_location|_path|_file|_dir|_name|_env|_var|_ref|_id|_hash|_digest)\b)"
+#
+# Cette exemption porte sur le NOM CAPTURÉ, et sur lui seul. Elle était écrite
+# comme un lookahead `(?!.*(?:_location|_path|…)\b)` placé en tête du motif :
+# son `.*` balayait TOUTE LA FIN DE LA LIGNE. Un commentaire (`# voir
+# data_dir`), ou simplement une AUTRE clé située après le secret
+# (`{"client_secret": …, "tenant_id": …}`), désarmait alors la règle — la
+# détection dépendait de l'ORDRE DES CLÉS, sur le format JSON minifié que ce
+# script dit précisément viser. Le test est désormais fait en Python sur
+# `name`, où il ne peut plus déborder hors du nom.
+NAME_IS_NOT_THE_SECRET = re.compile(
+    r"(?i)_(?:location|path|file|dir|name|env|var|ref|id|hash|digest)$"
+)
 
-_SECRET_NAME = _NOT_THE_SECRET + r"""[A-Za-z0-9_.-]*
+_SECRET_NAME = r"""[A-Za-z0-9_.-]*
         (?:secret|token|password|passwd|passphrase|api[_-]?key|private[_-]?key|
            credential|client[_-]?secret|access[_-]?key|auth[_-]?key)
      [A-Za-z0-9_.-]*"""
@@ -102,6 +139,26 @@ ASSIGNMENT = re.compile(
         (?P<quote>["\'])(?P<quoted>[^"\'\n]{16,200})(?P=quote)
       | (?P<bare>[^\s"\',;{}\[\]#]{16,200})
     )
+    """
+)
+
+# Un scalaire bloc YAML ne porte pas sa valeur sur la ligne de la clé :
+#
+#     password: |
+#       la-valeur-reelle
+#
+# Un scanner strictement ligne à ligne ne voit donc JAMAIS cette valeur, alors
+# que c'est la forme naturelle d'un secret multiligne (clé, certificat, mot de
+# passe long) dans un `compose.yaml` ou un manifeste. L'en-tête accepte les
+# indicateurs de coupe et d'indentation (`|-`, `>+`, `|2`) et un commentaire
+# de fin de ligne, tous licites en YAML.
+BLOCK_SCALAR_HEADER = re.compile(
+    r"""(?ix)
+    ^(?P<indent>[ ]*)(?:-[ ]+)?
+    (?P<nq>["\']?)(?P<name>""" + _SECRET_NAME + r""")(?P=nq)
+    # Un tag YAML peut précéder l'indicateur (`password: !!binary |`) : sans
+    # lui, `!!binary` suffisait à masquer le bloc.
+    \s*:\s*(?:\![A-Za-z0-9_!:./-]*\s+)?[|>][-+]?[0-9]*\s*(?:\#.*)?$
     """
 )
 
@@ -214,6 +271,50 @@ def _bare_values_are_data(path: str) -> bool:
     return any(name.endswith(suffix) for suffix in _CONFIG_SUFFIXES)
 
 
+def _is_yaml(path: str) -> bool:
+    return path.rsplit("/", 1)[-1].lower().endswith((".yaml", ".yml"))
+
+
+def _high_entropy(value: str) -> bool:
+    per_char = shannon_bits_per_char(value)
+    return per_char >= MIN_ENTROPY_BITS and per_char * len(value) >= MIN_TOTAL_ENTROPY_BITS
+
+
+def _yaml_block_scalar_finding(path: str, lines: list[str], index: int) -> Finding | None:
+    """Valeur d'un scalaire bloc YAML ouvert à `lines[index]`, si elle existe.
+
+    Le corps est constitué des lignes suivantes strictement PLUS indentées que
+    la clé (les lignes vides ne ferment pas le bloc). La reconstitution est
+    textuelle : aucun analyseur YAML n'est chargé, donc aucun code tiers ne
+    lit un fichier potentiellement hostile pendant un contrôle de sécurité.
+    """
+    header = BLOCK_SCALAR_HEADER.match(lines[index])
+    if header is None:
+        return None
+    name = header.group("name")
+    if NAME_IS_NOT_THE_SECRET.search(name):
+        return None
+    indent = len(header.group("indent"))
+    body: list[str] = []
+    for line in lines[index + 1 :]:
+        if not line.strip():
+            body.append("")
+            continue
+        if len(line) - len(line.lstrip(" ")) <= indent:
+            break
+        body.append(line.strip())
+    value = "\n".join(body).strip()
+    if not value or PLACEHOLDER.match(value) or not _high_entropy(value):
+        return None
+    return Finding(
+        path,
+        index + 1,
+        "HIGH_ENTROPY_ASSIGNMENT",
+        f"valeur à forte entropie affectée à « {name} » (scalaire bloc YAML)",
+        value,
+    )
+
+
 def _scan_line(path: str, number: int, line: str) -> Iterable[Finding]:
     for rule in RULES:
         for found in rule.pattern.finditer(line):
@@ -224,14 +325,15 @@ def _scan_line(path: str, number: int, line: str) -> Iterable[Finding]:
                 continue
             yield Finding(path, number, rule.code, rule.label, captured)
     for found in ASSIGNMENT.finditer(line):
+        if NAME_IS_NOT_THE_SECRET.search(found.group("name")):
+            continue
         bare = found.group("bare")
         if bare is not None and not _bare_values_are_data(path):
             continue
         value = (found.group("quoted") or bare or "").strip()
         if PLACEHOLDER.match(value):
             continue
-        per_char = shannon_bits_per_char(value)
-        if per_char < MIN_ENTROPY_BITS or per_char * len(value) < MIN_TOTAL_ENTROPY_BITS:
+        if not _high_entropy(value):
             continue
         yield Finding(
             path,
@@ -244,7 +346,17 @@ def _scan_line(path: str, number: int, line: str) -> Iterable[Finding]:
 
 def scan_text(path: str, text: str) -> Iterable[Finding]:
     seen: set[tuple[int, str, str]] = set()
-    for number, line in enumerate(text.splitlines(), start=1):
+    lines = text.splitlines()
+    is_yaml = _is_yaml(path)
+    for index, line in enumerate(lines):
+        number = index + 1
+        if is_yaml:
+            block = _yaml_block_scalar_finding(path, lines, index)
+            if block is not None:
+                marker = (block.line, block.code, block.match)
+                if marker not in seen:
+                    seen.add(marker)
+                    yield block
         if len(line) > _MAX_LINE:
             chunks = [
                 line[start : start + _MAX_LINE]

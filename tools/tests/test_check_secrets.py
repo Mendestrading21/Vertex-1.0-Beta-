@@ -198,3 +198,183 @@ def test_une_ligne_longue_n_est_pas_signalee_deux_fois() -> None:
     line = "y" * 3900 + f' API_KEY = "{_PROBE}" ' + "y" * 3900
     findings = [f for f in gate.scan_text("a.py", line) if f.code == "HIGH_ENTROPY_ASSIGNMENT"]
     assert len(findings) == 1
+
+
+# ── Contournements reproduits par le 5e audit adversarial (P1-4) ──────────
+#
+# Trois défauts distincts, tous prouvés par exécution avant correctif :
+#
+# 1. Le lookahead d'exemption `(?!.*(?:_location|_path|…)\b)` balayait TOUTE
+#    LA FIN DE LA LIGNE au lieu du seul nom capturé. Conséquence : la
+#    détection dépendait de l'ORDRE DES CLÉS (`{"tenant_id":…,"client_secret":…}`
+#    vu, l'ordre inverse non vu) et un simple commentaire de fin de ligne
+#    mentionnant `data_dir` ou `bucket_name` désarmait la règle. Le JSON
+#    minifié est précisément le format que le docstring dit viser.
+# 2. Les scalaires blocs YAML (`password: |` / `password: >`, valeur portée
+#    par les lignes suivantes) n'étaient jamais examinés.
+# 3. `DSN_PASSWORD` ancrait le userinfo sur `[A-Za-z0-9._%-]+` : un `+`, une
+#    virgule ou un `=` dans le nom d'utilisateur — tous admis par la RFC 3986 —
+#    suffisaient à contourner la règle.
+
+_P5 = "aB3xQ7zLmP2vRt9wYc4KdN6hJ1sF8gE5uZ0iO"  # SYNTHETIC, n'ouvre rien
+
+
+def _codes_at(path: str, text: str) -> set[str]:
+    return {finding.code for finding in gate.scan_text(path, text)}
+
+
+@pytest.mark.parametrize(
+    ("label", "path", "text"),
+    [
+        (
+            "json minifié, secret en tête",
+            "a.json",
+            f'{{"client_secret": "{_P5}", "tenant_id": "x"}}',
+        ),
+        (
+            "commentaire de fin de ligne YAML",
+            "compose.yaml",
+            f"  POSTGRES_PASSWORD: {_P5}   # voir data_dir",
+        ),
+        (
+            "commentaire de fin de ligne Python",
+            "settings.py",
+            f'API_TOKEN = "{_P5}"  # bucket_name',
+        ),
+        ("scalaire bloc YAML replié", "config.yaml", f"password: >\n  {_P5}\n"),
+        ("scalaire bloc YAML littéral", "config.yaml", f"password: |\n  {_P5}\n"),
+        (
+            "scalaire bloc YAML avec indicateur de coupe",
+            "config.yaml",
+            f"  client_secret: |-\n    {_P5}\n  autre: x\n",
+        ),
+        (
+            "userinfo DSN contenant un +",
+            "a.env",
+            "postgresql://user+ro:S3cr3tP4ssw0rdXyz@db.invalid:5432/vertex",
+        ),
+        (
+            "scalaire bloc YAML précédé d'un tag",
+            "config.yaml",
+            f"password: !!binary |\n  {_P5}\n",
+        ),
+        (
+            "scalaire bloc YAML dans un élément de liste",
+            "config.yaml",
+            f"- api_key: |\n    {_P5}\n",
+        ),
+    ],
+)
+def test_les_contournements_du_5e_audit_sont_fermes(label: str, path: str, text: str) -> None:
+    assert _codes_at(path, text), label
+
+
+def test_la_detection_ne_depend_pas_de_l_ordre_des_cles() -> None:
+    """Le même contenu doit être vu quelle que soit la position du secret.
+
+    C'est l'invariant que le défaut P1-4 brisait : le lookahead d'exemption
+    consommait la fin de la ligne, donc `{"tenant_id":…}` avant ou après
+    `client_secret` changeait le verdict sur un contenu identique.
+    """
+    secret_en_second = _codes_at("a.json", f'{{"tenant_id": "x", "client_secret": "{_P5}"}}')
+    secret_en_tete = _codes_at("a.json", f'{{"client_secret": "{_P5}", "tenant_id": "x"}}')
+    assert secret_en_second == secret_en_tete
+    assert secret_en_tete == {"HIGH_ENTROPY_ASSIGNMENT"}
+
+
+def test_un_nom_exempte_ailleurs_sur_la_ligne_n_exempte_pas_le_secret() -> None:
+    """Un nom d'emplacement présent sur la ligne ne couvre que LUI-MÊME."""
+    codes = _codes_at(
+        "conf.json",
+        f'{{"api_key_file": "/etc/vertex/api_key.pem", "api_key": "{_P5}"}}',
+    )
+    assert codes == {"HIGH_ENTROPY_ASSIGNMENT"}
+
+
+@pytest.mark.parametrize(
+    ("label", "path", "text"),
+    [
+        # Le suffixe d'exemption garde tout son effet — sur le nom lui-même.
+        (
+            "emplacement suivi d'un commentaire",
+            "conf.yaml",
+            "  api_key_file: /etc/vertex/api_key.pem   # lu au démarrage",
+        ),
+        ("empreinte en JSON minifié", "conf.json", f'{{"csrf_token_hash": "{_P5}"}}'),
+        # Scalaires blocs : la forme est reconnue, la donnée reste absente.
+        ("bloc YAML portant une référence", "conf.yaml", "password: |\n  ${VERTEX_DB_PASSWORD}\n"),
+        ("bloc YAML à entropie nulle", "conf.yaml", "password: |\n  aaaaaaaaaaaaaaaaaaaaaa\n"),
+        (
+            "bloc YAML sous un nom d'emplacement",
+            "conf.yaml",
+            "password_file: |\n  /run/secrets/vertex_db_password\n",
+        ),
+        (
+            "bloc YAML dont le corps est absent",
+            "conf.yaml",
+            "password: |\nautre_cle: 1\n",
+        ),
+        # Un fichier de CODE n'a pas de scalaire bloc YAML : la ligne suivante
+        # est du code, pas une valeur.
+        (
+            "deux-points suivi d'une barre en Python",
+            "a.py",
+            "password: str | None\nCONSTANTE = compute()\n",
+        ),
+        # La règle DSN élargie ne doit pas mordre sur des URL ordinaires.
+        (
+            "URL de documentation",
+            "README.md",
+            "Voir https://api.example.com/v1/quotes?symbol=AAPL&fields=bid,ask",
+        ),
+        (
+            "userinfo DSN portant une référence",
+            "a.env",
+            "DATABASE_URL=postgresql://user+ro:${VERTEX_DB_PASSWORD}@db.invalid/vertex",
+        ),
+        # Régression des 73 faux positifs : une expression reste une expression,
+        # même quand la ligne porte un commentaire.
+        (
+            "appel de fonction Python commenté",
+            "a.py",
+            "session_token = build_session_token(user)  # cf. token_store_path",
+        ),
+        (
+            "expression TypeScript commentée",
+            "a.ts",
+            "const credential = await navigator.credentials.get()  // voir credential_id",
+        ),
+    ],
+)
+def test_aucun_faux_positif_sur_les_formes_du_5e_audit(label: str, path: str, text: str) -> None:
+    assert _codes_at(path, text) == set(), label
+
+
+@pytest.mark.parametrize(
+    ("label", "path", "text", "code"),
+    [
+        (
+            "scalaire bloc YAML",
+            "config.yaml",
+            f"password: |\n  {_P5}\n",
+            "HIGH_ENTROPY_ASSIGNMENT",
+        ),
+        (
+            "userinfo DSN élargi",
+            "a.env",
+            "postgresql://user+ro:S3cr3tP4ssw0rdXyz@db.invalid:5432/vertex",
+            "DSN_PASSWORD",
+        ),
+    ],
+)
+def test_les_nouveaux_vecteurs_ne_reproduisent_pas_la_valeur(
+    label: str, path: str, text: str, code: str
+) -> None:
+    """L'invariant « aucune valeur reproduite » vaut aussi pour ces chemins."""
+    findings = [f for f in gate.scan_text(path, text) if f.code == code]
+    assert findings, label
+    for finding in findings:
+        rendered = finding.render()
+        assert finding.match not in rendered
+        assert "empreinte" in rendered
+        assert finding.match not in str(finding.label)
