@@ -27,22 +27,38 @@ Ce que la porte vérifie, hors ligne
    marqueurs, est identique au rendu du registre. Un verrou modifié sans
    régénération des notices échoue.
 
-Régénération (réseau requis)
-----------------------------
-    python3 tools/check_notices.py --refresh
+Régénération et revérification (réseau requis)
+---------------------------------------------
+    python3 tools/check_notices.py --refresh   # RÉÉCRIT le registre
+    python3 tools/check_notices.py --verify    # COMPARE, n'écrit rien
 
 `--refresh` relit les verrous, interroge les registres officiels
 (`https://pypi.org/pypi/<nom>/<version>/json` et
 `https://registry.npmjs.org/<nom>/<version>`), réécrit
-`manifests/licenses.yaml` puis le tableau de `THIRD_PARTY_NOTICES.md`. Les
-licences ne sont donc jamais devinées : elles viennent des métadonnées publiées
-par les distributeurs eux-mêmes.
+`manifests/licenses.yaml` puis le tableau de `THIRD_PARTY_NOTICES.md`.
+
+`--verify` interroge les mêmes sources et ÉCHOUE si le registre local diverge.
+Il existe parce que les trois contrôles hors ligne ci-dessus ne confrontent
+jamais le registre à sa source : un audit a mesuré que deux `sed` cohérents —
+l'un sur `manifests/licenses.yaml`, l'autre sur `THIRD_PARTY_NOTICES.md` —
+transforment `LGPL-3.0-only` en `MIT` sans qu'aucun d'eux ne bronche. Le
+registre affirmait pourtant « Aucune valeur n'est devinée » : c'était vrai de
+`--refresh`, et faux de tout ce qui pouvait arriver au fichier ensuite.
+
+`--verify` tolère un registre injoignable et le signale ; `--require-network`
+en fait un échec. Le job `supply-chain` de `ci.yml` utilise le premier — sinon
+une panne de PyPI rendrait rouge chaque poussée et la porte finirait
+débranchée ; l'exécution nocturne utilise le second.
 
 CE QUE CETTE PORTE NE PROUVE PAS
 --------------------------------
 - Elle croit la métadonnée du registre. Un paquet qui déclare `MIT` alors que
   son code est sous une autre licence n'est pas détecté : aucun fichier
   `LICENSE` n'est lu, aucun audit juridique n'est fait.
+- Hors ligne, elle ne prouve RIEN sur l'exactitude d'une licence : elle prouve
+  seulement que registre, verrous et notices sont cohérents entre eux. Trois
+  documents peuvent être cohérents et tous faux. Seul `--verify` les confronte
+  à la source, et il exige le réseau.
 - `role: runtime` / `development` est dérivé du graphe des verrous, pas d'une
   observation de ce qui est réellement embarqué dans un artefact — ce dépôt n'en
   produit aucun.
@@ -66,7 +82,7 @@ import urllib.request
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 import yaml
 
@@ -562,8 +578,10 @@ def refresh(root: Path, policy: dict[str, Any]) -> int:
         "#              (license_expression, à défaut license, à défaut classifiers)\n"
         "#   JavaScript https://registry.npmjs.org/<nom>/<version> (champ license)\n"
         "#\n"
-        "# Aucune valeur n'est devinée : une métadonnée absente reste `UNKNOWN`,\n"
-        "# et `UNKNOWN` fait ÉCHOUER la porte `release`.\n"
+        "# Aucune valeur n'est devinée À LA GÉNÉRATION : une métadonnée absente reste\n"
+        "# `UNKNOWN`, et `UNKNOWN` fait ÉCHOUER la porte `release`. Cela ne dit rien de\n"
+        "# ce qui peut arriver à ce fichier APRÈS : une valeur réécrite à la main passe\n"
+        "# les contrôles hors ligne. C'est `--verify` qui la confronte à sa source.\n"
         "#\n"
         "# `role` est dérivé du graphe des verrous : `runtime` = atteignable depuis\n"
         "# les dépendances non optionnelles des membres du workspace Python ou\n"
@@ -585,6 +603,115 @@ def refresh(root: Path, policy: dict[str, Any]) -> int:
         text = text.replace(existing, table)
     notices_path.write_text(text, encoding="utf-8")
     print(f"Registre et notices régénérés : {len(entries)} composants.")
+    return 0
+
+
+# ── Revérification en ligne ─────────────────────────────────────────────────
+
+
+class VerificationOutcome(NamedTuple):
+    """Résultat d'une revérification d'une entrée du registre."""
+
+    component: str
+    declared: str
+    observed: str
+    source: str
+
+    @property
+    def diverges(self) -> bool:
+        return self.observed != "UNKNOWN" and self.observed != self.declared
+
+    @property
+    def unreachable(self) -> bool:
+        return self.observed == "UNKNOWN"
+
+
+def verify(root: Path, policy: dict[str, Any], *, require_network: bool) -> int:
+    """Confronte `manifests/licenses.yaml` aux registres officiels.
+
+    POURQUOI CE MODE EXISTE. La porte hors ligne compare le registre aux
+    verrous et le tableau des notices au registre. Elle ne confronte JAMAIS le
+    registre à sa source. Un audit l'a mesuré : deux `sed` cohérents — l'un sur
+    `manifests/licenses.yaml`, l'autre sur `THIRD_PARTY_NOTICES.md` —
+    transforment `LGPL-3.0-only` en `MIT` et la porte répond « OK ».
+
+    Ce mode ne réécrit rien, contrairement à `--refresh` : il LIT et compare.
+    Une divergence est un ÉCHEC. Un registre injoignable n'est PAS une
+    divergence : sans `require_network`, il est signalé et n'échoue pas — sinon
+    une panne de PyPI rendrait rouge chaque poussée, et la porte serait
+    débranchée dans la semaine pour cette raison, comme les quatre
+    contournements déjà mesurés. `require_network` existe pour l'exécution
+    nocturne, où l'indisponibilité doit être vue.
+    """
+    components = inventory(root, policy)
+    if not components:
+        raise SystemExit(
+            "ERREUR: aucun composant inventorié — la revérification ne prouverait rien."
+        )
+    registry = load_registry(root)
+    wheels = _wheel_urls(root)
+
+    divergences: list[VerificationOutcome] = []
+    injoignables: list[VerificationOutcome] = []
+    for index, component in enumerate(components, start=1):
+        entry = registry.get((component.ecosystem, component.name, component.version))
+        annonce = normalize_license(str(entry.get("license") or "")) if entry else "UNKNOWN"
+        observed, url = fetch_license(component, wheels.get((component.name, component.version)))
+        resultat = VerificationOutcome(
+            component=f"{component.ecosystem}:{component.name}@{component.version}",
+            declared=annonce,
+            observed=observed,
+            source=url,
+        )
+        print(
+            f"  [{index:3d}/{len(components)}] {resultat.component} "
+            f"déclaré={annonce} observé={observed}"
+        )
+        if resultat.unreachable:
+            injoignables.append(resultat)
+        elif resultat.diverges:
+            divergences.append(resultat)
+
+    if injoignables:
+        print(
+            f"\n{len(injoignables)} composant(s) sans métadonnée lisible "
+            "(registre injoignable, ou licence non publiée) :",
+            file=sys.stderr,
+        )
+        for cas in injoignables:
+            print(f"  - {cas.component} — {cas.source}", file=sys.stderr)
+
+    if divergences:
+        print(
+            f"\nLICENCES DIVERGENTES — {len(divergences)} : le registre local ne dit "
+            "PAS ce que dit le distributeur.",
+            file=sys.stderr,
+        )
+        for cas in divergences:
+            print(
+                f"  - {cas.component} : registre `{cas.declared}` "
+                f"≠ source `{cas.observed}` ({cas.source})",
+                file=sys.stderr,
+            )
+        print(
+            "Régénérer avec `--refresh` et faire relire l'écart : une licence "
+            "réécrite à la main est un incident, pas une coquille.",
+            file=sys.stderr,
+        )
+        return 1
+
+    if injoignables and require_network:
+        print(
+            "\nPORTE release/notices --verify : ÉCHEC — `--require-network` exige "
+            "que chaque licence soit relue à sa source.",
+            file=sys.stderr,
+        )
+        return 1
+
+    print(
+        f"PORTE release/notices --verify : OK — {len(components) - len(injoignables)} "
+        f"licence(s) relues à leur source, {len(injoignables)} injoignable(s)."
+    )
     return 0
 
 
@@ -611,12 +738,30 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="régénère le registre et le tableau depuis les registres officiels (réseau)",
     )
+    parser.add_argument(
+        "--verify",
+        action="store_true",
+        help="relit chaque licence à sa source et échoue si le registre local diverge "
+        "(réseau ; n'écrit rien)",
+    )
+    parser.add_argument(
+        "--require-network",
+        action="store_true",
+        help="avec --verify : un registre injoignable devient un échec au lieu d'un signalement",
+    )
     args = parser.parse_args(argv)
     root = Path(args.root).resolve()
+
+    if args.refresh and args.verify:
+        raise SystemExit("ERREUR: --refresh RÉÉCRIT, --verify COMPARE : choisir l'un des deux.")
 
     if args.refresh:
         policy = yaml.safe_load((root / "manifests" / "policy.yaml").read_text(encoding="utf-8"))
         return refresh(root, policy)
+
+    if args.verify:
+        policy = yaml.safe_load((root / "manifests" / "policy.yaml").read_text(encoding="utf-8"))
+        return verify(root, policy, require_network=args.require_network)
 
     findings = collect_findings(root)
     for finding in sorted(findings, key=lambda f: (f.code, f.where)):

@@ -15,6 +15,10 @@
 # éprouvés qu'ici. Tant que ce workflow n'a pas tourné vert, la couverture
 # navigateur du produit se limite à Chromium — et cela reste écrit dans
 # `docs/99-status/DEBT.md`.
+#
+# Son PREMIER passage réel a échoué avant toute mesure : le job installait
+# `firefox webkit` sans Chromium, dont `e2e/global.setup.ts` a besoin pour
+# l'authentificateur WebAuthn virtuel (CDP). Corrigé plus bas.
 
 name: nightly
 
@@ -119,3 +123,29 @@ jobs:
           path: apps/web/e2e-artifacts/
           retention-days: 7
           if-no-files-found: ignore
+
+
+  licences:
+    name: licences relues à leur source (strict)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+
+      - name: uv
+        uses: astral-sh/setup-uv@2ddd2b9cb38ad8efd50337e8ab201519a34c9f24 # v7.1.1
+        with:
+          enable-cache: false
+
+      - name: Installation Python depuis le verrou exact
+        run: uv sync --locked --all-extras --python ${{ env.PYTHON_VERSION }}
+
+      # Le job `supply-chain` de `ci.yml` fait la même relecture, mais tolère
+      # un registre injoignable pour ne pas rendre chaque poussée otage de la
+      # disponibilité de PyPI et de npm. ICI, l'indisponibilité DOIT être vue :
+      # une licence qu'on n'a pas pu relire n'est pas une licence vérifiée.
+      - name: Chaque licence confrontée à sa source, sans tolérance
+        run: uv run --no-sync python tools/check_notices.py --verify --require-network

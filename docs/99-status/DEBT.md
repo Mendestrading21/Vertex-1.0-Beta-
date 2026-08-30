@@ -56,7 +56,7 @@ Ce fichier ne contient pas de décision humaine ; celles-ci restent dans
 | Supply-chain | `uv.lock` verrouille les 60 paquets Python en versions exactes + 1035 hachages sha256 ; `pip-audit --strict` et `pnpm audit --audit-level high` remontent **0 vulnérabilité** (exécutés localement) ; une SBOM CycloneDX 1.6 de 53 composants est produite PAR LA CI (le job supply-chain est vert sur GitHub ; aucun artefact SBOM n'est commité dans l'arbre, et il ne doit pas l'être). Manquent encore : **signature** (cosign), **provenance** SLSA, scan d'image de conteneur, et SBOM du volet Node. |
 | Navigateurs | Playwright tourne sur **Chromium** en CI de branche. Firefox et WebKit sont couverts par `.github/workflows/nightly.yml`. Ce workflow a tourné une fois (exécution `33311874652`) et a **ÉCHOUÉ avant toute mesure**, dans `e2e/global.setup.ts` : le job installait `firefox webkit` sans Chromium, alors que la préparation de session crée la première passkey par l'authentificateur WebAuthn virtuel, qui passe par CDP — donc par Chromium. Le job installe désormais les trois moteurs, mais **aucun chiffre Firefox ou WebKit n'existe encore**. Tant qu'un run abouti n'existe pas, la couverture navigateur réelle du produit se limite à Chromium. Les binaires ne sont par ailleurs pas téléchargeables depuis l'environnement de développement (CDN Playwright injoignable) : cette preuve ne peut venir que de la CI. |
 | Données | **Aucune donnée réelle n'a jamais été observée.** Tout est `SYNTHETIC` étiqueté ; IBKR n'a jamais été contacté ; Cloudflare n'est pas déployé. |
-| Détection de secrets | `tools/check_secrets.py` inspecte l'**arbre suivi**, pas l'historique Git. Un secret introduit puis retiré dans un commit antérieur ne serait pas vu. La détection est par motifs : une forme non listée passe. |
+| Détection de secrets | `tools/check_secrets.py` inspecte l'**arbre suivi**, pas l'historique Git. Un secret introduit puis retiré dans un commit antérieur ne serait pas vu. La détection est par motifs : une forme non listée passe. Le fichier d'allowlist est désormais balayé lui aussi — seules les valeurs de ses champs `match` en sont dispensées. |
 | Probabilités | `probability.calibration` est `NOT_IMPLEMENTED` au registre : aucune probabilité prédictive n'est affichable, et aucune ne l'est. |
 
 ## Porte `release` — provenance et signature NON FAISABLES ici (décision écrite)
@@ -107,6 +107,7 @@ déclarées absentes**. Aucune porte verte ne les représente. La ligne
 | `policy` | `PR_TARGET_CHECKOUT` détecte l'extraction explicite d'une réf de PR sous `pull_request_target`. Un workflow qui exécuterait du code non fiable par un autre chemin (script téléchargé, artefact d'un run précédent) n'est pas détecté. |
 | `policy` | Les capacités IBKR interdites restent la propriété de `tools/check_financial_boundary.py`. La porte `policy` vérifie seulement que ce script est **réellement appelé** par la CI et par `run_checks.sh` — c'est la régression qui s'est produite trois fois, pas le contenu du script. |
 | `notices` | Elle croit la métadonnée publiée par PyPI et npm. Un paquet qui déclare `MIT` alors que son code est sous une autre licence n'est pas détecté : aucun fichier `LICENSE` n'est comparé, aucun audit juridique n'est fait. |
+| `notices` | Hors ligne, elle ne prouve rien sur l'EXACTITUDE d'une licence : elle prouve que registre, verrous et notices sont cohérents entre eux, et trois documents peuvent être cohérents et tous faux. `--verify` les confronte à la source, mais exige le réseau — pendant une panne de registre, `supply-chain` signale sans bloquer et seule l'exécution nocturne (`--require-network`) échoue. |
 | `notices` | `role: runtime` / `development` est dérivé du graphe des verrous, pas d'une observation de ce qui serait embarqué dans un artefact — ce dépôt n'en produit aucun. |
 | `notices` | Elle ne vérifie pas la présence physique des textes de licence ni des fichiers `NOTICE` exigés par Apache-2.0, et ne dit rien de la compatibilité des licences entre elles. |
 | `notices` | **`psycopg` v3 est sous `LGPL-3.0-only`**, seule licence copyleft du runtime. Elle est **reconnue** dans `manifests/policy.yaml` (`licenses.acknowledged_spdx`) avec motif écrit et ne bloque donc pas. Cette reconnaissance **documente une adoption déjà inscrite** (`manifests/dependencies.yaml`), elle ne la valide pas : une revue humaine de cette licence est requise avant toute distribution. |
@@ -328,28 +329,37 @@ rétrogradée tant que le recalcul de fraîcheur au relais n'est pas fait.
 - **Le champ `text:` de la matrice n'est jamais confronté à la règle** :
   14 entrées sur 30 divergent, dont `API-COMPTE-SAFETY` qui présente une
   interdiction plus étroite que la règle réelle.
-- **`check_secrets` ne balaie pas les commentaires de sa propre allowlist** :
-  deux jetons de test y passent inaperçus alors que le même texte dans
-  `NOW.md` est détecté. Le commentaire du fichier affirme le contraire.
-- **`check_notices` ne revérifie jamais une licence hors ligne** (`--refresh`
-  n'est invoqué par aucun job) : deux `sed` cohérents transforment
-  `LGPL-3.0-only` en `MIT` dans le registre ET les notices sans qu'aucun
-  contrôle ne bronche.
+- ~~**`check_secrets` ne balaie pas les commentaires de sa propre
+  allowlist**~~ — **FERMÉ**. L'exemption ne porte plus sur le fichier entier
+  mais sur les valeurs des champs `match`, et sur elles seules ; commentaires,
+  champs `reason` et clés inconnues sont balayés comme partout ailleurs. La
+  preuve passe par `main()`, pas par `scan_text` : le contournement vivait dans
+  `main()`. Falsifié — en remettant le saut du fichier, le test vire au rouge.
+- ~~**`check_notices` ne revérifie jamais une licence hors ligne**~~ —
+  **FERMÉ**. `--verify` relit chaque licence chez le distributeur et échoue sur
+  divergence, sans rien réécrire. Mesuré sur le dépôt réel : 245 licences
+  relues, 0 injoignable, 0 divergence ; et le blanchiment `LGPL-3.0-only` → MIT
+  rejoué est détecté et nommé. Câblé dans `supply-chain` (tolère un registre
+  injoignable) et dans `nightly` avec `--require-network` (ne le tolère pas).
+  Ce que cela ne ferme PAS : la porte croit toujours la métadonnée publiée, et
+  la protection de branche dépend du réseau — un registre injoignable pendant
+  une panne laisse passer une divergence jusqu'à l'exécution nocturne.
 - **La porte `performance` ne peut pas bloquer sur son budget numérique** :
   `P-CI.absolute_release_gate` vaut `false`, donc un bundle **32×** au-dessus
   du budget passe. Seul le budget booléen bloque réellement.
-- **Trois routes d'accessibilité mesuraient un état vide** : `/analysis`,
-  `/options` et `/simulator` sont paramétrées et ont été visitées sans
-  paramètre. `OptionChainTable`, `OptionInspector`, `CandleChart` et
-  `PayoffChart` n'ont **jamais** été mesurés. `/auth` a **zéro** couverture
-  d'accessibilité alors que le rapport la déclare couverte.
-- **L'assertion « aucun contenu perdu » est une tautologie** : `scrollTo` est
-  borné par `scrollWidth − clientWidth`, donc l'égalité est vraie par
-  construction. Le test de plancher est par ailleurs aveugle aux sept
-  conteneurs `overflow-x: auto` de `global.css`.
-- **« Focus visible » est satisfait par une ombre permanente** — et
-  `.vx-rail-link[aria-current='page']` en porte une. Il faut un différentiel
-  avant/après `Tab`.
+- ~~**Trois routes d'accessibilité mesuraient un état vide**~~ — **FERMÉ**.
+  `/analysis` et `/options` sont désormais mesurées vides ET peuplées
+  (`SYN-TECH-01`) : 14 chemins, 168 cas de test, tous verts. `/simulator` sans
+  paramètre rend bien son composeur complet — c'était la page, pas un encart.
+  **`/auth` a toujours ZÉRO couverture d'accessibilité** ; le rapport ne
+  prétend plus le contraire, mais la route reste non mesurée.
+- ~~**L'assertion « aucun contenu perdu » est une tautologie**~~ — **FERMÉ**.
+  Elle mesure maintenant le déplacement observé du bord droit du `main`, qui
+  doit valoir exactement le manque au plancher. Le test de plancher reste en
+  revanche **aveugle aux sept conteneurs `overflow-x: auto`** de `global.css` :
+  cette limite est écrite dans le rapport, elle n'est pas levée.
+- ~~**« Focus visible » est satisfait par une ombre permanente**~~ — **FERMÉ**.
+  Différentiel `blur()`/`focus()` avant/après `Tab`.
 - **Deux mutants survivants** : retirer le CSS de la charge initiale
   (`measure_web_bundle.py`) ne fait rougir aucun test alors que le chiffre
   publié tomberait de 118 291 à 110 433 ; la comparaison de `role` de
