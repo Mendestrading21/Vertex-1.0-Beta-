@@ -6,8 +6,10 @@
 #              (license_expression, à défaut license, à défaut classifiers)
 #   JavaScript https://registry.npmjs.org/<nom>/<version> (champ license)
 #
-# Aucune valeur n'est devinée : une métadonnée absente reste `UNKNOWN`,
-# et `UNKNOWN` fait ÉCHOUER la porte `release`.
+# Aucune valeur n'est devinée À LA GÉNÉRATION : une métadonnée absente reste
+# `UNKNOWN`, et `UNKNOWN` fait ÉCHOUER la porte `release`. Cela ne dit rien de
+# ce qui peut arriver à ce fichier APRÈS : une valeur réécrite à la main passe
+# les contrôles hors ligne. C'est `--verify` qui la confronte à sa source.
 #
 # `role` est dérivé du graphe des verrous : `runtime` = atteignable depuis
 # les dépendances non optionnelles des membres du workspace Python ou

@@ -54,9 +54,9 @@ Ce fichier ne contient pas de décision humaine ; celles-ci restent dans
 | Fichiers non typés | `apps/web/tsconfig.json` n'inclut que `src` : `e2e/`, `scripts/gen-api.ts` et `playwright.config.ts` ne sont vérifiés par **aucun** `tsc` (Playwright transpile sans typer). Biome les couvre depuis la porte `web-quality`, mais un lint ne remplace pas un typage. |
 | Formatage web | Le formateur Biome est **désactivé** : le meilleur réglage réécrirait 61 % des fichiers. La mise en forme n'est donc gardée par aucune porte. Décision mesurée, à reprendre dans un commit purement mécanique. |
 | Supply-chain | `uv.lock` verrouille les 60 paquets Python en versions exactes + 1035 hachages sha256 ; `pip-audit --strict` et `pnpm audit --audit-level high` remontent **0 vulnérabilité** (exécutés localement) ; une SBOM CycloneDX 1.6 de 53 composants est produite PAR LA CI (le job supply-chain est vert sur GitHub ; aucun artefact SBOM n'est commité dans l'arbre, et il ne doit pas l'être). Manquent encore : **signature** (cosign), **provenance** SLSA, scan d'image de conteneur, et SBOM du volet Node. |
-| Navigateurs | Playwright tourne sur **Chromium** en CI de branche. Firefox et WebKit sont désormais couverts par `.github/workflows/nightly.yml` (382 tests au lieu de 234), mais **ce workflow n'a jamais tourné** : ses binaires ne sont pas téléchargeables depuis l'environnement de développement (le CDN Playwright n'y est pas joignable), et la première exécution nocturne n'a pas encore eu lieu. Tant qu'un run vert n'existe pas, la couverture navigateur réelle du produit se limite à Chromium. |
+| Navigateurs | Playwright tourne sur **Chromium** en CI de branche ; Firefox et WebKit par `.github/workflows/nightly.yml`. Les binaires ne sont pas téléchargeables depuis l'environnement de développement (CDN Playwright injoignable) : **toute preuve hors Chromium ne peut venir que de la CI**, et aucune correction visant Firefox ou WebKit n'est vérifiable localement. Les deux premières exécutions et ce qu'elles ont donné sont détaillées dans la section « Trois moteurs de rendu » plus bas. |
 | Données | **Aucune donnée réelle n'a jamais été observée.** Tout est `SYNTHETIC` étiqueté ; IBKR n'a jamais été contacté ; Cloudflare n'est pas déployé. |
-| Détection de secrets | `tools/check_secrets.py` inspecte l'**arbre suivi**, pas l'historique Git. Un secret introduit puis retiré dans un commit antérieur ne serait pas vu. La détection est par motifs : une forme non listée passe. |
+| Détection de secrets | `tools/check_secrets.py` inspecte l'**arbre suivi**, pas l'historique Git. Un secret introduit puis retiré dans un commit antérieur ne serait pas vu. La détection est par motifs : une forme non listée passe. Le fichier d'allowlist est désormais balayé lui aussi — seules les valeurs de ses champs `match` en sont dispensées. |
 | Probabilités | `probability.calibration` est `NOT_IMPLEMENTED` au registre : aucune probabilité prédictive n'est affichable, et aucune ne l'est. |
 
 ## Porte `release` — provenance et signature NON FAISABLES ici (décision écrite)
@@ -107,6 +107,7 @@ déclarées absentes**. Aucune porte verte ne les représente. La ligne
 | `policy` | `PR_TARGET_CHECKOUT` détecte l'extraction explicite d'une réf de PR sous `pull_request_target`. Un workflow qui exécuterait du code non fiable par un autre chemin (script téléchargé, artefact d'un run précédent) n'est pas détecté. |
 | `policy` | Les capacités IBKR interdites restent la propriété de `tools/check_financial_boundary.py`. La porte `policy` vérifie seulement que ce script est **réellement appelé** par la CI et par `run_checks.sh` — c'est la régression qui s'est produite trois fois, pas le contenu du script. |
 | `notices` | Elle croit la métadonnée publiée par PyPI et npm. Un paquet qui déclare `MIT` alors que son code est sous une autre licence n'est pas détecté : aucun fichier `LICENSE` n'est comparé, aucun audit juridique n'est fait. |
+| `notices` | Hors ligne, elle ne prouve rien sur l'EXACTITUDE d'une licence : elle prouve que registre, verrous et notices sont cohérents entre eux, et trois documents peuvent être cohérents et tous faux. `--verify` les confronte à la source, mais exige le réseau — pendant une panne de registre, `supply-chain` signale sans bloquer et seule l'exécution nocturne (`--require-network`) échoue. |
 | `notices` | `role: runtime` / `development` est dérivé du graphe des verrous, pas d'une observation de ce qui serait embarqué dans un artefact — ce dépôt n'en produit aucun. |
 | `notices` | Elle ne vérifie pas la présence physique des textes de licence ni des fichiers `NOTICE` exigés par Apache-2.0, et ne dit rien de la compatibilité des licences entre elles. |
 | `notices` | **`psycopg` v3 est sous `LGPL-3.0-only`**, seule licence copyleft du runtime. Elle est **reconnue** dans `manifests/policy.yaml` (`licenses.acknowledged_spdx`) avec motif écrit et ne bloque donc pas. Cette reconnaissance **documente une adoption déjà inscrite** (`manifests/dependencies.yaml`), elle ne la valide pas : une revue humaine de cette licence est requise avant toute distribution. |
@@ -157,9 +158,9 @@ Le rapport complet, avec ses mesures, est
 1. **WCAG 1.4.10 (Reflow) — NON CONFORME.** `min-width: 1024px` sur
    l'enveloppe applicative (`apps/web/src/styles/global.css`) fait déborder la
    page de **384 px exactement** à 640 px de large (soit 200 % de zoom sur
-   1280 px), sur les 12 routes. Aucun contenu n'est perdu — le défilement
-   atteint le bord droit — mais le défilement bidimensionnel que le critère
-   interdit existe. Les tests
+   1280 px), sur les 14 chemins mesurés. Aucun contenu n'est perdu — le bord
+   droit du `main` se déplace réellement de la largeur manquante, mesuré — mais
+   le défilement bidimensionnel que le critère interdit existe. Les tests
    (`apps/web/e2e/accessibility.spec.ts`) épinglent la largeur défilable au
    plancher déclaré : ils échouent si un composant ajoute sa propre largeur
    minimale, c'est-à-dire si la situation empire. Lever l'écart suppose de
@@ -173,10 +174,75 @@ Le rapport complet, avec ses mesures, est
    éléments sans rôle, où un lecteur d'écran annonçait « tiret » au lieu de
    « bid absent ») avaient été trouvés par le lint, pas par axe.
 
-Ce qui est en revanche **mesuré vert** : 144 assertions sur 12 routes × 3
-viewports — axe restreint aux étiquettes WCAG 2.0/2.1/2.2 A et AA, tous
+Ce qui est en revanche **mesuré vert** : **168 cas de test** sur 14 chemins ×
+3 viewports — axe restreint aux étiquettes WCAG 2.0/2.1/2.2 A et AA, tous
 impacts confondus, zéro violation ; focus visible atteint à la première
-tabulation ; `prefers-reduced-motion` respecté (zéro animation > 100 ms).
+tabulation, mesuré par différentiel avant/après `Tab` ;
+`prefers-reduced-motion` respecté (zéro animation > 100 ms). Les libellés
+antérieurs — « 144 assertions », « 12 routes » — étaient faux deux fois : ce
+sont des cas de test, et trois des douze routes étaient mesurées à VIDE parce
+qu'elles sont paramétrées et étaient visitées sans paramètre.
+
+## Trois moteurs de rendu — première mesure réelle
+
+`.github/workflows/nightly.yml` a tourné deux fois.
+
+**Exécution 1 (`33311874652`, sur `main`) — ÉCHEC avant toute mesure.** Le job
+installait `firefox webkit` sans Chromium ; `e2e/global.setup.ts:169` appelle
+`chromium.launch()` pour créer la première passkey via l'authentificateur
+WebAuthn virtuel (CDP). Aucun test n'a démarré. Corrigé : le job installe les
+trois moteurs.
+
+**Exécution 2 (`33312346908`) — première mesure réelle : 659 passés, 3
+échoués, 11,1 min.** Deux causes distinctes, aucune masquée :
+
+1. **`auth.spec.ts:38` sur Firefox ET WebKit** — `context.newCDPSession()`
+   lève « CDP session is only available in Chromium ». L'authentificateur
+   WebAuthn virtuel n'existe que derrière CDP et Playwright n'expose aucun
+   équivalent ailleurs : la cérémonie de connexion par passkey est
+   **intestable** hors Chromium. Le test est désormais sauté sur les deux
+   autres moteurs, avec le motif écrit.
+   **CE QUE CELA LAISSE OUVERT** : la connexion par passkey n'est prouvée que
+   sur Chromium. Ce qui reste prouvé partout : l'état « Session requise » sans
+   session, et les 659 tests qui tournent authentifiés par l'état de session
+   enregistré au setup.
+2. **`performance.spec.ts:92` sur WebKit seul — DÉFAUT PRODUIT.** L'export
+   « CSV + manifeste » de la page Performance ne produisait **qu'un fichier sur
+   deux** : le CSV partait, le manifeste d'audit jamais. Un utilisateur Safari
+   ne l'aurait jamais reçu. L'utilitaire de téléchargement existait en **trois
+   copies** ; elles sont remplacées par `src/app/downloadFile.ts`,
+   propriétaire unique.
+
+**Exécution 3 (`33313838830`) — 659 passés, 2 sautés, 1 ÉCHOUÉ, 9,7 min.** La
+limite CDP est réglée (2 sautés, avec motif écrit). Le défaut WebKit, lui, a
+**résisté au premier correctif** : différer `URL.revokeObjectURL()` et rendre
+la main entre les deux enregistrements n'a rien changé, l'échec s'est reproduit
+à l'identique.
+
+Ce que la mesure dit vraiment : **un** téléchargement par geste utilisateur
+passe sur les trois moteurs, deux ne passent pas sur WebKit. Plutôt qu'une
+troisième variante invérifiable localement, la dépendance au
+multi-téléchargement est SUPPRIMÉE : la page Performance a deux boutons —
+« Exporter les points » et « Exporter le manifeste ». Le contenu exporté est
+inchangé, les deux fichiers restent ceux servis par l'API. La révocation
+différée est conservée comme hygiène, mais elle reste une **hypothèse non
+prouvée** : rien ne montre qu'elle corrige quoi que ce soit.
+
+**Exécution 4 (`33314910817`) — VERTE : 665 passés, 2 sautés, 0 échoué,
+11,2 min sur Chromium, Firefox ET WebKit.** Le produit passe pour la première
+fois sur les trois moteurs de rendu. Les 2 sautés sont la cérémonie passkey,
+intestable hors Chromium, avec son motif écrit ; le trou qu'ils laissent est
+nommé ci-dessus et reste ouvert.
+
+Ce que cette campagne a coûté à la confiance dans les chiffres antérieurs : il
+a fallu QUATRE exécutions, dont trois rouges, pour obtenir la première mesure
+verte hors Chromium. 234 tests Chromium verts n'avaient rien dit d'un export
+cassé sur un moteur sur trois, et le premier correctif de ce défaut était une
+hypothèse fausse — seule la troisième exécution l'a démontré.
+
+Ce que cette campagne a coûté à la confiance dans les chiffres antérieurs :
+234 tests Chromium verts n'avaient rien dit d'un export cassé sur un moteur
+sur trois. Le produit n'a jamais été observé hors Chromium avant le 30 août.
 
 ## Campagne chaos LOT-23 — ce qu'elle couvre, ce qu'elle ne couvre pas
 
@@ -218,7 +284,7 @@ activité ultérieure. La fraîcheur est donc jugée **à la lecture**, sur
 `as_of`, et non republiée. C'est cohérent avec l'architecture par snapshots
 immuables ; ce n'était écrit nulle part avant ce test.
 
-## Matrice de traçabilité — 25 interdictions prouvées sur 30, 5 écarts
+## Matrice de traçabilité — 24 interdictions prouvées sur 30, 6 écarts
 
 `manifests/traceability.yaml` relie chaque interdiction absolue de
 `CLAUDE.md` et de `.claude/rules/financial-safety.md` à la preuve qui
@@ -232,12 +298,30 @@ exécution. Ce qu'elle a révélé :
 | Ajouter un framework sans ADR | La porte `policy` prouve l'épinglage et le verrouillage, `notices` l'inventaire et la licence. **Rien ne relie une dépendance à un ADR accepté.** |
 | Travailler sur `main`, force-push, fusionner sans validation humaine | Déclarée **NON PROUVABLE PAR TEST** : protections de branche et droits de fusion vivent dans la configuration GitHub, qu'aucun test exécuté dans un checkout ne peut lire. Reste une vérification humaine. |
 
-Une limite de la matrice elle-même mérite d'être écrite : l'entrée
-`AUCUN-CALCUL-AUTORITAIRE-EN-TS` est marquée `PROVEN`, mais ses preuves
-couvrent les **vues testées**, pas tout le code TypeScript. Il n'existe aucun
+Le sixième écart est `EXCEPTION-JAMAIS-QUALIFIED`, rétrogradé de `PROVEN` à
+`NOT_YET_PROVEN` : sa seconde moitié — « ni conserver silencieusement un
+ancien verdict » — est **contredite par une mesure**, celle des +71 heures
+décrite plus bas.
+
+Une version antérieure de ce paragraphe affirmait qu'« il n'existe aucun
 balayage statique du dépôt web équivalent à `check_financial_boundary` pour
-les calculs financiers en TypeScript. Un calcul autoritaire ajouté dans une
-vue non couverte passerait.
+les calculs financiers en TypeScript ». **C'est faux depuis `fdc9dfc`** :
+`no-authoritative-calculation.test.ts` balaie tout `apps/web/src` par AST et
+refuse toute arithmétique sur une grandeur financière relayée (vocabulaire
+fermé de 35 noms, 9 injections à détecter, 6 à ignorer), et
+`no-uncalibrated-probability.test.ts` réserve la lecture de
+`probability_evidence`. Ce qui reste vrai : les deux gardes lisent
+`apps/web/src` et rien d'autre, et aucune ne voit une expression construite
+dynamiquement.
+
+Ce que la matrice ne prouve toujours pas, et qui est désormais écrit dans
+chaque entrée concernée : `NATURES-JAMAIS-CONFONDUES` et
+`FALLBACK-JAMAIS-PRESENTE-COMME-REEL` sont prouvées au niveau des
+**composants**, sans qu'aucun balayage n'établisse qu'une page ne peut pas les
+contourner ; `UNITES-AUX-FRONTIERES` est prouvée aux **quatre frontières
+citées**, pas à toutes ; `AUCUN-VOCABULAIRE-D-ORDRE` ne balaie que
+l'interface, donc un impératif d'ordre écrit dans une réponse serveur
+atteindrait l'écran sans être vu.
 
 ## Mutation testing — TENTÉ, ÉCHOUÉ, aucun score publiable
 
@@ -311,45 +395,81 @@ sous le nom de « conserver silencieusement un ancien verdict ».
 `test_defaut_connu_un_dossier_publie_se_dit_encore_frais_bien_plus_tard`
 épingle la réalité mesurée et **échouera le jour où le défaut sera corrigé**,
 forçant à revenir retirer la caractérisation. L'entrée
-`EXCEPTION-JAMAIS-QUALIFIED` de `manifests/traceability.yaml` doit être
-rétrogradée tant que le recalcul de fraîcheur au relais n'est pas fait.
+`EXCEPTION-JAMAIS-QUALIFIED` de `manifests/traceability.yaml` **est désormais
+rétrogradée** en `NOT_YET_PROVEN`, avec la mesure exacte, un propriétaire, une
+échéance et un critère de fermeture : le recalcul de fraîcheur à la lecture
+dans `snapshot_views.py`, plus un test montrant qu'un dossier publié au-delà
+de son TTL cesse de se déclarer frais. Le défaut LUI-MÊME reste ouvert.
 
 ### Encore ouverts, mesurés, non corrigés
 
-- **La matrice compte des déclarations, pas des preuves.** 58 citations sur 67
-  n'ont pas de `::` et sont validées par le seul `path.is_file()` ; une
-  citation `::nom` est résolue par SOUS-CHAÎNE contre tous les
+- ~~**La matrice compte des déclarations, pas des preuves.**~~ — **FERMÉ**.
+  Les 67 citations nomment maintenant un test précis, comparé par égalité
+  EXACTE à la liste des fonctions `test_*` du fichier (les classes et les
+  helpers ne sont plus collectés). Une citation de fichier entier échoue
+  désormais (`proof_not_anchored`). Falsifié : `::t`, `::e`, `README.md` et
+  un fichier de tests cité nu sont tous refusés, et l'ancre exacte passe.
+  Le champ `text` est en outre confronté mot pour mot à la règle : 14 entrées
+  sur 30 divergeaient, dont une énonçant une interdiction PLUS ÉTROITE que le
+  document. Trace de l'ancien défaut : 58 citations sur 67
+  n'avaient pas de `::` et étaient validées par le seul `path.is_file()` ; une
+  citation `::nom` était résolue par SOUS-CHAÎNE contre tous les
   `FunctionDef`/`ClassDef`, helpers compris. `README.md` cité comme preuve
   d'« Envoyer un ordre IBKR » passe ; `test_ai_explain.py::t` aussi.
-- **Le champ `text:` de la matrice n'est jamais confronté à la règle** :
-  14 entrées sur 30 divergent, dont `API-COMPTE-SAFETY` qui présente une
-  interdiction plus étroite que la règle réelle.
-- **`check_secrets` ne balaie pas les commentaires de sa propre allowlist** :
-  deux jetons de test y passent inaperçus alors que le même texte dans
-  `NOW.md` est détecté. Le commentaire du fichier affirme le contraire.
-- **`check_notices` ne revérifie jamais une licence hors ligne** (`--refresh`
-  n'est invoqué par aucun job) : deux `sed` cohérents transforment
-  `LGPL-3.0-only` en `MIT` dans le registre ET les notices sans qu'aucun
-  contrôle ne bronche.
-- **La porte `performance` ne peut pas bloquer sur son budget numérique** :
-  `P-CI.absolute_release_gate` vaut `false`, donc un bundle **32×** au-dessus
-  du budget passe. Seul le budget booléen bloque réellement.
-- **Trois routes d'accessibilité mesuraient un état vide** : `/analysis`,
-  `/options` et `/simulator` sont paramétrées et ont été visitées sans
-  paramètre. `OptionChainTable`, `OptionInspector`, `CandleChart` et
-  `PayoffChart` n'ont **jamais** été mesurés. `/auth` a **zéro** couverture
-  d'accessibilité alors que le rapport la déclare couverte.
-- **L'assertion « aucun contenu perdu » est une tautologie** : `scrollTo` est
-  borné par `scrollWidth − clientWidth`, donc l'égalité est vraie par
-  construction. Le test de plancher est par ailleurs aveugle aux sept
-  conteneurs `overflow-x: auto` de `global.css`.
-- **« Focus visible » est satisfait par une ombre permanente** — et
-  `.vx-rail-link[aria-current='page']` en porte une. Il faut un différentiel
-  avant/après `Tab`.
-- **Deux mutants survivants** : retirer le CSS de la charge initiale
-  (`measure_web_bundle.py`) ne fait rougir aucun test alors que le chiffre
-  publié tomberait de 118 291 à 110 433 ; la comparaison de `role` de
-  `check_notices.py` n'est prouvée par aucun test.
-- **`P-DESKTOP` porte `absolute_release_gate: true` sans aucune
-  `required_metadata`** : un verdict de release absolu peut être rendu sur une
-  machine entièrement non décrite.
+- ~~**Le champ `text:` de la matrice n'est jamais confronté à la règle**~~ —
+  **FERMÉ** avec le point ci-dessus. `API-COMPTE-SAFETY` omettait « résumé de
+  compte », « allocations » et « identifiants d'ordre » : un lecteur se fiant
+  à la matrice aurait cru l'interdiction plus étroite qu'elle n'est.
+- ~~**`check_secrets` ne balaie pas les commentaires de sa propre
+  allowlist**~~ — **FERMÉ**. L'exemption ne porte plus sur le fichier entier
+  mais sur les valeurs des champs `match`, et sur elles seules ; commentaires,
+  champs `reason` et clés inconnues sont balayés comme partout ailleurs. La
+  preuve passe par `main()`, pas par `scan_text` : le contournement vivait dans
+  `main()`. Falsifié — en remettant le saut du fichier, le test vire au rouge.
+- ~~**`check_notices` ne revérifie jamais une licence hors ligne**~~ —
+  **FERMÉ**. `--verify` relit chaque licence chez le distributeur et échoue sur
+  divergence, sans rien réécrire. Mesuré sur le dépôt réel : 245 licences
+  relues, 0 injoignable, 0 divergence ; et le blanchiment `LGPL-3.0-only` → MIT
+  rejoué est détecté et nommé. Câblé dans `supply-chain` (tolère un registre
+  injoignable) et dans `nightly` avec `--require-network` (ne le tolère pas).
+  Ce que cela ne ferme PAS : la porte croit toujours la métadonnée publiée, et
+  la protection de branche dépend du réseau — un registre injoignable pendant
+  une panne laisse passer une divergence jusqu'à l'exécution nocturne.
+- ~~**La porte `performance` ne peut pas bloquer sur son budget
+  numérique**~~ — **FERMÉ**. Un budget `max` doit désormais déclarer
+  `machine_independent`, et un dépassement sur un budget indépendant de la
+  machine bloque à TOUT profil : un compte d'octets gzip est le même sur
+  chaque coureur, il n'existe aucune machine sur laquelle 10 Mo au lieu de
+  300 ko soit acceptable. Omettre le champ échoue (`machine_independence_
+  undeclared`) : la branche permissive était le défaut, c'est ainsi que le
+  dépassement de 32× est passé. Les budgets sensibles à la machine (latences)
+  restent soumis au profil — une latence mesurée sur un coureur partagé ne dit
+  rien de la machine cible.
+  Ce que cela ne ferme PAS : `enforcement.absolute_targets_block_pr` reste
+  `false`, donc aucune latence n'est encore bloquante nulle part.
+- ~~**Trois routes d'accessibilité mesuraient un état vide**~~ — **FERMÉ**.
+  `/analysis` et `/options` sont désormais mesurées vides ET peuplées
+  (`SYN-TECH-01`) : 14 chemins, 168 cas de test, tous verts. `/simulator` sans
+  paramètre rend bien son composeur complet — c'était la page, pas un encart.
+  **`/auth` a toujours ZÉRO couverture d'accessibilité** ; le rapport ne
+  prétend plus le contraire, mais la route reste non mesurée.
+- ~~**L'assertion « aucun contenu perdu » est une tautologie**~~ — **FERMÉ**.
+  Elle mesure maintenant le déplacement observé du bord droit du `main`, qui
+  doit valoir exactement le manque au plancher. Le test de plancher reste en
+  revanche **aveugle aux sept conteneurs `overflow-x: auto`** de `global.css` :
+  cette limite est écrite dans le rapport, elle n'est pas levée.
+- ~~**« Focus visible » est satisfait par une ombre permanente**~~ — **FERMÉ**.
+  Différentiel `blur()`/`focus()` avant/après `Tab`.
+- ~~**Deux mutants survivants**~~ — **FERMÉS**. Retirer le CSS de la charge
+  initiale (`measure_web_bundle.py`) fait rougir deux tests qui mesurent
+  l'écart. Neutraliser la comparaison de `role` (`check_notices.py`) en fait
+  rougir deux autres : ce champ décide de la SECTION du tableau des notices —
+  `runtime`, embarqué chez l'utilisateur, ou `development` — et un composant
+  copyleft reclassé à la main sortait de la section qui l'expose sans que rien
+  ne bronche. Un rôle vide ou absent est traité comme une divergence, pas comme
+  une absence de contrainte.
+- ~~**`P-DESKTOP` porte `absolute_release_gate: true` sans aucune
+  `required_metadata`**~~ — **FERMÉ**. Le profil exige `cpu`, `ram_mib`,
+  `os_kernel`, `browser_version`, `viewport` et `device_pixel_ratio`, et un
+  test balaie le manifeste réel : aucun profil à autorité absolue ne peut
+  désormais se passer de décrire sa machine.

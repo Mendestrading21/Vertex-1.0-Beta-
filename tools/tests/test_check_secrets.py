@@ -127,10 +127,13 @@ def test_l_allowlist_exige_un_motif_ecrit(tmp_path: Path, monkeypatch: pytest.Mo
 def test_l_allowlist_ne_peut_pas_servir_de_cachette(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """L'allowlist n'est pas scannée — mais une entrée dont la valeur
-    n'apparaît nulle part ailleurs est rejetée comme exemption morte.
-    Garer un secret dans l'allowlist est donc impossible : il faudrait qu'il
-    existe aussi dans un vrai fichier, là où le relecteur le verrait."""
+    """Une entrée dont la valeur n'apparaît nulle part ailleurs est rejetée
+    comme exemption morte.
+
+    Cette protection était présentée comme suffisante — « on ne peut donc pas
+    y garer un secret ». Elle ne l'était pas : elle ne porte que sur les
+    entrées `allow`, et le reste du fichier n'était pas balayé du tout (voir
+    plus bas, 9e audit). Elle reste néanmoins nécessaire, et ce test la garde."""
     cachette = tmp_path / "secret-allowlist.yaml"
     cachette.write_text(
         "allow:\n"
@@ -531,3 +534,207 @@ def test_le_vocabulaire_elargi_ne_cree_pas_de_faux_positif(
     label: str, path: str, text: str
 ) -> None:
     assert {f.code for f in gate.scan_text(path, text)} == set(), label
+
+
+# ── 9e audit : l'allowlist était dispensée du balayage EN ENTIER ─────────────
+#
+# Reproduit : deux jetons de forme créditable ajoutés dans un COMMENTAIRE de
+# `manifests/secret-allowlist.yaml` passaient inaperçus, alors que le même
+# texte placé dans `docs/99-status/NOW.md` était détecté. La porte affirmait
+# pourtant « on ne peut donc pas y garer un secret ». L'exemption porte
+# désormais sur les valeurs des champs `match`, et sur elles seules.
+
+
+def _allowlist_isolee(tmp_path: Path, contenu: str) -> Path:
+    fichier = tmp_path / "secret-allowlist.yaml"
+    fichier.write_text(contenu, encoding="utf-8")
+    return fichier
+
+
+def test_un_commentaire_de_l_allowlist_est_desormais_balaye(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Le contournement mesuré au 9e audit, rejoué."""
+    jeton = "ghp_" + "A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8"
+    fichier = _allowlist_isolee(
+        tmp_path,
+        "allow: []\n# note de relecture : " + jeton + "\n",
+    )
+    monkeypatch.setattr(gate, "ALLOWLIST_PATH", fichier)
+
+    citations = gate.declared_matches()
+    assert citations == set(), "aucune entrée déclarée : rien n'est exempté"
+
+    codes = {
+        finding.code
+        for finding in gate.scan_text(
+            "manifests/secret-allowlist.yaml", fichier.read_text(encoding="utf-8")
+        )
+        if finding.match not in citations
+    }
+    assert "GITHUB_TOKEN" in codes, (
+        "un jeton logé dans un commentaire de l'allowlist doit être signalé comme partout ailleurs"
+    )
+
+
+def test_une_valeur_declaree_reste_exemptee_dans_l_allowlist(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Anti-vacuité et non-régression : sans cette exemption, l'allowlist
+    s'auto-signalerait et la porte serait rouge en permanence."""
+    fichier = _allowlist_isolee(
+        tmp_path,
+        "allow:\n"
+        "  - path: tools/tests/test_check_secrets.py\n"
+        "    code: AWS_ACCESS_KEY\n"
+        "    match: AKIAIOSFODNN7EXAMPLE\n"
+        "    reason: valeur d'exemple publique d'AWS, utilisée comme fixture\n",
+    )
+    monkeypatch.setattr(gate, "ALLOWLIST_PATH", fichier)
+
+    citations = gate.declared_matches()
+    assert citations == {"AKIAIOSFODNN7EXAMPLE"}
+
+    restants = [
+        finding
+        for finding in gate.scan_text(
+            "manifests/secret-allowlist.yaml", fichier.read_text(encoding="utf-8")
+        )
+        if finding.match not in citations
+    ]
+    assert restants == [], f"l'allowlist s'auto-signale : {restants}"
+
+
+def test_le_balayage_de_l_allowlist_voit_bien_quelque_chose(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Anti-vacuité du premier test : si `scan_text` ne reconnaissait plus rien
+    dans un YAML, le test ci-dessus passerait sans rien prouver."""
+    fichier = _allowlist_isolee(tmp_path, "allow: []\n")
+    monkeypatch.setattr(gate, "ALLOWLIST_PATH", fichier)
+    jeton = "ghp_" + "A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8"
+    trouve = list(gate.scan_text("n_importe_quoi.yaml", "# " + jeton + "\n"))
+    assert trouve, "le motif GITHUB_TOKEN ne reconnaît plus rien dans un commentaire YAML"
+
+
+def test_une_valeur_declaree_n_exempte_pas_les_autres_fichiers(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`declared_matches` ne doit exempter que DANS l'allowlist.
+
+    Sinon déclarer une entrée suffirait à blanchir la même valeur partout, ce
+    qui remplacerait l'exemption ciblée `chemin:code:extrait` par une exemption
+    globale par valeur.
+    """
+    fichier = _allowlist_isolee(
+        tmp_path,
+        "allow:\n"
+        "  - path: tools/tests/test_check_secrets.py\n"
+        "    code: AWS_ACCESS_KEY\n"
+        "    match: AKIAIOSFODNN7EXAMPLE\n"
+        "    reason: valeur d'exemple publique d'AWS, utilisée comme fixture\n",
+    )
+    monkeypatch.setattr(gate, "ALLOWLIST_PATH", fichier)
+
+    ailleurs = list(gate.scan_text("apps/api/src/config.py", "aws_key: AKIAIOSFODNN7EXAMPLE\n"))
+    assert ailleurs, "la même valeur ailleurs doit rester détectée"
+    cle = ailleurs[0].key()
+    assert cle not in gate.load_allowlist(), (
+        "l'exemption déclarée vise tools/tests/test_check_secrets.py, pas "
+        f"apps/api/src/config.py — {cle}"
+    )
+
+
+def _gate_isole(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, fichiers: dict[str, str]):
+    """Fait tourner `main()` sur une arborescence entièrement contrôlée.
+
+    Les tests ci-dessus appellent `scan_text` : c'est insuffisant. Le
+    contournement du 9e audit ne vivait PAS dans `scan_text` — il vivait dans
+    `main()`, qui sautait le fichier d'allowlist en entier. Seul un test qui
+    passe par `main()` peut prouver qu'il est fermé.
+    """
+    racine = tmp_path / "depot"
+    for nom, contenu in fichiers.items():
+        cible = racine / nom
+        cible.parent.mkdir(parents=True, exist_ok=True)
+        cible.write_text(contenu, encoding="utf-8")
+    monkeypatch.setattr(gate, "REPO_ROOT", racine)
+    monkeypatch.setattr(gate, "ALLOWLIST_PATH", racine / "manifests" / "secret-allowlist.yaml")
+    monkeypatch.setattr(gate, "tracked_files", lambda: sorted(racine.rglob("*")))
+    return racine
+
+
+def test_main_refuse_un_secret_loge_dans_un_commentaire_de_l_allowlist(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """LA preuve de comportement : `main()` doit rendre 1.
+
+    Avant correction, ce même arbre rendait 0 et imprimait « Aucun secret
+    détecté » : c'est la mesure exacte du 9e audit.
+    """
+    jeton = "ghp_" + "A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8"
+    _gate_isole(
+        tmp_path,
+        monkeypatch,
+        {
+            "manifests/secret-allowlist.yaml": "allow: []\n# note de relecture : " + jeton + "\n",
+            "README.md": "# dépôt de test\n",
+        },
+    )
+    assert gate.main() == 1, "un secret logé dans l'allowlist doit faire échouer la porte"
+    signale = capsys.readouterr().err
+    assert "secret-allowlist.yaml" in signale
+    assert jeton not in signale, "la porte ne doit jamais reproduire la valeur"
+
+
+def test_main_reste_vert_quand_l_allowlist_ne_cite_que_ses_exemptions(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Anti-vacuité du test précédent.
+
+    Sans lui, `main()` pourrait rendre 1 pour une raison sans rapport et le
+    test ci-dessus passerait sans rien prouver. Ici l'allowlist contient la
+    MÊME forme de valeur, mais déclarée et réellement consommée ailleurs : la
+    porte doit être verte.
+    """
+    _gate_isole(
+        tmp_path,
+        monkeypatch,
+        {
+            "manifests/secret-allowlist.yaml": (
+                "allow:\n"
+                "  - path: fixtures/aws.py\n"
+                "    code: AWS_ACCESS_KEY\n"
+                "    match: AKIAIOSFODNN7EXAMPLE\n"
+                "    reason: valeur d'exemple publique d'AWS, fixture SYNTHETIC\n"
+            ),
+            "fixtures/aws.py": "aws_key = 'AKIAIOSFODNN7EXAMPLE'\n",
+        },
+    )
+    assert gate.main() == 0, "une allowlist qui ne cite que ses exemptions doit rester verte"
+
+
+def test_main_rejette_encore_une_exemption_morte(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """La protection existante ne doit pas avoir été perdue en chemin.
+
+    Une entrée dont la valeur n'apparaît dans AUCUN autre fichier reste une
+    exemption morte : c'est ce qui empêche de « garer » un secret en le
+    déclarant.
+    """
+    _gate_isole(
+        tmp_path,
+        monkeypatch,
+        {
+            "manifests/secret-allowlist.yaml": (
+                "allow:\n"
+                "  - path: nulle/part.py\n"
+                "    code: AWS_ACCESS_KEY\n"
+                "    match: AKIAIOSFODNN7EXAMPLE\n"
+                "    reason: tentative de dissimulation\n"
+            ),
+            "README.md": "# dépôt de test\n",
+        },
+    )
+    assert gate.main() == 1, "une exemption morte doit toujours faire échouer la porte"

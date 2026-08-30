@@ -1,6 +1,7 @@
 import { useState } from 'react';
 
 import { isApiError } from '../../api/client.ts';
+import { saveTextAsFile } from '../../app/downloadFile.ts';
 import { getPortfolioExportCsv, postCompensation } from '../../api/portfolioApi.ts';
 import type { LedgerTransactionEntry } from '../../api/client.ts';
 import { serverRejectionOf } from './portfolioView.ts';
@@ -36,19 +37,6 @@ function instrumentTicker(entry: LedgerTransactionEntry): string | null {
   }
   const ticker = (instrument as Record<string, unknown>)['ticker'];
   return typeof ticker === 'string' && ticker !== '' ? ticker : null;
-}
-
-/** Déclenche le téléchargement navigateur d'un texte servi par l'API. */
-function saveTextAsFile(text: string, filename: string, mediaType: string): void {
-  const blob = new Blob([text], { type: mediaType });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = filename;
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  URL.revokeObjectURL(url);
 }
 
 export function LedgerPanel({

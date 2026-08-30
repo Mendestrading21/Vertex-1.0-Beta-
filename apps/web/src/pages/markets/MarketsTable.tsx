@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react';
 
+import { saveTextAsFile } from '../../app/downloadFile.ts';
+
 import type { FlatTicker } from './marketsView.ts';
 import { GROUP_LABELS_FR, frDecimal, geometryNumber } from './marketsView.ts';
 
@@ -118,15 +120,11 @@ export function MarketsTable({ entries }: MarketsTableProps) {
         entry.ticker.synthetic ? 'SYNTHETIC' : '',
       ].join(';'),
     );
-    const blob = new Blob([`${header}\n${lines.join('\n')}\n`], {
-      type: 'text/csv;charset=utf-8',
-    });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
-    anchor.href = url;
-    anchor.download = 'marches-synthetiques.csv';
-    anchor.click();
-    URL.revokeObjectURL(url);
+    saveTextAsFile(
+      `${header}\n${lines.join('\n')}\n`,
+      'marches-synthetiques.csv',
+      'text/csv;charset=utf-8',
+    );
   }
 
   return (

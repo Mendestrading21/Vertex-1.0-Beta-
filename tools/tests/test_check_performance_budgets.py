@@ -75,8 +75,21 @@ BASE_MANIFEST: dict[str, Any] = {
             "budget_path": "frontend.bundles.initial_gzip_recommended_max_bytes",
             "unit": "byte",
             "status": "MEASURED",
+            "machine_independent": True,
         }
     ],
+}
+
+#: Budget SENSIBLE À LA MACHINE : une latence mesurée sur un coureur partagé ne
+#: dit pas grand-chose de la machine cible. C'est le seul cas où un profil sans
+#: autorité absolue a le droit de rétrograder un dépassement.
+LATENCE_SPEC: dict[str, Any] = {
+    "metric_id": "api.page_snapshot.hot_api_snapshot_server.latency_ms.p95",
+    "kind": "max",
+    "budget_path": "hot_paths.HP-03.segments#hot_api_snapshot_server.objective_p95_ms",
+    "unit": "ms",
+    "status": "MEASURED",
+    "machine_independent": False,
 }
 
 BASE_REPORT: dict[str, Any] = {
@@ -260,6 +273,7 @@ def test_un_segment_est_adresse_par_identifiant_pas_par_position(tmp_path: Path)
             "kind": "max",
             "budget_path": "hot_paths.HP-03.segments#hot_api_snapshot_server.objective_p95_ms",
             "status": "MEASURED",
+            "machine_independent": False,
         }
     ]
     report = {
@@ -342,16 +356,30 @@ def test_un_depassement_bloque_sous_un_profil_a_autorite_absolue(tmp_path: Path)
     assert not result["ok"]
 
 
-def test_un_depassement_est_enregistre_sans_bloquer_sous_p_ci(tmp_path: Path) -> None:
-    """`enforcement.absolute_targets_block_pr: false` — enregistré, pas perdu."""
+def test_un_depassement_sensible_a_la_machine_est_enregistre_sans_bloquer(
+    tmp_path: Path,
+) -> None:
+    """`enforcement.absolute_targets_block_pr: false` — enregistré, pas perdu.
+
+    Ce report vaut UNIQUEMENT pour un budget dont la valeur dépend de la
+    machine. Une latence p95 mesurée sur un coureur GitHub partagé ne dit rien
+    de la machine cible ; la rendre bloquante ferait rougir la CI pour du bruit
+    d'ordonnancement. Le dépassement est enregistré, jamais perdu.
+    """
+    manifest = json.loads(json.dumps(BASE_MANIFEST))
+    manifest["required_measurements"] = [LATENCE_SPEC]
     report = {
         **BASE_REPORT,
         "measurements": [
-            {"metric_id": "frontend.bundles.initial_gzip_bytes", "value": 5000, "samples": 1}
+            {
+                "metric_id": "api.page_snapshot.hot_api_snapshot_server.latency_ms.p95",
+                "value": 900,
+                "samples": 5000,
+            }
         ],
     }
-    result = _run(tmp_path, BASE_MANIFEST, report)
-    assert result["ok"]
+    result = _run(tmp_path, manifest, report)
+    assert result["ok"], result["findings"]
     assert [w["code"] for w in result["warnings"]] == ["budget_exceeded"]
 
 
@@ -529,3 +557,114 @@ def test_le_manifeste_reel_est_exploitable_par_la_porte() -> None:
         assert budget is not None, entry["metric_id"]
         if entry["kind"] == "max":
             assert isinstance(budget, (int, float)) and not isinstance(budget, bool)
+
+
+# ── 9e audit : un bundle 32x au-dessus du budget passait la porte ────────────
+#
+# Mesuré sur le dépôt réel : un rapport portant `initial_gzip_bytes` à
+# 10 000 000 octets (budget 307 200) rendait `ok: true` sous P-DEV, parce
+# qu'aucun profil de développement ni de CI ne porte `absolute_release_gate`.
+# Un compte d'octets gzip ne dépend pourtant pas de la machine qui l'a mesuré :
+# il n'existe aucun coureur sur lequel 10 Mo soit acceptable.
+
+
+def test_un_depassement_independant_de_la_machine_bloque_sans_autorite_absolue(
+    tmp_path: Path,
+) -> None:
+    """LE reproducteur : 32x le budget, sous un profil sans autorité absolue."""
+    report = {
+        **BASE_REPORT,
+        "profile_id": "P-CI",
+        "measurements": [
+            {"metric_id": "frontend.bundles.initial_gzip_bytes", "value": 32_000, "samples": 1}
+        ],
+    }
+    assert BASE_MANIFEST["profiles"]["P-CI"]["absolute_release_gate"] is False, (
+        "anti-vacuité : si P-CI avait l'autorité absolue, ce test passerait "
+        "par l'ancienne branche et ne prouverait rien"
+    )
+    result = _run(tmp_path, BASE_MANIFEST, report)
+    assert not result["ok"], "un dépassement de 32x ne peut pas rendre ok: true"
+    bloquants = [
+        f for f in result["findings"] if f["code"] == "budget_exceeded" and f.get("blocking")
+    ]
+    assert len(bloquants) == 1, result["findings"]
+    assert bloquants[0]["machine_independent"] is True
+    assert result["warnings"] == [], "un budget indépendant ne se rétrograde pas"
+
+
+def test_un_budget_max_sans_declaration_d_independance_echoue(tmp_path: Path) -> None:
+    """Fail-closed : omettre le champ achèterait silencieusement l'indulgence.
+
+    C'est exactement ainsi que le dépassement de 32x est passé inaperçu — la
+    branche permissive était le DÉFAUT, pas un choix écrit.
+    """
+    manifest = json.loads(json.dumps(BASE_MANIFEST))
+    del manifest["required_measurements"][0]["machine_independent"]
+    result = _run(tmp_path, manifest, BASE_REPORT)
+    assert "machine_independence_undeclared" in {f["code"] for f in result["findings"]}
+    assert not result["ok"]
+
+
+def test_une_declaration_non_booleenne_ne_compte_pas(tmp_path: Path) -> None:
+    """`machine_independent: "oui"` est une chaîne vraie en Python.
+
+    Sans ce test, un manifeste mal typé passerait pour une déclaration valide
+    et, pire, serait lu comme « indépendant » par vérité de chaîne non vide.
+    """
+    manifest = json.loads(json.dumps(BASE_MANIFEST))
+    manifest["required_measurements"][0]["machine_independent"] = "oui"
+    result = _run(tmp_path, manifest, BASE_REPORT)
+    assert "machine_independence_undeclared" in {f["code"] for f in result["findings"]}
+
+
+def test_le_manifeste_reel_declare_l_independance_de_chaque_budget_max() -> None:
+    """La règle ne vaut que si le manifeste LIVRÉ la respecte.
+
+    Un test qui ne vérifie que des fixtures laisse le vrai manifeste libre
+    d'omettre le champ, et la porte n'aurait alors jamais rien à dire.
+    """
+    reel = yaml.safe_load(
+        (_REPO_ROOT / "manifests" / "performance-budgets.yaml").read_text(encoding="utf-8")
+    )
+    maxima = [
+        spec for spec in reel["required_measurements"] if spec.get("kind") == "max"
+    ]
+    assert len(maxima) >= 4, f"seulement {len(maxima)} budgets `max` : le balayage est aveugle"
+    sans_declaration = [
+        spec["metric_id"]
+        for spec in maxima
+        if not isinstance(spec.get("machine_independent"), bool)
+    ]
+    assert sans_declaration == [], (
+        "ces budgets `max` ne disent pas s'ils dépendent de la machine : "
+        f"{sans_declaration}"
+    )
+    # Le budget de bundle EST indépendant : c'est celui que l'audit a mesuré.
+    bundle = next(s for s in maxima if s["metric_id"] == "frontend.bundles.initial_gzip_bytes")
+    assert bundle["machine_independent"] is True
+
+
+def test_aucun_profil_a_autorite_absolue_ne_se_passe_de_metadonnees() -> None:
+    """`P-DESKTOP` portait `absolute_release_gate: true` sans `required_metadata`.
+
+    Un verdict de release ABSOLU rendu depuis une machine entièrement non
+    décrite n'est comparable à rien, pas même à lui-même — c'est exactement ce
+    que `missing_profile_metadata` existe pour empêcher, et ce profil y
+    échappait faute de champs à exiger.
+    """
+    reel = yaml.safe_load(
+        (_REPO_ROOT / "manifests" / "performance-budgets.yaml").read_text(encoding="utf-8")
+    )
+    profils = reel["profiles"]
+    absolus = [
+        nom for nom, corps in profils.items() if corps.get("absolute_release_gate") is True
+    ]
+    assert absolus, "aucun profil absolu : ce test ne prouverait rien"
+    sans_metadonnees = [
+        nom for nom in absolus if not (profils[nom].get("required_metadata") or [])
+    ]
+    assert sans_metadonnees == [], (
+        "ces profils rendent un verdict de release absolu sans exiger la "
+        f"moindre description de la machine : {sans_metadonnees}"
+    )

@@ -39,7 +39,26 @@ test.describe('Accès passkey', () => {
 
   test('« Se connecter » avec la passkey existante ouvre une session réelle', async ({
     browser,
+    browserName,
   }, testInfo) => {
+    // L'authentificateur WebAuthn VIRTUEL n'existe que derrière CDP, un
+    // protocole Chromium : `context.newCDPSession()` lève « CDP session is
+    // only available in Chromium » sur Firefox et WebKit. C'est une limite de
+    // l'outillage, pas un choix de confort — Playwright n'expose aucun
+    // équivalent sur les deux autres moteurs, et il n'existe aucun moyen de
+    // jouer une cérémonie passkey sans authentificateur.
+    //
+    // CE QUE CE SAUT COÛTE, écrit ici et dans docs/99-status/DEBT.md : la
+    // cérémonie de CONNEXION par passkey n'est prouvée que sur Chromium.
+    // Ce qui reste prouvé partout : l'état « Session requise » sans session
+    // (test précédent de ce fichier, exécuté sur les trois moteurs) et les
+    // 659 tests qui tournent authentifiés par l'état de session enregistré au
+    // setup.
+    test.skip(
+      browserName !== 'chromium',
+      'authentificateur WebAuthn virtuel indisponible hors Chromium (CDP)',
+    );
+
     const raw = process.env['VX_E2E_CREDENTIAL'];
     if (raw === undefined) {
       throw new Error('VX_E2E_CREDENTIAL absent : global.setup.ts n’a pas abouti.');
@@ -54,8 +73,18 @@ test.describe('Accès passkey', () => {
       'desktop-1440x900': 200,
       'desktop-1600x1000': 300,
     };
-    credential['signCount'] =
-      Number(credential['signCount'] ?? 0) + (signCountOffsets[testInfo.project.name] ?? 400);
+    const offset = signCountOffsets[testInfo.project.name];
+    if (offset === undefined) {
+      // Un projet non listé recevrait le MÊME décalage qu'un autre projet non
+      // listé : deux exécutions au même compteur, que le serveur lirait — à
+      // raison — comme une clé clonée, et il révoquerait la passkey ET toutes
+      // les sessions. Mieux vaut échouer en le disant.
+      throw new Error(
+        `projet « ${testInfo.project.name} » sans décalage de compteur de signature déclaré : ` +
+          'ajouter une entrée à signCountOffsets avant de l’exécuter.',
+      );
+    }
+    credential['signCount'] = Number(credential['signCount'] ?? 0) + offset;
 
     const context = await browser.newContext({ baseURL: WEB_BASE_URL });
     const page = await context.newPage();

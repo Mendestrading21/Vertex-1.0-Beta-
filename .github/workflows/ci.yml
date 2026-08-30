@@ -431,3 +431,26 @@ jobs:
           name: sbom
           path: sbom-python.json
           retention-days: 30
+
+      # Ce job ne synchronisait rien : ses trois autres portes tournent en
+      # `uv run --no-project --with <outil épinglé>`. Un premier essai de la
+      # porte 15d en `--no-sync` a donc créé un venv VIDE sur le Python du
+      # système et échoué sur `ModuleNotFoundError: No module named 'yaml'` —
+      # avant la SBOM, qu'elle a fait sauter au passage. D'où l'ordre actuel :
+      # la SBOM est produite et publiée AVANT, et la relecture réseau vient en
+      # dernier, où son échec ne prive de rien.
+      - name: Installation Python depuis le verrou exact
+        run: uv sync --locked --all-extras --python ${{ env.PYTHON_VERSION }}
+
+      # La porte hors ligne du job `garde-fous` compare le registre aux VERROUS
+      # et le tableau des notices au REGISTRE. Elle ne confronte jamais le
+      # registre à sa SOURCE : un audit a mesuré que deux `sed` cohérents
+      # transforment `LGPL-3.0-only` en `MIT` sans qu'elle bronche. Ce pas
+      # relit chaque licence chez le distributeur.
+      #
+      # Une DIVERGENCE échoue. Un registre injoignable ne fait que se signaler
+      # ici — sans quoi une panne de PyPI rendrait rouge chaque poussée, et la
+      # porte serait débranchée pour cette raison. L'exécution nocturne la
+      # rejoue avec `--require-network`, où l'indisponibilité doit être vue.
+      - name: Porte 15d — licences relues à leur source
+        run: uv run --no-sync python tools/check_notices.py --verify

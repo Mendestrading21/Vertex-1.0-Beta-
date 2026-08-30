@@ -282,6 +282,26 @@ def load_allowlist() -> dict[str, str]:
     return allowed
 
 
+def declared_matches() -> set[str]:
+    """Les seules valeurs que l'allowlist a le droit de contenir.
+
+    L'allowlist cite forcément les extraits qu'elle exempte : les scanner
+    reviendrait à s'auto-signaler. Le fichier ENTIER était donc dispensé du
+    balayage — et un audit a montré que deux jetons de forme créditable placés
+    dans un COMMENTAIRE y passaient inaperçus, alors que le même texte dans
+    `NOW.md` était détecté. La porte affirmait pourtant « on ne peut donc pas y
+    garer un secret ».
+
+    L'exemption porte désormais sur les valeurs des champs ``match``, et sur
+    elles seules. Tout le reste du fichier — commentaires, champs ``reason``,
+    clés inconnues — est balayé comme n'importe quel fichier suivi.
+    """
+    if not ALLOWLIST_PATH.is_file():
+        return set()
+    raw = yaml.safe_load(ALLOWLIST_PATH.read_text(encoding="utf-8")) or {}
+    return {str(entry["match"]) for entry in (raw.get("allow") or []) if entry.get("match")}
+
+
 def tracked_files() -> list[Path]:
     out = subprocess.run(  # noqa: S603 (argv littéral, sans shell)
         ["git", "-C", str(REPO_ROOT), "ls-files", "-z"],  # noqa: S607 (git résolu par PATH, argv littéral)
@@ -513,6 +533,7 @@ def scan_text(path: str, text: str) -> Iterable[Finding]:
 
 def main() -> int:
     allowlist = load_allowlist()
+    citations = declared_matches()
     used: set[str] = set()
     findings: list[Finding] = []
 
@@ -520,14 +541,6 @@ def main() -> int:
         if not absolute.is_file():
             continue
         relative = absolute.relative_to(REPO_ROOT).as_posix()
-        if absolute == ALLOWLIST_PATH:
-            # L'allowlist cite forcément les valeurs qu'elle exempte : la
-            # scanner reviendrait à s'auto-signaler. Ce n'est pas une faille :
-            # une entrée dont la valeur n'apparaît dans AUCUN autre fichier est
-            # rejetée comme exemption morte (voir `stale` plus bas). On ne peut
-            # donc pas y « garer » un secret — il devrait exister ailleurs, là
-            # où le relecteur le verrait.
-            continue
         if absolute.suffix.lower() in BINARY_SUFFIXES:
             continue
         if absolute.stat().st_size > MAX_BYTES:
@@ -539,6 +552,13 @@ def main() -> int:
         for finding in scan_text(relative, text):
             if finding.key() in allowlist:
                 used.add(finding.key())
+                continue
+            if absolute == ALLOWLIST_PATH and finding.match in citations:
+                # L'allowlist a le droit de contenir les extraits qu'elle
+                # exempte, et RIEN d'autre. Cette occurrence-ci ne consomme
+                # aucune exemption : `used` ne la compte pas, donc une entrée
+                # dont la valeur n'apparaît dans aucun VRAI fichier reste
+                # rejetée comme exemption morte.
                 continue
             findings.append(finding)
 

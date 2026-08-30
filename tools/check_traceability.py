@@ -17,15 +17,21 @@ it. This gate keeps that map honest in both directions:
    a rule fires both codes at once: the map must be re-read against the new
    wording, not silently carried over.
 3. ``proof_missing`` — an entry claims ``PROVEN`` with no proof.
-4. ``proof_file_absent`` / ``proof_test_absent`` — a cited test file or test
-   name does not exist. A citation that resolves to nothing is worse than no
-   citation: it looks like coverage.
+4. ``proof_file_absent`` / ``proof_test_absent`` / ``proof_not_anchored`` — a
+   cited test file does not exist, the named test does not exist, or the
+   citation names no test at all. A citation that resolves to nothing is worse
+   than no citation: it looks like coverage. Anchoring is REQUIRED because a
+   whole-file citation survives emptying the file.
 5. ``gap_without_exception`` — a ``NOT_YET_PROVEN`` entry lacks ``owner``,
    ``reason``, ``expires_at`` or ``closure_criterion``.
 6. ``expired_exception`` — such an entry's deadline has passed.
 7. ``unprovable_without_argument`` — a ``NOT_PROVABLE_BY_TEST`` entry lacks a
    written argument. Declaring a rule untestable must cost a paragraph.
 8. ``unknown_status`` — a third status was invented.
+9. ``text_diverges_from_rule`` — the entry's ``text`` is not the rule it claims
+   to map. It is a copy for the reader's benefit and was never checked against
+   the source: 14 of the 30 entries diverged, one of them stating a NARROWER
+   prohibition than the document does.
 
 Entries that are not ``PROVEN`` are PRINTED on every run, whether or not the
 gate fails. A gap that stops being visible stops being a gap and becomes an
@@ -128,14 +134,22 @@ def collect_prohibitions(root: Path) -> dict[str, tuple[str, str]]:
 
 
 def _python_test_names(path: Path) -> set[str]:
-    """Test function names defined in a Python file, methods included."""
+    """Names of the TESTS defined in a Python file, methods included.
+
+    Helpers, fixtures and classes are deliberately EXCLUDED. They used to be
+    collected too, and combined with the substring match below that made
+    ``fichier.py::t`` resolve against any helper containing a ``t``. A citation
+    must name a test, not a name that happens to appear in the file.
+    """
     try:
         tree = ast.parse(path.read_text(encoding="utf-8"))
     except (OSError, SyntaxError):
         return set()
     names: set[str] = set()
     for node in ast.walk(tree):
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name.startswith(
+            "test_"
+        ):
             names.add(node.name)
     return names
 
@@ -149,19 +163,32 @@ def _other_test_names(path: Path) -> set[str]:
 
 
 def _proof_resolves(root: Path, proof: str) -> str | None:
-    """``None`` when the proof resolves, otherwise a finding code."""
+    """``None`` when the proof resolves, otherwise a finding code.
+
+    Two rules, both written after an audit measured what the previous version
+    accepted.
+
+    ANCHORING. A citation must name a test: ``chemin::nom``. A whole-file
+    citation used to be accepted on the strength of ``path.is_file()`` alone —
+    58 of the 67 citations were of that shape, and ``README.md`` cited as proof
+    of « never send an IBKR order » passed. A file is not a proof: it can be
+    emptied, its tests renamed, its subject changed, and the map would still
+    look green.
+
+    EXACT MATCH. The name used to be matched by SUBSTRING against every
+    function AND class in the file, helpers included: ``::t`` resolved. A
+    Playwright title is a sentence, so a TypeScript citation is compared to the
+    FULL title; a parametrised Python test keeps its bare function name, which
+    is what ``ast`` reports.
+    """
     relative, _, test_name = proof.partition("::")
     path = root / relative
     if not path.is_file():
         return "proof_file_absent"
     if not test_name:
-        # A whole-file proof is legitimate when the entire file exists to prove
-        # one rule (an AST denylist, a boundary proof).
-        return None
+        return "proof_not_anchored"
     names = _python_test_names(path) if path.suffix == ".py" else _other_test_names(path)
-    # Substring match, because a Playwright title is a sentence and a
-    # parametrised Python test carries a suffix.
-    if test_name in names or any(test_name in name for name in names):
+    if test_name in names:
         return None
     return "proof_test_absent"
 
@@ -229,6 +256,29 @@ def check(root: Path, today: dt.date) -> dict[str, Any]:
 
         status = entry.get("status")
         identity = {"digest": key, "id": entry.get("id")}
+
+        # The `text` field is a COPY of the rule, and it was never confronted to
+        # the rule: an audit found 14 of the 30 entries diverging, among them
+        # one that stated a NARROWER prohibition than the document does. A
+        # reader trusting the matrix would have believed the narrower one. The
+        # digest keys the entry, so a real edit to the rule fires
+        # `invariant_no_longer_exists`; this check catches the other direction —
+        # the copy drifting on its own.
+        declared_text = " ".join(str(entry.get("text", "")).split())
+        actual_text = " ".join(prohibitions[key][1].split())
+        if declared_text != actual_text:
+            findings.append(
+                {
+                    **identity,
+                    "code": "text_diverges_from_rule",
+                    "detail": (
+                        "the entry restates the rule differently from the "
+                        "source document; a paraphrase is not the rule"
+                    ),
+                    "declared": declared_text,
+                    "actual": actual_text,
+                }
+            )
 
         if status == "PROVEN":
             proofs = entry.get("proofs")

@@ -10,7 +10,9 @@ from __future__ import annotations
 
 import importlib.util
 import sys
+from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 import pytest
 import yaml
@@ -366,3 +368,162 @@ def test_missing_policy_fails_closed(sandbox: Path) -> None:
 def test_the_repository_itself_satisfies_the_notices_gate() -> None:
     findings = gate.collect_findings(_REPO_ROOT)
     assert findings == [], "\n".join(f.render() for f in findings)
+
+
+# ── 9e audit : le registre n'était jamais confronté à sa source ──────────────
+#
+# Mesuré sur le dépôt réel : `sed -i '1340s/LGPL-3.0-only/MIT/'
+# manifests/licenses.yaml` suivi de `sed -i '87s/LGPL-3.0-only/MIT/'
+# THIRD_PARTY_NOTICES.md` transforme la licence de `psycopg` en MIT, et
+# `python3 tools/check_notices.py` répond « OK ». Les trois contrôles hors
+# ligne comparent le registre aux VERROUS et les notices au REGISTRE ; aucun ne
+# regarde la source. `--verify` la regarde.
+
+
+def _sources(**licences: str) -> Callable[..., tuple[str, str]]:
+    """Faux distributeur : rend la licence publiée, sans réseau."""
+
+    def _fetch(component: Any, wheel_url: str | None = None) -> tuple[str, str]:
+        cle = f"{component.ecosystem}:{component.name}"
+        return licences.get(cle, "UNKNOWN"), f"https://source.invalid/{component.name}"
+
+    return _fetch
+
+
+_SOURCES_HONNETES = {
+    "python:libruntime": "Apache-2.0",
+    "python:libtest": "MIT",
+    "javascript:widget": "MIT",
+    "javascript:linter": "MIT",
+}
+
+
+def test_verify_est_vert_quand_le_registre_dit_la_verite(
+    sandbox: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Anti-vacuité du test suivant : sans ce contrôle positif, un `--verify`
+    qui échouerait toujours passerait pour une porte qui marche."""
+    monkeypatch.setattr(gate, "fetch_license", _sources(**_SOURCES_HONNETES))
+    assert gate.verify(sandbox, POLICY, require_network=True) == 0
+
+
+def test_verify_refuse_une_licence_reecrite_a_la_main(
+    sandbox: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """LE reproducteur : le blanchiment LGPL → MIT, rejoué en bac à sable."""
+    blanchi = {
+        "schema_version": 1,
+        "components": [
+            dict(entry, license="MIT" if entry["name"] == "libruntime" else entry["license"])
+            for entry in REGISTRY["components"]
+        ],
+    }
+    _write(sandbox, registry=blanchi)
+    # Le contrôle HORS LIGNE reste vert : registre, verrous et notices sont
+    # cohérents entre eux. C'est exactement le trou mesuré.
+    assert gate.collect_findings(sandbox) == [], (
+        "le contrôle hors ligne doit rester vert ici — sinon ce test ne "
+        "démontrerait pas que `--verify` apporte quelque chose"
+    )
+
+    monkeypatch.setattr(gate, "fetch_license", _sources(**_SOURCES_HONNETES))
+    assert gate.verify(sandbox, POLICY, require_network=True) == 1
+    rapporte = capsys.readouterr().err
+    assert "libruntime" in rapporte
+    assert "Apache-2.0" in rapporte, "le rapport doit nommer la licence réelle"
+    assert "MIT" in rapporte, "le rapport doit nommer la licence déclarée"
+
+
+def test_verify_signale_un_registre_injoignable_sans_echouer(
+    sandbox: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Sans `--require-network`, une panne de registre ne rend pas la CI rouge.
+
+    C'est un choix, écrit ici pour qu'il ne se perde pas : une porte qui rougit
+    à chaque incident PyPI est débranchée dans la semaine, et c'est ainsi que
+    les quatre contournements de cette session ont commencé.
+    """
+    monkeypatch.setattr(gate, "fetch_license", _sources())  # tout injoignable
+    assert gate.verify(sandbox, POLICY, require_network=False) == 0
+    assert "injoignable" in capsys.readouterr().err
+
+
+def test_verify_echoue_sur_un_registre_injoignable_en_mode_strict(
+    sandbox: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """L'exécution nocturne, elle, doit voir l'indisponibilité."""
+    monkeypatch.setattr(gate, "fetch_license", _sources())
+    assert gate.verify(sandbox, POLICY, require_network=True) == 1
+
+
+def test_verify_n_ecrit_rien(sandbox: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """`--refresh` réécrit, `--verify` compare. Confondre les deux ferait
+    qu'une divergence se corrigerait toute seule au lieu d'être signalée."""
+    registre = (sandbox / "manifests" / "licenses.yaml").read_text(encoding="utf-8")
+    notices = (sandbox / "THIRD_PARTY_NOTICES.md").read_text(encoding="utf-8")
+    monkeypatch.setattr(gate, "fetch_license", _sources(**_SOURCES_HONNETES))
+    gate.verify(sandbox, POLICY, require_network=True)
+    assert (sandbox / "manifests" / "licenses.yaml").read_text(encoding="utf-8") == registre
+    assert (sandbox / "THIRD_PARTY_NOTICES.md").read_text(encoding="utf-8") == notices
+
+
+def test_refresh_et_verify_sont_exclusifs() -> None:
+    """`--refresh --verify` réécrirait puis comparerait au résultat de la
+    réécriture : toujours vert, jamais informatif."""
+    with pytest.raises(SystemExit) as leve:
+        gate.main(["--refresh", "--verify"])
+    assert "--verify" in str(leve.value)
+
+
+# ── 9e audit : la comparaison de `role` n'était prouvée par aucun test ───────
+#
+# Mutant survivant : neutraliser `str(entry.get("role") or "") != component.role`
+# ne faisait rougir aucun test. Or `role` décide de la SECTION du tableau des
+# notices — `runtime` (embarqué chez l'utilisateur) ou `development`. Un
+# composant copyleft reclassé `development` à la main sortirait de la section
+# qui l'expose, sans que rien ne bronche.
+
+
+def test_un_role_reecrit_dans_le_registre_est_signale(sandbox: Path) -> None:
+    """`libruntime` est atteignable depuis les dépendances non optionnelles du
+    workspace : le verrou dit `runtime`. Le registre prétend `development`."""
+    reclasse = {
+        "schema_version": 1,
+        "components": [
+            dict(entry, role="development" if entry["name"] == "libruntime" else entry["role"])
+            for entry in REGISTRY["components"]
+        ],
+    }
+    _write(sandbox, registry=reclasse)
+    codes = _codes(gate.collect_findings(sandbox))
+    assert "NOTICE_STALE" in codes, (
+        "un rôle réécrit à la main doit être signalé : il décide de la section "
+        "du tableau des notices"
+    )
+
+
+def test_le_role_exact_du_verrou_ne_signale_rien(sandbox: Path) -> None:
+    """Anti-vacuité : sans ce contrôle, le test ci-dessus pourrait passer pour
+    une raison sans rapport et la comparaison serait toujours rouge."""
+    assert gate.collect_findings(sandbox) == []
+
+
+def test_un_role_absent_du_registre_est_signale(sandbox: Path) -> None:
+    """Un rôle vide n'est pas « pas de contrainte » : c'est une divergence.
+
+    `str(entry.get("role") or "")` rend `""` pour un rôle absent, `None` ou
+    vide — trois formes qu'un registre édité à la main peut prendre, et qui ne
+    valent aucun rôle du verrou.
+    """
+    for valeur in ("", None):
+        sans_role = {
+            "schema_version": 1,
+            "components": [
+                ({**entry, "role": valeur} if entry["name"] == "libruntime" else entry)
+                for entry in REGISTRY["components"]
+            ],
+        }
+        _write(sandbox, registry=sans_role)
+        assert "NOTICE_STALE" in _codes(gate.collect_findings(sandbox)), (
+            f"un rôle {valeur!r} doit être signalé, pas accepté par défaut"
+        )

@@ -14,10 +14,24 @@ une population **SYNTHETIC**. Aucune n'est estimée.
 
 ## Périmètre mesuré
 
-12 routes authentifiées : `/today`, `/calendar`, `/markets`,
-`/opportunities`, `/analysis`, `/options`, `/simulator`, `/portfolio`,
-`/follow-up`, `/performance`, `/ai`, `/system`.
-La 13ᵉ route, `/auth`, est couverte par `e2e/auth.spec.ts`.
+**14 chemins pour 12 des 13 routes.** Une première version de ce rapport
+annonçait « 12 routes » ; un audit a montré que trois d'entre elles étaient
+mesurées à VIDE.
+
+`/analysis` et `/options` sont paramétrées (`/analysis/:instrument?`,
+`/options/:underlying?`). Visitées sans paramètre, elles rendent un encart
+« Aucun instrument sélectionné » : `OptionChainTable`, `OptionInspector`,
+`CandleChart` et `PayoffChart` — les composants les plus larges et les plus
+animés du produit, ceux qui décident du contraste, de l'ordre de tabulation
+dans une grille et du mouvement — n'étaient **jamais montés**. Les deux états
+sont désormais mesurés, vide et peuplé.
+
+`/simulator/:id?` sans paramètre rend son composeur complet ; seule la zone de
+résultat est vide. C'est bien la page.
+
+**`/auth` n'a AUCUNE couverture d'accessibilité.** Ce rapport affirmait qu'elle
+était « couverte par `e2e/auth.spec.ts` » : ce fichier ne contient aucune
+occurrence de `axe`, `keyboard` ni `focus`. L'affirmation était fausse.
 
 Trois viewports de release : 1280×800, 1440×900, 1600×1000.
 `1024×768` sert de contrôle de dégradation laptop (`e2e/smoke.spec.ts`) ; ce
@@ -27,13 +41,15 @@ n'est ni un breakpoint mobile ni une quatrième cible.
 
 | Vérification | Critères visés | Résultat mesuré |
 |---|---|---|
-| axe restreint aux étiquettes WCAG (`wcag2a`, `wcag2aa`, `wcag21a`, `wcag21aa`, `wcag22aa`), **tous impacts** | l'ensemble des critères A/AA couverts par axe, contraste (1.4.3) inclus | **0 violation** sur 12 routes × 3 viewports |
-| Traversée clavier et focus visible | 2.1.1, 2.4.3, 2.4.7, 2.4.11 | la première tabulation atteint un élément interactif portant un indicateur de focus visible sur **12/12** routes × 3 viewports |
-| `prefers-reduced-motion` | 2.3.3 | **0 animation ou transition > 100 ms** sur 12 routes × 3 viewports |
+| axe restreint aux étiquettes WCAG (`wcag2a`, `wcag2aa`, `wcag21a`, `wcag21aa`, `wcag22aa`), **tous impacts** | l'ensemble des critères A/AA couverts par axe, contraste (1.4.3) inclus | **0 violation** sur 14 chemins × 3 viewports |
+| Traversée clavier et focus visible | 2.1.1, 2.4.3, 2.4.7, 2.4.11 | la première tabulation atteint un élément interactif portant un indicateur de focus visible sur **14/14** chemins × 3 viewports |
+| `prefers-reduced-motion` | 2.3.3 | **0 animation ou transition > 100 ms** sur 14 chemins × 3 viewports |
 | Redimensionnement 200 % (reflow) | 1.4.10 | **NON CONFORME** — voir ci-dessous |
 | Revue lecteur d'écran par une personne | 1.3.1, 4.1.2 en usage réel | **NON FAITE** — voir ci-dessous |
 
-Total : **144 assertions vertes** (48 par viewport, 3 viewports).
+Total : **168 cas de test** (56 par viewport, 3 viewports), chacun portant
+deux à quatre assertions. Une première version parlait de « 144 assertions » :
+c'étaient des cas de test, pas des assertions, et sur 12 chemins au lieu de 14.
 
 Les specs de page exécutent en outre axe avec un seuil de zéro violation
 critique ou sérieuse sur chaque parcours ; cette campagne les complète, elle ne
@@ -48,14 +64,20 @@ L'enveloppe applicative porte `min-width: 1024px`
 640 px, sous ce plancher. La page défile alors horizontalement, ce que le
 critère 1.4.10 interdit.
 
-**Mesure** : largeur défilable de **1024 px exactement** sur les 12 routes,
+**Mesure** : largeur défilable de **1024 px exactement** sur les 14 chemins,
 soit un débordement de **384 px** à 640 px de large. La valeur est identique
 partout : le débordement vient du seul plancher déclaré, aucun composant n'y
 ajoute sa propre largeur minimale.
 
-**Aucun contenu n'est perdu** : le défilement horizontal atteint le bord droit
-du contenu sur les 12 routes ; l'information reste accessible, au prix d'un
+**Aucun contenu n'est perdu** : le défilement horizontal déplace réellement le
+contenu de la largeur manquante ; l'information reste atteignable, au prix d'un
 défilement bidimensionnel.
+
+Cette phrase reposait auparavant sur une **tautologie** : le test vérifiait que
+`scrollLeft + clientWidth` atteint `scrollWidth`, or `scrollTo` est borné par
+`scrollWidth − clientWidth` — l'égalité était vraie par construction et ne
+pouvait pas échouer. Elle mesure maintenant le déplacement observé du bord
+droit du `main`.
 
 Les tests correspondants épinglent cette réalité au lieu de la masquer : ils
 échouent si la largeur défilable s'éloigne du plancher déclaré, c'est-à-dire si
@@ -90,11 +112,30 @@ revendication de conformité AA.
   pas « conforme AA ».
 - La traversée clavier vérifiée est la **première** tabulation, pas le parcours
   complet ni la restauration du focus après un panneau ou une boîte de dialogue.
+- Le focus visible est mesuré par **différentiel** avant/après `Tab`. La
+  version précédente acceptait n'importe quelle `box-shadow` non vide — or
+  `.vx-rail-link[aria-current='page']` en porte une en permanence : le test
+  aurait annoncé « focus visible » en mesurant un indicateur d'état de
+  navigation.
+- Le plancher desktop est mesuré sur `document.scrollingElement`. Il est donc
+  **aveugle** à tout débordement vivant dans un conteneur `overflow-x: auto` —
+  il y en a sept dans `global.css`, et c'est là que vivent la chaîne d'options
+  et les tables larges. L'affirmation « aucun composant n'ajoute sa propre
+  largeur minimale » ne porte que sur ce qui remonte au défilement de page.
+- Le zoom 200 % est mesuré à **un seul viewport** (640×400), répété par les
+  trois projets : le test pose lui-même la taille, ce qui écrase celle du
+  projet. Trois exécutions, une seule mesure.
 - Le seuil de 100 ms pour `prefers-reduced-motion` est un choix écrit dans le
   test, pas une valeur normative.
-- Les mesures viennent de Chromium uniquement. Firefox et WebKit sont exécutés
-  par `.github/workflows/nightly.yml`, qui **n'a jamais tourné** à ce jour
-  (`docs/99-status/DEBT.md`).
+- **Les 168 cas ci-dessus sont mesurés sur Chromium.** Depuis l'exécution
+  nocturne `33314910817` (665 passés, 2 sautés, 0 échoué, 11,2 min), la même
+  campagne tourne aussi sur **Firefox et WebKit** : les projets
+  `firefox-1440x900` et `webkit-1440x900` n'excluent que `smoke.spec.ts`
+  (`apps/web/playwright.config.ts`). Ce que ces deux moteurs N'apportent PAS,
+  c'est la matrice de viewports : ils sont mesurés à **1440×900 uniquement**,
+  alors que Chromium couvre les trois largeurs de release. Une violation de
+  contraste ou de reflow propre à une largeur non couverte passerait donc
+  encore inaperçue sur Firefox et WebKit (`docs/99-status/DEBT.md`).
 - La population est SYNTHETIC : aucune donnée réelle n'a encore été observée.
 
 ## Comment reproduire
