@@ -39,6 +39,7 @@ from typing import Any, Literal, Mapping, Optional
 from vertex_api.portfolio import neutralize_csv_cell
 from vertex_api.snapshot_views import (
     SnapshotContentError,
+    checked_relayed_content,
     _optional_str,
     _parse_utc,
     _require_bool,
@@ -221,11 +222,21 @@ def _checked_coverage(value: Any, *, points: int, excluded_days: int) -> None:
 def checked_performance_content(content: Any) -> Mapping[str, Any]:
     """Fail-closed shape check of ONE persisted performance content.
 
-    Validates the shape of every field the worker publishes and returns the
-    content UNCHANGED — the relay stays verbatim. Any deviation raises a
-    :class:`SnapshotContentError` naming its field path only; no value, no
-    return, no ratio is ever recomputed, corrected or defaulted here.
+    Two contracts, both fail-closed, neither replacing the other:
+
+    * the CLASS contract (:func:`checked_relayed_content`) — every string leaf
+      must match the shape of its kind: a decimal is a decimal, a nature label
+      belongs to a closed set, prose is bounded and control-free. Without it
+      this relay served ``strike``-like values, and the ``population`` label
+      that separates SYNTHETIC from real, as arbitrary 5000-character strings;
+    * the STRUCTURE contract below — the fields the worker publishes are all
+      present, consistent with one another, and in the expected arrangement.
+
+    The content is returned UNCHANGED — the relay stays verbatim. Any deviation
+    raises a :class:`SnapshotContentError` naming its field path only; no value,
+    no return, no ratio is ever recomputed, corrected or defaulted here.
     """
+    checked_relayed_content(content)
     mapping = _wire_mapping(content, field="content")
     schema_version = _require_str(
         mapping.get("schema_version"), field="schema_version"

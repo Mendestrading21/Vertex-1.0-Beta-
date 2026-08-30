@@ -539,16 +539,28 @@ _DECIMAL_KEYS: tuple[str, ...] = (
 """Non-negative financial values relayed as decimal strings."""
 
 _SIGNED_DECIMAL_KEYS: tuple[str, ...] = (
+    # Les agrégats monétaires d'un portefeuille sont SIGNÉS : une position
+    # vendeuse déclarée donne une valeur négative, un solde de trésorerie peut
+    # être débiteur, une correction de frais peut être un remboursement. Les
+    # exiger positifs refuserait des états réels — le contrat qui compte ici
+    # est « c'est un décimal », pas « c'est positif ».
+    "cash",
     "delta",
+    "fees_cumulative",
+    "gross_value",
+    "net_value",
+    "position_value",
     "dividend_yield",
     "gamma",
     "grid",
     "rate",
+    "coverage_ratio",
     "return_1d",
     "rho",
     "rho_per_bp",
     "theta",
     "theta_per_calendar_day",
+    "total_return",
     "vega",
     "vega_per_point",
 )

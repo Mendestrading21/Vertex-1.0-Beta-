@@ -60,6 +60,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from vertex_api.auth.db import open_db_session
+from vertex_api.snapshot_views import checked_relayed_content
 from vertex_core.contracts.types import (
     ContractModel,
     CurrencyCode,
@@ -1112,7 +1113,11 @@ def build_portfolio_response(overview: PortfolioOverview) -> PortfolioResponse:
             state="ok",
             snapshot_version=overview.valuation.version,
             as_of=overview.valuation.as_of,
-            content=dict(overview.valuation.content),
+            # Le contenu de valorisation était relayé sans AUCUNE validation :
+            # 100 % de ses champs chaîne passaient verbatim, valeurs monétaires
+            # et étiquette `population` comprises. Il subit désormais le même
+            # contrat de classe que les autres relais.
+            content=dict(checked_relayed_content(overview.valuation.content)),
             reason=None,
         )
 

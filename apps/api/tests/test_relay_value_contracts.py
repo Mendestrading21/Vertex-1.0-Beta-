@@ -369,3 +369,90 @@ def test_a_refusal_never_quotes_the_stored_value(content: dict) -> None:
     # The exception itself is what a log record may carry: only the path.
     assert excinfo.value.field is not None
     assert not re.search(r"[\x00-\x08\x0b-\x1f\x7f]", excinfo.value.field)
+
+
+# ---------------------------------------------------------------------------
+# P1-1 sur les deux relais laissés ouverts par la première vague
+# ---------------------------------------------------------------------------
+#
+# `performance/{id}` et `portfolio_valuation/{id}` n'appelaient pas le garde de
+# classe : le 4e audit les mesurait à 90 % et 100 % de champs chaîne relayés
+# verbatim, alors que les sept autres relais étaient descendus à 0 %. Ils y
+# sont désormais soumis. Ces tests portent sur les VRAIES fixtures de contenu,
+# pas sur des mappings inventés pour l'occasion.
+
+import copy  # noqa: E402
+
+from vertex_api.performance import checked_performance_content  # noqa: E402
+
+from test_performance_routes import PERFORMANCE_CONTENT  # noqa: E402
+
+
+def _replace_leaf(content: dict, path: tuple, value: str) -> dict:
+    """Copie du contenu avec UNE feuille remplacée, comme le fuzz de l'audit."""
+    mutated = copy.deepcopy(content)
+    node: object = mutated
+    for key in path[:-1]:
+        node = node[key]  # type: ignore[index]
+    node[path[-1]] = value  # type: ignore[index]
+    return mutated
+
+
+def test_the_honest_performance_content_is_still_accepted() -> None:
+    """Anti-vacuité : le contrat n'est pas un refus systématique."""
+    assert checked_performance_content(PERFORMANCE_CONTENT) is not None
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        ("population",),
+        ("currency",),
+        ("engine_version",),
+        ("lot_method",),
+        ("series", "points", 0, "gross_value"),
+        ("series", "points", 0, "net_value"),
+        ("series", "points", 0, "cash"),
+        ("series", "points", 0, "trading_day"),
+    ],
+    ids=lambda p: ".".join(str(part) for part in p),
+)
+def test_a_hostile_value_is_refused_by_the_performance_relay(path: tuple) -> None:
+    """Chacun de ces champs était servi VERBATIM avec les 5038 caractères."""
+    with pytest.raises(SnapshotContentError) as excinfo:
+        checked_performance_content(_replace_leaf(PERFORMANCE_CONTENT, path, HOSTILE))
+    # Le refus nomme le CHEMIN, jamais la valeur stockée.
+    assert HOSTILE not in str(excinfo.value)
+    assert "\x07" not in str(excinfo.value) and "\x1b" not in str(excinfo.value)
+
+
+def test_a_performance_population_outside_the_closed_set_is_refused() -> None:
+    """`population` sépare SYNTHETIC du réel : il ne peut pas être libre."""
+    with pytest.raises(SnapshotContentError):
+        checked_performance_content(
+            _replace_leaf(PERFORMANCE_CONTENT, ("population",), "REAL_LIVE_IBKR")
+        )
+
+
+def test_a_performance_amount_that_is_not_a_decimal_is_refused() -> None:
+    """Une valeur monétaire est un décimal, jamais du texte libre."""
+    with pytest.raises(SnapshotContentError):
+        checked_performance_content(
+            _replace_leaf(
+                PERFORMANCE_CONTENT, ("series", "points", 0, "gross_value"), "beaucoup"
+            )
+        )
+
+
+def test_the_portfolio_valuation_relay_applies_the_same_contract() -> None:
+    """Le relais de valorisation ne validait RIEN : 100 % passait verbatim."""
+    honest = {
+        "schema_version": "vertex.portfolio-valuation/1.0",
+        "population": "SYNTHETIC_MARKS_REAL_LEDGER",
+        "currency": "SYN",
+        "positions": [{"ticker": "SYN-TECH-01", "market_value": "1234.50"}],
+    }
+    assert checked_relayed_content(honest) is not None
+    for path in (("population",), ("currency",), ("positions", 0, "market_value")):
+        with pytest.raises(SnapshotContentError):
+            checked_relayed_content(_replace_leaf(honest, path, HOSTILE))
