@@ -43,6 +43,24 @@ else
   exit 2
 fi
 
+echo "== lint web (Biome — porte web-quality) =="
+# Miroir local de la porte `web-quality` de docs/06-quality/CI_GATES.md.
+# Biome est un devDependency épinglé exactement dans apps/web/package.json ;
+# il n'est PAS installé globalement. Sans les dépendances verrouillées, la
+# porte n'est pas exécutée — on échoue fermé plutôt que d'annoncer un vert
+# sans preuve.
+if command -v pnpm >/dev/null 2>&1; then
+  if [[ -x apps/web/node_modules/.bin/biome ]]; then
+    (cd apps/web && pnpm exec biome lint .) && echo OK
+  else
+    echo "ERREUR: apps/web/node_modules absent — exécuter 'pnpm install --frozen-lockfile' dans apps/web ; porte Biome NON EXÉCUTÉE (aucune preuve)." >&2
+    exit 2
+  fi
+else
+  echo "ERREUR: pnpm absent — porte Biome NON EXÉCUTÉE (aucune preuve)." >&2
+  exit 2
+fi
+
 echo "== suite unitaire/propriétés/oracles =="
 python3 -m pytest -q
 

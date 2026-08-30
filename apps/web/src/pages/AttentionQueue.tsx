@@ -55,7 +55,11 @@ export function snapshotAgeSeconds(asOf: string | null, eventTime: string | null
 
 function AbsentValue({ label }: { readonly label: string }) {
   return (
-    <span className="vx-cell-absent" aria-label={label}>
+    // `role="img"` obligatoire : sur un <span> sans rôle (rôle implicite
+    // `generic`), ARIA INTERDIT `aria-label` et les lecteurs d'écran
+    // ignorent le libellé — le motif de l'absence ne serait pas annoncé.
+    // Aligné sur OptionChainTable.tsx, qui portait déjà le rôle correct.
+    <span className="vx-cell-absent" role="img" aria-label={label}>
       —
     </span>
   );

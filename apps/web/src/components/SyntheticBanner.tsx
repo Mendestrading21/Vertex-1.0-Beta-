@@ -134,7 +134,7 @@ const TONE_EDGE: Record<PopulationTone, string> = {
 const MAX_ECHOED_LABEL = 24;
 
 function isDeclaredLabel(value: string): value is PopulationLabel {
-  return Object.prototype.hasOwnProperty.call(POPULATION_NATURES, value);
+  return Object.hasOwn(POPULATION_NATURES, value);
 }
 
 /**

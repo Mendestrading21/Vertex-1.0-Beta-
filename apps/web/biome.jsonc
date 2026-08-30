@@ -1,0 +1,123 @@
+{
+  "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
+
+  // Porte `web-quality` de docs/06-quality/CI_GATES.md. Biome n'a AUCUNE
+  // autorité financière : il ne lit ni ne produit de valeur de marché. Il ne
+  // remplace pas les gardes existantes (no-raw-colors.test.ts pour les
+  // couleurs, axe pour l'accessibilité, tsc pour les types) : il les complète.
+  "vcs": { "enabled": false, "clientKind": "git", "useIgnoreFile": false },
+
+  "files": {
+    "includes": [
+      "src/**",
+      "e2e/**",
+      "scripts/**",
+      "*.ts",
+      // GÉNÉRÉS, jamais édités à la main. La porte 12 de la CI réexécute
+      // `pnpm gen:api` / `pnpm tokens:css` puis exige `git diff --exit-code` :
+      // si Biome les reformatait, la porte 12 signalerait une dérive
+      // permanente. Ils restent donc hors périmètre.
+      "!src/api/schema.d.ts",
+      "!src/design/tokens.css",
+      "!dist",
+      "!e2e-artifacts",
+      "!node_modules"
+    ]
+  },
+
+  // FORMATEUR DÉSACTIVÉ — décision mesurée, pas un oubli.
+  // Le dépôt n'a jamais été formaté par un outil : le code est écrit à la
+  // main. Balayage des largeurs de ligne (mesure du 2026-08-30, 119 fichiers
+  // examinés) : 80 -> 109 fichiers / 7253 lignes réécrites ; 88 -> 102 / 4433 ;
+  // 96 -> 86 / 2320 ; 100 -> 73 / 1762 (minimum) ; 110 -> 81 / 1870.
+  // Aucune configuration ne rapproche Biome du style existant : le meilleur
+  // réglage réécrirait encore 61 % des fichiers. Activer le formateur ici
+  // noierait les corrections réelles de ce lot sous un diff mécanique de
+  // ~1800 lignes. L'adoption du formateur est une décision séparée, qui doit
+  // faire l'objet d'un commit purement mécanique et vérifiable.
+  "formatter": { "enabled": false },
+
+  // Assist désactivé pour la même raison : `source.organizeImports` réordonne
+  // les imports de la quasi-totalité des fichiers.
+  "assist": { "enabled": false },
+
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "preset": "recommended",
+
+      "complexity": {
+        // 277 occurrences, toutes de la forme `payload['champ']` sur un
+        // `Record<string, unknown>` issu d'un DTO externe non typé. La
+        // notation crochet est ici une CONVENTION de lecture du dépôt : elle
+        // distingue visuellement l'accès à une clé de charge utile externe
+        // (valeur `unknown`, potentiellement absente sous
+        // `noUncheckedIndexedAccess`) d'un accès à un champ typé. La règle est
+        // purement stylistique (sévérité `info`) et contredit cette
+        // convention sur ~20 fichiers. Écartée globalement, avec ce motif.
+        "useLiteralKeys": "off",
+
+        // Rendue non applicable par le choix ci-dessus : `useLiteralKeys` est
+        // la seule règle `complexity` en écart. Le reste du groupe reste actif.
+        "recommended": true
+      },
+
+      "style": {
+        // 7 occurrences dans src/styles/global.css. Chaque paire signalée a
+        // été vérifiée à la main : soit les deux sélecteurs appartiennent à
+        // des composants disjoints qui ne s'imbriquent jamais
+        // (`.vx-chartframe-meta div` vs `.vx-sheet-facts > div + div`,
+        // `<dl>` de deux pages différentes), soit ils portent sur le MÊME
+        // élément mais déclarent des propriétés disjointes
+        // (`.vx-ai-external-item` : `min-width` d'un côté, `margin-top` /
+        // `padding-top` / `border-top` de l'autre). Aucune déclaration n'est
+        // réellement perdue. La règle compare la spécificité lexicalement,
+        // sans connaître le DOM.
+        "noDescendingSpecificity": "off",
+
+        "recommended": true
+      },
+
+      "a11y": {
+        // 21 occurrences, toutes sur le même motif :
+        // `<div className="vx-*-scroll" tabIndex={0} role="region"
+        //   aria-label="…">` qui enveloppe un tableau défilant.
+        // C'est le motif RECOMMANDÉ pour rendre une zone défilante atteignable
+        // au clavier (WCAG 2.2 SC 2.1.1) ; axe exige explicitement l'inverse
+        // de ce que demande cette règle. L'autorité d'accessibilité de ce
+        // dépôt est axe (portes `a11y` et `e2e`), pas Biome.
+        "noNoninteractiveTabindex": "off",
+
+        // 27 occurrences, `role="region"` et `role="group"` sur les mêmes
+        // conteneurs défilants. Biome propose `<section>` / `<fieldset>`, qui
+        // changeraient la sémantique (un `<fieldset>` n'est pas un groupe de
+        // lecture) et la mise en forme. Écartée pour le même motif.
+        "useSemanticElements": "off",
+
+        "recommended": true
+      }
+    }
+  },
+
+  "overrides": [
+    {
+      // Code de test et de bout en bout uniquement.
+      "includes": ["e2e/**", "src/**/*.test.ts", "src/**/*.test.tsx", "src/test/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            // 105 occurrences — et ZÉRO dans le code de production : mesure du
+            // 2026-08-30, toutes les assertions `!` du dépôt vivent dans
+            // `e2e/`, `*.test.ts(x)` ou `src/test/fixtures.ts`. Dans un test,
+            // `expect(x).toBeDefined()` suivi de `x!` est le rétrécissement
+            // idiomatique : l'assertion EST vérifiée, par le test lui-même,
+            // une ligne plus haut. La règle reste ACTIVE et bloquante sur le
+            // code de production, où elle vaut aujourd'hui 0 violation :
+            // la porte empêche donc une régression.
+            "noNonNullAssertion": "off"
+          }
+        }
+      }
+    }
+  ]
+}

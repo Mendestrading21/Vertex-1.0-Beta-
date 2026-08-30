@@ -149,9 +149,9 @@ jobs:
       - name: Porte 8c — api (relais, passkey, bout en bout)
         run: uv run --no-sync python -m pytest -q -p no:xdist apps/api/tests_integration
 
-  # ── Portes 9 à 12 : contrats web, types, tests, budget de bundle ────────
+  # ── Portes 9 à 12 : contrats web, lint, types, tests, budget de bundle ──
   web:
-    name: web — types, tests, build, budget, dérive de contrat
+    name: web — lint, types, tests, build, budget, dérive de contrat
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
@@ -180,6 +180,15 @@ jobs:
       - name: Porte 8bis — contrat du Worker Cloudflare (webhook public)
         working-directory: apps/ingress-tradingview/worker
         run: node --test test/*.test.mjs
+
+      # Porte `web-quality` de docs/06-quality/CI_GATES.md : Biome complète
+      # `tsc` et Vitest. Le formateur de Biome est DÉSACTIVÉ par biome.jsonc
+      # (motif mesuré dans le fichier) : cette étape est un lint, pas un
+      # contrôle de mise en forme. Elle ÉCHOUE sur toute violation — aucun
+      # `continue-on-error`, aucun mode avertissement.
+      - name: Porte 8ter — lint Biome (web)
+        working-directory: apps/web
+        run: pnpm exec biome lint .
 
       - name: Porte 9 — typage strict
         working-directory: apps/web

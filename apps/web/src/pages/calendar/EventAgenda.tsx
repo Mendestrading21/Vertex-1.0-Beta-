@@ -136,7 +136,12 @@ function VersionState({ event }: { readonly event: CalendarEventView }) {
       {event.rejectedRevisions.length > 0 ? (
         <ul className="vx-cal-version-list" data-testid={`cal-rejected-revisions-${event.eventId}`}>
           {event.rejectedRevisions.map((rejected, position) => (
-            <li key={`${position}-${rejected.reason ?? ''}`}>
+            <li
+              // La liste arrive entière dans un DTO, est remplacée en bloc et n'est jamais triée, filtrée ni insérée côté client : aucun
+              // réordonnancement local n'est possible. L'index seul serait insuffisant ; le contenu seul pourrait se répéter.
+              // biome-ignore lint/suspicious/noArrayIndexKey: la clé n'est PAS l'index seul, elle concatène l'index ET le contenu publié par le serveur.
+              key={`${position}-${rejected.reason ?? ''}`}
+            >
               <span aria-hidden="true">⊘</span> Révision déclarée REFUSÉE —{' '}
               <code>{rejected.reason ?? 'raison non publiée'}</code>
               {rejected.revisedAt !== null ? (

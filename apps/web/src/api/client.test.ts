@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
-  ApiError,
+  type ApiError,
   CSRF_HEADER_NAME,
   getAttention,
   getCapabilities,
@@ -20,6 +20,10 @@ function jsonResponse(body: unknown, status = 200): Response {
 }
 
 function clearCsrfCookie(): void {
+  // Test unitaire du transport CSRF : il faut manipuler un cookie observable par
+  // `document.cookie`, comme le fera le navigateur. La Cookie Store API n'est pas
+  // implémentée par jsdom 30. Valeur SYNTHETIC, jamais un jeton réel.
+  // biome-ignore lint/suspicious/noDocumentCookie: seule voie disponible sous jsdom pour ce test.
   document.cookie = 'vertex_csrf=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
 }
 
@@ -50,6 +54,9 @@ describe('client API — transport', () => {
   });
 
   it('mutation : recopie le cookie CSRF lisible dans X-Vertex-CSRF', async () => {
+    // Même motif que `clearCsrfCookie` : le test doit poser un cookie lisible par
+    // `document.cookie`. Valeur SYNTHETIC.
+    // biome-ignore lint/suspicious/noDocumentCookie: seule voie disponible sous jsdom pour ce test.
     document.cookie = 'vertex_csrf=jeton-csrf-synthetique';
     expect(readCsrfCookie()).toBe('jeton-csrf-synthetique');
     fetchMock.mockResolvedValueOnce(jsonResponse({ logged_out: true }));
