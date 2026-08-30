@@ -384,9 +384,18 @@ rétrogradée tant que le recalcul de fraîcheur au relais n'est pas fait.
   Ce que cela ne ferme PAS : la porte croit toujours la métadonnée publiée, et
   la protection de branche dépend du réseau — un registre injoignable pendant
   une panne laisse passer une divergence jusqu'à l'exécution nocturne.
-- **La porte `performance` ne peut pas bloquer sur son budget numérique** :
-  `P-CI.absolute_release_gate` vaut `false`, donc un bundle **32×** au-dessus
-  du budget passe. Seul le budget booléen bloque réellement.
+- ~~**La porte `performance` ne peut pas bloquer sur son budget
+  numérique**~~ — **FERMÉ**. Un budget `max` doit désormais déclarer
+  `machine_independent`, et un dépassement sur un budget indépendant de la
+  machine bloque à TOUT profil : un compte d'octets gzip est le même sur
+  chaque coureur, il n'existe aucune machine sur laquelle 10 Mo au lieu de
+  300 ko soit acceptable. Omettre le champ échoue (`machine_independence_
+  undeclared`) : la branche permissive était le défaut, c'est ainsi que le
+  dépassement de 32× est passé. Les budgets sensibles à la machine (latences)
+  restent soumis au profil — une latence mesurée sur un coureur partagé ne dit
+  rien de la machine cible.
+  Ce que cela ne ferme PAS : `enforcement.absolute_targets_block_pr` reste
+  `false`, donc aucune latence n'est encore bloquante nulle part.
 - ~~**Trois routes d'accessibilité mesuraient un état vide**~~ — **FERMÉ**.
   `/analysis` et `/options` sont désormais mesurées vides ET peuplées
   (`SYN-TECH-01`) : 14 chemins, 168 cas de test, tous verts. `/simulator` sans
@@ -400,10 +409,12 @@ rétrogradée tant que le recalcul de fraîcheur au relais n'est pas fait.
   cette limite est écrite dans le rapport, elle n'est pas levée.
 - ~~**« Focus visible » est satisfait par une ombre permanente**~~ — **FERMÉ**.
   Différentiel `blur()`/`focus()` avant/après `Tab`.
-- **Deux mutants survivants** : retirer le CSS de la charge initiale
-  (`measure_web_bundle.py`) ne fait rougir aucun test alors que le chiffre
-  publié tomberait de 118 291 à 110 433 ; la comparaison de `role` de
-  `check_notices.py` n'est prouvée par aucun test.
-- **`P-DESKTOP` porte `absolute_release_gate: true` sans aucune
-  `required_metadata`** : un verdict de release absolu peut être rendu sur une
-  machine entièrement non décrite.
+- **Un mutant survivant** : la comparaison de `role` de `check_notices.py`
+  n'est prouvée par aucun test. ~~Retirer le CSS de la charge initiale
+  (`measure_web_bundle.py`)~~ est **FERMÉ** : deux tests mesurent maintenant
+  l'écart, et le mutant réintroduit les fait rougir tous les deux.
+- ~~**`P-DESKTOP` porte `absolute_release_gate: true` sans aucune
+  `required_metadata`**~~ — **FERMÉ**. Le profil exige `cpu`, `ram_mib`,
+  `os_kernel`, `browser_version`, `viewport` et `device_pixel_ratio`, et un
+  test balaie le manifeste réel : aucun profil à autorité absolue ne peut
+  désormais se passer de décrire sa machine.

@@ -37,10 +37,20 @@ Findings (exit 1 when any is blocking):
 10. ``undeclared_measurement`` — the report carries a metric the manifest does
     not require. A second, undeclared channel of numbers is how a favourable
     metric gets substituted for the required one.
-11. ``budget_exceeded`` — the value is beyond budget. Blocking only under a
-    profile whose ``absolute_release_gate`` is true, because
-    ``enforcement.absolute_targets_block_pr`` is false at this stage; recorded
-    as a warning otherwise, never dropped.
+11. ``budget_exceeded`` — the value is beyond budget. Blocking under a profile
+    whose ``absolute_release_gate`` is true, AND — whatever the profile —
+    whenever the metric declares ``machine_independent: true``. That second
+    rule exists because an audit measured a bundle **32x** over budget passing
+    this gate under ``P-CI``: the profile has no absolute authority, so the
+    overrun was only a warning. A gzip byte count does not depend on the
+    machine that measured it; there is no runner on which 10 MB is acceptable.
+    Machine-sensitive budgets (latency, throughput) stay profile-gated, which
+    is what ``enforcement.absolute_targets_block_pr: false`` was written for.
+    Any other overrun is recorded as a warning, never dropped.
+15. ``machine_independence_undeclared`` — a ``MEASURED`` ``max`` budget that
+    does not say whether it is machine-independent. Fail-closed: omitting the
+    field would silently buy the permissive path, which is exactly how the
+    32x overrun went unnoticed.
 12. ``regression_blocked`` / ``regression_warning`` — relative degradation
     against the reported baseline, per ``regression.warning_fraction`` and
     ``regression.block_fraction``. These block regardless of profile:
@@ -377,6 +387,24 @@ def check(root: Path, report_path: Path, today: dt.date) -> dict[str, Any]:
             )
             continue
 
+        # A `max` budget must say whether its value depends on the machine.
+        # Fail-closed: an omitted field would silently take the permissive
+        # branch below, which is how a 32x bundle overrun passed under P-CI.
+        declared_independence = spec.get("machine_independent")
+        if not isinstance(declared_independence, bool):
+            findings.append(
+                {
+                    "code": "machine_independence_undeclared",
+                    "detail": (
+                        "a `max` budget must declare `machine_independent`; "
+                        "without it the gate cannot know whether a profile "
+                        "without absolute authority may downgrade an overrun"
+                    ),
+                    "metric_id": metric_id,
+                }
+            )
+            continue
+
         if value > budget:
             record = {
                 "code": "budget_exceeded",
@@ -385,18 +413,32 @@ def check(root: Path, report_path: Path, today: dt.date) -> dict[str, Any]:
                 "budget": budget,
                 "unit": spec.get("unit"),
                 "profile_id": profile_id,
+                "machine_independent": declared_independence,
             }
             if absolute_gate:
                 record["detail"] = "this profile is an absolute release gate"
                 record["blocking"] = True
                 findings.append(record)
+            elif declared_independence:
+                # A gzip byte count is the same on every runner. There is no
+                # machine on which 10 MB instead of 300 kB is acceptable, so no
+                # profile may downgrade this overrun to a warning.
+                record["detail"] = (
+                    "this budget does not depend on the measuring machine; "
+                    "no profile downgrades it to a warning"
+                )
+                record["blocking"] = True
+                findings.append(record)
             else:
-                # enforcement.absolute_targets_block_pr is false at this stage.
-                # The overrun is recorded, never dropped: a warning that leaves
-                # no trace is the same as no measurement.
+                # enforcement.absolute_targets_block_pr is false at this stage,
+                # and this budget IS machine-sensitive: a latency measured on a
+                # shared runner says little about the target machine. The
+                # overrun is recorded, never dropped: a warning that leaves no
+                # trace is the same as no measurement.
                 record["detail"] = (
                     "absolute targets do not block a pull request at this "
-                    "enforcement stage; the overrun is recorded"
+                    "enforcement stage for a machine-sensitive budget; the "
+                    "overrun is recorded"
                 )
                 record["blocking"] = False
                 warnings.append(record)

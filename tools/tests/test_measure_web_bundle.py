@@ -157,3 +157,52 @@ def test_un_fichier_manquant_sur_disque_interdit_toute_mesure(tmp_path: Path) ->
     }
     with pytest.raises(tool.BundleError):
         tool.measure(_dist(tmp_path, manifest, {"assets/echarts.js": b"b"}))
+
+
+# ── 9e audit : le CSS pouvait sortir de la charge initiale sans rougir ───────
+#
+# Mutant survivant mesuré : remplacer `[record["file"], *record.get("css", ())]`
+# par `[record["file"]]` ne faisait rougir AUCUN test, alors que le chiffre
+# publié tombait de 118 291 à 110 433 octets — 6,6 % du budget qui disparaît
+# d'un coup. Un budget qui rétrécit tout seul est un budget qui ment.
+
+
+def test_le_css_de_l_entree_compte_dans_la_charge_initiale(tmp_path: Path) -> None:
+    """Le CSS est TÉLÉCHARGÉ avec l'entrée : il est dans la charge initiale.
+
+    Ce test tue le mutant : sans le CSS, la mesure vaudrait la seule taille de
+    `entry.js`.
+    """
+    js = b"const a = 1;\n" * 40
+    css = b".vx { color: #fff; }\n" * 40
+    dist = _dist(tmp_path, ENTRY_ONLY, {"assets/entry.js": js, "assets/entry.css": css})
+
+    mesure = tool.measure(dist)
+    fichiers = mesure["initial_files"]
+
+    assert "assets/entry.css" in fichiers, (
+        "le CSS de l'entrée est absent de la charge initiale : le navigateur le "
+        "télécharge pourtant avant le premier rendu"
+    )
+    attendu = fichiers["assets/entry.js"] + fichiers["assets/entry.css"]
+    assert mesure["initial_gzip_bytes"] == attendu
+    # Anti-vacuité : sans cette borne, un CSS vide rendrait l'égalité vraie
+    # même si le CSS était retiré du calcul.
+    assert fichiers["assets/entry.css"] > 0
+
+
+def test_retirer_le_css_du_calcul_ferait_chuter_la_mesure(tmp_path: Path) -> None:
+    """Le test précédent ne vaut que si le CSS pèse assez pour être vu.
+
+    On mesure l'écart réel : c'est lui que le mutant faisait disparaître en
+    silence sur le dépôt réel (118 291 → 110 433 octets).
+    """
+    js = b"const a = 1;\n" * 40
+    css = b".vx { color: #fff; }\n" * 200
+    dist = _dist(tmp_path, ENTRY_ONLY, {"assets/entry.js": js, "assets/entry.css": css})
+
+    mesure = tool.measure(dist)
+    sans_css = mesure["initial_files"]["assets/entry.js"]
+    assert mesure["initial_gzip_bytes"] > sans_css, (
+        "la mesure avec et sans CSS est identique : ce test ne prouverait rien"
+    )

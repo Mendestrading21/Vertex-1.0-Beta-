@@ -115,6 +115,19 @@ profiles:
   P-DESKTOP:
     purpose: beta_desktop_viewport_matrix
     absolute_release_gate: true
+    # AUTORITÉ ABSOLUE SANS MÉTADONNÉES : c'est ce que portait ce profil, et un
+    # audit l'a relevé. Un verdict de release absolu pouvait être rendu depuis
+    # une machine entièrement non décrite — donc invérifiable et incomparable.
+    # Ces champs sont ceux qu'une mesure de rendu doit connaître pour valoir
+    # quelque chose : sans le navigateur ni le viewport, un budget de rendu ne
+    # dit rien.
+    required_metadata:
+      - cpu
+      - ram_mib
+      - os_kernel
+      - browser_version
+      - viewport
+      - device_pixel_ratio
     full_quality_viewports:
       - "1280x800"
       - "1440x900"
@@ -559,6 +572,10 @@ required_measurements:
     budget_path: frontend.bundles.initial_gzip_recommended_max_bytes
     unit: byte
     status: MEASURED
+    # Un compte d'octets gzip est identique sur toute machine : aucun profil ne
+    # peut rétrograder son dépassement en avertissement. Un audit a mesuré un
+    # bundle 32x au-dessus du budget passant la porte sous P-CI.
+    machine_independent: true
     producer: tools/measure_web_bundle.py
     note: >-
       Fermeture statique transitive du graphe d'import Vite, gzip niveau 9
@@ -580,6 +597,7 @@ required_measurements:
     kind: max
     budget_path: hot_paths.HP-03.segments#hot_api_snapshot_server.objective_p95_ms
     unit: ms
+    machine_independent: false
     status: NOT_YET_MEASURED
     owner: programme Vertex One
     reason: >-
@@ -598,6 +616,7 @@ required_measurements:
     kind: max
     budget_path: hot_paths.HP-03.segments#hot_api_snapshot_server.objective_p99_ms
     unit: ms
+    machine_independent: false
     status: NOT_YET_MEASURED
     owner: programme Vertex One
     reason: >-
@@ -612,6 +631,7 @@ required_measurements:
     kind: max
     budget_path: hot_paths.HP-03.segments#hot_postgresql_query.objective_p95_ms
     unit: ms
+    machine_independent: false
     status: NOT_YET_MEASURED
     owner: programme Vertex One
     reason: >-
@@ -627,6 +647,8 @@ required_measurements:
     kind: max
     budget_path: frontend.tables.rendered_dom_rows_max
     unit: row
+    # Un nombre de lignes dans le DOM ne dépend pas de la machine qui compte.
+    machine_independent: true
     status: NOT_YET_MEASURED
     owner: programme Vertex One
     reason: >-
