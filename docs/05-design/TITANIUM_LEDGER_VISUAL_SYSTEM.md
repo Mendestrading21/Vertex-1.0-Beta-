@@ -172,3 +172,11 @@ reste desktop : une navigation téléphone doit faire l'objet d'un lot distinct.
 - navigation clavier et focus visibles ;
 - lint, typecheck, tests et build verts ;
 - revue humaine à 1280, 1440 et 1600 px avant fusion.
+
+## Skill de pilotage
+
+Le protocole exécutable de conception, recherche, reconstruction page par page et
+QA est `.claude/skills/vertex-titanium-ledger/SKILL.md`. Il route vers les règles
+d'identité, composants, graphiques, douze compositions, sources officielles et
+workflow GitHub. Le script associé contrôle le socle mesurable, sans remplacer la
+revue visuelle humaine.

@@ -43,6 +43,10 @@ Claude doit lire avant toute action :
 4. le fichier `.claude/lots/LOT-NN-*.md` demandé ;
 5. les ADR et spécifications cités par ce lot.
 
+Pour toute identité, composition de page, widget, tableau ou graphique, charger
+ensuite `.claude/skills/vertex-titanium-ledger/SKILL.md`. Ce skill spécialisé
+applique la grammaire Titanium Ledger sans déplacer la vérité financière.
+
 ## Prompts disponibles
 
 | Fichier | Usage | Autorise des modifications |

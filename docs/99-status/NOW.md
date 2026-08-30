@@ -1,7 +1,7 @@
 # État courant
 
 ```yaml
-phase: identite_titanium_ledger_prete_a_revue
+phase: identite_titanium_ledger_et_skill_prets_a_revue
 lot: LOT-10 — système visuel complet Titanium Ledger
 branch: lot/10-obsidian-theme-refresh
 status: ready_for_human_review
@@ -19,6 +19,13 @@ active_work:
      moteurs graphiques hors fermeture initiale"
   - "E2E/captures non exécutés localement : PostgreSQL jetable et Chromium
      absents ; exécution attendue en CI avant validation humaine"
+  - "skill maître ajouté : vertex-titanium-ledger route l'audit, la recherche
+     officielle, l'identité, les objets, graphiques, douze compositions, QA,
+     performance et livraison GitHub"
+  - "ordre de reconstruction acté : Aujourd'hui, Marchés, Analyse, Options,
+     Simulateur, Portefeuille, puis les six autres pages"
+  - "validation du skill : quick_validate PASS ; audit structurel Titanium
+     Ledger PASS (19 tokens requis, 12 codes uniques, spécification et marque)"
 completed:
   - vagues_1_a_5: 13 routes sur 13 réelles (PR #1, #2 et #3 fusionnées)
   - ci: 7 jobs, 25 portes nommées — VERTE sur 5a40bc8 ; actions épinglées par SHA de COMMIT
@@ -107,5 +114,5 @@ blocages_humains:
   - "B-05 : fournisseur d'IA (l'IA reste DISABLED, gabarit déterministe)"
   - "connecteur MCP Interactive_Brokers_IBKR : autorisation OAuth à faire
      depuis les réglages de connecteurs claude.ai (session non interactive)"
-prochaine_commande: "AUDITE LOT 23"
+prochaine_commande: "PLAN LOT 11 — RECONSTRUCTION TITANIUM LEDGER"
 ```

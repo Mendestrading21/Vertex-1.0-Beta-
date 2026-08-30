@@ -53,7 +53,9 @@ accepté ou une mesure reproductible.
 - `quant` : lire registre des calculs, anomalies, fusion, validation et risque
   modèle.
 - `options` : lire profils, flux options, registre de features et OCC/IBKR.
-- `interface` : lire design, icônes, widgets, pages, accessibilité et budgets.
+- `interface` : charger `.claude/skills/vertex-titanium-ledger/SKILL.md`, puis
+  lire seulement ses références pertinentes pour l'identité, les composants,
+  graphiques, pages, accessibilité et budgets.
 - `performance` : lire hot paths, latence, observabilité et tests de charge.
 - `qa` : lire stratégie de test, CI, sécurité, release et rollback.
 
