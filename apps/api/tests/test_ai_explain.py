@@ -2100,3 +2100,70 @@ def test_a_refused_position_contradiction_is_not_reported_as_a_gate(
     assert any("identifiant de position cité" in item for item in reports)
     assert not any("porte" in item for item in reports)
     assert "ACHETEZ" not in response.text
+
+
+# ---------------------------------------------------------------------------
+# 5e audit — des portes ILLISIBLES étaient silencieusement ignorées
+# ---------------------------------------------------------------------------
+#
+# `_gate_blocks` sert à la fois au calcul de l'invariant de complétude et à la
+# restitution. Elle écartait sans rien dire ce qu'elle ne savait pas lire :
+# `gates` non-liste, entrée non-mapping, `status` hors vocabulaire — dont
+# `"block"` en minuscules. Les DEUX vues ignorant la même chose, l'invariant
+# était satisfait et la réponse partait en `state="ok"` avec ZÉRO
+# contradiction : une porte fermée disparaissait par une simple casse.
+#
+# ADR-014 tranche : une porte qui ne peut pas être évaluée vaut BLOCK. Une
+# forme illisible échoue donc fermé.
+
+from vertex_api.ai_explain import (  # noqa: E402
+    AI_ERROR_UNREADABLE_GATES,
+    _gate_blocks,
+)
+
+
+@pytest.mark.parametrize(
+    ("label", "advice"),
+    [
+        ("gates n'est pas une liste", {"gates": {"gate_id": "g", "status": "BLOCK"}}),
+        ("gates est une chaîne", {"gates": "BLOCK"}),
+        ("entrée non-mapping", {"gates": ["BLOCK"]}),
+        ("status en minuscules", {"gates": [{"gate_id": "g", "status": "block"}]}),
+        ("status hors vocabulaire", {"gates": [{"gate_id": "g", "status": "BLOQUE"}]}),
+        ("status absent", {"gates": [{"gate_id": "g"}]}),
+        ("status non textuel", {"gates": [{"gate_id": "g", "status": 1}]}),
+    ],
+)
+def test_unreadable_gates_fail_closed(label: str, advice: dict) -> None:
+    with pytest.raises(AiGroundingError) as excinfo:
+        _gate_blocks(advice)
+    assert excinfo.value.code == AI_ERROR_UNREADABLE_GATES, label
+    # Le code typé est tout ce que porte le message : aucune valeur stockée.
+    assert str(excinfo.value) == AI_ERROR_UNREADABLE_GATES
+
+
+@pytest.mark.parametrize(
+    ("label", "advice", "expected"),
+    [
+        ("absence déclarée", {}, 0),
+        ("liste vide", {"gates": []}, 0),
+        ("BLOCK canonique", {"gates": [{"gate_id": "g", "status": "BLOCK"}]}, 1),
+        ("PASS canonique", {"gates": [{"gate_id": "g", "status": "PASS"}]}, 0),
+        ("DEGRADE canonique", {"gates": [{"gate_id": "g", "status": "DEGRADE"}]}, 0),
+    ],
+)
+def test_readable_gates_are_still_accepted(label: str, advice: dict, expected: int) -> None:
+    """Anti-vacuité : le refus n'est pas systématique."""
+    assert len(_gate_blocks(advice)) == expected, label
+
+
+def test_the_gate_status_vocabulary_is_read_from_vertex_core() -> None:
+    """L'IA n'est pas une seconde autorité sur ce vocabulaire.
+
+    Garde-fou de dérive : si `vertex_core` gagne ou perd un statut de porte,
+    ce test casse au lieu de laisser diverger une copie locale.
+    """
+    from vertex_api.ai_explain import _GATE_STATUS_VALUES
+    from vertex_core.contracts.enums import GateStatus
+
+    assert _GATE_STATUS_VALUES == frozenset(member.value for member in GateStatus)

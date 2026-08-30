@@ -216,6 +216,10 @@ AI_ERROR_UNGROUNDED_CLAIM = "AI_ANSWER_UNGROUNDED"
 """Typed code: a finished claim cites evidence absent from the catalog."""
 
 AI_ERROR_INCOMPLETE_ANSWER = "AI_ANSWER_INCOMPLETE"
+#: Le bloc d'avis publie des portes que l'on ne sait pas lire : une porte non
+#: évaluable vaut BLOCK (ADR-014), donc la réponse est refusée plutôt que
+#: construite en ignorant ce que l'on n'a pas compris.
+AI_ERROR_UNREADABLE_GATES = "AI_ANSWER_UNREADABLE_GATES"
 """Typed code: a gate published as ``BLOCK`` is missing from the answer."""
 
 _SAFE_EVIDENCE_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9:._@/+-]{0,127}")
@@ -1138,15 +1142,41 @@ def _string_list(value: Any) -> list[str]:
     return [item for item in value if isinstance(item, str) and item]
 
 
+#: Statuts de porte canoniques (ADR-014). Lus depuis ``vertex_core``, jamais
+#: redéfinis ici : l'IA n'est pas une seconde autorité sur ce vocabulaire.
+_GATE_STATUS_VALUES: frozenset[str] = frozenset(member.value for member in canonical_enums.GateStatus)
+
+
 def _gate_blocks(advice: Mapping[str, Any]) -> list[Mapping[str, Any]]:
+    """Les portes publiées ``BLOCK``, ou un REFUS si elles sont illisibles.
+
+    Cette fonction sert à la fois au calcul de l'invariant de complétude et à
+    la restitution. Elle IGNORAIT silencieusement ce qu'elle ne savait pas
+    lire — ``gates`` qui n'est pas une liste, une entrée qui n'est pas un
+    mapping, un ``status`` hors vocabulaire (``"block"`` en minuscules par
+    exemple). Les deux vues ignorant la même chose, l'invariant était
+    satisfait et la réponse partait en ``state="ok"`` SANS aucune
+    contradiction : une porte fermée pouvait disparaître par simple casse.
+
+    La constitution tranche le cas (ADR-014) : une porte qui ne peut pas être
+    évaluée vaut ``BLOCK``. Une forme illisible échoue donc FERMÉ, avec un
+    code typé, plutôt que d'être écartée.
+    """
     gates = advice.get("gates")
+    if gates is None:
+        return []  # absence déclarée : il n'y a pas de portes, ce n'est pas un défaut
     if not isinstance(gates, list):
-        return []
-    return [
-        gate
-        for gate in gates
-        if isinstance(gate, Mapping) and gate.get("status") == "BLOCK"
-    ]
+        raise AiGroundingError(AI_ERROR_UNREADABLE_GATES)
+    blocks: list[Mapping[str, Any]] = []
+    for gate in gates:
+        if not isinstance(gate, Mapping):
+            raise AiGroundingError(AI_ERROR_UNREADABLE_GATES)
+        status = gate.get("status")
+        if not isinstance(status, str) or status not in _GATE_STATUS_VALUES:
+            raise AiGroundingError(AI_ERROR_UNREADABLE_GATES)
+        if status == canonical_enums.GateStatus.BLOCK.value:
+            blocks.append(gate)
+    return blocks
 
 
 class _BlockedGates(NamedTuple):

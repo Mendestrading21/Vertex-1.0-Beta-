@@ -19,6 +19,8 @@ from __future__ import annotations
 
 from typing import Mapping, Optional
 
+from urllib.parse import quote, unquote
+
 from sqlalchemy.engine import make_url
 
 from vertex_persistence.errors import ConfigurationError
@@ -80,8 +82,24 @@ def sqlalchemy_url_to_conninfo(url: str) -> str:
     loudly: handed ``postgresql+psycopg://…``, libpq tools such as ``pg_dump``
     treat the whole string as a DATABASE NAME, fall back to the local socket and
     the system user, and would operate on a DIFFERENT database without warning.
+
+    Query values are re-encoded with ``%20`` rather than ``+``. SQLAlchemy's
+    renderer uses form encoding, where ``+`` means a space; libpq does NOT
+    decode ``+``, so ``?options=-c%20search_path`` came out as
+    ``-c+search_path`` and the connection failed on an option that looked
+    correct. Percent-encoding is read the same way by both.
     """
-    return make_url(url).set(drivername="postgresql").render_as_string(hide_password=False)
+    rendered = make_url(url).set(drivername="postgresql")
+    base = rendered.set(query={}).render_as_string(hide_password=False)
+    if not rendered.query:
+        return base
+    pairs: list[str] = []
+    for key, value in rendered.query.items():
+        values = value if isinstance(value, (tuple, list)) else (value,)
+        for one in values:
+            pairs.append(f"{quote(str(key), safe='')}={quote(str(one), safe='')}")
+    separator = "&" if "?" in base else "?"
+    return f"{base}{separator}{'&'.join(pairs)}"
 
 
 def database_name(url: str) -> str:
@@ -102,4 +120,16 @@ def database_name(url: str) -> str:
     name = override or parsed.database
     if not name:
         raise ConfigurationError("database URL designates no database name")
-    return str(name)
+    name = str(name)
+    # A percent-escape in the database component is read DIFFERENTLY by the two
+    # consumers: SQLAlchemy hands psycopg the raw ``aud5%70rod`` as a dbname,
+    # while libpq parsing a URI decodes it to ``aud5prod``. The same URL would
+    # then designate two different databases, and every guard built on this
+    # function would be checking the wrong one. There is no correct side to
+    # pick, so the ambiguity is REFUSED instead of resolved.
+    if unquote(name) != name:
+        raise ConfigurationError(
+            "database name carries a percent-escape, which the runtime and the "
+            "libpq tools decode differently; write the name literally"
+        )
+    return name
