@@ -223,7 +223,15 @@ def main() -> int:
         _refuser(f"univers refusé : {erreur}")
 
     state = ConnectionStateMachine(rng=random.SystemRandom())
-    adapter = IbAsyncInformationAdapter(port=port_tws, client_id=client_id, state=state)
+    # Le runner possède les transitions connect/reconnect/stop. L'adaptateur
+    # partage la machine uniquement pour les epochs et codes fournisseur ; il
+    # ne doit pas rejouer begin_connect/on_connected sur la même instance.
+    adapter = IbAsyncInformationAdapter(
+        port=port_tws,
+        client_id=client_id,
+        state=state,
+        manage_connection_state=False,
+    )
     engine = create_engine(url, pool_pre_ping=True)
 
     runner = EdgeIbkrRunner(

@@ -8,6 +8,7 @@ import './design/tokens.css';
 import './styles/global.css';
 
 import { installSnapshotEvents } from './api/events.ts';
+import { installSessionIsolation } from './api/sessionIsolation.ts';
 import { buildRouteObjects } from './app/routes.tsx';
 
 /**
@@ -27,6 +28,7 @@ const queryClient = new QueryClient({
 
 // Le flux SSE ne vit que pendant une session authentifiée (sinon 401).
 installSnapshotEvents(queryClient);
+installSessionIsolation(queryClient);
 
 const rootElement = document.getElementById('root');
 if (rootElement === null) {

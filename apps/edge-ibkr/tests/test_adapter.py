@@ -100,6 +100,34 @@ def test_connect_drives_the_state_machine_epoch() -> None:
     assert result.envelopes[0].connection_epoch == 1
 
 
+def test_connect_can_leave_connection_transitions_to_the_runner() -> None:
+    """Un runner et l'adaptateur ne doivent jamais piloter deux fois le même état."""
+    fake = FakeIB()
+    state = ConnectionStateMachine(rng=random.Random(1))
+    state.begin_connect()
+    adapter = make_adapter(fake, state=state, manage_connection_state=False)
+
+    asyncio.run(adapter.connect())
+
+    assert len(fake.connect_calls) == 1
+    # L'adaptateur conserve l'état CONNECTING ; le propriétaire externe fera
+    # l'unique transition on_connected après le succès du transport.
+    assert state.connection_epoch == 0
+
+
+def test_disconnect_does_not_stop_an_externally_managed_state() -> None:
+    fake = FakeIB()
+    state = ConnectionStateMachine(rng=random.Random(1))
+    state.begin_connect()
+    state.on_connected()
+    adapter = make_adapter(fake, state=state, manage_connection_state=False)
+
+    asyncio.run(adapter.disconnect())
+
+    assert state.connection_epoch == 1
+    assert state.state.value == "HEALTHY"
+
+
 # -- sentinels: -1/NaN stay None, never zero --------------------------------
 
 

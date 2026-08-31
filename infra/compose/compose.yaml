@@ -10,8 +10,8 @@
 #   le casserait au premier démarrage sur volume vide. Il est donc laissé tel
 #   quel, avec le minimum de capacités restantes déclaré ci-dessous — et cette
 #   exception est ÉCRITE, pas passée sous silence ;
-# - chaque port est publié sur 127.0.0.1 UNIQUEMENT : rien n'écoute sur 0.0.0.0,
-#   rien n'est joignable depuis le LAN ou un téléphone ;
+# - chaque port est publié sur 127.0.0.1 UNIQUEMENT : les processus écoutent
+#   l'interface de leur conteneur, mais rien n'est joignable depuis le LAN ;
 # - aucun secret n'est écrit ici : les variables sans valeur par défaut font
 #   échouer le démarrage si elles manquent (`${VAR:?message}`) ;
 # - le système de fichiers applicatif est en lecture seule ; ce qui doit être
@@ -144,6 +144,11 @@ services:
       # DSN du rôle de RUNTIME : il ne possède aucune table et ne peut pas
       # désactiver un déclencheur append-only.
       VERTEX_DATABASE_URL: ${VERTEX_DATABASE_URL:?VERTEX_DATABASE_URL requis}
+      # Compose publie web et API sur deux ports loopback. Le port web est
+      # explicitement autorisé pour le contrôle Origin/Host en environnement
+      # local, et le cookie HTTP n'est permis qu'avec VERTEX_ENV=dev.
+      VERTEX_AUTH_DEV_ORIGIN_PORTS: ${VERTEX_WEB_PORT:-4173}
+      VERTEX_AUTH_COOKIE_INSECURE_DEV: "1"
     command:
       - python
       - -m
@@ -188,8 +193,18 @@ services:
       dockerfile: infra/compose/Dockerfile.web
     depends_on:
       api: {condition: service_healthy}
+    environment:
+      VERTEX_API_UPSTREAM: http://api:8000
+      VERTEX_WEB_HOST: 0.0.0.0
+      VERTEX_WEB_PORT: 4173
     ports:
       - "127.0.0.1:${VERTEX_WEB_PORT:-4173}:4173"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4173').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
 
 volumes:
   db-data:
