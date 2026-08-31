@@ -4,7 +4,26 @@
   "version": "1.0.0",
   "description": "Vertex TradingView ingress Worker (READY, NOT DEPLOYED - human decision B-03 pending). No runtime dependencies; tested locally with fakes.",
   "type": "module",
+  "//": [
+    "wrangler est un outil de DEPLOIEMENT, jamais une dependance d'execution :",
+    "le Worker lui-meme n'a toujours aucune dependance runtime et ses 53 tests",
+    "de contrat tournent avec `node --test` seul, sans installation.",
+    "Version EXACTE (regle supply-chain .claude/rules/security.md) : jamais un",
+    "intervalle, jamais `latest`. wrangler 4.127.1, publie le 2026-08-28,",
+    "licence `MIT OR Apache-2.0`, `engines.node >= 22.0.0` — compatible avec le",
+    "Node 24 de la cible. Provenance : registre npm officiel.",
+    "ECART D'INVENTAIRE ASSUME : `tools/check_notices.py` n'inventorie que",
+    "`uv.lock` et `apps/web/pnpm-lock.yaml`. L'arbre de wrangler n'est donc PAS",
+    "couvert par la porte `release/notices`. Cet ecart est ecrit ici plutot que",
+    "laisse silencieux ; etendre la porte a ce lockfile est un lot a part entiere."
+  ],
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "scripts": {
     "test": "node --test test/*.test.mjs"
+  },
+  "devDependencies": {
+    "wrangler": "4.127.1"
   }
 }

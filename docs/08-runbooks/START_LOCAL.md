@@ -136,3 +136,19 @@ effectivement sondées — et pour elles seules.
 | `ressemble à une base de test` | DSN pointant `vertex_test`/`vertex_e2e` | corriger le DSN, ou `VERTEX_ALLOW_TEST_DB=1` en connaissance de cause |
 
 `INCIDENT.md` couvre les pannes en cours de service.
+
+## Brancher IBKR en continu
+
+`tools/start_local.sh` ne contacte JAMAIS TWS : il sert la population
+`SYNTHETIC`. Pour alimenter les pages avec du marché réel, un second processus
+tourne à côté, une fois les droits sondés :
+
+```bash
+export VERTEX_IBKR_UNIVERSE="$HOME/.vertex/univers.json"
+export VERTEX_IBKR_PORT=<port confirmé dans TWS>
+.venv/bin/python tools/run_edge_ibkr.py
+```
+
+Séquence complète, univers, bornes et codes fournisseur : `IBKR_SETUP.md`,
+section « Ingestion continue ». `/system` cesse alors d'afficher
+`NEVER_TESTED` pour les seules capacités réellement observées.
