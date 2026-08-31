@@ -15,26 +15,24 @@ import type { PageDef } from './pages.ts';
 /**
  * Table de routes du shell. Une page réelle ne remplace l'entrée « Lot non
  * installé » que lorsque ses routes, données, états et tests existent
- * (docs/07-delivery/FOLDER_BY_FOLDER_PROGRAM.md). Pages réelles installées :
- * Aujourd'hui (/today), Marchés (/markets), Options (/options/:underlying?),
- * Analyse (/analysis/:instrument?), Simulateur (/simulator) et Sources &
- * Rapports (/sources-reports), plus la page d'accès /auth (hors rail — pas une page
- * produit du blueprint). Vague 4 : Portefeuille (/portfolio), Suivi
- * (/follow-up) et Performance (/performance). Vague finale : Calendrier
- * (/calendar), Opportunités (/opportunities) et Vertex IA (/ai) — les 12
- * pages du blueprint sont désormais réelles.
+ * (docs/07-delivery/FOLDER_BY_FOLDER_PROGRAM.md).
  *
- * /markets, /options, /analysis et /simulator sont chargées PARESSEUSEMENT
- * (React.lazy) : leurs chunks — et les chunks moteurs qu'elles importent
- * dynamiquement (ECharts pour /markets et /simulator, Lightweight Charts
- * pour /analysis) — ne grossissent pas le bundle initial (CHART_STANDARD :
- * un moteur de graphique par route, jamais dans le bundle initial).
+ * Onze destinations du rail sont installées : Aujourd'hui, Opportunités,
+ * Analyse, Options, Simulateur, Calendrier, Marchés, Portefeuille, Suivi,
+ * Vertex IA et Sources & Rapports. S'y ajoute /auth, hors rail : c'est une
+ * route de session, pas une destination du blueprint.
  *
- * Vague finale : Calendrier (/calendar), Opportunités (/opportunities) et
- * Vertex IA (/ai) sont réelles et chargées paresseusement elles aussi. Les
- * 12 pages du blueprint (13 routes avec /auth) sont donc installées ;
- * `NotInstalledPage` ne sert plus aucune page du rail, mais reste le rendu
- * par défaut de toute page future non encore livrée.
+ * La douzième — et les deux autres que la cible attend, Graphiques et
+ * Risques — n'existent pas encore. `NotInstalledPage` ne sert aujourd'hui
+ * AUCUNE entrée du rail : les destinations manquantes sont absentes du rail
+ * plutôt que présentes en façade.
+ *
+ * Toutes les pages sauf Aujourd'hui et Sources & Rapports sont chargées
+ * PARESSEUSEMENT (React.lazy) : leurs chunks — et les chunks moteurs
+ * importés dynamiquement (ECharts pour /markets, /simulator et le module
+ * Performance de /portfolio ; Lightweight Charts pour /analysis) — ne
+ * grossissent pas le bundle initial (CHART_STANDARD : un moteur de graphique
+ * par route, jamais dans le bundle initial).
  */
 
 const LazyMarketsPage = lazy(async () => {
@@ -65,11 +63,6 @@ const LazyPortfolioPage = lazy(async () => {
 const LazyFollowUpPage = lazy(async () => {
   const module = await import('../pages/follow-up/FollowUpPage.tsx');
   return { default: module.FollowUpPage };
-});
-
-const LazyPerformancePage = lazy(async () => {
-  const module = await import('../pages/performance/PerformancePage.tsx');
-  return { default: module.PerformancePage };
 });
 
 const LazyCalendarPage = lazy(async () => {
@@ -135,14 +128,6 @@ function FollowUpRoute() {
   );
 }
 
-function PerformanceRoute() {
-  return (
-    <Suspense fallback={<DataStateBoundary state="loading" />}>
-      <LazyPerformancePage />
-    </Suspense>
-  );
-}
-
 function CalendarRoute() {
   return (
     <Suspense fallback={<DataStateBoundary state="loading" />}>
@@ -176,7 +161,6 @@ const INSTALLED_PAGES: Readonly<Record<string, () => React.JSX.Element>> = {
   simulator: SimulatorRoute,
   portfolio: PortfolioRoute,
   'follow-up': FollowUpRoute,
-  performance: PerformanceRoute,
   calendar: CalendarRoute,
   opportunities: OpportunitiesRoute,
   ai: AiRoute,
@@ -197,13 +181,20 @@ export const AUTH_PAGE: PageDef = {
  * `docs/05-design/PAGE_ARBITRATION.md`.
  *
  * `/system` est devenu `/sources-reports` : la page portait déjà la santé des
- * quatorze sources, la cible y ajoute lignage, incidents et rapports. La route
- * API `/api/v1/system/capabilities` ne bouge PAS — seule la composition
- * d'interface change, et `.claude/rules/architecture.md` interdit de déplacer
- * une responsabilité serveur sans ADR.
+ * quatorze sources, la cible y ajoute lignage, incidents et rapports.
+ *
+ * `/performance` a rejoint `/portfolio` : le contrat des douze pages range
+ * l'« historique » du registre parmi les widgets de Portefeuille, et les deux
+ * vues lisent le MÊME portefeuille manuel.
+ *
+ * Les routes API `/api/v1/system/capabilities` et `/api/v1/performance/{id}`
+ * ne bougent PAS — seule la composition d'interface change, et
+ * `.claude/rules/architecture.md` interdit de déplacer une responsabilité
+ * serveur sans ADR.
  */
 const LEGACY_REDIRECTS: ReadonlyArray<readonly [string, string]> = [
   ['/system', '/sources-reports'],
+  ['/performance', '/portfolio'],
 ];
 
 export function buildRouteObjects(): RouteObject[] {

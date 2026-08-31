@@ -31,7 +31,6 @@ const LEDGER_CODE_BY_PAGE: Readonly<Record<string, string>> = {
   markets: 'TL / 07',
   portfolio: 'TL / 08',
   'follow-up': 'TL / 09',
-  performance: 'TL / 10',
   ai: 'TL / 11',
   'sources-reports': 'TL / 12',
   auth: 'TL / ACCESS',

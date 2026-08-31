@@ -218,15 +218,15 @@ test.describe('Dégradation 1024×768', () => {
     });
   });
 
-  test('/performance : bandeau population, métriques et table quotidienne présents, pas de scroll horizontal', async ({
+  test('/portfolio (module Performance) : bandeau population, métriques et table quotidienne présents, pas de scroll horizontal', async ({
     page,
   }, testInfo) => {
-    await page.goto('/performance');
+    await page.goto('/portfolio');
     await expect(page.getByTestId('perf-population')).toBeVisible({ timeout: 20_000 });
     await expect(page.getByTestId('perf-metrics')).toBeVisible();
     await expectNoHorizontalPageScroll(page);
     await page.screenshot({
-      path: screenshotPath('performance-smoke', testInfo.project.name),
+      path: screenshotPath('portfolio-performance-smoke', testInfo.project.name),
       fullPage: true,
     });
   });

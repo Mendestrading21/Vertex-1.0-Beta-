@@ -437,8 +437,8 @@ invariants:
     apps/web/src/pages/portfolio/PortfolioPage.test.tsx::valuationContentOf relaie
     les chaînes exactes du serveur
   - >-
-    apps/web/src/pages/performance/PerformancePage.test.tsx::métriques OK : valeurs
-    serveur verbatim, définition, période et méthode+version
+    apps/web/src/pages/portfolio/performance/PerformanceSection.test.tsx::métriques
+    OK : valeurs serveur verbatim, définition, période et méthode+version
   - >-
     apps/web/src/design/no-authoritative-calculation.test.ts::aucune arithmétique
     sur une grandeur financière relayée

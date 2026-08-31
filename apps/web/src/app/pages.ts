@@ -1,5 +1,6 @@
 /**
- * Modèle de navigation — 4 groupes, 12 pages.
+ * Modèle de navigation — 4 groupes. Onze destinations réelles aujourd'hui,
+ * douze en cible (voir ALL_PAGES).
  * Sources : docs/01-product/NAVIGATION.md, docs/01-product/ROUTES.md et les
  * fiches docs/01-product/pages/NN-*.md (questions métier reprises mot à mot).
  *
@@ -120,16 +121,6 @@ const followUp: PageDef = {
   lot: 'LOT-23',
 };
 
-const performance: PageDef = {
-  key: 'performance',
-  title: 'Performance',
-  navPath: '/performance',
-  routePath: '/performance',
-  question:
-    'Quelle performance ai-je réellement enregistrée, avec quels risques et contributions ?',
-  lot: 'LOT-23',
-};
-
 const vertexAi: PageDef = {
   key: 'ai',
   title: 'Vertex IA',
@@ -153,11 +144,21 @@ const system: PageDef = {
 export const NAV_GROUPS: readonly NavGroup[] = [
   { label: 'Décider', pages: [today, opportunities, analysis, options, simulator] },
   { label: 'Observer', pages: [calendar, markets] },
-  { label: 'Piloter', pages: [portfolio, followUp, performance] },
+  { label: 'Piloter', pages: [portfolio, followUp] },
   { label: 'Assistance', pages: [vertexAi, system] },
 ];
 
-/** Les 12 pages, à plat, dans l'ordre du rail. */
+/**
+ * Les destinations RÉELLES du rail, à plat, dans l'ordre.
+ *
+ * La cible du blueprint est douze (`references/pages.md`). Le rail en porte
+ * onze pendant les absorptions : `performance` a rejoint Portefeuille
+ * (LOT-08), et Graphiques, Risques et Catalyseurs n'existent pas encore.
+ * L'écart est mesuré par `scripts/audit_titanium_ledger.py` et journalisé
+ * dans `docs/05-design/PAGE_ARBITRATION.md`. Il n'est PAS comblé par une
+ * entrée de rail sans route, données ni tests : une façade serait un
+ * mensonge d'interface, pas une étape.
+ */
 export const ALL_PAGES: readonly PageDef[] = NAV_GROUPS.flatMap((group) => group.pages);
 
 /** Route d'atterrissage par défaut. */

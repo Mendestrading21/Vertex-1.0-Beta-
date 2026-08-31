@@ -1,5 +1,12 @@
 /**
- * Parcours /performance — snapshot réel publié par le worker (marques
+ * Parcours du module Performance de /portfolio — ex-destination
+ * /performance, absorbée au LOT-08 (docs/05-design/PAGE_ARBITRATION.md).
+ *
+ * Règle 3 de l'arbitrage : ces assertions sont DÉPLACÉES, pas supprimées.
+ * Seule la route visitée change ; ce que chaque test vérifie est identique,
+ * et c'est précisément ce qui prouve qu'aucune capacité n'a été perdue.
+ *
+ * Snapshot réel publié par le worker (marques
  * synthétiques × ledger déclaré) : bandeau de population non masquable,
  * courbe + heatmap ECharts, et TROIS métriques affichées STRICTEMENT égales
  * aux chaînes de l'API (TWR brut, XIRR brut, drawdown brut), export
@@ -29,14 +36,14 @@ async function apiPerformance(page: Page): Promise<Record<string, unknown>> {
   return body['content'] as Record<string, unknown>;
 }
 
-test.describe('Page Performance — snapshot réel', () => {
+test.describe('Portefeuille — module Performance, snapshot réel', () => {
   test('bandeau population SYNTHETIC_MARKS_REAL_LEDGER non masquable + courbe rendue', async ({
     page,
   }) => {
     const content = await apiPerformance(page);
     expect(content['population']).toBe('SYNTHETIC_MARKS_REAL_LEDGER');
 
-    await page.goto('/performance');
+    await page.goto('/portfolio');
     const population = page.getByTestId('perf-population');
     await expect(population).toBeVisible({ timeout: 20_000 });
     await expect(population).toContainText('SYNTHETIC_MARKS_REAL_LEDGER');
@@ -59,7 +66,7 @@ test.describe('Page Performance — snapshot réel', () => {
     expect(xirr.status).toBe('OK');
     expect(drawdown.status).toBe('OK');
 
-    await page.goto('/performance');
+    await page.goto('/portfolio');
     await expect(page.getByTestId('perf-metrics')).toBeVisible({ timeout: 20_000 });
     await expect(page.getByTestId('perf-metric-value-twr_gross')).toHaveText(
       `${twr.total_return_pct!} %`,
@@ -95,7 +102,7 @@ test.describe('Page Performance — snapshot réel', () => {
     }[];
     expect(months.length).toBeGreaterThanOrEqual(1);
 
-    await page.goto('/performance');
+    await page.goto('/portfolio');
     for (const point of points) {
       await expect(page.getByTestId(`perf-gross-${point.trading_day}`)).toHaveText(
         point.gross_value,
@@ -122,7 +129,7 @@ test.describe('Page Performance — snapshot réel', () => {
   test('export : le CSV des points est servi par l’API, un fichier par action', async ({
     page,
   }) => {
-    await page.goto('/performance');
+    await page.goto('/portfolio');
     await expect(page.getByTestId('perf-metrics')).toBeVisible({ timeout: 20_000 });
 
     const downloads: string[] = [];
@@ -137,7 +144,7 @@ test.describe('Page Performance — snapshot réel', () => {
   test('export : le manifeste JSON est servi par l’API, un fichier par action', async ({
     page,
   }) => {
-    await page.goto('/performance');
+    await page.goto('/portfolio');
     await expect(page.getByTestId('perf-metrics')).toBeVisible({ timeout: 20_000 });
 
     const downloads: string[] = [];
@@ -152,21 +159,43 @@ test.describe('Page Performance — snapshot réel', () => {
   });
 
   test('axe : zéro violation critique/sérieuse + capture', async ({ page }, testInfo) => {
-    await page.goto('/performance');
+    await page.goto('/portfolio');
     await expect(page.getByTestId('perf-metrics')).toBeVisible({ timeout: 20_000 });
     await expectNoSeriousAxeViolations(page);
     await page.screenshot({
-      path: screenshotPath('performance', testInfo.project.name),
+      path: screenshotPath('portfolio-performance', testInfo.project.name),
       fullPage: true,
     });
   });
 
   test('hors ligne simulé → état offline honnête', async ({ page }) => {
     await page.route('**/api/**', (route) => route.abort());
-    await page.goto('/performance');
+    await page.goto('/portfolio');
     const boundary = page.locator('[data-state="offline"]');
     await expect(boundary).toBeVisible();
     await expect(boundary).toContainText('Hors ligne');
     await expect(page.getByTestId('perf-metrics')).toHaveCount(0);
+  });
+});
+
+test.describe('Redirection permanente des destinations absorbées', () => {
+  test('/performance mène à /portfolio sans laisser d’entrée d’historique', async ({ page }) => {
+    await page.goto('/today');
+    await page.goto('/performance');
+    await expect(page).toHaveURL(/\/portfolio$/);
+    await expect(page.getByRole('heading', { level: 1, name: 'Portefeuille' })).toBeVisible();
+    // `replace` : revenir en arrière depuis la destination absorbée doit
+    // ramener à la page précédente, jamais reboucler sur l'ancienne route.
+    await page.goBack();
+    await expect(page).toHaveURL(/\/today$/);
+  });
+
+  test('/system mène à /sources-reports sans laisser d’entrée d’historique', async ({ page }) => {
+    await page.goto('/today');
+    await page.goto('/system');
+    await expect(page).toHaveURL(/\/sources-reports$/);
+    await expect(page.getByRole('heading', { level: 1, name: 'Sources & Rapports' })).toBeVisible();
+    await page.goBack();
+    await expect(page).toHaveURL(/\/today$/);
   });
 });

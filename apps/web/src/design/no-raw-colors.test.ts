@@ -299,10 +299,13 @@ describe("interdiction du vocabulaire d'ordre boursier", () => {
       join('src', 'pages', 'follow-up', 'ThesisSheet.tsx'),
       join('src', 'pages', 'follow-up', 'ThesisForm.tsx'),
       join('src', 'pages', 'follow-up', 'followUpView.ts'),
-      join('src', 'pages', 'performance', 'PerformancePage.tsx'),
-      join('src', 'pages', 'performance', 'PerformanceChart.tsx'),
-      join('src', 'pages', 'performance', 'MonthlyHeatmap.tsx'),
-      join('src', 'pages', 'performance', 'performanceView.ts'),
+      // LOT-08 : le module Performance vit sous Portefeuille. Les quatre
+      // fichiers restent balayés — un déplacement ne doit jamais sortir un
+      // fichier du périmètre des gardes.
+      join('src', 'pages', 'portfolio', 'performance', 'PerformanceSection.tsx'),
+      join('src', 'pages', 'portfolio', 'performance', 'PerformanceChart.tsx'),
+      join('src', 'pages', 'portfolio', 'performance', 'MonthlyHeatmap.tsx'),
+      join('src', 'pages', 'portfolio', 'performance', 'performanceView.ts'),
     ]) {
       expect(files, `${expected} doit être couvert par les gardes`).toContain(expected);
     }

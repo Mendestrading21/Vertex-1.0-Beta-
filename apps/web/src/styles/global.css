@@ -2823,7 +2823,7 @@ body {
 }
 
 /* ------------------------------------------------------------------ */
-/* Vague 4 — Performance (/performance)                                */
+/* Vague 4 — module Performance, absorbé dans /portfolio (LOT-08)      */
 /* ------------------------------------------------------------------ */
 
 .vx-perf-chart {
@@ -3824,10 +3824,6 @@ body {
   --vx-page-ledger: 'LEDGER 09 · THESIS';
 }
 
-.vx-main[data-page='performance'] {
-  --vx-page-ledger: 'LEDGER 10 · ATTRIBUTION';
-}
-
 .vx-main[data-page='ai'] {
   --vx-page-ledger: 'LEDGER 11 · INTELLIGENCE';
 }
@@ -4128,14 +4124,14 @@ textarea:hover {
 /* Signature particulière de chaque famille de page. */
 .vx-main[data-page='today'] .vx-today-layout,
 .vx-main[data-page='portfolio'] .vx-pf-summary,
-.vx-main[data-page='performance'] .vx-perf-metrics {
+.vx-main[data-page='portfolio'] .vx-perf-metrics {
   position: relative;
 }
 
 .vx-main[data-page='markets'] .vx-chartframe,
 .vx-main[data-page='analysis'] .vx-chartframe,
 .vx-main[data-page='simulator'] .vx-sim-result,
-.vx-main[data-page='performance'] .vx-perf-chart {
+.vx-main[data-page='portfolio'] .vx-perf-chart {
   border-radius: var(--vx-radius-18);
 }
 

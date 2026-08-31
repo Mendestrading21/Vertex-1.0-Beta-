@@ -3,7 +3,7 @@
 ```yaml
 phase: rattrapage_complet_autorise
 lot: LOT-04 (CI verte), LOT-05 (marque canonique), LOT-06 (arbitrage des pages),
-     LOT-07 (première absorption : /system → /sources-reports)
+     LOT-07 (/system → /sources-reports), LOT-08 (/performance → Portefeuille)
 branch: codex/vertex-rattrapage-complet-20260831
 status: ci_reparee_puis_execution_en_cours_sans_fusion_automatique
 last_good_commit: bdf9f306 (= origin/main, CI 7/7 verte)
@@ -25,15 +25,27 @@ lots_de_cette_session:
      /system → /sources-reports. La route API /v1/system/capabilities n'a PAS
      bougé : règle 2 de l'arbitrage. Le volet ÉTENDRE (lignage, incidents,
      rapports) n'est ni livré ni simulé."
+  - "LOT-08 — deuxième absorption : le module Performance entier rejoint
+     Portefeuille et /performance est redirigée. Le rail passe à ONZE
+     destinations réelles ; l'écart aux douze est journalisé, jamais comblé
+     par une façade. Contradiction trouvée dans le skill maître : son script
+     d'inventaire normalisait performance->charts et follow-up->risks, ce que
+     son propre contrat des douze pages contredit. Script corrigé, contrat
+     inchangé."
 mesures_de_cette_session:
-  - "playwright : 405 passed (5,7 min) — le job CI qui était rouge ; recampagne
-     après LOT-07 : 405 passed, même total (spec renommée, pas supprimée)"
-  - "vitest : 398 passed / 30 fichiers ; tsc 0 ; biome 0 (127 fichiers) — mesuré
-     après LOT-07 : +2 tests de redirection, +1 garde-fou de signature TL"
+  - "playwright : 405 passed après LOT-07 (le job CI qui était rouge), puis
+     399 passed après LOT-08. La baisse de 6 est intégralement expliquée dans
+     PAGE_ARBITRATION.md : -12 contrôles d'accessibilité sur une route devenue
+     une redirection (le même DOM est balayé via /portfolio), +6 tests de
+     redirection permanente. Aucun test supprimé."
+  - "vitest : 399 passed / 30 fichiers ; tsc 0 ; biome 0 (127 fichiers) — mesuré
+     après LOT-08"
   - "pytest : 3766 passed, 4 skipped — mesuré sur 35d48cb"
   - "run_checks.sh : TOUT VERT"
-  - "audit_titanium_ledger.py : empreinte canonique vérifiée, 2 écarts restants
-     (catalysts absent, 4 routes à absorber) — tous deux décisionnels"
+  - "audit_titanium_ledger.py après LOT-08 : empreinte canonique vérifiée,
+     écarts = 'charts, risks' à créer, 'follow-up, ai' à absorber. 'system' et
+     'performance' ont quitté la liste — c'est la mesure du lot, pas une
+     affirmation"
   - "falsification LOT-07 : `Navigate` sans `replace` fait rougir
      routes.test.tsx avec `expected 'PUSH' to be 'REPLACE'`"
 

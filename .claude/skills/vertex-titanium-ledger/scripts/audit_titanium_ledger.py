@@ -31,9 +31,23 @@ TARGET_PAGES = (
     "sources-reports",
 )
 
+# Correspondances route historique -> destination cible, alignées sur
+# `references/pages.md`, qui est le CONTRAT des douze pages (titre du document)
+# et fait donc autorité sur ce script, simple heuristique d'inventaire.
+#
+# Deux entrées ont été corrigées le 2026-08-31 : elles contredisaient le
+# contrat qu'elles étaient censées mesurer.
+#   - `performance` pointait vers `charts`. Or Graphiques est « un espace
+#     graphique configurable avec séries autorisées », pour explorer un
+#     instrument ; Performance mesure le registre manuel. Le contrat range
+#     l'« historique » du registre dans les widgets de Portefeuille (§7).
+#   - `follow-up` pointait vers `risks`. Or Risques est « la matrice des
+#     risques avec exposition, horizon, sévérité et preuve » ; la file de
+#     revue de thèses répond à la question de Catalyseurs (§10) : « quels
+#     événements vérifiés peuvent modifier LA THÈSE et quand ? »
 LEGACY_PAGE_ALIASES = {
-    "follow-up": "risks",
-    "performance": "charts",
+    "follow-up": "catalysts",
+    "performance": "portfolio",
     "ai": "sources-reports",
     "system": "sources-reports",
 }

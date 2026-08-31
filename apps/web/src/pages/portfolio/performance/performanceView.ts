@@ -6,8 +6,8 @@
  * la chaîne serveur exacte. Un statut INSUFFICIENT_DATA ou INVALID est
  * affiché AVEC SA RAISON à la place de toute valeur — jamais un zéro.
  */
-import { calculationMetaOf } from '../portfolio/portfolioView.ts';
-import type { CalculationMetaView } from '../portfolio/portfolioView.ts';
+import { calculationMetaOf } from '../portfolioView.ts';
+import type { CalculationMetaView } from '../portfolioView.ts';
 
 type UnknownRecord = Record<string, unknown>;
 

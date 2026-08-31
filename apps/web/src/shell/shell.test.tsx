@@ -74,14 +74,16 @@ describe('NavRail — groupes et liens', () => {
     ]);
   });
 
-  it('rend les 12 pages avec leurs chemins arbitrés', () => {
+  it('rend chaque destination réelle avec son chemin arbitré', () => {
     renderApp('/today');
     const nav = screen.getByRole('navigation', { name: 'Navigation principale' });
     for (const page of ALL_PAGES) {
       const link = within(nav).getByRole('link', { name: page.title });
       expect(link.getAttribute('href')).toBe(page.navPath);
     }
-    expect(ALL_PAGES).toHaveLength(12);
+    // Onze destinations pendant les absorptions, douze en cible : le compte
+    // exact est asséré dans routes.test.tsx, avec la liste ordonnée.
+    expect(ALL_PAGES).toHaveLength(11);
     expect(ALL_PAGES.map((page) => page.navPath)).toContain('/ai');
     expect(ALL_PAGES.map((page) => page.navPath)).not.toContain('/vertex-ai');
   });
