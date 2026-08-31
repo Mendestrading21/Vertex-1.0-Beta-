@@ -1,0 +1,12 @@
+{
+  "scans": [
+    {"instrument": "STK", "location_code": "STK.US.MAJOR",
+     "scan_code": "TOP_PERC_GAIN", "number_of_rows": 50},
+    {"instrument": "STK", "location_code": "STK.US.MAJOR",
+     "scan_code": "TOP_PERC_LOSE", "number_of_rows": 50},
+    {"instrument": "STK", "location_code": "STK.US.MAJOR",
+     "scan_code": "MOST_ACTIVE", "number_of_rows": 50},
+    {"instrument": "STK", "location_code": "STK.US.MAJOR",
+     "scan_code": "HOT_BY_VOLUME", "number_of_rows": 50}
+  ]
+}

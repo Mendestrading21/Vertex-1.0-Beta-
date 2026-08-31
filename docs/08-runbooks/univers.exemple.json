@@ -1,0 +1,26 @@
+{
+  "_comment": [
+    "GABARIT — a copier en univers.json puis remplir avec de VRAIS con_id.",
+    "Relever un con_id et un symbole :",
+    "  .venv/bin/python tools/probe_entitlements.py --symbol <SYMBOLE> --dry-run",
+    "",
+    "con_id : l'IDENTITE. Un symbole seul ne suffit jamais — IBKR renvoie 32",
+    "         contrats pour GOOG. C'est lui qu'apparient l'analyse, les options",
+    "         et le calendrier.",
+    "symbol : ce que la page Marches AFFICHE et compare a son univers declare.",
+    "         OBLIGATOIRE pour VERTEX_FUSION_PROFILE=real ; sans lui la cotation",
+    "         serait rejetee a l'affichage sans que personne sache pourquoi.",
+    "",
+    "24 instruments au maximum en temps reel, 5000 en historique.",
+    "Ce fichier vit HORS du depot Git."
+  ],
+  "instruments": [
+    {
+      "con_id": 0,
+      "symbol": "REMPLACER",
+      "sec_type": "STK",
+      "exchange": "SMART",
+      "currency": "USD"
+    }
+  ]
+}
