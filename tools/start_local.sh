@@ -106,6 +106,16 @@ attendre_http() {
 }
 
 # ── 4. API réelle, loopback strict ──────────────────────────────────────────
+# WebAuthn : `auth/config.py` n'accepte QUE `http://127.0.0.1` et
+# `http://localhost`. Le port de l'interface doit être DÉCLARÉ, sinon /auth
+# répond 401 générique et le produit est inutilisable depuis ce démarreur —
+# alors que la campagne E2E, qui passe ces deux variables, réussit. C'était la
+# même asymétrie que celle déjà corrigée pour le démarrage lui-même.
+export VERTEX_AUTH_DEV_ORIGIN_PORTS="${VERTEX_AUTH_DEV_ORIGIN_PORTS:-${PORT_WEB}}"
+# Drapeau `Secure` du cookie de session : opt-out documenté pour le http de
+# boucle locale. L'écouteur ne peut de toute façon jamais quitter la loopback.
+export VERTEX_AUTH_COOKIE_INSECURE_DEV="${VERTEX_AUTH_COOKIE_INSECURE_DEV:-1}"
+
 echo "== API (uvicorn, 127.0.0.1:${PORT_API}) =="
 "${PYTHON}" -m uvicorn vertex_api.app:create_app --factory \
   --host 127.0.0.1 --port "${PORT_API}" &
@@ -133,8 +143,13 @@ cat <<INFO
 ════════════════════════════════════════════════════════════════════
   Vertex 1.0 Beta tourne.
 
-    http://127.0.0.1:${PORT_WEB}/system     ← ouvrir CETTE page d'abord
-    http://127.0.0.1:${PORT_WEB}/today
+    http://localhost:${PORT_WEB}/system     ← ouvrir CETTE page d'abord
+    http://localhost:${PORT_WEB}/today
+
+  Utiliser localhost et NON 127.0.0.1 : l'identifiant WebAuthn de la
+  partie de confiance est `localhost` (ADR-002), et la spécification exige
+  qu'il soit le domaine de l'origine. Depuis 127.0.0.1, le navigateur
+  refuse la création de passkey avant même d'appeler l'API.
 
   /system dit ce que le système sait de lui-même : base, migrations,
   horloge, sauvegarde, et l'état RÉEL de chaque capacité. Une capacité
