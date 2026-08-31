@@ -2,10 +2,30 @@
 
 ```yaml
 phase: rattrapage_complet_autorise
-lot: LOT-00 puis LOT-01 — sécurité, vérité Git et autorité canonique
+lot: LOT-04 (CI verte), LOT-05 (marque canonique), LOT-06 (arbitrage des pages)
 branch: codex/vertex-rattrapage-complet-20260831
-status: execution_en_cours_sans_fusion_automatique
+status: ci_reparee_puis_execution_en_cours_sans_fusion_automatique
 last_good_commit: bdf9f306 (= origin/main, CI 7/7 verte)
+lots_de_cette_session:
+  - "LOT-04 — la purge de session effaçait l'erreur 401 qu'elle devait laisser
+     voir. CI ROUGE à l'arrivée sur b09b3785 : 3 échecs e2e/auth.spec.ts sur les
+     trois viewports. Cause : `previous !== 'unauthenticated'` était vrai dès le
+     PREMIER 401 puisque l'état initial est 'unknown'. Corrigé en
+     `previous === 'authenticated'`. Reproducteur écrit avant le correctif."
+  - "LOT-05 — le rail portait le monogramme VX, nommément interdit par
+     references/canonical-visual.md, et un texte adjacent que l'anatomie
+     canonique interdit aussi. Remplacés par un polyèdre facetté SVG héritant
+     de currentColor. L'écart a disparu des target_gaps du script d'audit."
+  - "LOT-06 — table d'arbitrage actuel → cible → décision, exigée par le skill
+     avant tout renommage ou fusion. Décision humaine : ABSORBER."
+mesures_de_cette_session:
+  - "playwright : 405 passed (5,7 min) — le job CI qui était rouge"
+  - "vitest : 395 passed / 30 fichiers ; tsc 0 ; biome 0 (131 fichiers)"
+  - "pytest : 3766 passed, 4 skipped — mesuré sur 35d48cb"
+  - "run_checks.sh : TOUT VERT"
+  - "audit_titanium_ledger.py : empreinte canonique vérifiée, 2 écarts restants
+     (catalysts absent, 4 routes à absorber) — tous deux décisionnels"
+
 active_work:
   - "commande utilisateur reçue : EXÉCUTE VERTEX RATTRAPAGE COMPLET"
   - "autorité canonique extraite du commit 72d55629 sans reprendre sa branche
