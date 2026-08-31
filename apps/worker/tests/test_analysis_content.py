@@ -190,16 +190,6 @@ def test_bars_are_relayed_verbatim_with_last_close() -> None:
 
 
 @pytest.mark.parametrize(
-    "bad",
-    [
-        bar("2026-08-23", "100.00", "99.00", "98.00", "100.00"),  # high < max(o,c)
-        bar("2026-08-23", "100.00", "101.00", "100.50", "100.00"),  # low > min
-        bar("2026-08-23", "100.00", "101.00", "99.00", "junk"),  # non-decimal
-        bar("2026-08-23", "100.00", "101.00", "99.00", "100.00", volume=-1),
-        {"trading_day": "2026-08-23"},  # missing fields
-    ],
-)
-@pytest.mark.parametrize(
     ("age", "expected_fresh", "expected_reason"),
     [
         (timedelta(hours=48), True, "FRESH_AND_COHERENT"),
@@ -219,6 +209,16 @@ def test_freshness_gate_uses_the_declared_48h_window(
     assert gates["snapshot_fresh_and_coherent"]["reason_code"] == expected_reason
 
 
+@pytest.mark.parametrize(
+    "bad",
+    [
+        bar("2026-08-23", "100.00", "99.00", "98.00", "100.00"),  # high < max(o,c)
+        bar("2026-08-23", "100.00", "101.00", "100.50", "100.00"),  # low > min
+        bar("2026-08-23", "100.00", "101.00", "99.00", "junk"),  # non-decimal
+        bar("2026-08-23", "100.00", "101.00", "99.00", "100.00", volume=-1),
+        {"trading_day": "2026-08-23"},  # missing fields
+    ],
+)
 def test_invalid_bars_are_discarded_with_reason(bad) -> None:
     content = build([bars_record(bars=[*good_bars(), bad])])
     bars_block = content["bars"]
