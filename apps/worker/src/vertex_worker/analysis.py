@@ -713,9 +713,14 @@ def build_analysis_content(
     discarded_bars: list[dict[str, Any]] = []
     synthetic = False
     bars_fresh = False
+    bars_age_seconds: int | None = None
     if chosen is not None:
         synthetic = _is_synthetic_bar(chosen)
-        bars_fresh = (now - chosen.as_of) <= config.bars_freshness
+        bars_age = now - chosen.as_of
+        bars_age_seconds = int(bars_age.total_seconds())
+        # Une observation datée dans le futur n'est jamais « fraîche » :
+        # elle signale une incohérence d'horloge et ferme la gate comme stale.
+        bars_fresh = timedelta(0) <= bars_age <= config.bars_freshness
         for index, raw in enumerate(chosen.payload["bars"]):
             bar, reason = _validate_bar(raw)
             if bar is None:
@@ -742,6 +747,7 @@ def build_analysis_content(
         "last_close": last_close,
         "quality": chosen.quality_status if chosen is not None else None,
         "fresh": bars_fresh if chosen is not None else None,
+        "age_seconds": bars_age_seconds,
         "source_event_id": chosen.event_id if chosen is not None else None,
         "observed_as_of": chosen.as_of.isoformat() if chosen is not None else None,
         "discarded": discarded_bars,
