@@ -3,7 +3,8 @@
 ```yaml
 phase: rattrapage_complet_autorise
 lot: LOT-04 (CI verte), LOT-05 (marque canonique), LOT-06 (arbitrage des pages),
-     LOT-07 (/system → /sources-reports), LOT-08 (/performance → Portefeuille)
+     LOT-07 (/system → /sources-reports), LOT-08 (/performance → Portefeuille),
+     LOT-09 (conformité du shell à l'anatomie canonique)
 branch: codex/vertex-rattrapage-complet-20260831
 status: ci_reparee_puis_execution_en_cours_sans_fusion_automatique
 last_good_commit: bdf9f306 (= origin/main, CI 7/7 verte)
@@ -32,14 +33,31 @@ lots_de_cette_session:
      d'inventaire normalisait performance->charts et follow-up->risks, ce que
      son propre contrat des douze pages contredit. Script corrigé, contrat
      inchangé."
+  - "LOT-09 — conformité du shell à l'anatomie canonique, mesurée dans un vrai
+     navigateur. Cinq écarts, tous invisibles aux 399 tests existants :
+     (1) le rail portait une plaque (dégradé + bordure + ombre) que le point 2
+     interdit ; (2) chaque icône portait une pastille et l'item actif une barre
+     latérale au lieu de la capsule ambre du point 3 ; (3) la marque était une
+     tuile dégradée argent→ambre ombrée, barrée d'une diagonale ambre vif, avec
+     un glyphe NOIR — le point 1 demande un glyphe facetté argent ; (4) le
+     cartouche VERTEX 1.0 BETA du point 7 avait sa règle CSS mais AUCUN
+     composant ne le rendait, et l'édition occupait le haut à droite que le
+     point 5 réserve au mode, à la cloche et à la fraîcheur ; (5) le masque de
+     la marque était SILENCIEUSEMENT invalide — `url()` non guillemeté sur une
+     data URI — donc calculé à `none`, et le carré se remplissait entièrement.
+     Le point 5 n'est PAS livré : ni cloche, ni badge de mode, ni fraîcheur de
+     shell n'ont de propriétaire canonique, et les dessiner sans source serait
+     une façade."
 mesures_de_cette_session:
   - "playwright : 405 passed après LOT-07 (le job CI qui était rouge), puis
      399 passed après LOT-08. La baisse de 6 est intégralement expliquée dans
      PAGE_ARBITRATION.md : -12 contrôles d'accessibilité sur une route devenue
      une redirection (le même DOM est balayé via /portfolio), +6 tests de
-     redirection permanente. Aucun test supprimé."
-  - "vitest : 399 passed / 30 fichiers ; tsc 0 ; biome 0 (127 fichiers) — mesuré
-     après LOT-08"
+     redirection permanente. Aucun test supprimé. Puis 417 après LOT-09 :
+     +18 = six mesures d'anatomie canonique x trois viewports, dans le nouveau
+     e2e/shell-canonical.spec.ts."
+  - "vitest : 400 passed / 30 fichiers ; tsc 0 ; biome 0 (128 fichiers) — mesuré
+     après LOT-09"
   - "pytest : 3766 passed, 4 skipped — mesuré sur 35d48cb"
   - "run_checks.sh : TOUT VERT"
   - "audit_titanium_ledger.py après LOT-08 : empreinte canonique vérifiée,
@@ -48,6 +66,8 @@ mesures_de_cette_session:
      affirmation"
   - "falsification LOT-07 : `Navigate` sans `replace` fait rougir
      routes.test.tsx avec `expected 'PUSH' to be 'REPLACE'`"
+  - "falsification LOT-09 : retirer les guillemets de `url()` dans BrandMark
+     fait rougir shell-canonical.spec.ts avec `Expected: not \"none\"`"
 
 active_work:
   - "commande utilisateur reçue : EXÉCUTE VERTEX RATTRAPAGE COMPLET"

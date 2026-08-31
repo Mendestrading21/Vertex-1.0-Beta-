@@ -542,3 +542,34 @@ chemin de fraîcheur avec un lot de démarrage.
   Risques et Catalyseurs existent, faute de quoi `08`, `09` et `10` désigneraient
   des pages absentes. À traiter dans la refonte Titanium Ledger, après les
   créations.
+
+## Trouvé au LOT-09 (2026-08-31)
+
+- **Un masque CSS invalide échoue en silence** — **FERMÉ.** `BrandMark.tsx`
+  écrivait `url(${dataUri})` sans guillemets. Une data URI SVG contient des
+  apostrophes et des virgules : la déclaration `mask-image` était donc
+  invalide, le navigateur la calculait à `none`, et `background-color:
+  currentcolor` remplissait tout le carré. La « marque facettée argent » du
+  point 1 de l'anatomie s'affichait en **pavé plein**, sans la moindre erreur
+  console. `NavGlyph.tsx` guillemetait déjà son URL — le catalogue d'icônes
+  était correct, la marque seule ne l'était pas. Corrigé, et
+  `shell-canonical.spec.ts` assère désormais `maskImage !== 'none'` : une
+  assertion de couleur ne pouvait pas voir ce défaut, seule une assertion sur
+  l'application du masque le peut. Falsifié.
+- **Le point 5 de l'anatomie canonique n'est pas livré** — **OUVERT, assumé.**
+  La capture montre en haut à droite un badge de mode (`DONNÉES FICTIVES`),
+  une cloche et une fraîcheur (`Dernière mise à jour ... UTC`). Aucun des trois
+  n'a de propriétaire canonique côté shell : il n'existe ni file de
+  notifications, ni mode de données au niveau du shell, ni fraîcheur globale.
+  L'emplacement a été LIBÉRÉ (l'édition est partie au pied du rail) mais reste
+  vide : une cloche sans notifications ou un badge de mode sans propriétaire de
+  mode serait exactement la façade que l'article 17 interdit. À traiter quand
+  ces trois sources existeront.
+- **Le point 4 (ticker horizontal) et le point 6 (inspecteur contextuel) ne
+  sont pas livrés** — **OUVERT.** Le ticker exige une source d'indices servie
+  au shell sur chaque page, donc une décision de charge réseau et un contrat ;
+  l'inspecteur exige un contenu par destination. Ni l'un ni l'autre n'est un
+  écart de composition : ce sont des capacités à part entière.
+- **L'ordre des signatures `TL / NN`** reste ouvert (voir LOT-07) : rien n'a
+  changé, les trois destinations manquantes sont toujours la condition
+  préalable.

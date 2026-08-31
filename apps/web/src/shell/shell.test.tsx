@@ -39,6 +39,16 @@ describe('AppShell — landmarks et lien d’évitement', () => {
     expect(sansSignature).toEqual([]);
   });
 
+  // Point 7 de l'anatomie canonique. Le DOM est vérifié ici ; le POSITIONNEMENT
+  // réel (bas à gauche) et les styles calculés le sont dans
+  // e2e/shell-canonical.spec.ts, que jsdom ne peut pas mesurer.
+  it('le cartouche d’édition est rendu dans le rail, pas dans l’en-tête', () => {
+    renderApp('/today');
+    const nav = screen.getByRole('navigation', { name: 'Navigation principale' });
+    expect(within(nav).getByText('Vertex 1.0 Beta')).toBeDefined();
+    expect(within(screen.getByRole('banner')).queryByText('Vertex 1.0 Beta')).toBeNull();
+  });
+
   it('le lien d’évitement pointe vers le contenu principal', () => {
     renderApp('/today');
     const skipLink = screen.getByRole('link', { name: 'Aller au contenu principal' });

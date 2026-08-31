@@ -111,9 +111,12 @@ body {
   overflow-y: auto;
   overflow-x: hidden;
   scrollbar-gutter: stable;
-  background: var(--vx-surface-0);
-  border-right: 1px solid var(--vx-border-soft);
-  box-shadow: var(--vx-shadow-inset);
+  /* Point 2 de l'anatomie canonique : « rail gauche fin et INTÉGRÉ AU FOND,
+     sans grande plaque flottante ». Le rail portait une surface, une bordure
+     droite et une ombre interne : trois marqueurs de plaque. Il partage
+     désormais le fond de l'application ; seule la gouttière le sépare du
+     travail. */
+  background: transparent;
   transition:
     width var(--vx-motion-180) var(--vx-ease-standard),
     flex-basis var(--vx-motion-180) var(--vx-ease-standard);
@@ -129,26 +132,7 @@ body {
   border-bottom: 1px solid var(--vx-border-soft);
 }
 
-.vx-rail-wordmark {
-  display: inline-flex;
-  align-items: baseline;
-  gap: var(--vx-space-8);
-  min-width: 0;
-  overflow: hidden;
-  color: var(--vx-text);
-  font-size: var(--vx-font-size-title);
-  font-weight: 650;
-  letter-spacing: -0.02em;
-  white-space: nowrap;
-}
 
-.vx-rail-wordmark small {
-  color: var(--vx-text-muted);
-  font-family: var(--vx-font-mono);
-  font-size: var(--vx-font-size-meta);
-  font-weight: 500;
-  letter-spacing: 0.02em;
-}
 
 .vx-brand-lockup {
   display: flex;
@@ -164,29 +148,12 @@ body {
   flex: 0 0 var(--vx-space-40);
   align-items: center;
   justify-content: center;
-  border: 1px solid var(--vx-signal-soft);
+  border: 1px solid transparent;
   border-radius: var(--vx-radius-10);
-  background: var(--vx-signal);
-  box-shadow: var(--vx-shadow-inset);
-  color: var(--vx-black);
-  font-family: var(--vx-font-mono);
-  font-size: var(--vx-font-size-title);
-  font-weight: 700;
+  background: none;
+  color: var(--vx-silver);
 }
 
-.vx-brand-version {
-  display: inline-flex;
-  align-items: center;
-  padding: var(--vx-space-4) var(--vx-space-8);
-  border: 1px solid var(--vx-border-soft);
-  border-radius: var(--vx-radius-pill);
-  background: var(--vx-surface-1);
-  color: var(--vx-text-muted);
-  font-family: var(--vx-font-mono);
-  font-size: var(--vx-font-size-meta);
-  font-weight: 500;
-  white-space: nowrap;
-}
 
 .vx-rail-toggle {
   display: inline-flex;
@@ -286,15 +253,24 @@ body {
   color: var(--vx-text);
 }
 
-/* État actif : fond + barre latérale + aria-current — jamais la couleur seule. */
+/* Point 3 de l'anatomie canonique : « SEUL l'item actif reçoit une capsule
+   ambre translucide et son icône ambre ». La barre latérale `inset 2px` n'est
+   pas une capsule — elle est retirée au profit de la capsule pleine.
+
+   La couleur reste un vecteur parmi trois, jamais le seul : une CAPSULE
+   apparaît là où il n'y avait aucune forme, la graisse passe à 600, et
+   `aria-current="page"` porte l'information pour les technologies
+   d'assistance. */
 .vx-rail-link[aria-current='page'] {
   border-color: var(--vx-signal-soft);
-  background: var(--vx-signal-faint);
-  color: var(--vx-text);
-  box-shadow: inset 2px 0 0 var(--vx-signal);
+  background: var(--vx-signal-soft);
+  color: var(--vx-signal);
   font-weight: 600;
 }
 
+/* Le porte-glyphe reste la cible de clic du rail replié, mais il ne dessine
+   plus de pastille : la capture canonique ne montre AUCUNE boîte autour des
+   icônes inactives. La seule surface colorée du rail est la capsule active. */
 .vx-rail-link-short {
   display: inline-flex;
   align-items: center;
@@ -302,34 +278,49 @@ body {
   width: 28px;
   height: 28px;
   flex: 0 0 28px;
-  border: 1px solid var(--vx-border-soft);
+  border: 1px solid transparent;
   border-radius: var(--vx-radius-10);
-  background: var(--vx-surface-1);
+  background: transparent;
   color: var(--vx-text-muted);
   font-family: var(--vx-font-mono);
   font-size: var(--vx-font-size-meta);
-  transition:
-    background-color var(--vx-motion-140) var(--vx-ease-standard),
-    border-color var(--vx-motion-140) var(--vx-ease-standard),
-    color var(--vx-motion-140) var(--vx-ease-standard);
+  transition: color var(--vx-motion-140) var(--vx-ease-standard);
 }
 
+/* L'icône de l'item actif est ambre — elle hérite de la couleur de la capsule. */
 .vx-rail-link[aria-current='page'] .vx-rail-link-short {
-  border-color: var(--vx-signal-soft);
-  background: var(--vx-signal-soft);
-  color: var(--vx-signal);
+  color: inherit;
+}
+
+.vx-rail-link:hover .vx-rail-link-short {
+  color: var(--vx-text);
 }
 
 .vx-nav-glyph {
   color: inherit;
 }
 
+/* Point 7 de l'anatomie canonique : « cartouche VERTEX 1.0 BETA discret en bas
+   à gauche ». Le pied du rail portait cette règle en CSS depuis le début mais
+   n'était rendu par AUCUN composant — la règle existait sans son élément. */
 .vx-rail-foot {
   margin-top: auto;
   padding: var(--vx-space-16);
-  border-top: 1px solid var(--vx-border-soft);
   color: var(--vx-text-muted);
   font-size: var(--vx-font-size-meta);
+}
+
+.vx-edition-cartouche {
+  display: inline-block;
+  padding: var(--vx-space-4) var(--vx-space-8);
+  border: 1px solid var(--vx-signal-soft);
+  border-radius: var(--vx-radius-6);
+  color: var(--vx-signal);
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-meta);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  white-space: nowrap;
 }
 
 .vx-shell[data-rail='collapsed'] .vx-brand-lockup {
@@ -348,7 +339,6 @@ body {
   padding-inline: var(--vx-space-8);
 }
 
-.vx-shell[data-rail='collapsed'] .vx-brand-version,
 .vx-shell[data-rail='collapsed'] .vx-rail-foot {
   display: none;
 }
@@ -410,19 +400,6 @@ body {
   gap: var(--vx-space-12);
 }
 
-.vx-contextbar-edition {
-  display: inline-flex;
-  align-items: center;
-  min-height: 26px;
-  padding: var(--vx-space-4) var(--vx-space-8);
-  border: 1px solid var(--vx-border-soft);
-  border-radius: var(--vx-radius-pill);
-  background: var(--vx-surface-1);
-  color: var(--vx-text-muted);
-  font-family: var(--vx-font-mono);
-  font-size: var(--vx-font-size-meta);
-  white-space: nowrap;
-}
 
 .vx-contextbar-status {
   display: inline-flex;
@@ -3615,16 +3592,12 @@ body {
   --vx-rail-width: 248px;
 }
 
-.vx-rail {
-  background:
-    linear-gradient(180deg, var(--vx-titanium-soft), transparent 14%),
-    var(--vx-surface-0);
-  border-right-color: var(--vx-border);
-}
-
+/* Le rail n'a ni surface ni bordure : point 2 de l'anatomie canonique. La
+   couche Titanium Ledger lui rendait un dégradé de surface et une bordure de
+   séparation — c'est-à-dire exactement la « grande plaque flottante » que le
+   contrat refuse. Seule la hauteur de tête est conservée. */
 .vx-rail-head {
   min-height: 80px;
-  background: var(--vx-scrim);
 }
 
 .vx-brand-mark {
@@ -3632,28 +3605,10 @@ body {
   width: 42px;
   height: 42px;
   flex-basis: 42px;
-  overflow: hidden;
-  border-color: var(--vx-border-strong);
-  border-radius: var(--vx-radius-10);
-  background: linear-gradient(
-    145deg,
-    var(--vx-silver),
-    var(--vx-titanium) 46%,
-    var(--vx-signal-deep)
-  );
-  color: var(--vx-black);
-  box-shadow: var(--vx-shadow-inset), var(--vx-shadow-panel);
-}
-
-.vx-brand-mark::after {
-  position: absolute;
-  right: -34%;
-  bottom: -48%;
-  width: 90%;
-  height: 120%;
-  border: 1px solid var(--vx-signal-bright);
-  content: '';
-  transform: rotate(32deg);
+  border-color: transparent;
+  background: none;
+  box-shadow: none;
+  color: var(--vx-silver);
 }
 
 /* Marque facettée : le contrat canonique interdit le monogramme `VX` et tout
@@ -3673,26 +3628,7 @@ body {
   -webkit-mask-size: contain;
 }
 
-.vx-rail-wordmark {
-  display: flex;
-  align-items: flex-start;
-  flex-direction: column;
-  gap: 0;
-  font-size: 17px;
-  font-weight: 690;
-  letter-spacing: 0.01em;
-  line-height: 1.1;
-  text-transform: uppercase;
-}
 
-.vx-rail-wordmark small {
-  margin-top: var(--vx-space-4);
-  color: var(--vx-signal);
-  font-size: 10px;
-  font-weight: 650;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-}
 
 .vx-rail-group-label {
   color: var(--vx-titanium);
@@ -3707,37 +3643,17 @@ body {
   border-radius: var(--vx-radius-6);
 }
 
-.vx-rail-link::after {
-  position: absolute;
-  right: var(--vx-space-8);
-  width: 4px;
-  height: 4px;
-  border-radius: var(--vx-radius-pill);
-  background: var(--vx-titanium);
-  content: '';
-  opacity: 0;
-  transition: opacity var(--vx-motion-140) var(--vx-ease-standard);
-}
-
+/* « une capsule ambre TRANSLUCIDE » : un aplat, pas un dégradé ; aucune barre
+   latérale, aucune ombre interne. L'icône hérite de la teinte de la capsule
+   (règle de base `.vx-rail-link[aria-current] .vx-rail-link-short`), donc le
+   texte et le glyphe partagent exactement UN ambre. */
 .vx-rail-link[aria-current='page'] {
-  border-color: var(--vx-border-strong);
-  background: linear-gradient(90deg, var(--vx-signal-soft), var(--vx-signal-faint));
-  box-shadow: inset 2px 0 0 var(--vx-signal), var(--vx-shadow-inset);
+  border-color: var(--vx-signal-soft);
 }
 
-.vx-rail-link[aria-current='page']::after {
-  background: var(--vx-signal-bright);
-  opacity: 1;
-}
-
-.vx-rail-link-short,
-.vx-rail-link[aria-current='page'] .vx-rail-link-short {
+.vx-rail-link-short {
   border-color: transparent;
   background: transparent;
-}
-
-.vx-rail-link[aria-current='page'] .vx-rail-link-short {
-  color: var(--vx-signal-bright);
 }
 
 .vx-contextbar {
@@ -3757,12 +3673,6 @@ body {
   text-transform: uppercase;
 }
 
-.vx-contextbar-edition {
-  border-color: var(--vx-border);
-  background: var(--vx-titanium-soft);
-  color: var(--vx-silver);
-  letter-spacing: 0.04em;
-}
 
 .vx-main {
   position: relative;

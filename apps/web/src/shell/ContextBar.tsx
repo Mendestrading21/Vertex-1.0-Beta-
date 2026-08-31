@@ -56,7 +56,14 @@ export function ContextBar() {
         <span className="vx-contextbar-page">{title}</span>
       </div>
       <div className="vx-contextbar-meta">
-        <span className="vx-contextbar-edition">Vertex 1.0 Beta</span>
+        {/*
+          L'édition « Vertex 1.0 Beta » a rejoint le pied du rail (point 7 de
+          l'anatomie canonique). Le haut à droite est réservé au badge de mode,
+          à la cloche et à la fraîcheur (point 5) : aucun des trois n'a
+          aujourd'hui de source canonique côté shell, donc aucun des trois
+          n'est dessiné. Une cloche sans file de notifications ou un badge de
+          mode sans propriétaire de mode serait une façade.
+        */}
         <p className="vx-contextbar-status" data-session={session}>
           <span className="vx-status-dot" aria-hidden="true" />
           {SESSION_LABELS[session]}
