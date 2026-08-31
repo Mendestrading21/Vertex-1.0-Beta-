@@ -49,6 +49,7 @@ from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:  # import-time cycle avoidance (ingest -> markets)
     from vertex_worker.analysis import AnalysisConfig
+    from vertex_worker.calendar import CalendarConfig
     from vertex_worker.markets import MarketsConfig
     from vertex_worker.options import OptionsConfig
 
@@ -643,6 +644,8 @@ def build_registry(
     markets_config: MarketsConfig | None = None,
     options_config: OptionsConfig | None = None,
     analysis_config: AnalysisConfig | None = None,
+    calendar_config: CalendarConfig | None = None,
+    opportunities_config: AnalysisConfig | None = None,
 ) -> HandlerRegistry:
     """Build the worker registry with the canonical topics.
 
@@ -702,12 +705,24 @@ def build_registry(
     # Calendar (page 02): the dev synthetic registry (declared universe as
     # watchlist); positions/theses are read inside the handler.
     register_calendar_handler(
-        registry, clock=clock, config=DEV_SYNTHETIC_CALENDAR_CONFIG
+        registry,
+        clock=clock,
+        config=(
+            calendar_config
+            if calendar_config is not None
+            else DEV_SYNTHETIC_CALENDAR_CONFIG
+        ),
     )
     # Opportunities (page 04): the full declared universe under the single
     # AdviceEngine and the manifest profile equity_etf_swing_3_12m.
     register_opportunities_handler(
-        registry, clock=clock, config=DEV_SYNTHETIC_OPPORTUNITIES_CONFIG
+        registry,
+        clock=clock,
+        config=(
+            opportunities_config
+            if opportunities_config is not None
+            else DEV_SYNTHETIC_OPPORTUNITIES_CONFIG
+        ),
     )
     # Review queue (page 09): same fusion registry as the attention handler.
     register_follow_up_handler(registry, clock=clock, config=fusion_config)

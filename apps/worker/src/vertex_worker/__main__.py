@@ -33,8 +33,9 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from vertex_persistence.dsn import database_name
-from vertex_worker.handlers import DEV_SYNTHETIC_CONFIG, build_registry
+from vertex_worker.handlers import build_registry
 from vertex_worker.ingest import OUTBOX_NOTIFY_CHANNEL
+from vertex_worker.profiles import ProfileError, resolve_profile
 from vertex_worker.runner import (
     PostgresNotifyListener,
     WorkerRunner,
@@ -90,7 +91,19 @@ def main() -> int:
     )
     url = _require_database_url()
 
-    registry = build_registry(clock=_utc_now, fusion_config=DEV_SYNTHETIC_CONFIG)
+    try:
+        profil = resolve_profile(os.environ)
+    except ProfileError as erreur:
+        raise SystemExit(f"profil de fusion refusé : {erreur}") from erreur
+    registry = build_registry(
+        clock=_utc_now,
+        fusion_config=profil.fusion,
+        markets_config=profil.markets,
+        options_config=profil.options,
+        analysis_config=profil.analysis,
+        calendar_config=profil.calendar,
+        opportunities_config=profil.opportunities,
+    )
     engine = create_engine(url, pool_pre_ping=True)
     runner = WorkerRunner(
         session_factory=lambda: Session(engine),
@@ -122,10 +135,20 @@ def main() -> int:
     signal.signal(signal.SIGTERM, _request_stop)
     signal.signal(signal.SIGINT, _request_stop)
 
-    log.warning(
-        "configuration DÉVELOPPEMENT SYNTHETIC active : aucune source réelle "
-        "n'est connectée ; tout snapshot publié porte population=SYNTHETIC"
-    )
+    if profil.is_real:
+        log.warning(
+            "profil de fusion RÉEL actif — sources autorisées: %s, droits: %s, "
+            "%d instrument(s) déclaré(s). Les snapshots porteront population=REAL "
+            "dès qu'une observation réelle sera fusionnée.",
+            sorted(profil.fusion.allowed_sources),
+            sorted(profil.fusion.usable_rights),
+            len(profil.analysis.instruments),
+        )
+    else:
+        log.warning(
+            "configuration DÉVELOPPEMENT SYNTHETIC active : aucune source réelle "
+            "n'est connectée ; tout snapshot publié porte population=SYNTHETIC"
+        )
     log.info("worker démarré — %d topics surveillés", len(registry.topics))
     try:
         runner.run()

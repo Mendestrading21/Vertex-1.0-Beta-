@@ -90,7 +90,14 @@ newly written daily-quote observation."""
 SNAPSHOT_KIND_MARKETS = "markets_overview"
 MARKETS_SCHEMA_VERSION = "vertex.markets-overview/1.0"
 
-DAILY_QUOTE_SCHEMA_PREFIXES: tuple[str, ...] = ("synthetic-daily-quote/",)
+DAILY_QUOTE_SCHEMA_PREFIXES: tuple[str, ...] = (
+    "synthetic-daily-quote/",
+    # Source REELLE. Sans ce prefixe, `ingest_envelope` ne met pas
+    # `quotes.ingested` en file pour une cotation IBKR, et la page
+    # Marches ne se rafraichit jamais — la donnee entre en base sans
+    # jamais atteindre un ecran.
+    "ibkr.daily-quote/",
+)
 """Schema families recognized as daily quotes (extensible; deny by default)."""
 
 _CODE_SHA = f"module:vertex_core.calculations.market@{ENGINE_VERSION}"

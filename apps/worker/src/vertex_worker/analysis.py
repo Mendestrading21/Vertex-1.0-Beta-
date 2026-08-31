@@ -132,7 +132,17 @@ newly written daily-bars or option-chain observation."""
 SNAPSHOT_KIND_ANALYSIS = "analysis"
 ANALYSIS_SCHEMA_VERSION = "vertex.analysis/1.0"
 
-DAILY_BARS_SCHEMA_PREFIXES: tuple[str, ...] = ("synthetic-daily-bars/",)
+DAILY_BARS_SCHEMA_PREFIXES: tuple[str, ...] = (
+    "synthetic-daily-bars/",
+    "ibkr.daily-bars/",
+)
+"""Familles de barres quotidiennes ADMISES par la page Analyse.
+
+``ibkr.daily-bars/`` est la forme derivee par
+``vertex_edge_ibkr.normalize.daily_bars_envelope`` : la barre BRUTE
+d'IBKR (``ibkr.bars/``) n'est deliberement PAS admise ici, car ce
+schema couvre toutes les tailles de barre. Y laisser entrer une barre
+horaire ferait passer une bougie de 60 minutes pour une seance."""
 """Schema families recognized as daily OHLCV bars (deny by default)."""
 
 VALUE_NATURE_THEORETICAL = "THEORETICAL"
@@ -219,9 +229,7 @@ _CENTS = Decimal("0.01")
 
 def is_daily_bars_schema(schema_version: str) -> bool:
     """``True`` when ``schema_version`` belongs to a declared bars family."""
-    return isinstance(schema_version, str) and schema_version.startswith(
-        DAILY_BARS_SCHEMA_PREFIXES
-    )
+    return isinstance(schema_version, str) and schema_version.startswith(DAILY_BARS_SCHEMA_PREFIXES)
 
 
 @dataclass(frozen=True)
@@ -305,8 +313,7 @@ def load_daily_bar_records(
 ) -> list[BarRecord]:
     """Load the bounded recent daily-bars window, deterministically ordered."""
     filters = [
-        Observation.schema_version.like(f"{prefix}%")
-        for prefix in DAILY_BARS_SCHEMA_PREFIXES
+        Observation.schema_version.like(f"{prefix}%") for prefix in DAILY_BARS_SCHEMA_PREFIXES
     ]
     schema_filter: ColumnElement[bool] = filters[0]
     for extra in filters[1:]:
@@ -475,8 +482,7 @@ def _build_evidence(
                 "member_event_ids": list(cluster.member_ids),
                 "last_received_at": cluster.last_received_at.isoformat(),
                 "synthetic": any(
-                    is_synthetic_record(record_by_id[member])
-                    for member in cluster.member_ids
+                    is_synthetic_record(record_by_id[member]) for member in cluster.member_ids
                 ),
             }
         )
@@ -576,9 +582,7 @@ def _build_scenarios(
         premium=picked["ask"],  # hypothetical buy of one leg: the observed ask
         multiplier=picked["multiplier"],
     )
-    spot_points = [
-        (picked["spot"] * shock).quantize(_CENTS) for shock in _SPOT_SHOCKS
-    ]
+    spot_points = [(picked["spot"] * shock).quantize(_CENTS) for shock in _SPOT_SHOCKS]
     maturity = float(picked["maturity_years"])
     time_points = (maturity, maturity / 2.0, 0.0)
     iv_value = float(picked["iv"])
@@ -635,10 +639,7 @@ def _build_scenarios(
         "spot_grid": [format(point, "f") for point in spot_points],
         "time_grid_years": [_num_string(point) for point in time_points],
         "iv_scenarios": [[_num_string(iv_value)]],
-        "grid": [
-            [[_num_string(cell) for cell in row] for row in scenario]
-            for scenario in grid
-        ],
+        "grid": [[[_num_string(cell) for cell in row] for row in scenario] for scenario in grid],
         "calculation": _calculation_meta(record),
     }
 
@@ -687,9 +688,7 @@ def build_analysis_content(
             )
             continue
         if not isinstance(payload.get("bars"), list):
-            rejected_records.append(
-                {"event_id": record.event_id, "reason": REASON_INVALID_PAYLOAD}
-            )
+            rejected_records.append({"event_id": record.event_id, "reason": REASON_INVALID_PAYLOAD})
             continue
         # Record-level source-controlled fields relayed into the dossier:
         # admitted ONLY on their declared shape, never repaired.
@@ -734,13 +733,9 @@ def build_analysis_content(
         "status": "OK" if valid_bars else "ABSENT",
         "count": len(valid_bars),
         # Both were admitted on their shape above: relayed as admitted.
-        "currency": (
-            _currency_or_none(payload.get("currency")) if chosen is not None else None
-        ),
+        "currency": (_currency_or_none(payload.get("currency")) if chosen is not None else None),
         "adjustment_basis": (
-            _basis_code_or_none(payload.get("adjustment_basis"))
-            if chosen is not None
-            else None
+            _basis_code_or_none(payload.get("adjustment_basis")) if chosen is not None else None
         ),
         "first_trading_day": valid_bars[0]["trading_day"] if valid_bars else None,
         "last_trading_day": valid_bars[-1]["trading_day"] if valid_bars else None,
@@ -755,12 +750,8 @@ def build_analysis_content(
     }
 
     # -- evidence and scenarios ----------------------------------------------
-    evidence = _build_evidence(
-        evidence_records, instrument=instrument, config=config
-    )
-    scenarios = _build_scenarios(
-        option_chain_content, chain_version=option_chain_version, now=now
-    )
+    evidence = _build_evidence(evidence_records, instrument=instrument, config=config)
+    scenarios = _build_scenarios(option_chain_content, chain_version=option_chain_version, now=now)
     if any(entry["synthetic"] for entry in evidence["clusters"]):
         synthetic = True
 
@@ -782,13 +773,9 @@ def build_analysis_content(
             f"{len(valid_bars)} synthetic daily bars from "
             f"{bars_block['first_trading_day']} to {bars_block['last_trading_day']}"
         )
-        explanation_facts.append(
-            f"last synthetic close {last_close} {bars_block['currency']}"
-        )
+        explanation_facts.append(f"last synthetic close {last_close} {bars_block['currency']}")
     if evidence["clusters"]:
-        explanation_facts.append(
-            f"{len(evidence['clusters'])} evidence cluster(s) from fusion"
-        )
+        explanation_facts.append(f"{len(evidence['clusters'])} evidence cluster(s) from fusion")
 
     inputs = AdviceInputs(
         instrument_id=instrument,
@@ -807,9 +794,7 @@ def build_analysis_content(
         ),
         evidence_ids=tuple(entry["cluster_id"] for entry in evidence["clusters"]),
         scenario_ids=(
-            (scenarios["calculation"]["input_hash"],)
-            if scenarios["status"] == "OK"
-            else ()
+            (scenarios["calculation"]["input_hash"],) if scenarios["status"] == "OK" else ()
         ),
         explanation_facts=tuple(explanation_facts),
         limitations=("SYNTHETIC development population",) if synthetic else (),
@@ -824,15 +809,11 @@ def build_analysis_content(
         # so they stay absent and their gates BLOCK UNEVALUABLE (fail-closed;
         # the resulting INSUFFICIENT_DATA is the WANTED honest verdict).
         snapshot=SnapshotInput(quality=snapshot_quality, fresh=bars_fresh),
-        calculations=CalculationsInput(
-            calculation_statuses=calculation_statuses or None
-        ),
+        calculations=CalculationsInput(calculation_statuses=calculation_statuses or None),
         # Declared by the caller's configuration, never by this builder: when
         # the required flag is set and no user declaration exists, gate 7
         # BLOCKS (fail-closed) instead of passing NOT_REQUIRED.
-        portfolio_risk=PortfolioRiskInput(
-            risk_required=config.portfolio_risk_required
-        ),
+        portfolio_risk=PortfolioRiskInput(risk_required=config.portfolio_risk_required),
         probability=ProbabilityInput(probability_used=False),
     )
     advice = engine.evaluate(inputs)
@@ -913,9 +894,7 @@ class AnalysisHandler:
                 # Absence stays absent: no invented dossier, the API answers
                 # its honest empty state until bars actually exist.
                 continue
-            chain = get_current_snapshot(
-                session, kind=SNAPSHOT_KIND_OPTION_CHAIN, key=instrument
-            )
+            chain = get_current_snapshot(session, kind=SNAPSHOT_KIND_OPTION_CHAIN, key=instrument)
             content = build_analysis_content(
                 bar_records,
                 instrument=instrument,
@@ -934,9 +913,7 @@ class AnalysisHandler:
                 as_of=now,
             )
             if published is None:
-                log.info(
-                    "analysis %s unchanged (message_id=%s)", instrument, message.id
-                )
+                log.info("analysis %s unchanged (message_id=%s)", instrument, message.id)
             else:
                 log.info(
                     "analysis %s published version=%s (message_id=%s)",
@@ -950,6 +927,4 @@ def register_analysis_handler(
     registry: HandlerRegistry, *, clock: Clock, config: AnalysisConfig
 ) -> None:
     """Register the analysis handler on ``analysis.ingested``."""
-    registry.register(
-        TOPIC_ANALYSIS_INGESTED, AnalysisHandler(config=config, clock=clock)
-    )
+    registry.register(TOPIC_ANALYSIS_INGESTED, AnalysisHandler(config=config, clock=clock))
