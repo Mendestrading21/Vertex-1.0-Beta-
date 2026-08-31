@@ -14,8 +14,10 @@ des tests, sans base jetable et sans destruction de schéma.
 
 ## Prérequis
 
-PostgreSQL, Node 24 et `uv` installés (`FIRST_INSTALL.md`). Docker n'est PAS
-requis pour ce chemin : la pile Compose reste le sujet du LOT-24.
+PostgreSQL 18, Node 24, Corepack et `uv` installés, puis les environnements
+verrouillés créés exactement comme indiqué dans `FIRST_INSTALL.md`. Le
+démarreur exige `.venv/bin/python` et refuse le Python système. Docker n'est
+pas requis pour ce chemin.
 
 ## 1. Créer la base, une seule fois
 
@@ -35,8 +37,8 @@ export VERTEX_DATABASE_URL='postgresql+psycopg://vertex:<mot-de-passe>@127.0.0.1
 ## 3. Préparer la base
 
 ```bash
-python3 tools/bootstrap_local.py                    # migrations seules
-python3 tools/bootstrap_local.py --with-demo-data   # + population SYNTHETIC
+.venv/bin/python tools/bootstrap_local.py                    # migrations seules
+.venv/bin/python tools/bootstrap_local.py --with-demo-data   # + population SYNTHETIC
 ```
 
 Sans `--with-demo-data`, les pages seront **vides et le diront** — c'est le
@@ -65,10 +67,12 @@ irremplaçable. `--force` existe, à n'utiliser que sur une base jetable.
 bash tools/start_local.sh
 ```
 
-Il enchaîne, dans cet ordre : contrôle de PostgreSQL, migrations, API
-(`uvicorn`, `127.0.0.1:8000`), worker (`python -m vertex_worker`), build de
-production, interface (`vite preview`, `127.0.0.1:4173`). `Ctrl-C` arrête les
-trois processus proprement.
+Il vérifie le DSN, les ports, les commandes requises et l'environnement Python
+verrouillé, puis enchaîne : PostgreSQL, migrations, API (`uvicorn`,
+`127.0.0.1:8000`), worker, build de production et interface (`vite preview`,
+`127.0.0.1:4173`). Si un service tombe, les autres sont arrêtés au lieu de
+laisser une pile partiellement vivante. `Ctrl-C` arrête les trois processus
+proprement.
 
 ## 5. Ouvrir `/system` en premier
 
