@@ -9,7 +9,7 @@ import { usePortfolio } from '../../api/portfolioApi.ts';
 import { AuthRequiredNotice } from '../../components/AuthRequiredNotice.tsx';
 import { DataStateBoundary } from '../../components/DataStateBoundary.tsx';
 import type { DataState } from '../../components/DataStateBoundary.tsx';
-import { DEV_SYNTHETIC_UNDERLYINGS } from '../devUniverse.ts';
+import { useDeclaredInstruments } from '../devUniverse.ts';
 import {
   AI_NOTE_CAPABILITY_STATE,
   AI_PERMANENT_NOTICE,
@@ -106,7 +106,8 @@ export function AiPage() {
   const [params, setParams] = useSearchParams();
   const kindParam = params.get('subject') ?? '';
   const kind: AiSubjectKind = isAiSubjectKind(kindParam) ? kindParam : 'analysis';
-  const instrument = params.get('instrument') ?? DEV_SYNTHETIC_UNDERLYINGS[0] ?? '';
+  const declares = useDeclaredInstruments();
+  const instrument = params.get('instrument') ?? declares[0] ?? '';
 
   const statusQuery = useAiStatus();
   const statusState = pageStateOf(statusQuery);
@@ -123,6 +124,9 @@ export function AiPage() {
     staleTime: Infinity,
   });
   const answerState = pageStateOf(answerQuery);
+  //: L'API ne repond pas : ni `ok`, ni `loading`. Un sujet non resolu
+  //: dans cet etat est une panne, jamais une absence.
+  const statusIndisponible = statusState === 'offline' || statusState === 'error';
   const answer = answerQuery.data;
   const noSnapshot = isNoSnapshotError(answerQuery.error);
 
@@ -174,7 +178,7 @@ export function AiPage() {
                 value={instrument}
                 onChange={(bubble) => updateParam('instrument', bubble.target.value)}
               >
-                {DEV_SYNTHETIC_UNDERLYINGS.map((entry) => (
+                {declares.map((entry) => (
                   <option key={entry} value={entry}>
                     {entry}
                   </option>
@@ -205,6 +209,12 @@ export function AiPage() {
             'd’honnête à expliquer, et rien n’est inventé.'
           }
         />
+      ) : key === '' && statusIndisponible ? (
+        // Une clé non résolue PARCE QUE l'API est injoignable n'est pas une
+        // absence. Le sujet par défaut vient de l'univers réellement publié,
+        // donc d'une requête : hors ligne, elle échoue. Afficher « vide » ici
+        // ferait passer une panne pour un état normal.
+        <DataStateBoundary state={statusState as DataState} />
       ) : key === '' ? (
         <DataStateBoundary
           state="empty"

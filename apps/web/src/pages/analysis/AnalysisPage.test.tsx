@@ -15,6 +15,7 @@ import {
   makeAnalysis,
   makeAnalysisBars,
   makeEmptyAnalysis,
+  makeMarketsOverview,
 } from '../../test/fixtures.ts';
 import { renderApp } from '../../test/render.tsx';
 import { analysisStateOf, barsViewOf, scenarioAbsentLabel } from './analysisView.ts';
@@ -41,6 +42,23 @@ function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: { 'Content-Type': 'application/json' },
+  });
+}
+
+/**
+ * Sert une Response FRAÎCHE par appel, routée par URL.
+ *
+ * Le sélecteur d'instruments lit la vue Marchés en plus de la ressource de la
+ * page. Un `mockResolvedValue` unique rendrait le même objet `Response` aux
+ * deux appels, et un corps de réponse ne se lit qu'une fois.
+ */
+function repondre(reponse: Response): void {
+  fetchMock.mockImplementation((entree: unknown) => {
+    const url = typeof entree === 'string' ? entree : String((entree as Request).url);
+    if (url.includes('/markets/overview')) {
+      return Promise.resolve(jsonResponse(makeMarketsOverview()));
+    }
+    return Promise.resolve(reponse.clone());
   });
 }
 
@@ -80,7 +98,7 @@ describe('analysisStateOf — dérivation depuis les statuts publiés', () => {
 
 describe('Page Analyse — état nominal', () => {
   it('cadre complet : question, méta (unité/devise/timezone/source/as_of/couverture), SYNTHETIC', async () => {
-    fetchMock.mockResolvedValue(jsonResponse(makeAnalysis()));
+    repondre(jsonResponse(makeAnalysis()));
     await renderAnalysis();
     await screen.findByRole('heading', { level: 2, name: 'Analyse — SYN-TECH-01' });
     expect(screen.getByText(/prix OHLC en SYN/)).toBeDefined();
@@ -93,7 +111,7 @@ describe('Page Analyse — état nominal', () => {
   });
 
   it('dominante : moteur substitué monté avec les 60 barres (ici 3) + attribution TradingView', async () => {
-    fetchMock.mockResolvedValue(jsonResponse(makeAnalysis()));
+    repondre(jsonResponse(makeAnalysis()));
     await renderAnalysis();
     await screen.findByTestId('candles-canvas');
     // setData appelé pour les chandeliers ET le volume.
@@ -108,7 +126,7 @@ describe('Page Analyse — état nominal', () => {
 
   it('table OHLCV équivalente : mêmes chaînes serveur verbatim', async () => {
     const analysis = makeAnalysis();
-    fetchMock.mockResolvedValue(jsonResponse(analysis));
+    repondre(jsonResponse(analysis));
     await renderAnalysis();
     const table = await screen.findByRole('table', {
       name: 'Table OHLCV équivalente des chandeliers',
@@ -127,7 +145,7 @@ describe('Page Analyse — état nominal', () => {
 
   it('AdviceCard : INSUFFICIENT_DATA honnête, direction séparée, gates UNEVALUABLE dépliables', async () => {
     const user = userEvent.setup();
-    fetchMock.mockResolvedValue(jsonResponse(makeAnalysis()));
+    repondre(jsonResponse(makeAnalysis()));
     await renderAnalysis();
     const card = await screen.findByTestId('advice-card');
     const scoped = within(card);
@@ -147,7 +165,7 @@ describe('Page Analyse — état nominal', () => {
   });
 
   it('evidence vide honnête + scénarios absents avec raison typée', async () => {
-    fetchMock.mockResolvedValue(jsonResponse(makeAnalysis()));
+    repondre(jsonResponse(makeAnalysis()));
     await renderAnalysis();
     await screen.findByText(/Aucun cluster pertinent/);
     const absent = await screen.findByTestId('scenarios-absent');
@@ -161,18 +179,21 @@ describe('Page Analyse — états', () => {
   it('sans instrument : état vide explicite + sélecteur, aucun défaut implicite', async () => {
     await renderAnalysis('/analysis');
     expect(screen.getByText(/Aucun instrument sélectionné/)).toBeDefined();
-    expect(fetchMock).not.toHaveBeenCalled();
+    // Le sélecteur lit la vue Marchés ; ce qui ne doit PAS être
+    // demandé, c'est la ressource d'instrument elle-même.
+    const demandes = fetchMock.mock.calls.map(([entree]) => String(entree));
+    expect(demandes.some((url) => url.includes('/v1/analysis/'))).toBe(false);
   });
 
   it('empty honnête avec raison serveur', async () => {
-    fetchMock.mockResolvedValue(jsonResponse(makeEmptyAnalysis()));
+    repondre(jsonResponse(makeEmptyAnalysis()));
     await renderAnalysis();
     await screen.findByText('Aucune donnée');
     expect(screen.getByText(/no snapshot published/)).toBeDefined();
   });
 
   it('stale publié : bandeau « Données périmées », contenu conservé', async () => {
-    fetchMock.mockResolvedValue(
+    repondre(
       jsonResponse(makeAnalysis({ bars: { ...makeAnalysisBars(), fresh: false } })),
     );
     await renderAnalysis();
@@ -189,7 +210,7 @@ describe('Page Analyse — états', () => {
   });
 
   it('session requise sur 401', async () => {
-    fetchMock.mockResolvedValue(jsonResponse({ detail: { code: 'AUTH_REQUIRED' } }, 401));
+    repondre(jsonResponse({ detail: { code: 'AUTH_REQUIRED' } }, 401));
     await renderAnalysis();
     await screen.findByText('Session requise');
   });
