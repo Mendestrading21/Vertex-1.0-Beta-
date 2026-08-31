@@ -29,7 +29,9 @@ test.describe("Page Aujourd'hui — AttentionQueue", () => {
     expect(reasonsCount).toBeLessThanOrEqual(3);
 
     // Bandeau santé haut (réutilise la réponse capacités, minimal).
-    await expect(page.locator('.vx-health-strip')).toContainText('Base : ok');
+    await expect(page.locator('.vx-health-strip')).toContainText('Base locale');
+    await expect(page.locator('.vx-health-strip')).toContainText('Disponible');
+    await expect(page.locator('.vx-health-strip')).toContainText('Worker ·');
   });
 
   test('panneau latéral accessible au clavier (Entrée, piège de focus, Échap)', async ({

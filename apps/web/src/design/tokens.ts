@@ -1,5 +1,5 @@
 /**
- * Tokens Black Glass — Signal Light. SOURCE TYPÉE UNIQUE.
+ * Tokens Black Glass — Titanium Ledger. SOURCE TYPÉE UNIQUE.
  *
  * Références : docs/05-design/DESIGN_SYSTEM.md et docs/05-design/TOKENS.md.
  *
@@ -14,25 +14,40 @@
 
 /** Couleurs canoniques. Clé → variable CSS `--vx-<clé>`. */
 export const color = {
-  'black': '#040504',
-  'app': '#08090b',
-  'surface-0': '#0b0c0f',
-  'surface-1': '#101216',
-  'surface-2': '#15171c',
-  'surface-3': '#1b1e23',
-  'hover': '#232830',
-  'border-soft': 'rgba(222, 227, 237, 0.09)',
-  'border': 'rgba(222, 227, 237, 0.14)',
-  'border-strong': 'rgba(222, 227, 237, 0.22)',
-  'text': '#f3f5f8',
-  'text-secondary': '#b7bcc4',
-  'text-muted': '#828892',
-  'silver': '#c9cdd4',
-  'positive': '#36c889',
-  'negative': '#ed655c',
-  'warning': '#dda23b',
-  'option': '#9c79d0',
-  'macro': '#53b9ad',
+  'black': '#030302',
+  'app': '#080806',
+  'surface-0': '#0d0d0b',
+  'surface-1': '#141310',
+  'surface-2': '#1b1915',
+  'surface-3': '#242119',
+  'hover': '#2d2920',
+  'border-soft': 'rgba(231, 224, 207, 0.07)',
+  'border': 'rgba(231, 224, 207, 0.12)',
+  'border-strong': 'rgba(231, 224, 207, 0.21)',
+  'grid-line': 'rgba(231, 224, 207, 0.045)',
+  'text': '#f6f2e8',
+  'text-secondary': '#b8b0a0',
+  'text-muted': '#948c7d',
+  'silver': '#d8d3c7',
+  'titanium': '#aaa497',
+  'titanium-soft': 'rgba(216, 211, 199, 0.1)',
+  'signal': '#d7a94a',
+  'signal-bright': '#f2c76b',
+  'signal-deep': '#765319',
+  'signal-soft': 'rgba(215, 169, 74, 0.15)',
+  'signal-faint': 'rgba(215, 169, 74, 0.065)',
+  'positive': '#50c992',
+  'positive-soft': 'rgba(80, 201, 146, 0.12)',
+  'negative': '#ef6f6c',
+  'negative-soft': 'rgba(239, 111, 108, 0.12)',
+  'warning': '#f0c36a',
+  'warning-soft': 'rgba(240, 195, 106, 0.12)',
+  'option': '#a88ae8',
+  'option-soft': 'rgba(168, 138, 232, 0.12)',
+  'macro': '#6bc5bc',
+  'macro-soft': 'rgba(107, 197, 188, 0.12)',
+  'overlay': 'rgba(3, 3, 2, 0.86)',
+  'scrim': 'rgba(3, 3, 2, 0.56)',
 } as const satisfies Record<string, string>;
 
 /** Espacements — grille 4 px. Clé (valeur px) → `--vx-space-<clé>`. */
@@ -53,8 +68,17 @@ export const radius = {
   6: '6px',
   10: '10px',
   14: '14px',
+  18: '16px',
+  22: '20px',
   pill: '999px',
 } as const satisfies Record<string | number, string>;
+
+/** Ombres sobres : profondeur, jamais halo lumineux. */
+export const shadow = {
+  panel: '0 20px 52px rgba(0, 0, 0, 0.28)',
+  floating: '0 32px 80px rgba(0, 0, 0, 0.48)',
+  inset: 'inset 0 1px 0 rgba(255, 255, 255, 0.045)',
+} as const satisfies Record<string, string>;
 
 /**
  * Durées de mouvement. Clé (ms) → `--vx-motion-<clé>`.
@@ -104,10 +128,13 @@ export const fontSize = {
   label: '13px',
   title: '16px',
   display: '22px',
+  headline: '28px',
+  metric: '34px',
 } as const satisfies Record<string, string>;
 
 export type ColorToken = keyof typeof color;
 export type SpaceToken = keyof typeof space;
 export type RadiusToken = keyof typeof radius;
+export type ShadowToken = keyof typeof shadow;
 export type MotionDurationToken = keyof typeof motionDuration;
 export type ZIndexToken = keyof typeof zIndex;
