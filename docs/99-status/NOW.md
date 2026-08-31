@@ -1,11 +1,20 @@
 # État courant
 
 ```yaml
-phase: lot_24a_fusionne_sonde_entitlements_executable
-lot: LOT-24b (sonde IBKR exécutable) + LOT-24c (fraîcheur au relais, P0)
-branch: claude/vertex-connection-kgkntr
-status: plus_aucun_relais_ne_sert_une_valeur_sans_dire_son_age
-last_good_commit: 37a7097 (= origin/main, PR #6 fusionnée)
+phase: rattrapage_complet_autorise
+lot: LOT-00 puis LOT-01 — sécurité, vérité Git et autorité canonique
+branch: codex/vertex-rattrapage-complet-20260831
+status: execution_en_cours_sans_fusion_automatique
+last_good_commit: bdf9f306 (= origin/main, CI 7/7 verte)
+active_work:
+  - "commande utilisateur reçue : EXÉCUTE VERTEX RATTRAPAGE COMPLET"
+  - "autorité canonique extraite du commit 72d55629 sans reprendre sa branche
+     divergée comme base de code"
+  - "capture canonique et six planches de pages intégrées au skill maître"
+  - "ordre d'exécution : fermer les P0, stabiliser données/runtime, reconstruire
+     le shell, puis traiter les douze pages et la qualification finale"
+  - "aucune fusion ni publication automatique ; recette TWS/IBKR réelle différée
+     au poste utilisateur avec données de marché exclues de Git"
 completed:
   - vagues_1_a_5: 13 routes sur 13 réelles (PR #1, #2 et #3 fusionnées)
   - ci: 7 jobs, 25 portes nommées — VERTE sur 5a40bc8 ; actions épinglées par SHA de COMMIT

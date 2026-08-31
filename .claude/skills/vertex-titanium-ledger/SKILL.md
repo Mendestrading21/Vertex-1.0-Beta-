@@ -1,153 +1,176 @@
 ---
 name: vertex-titanium-ledger
-description: Concevoir, auditer, développer et valider l'identité Titanium Ledger de Vertex 1.0 Beta, écran par écran, pour le shell, les composants, widgets, tableaux et graphiques, sans modifier les contrats ni la vérité financière. Utiliser pour toute refonte visuelle Vertex, composition de page, palette, logo, objet UI, visualisation, accessibilité ou QA visuelle.
+description: Auditer intégralement Vertex 1.0 Beta et concevoir, développer ou valider son identité Titanium Ledger Black Glass à partir de la capture canonique. Utiliser dès que la demande concerne Vertex et contient « analyse », « audite », « vérifie tout », « améliore le thème », une page, le dashboard, le shell, les widgets, graphiques, icônes, données, calculs, intégrations, sécurité, performance, accessibilité, tests, CI ou GitHub.
 ---
 
-# Vertex — Titanium Ledger
+# Vertex 1.0 Beta — skill maître d'audit et d'identité
 
 ## Mission
 
-Faire de Vertex un registre décisionnel premium, dense et calme : précision d'un
-terminal de marché, lisibilité d'un outil patrimonial et traçabilité d'un poste
-d'analyse. Chaque écran doit avoir sa propre composition et répondre à une
-question réelle. Le thème ne doit jamais masquer, inventer ou recalculer une
-information financière.
+Protéger simultanément deux vérités :
 
-## Autorités et périmètre
+1. la vérité produit — aucune donnée, formule, source ou capacité inventée ;
+2. la vérité visuelle — toutes les pages sont des descendantes directes de la
+   capture canonique Black Glass choisie par l'utilisateur.
 
-Lire dans cet ordre avant toute action :
+Le résultat attendu est un cockpit décisionnel dense, calme, traçable et
+cohérent. Le design ne doit jamais masquer un état dégradé ni créer une seconde
+autorité financière.
+
+## Déclencheur « analyse »
+
+Dans un contexte Vertex :
+
+- `analyse`, `analyse tout`, `audite Vertex` ou `vérifie tout` déclenche un audit
+  complet en lecture seule ;
+- `analyse <page|lot|domaine>` déclenche le même protocole, borné au périmètre ;
+- `corrige`, `implémente`, `exécute` ou `développe` est nécessaire pour modifier
+  le produit ;
+- une demande d'audit, de rapport ou d'avis n'autorise jamais une correction,
+  un commit, un push, une PR, une publication ou une migration.
+
+Pendant un audit, distinguer toujours : fait confirmé, écart confirmé,
+inférence à vérifier et information indisponible.
+
+## Ordre des autorités
+
+Lire avant toute action :
 
 1. `CLAUDE.md` ;
 2. `docs/00-foundation/CONSTITUTION.md` ;
 3. `docs/99-status/NOW.md` ;
-4. le lot autorisé et ses ADR ;
-5. `docs/05-design/TITANIUM_LEDGER_VISUAL_SYSTEM.md` ;
-6. les contrats, composants, tests et données réellement présents ;
-7. ce skill et uniquement ses références utiles.
+4. le lot actif et ses ADR ;
+5. `references/canonical-visual.md` et
+   `assets/vertex-dashboard-canonical.png` ;
+6. le code, les contrats, les tests, les mesures et les données présents ;
+7. les autres références de ce skill utiles à la demande.
 
-Ce skill gouverne l'affichage. Il n'autorise ni un nouveau calcul métier, ni une
-nouvelle source de données, ni un changement de contrat API, ni une dépendance,
-ni une publication. Toute extension de ce type exige son propre lot ou ADR.
+La capture canonique est l'unique autorité de style. Les planches des douze
+pages illustrent leurs compositions ; elles n'ont pas autorité sur le shell,
+la palette, le logo, la typographie ou les données. Le code courant décrit
+l'existant, pas automatiquement la cible.
 
-## Invariants absolus
+## Modes et références
 
-- Le serveur Python reste l'unique autorité des calculs, états et verdicts.
-- Le navigateur ne dérive ni score, rendement, probabilité, recommandation,
-  breakeven, P&L, grecque, classement ou statut canonique.
-- Une valeur absente n'est jamais remplacée par zéro, un exemple ou une donnée
-  décorative.
-- `PARTIAL`, `DEGRADED`, `MISSING`, `NOT_ENTITLED`, `UNSUPPORTED`,
-  `INSUFFICIENT_DATA` et `UNKNOWN` restent visibles et explicables.
-- L'ambre signifie marque, sélection ou action ; jamais performance positive.
-- Le vert et le rouge restent strictement financiers et sont toujours doublés
-  par un libellé, une forme, un signe ou une icône.
-- Aucun graphique sans question, unité, période, source, fraîcheur, état et
-  équivalent exact accessible.
-- Desktop uniquement : vérifier `1280x800`, `1440x900`, `1600x1000` ;
-  `1024x768` sert de dégradation facultative. Ne pas créer de navigation mobile.
-- Aucun secret, donnée personnelle, identifiant broker ou capture sensible.
+Charger uniquement ce qui est nécessaire :
 
-## Sélection du mode
+| Mode | Références |
+|---|---|
+| audit complet | `references/full-audit.md`, `references/data-truth.md`, puis les autres selon les écarts |
+| identité / shell | `references/canonical-visual.md`, `references/visual-identity.md` |
+| page | `references/pages.md`, `references/component-system.md`, `references/charts.md` |
+| données / calculs | `references/data-truth.md` |
+| exécution / QA | `references/workflow.md` |
+| recherche fraîche | `references/research-sources.md` |
 
-- `audit` : constater l'écran réel, les contrats, états, tests et écarts ; aucune
-  écriture.
-- `research` : vérifier une pratique instable ou manquante dans des sources
-  officielles et documenter sa conséquence locale.
-- `identity` : palette, typographie, logo, surfaces, densité, lumière et mouvement.
-- `component` : créer ou consolider un objet réutilisable et sa matrice d'états.
-- `chart` : construire une visualisation exacte, accessible et chargée par route.
-- `page` : reconstruire une composition entière à partir de sa question métier.
-- `qa` : contrôler fidélité, responsive desktop, clavier, états, performance et
-  non-régression financière.
+## Frontières absolues
 
-Charger seulement les références du mode :
+- Vertex analyse ; il n'envoie, ne prépare et ne prévisualise aucun ordre.
+- Le portefeuille Vertex est manuel. Ne jamais lire cash, NAV, positions, P&L,
+  ordres, exécutions ou transactions du compte IBKR.
+- TradingView peut déclencher une réévaluation ; IBKR peut fournir des données
+  de marché autorisées. Aucun scraping ni contournement d'entitlement.
+- Python reste l'unique autorité des calculs, portes, scores et verdicts.
+- Le navigateur ne recalcule ni prix, grecque, IV, rendement, drawdown, risque,
+  probabilité, classement, breakeven, payoff ou recommandation canonique.
+- Réel, retardé, historique, manuel, estimé, simulé, théorique, démonstration et
+  indisponible restent typés et visuellement distincts.
+- Une absence n'est jamais transformée en zéro, exemple ou succès.
+- Aucun secret, identifiant broker, payload sensible ou donnée personnelle dans
+  Git, les logs, captures, rapports ou prompts.
+- Desktop Beta : `1280x800`, `1440x900`, `1600x1000`; `1024x768` est une
+  dégradation facultative. Ne pas inventer une UI mobile.
 
-- identité : `references/visual-identity.md` ;
-- composants : `references/component-system.md` ;
-- graphiques : `references/charts.md` ;
-- pages : `references/pages.md` ;
-- exécution et QA : `references/workflow.md` ;
-- recherche : `references/research-sources.md`.
+## Modèle de contexte partagé
 
-## Ordre de reconstruction par défaut
+Toute navigation entre pages doit préserver explicitement, quand applicable :
 
-Pour une passe complète, traiter un écran à la fois :
+- `activeInstrument` et sa venue ;
+- `horizon` et l'intervalle ;
+- `currency = CHF` ou la devise sélectionnée ;
+- `timezone = Europe/Zurich` ;
+- `dataAsOf`, heure de réception et fraîcheur ;
+- mode de donnée et statut d'entitlement ;
+- portefeuille manuel sélectionné ;
+- scénario actif et benchmark.
+
+Un audit signale toute perte, duplication locale ou interprétation divergente de
+ce contexte.
+
+## Douze destinations cibles
 
 1. Aujourd'hui ;
 2. Marchés ;
-3. Analyse ;
-4. Options ;
-5. Simulateur ;
-6. Portefeuille ;
-7. Calendrier ;
-8. Opportunités ;
-9. Suivi ;
-10. Performance ;
-11. Vertex IA ;
-12. Système.
+3. Opportunités ;
+4. Analyse ;
+5. Options ;
+6. Simulateur ;
+7. Portefeuille ;
+8. Graphiques ;
+9. Risques ;
+10. Catalyseurs ;
+11. Calendrier ;
+12. Sources & Rapports.
 
-Ne pas homogénéiser ces pages en répétant une grille de cartes. Mutualiser les
-primitives, pas les compositions.
+`Alertes` est une capacité globale de la barre supérieure, pas une page. Si les
+routes actuelles diffèrent, établir une table `actuel -> cible -> décision`
+avant de proposer renommage, fusion ou retrait. Ne pas modifier l'architecture
+d'information pendant un simple audit.
 
-## Baseline obligatoire
+## Protocole d'audit obligatoire
 
-Avant d'écrire :
+1. Relever dépôt, branche, HEAD, dirty state, worktrees, remote, PR/CI et lot.
+2. Lire gouvernance, architecture, contrats, schémas, registre de calculs,
+   routes, intégrations, tests, CI, déploiement et documentation.
+3. Exécuter les contrôles non mutants disponibles et le script d'inventaire :
 
-1. relever dépôt, branche, HEAD, dirty state, PR, CI et lot actif ;
-2. lire la page, sa vue pure, ses hooks, ses schémas, ses tests et son CSS ;
-3. inventorier uniquement les champs serveur disponibles et leurs états ;
-4. formuler la question de l'écran et la décision qu'il aide à préparer ;
-5. désigner un seul objet dominant, les preuves secondaires et l'action primaire ;
-6. écrire les critères d'acceptation, viewports, rollback et validations ;
-7. arrêter si la proposition exige de fabriquer une donnée ou de déplacer une
-   autorité financière côté client.
+   ```bash
+   python .claude/skills/vertex-titanium-ledger/scripts/audit_titanium_ledger.py
+   ```
 
-## Recherche web contrôlée
+4. Auditer les couches dans l'ordre de `references/full-audit.md`.
+5. Vérifier chaque page contre sa question, ses données autorisées, ses états,
+   la capture canonique et sa planche de composition.
+6. Reproduire chaque défaut avant de le déclarer lorsque l'exécution est sûre.
+7. Classer les constats `CRITIQUE`, `ÉLEVÉ`, `MOYEN`, `FAIBLE` ; ne jamais
+   gonfler la gravité pour la présentation.
+8. Rendre un rapport exploitable, sans corriger.
 
-En mode `research`, chercher d'abord les normes, documentations officielles et
-dépôts maintenus par les auteurs. Préférer W3C/WAI, DTCG, documentation du moteur
-de graphique, React/Vite et systèmes de design établis. Pour chaque apport noter :
+## Format de rapport
 
-- URL et organisme ;
-- date de vérification ;
-- problème Vertex résolu ;
-- règle locale proposée ;
-- coût, compatibilité, licence et risque ;
-- preuve à ajouter.
+Commencer par le verdict et les risques majeurs, puis fournir :
 
-Ne jamais copier une galerie Dribbble, une maquette ou un dépôt tiers comme
-implémentation. Les références visuelles donnent une intention ; les contrats et
-tests Vertex déterminent le produit.
+1. périmètre réellement inspecté et limites ;
+2. état Git et preuves exécutées ;
+3. constats classés avec `preuve`, `impact`, `fichier:ligne`, `correction
+   recommandée` et `test attendu` ;
+4. matrice des douze pages `conforme / partiel / absent / non vérifiable` ;
+5. matrice de vérité des données et intégrations ;
+6. dette sécurité, accessibilité, performance, qualité et exploitation ;
+7. plan de correction ordonné par dépendances, sans l'exécuter ;
+8. risques résiduels et une seule prochaine commande recommandée.
 
-## Cycle d'exécution
+Ne pas présenter une recherche textuelle, une capture générée ou un test non
+exécuté comme une preuve d'exécution réelle.
 
-1. **Observer** — capture ou rendu réel, densité, hiérarchie, états, clavier.
-2. **Contracter** — question, données autorisées, dominante, actions, états.
-3. **Composer** — structure spécifique à l'écran avant les détails décoratifs.
-4. **Systématiser** — réutiliser tokens et objets ; justifier tout nouveau token.
-5. **Implémenter** — vue pure, sémantique native, calculs absents du navigateur.
-6. **Prouver** — tests de vue, états, accessibilité, tokens, typecheck et build.
-7. **Comparer** — trois viewports desktop et référence Titanium Ledger.
-8. **Livrer** — diff borné, faits exacts, risques, rollback et PR brouillon.
+## Exécution autorisée
 
-Le protocole détaillé est dans `references/workflow.md`.
+Si l'utilisateur demande explicitement de corriger ou développer :
 
-## Contrôle automatique du socle
-
-Depuis la racine du dépôt :
-
-```bash
-python .claude/skills/vertex-titanium-ledger/scripts/audit_titanium_ledger.py
-```
-
-Ce contrôle vérifie des invariants mesurables du socle visuel ; il ne remplace ni
-les tests applicatifs, ni la revue humaine des douze compositions.
+1. convertir les constats acceptés en lot borné et critères binaires ;
+2. préserver toutes les modifications utilisateur non liées ;
+3. traiter une page ou une capacité à la fois ;
+4. écrire le test rouge ou le reproducteur avant le correctif quand pertinent ;
+5. utiliser les contrats et primitives existants avant d'en créer ;
+6. exécuter les validations ciblées puis transversales ;
+7. comparer les trois viewports à la capture canonique ;
+8. documenter diff, mesures, limites, rollback et risque restant ;
+9. ne jamais fusionner ou publier sans autorisation humaine.
 
 ## Condition de sortie
 
-Un écran n'est terminé que si sa question, sa dominante et sa hiérarchie sont
-évidentes ; les données restent exactes et sourcées ; tous les états sont
-présents ; le clavier, le focus et l'équivalent textuel fonctionnent ; les trois
-viewports sont revus ; les budgets et tests sont verts ; le lot, `NOW.md` et la
-PR décrivent exactement ce qui a été fait et ce qui reste à vérifier.
-
+Un audit est terminé seulement si son périmètre et ses limites sont explicites,
+chaque constat est relié à une preuve, les douze pages et la vérité financière
+sont couvertes, et aucune correction n'a été glissée dans le rapport. Une
+implémentation est terminée seulement lorsque la fidélité visuelle, les contrats,
+les états, l'accessibilité, la performance, les tests et le rollback sont prouvés.
