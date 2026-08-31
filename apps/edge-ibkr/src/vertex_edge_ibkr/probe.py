@@ -46,6 +46,7 @@ from vertex_edge_ibkr.port import (
 )
 
 __all__ = [
+    "INFORMATIONAL_CODE_RANGE",
     "PROVIDER_ERROR_MAPPING",
     "CapabilityFieldEvidence",
     "EntitlementProbe",
@@ -54,6 +55,7 @@ __all__ = [
     "ProbeGate",
     "ProviderErrorMapping",
     "SourceCapabilitySnapshot",
+    "is_informational_code",
     "map_provider_error",
 ]
 
@@ -72,6 +74,10 @@ class ProviderErrorMapping:
     status: SourceCapabilityStatus
     reason_code: str
     per_field: bool = False
+    #: True for a provider NOTICE (codes 2100-2200): a status message, not a
+    #: failure. Such a code must never mask the honest reason of a field that
+    #: simply received no tick.
+    informational: bool = False
 
 
 #: Exact mapping from manifests/ibkr-market-data-capabilities.yaml.
@@ -89,14 +95,38 @@ PROVIDER_ERROR_MAPPING: dict[int, ProviderErrorMapping] = {
 }
 
 
+#: Plage des NOTIFICATIONS fournisseur d'IBKR (message_codes.html) : messages
+#: d'avertissement et de statut, PAS des erreurs. `2104 Market data farm
+#: connection is OK` en fait partie — le traiter comme une erreur masquait la
+#: raison honnete des champs simplement non observes (mesure du 2026-08-31).
+INFORMATIONAL_CODE_RANGE: tuple[int, int] = (2100, 2200)
+
+
+def is_informational_code(code: int) -> bool:
+    """True pour une NOTICE fournisseur, jamais pour une erreur mappee.
+
+    Un code explicitement present au manifeste garde son sens, meme s'il
+    tombait dans la plage : le manifeste reste l'autorite.
+    """
+    if code in PROVIDER_ERROR_MAPPING:
+        return False
+    return INFORMATIONAL_CODE_RANGE[0] <= code <= INFORMATIONAL_CODE_RANGE[1]
+
+
 def map_provider_error(code: int) -> ProviderErrorMapping:
     """Exact manifest mapping; unknown codes are inconclusive (``ERROR``).
 
-    An unknown or transport-level code never becomes ``NOT_ENTITLED``.
+    An unknown or transport-level code never becomes ``NOT_ENTITLED``. A
+    provider NOTICE (2100-2200) is flagged ``informational`` so it never
+    replaces the honest reason of an unobserved field.
     """
     mapping = PROVIDER_ERROR_MAPPING.get(code)
     if mapping is not None:
         return mapping
+    if is_informational_code(code):
+        return ProviderErrorMapping(
+            _STATUS.ERROR, f"PROVIDER_NOTICE_{code}", informational=True
+        )
     return ProviderErrorMapping(_STATUS.ERROR, f"UNMAPPED_PROVIDER_ERROR_{code}")
 
 
@@ -509,6 +539,11 @@ class EntitlementProbe:
         entitlement_mapped: tuple[int, ProviderErrorMapping] | None = None
         for info in result.provider_errors:
             mapping = map_provider_error(info.code)
+            if mapping.informational:
+                # Une NOTICE de bon fonctionnement ne dit rien du droit : la
+                # laisser gagner remplacerait `NO_OBSERVATION` par une raison
+                # fausse.
+                continue
             if mapping.status is _STATUS.ERROR and error_mapped is None:
                 error_mapped = (info.code, mapping)
             if mapping.status is _STATUS.NOT_ENTITLED and entitlement_mapped is None:

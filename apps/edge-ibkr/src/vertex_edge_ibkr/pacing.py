@@ -24,6 +24,9 @@ from enum import IntEnum, unique
 from typing import Any
 
 __all__ = [
+    "DEFAULT_HISTORICAL_REQUESTS_PER_WINDOW",
+    "DEFAULT_HISTORICAL_WINDOW_SECONDS",
+    "DEFAULT_IDENTICAL_COOLDOWN_SECONDS",
     "DEFAULT_MESSAGES_PER_SECOND",
     "HARD_MESSAGE_BUDGET_CEILING",
     "MAX_LINE_USAGE_FRACTION",
@@ -33,6 +36,7 @@ __all__ = [
     "PacingCounters",
     "Priority",
     "QueueRefusalError",
+    "SlidingWindowPacer",
 ]
 
 #: Voluntary default budget (within the documented 35-40 msg/s window).
@@ -245,3 +249,109 @@ class LineBudget:
         if lines > self._in_use:
             raise ValueError("cannot release more lines than are in use")
         self._in_use -= lines
+
+
+#: Pacing historique IBKR : au plus 60 requetes sur toute fenetre de 10 minutes.
+DEFAULT_HISTORICAL_REQUESTS_PER_WINDOW = 60
+DEFAULT_HISTORICAL_WINDOW_SECONDS = 600.0
+
+#: Delai minimal avant de re-demander EXACTEMENT la meme chose.
+DEFAULT_IDENTICAL_COOLDOWN_SECONDS = 15.0
+
+
+class SlidingWindowPacer:
+    """Fenetre glissante pour le pacing HISTORIQUE d'IBKR.
+
+    Deux contraintes, modelisees separement parce qu'elles sont distinctes :
+
+    1. au plus ``max_requests`` sur toute fenetre de ``window_seconds`` — ce
+       n'est PAS un debit moyen : consommer 60 slots d'un coup interdit toute
+       requete jusqu'a ce que le PLUS ANCIEN sorte de la fenetre ;
+    2. deux requetes identiques (meme cle) espacees d'au moins
+       ``identical_cooldown_seconds``.
+
+    Le pacer ne dort jamais lui-meme et n'a aucun effet de bord : il REPOND
+    combien de secondes attendre. L'appelant decide quoi en faire, et
+    l'horloge monotone est injectee — les tests sont donc deterministes.
+
+    Rien n'est jamais abandonne silencieusement : ``seconds_until_allowed``
+    rend un delai, jamais un refus definitif.
+    """
+
+    def __init__(
+        self,
+        *,
+        max_requests: int = DEFAULT_HISTORICAL_REQUESTS_PER_WINDOW,
+        window_seconds: float = DEFAULT_HISTORICAL_WINDOW_SECONDS,
+        identical_cooldown_seconds: float = DEFAULT_IDENTICAL_COOLDOWN_SECONDS,
+        clock: Callable[[], float] | None = None,
+    ) -> None:
+        if max_requests < 1:
+            raise ValueError("max_requests must be >= 1")
+        if window_seconds <= 0:
+            raise ValueError("window_seconds must be strictly positive")
+        if identical_cooldown_seconds < 0:
+            raise ValueError("identical_cooldown_seconds must be >= 0")
+        if clock is None:
+            raise ValueError(
+                "clock must be injected (monotonic seconds); no implicit time source"
+            )
+        self._max = max_requests
+        self._window = window_seconds
+        self._cooldown = identical_cooldown_seconds
+        self._clock = clock
+        self._dispatched: deque[float] = deque()
+        self._last_by_key: dict[str, float] = {}
+        self.granted = 0
+        self.deferred = 0
+
+    # -- interrogations ----------------------------------------------------
+
+    @property
+    def in_window(self) -> int:
+        """Requetes encore comptees dans la fenetre glissante."""
+        self._evict()
+        return len(self._dispatched)
+
+    @property
+    def capacity(self) -> int:
+        return self._max
+
+    def seconds_until_allowed(self, key: str) -> float:
+        """Delai avant que ``key`` soit autorisee. ``0.0`` = maintenant.
+
+        Rend le MAXIMUM des deux contraintes : la fenetre globale et le delai
+        propre a cette cle. Prendre le minimum laisserait passer une violation.
+        """
+        self._evict()
+        now = float(self._clock())
+
+        attente_fenetre = 0.0
+        if len(self._dispatched) >= self._max:
+            # Il faut attendre que la PLUS ANCIENNE sorte de la fenetre.
+            attente_fenetre = max(0.0, self._dispatched[0] + self._window - now)
+
+        attente_cle = 0.0
+        precedente = self._last_by_key.get(key)
+        if precedente is not None and self._cooldown > 0:
+            attente_cle = max(0.0, precedente + self._cooldown - now)
+
+        return max(attente_fenetre, attente_cle)
+
+    # -- consommation ------------------------------------------------------
+
+    def try_acquire(self, key: str) -> bool:
+        """Consomme un slot pour ``key`` si les deux contraintes le permettent."""
+        if self.seconds_until_allowed(key) > 0.0:
+            self.deferred += 1
+            return False
+        now = float(self._clock())
+        self._dispatched.append(now)
+        self._last_by_key[key] = now
+        self.granted += 1
+        return True
+
+    def _evict(self) -> None:
+        limite = float(self._clock()) - self._window
+        while self._dispatched and self._dispatched[0] <= limite:
+            self._dispatched.popleft()
