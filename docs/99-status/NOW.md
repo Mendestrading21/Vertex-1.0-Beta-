@@ -103,8 +103,12 @@ mesures_reelles:
   accessibilite: "168 cas de test verts, 14 chemins × 3 viewports (Chromium)"
   navigateurs: "Chromium, Firefox et WebKit VERTS — 665 passed, 2 skipped"
 checks_locaux:
-  - "pytest 3559 passed, 4 skipped, 0 failed (les 4 sautés exigent
-     PostgreSQL réel : bootstrap local)"
+  - "pytest 3763 passed, 4 skipped, 0 failed — mesuré par
+     `uv run --no-sync python -m pytest` sur bdf9f306. Les 4 sautés exigent
+     PostgreSQL réel (bootstrap local). Le 3559 précédent était le DIXIÈME
+     chiffre faux de ce registre : il avait été mesuré, mais sur l'arbre
+     d'AVANT la PR #8, qui a ajouté 204 tests. Un chiffre juste attaché au
+     mauvais SHA est faux quand même — d'où la commande et le SHA ci-dessus"
   - "intégration PostgreSQL : 96 (persistance) + 32 (worker, dont 15 chaos)
      + 65 (api) — exécution SÉRIELLE obligatoire, base partagée. TOUS VERTS"
   - "vitest 386 passed ; tsc 0 erreur ; biome 0 violation (125 fichiers).
