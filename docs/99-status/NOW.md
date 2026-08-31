@@ -1,19 +1,29 @@
 # État courant
 
 ```yaml
-phase: identite_titanium_ledger_et_skill_prets_a_revue
+phase: reference_canonique_et_skill_audit_complet_prets_a_revue
 lot: LOT-10 — système visuel complet Titanium Ledger
 branch: lot/10-obsidian-theme-refresh
 status: ready_for_human_review
 last_good_commit: 940e3a7 (= origin/main, baseline locale web verte)
 active_work:
-  - "direction choisie après comparaison : Titanium Ledger — terminal graphite
-     chaud, métal sombre, accent ambre rare et hiérarchie décisionnelle"
+  - "décision utilisateur verrouillée : la capture Black Glass avec symbole
+     facetté argent, rail gauche fin, ticker supérieur et panneaux graphite
+     translucides est l'unique référence de style ; aucune autre variante"
+  - "skill Titanium Ledger étendu : la commande ANALYSE déclenche désormais un
+     audit intégral en lecture seule (Git, architecture, données, calculs,
+     intégrations, sécurité, 12 pages, accessibilité, performance, CI et ops)"
+  - "assets du skill : capture canonique et six planches couvrant Aujourd'hui,
+     Marchés, Opportunités, Analyse, Options, Simulateur, Portefeuille,
+     Graphiques, Risques, Catalyseurs, Calendrier et Sources & Rapports"
+  - "direction finale : Titanium Ledger Black Glass conforme exclusivement à la
+     capture canonique verrouillée par SHA-256 ; graphite gris-vert, fond noir
+     pétrole discret, titane et ambre rare"
   - "périmètre : identité, tokens, shell et langage des objets, tableaux,
      graphiques et widgets des 12 pages ; aucun contrat API, calcul financier,
      gate ou source de données modifié"
-  - "implémentation : monogramme VX, rail Titanium, codes TL/01 à TL/12,
-     Ledger Frames, Metric Blocks, Inspector Sheets et grammaire graphique"
+  - "implémentation actuelle à reconstruire : monogramme VX et anciennes routes
+     restent présents ; le script les signale comme écarts sans les modifier"
   - "validation finale locale : Biome 0 violation, TypeScript 0 erreur,
      Vitest 390/390, build Vite vert ; bundle initial gzip 124072 octets,
      moteurs graphiques hors fermeture initiale"
@@ -22,10 +32,12 @@ active_work:
   - "skill maître ajouté : vertex-titanium-ledger route l'audit, la recherche
      officielle, l'identité, les objets, graphiques, douze compositions, QA,
      performance et livraison GitHub"
-  - "ordre de reconstruction acté : Aujourd'hui, Marchés, Analyse, Options,
-     Simulateur, Portefeuille, puis les six autres pages"
-  - "validation du skill : quick_validate PASS ; audit structurel Titanium
-     Ledger PASS (19 tokens requis, 12 codes uniques, spécification et marque)"
+  - "ordre cible : Aujourd'hui, Marchés, Opportunités, Analyse, Options,
+     Simulateur, Portefeuille, Graphiques, Risques, Catalyseurs, Calendrier,
+     Sources & Rapports ; Alertes reste globale"
+  - "validation du skill : quick_validate PASS, ruff PASS, py_compile PASS ;
+     inventaire non mutant opérationnel et statut TARGET_GAPS attendu avant
+     reconstruction (Catalyseurs absent, 4 routes à arbitrer, logo VX à retirer)"
 completed:
   - vagues_1_a_5: 13 routes sur 13 réelles (PR #1, #2 et #3 fusionnées)
   - ci: 7 jobs, 25 portes nommées — VERTE sur 5a40bc8 ; actions épinglées par SHA de COMMIT

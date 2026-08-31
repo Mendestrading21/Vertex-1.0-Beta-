@@ -94,8 +94,11 @@ Ne jamais annoncer un E2E, une capture ou une mesure non exécutés.
 - zoom, focus, contraste, mouvement réduit et couleurs forcées selon composants ;
 - données longues, valeurs négatives, unités, textes français et états absents.
 
-Comparer la page à sa question et à la grammaire, pas pixel par pixel à une
-capture tierce.
+Comparer d'abord le shell, le matériau, la densité et la hiérarchie à
+`assets/vertex-dashboard-canonical.png`. La capture est une référence Vertex
+choisie, pas une capture tierce à réinterpréter. Un diff de pixels assiste la
+revue, mais la fidélité fonctionnelle, les états et la lisibilité restent jugés
+humainement.
 
 ## Étape 7 — Performance
 
@@ -120,4 +123,3 @@ Rouvrir `research-sources.md` et le web uniquement lorsqu'une règle, version,
 API ou pratique a changé, lorsqu'une nouvelle dépendance est proposée, ou quand
 le lot demande une recherche fraîche. Ajouter une source officielle et la
 conséquence Vertex ; ne pas accumuler des liens sans décision.
-

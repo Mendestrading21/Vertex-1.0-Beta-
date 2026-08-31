@@ -47,6 +47,12 @@ Pour toute identité, composition de page, widget, tableau ou graphique, charger
 ensuite `.claude/skills/vertex-titanium-ledger/SKILL.md`. Ce skill spécialisé
 applique la grammaire Titanium Ledger sans déplacer la vérité financière.
 
+Dans un contexte Vertex, la commande courte `ANALYSE` charge ce skill et lance
+un audit complet en lecture seule : architecture, données, calculs, intégrations,
+sécurité, douze pages, identité canonique, accessibilité, performance, tests, CI,
+exploitation et documentation. Elle ne corrige rien. Une mutation exige une
+commande explicite `CORRIGE`, `IMPLÉMENTE`, `DÉVELOPPE` ou `EXÉCUTE`.
+
 ## Prompts disponibles
 
 | Fichier | Usage | Autorise des modifications |
@@ -72,6 +78,8 @@ applique la grammaire Titanium Ledger sans déplacer la vérité financière.
 - `PLAN DOSSIER NN` : plan détaillé du dossier, sans modification.
 - `EXÉCUTE DOSSIER NN` : créer les fichiers complets du dossier accepté.
 - `AUDITE LOT NN` : auditer sans corriger.
+- `ANALYSE` : audit complet de Vertex, toutes couches, sans corriger.
+- `ANALYSE <périmètre>` : audit borné avec le même niveau de preuve.
 - `CORRIGE LOT NN` : corriger uniquement les défauts déjà listés.
 - `PRÉPARE PR LOT NN` : produire le verdict et le brouillon de PR, sans publication.
 - `PRÊT À MERGER ?` : verdict et preuves, sans fusion.
