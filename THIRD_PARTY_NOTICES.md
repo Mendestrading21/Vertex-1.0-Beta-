@@ -29,6 +29,20 @@ Exigences connues :
 - Les polices Geist Sans et Geist Mono : conserver le fichier OFL-1.1 de la
   source Vercel vérifiée (https://github.com/vercel/geist-font).
 - axe-core/Hypothesis : enregistrer MPL-2.0 comme dépendances de test.
+- Wrangler (outil de déploiement Cloudflare, `apps/ingress-tradingview/worker`) :
+  version EXACTE `4.127.1`, publiée le 2026-08-28 sur le registre npm officiel,
+  licence `MIT OR Apache-2.0`, `engines.node >= 22.0.0`. C'est un outil de
+  DÉPLOIEMENT : le Worker lui-même n'a toujours aucune dépendance d'exécution et
+  ses 53 tests de contrat s'exécutent avec `node --test` seul, sans installation.
+  Arbre réellement installé : 31 paquets, licences toutes permissives — MIT (23),
+  `MIT OR Apache-2.0` (3), Apache-2.0 (3), CC0-1.0 (1), ISC (1) ; aucun copyleft.
+  **ÉCART D'INVENTAIRE ASSUMÉ** : `tools/check_notices.py` n'inventorie que
+  `uv.lock` et `apps/web/pnpm-lock.yaml`. Le verrou
+  `apps/ingress-tradingview/worker/pnpm-lock.yaml` n'est donc PAS couvert par la
+  porte `release/notices`, et ces 31 paquets n'apparaissent pas dans le tableau
+  généré plus bas. Étendre la porte à ce troisième verrou est un lot à part
+  entière ; tant qu'il n'est pas fait, cette entrée est la SEULE trace de ces
+  composants. Wrangler n'est requis que pour `wrangler deploy`, bloqué par B-03.
 
 Composants de recherche, seulement s'ils sont installés dans un environnement livré : River (BSD-3-Clause), ruptures (BSD-2-Clause), arch (NCSA) et MAPIE (BSD-3-Clause). Leur présence en recherche ne les autorise pas dans le runtime de production.
 

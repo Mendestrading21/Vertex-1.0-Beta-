@@ -173,7 +173,8 @@ if [[ "${1:-}" == "--integration" ]]; then
   for suite in \
     packages/python/vertex_persistence/tests_integration \
     apps/worker/tests_integration \
-    apps/api/tests_integration
+    apps/api/tests_integration \
+    apps/edge-ibkr/tests_integration
   do
     echo "== intégration PostgreSQL : ${suite} =="
     python3 -m pytest -q -p no:xdist "${suite}"

@@ -31,11 +31,6 @@ export interface PageDef {
   readonly question: string;
   /** Dossier/lot du programme qui livrera la page. */
   readonly lot: string;
-  /**
-   * Abréviation affichée dans le rail replié (68 px). L'intitulé complet reste
-   * l'accessible name du lien dans les deux modes.
-   */
-  readonly shortLabel: string;
 }
 
 export interface NavGroup {
@@ -50,7 +45,6 @@ const today: PageDef = {
   routePath: '/today',
   question: "Qu'est-ce qui mérite réellement mon attention maintenant ?",
   lot: 'LOT-15',
-  shortLabel: 'Auj',
 };
 
 const opportunities: PageDef = {
@@ -60,7 +54,6 @@ const opportunities: PageDef = {
   routePath: '/opportunities',
   question: 'Quels candidats admissibles méritent une analyse approfondie ?',
   lot: 'LOT-18',
-  shortLabel: 'Opp',
 };
 
 const analysis: PageDef = {
@@ -71,7 +64,6 @@ const analysis: PageDef = {
   question:
     'Que disent les données certifiées sur cet instrument, et quelles limites restent ouvertes ?',
   lot: 'LOT-19',
-  shortLabel: 'Ana',
 };
 
 const options: PageDef = {
@@ -81,7 +73,6 @@ const options: PageDef = {
   routePath: '/options/:underlying?',
   question: 'Quels contrats sont réellement exploitables et quels risques portent-ils ?',
   lot: 'LOT-20',
-  shortLabel: 'Opt',
 };
 
 const simulator: PageDef = {
@@ -91,7 +82,6 @@ const simulator: PageDef = {
   routePath: '/simulator/:id?',
   question: 'Comment une structure réagit-elle au prix, au temps et à la volatilité ?',
   lot: 'LOT-21',
-  shortLabel: 'Sim',
 };
 
 const calendar: PageDef = {
@@ -101,7 +91,6 @@ const calendar: PageDef = {
   routePath: '/calendar',
   question: 'Quels événements peuvent affecter mes instruments et mon portefeuille ?',
   lot: 'LOT-16',
-  shortLabel: 'Cal',
 };
 
 const markets: PageDef = {
@@ -111,7 +100,6 @@ const markets: PageDef = {
   routePath: '/markets',
   question: 'Dans quel contexte de marché vais-je analyser les instruments ?',
   lot: 'LOT-17',
-  shortLabel: 'Mar',
 };
 
 const portfolio: PageDef = {
@@ -121,7 +109,6 @@ const portfolio: PageDef = {
   routePath: '/portfolio',
   question: 'Quelles expositions et concentrations résultent de mon ledger manuel ?',
   lot: 'LOT-22',
-  shortLabel: 'Pf',
 };
 
 const followUp: PageDef = {
@@ -131,7 +118,6 @@ const followUp: PageDef = {
   routePath: '/follow-up',
   question: 'Quelles thèses, alertes et informations doivent être revues ?',
   lot: 'LOT-23',
-  shortLabel: 'Sui',
 };
 
 const performance: PageDef = {
@@ -142,7 +128,6 @@ const performance: PageDef = {
   question:
     'Quelle performance ai-je réellement enregistrée, avec quels risques et contributions ?',
   lot: 'LOT-23',
-  shortLabel: 'Perf',
 };
 
 const vertexAi: PageDef = {
@@ -153,7 +138,6 @@ const vertexAi: PageDef = {
   question:
     'Comment expliquer, relier et résumer les données certifiées sans créer une seconde vérité ?',
   lot: 'LOT-24',
-  shortLabel: 'IA',
 };
 
 const system: PageDef = {
@@ -163,7 +147,6 @@ const system: PageDef = {
   routePath: '/system',
   question: 'Puis-je faire confiance aux sources, traitements et sauvegardes maintenant ?',
   lot: 'LOT-24',
-  shortLabel: 'Sys',
 };
 
 /** Les 4 groupes exacts du rail, dans l'ordre canonique. */

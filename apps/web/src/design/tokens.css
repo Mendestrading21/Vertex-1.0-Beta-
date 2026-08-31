@@ -1,26 +1,41 @@
 /* GÉNÉRÉ — ne pas éditer. Source : src/design/tokens.ts — régénérer via `pnpm tokens:css`. */
 
 :root {
-  /* Couleurs — Black Glass, Signal Light */
-  --vx-black: #040504;
-  --vx-app: #08090b;
-  --vx-surface-0: #0b0c0f;
-  --vx-surface-1: #101216;
-  --vx-surface-2: #15171c;
-  --vx-surface-3: #1b1e23;
-  --vx-hover: #232830;
-  --vx-border-soft: rgba(222, 227, 237, 0.09);
-  --vx-border: rgba(222, 227, 237, 0.14);
-  --vx-border-strong: rgba(222, 227, 237, 0.22);
-  --vx-text: #f3f5f8;
-  --vx-text-secondary: #b7bcc4;
-  --vx-text-muted: #828892;
-  --vx-silver: #c9cdd4;
-  --vx-positive: #36c889;
-  --vx-negative: #ed655c;
-  --vx-warning: #dda23b;
-  --vx-option: #9c79d0;
-  --vx-macro: #53b9ad;
+  /* Couleurs — Black Glass, Titanium Ledger */
+  --vx-black: #030302;
+  --vx-app: #080806;
+  --vx-surface-0: #0d0d0b;
+  --vx-surface-1: #141310;
+  --vx-surface-2: #1b1915;
+  --vx-surface-3: #242119;
+  --vx-hover: #2d2920;
+  --vx-border-soft: rgba(231, 224, 207, 0.07);
+  --vx-border: rgba(231, 224, 207, 0.12);
+  --vx-border-strong: rgba(231, 224, 207, 0.21);
+  --vx-grid-line: rgba(231, 224, 207, 0.045);
+  --vx-text: #f6f2e8;
+  --vx-text-secondary: #b8b0a0;
+  --vx-text-muted: #948c7d;
+  --vx-silver: #d8d3c7;
+  --vx-titanium: #aaa497;
+  --vx-titanium-soft: rgba(216, 211, 199, 0.1);
+  --vx-signal: #d7a94a;
+  --vx-signal-bright: #f2c76b;
+  --vx-signal-deep: #765319;
+  --vx-signal-soft: rgba(215, 169, 74, 0.15);
+  --vx-signal-faint: rgba(215, 169, 74, 0.065);
+  --vx-positive: #50c992;
+  --vx-positive-soft: rgba(80, 201, 146, 0.12);
+  --vx-negative: #ef6f6c;
+  --vx-negative-soft: rgba(239, 111, 108, 0.12);
+  --vx-warning: #f0c36a;
+  --vx-warning-soft: rgba(240, 195, 106, 0.12);
+  --vx-option: #a88ae8;
+  --vx-option-soft: rgba(168, 138, 232, 0.12);
+  --vx-macro: #6bc5bc;
+  --vx-macro-soft: rgba(107, 197, 188, 0.12);
+  --vx-overlay: rgba(3, 3, 2, 0.86);
+  --vx-scrim: rgba(3, 3, 2, 0.56);
 
   /* Espacements — grille 4 px */
   --vx-space-4: 4px;
@@ -37,7 +52,14 @@
   --vx-radius-6: 6px;
   --vx-radius-10: 10px;
   --vx-radius-14: 14px;
+  --vx-radius-18: 16px;
+  --vx-radius-22: 20px;
   --vx-radius-pill: 999px;
+
+  /* Ombres */
+  --vx-shadow-panel: 0 20px 52px rgba(0, 0, 0, 0.28);
+  --vx-shadow-floating: 0 32px 80px rgba(0, 0, 0, 0.48);
+  --vx-shadow-inset: inset 0 1px 0 rgba(255, 255, 255, 0.045);
 
   /* Mouvements */
   --vx-motion-90: 90ms;
@@ -63,6 +85,8 @@
   --vx-font-size-label: 13px;
   --vx-font-size-title: 16px;
   --vx-font-size-display: 22px;
+  --vx-font-size-headline: 28px;
+  --vx-font-size-metric: 34px;
 }
 
 /* Reduced motion : toutes les durées tombent à 0 ms. */

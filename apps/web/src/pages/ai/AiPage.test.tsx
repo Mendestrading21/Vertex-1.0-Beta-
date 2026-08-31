@@ -19,6 +19,7 @@ import {
   makeAiAnswer,
   makePortfolioResponse,
   makeRefusedAiAnswer,
+  makeMarketsOverview,
 } from '../../test/fixtures.ts';
 import { renderApp } from '../../test/render.tsx';
 import { isNoSnapshotError } from './AiPage.tsx';
@@ -39,6 +40,7 @@ function jsonResponse(body: unknown, status = 200): Response {
     headers: { 'Content-Type': 'application/json' },
   });
 }
+
 
 beforeEach(() => {
   vi.stubGlobal('fetch', fetchMock);
@@ -73,6 +75,10 @@ function mockAi(handlers: AiHandlers = {}): void {
     }
     if (url.endsWith('/v1/portfolio')) {
       return jsonResponse(makePortfolioResponse());
+    }
+    if (url.endsWith('/v1/markets/overview')) {
+      // Le sélecteur d'instruments lit l'univers RÉELLEMENT publié.
+      return jsonResponse(makeMarketsOverview());
     }
     return jsonResponse({ detail: 'unexpected route' }, 500);
   });
@@ -234,7 +240,10 @@ describe('page Vertex IA — rendu', () => {
     await waitFor(() => {
       expect(screen.getByText('Aucune donnée')).toBeDefined();
     });
-    expect(screen.getByText(/NO_SNAPSHOT_FOR_SUBJECT/)).toBeDefined();
+    // Le sujet par défaut vient désormais de l univers RÉELLEMENT publié,
+    // donc d une requête : on ATTEND le code, on ne l exige pas au premier
+    // rendu. L exigence elle-même est inchangée.
+    expect(await screen.findByText(/NO_SNAPSHOT_FOR_SUBJECT/)).toBeDefined();
     expect(screen.queryByTestId('ai-claims')).toBeNull();
   });
 });

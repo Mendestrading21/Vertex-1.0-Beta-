@@ -75,6 +75,18 @@ describe('queueFrameStateOf', () => {
     ).toBe('error');
     expect(queueFrameStateOf('ready', makeFollowUpQueue()).state).toBe('ready');
   });
+
+  it('un instantané périmé garde son contenu VISIBLE sous le bandeau', () => {
+    // Ce qui était interdit, c'est de servir une file de trois jours sans
+    // dire son âge — pas de la servir. `stale` porte la date, le contenu
+    // reste lisible.
+    const frame = queueFrameStateOf(
+      'ready',
+      makeFollowUpQueue({ state: 'stale', age_seconds: 90_000, reason: 'snapshot older…' }),
+    );
+    expect(frame.state).toBe('stale');
+    expect(frame.view).not.toBeNull();
+  });
 });
 
 describe('followUpView — lecture verbatim', () => {

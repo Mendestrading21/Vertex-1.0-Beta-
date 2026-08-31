@@ -190,7 +190,6 @@ export const AUTH_PAGE: PageDef = {
   routePath: '/auth',
   question: 'Ouvrir une session locale par passkey — aucun mot de passe, aucun repli.',
   lot: 'LOT-14',
-  shortLabel: 'Acc',
 };
 
 export function buildRouteObjects(): RouteObject[] {

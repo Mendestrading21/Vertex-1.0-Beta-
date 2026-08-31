@@ -35,8 +35,10 @@ from __future__ import annotations
 import csv
 import io
 from collections.abc import Mapping
+from datetime import datetime
 from typing import Any, Final, Literal
 
+from vertex_api.freshness import closed_session_budget, evaluate_relay_freshness
 from vertex_api.portfolio import neutralize_csv_cell
 from vertex_api.snapshot_views import (
     SnapshotContentError,
@@ -50,6 +52,7 @@ from vertex_api.snapshot_views import (
     _require_str,
     _wire_mapping,
     checked_relayed_content,
+    require_snapshot_as_of,
 )
 from vertex_core.contracts.types import (
     ContractModel,
@@ -58,6 +61,7 @@ from vertex_core.contracts.types import (
     PositiveInt,
     UtcDatetime,
 )
+from vertex_core.data.freshness import get_freshness_policy
 from vertex_persistence.repository.snapshots import CurrentSnapshot
 
 __all__ = [
@@ -309,12 +313,19 @@ class PerformanceSnapshotResponse(ContractModel):
     ``SYNTHETIC_MARKS_REAL_LEDGER`` shown as-is); the API computes no return,
     drawdown or ratio. ``state = "empty"`` means the worker never published
     for this portfolio: nothing is invented, ``reason`` says why.
+
+    ``state = "stale"`` relaie le MÊME contenu, mais dit que l'instantané a
+    dépassé le budget de séance fermée de ``daily_bar`` : le worker n'a rien
+    publié de plus récent. ``age_seconds`` est publié dans TOUS les états
+    datables — son absence faisait passer une performance de trois jours pour
+    une performance d'une minute.
     """
 
-    state: Literal["ok", "empty"]
+    state: Literal["ok", "stale", "empty"]
     portfolio_id: PositiveInt
     snapshot_version: PositiveInt | None
     as_of: UtcDatetime | None
+    age_seconds: int | None
     content: FrozenStrMapping | None
     reason: NonEmptyStr | None
 
@@ -337,8 +348,18 @@ class PerformanceExportResponse(ContractModel):
     manifest: FrozenStrMapping
 
 
+#: La performance est valorisée par ``load_all_daily_quote_records`` croisé au
+#: journal déclaré : la marque LA PLUS FRAÎCHE dont elle peut être issue est
+#: une cotation quotidienne. Le choix se LIT dans `vertex_worker.performance`.
+PERFORMANCE_FRESHNESS_POLICY = "daily_bar"
+
+_FRESHNESS_POLICY = get_freshness_policy(PERFORMANCE_FRESHNESS_POLICY)
+
+PERFORMANCE_MAX_AGE = closed_session_budget(_FRESHNESS_POLICY)
+
+
 def build_performance_response(
-    snapshot: CurrentSnapshot | None, *, portfolio_id: int
+    snapshot: CurrentSnapshot | None, *, portfolio_id: int, now: datetime
 ) -> PerformanceSnapshotResponse:
     """Relay the last performance snapshot verbatim, or the honest empty state.
 
@@ -353,16 +374,21 @@ def build_performance_response(
             portfolio_id=portfolio_id,
             snapshot_version=None,
             as_of=None,
+            age_seconds=None,
             content=None,
             reason=REASON_NO_SNAPSHOT_PUBLISHED,
         )
+    freshness = evaluate_relay_freshness(
+        require_snapshot_as_of(snapshot), now=now, policy=_FRESHNESS_POLICY
+    )
     return PerformanceSnapshotResponse(
-        state="ok",
+        state="stale" if freshness.stale else "ok",
         portfolio_id=portfolio_id,
         snapshot_version=snapshot.version,
         as_of=snapshot.as_of,
+        age_seconds=freshness.age_seconds,
         content=dict(checked_performance_content(snapshot.content)),
-        reason=None,
+        reason=freshness.stale_reason,
     )
 
 

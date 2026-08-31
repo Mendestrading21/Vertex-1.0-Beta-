@@ -27,7 +27,7 @@ Ce fichier ne contient pas de décision humaine ; celles-ci restent dans
 | Sauvegarde | `infra/backup/` : cycle `pg_dump` → chiffrement AES-256 → déchiffrement → contrôle d'empreinte → restauration dans une base vide → 4 contrôles → `verified_restore_at` **exécuté et vert sur PostgreSQL réel**. Manquent : archivage WAL/PITR (donc **RPO ≤ 5 min NON atteint**), troisième copie hors machine, ordonnancement, purge de rétention 7/4/12. |
 | Compose et images | `infra/compose/` : 4 services, images épinglées par digest immuable, utilisateurs non privilégiés, systèmes de fichiers en lecture seule, ports publiés sur `127.0.0.1` uniquement. **Jamais exécuté** : cet environnement n'a pas de démon Docker. Validé syntaxiquement, pas prouvé. La preuve appartient au LOT-24. |
 | Supervision | **Aucune.** Pas de métriques, série temporelle, tableau de bord, alerte ni trace. `opentelemetry-sdk` et `prometheus-client` sont prévus au manifeste mais ne sont ni installés ni câblés (absents de `uv.lock`). Voir `infra/monitoring/README.md`. |
-| Budget de fraîcheur au relais — ASYMÉTRIE SYSTÉMIQUE | **CHIFFRE CORRIGÉ : 10 relais, pas 8.** `build_*_response` existe pour attention, markets, analysis, option_chain, capabilities, calendar, follow_up, opportunities, performance, portfolio. Seuls `calendar` et `opportunities` recalculent la fraîcheur contre l'horloge du relais ; `snapshot_views.py` (5 relais) n'en recalcule **aucune**. `attention/today` et `system/capabilities` n'ont jamais été examinés sous cet angle. L'asymétrie porte donc sur **8 relais sur 10**, pas 6 sur 8. Conséquence inchangée : si le worker s'arrête, un snapshot publié `ok` reste servi `ok` indéfiniment. À traiter comme une vague dédiée. |
+| Budget de fraîcheur au relais — ASYMÉTRIE SYSTÉMIQUE — **FERMÉE au LOT-24c** | **CHIFFRE CORRIGÉ : 10 relais, pas 8.** `build_*_response` existe pour attention, markets, analysis, option_chain, capabilities, calendar, follow_up, opportunities, performance, portfolio. Seuls `calendar` et `opportunities` recalculent la fraîcheur contre l'horloge du relais ; `snapshot_views.py` (5 relais) n'en recalcule **aucune**. `attention/today` et `system/capabilities` n'ont jamais été examinés sous cet angle. L'asymétrie portait donc sur **8 relais sur 10**, pas 6 sur 8. **FERMÉE au LOT-24c** : `apps/api/src/vertex_api/freshness.py` est le propriétaire unique ; les dix relais publient `age_seconds` dans tous les états datables et basculent sur `stale` au-delà du budget de séance fermée de leur politique déclarée. La matrice de capacités publie son âge SANS budget, faute de politique au registre : sa péremption appartient au `expires_at` de la sonde, champ par champ. Preuve : `apps/api/tests/test_relay_freshness_is_published.py` (29 tests) et `apps/api/tests/test_freshness_relay.py` (10). |
 | Rendu des états dégradés | `/opportunities` affiche désormais la cause publiée pour `clock_inconsistent`. Les pages `/performance`, `/follow-up` et `/portfolio` ne traitent pas `state="stale"` — ce qui est **correct aujourd'hui** puisque leurs relais ne le servent jamais, mais devra être ajouté en même temps que le budget de fraîcheur ci-dessus. |
 | Recherche | `research/` fournit les OUTILS d'évaluation (walk-forward purgé, calibration, abstention) et une frontière testée contre les imports de runtime **écrits littéralement** — un `importlib.import_module`, un `__import__` ou un `subprocess.run(["psql", …])` n'était PAS détecté (5e audit), et les notebooks `.ipynb` n'étaient pas inspectés. **Rien n'a été évalué** : aucun modèle, aucun jeu de données, aucune probabilité calibrée. `datasets-manifest/` reste vide tant que B-04 n'est pas tranché. |
 | Contrat de valeur des relais | **Cette ligne a été fausse DEUX FOIS ; voici la mesure faite après le dernier correctif, sur les fixtures réelles, avec une valeur forgée RESPECTANT la forme du champ.** Payload hostile (5038 caractères, BEL + ANSI) : **0 %** relayé verbatim sur les 7 relais mesurés — cela tient. Mais une valeur bien formée passe encore largement : `analysis` **30/57 feuilles chaîne = 53 %**, dont **24 non-prose** (`schema_version`, `engine_version`, `bars.currency` — `SYN` devient `USD` —, `adjustment_basis`, `source_event_id`, `rights`, `sources`, `cluster_id`, `gate_id`, `reason_code`, `advice_id`…) ; `markets_overview` **31/70 = 44 %**, dont **22 non-prose**. Mes formulations antérieures (« 5 % à 30 % », « exclusivement des champs de PROSE ») étaient fausses : la première était un artefact du payload choisi (il contenait un espace), la seconde ne décrivait pas le résidu. Le contrat contraint la FORME, pas le CONTENU : un champ techniquement bien formé mais faux passe. |
@@ -387,19 +387,34 @@ alors que `AnalysisConfig.bars_freshness` vaut 48 h. Aucune observation
 nouvelle ne déclenche de republication, et le snapshot est immuable.
 
 Pris isolément ce n'est pas faux : la fraîcheur DOIT se juger à la lecture, sur
-`as_of`. Mais ce registre mesure par ailleurs que **8 relais sur 10** ne la
-recalculent pas. Verdict gelé plus relais permissif se combinent en « périmé
-présenté comme frais » — ce que `.claude/rules/financial-safety.md` interdit
-sous le nom de « conserver silencieusement un ancien verdict ».
+`as_of`. Mais ce registre mesurait par ailleurs que **8 relais sur 10** ne la
+recalculaient pas. Verdict gelé plus relais permissif se combinaient en
+« périmé présenté comme frais » — ce que `.claude/rules/financial-safety.md`
+interdit sous le nom de « conserver silencieusement un ancien verdict ».
+
+**La moitié RELAIS est fermée au LOT-24c.** Les dix relais publient désormais
+`age_seconds` et basculent sur `stale` au-delà de leur budget déclaré : à +71 h
+le dossier arrive avec ses 255 600 secondes. Le mot « silencieusement » ne
+s'applique plus.
+
+**La moitié WORKER reste ouverte, et le mot juste n'est plus « silencieux »
+mais « contradictoire ».** La gate `snapshot_fresh_and_coherent` interne au
+dossier continue d'affirmer `FRESH_AND_COHERENT` à +71 h alors que sa propre
+fenêtre de 48 h est dépassée ; le budget de relais de `daily_bar` (72 h) ne la
+contredit pas encore à cet instant. Le dossier porte donc, sur le même
+message, un âge de 255 600 s À CÔTÉ d'une gate qui se dit fraîche. C'est une
+amélioration réelle et une incohérence qui reste à traiter.
 
 `test_defaut_connu_un_dossier_publie_se_dit_encore_frais_bien_plus_tard`
 épingle la réalité mesurée et **échouera le jour où le défaut sera corrigé**,
 forçant à revenir retirer la caractérisation. L'entrée
-`EXCEPTION-JAMAIS-QUALIFIED` de `manifests/traceability.yaml` **est désormais
-rétrogradée** en `NOT_YET_PROVEN`, avec la mesure exacte, un propriétaire, une
-échéance et un critère de fermeture : le recalcul de fraîcheur à la lecture
-dans `snapshot_views.py`, plus un test montrant qu'un dossier publié au-delà
-de son TTL cesse de se déclarer frais. Le défaut LUI-MÊME reste ouvert.
+`EXCEPTION-JAMAIS-QUALIFIED` de `manifests/traceability.yaml` reste
+`NOT_YET_PROVEN`, et ce n'est pas un oubli : son critère de fermeture ÉCRIT
+(le recalcul de fraîcheur à la lecture, plus un test) est livré par le
+LOT-24c, mais promouvoir l'entrée sur cette seule base serait gagner contre ma
+propre formulation, pas contre la règle. Le critère a donc été RESSERRÉ sur ce
+qui reste vrai : que la gate interne cesse elle-même de se déclarer fraîche
+au-delà de la fenêtre qu'elle invoque. Le défaut LUI-MÊME reste ouvert.
 
 ### Fraîcheur au relais — ce qu'une sonde a mesuré avant d'écrire le lot
 

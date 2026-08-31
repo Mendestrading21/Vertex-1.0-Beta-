@@ -89,7 +89,30 @@ DEFAULT_CLIENT_ID = 71
 #: Empty startup fetch mask: the session never pulls account-scoped data.
 _NO_STARTUP_FETCH = StartupFetch(0)
 
-_SCHEMA_VERSION = "1"
+#: Repli explicite pour une charge utile non encore cartographiee. Il reste
+#: reconnaissable comme IBKR, ce que « 1 » n'etait pas.
+_SCHEMA_VERSION = "ibkr.observation/1"
+
+#: Un schema par NATURE de donnee. Le worker ne declenche ses pages que sur des
+#: PREFIXES de schema (`is_daily_quote_schema`, `is_option_chain_schema`) : une
+#: valeur unique pour tout rendait les donnees IBKR indiscernables et donc
+#: invisibles a l'ecran.
+_SCHEMA_BY_PAYLOAD: dict[str, str] = {
+    "QuoteObservation": "ibkr.daily-quote/1",
+    "GreeksObservation": "ibkr.option-computation/1",
+    "BarsPayload": "ibkr.bars/1",
+    "ScannerPayload": "ibkr.scanner/1",
+    "NewsProvidersPayload": "ibkr.news-providers/1",
+    "NewsHeadlinesPayload": "ibkr.news-headlines/1",
+    "NewsArticlePayload": "ibkr.news-article/1",
+    "WshEventsPayload": "ibkr.corporate-events/1",
+    "OptionChainDefinition": "ibkr.option-chain/1",
+}
+
+
+def _schema_for(payload: Any) -> str:
+    """Schema derive du type de la charge utile, repli explicite sinon."""
+    return _SCHEMA_BY_PAYLOAD.get(type(payload).__name__, _SCHEMA_VERSION)
 _SOURCE = "ibkr"
 
 #: Delay status by reported IBKR market data type; anything else is UNKNOWN.
@@ -770,7 +793,7 @@ class IbAsyncInformationAdapter:
             observed_at = None  # clock skew: an impossible timestamp is dropped
         return DataEnvelope(
             event_id=self._event_id_factory(),
-            schema_version=_SCHEMA_VERSION,
+            schema_version=_schema_for(payload),
             source=_SOURCE,
             instrument_id=str(con_id) if con_id is not None else None,
             observed_at=observed_at,

@@ -4,6 +4,7 @@ import { DataStateBoundary } from '../components/DataStateBoundary.tsx';
 import { FreshnessBadge } from '../components/FreshnessBadge.tsx';
 import { SyntheticBanner } from '../components/SyntheticBanner.tsx';
 import { AttentionQueue } from './AttentionQueue.tsx';
+import { SnapshotRail } from './SnapshotRail.tsx';
 
 /**
  * Page Aujourd'hui — question : « Qu'est-ce qui mérite réellement mon
@@ -27,13 +28,14 @@ function HealthStrip() {
   const health = capabilities.data.health;
   return (
     <p className="vx-health-strip" role="status">
-      <span data-health={health.db.status}>
-        Base : {health.db.status === 'ok' ? 'ok' : 'erreur'}
+      <span className="vx-health-strip-item" data-health={health.db.status}>
+        <span className="vx-health-strip-label">Base locale</span>
+        <strong>{health.db.status === 'ok' ? 'Disponible' : 'Erreur'}</strong>
       </span>
-      <span>
-        Worker ({health.worker.method}) :{' '}
+      <span className="vx-health-strip-item">
+        <span className="vx-health-strip-label">Worker · {health.worker.method}</span>
         {health.worker.last_snapshot_as_of === null ? (
-          'aucun snapshot observé'
+          <strong>Aucun snapshot observé</strong>
         ) : (
           <FreshnessBadge ageSeconds={health.worker.age_seconds} sourceLabel="dernier snapshot" />
         )}
@@ -50,6 +52,7 @@ export function TodayPage() {
   return (
     <article className="vx-page" aria-labelledby="vx-page-title-today">
       <div className="vx-page-header">
+        <p className="vx-page-eyebrow">Cockpit décisionnel</p>
         <h1 id="vx-page-title-today">Aujourd'hui</h1>
         <p className="vx-page-question">
           Qu'est-ce qui mérite réellement mon attention maintenant ?
@@ -75,12 +78,26 @@ export function TodayPage() {
               <>
                 <HealthStrip />
                 <SyntheticBanner population={data.population} />
-                <p className="vx-queue-summary" role="status">
-                  {data.items.length} item{data.items.length > 1 ? 's' : ''} publié
-                  {data.items.length > 1 ? 's' : ''} (snapshot version {data.snapshot_version ?? '—'}
-                  , population {data.population ?? '—'})
-                </p>
-                <AttentionQueue items={data.items} asOf={data.as_of} />
+                <div className="vx-today-layout">
+                  <section className="vx-today-primary" aria-labelledby="vx-attention-title">
+                    <header className="vx-panel-head">
+                      <div>
+                        <p className="vx-panel-kicker">Priorité publiée</p>
+                        <h2 id="vx-attention-title">File d'attention</h2>
+                      </div>
+                      <p>Ordre publié par le worker — aucun reclassement local.</p>
+                    </header>
+                    <AttentionQueue items={data.items} asOf={data.as_of} />
+                  </section>
+                  <SnapshotRail
+                    snapshotVersion={data.snapshot_version}
+                    asOf={data.as_of}
+                    population={data.population}
+                    itemCount={data.items.length}
+                    rejectedCount={data.rejected_count}
+                    coverage={data.coverage}
+                  />
+                </div>
               </>
             ) : null}
           </DataStateBoundary>

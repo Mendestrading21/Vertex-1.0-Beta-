@@ -226,7 +226,11 @@ function excludedLotOf(value: unknown): ExcludedLotRow | null {
  * reste une absence.
  */
 export function valuationContentOf(valuation: PortfolioValuationView): ValuationContentView | null {
-  if (valuation.state !== 'ok') {
+  // `ok` ET `stale` portent tous deux un contenu daté. Refuser `stale` ici
+  // ferait disparaître la valorisation derrière un cadre « erreur » alors
+  // que le serveur la sert avec son âge : ce serait cacher la donnée au
+  // lieu de la dater, exactement l'inverse du correctif.
+  if (valuation.state !== 'ok' && valuation.state !== 'stale') {
     return null;
   }
   const content = asRecord(valuation.content);

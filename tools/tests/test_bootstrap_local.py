@@ -84,6 +84,23 @@ def test_le_demarreur_refuse_de_deviner_une_base() -> None:
     assert "VERTEX_DATABASE_URL" in resultat.stderr
 
 
+def test_le_demarreur_utilise_lenvironnement_python_verrouille() -> None:
+    """Le poste ne doit jamais retomber silencieusement sur le Python système."""
+    script = _script()
+    assert 'PYTHON="${RACINE}/.venv/bin/python"' in script
+    assert '"${PYTHON}" -m uvicorn' in script
+    assert '"${PYTHON}" -m vertex_worker' in script
+    assert "python3 -m uvicorn" not in script
+    assert "python3 -m vertex_worker" not in script
+
+
+def test_la_chute_dun_service_arrete_toute_la_pile() -> None:
+    """Une interface survivante sur une API morte serait trompeuse."""
+    script = _script()
+    assert 'wait -n "${PIDS[@]}"' in script
+    assert "arrêt coordonné de la pile" in script
+
+
 def _lignes_de_code(chemin: Path) -> list[str]:
     """Lignes exécutables : commentaires et docstrings écartés.
 

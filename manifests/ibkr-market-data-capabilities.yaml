@@ -296,6 +296,24 @@ error_mapping:
   10197:
     status: ERROR
     reason_code: COMPETING_SESSION
+# NOTIFICATIONS fournisseur : messages d'avertissement et de statut d'IBKR, PAS
+# des erreurs (voir source_urls.message_codes). Un code de cette plage qui n'est
+# PAS explicitement mappe ci-dessus est marque `informational` : il ne remplace
+# jamais la raison honnete d'un champ simplement non observe.
+#
+# POURQUOI CETTE ENTREE EXISTE. Sonde reelle du 2026-08-31, GOOG 20260918 C 200,
+# marche US ferme : `option_top_of_book.bid/ask/last` ont ete rendus
+# `ERROR / UNMAPPED_PROVIDER_ERROR_2104`. Or 2104 signifie « Market data farm
+# connection is OK ». Ce message POSITIF masquait `NO_OBSERVATION`, la vraie
+# raison. Aucun faux NOT_ENTITLED n'a ete produit, mais une raison trompeuse
+# dans une matrice de droits reste un defaut.
+informational_code_range:
+  from: 2100
+  to: 2200
+  reason_code_prefix: PROVIDER_NOTICE_
+  note: >-
+    Un code explicitement present dans `error_mapping` garde son sens meme s'il
+    tombait dans cette plage : le mapping exact reste l'autorite.
 source_urls:
   tick_types: https://interactivebrokers.github.io/tws-api/tick_types.html
   option_computations: https://interactivebrokers.github.io/tws-api/option_computations.html

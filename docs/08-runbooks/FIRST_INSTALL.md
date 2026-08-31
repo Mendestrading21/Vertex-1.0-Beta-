@@ -4,13 +4,13 @@
 
 1. Git for Windows ou Git officiel : https://git-scm.com/downloads
 2. Claude Desktop/Claude Code : https://docs.anthropic.com/en/docs/claude-code/setup ; appliquer `CLAUDE_TOOLS.md` avant tout plugin.
-3. Docker Desktop avec WSL 2 sur Windows : https://docs.docker.com/desktop/setup/install/windows-install/
+3. PostgreSQL 18 (serveur + client, dont `createdb` et `pg_isready`) : https://www.postgresql.org/download/
 4. TWS Offline ou IB Gateway : https://www.interactivebrokers.com/docs/tws-api/doc/download-tws-or-ib-gateway/download-tws-or-ib-gateway
 5. TradingView Desktop facultatif pour le confort ; les alertes serveur ne dépendent pas de l'application ouverte.
 6. Node.js 24 LTS : https://nodejs.org/en/download
 7. `uv` : https://docs.astral.sh/uv/getting-started/installation/
 
-PostgreSQL, API, worker et web seront lancés par Compose. Wrangler, pnpm et les dépendances sont ajoutés localement par le LOT-01 ; éviter les installations globales inutiles.
+La pile locale validée ne dépend pas de Docker : PostgreSQL tourne sur la machine et Vertex reste sur `127.0.0.1`. Docker Desktop est facultatif pour le développement futur. Wrangler reste nécessaire uniquement pour déployer le Worker TradingView. Éviter les installations globales non verrouillées.
 
 ## Dépôts GitHub déjà existants
 
@@ -34,12 +34,28 @@ documentée.
 
 ```text
 git --version
-docker version
-docker compose version
-node --version     # 24.x LTS
+node --version          # 24.x LTS
+corepack pnpm --version  # pnpm fourni par Corepack
 uv --version
-claude --version  # si CLI utilisée
+psql --version
+pg_isready --version
+claude --version        # si CLI utilisée
 ```
+
+## Installer les dépendances verrouillées
+
+Depuis la racine du dépôt cible, ces deux commandes reproduisent les
+environnements validés par la CI. Ne pas lancer Vertex avec le Python système.
+
+```bash
+uv sync --locked --all-extras --python 3.13
+( cd apps/web && corepack pnpm install --frozen-lockfile )
+test -x .venv/bin/python
+```
+
+Si l'une échoue, ne pas contourner le verrou et ne pas utiliser `pip install`
+ou `npm install` à la place : corriger d'abord la version de Python, Node ou
+le réseau.
 
 ## Premier démarrage de Vertex
 
@@ -49,7 +65,7 @@ aucune source réelle :
 ```bash
 createdb vertex
 export VERTEX_DATABASE_URL='postgresql+psycopg://vertex:<mot-de-passe>@127.0.0.1:5432/vertex'
-python3 tools/bootstrap_local.py --with-demo-data
+.venv/bin/python tools/bootstrap_local.py --with-demo-data
 bash tools/start_local.sh
 ```
 

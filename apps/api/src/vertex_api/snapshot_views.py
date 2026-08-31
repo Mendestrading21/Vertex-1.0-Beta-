@@ -78,6 +78,7 @@ from typing import Any, cast
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from vertex_api.capability_manifest import CapabilityDeclaration, CapabilityManifest
+from vertex_api.freshness import RelayFreshness, evaluate_relay_freshness
 from vertex_api.schemas import (
     AnalysisResponse,
     AttentionItem,
@@ -110,6 +111,7 @@ from vertex_core.contracts.enums import (
     SnapshotQuality,
     SourceCapabilityStatus,
 )
+from vertex_core.data.freshness import FreshnessPolicy, get_freshness_policy
 from vertex_persistence.repository.snapshots import CurrentSnapshot
 
 __all__ = [
@@ -146,7 +148,51 @@ __all__ = [
     "build_system_health",
     "checked_relayed_content",
     "is_synthetic_marker",
+    "require_snapshot_as_of",
 ]
+
+#: Politique de fraîcheur de chaque relais : celle de l'observation LA PLUS
+#: FRAÎCHE dont l'instantané peut être issu. Le choix se LIT dans le worker,
+#: il n'est pas décrété ici :
+#:
+#: - ``attention`` fusionne ``load_recent_observation_records`` (flux de news
+#:   et observations récentes) -> ``news_attention`` ;
+#: - ``markets_overview`` charge ``load_daily_quote_records`` -> ``daily_bar`` ;
+#: - ``analysis`` charge ``load_daily_bar_records`` -> ``daily_bar`` ;
+#: - ``option_chain`` charge ``load_option_chain_records`` -> ``option_surface``.
+#:
+#: Le budget servi est le TTL de SÉANCE FERMÉE de la politique : le relais ne
+#: connaît aucun état de séance, il retient donc la borne conservatrice.
+ATTENTION_FRESHNESS_POLICY = "news_attention"
+MARKETS_FRESHNESS_POLICY = "daily_bar"
+ANALYSIS_FRESHNESS_POLICY = "daily_bar"
+OPTION_CHAIN_FRESHNESS_POLICY = "option_surface"
+
+_ATTENTION_POLICY = get_freshness_policy(ATTENTION_FRESHNESS_POLICY)
+_MARKETS_POLICY = get_freshness_policy(MARKETS_FRESHNESS_POLICY)
+_ANALYSIS_POLICY = get_freshness_policy(ANALYSIS_FRESHNESS_POLICY)
+_OPTION_CHAIN_POLICY = get_freshness_policy(OPTION_CHAIN_FRESHNESS_POLICY)
+
+#: La matrice de capacités n'a AUCUN budget de relais, et c'est DÉCLARÉ : la
+#: péremption d'une capacité est portée champ par champ par le ``expires_at``
+#: de la sonde qui l'a établie. Inventer un TTL ici serait la valeur non
+#: justifiée que ce dépôt refuse ailleurs. L'âge, lui, est publié.
+CAPABILITIES_FRESHNESS_POLICY: FreshnessPolicy | None = None
+
+
+def _relay_freshness(
+    snapshot: CurrentSnapshot, *, now: datetime, policy: FreshnessPolicy | None
+) -> RelayFreshness:
+    """Fraîcheur d'un instantané relayé. ``now`` est TOUJOURS injecté.
+
+    Ces relais ne déclarent aucune tolérance de dérive d'horloge : ils ne
+    recalculent rien contre elle, donc une avance de quelques secondes est
+    bornée à un âge de zéro par le propriétaire et rien d'autre n'en dépend.
+    """
+    return evaluate_relay_freshness(
+        require_snapshot_as_of(snapshot), now=now, policy=policy
+    )
+
 
 REASON_NO_SNAPSHOT_PUBLISHED = "no snapshot published"
 REASON_NEVER_TESTED = "NEVER_TESTED"
@@ -171,6 +217,30 @@ class SnapshotContentError(ValueError):
     def __init__(self, message: str, *, field: str | None = None) -> None:
         super().__init__(message)
         self.field = field
+
+
+def require_snapshot_as_of(snapshot: CurrentSnapshot) -> datetime:
+    """Instant de PUBLICATION de l'instantané, validé une fois pour toutes.
+
+    L'âge d'un relais se mesure sur cet horodatage SERVEUR, jamais sur le
+    contenu : un contenu date sa propre vérité métier, il ne date pas sa
+    publication. Un horodatage absent, non daté ou naïf est un défaut de
+    contenu persisté — d'où `SnapshotContentError`, dont ce module est le
+    propriétaire.
+
+    Le calcul de fraîcheur lui-même appartient à `vertex_api.freshness`, qui
+    n'importe rien d'ici : la frontière évite un import cyclique.
+    """
+    as_of = snapshot.as_of
+    if not isinstance(as_of, datetime):
+        raise SnapshotContentError(
+            "snapshot.as_of: datetime required", field="snapshot.as_of"
+        )
+    if as_of.tzinfo is None or as_of.tzinfo.utcoffset(as_of) is None:
+        raise SnapshotContentError(
+            "snapshot.as_of: naive datetime rejected", field="snapshot.as_of"
+        )
+    return as_of
 
 
 def _parse_utc(value: Any, *, field: str) -> datetime:
@@ -1406,19 +1476,25 @@ def _attention_item(raw: Any, *, index: int) -> AttentionItem:
 
 
 def build_attention_response(
-    snapshot: CurrentSnapshot | None,
+    snapshot: CurrentSnapshot | None, *, now: datetime
 ) -> AttentionSnapshotResponse:
     """Render the last attention snapshot, or the honest empty state.
 
     Absence of a published snapshot is a NORMAL state (200): every
     snapshot-derived field stays ``None`` and ``reason`` explains why —
     nothing is invented, nothing degrades into a 500.
+
+    Past the ``news_attention`` closed-session budget the SAME content is
+    served with ``state = "stale"``, its age and its reason. ``age_seconds``
+    is published in every datable state: its absence made a three-day queue
+    look exactly like a one-minute one.
     """
     if snapshot is None:
         return AttentionSnapshotResponse(
             state="empty",
             snapshot_version=None,
             as_of=None,
+            age_seconds=None,
             population=None,
             coverage=None,
             items=(),
@@ -1431,18 +1507,20 @@ def build_attention_response(
     rejected_raw = _require_list(content.get("rejected"), field="rejected")
     population = _require_str(content.get("population"), field="population")
     coverage = _wire_mapping(content.get("coverage"), field="coverage")
+    freshness = _relay_freshness(snapshot, now=now, policy=_ATTENTION_POLICY)
 
     return AttentionSnapshotResponse(
-        state="ok",
+        state="stale" if freshness.stale else "ok",
         snapshot_version=snapshot.version,
         as_of=_parse_utc(content.get("as_of"), field="as_of"),
+        age_seconds=freshness.age_seconds,
         population=population,
         coverage=coverage,
         items=tuple(
             _attention_item(raw, index=index) for index, raw in enumerate(items_raw)
         ),
         rejected_count=len(rejected_raw),
-        reason=None,
+        reason=freshness.stale_reason,
     )
 
 
@@ -1656,7 +1734,7 @@ def _markets_coverage(raw: Any) -> MarketsCoverage:
 
 
 def build_markets_overview_response(
-    snapshot: CurrentSnapshot | None,
+    snapshot: CurrentSnapshot | None, *, now: datetime
 ) -> MarketsOverviewResponse:
     """Render the last markets overview snapshot, or the honest empty state.
 
@@ -1665,12 +1743,18 @@ def build_markets_overview_response(
     percentage is ever recomputed here. Absence of a published snapshot is a
     NORMAL state (200 with ``state = "empty"``), never a 500 and never an
     invented zero.
+
+    Past the ``daily_bar`` closed-session budget the SAME content is served with
+    ``state = "stale"``, its age and its reason. ``age_seconds`` is published
+    in every datable state: its absence made a three-day snapshot look
+    exactly like a one-minute one.
     """
     if snapshot is None:
         return MarketsOverviewResponse(
             state="empty",
             snapshot_version=None,
             as_of=None,
+            age_seconds=None,
             population=None,
             data_state=None,
             unit=None,
@@ -1700,10 +1784,12 @@ def build_markets_overview_response(
             field="display_unit",
         )
 
+    freshness = _relay_freshness(snapshot, now=now, policy=_MARKETS_POLICY)
     return MarketsOverviewResponse(
-        state="ok",
+        state="stale" if freshness.stale else "ok",
         snapshot_version=snapshot.version,
         as_of=_parse_utc(content.get("as_of"), field="as_of"),
+        age_seconds=freshness.age_seconds,
         population=_require_str(content.get("population"), field="population"),
         data_state=data_state,
         unit=_require_str(content.get("unit"), field="unit"),
@@ -1717,7 +1803,7 @@ def build_markets_overview_response(
         ),
         breadth=_markets_breadth(content.get("breadth")),
         coverage=_markets_coverage(content.get("coverage")),
-        reason=None,
+        reason=freshness.stale_reason,
     )
 
 
@@ -1762,7 +1848,7 @@ def _checked_advice(value: Any) -> Mapping[str, Any]:
 
 
 def build_analysis_response(
-    snapshot: CurrentSnapshot | None, *, instrument: str
+    snapshot: CurrentSnapshot | None, *, instrument: str, now: datetime
 ) -> AnalysisResponse:
     """Render the last analysis dossier, or the honest empty state.
 
@@ -1771,12 +1857,22 @@ def build_analysis_response(
     ever recomputed here. Absence of a published snapshot is a NORMAL state
     (200 with ``state = "empty"``), never a 500 and never an invented
     dossier.
+
+    Past the ``daily_bar`` closed-session budget the SAME dossier is served
+    with ``state = "stale"``, its age and its reason. ``age_seconds`` is
+    published in every datable state, INSIDE the budget too: a dossier at
+    +71 h is not stale — 71 h fit in the declared 72 h — but it must never
+    again be served without its date. That silent freezing is exactly what
+    `.claude/rules/financial-safety.md` forbids as "silently keeping an old
+    verdict"; the ``advice`` block itself is still relayed verbatim and
+    never recomputed here.
     """
     if snapshot is None:
         return AnalysisResponse(
             state="empty",
             snapshot_version=None,
             as_of=None,
+            age_seconds=None,
             population=None,
             instrument=instrument,
             engine_version=None,
@@ -1813,10 +1909,12 @@ def build_analysis_response(
         )
     if scenario_status == "ABSENT":
         _require_str(scenarios.get("reason"), field="scenarios.reason")
+    freshness = _relay_freshness(snapshot, now=now, policy=_ANALYSIS_POLICY)
     return AnalysisResponse(
-        state="ok",
+        state="stale" if freshness.stale else "ok",
         snapshot_version=snapshot.version,
         as_of=_parse_utc(content.get("as_of"), field="as_of"),
+        age_seconds=freshness.age_seconds,
         population=_require_str(content.get("population"), field="population"),
         instrument=published_instrument,
         engine_version=_require_str(
@@ -1827,7 +1925,7 @@ def build_analysis_response(
         scenarios=scenarios,
         advice=dict(_checked_advice(content.get("advice"))),
         coverage=_wire_mapping(content.get("coverage"), field="coverage"),
-        reason=None,
+        reason=freshness.stale_reason,
     )
 
 
@@ -1920,7 +2018,7 @@ def _option_expiration(raw: Any, *, index: int) -> OptionChainExpiration:
 
 
 def build_option_chain_response(
-    snapshot: CurrentSnapshot | None, *, underlying: str
+    snapshot: CurrentSnapshot | None, *, underlying: str, now: datetime
 ) -> OptionChainResponse:
     """Render the last option-chain snapshot, or the honest empty state.
 
@@ -1929,12 +2027,18 @@ def build_option_chain_response(
     figure is ever recomputed here. Absence of a published snapshot is a
     NORMAL state (200 with ``state = "empty"``), never a 500 and never an
     invented chain.
+
+    Past the ``option_surface`` closed-session budget the SAME chain is
+    served with ``state = "stale"``, its age and its reason. ``age_seconds``
+    is published in every datable state: its absence made a three-day
+    surface look exactly like a one-minute one.
     """
     if snapshot is None:
         return OptionChainResponse(
             state="empty",
             snapshot_version=None,
             as_of=None,
+            age_seconds=None,
             population=None,
             underlying=underlying,
             engine_version=None,
@@ -1962,10 +2066,12 @@ def build_option_chain_response(
     expirations_raw = _require_list(content.get("expirations"), field="expirations")
     spot = content.get("spot")
     assumptions = content.get("assumptions")
+    freshness = _relay_freshness(snapshot, now=now, policy=_OPTION_CHAIN_POLICY)
     return OptionChainResponse(
-        state="ok",
+        state="stale" if freshness.stale else "ok",
         snapshot_version=snapshot.version,
         as_of=_parse_utc(content.get("as_of"), field="as_of"),
+        age_seconds=freshness.age_seconds,
         population=_require_str(content.get("population"), field="population"),
         underlying=published_underlying,
         engine_version=_require_str(
@@ -1984,7 +2090,7 @@ def build_option_chain_response(
         ),
         row_budget=_wire_mapping(content.get("row_budget"), field="row_budget"),
         coverage=_wire_mapping(content.get("coverage"), field="coverage"),
-        reason=None,
+        reason=freshness.stale_reason,
     )
 
 
@@ -2153,13 +2259,21 @@ def build_capabilities_response(
         )
     )
     snapshot_as_of: datetime | None = None
+    snapshot_age: int | None = None
     if snapshot is not None:
         content = checked_relayed_content(snapshot.content)
         snapshot_as_of = _parse_utc(content.get("as_of"), field="as_of")
+        # Aucun budget déclaré pour cette famille : l'âge est publié, rien
+        # n'est jugé périmé ici. La péremption d'une capacité appartient au
+        # ``expires_at`` de la sonde, champ par champ.
+        snapshot_age = _relay_freshness(
+            snapshot, now=now, policy=CAPABILITIES_FRESHNESS_POLICY
+        ).age_seconds
     return SystemCapabilitiesResponse(
         checked_at=now,
         snapshot_version=None if snapshot is None else snapshot.version,
         as_of=snapshot_as_of,
+        age_seconds=snapshot_age,
         total=len(entries),
         capabilities=entries,
         unknown_probed_capability_ids=unknown,

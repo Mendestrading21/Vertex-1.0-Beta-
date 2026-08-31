@@ -7,7 +7,7 @@ import { AuthRequiredNotice } from '../../components/AuthRequiredNotice.tsx';
 import { DataStateBoundary } from '../../components/DataStateBoundary.tsx';
 import type { DataState } from '../../components/DataStateBoundary.tsx';
 import { SyntheticBanner } from '../../components/SyntheticBanner.tsx';
-import { DEV_SYNTHETIC_UNDERLYINGS } from '../devUniverse.ts';
+import { useDeclaredInstruments } from '../devUniverse.ts';
 import { OptionChainTable } from './OptionChainTable.tsx';
 import { OptionInspector } from './OptionInspector.tsx';
 import {
@@ -34,10 +34,21 @@ import {
  */
 
 function UnderlyingPicker({ current }: { readonly current: string | null }) {
+  const instruments = useDeclaredInstruments();
+  if (instruments.length === 0) {
+    return (
+      <nav className="vx-underlying-picker" aria-label="Sous-jacents disponibles">
+        <span className="vx-underlying-picker-label">Sous-jacent :</span>
+        <span className="vx-underlying-empty">
+          Aucun sous-jacent publié — la page Marchés n&apos;en couvre encore aucun.
+        </span>
+      </nav>
+    );
+  }
   return (
-    <nav className="vx-underlying-picker" aria-label="Sous-jacents synthétiques disponibles">
+    <nav className="vx-underlying-picker" aria-label="Sous-jacents disponibles">
       <span className="vx-underlying-picker-label">Sous-jacent :</span>
-      {DEV_SYNTHETIC_UNDERLYINGS.map((candidate) => (
+      {instruments.map((candidate) => (
         <Link
           key={candidate}
           to={`/options/${candidate}`}

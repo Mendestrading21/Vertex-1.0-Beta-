@@ -232,7 +232,7 @@ export function AttentionQueue({ items, asOf }: AttentionQueueProps) {
   }
 
   return (
-    <section className="vx-queue" aria-label="File d'attention">
+    <div className="vx-queue">
       <ol className="vx-queue-list">
         {items.map((item) => {
           const firstPublishedAt = provString(item.provenance, 'first_published_at');
@@ -272,6 +272,6 @@ export function AttentionQueue({ items, asOf }: AttentionQueueProps) {
         })}
       </ol>
       {openItem !== null ? <SideSheet item={openItem} asOf={asOf} onClose={close} /> : null}
-    </section>
+    </div>
   );
 }

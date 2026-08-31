@@ -7,7 +7,11 @@ import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { makeEmptyOptionChain, makeOptionChain } from '../../test/fixtures.ts';
+import {
+  makeEmptyOptionChain,
+  makeMarketsOverview,
+  makeOptionChain,
+} from '../../test/fixtures.ts';
 import { renderApp } from '../../test/render.tsx';
 
 const fetchMock = vi.fn<typeof fetch>();
@@ -16,6 +20,23 @@ function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: { 'Content-Type': 'application/json' },
+  });
+}
+
+/**
+ * Sert une Response FRAÎCHE par appel, routée par URL.
+ *
+ * Le sélecteur d'instruments lit la vue Marchés en plus de la ressource de la
+ * page. Un `mockResolvedValue` unique rendrait le même objet `Response` aux
+ * deux appels, et un corps de réponse ne se lit qu'une fois.
+ */
+function repondre(reponse: Response): void {
+  fetchMock.mockImplementation((entree: unknown) => {
+    const url = typeof entree === 'string' ? entree : String((entree as Request).url);
+    if (url.includes('/markets/overview')) {
+      return Promise.resolve(jsonResponse(makeMarketsOverview()));
+    }
+    return Promise.resolve(reponse.clone());
   });
 }
 
@@ -35,7 +56,7 @@ async function renderOptions(path = '/options/SYN-TECH-01'): Promise<void> {
 
 describe('Page Options — état nominal', () => {
   it('sélecteur : deux trading classes d’une même date = deux entrées distinctes', async () => {
-    fetchMock.mockResolvedValue(jsonResponse(makeOptionChain()));
+    repondre(jsonResponse(makeOptionChain()));
     await renderOptions();
     const groups = await screen.findAllByTestId('chain-group');
     expect(groups).toHaveLength(3);
@@ -52,7 +73,7 @@ describe('Page Options — état nominal', () => {
 
   it('bascule de groupe : la table rend le groupe sélectionné uniquement', async () => {
     const user = userEvent.setup();
-    fetchMock.mockResolvedValue(jsonResponse(makeOptionChain()));
+    repondre(jsonResponse(makeOptionChain()));
     await renderOptions();
     const table = await screen.findByRole('table', { name: /Chaîne d'options 2026-09-26 SYN-TECH-01$/ });
     expect(table).toBeDefined();
@@ -66,7 +87,7 @@ describe('Page Options — état nominal', () => {
   });
 
   it('IV absente : cellule « — » avec la raison typée, jamais 0', async () => {
-    fetchMock.mockResolvedValue(jsonResponse(makeOptionChain()));
+    repondre(jsonResponse(makeOptionChain()));
     await renderOptions();
     const table = await screen.findByRole('table', { name: /SYN-TECH-01$/ });
     // Le contrat croisé (strike 105.00) n'a pas d'IV : « — » + raison.
@@ -83,7 +104,7 @@ describe('Page Options — état nominal', () => {
 
   it('inspecteur : identité complète, quote, IV THÉORIQUE et CalculationRecord id', async () => {
     const user = userEvent.setup();
-    fetchMock.mockResolvedValue(jsonResponse(makeOptionChain()));
+    repondre(jsonResponse(makeOptionChain()));
     await renderOptions();
     await screen.findByRole('table', { name: /SYN-TECH-01$/ });
     await user.click(
@@ -107,7 +128,7 @@ describe('Page Options — état nominal', () => {
 
   it('« Envoyer au Simulateur » : navigation avec préremplissage typé (transfert d’analyse)', async () => {
     const user = userEvent.setup();
-    fetchMock.mockResolvedValue(jsonResponse(makeOptionChain()));
+    repondre(jsonResponse(makeOptionChain()));
     await renderOptions();
     await screen.findByRole('table', { name: /SYN-TECH-01$/ });
     await user.click(
@@ -139,13 +160,16 @@ describe('Page Options — états', () => {
     expect(screen.getByText('Aucune donnée')).toBeDefined();
     expect(screen.getByText(/Aucun sous-jacent sélectionné/)).toBeDefined();
     expect(
-      screen.getByRole('navigation', { name: 'Sous-jacents synthétiques disponibles' }),
+      screen.getByRole('navigation', { name: 'Sous-jacents disponibles' }),
     ).toBeDefined();
-    expect(fetchMock).not.toHaveBeenCalled();
+    // Le sélecteur lit la vue Marchés ; ce qui ne doit PAS être
+    // demandé, c'est la ressource d'instrument elle-même.
+    const demandes = fetchMock.mock.calls.map(([entree]) => String(entree));
+    expect(demandes.some((url) => url.includes('/v1/options/'))).toBe(false);
   });
 
   it('empty honnête : aucun snapshot publié, raison serveur affichée', async () => {
-    fetchMock.mockResolvedValue(jsonResponse(makeEmptyOptionChain()));
+    repondre(jsonResponse(makeEmptyOptionChain()));
     await renderOptions();
     await screen.findByText('Aucune donnée');
     expect(screen.getByText(/no snapshot published/)).toBeDefined();
@@ -160,7 +184,7 @@ describe('Page Options — états', () => {
         index === 0 ? { ...group, quality: 'PARTIAL' } : group,
       ),
     };
-    fetchMock.mockResolvedValue(jsonResponse(degraded));
+    repondre(jsonResponse(degraded));
     await renderOptions();
     await screen.findByText('Données partielles');
     expect(screen.getByText(/qualité dégradée/)).toBeDefined();
@@ -181,13 +205,13 @@ describe('Page Options — états', () => {
   });
 
   it('session requise sur 401', async () => {
-    fetchMock.mockResolvedValue(jsonResponse({ detail: { code: 'AUTH_REQUIRED' } }, 401));
+    repondre(jsonResponse({ detail: { code: 'AUTH_REQUIRED' } }, 401));
     await renderOptions();
     await screen.findByText('Session requise');
   });
 
   it('erreur de données sur réponse inattendue (500)', async () => {
-    fetchMock.mockResolvedValue(jsonResponse({ detail: 'boom' }, 500));
+    repondre(jsonResponse({ detail: 'boom' }, 500));
     await renderOptions();
     await screen.findByText('Erreur de données');
   });

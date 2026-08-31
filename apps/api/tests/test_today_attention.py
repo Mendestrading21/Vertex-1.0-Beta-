@@ -7,7 +7,7 @@ worker publishes (``vertex_worker.handlers.build_attention_content``).
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi import FastAPI
@@ -15,11 +15,16 @@ from fastapi.testclient import TestClient
 from snapshot_fakes import FakeSnapshotReader, synthetic_session
 
 from vertex_api.auth import AUTH_REQUIRED, require_session
-from vertex_api.snapshot_reader import get_snapshot_reader
+from vertex_api.snapshot_reader import get_clock, get_snapshot_reader
 from vertex_api.snapshot_views import SnapshotContentError, build_attention_response
 from vertex_persistence.repository.snapshots import CurrentSnapshot
 
 AS_OF = datetime(2026, 8, 25, 12, 0, 0, tzinfo=UTC)
+
+#: Horloge du relais, injectée : une horloge RÉELLE rendrait l'instantané
+#: périmé au fil des jours et ferait échouer ces tests sans qu'aucun
+#: comportement ait changé. L'âge servi doit rester mesuré, pas subi.
+_NOW = AS_OF + timedelta(minutes=30)
 
 
 def attention_content() -> dict:
@@ -100,6 +105,10 @@ def reader() -> FakeSnapshotReader:
 def snapshot_client(app: FastAPI, reader: FakeSnapshotReader) -> TestClient:
     app.dependency_overrides[require_session] = synthetic_session
     app.dependency_overrides[get_snapshot_reader] = lambda: reader
+    # Horloge FIXE : sans elle, le relais mesurerait l'âge de l'instantané
+    # contre l'heure réelle et le déclarerait périmé quelques jours après
+    # l'écriture de ce test, sans qu'aucun code ait changé.
+    app.dependency_overrides[get_clock] = lambda: (lambda: _NOW)
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()
@@ -118,6 +127,7 @@ def test_no_snapshot_published_is_honest_200_empty(snapshot_client: TestClient) 
         "state": "empty",
         "snapshot_version": None,
         "as_of": None,
+        "age_seconds": None,
         "population": None,
         "coverage": None,
         "items": [],
@@ -163,6 +173,7 @@ def test_response_carries_complete_metadata_fields(
         "state",
         "snapshot_version",
         "as_of",
+        "age_seconds",
         "population",
         "coverage",
         "items",
@@ -181,4 +192,4 @@ def test_malformed_persisted_content_fails_closed() -> None:
         as_of=AS_OF,
     )
     with pytest.raises(SnapshotContentError):
-        build_attention_response(broken)
+        build_attention_response(broken, now=_NOW)

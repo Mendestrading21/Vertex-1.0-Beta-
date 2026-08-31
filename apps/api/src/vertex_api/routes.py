@@ -325,6 +325,7 @@ def get_system_engine() -> EngineInfoResponse:
 )
 def get_markets_overview(
     reader: Annotated[SnapshotReader, Depends(get_snapshot_reader)],
+    clock: Annotated[Clock, Depends(get_clock)],
 ) -> MarketsOverviewResponse:
     """Serve the LAST ``markets_overview/global`` snapshot exactly as persisted.
 
@@ -335,7 +336,7 @@ def get_markets_overview(
     with ``state = "empty"``: absent stays absent, nothing is invented.
     """
     snapshot = reader.current(kind=SNAPSHOT_KIND_MARKETS, key=SNAPSHOT_KEY_GLOBAL)
-    return build_markets_overview_response(snapshot)
+    return build_markets_overview_response(snapshot, now=clock())
 
 
 @protected_router.get(
@@ -347,6 +348,7 @@ def get_markets_overview(
 def get_analysis(
     instrument: Annotated[str, Path(pattern=UNDERLYING_PATTERN)],
     reader: Annotated[SnapshotReader, Depends(get_snapshot_reader)],
+    clock: Annotated[Clock, Depends(get_clock)],
 ) -> AnalysisResponse:
     """Serve the LAST ``analysis/{instrument}`` snapshot exactly as persisted.
 
@@ -359,7 +361,7 @@ def get_analysis(
     nothing is invented.
     """
     snapshot = reader.current(kind=SNAPSHOT_KIND_ANALYSIS, key=instrument)
-    return build_analysis_response(snapshot, instrument=instrument)
+    return build_analysis_response(snapshot, instrument=instrument, now=clock())
 
 
 @protected_router.get(
@@ -371,6 +373,7 @@ def get_analysis(
 def get_option_chain(
     underlying: Annotated[str, Path(pattern=UNDERLYING_PATTERN)],
     reader: Annotated[SnapshotReader, Depends(get_snapshot_reader)],
+    clock: Annotated[Clock, Depends(get_clock)],
 ) -> OptionChainResponse:
     """Serve the LAST ``option_chain/{underlying}`` snapshot exactly as persisted.
 
@@ -383,7 +386,7 @@ def get_option_chain(
     with ``state = "empty"``: absent stays absent, nothing is invented.
     """
     snapshot = reader.current(kind=SNAPSHOT_KIND_OPTION_CHAIN, key=underlying)
-    return build_option_chain_response(snapshot, underlying=underlying)
+    return build_option_chain_response(snapshot, underlying=underlying, now=clock())
 
 
 @protected_router.get(
@@ -542,6 +545,7 @@ def get_capability_manifest(request: Request) -> CapabilityManifest:
 )
 def get_today_attention(
     reader: Annotated[SnapshotReader, Depends(get_snapshot_reader)],
+    clock: Annotated[Clock, Depends(get_clock)],
 ) -> AttentionSnapshotResponse:
     """Serve the LAST ``attention/global`` snapshot exactly as persisted.
 
@@ -551,7 +555,7 @@ def get_today_attention(
     "empty"``: absent stays absent, nothing is invented.
     """
     snapshot = reader.current(kind=SNAPSHOT_KIND_ATTENTION, key=SNAPSHOT_KEY_GLOBAL)
-    return build_attention_response(snapshot)
+    return build_attention_response(snapshot, now=clock())
 
 
 @protected_router.get(
@@ -683,6 +687,7 @@ async def parse_import_confirm_request(request: Request) -> ImportConfirmRequest
 )
 def get_portfolio(
     gateway: Annotated[PortfolioGateway, Depends(get_portfolio_gateway)],
+    clock: Annotated[Clock, Depends(get_clock)],
 ) -> PortfolioResponse:
     """Serve the manual ledger verbatim plus the LAST valuation snapshot.
 
@@ -691,7 +696,7 @@ def get_portfolio(
     as persisted (``mark_population = "SYNTHETIC"`` shown as-is) or an honest
     empty state — the API computes no P&L, mark, weight or total.
     """
-    return build_portfolio_response(gateway.overview())
+    return build_portfolio_response(gateway.overview(), now=clock())
 
 
 @protected_router.post(
@@ -1076,6 +1081,7 @@ async def parse_thesis_revision_request(request: Request) -> ThesisRevisionReque
 )
 def get_follow_up_queue(
     reader: Annotated[SnapshotReader, Depends(get_snapshot_reader)],
+    clock: Annotated[Clock, Depends(get_clock)],
 ) -> FollowUpQueueResponse:
     """Serve the LAST ``review_queue/global`` snapshot exactly as persisted.
 
@@ -1089,7 +1095,7 @@ def get_follow_up_queue(
     snapshot = reader.current(
         kind=SNAPSHOT_KIND_REVIEW_QUEUE, key=SNAPSHOT_KEY_REVIEW_QUEUE
     )
-    return build_follow_up_queue_response(snapshot)
+    return build_follow_up_queue_response(snapshot, now=clock())
 
 
 @protected_router.post(
@@ -1265,6 +1271,7 @@ def record_thesis_revision_route(
 def get_performance(
     portfolio_id: Annotated[int, Path(ge=1)],
     reader: Annotated[SnapshotReader, Depends(get_snapshot_reader)],
+    clock: Annotated[Clock, Depends(get_clock)],
 ) -> PerformanceSnapshotResponse:
     """Serve the LAST ``performance/{portfolio_id}`` snapshot as persisted.
 
@@ -1278,7 +1285,9 @@ def get_performance(
     snapshot = reader.current(
         kind=SNAPSHOT_KIND_PERFORMANCE, key=str(portfolio_id)
     )
-    return build_performance_response(snapshot, portfolio_id=portfolio_id)
+    return build_performance_response(
+        snapshot, portfolio_id=portfolio_id, now=clock()
+    )
 
 
 @protected_router.get(

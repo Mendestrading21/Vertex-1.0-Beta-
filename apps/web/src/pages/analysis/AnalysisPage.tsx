@@ -6,7 +6,7 @@ import { AuthRequiredNotice } from '../../components/AuthRequiredNotice.tsx';
 import { DataStateBoundary } from '../../components/DataStateBoundary.tsx';
 import type { DataState } from '../../components/DataStateBoundary.tsx';
 import { SyntheticBanner } from '../../components/SyntheticBanner.tsx';
-import { DEV_SYNTHETIC_UNDERLYINGS } from '../devUniverse.ts';
+import { useDeclaredInstruments } from '../devUniverse.ts';
 import { CandleChart } from './CandleChart.tsx';
 import type { AdviceView, BarsView, EvidenceView, ScenariosView } from './analysisView.ts';
 import {
@@ -33,10 +33,21 @@ import {
  */
 
 function InstrumentPicker({ current }: { readonly current: string | null }) {
+  const instruments = useDeclaredInstruments();
+  if (instruments.length === 0) {
+    return (
+      <nav className="vx-underlying-picker" aria-label="Instruments disponibles">
+        <span className="vx-underlying-picker-label">Instrument :</span>
+        <span className="vx-underlying-empty">
+          Aucun instrument publié — la page Marchés n&apos;en couvre encore aucun.
+        </span>
+      </nav>
+    );
+  }
   return (
-    <nav className="vx-underlying-picker" aria-label="Instruments synthétiques disponibles">
+    <nav className="vx-underlying-picker" aria-label="Instruments disponibles">
       <span className="vx-underlying-picker-label">Instrument :</span>
-      {DEV_SYNTHETIC_UNDERLYINGS.map((candidate) => (
+      {instruments.map((candidate) => (
         <Link
           key={candidate}
           to={`/analysis/${candidate}`}

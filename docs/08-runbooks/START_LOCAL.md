@@ -14,8 +14,10 @@ des tests, sans base jetable et sans destruction de schéma.
 
 ## Prérequis
 
-PostgreSQL, Node 24 et `uv` installés (`FIRST_INSTALL.md`). Docker n'est PAS
-requis pour ce chemin : la pile Compose reste le sujet du LOT-24.
+PostgreSQL 18, Node 24, Corepack et `uv` installés, puis les environnements
+verrouillés créés exactement comme indiqué dans `FIRST_INSTALL.md`. Le
+démarreur exige `.venv/bin/python` et refuse le Python système. Docker n'est
+pas requis pour ce chemin.
 
 ## 1. Créer la base, une seule fois
 
@@ -35,8 +37,8 @@ export VERTEX_DATABASE_URL='postgresql+psycopg://vertex:<mot-de-passe>@127.0.0.1
 ## 3. Préparer la base
 
 ```bash
-python3 tools/bootstrap_local.py                    # migrations seules
-python3 tools/bootstrap_local.py --with-demo-data   # + population SYNTHETIC
+.venv/bin/python tools/bootstrap_local.py                    # migrations seules
+.venv/bin/python tools/bootstrap_local.py --with-demo-data   # + population SYNTHETIC
 ```
 
 Sans `--with-demo-data`, les pages seront **vides et le diront** — c'est le
@@ -65,10 +67,12 @@ irremplaçable. `--force` existe, à n'utiliser que sur une base jetable.
 bash tools/start_local.sh
 ```
 
-Il enchaîne, dans cet ordre : contrôle de PostgreSQL, migrations, API
-(`uvicorn`, `127.0.0.1:8000`), worker (`python -m vertex_worker`), build de
-production, interface (`vite preview`, `127.0.0.1:4173`). `Ctrl-C` arrête les
-trois processus proprement.
+Il vérifie le DSN, les ports, les commandes requises et l'environnement Python
+verrouillé, puis enchaîne : PostgreSQL, migrations, API (`uvicorn`,
+`127.0.0.1:8000`), worker, build de production et interface (`vite preview`,
+`127.0.0.1:4173`). Si un service tombe, les autres sont arrêtés au lieu de
+laisser une pile partiellement vivante. `Ctrl-C` arrête les trois processus
+proprement.
 
 ## 5. Ouvrir `/system` en premier
 
@@ -105,10 +109,22 @@ worker tourne en configuration synthétique de développement et l'écrit dans
 son journal au démarrage ; tout ce qui s'affiche porte
 `population = SYNTHETIC`.
 
-Brancher une source réelle appartient au LOT-24 et exige la machine cible :
-TWS ou IB Gateway en lecture seule sur loopback avec un `client_id` non nul
-(`IBKR_SETUP.md`), le projet Cloudflare pour le webhook TradingView
-(`TRADINGVIEW_SETUP.md`, blocage B-03), et la matrice réelle des entitlements.
+Brancher une source réelle exige la machine cible : TWS ou IB Gateway en
+lecture seule sur loopback avec un `client_id` non nul (`IBKR_SETUP.md`), et
+le projet Cloudflare pour le webhook TradingView (`TRADINGVIEW_SETUP.md`,
+blocage B-03).
+
+La première commande à lancer, TWS allumé, est la sonde de droits :
+
+```bash
+python3 tools/probe_entitlements.py --symbol <SYMBOLE> --dry-run
+```
+
+Elle imprime les droits RÉELS champ par champ en moins d'une minute, au lieu
+de les découvrir page par page. La séquence complète est dans
+`IBKR_SETUP.md`, section « Sonder les droits RÉELS ». Avec `--persist`, la
+page `/system` cesse d'afficher `NEVER_TESTED` pour les capacités
+effectivement sondées — et pour elles seules.
 
 ## En cas d'échec
 
@@ -120,3 +136,19 @@ TWS ou IB Gateway en lecture seule sur loopback avec un `client_id` non nul
 | `ressemble à une base de test` | DSN pointant `vertex_test`/`vertex_e2e` | corriger le DSN, ou `VERTEX_ALLOW_TEST_DB=1` en connaissance de cause |
 
 `INCIDENT.md` couvre les pannes en cours de service.
+
+## Brancher IBKR en continu
+
+`tools/start_local.sh` ne contacte JAMAIS TWS : il sert la population
+`SYNTHETIC`. Pour alimenter les pages avec du marché réel, un second processus
+tourne à côté, une fois les droits sondés :
+
+```bash
+export VERTEX_IBKR_UNIVERSE="$HOME/.vertex/univers.json"
+export VERTEX_IBKR_PORT=<port confirmé dans TWS>
+.venv/bin/python tools/run_edge_ibkr.py
+```
+
+Séquence complète, univers, bornes et codes fournisseur : `IBKR_SETUP.md`,
+section « Ingestion continue ». `/system` cesse alors d'afficher
+`NEVER_TESTED` pour les seules capacités réellement observées.

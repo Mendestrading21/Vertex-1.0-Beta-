@@ -31,6 +31,7 @@ RACINE="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 WEB="${RACINE}/apps/web"
 PORT_API="${VERTEX_API_PORT:-8000}"
 PORT_WEB="${VERTEX_WEB_PORT:-4173}"
+PYTHON="${RACINE}/.venv/bin/python"
 
 export PYTHONPATH="${RACINE}/packages/python/vertex_core/src:${RACINE}/packages/python/vertex_persistence/src:${RACINE}/apps/worker/src:${RACINE}/apps/api/src:${PYTHONPATH:-}"
 
@@ -42,10 +43,30 @@ if [[ -z "${VERTEX_DATABASE_URL:-}" ]]; then
   exit 2
 fi
 
-if ! command -v pg_isready >/dev/null 2>&1; then
-  echo "ERREUR: pg_isready introuvable — PostgreSQL n'est pas installé sur cette machine." >&2
+if [[ ! "${PORT_API}" =~ ^[0-9]+$ ]] || (( PORT_API < 1 || PORT_API > 65535 )); then
+  echo "ERREUR: VERTEX_API_PORT doit être un port TCP entre 1 et 65535." >&2
   exit 2
 fi
+if [[ ! "${PORT_WEB}" =~ ^[0-9]+$ ]] || (( PORT_WEB < 1 || PORT_WEB > 65535 )); then
+  echo "ERREUR: VERTEX_WEB_PORT doit être un port TCP entre 1 et 65535." >&2
+  exit 2
+fi
+if [[ "${PORT_API}" == "${PORT_WEB}" ]]; then
+  echo "ERREUR: VERTEX_API_PORT et VERTEX_WEB_PORT doivent être différents." >&2
+  exit 2
+fi
+
+if [[ ! -x "${PYTHON}" ]]; then
+  echo "ERREUR: environnement Python verrouillé absent : ${PYTHON}" >&2
+  echo "        Exécuter : uv sync --locked --all-extras --python 3.13" >&2
+  exit 2
+fi
+for commande in curl pg_isready corepack; do
+  if ! command -v "${commande}" >/dev/null 2>&1; then
+    echo "ERREUR: ${commande} est requis mais introuvable (voir FIRST_INSTALL.md)." >&2
+    exit 2
+  fi
+done
 if ! pg_isready -h 127.0.0.1 -p 5432 -t 5 >/dev/null 2>&1; then
   echo "ERREUR: PostgreSQL ne répond pas sur 127.0.0.1:5432. Le démarrer d'abord." >&2
   exit 2
@@ -53,7 +74,7 @@ fi
 
 # ── 2. Migrations (idempotentes, aucun schéma détruit) ──────────────────────
 echo "== préparation de la base =="
-python3 "${RACINE}/tools/bootstrap_local.py"
+"${PYTHON}" "${RACINE}/tools/bootstrap_local.py"
 
 # ── 3. Arrêt propre des trois processus, quoi qu'il arrive ──────────────────
 PIDS=()
@@ -70,9 +91,13 @@ arreter() {
 trap arreter EXIT INT TERM
 
 attendre_http() {
-  local url="$1" limite="${2:-60}" i=0
+  local url="$1" pid="$2" limite="${3:-60}" i=0
   while (( i < limite )); do
     if curl -fsS -o /dev/null "${url}" 2>/dev/null; then return 0; fi
+    if ! kill -0 "${pid}" 2>/dev/null; then
+      echo "ERREUR: le service ${pid} s'est arrêté avant de répondre sur ${url}." >&2
+      return 1
+    fi
     sleep 1
     i=$(( i + 1 ))
   done
@@ -81,32 +106,50 @@ attendre_http() {
 }
 
 # ── 4. API réelle, loopback strict ──────────────────────────────────────────
+# WebAuthn : `auth/config.py` n'accepte QUE `http://127.0.0.1` et
+# `http://localhost`. Le port de l'interface doit être DÉCLARÉ, sinon /auth
+# répond 401 générique et le produit est inutilisable depuis ce démarreur —
+# alors que la campagne E2E, qui passe ces deux variables, réussit. C'était la
+# même asymétrie que celle déjà corrigée pour le démarrage lui-même.
+export VERTEX_AUTH_DEV_ORIGIN_PORTS="${VERTEX_AUTH_DEV_ORIGIN_PORTS:-${PORT_WEB}}"
+# Drapeau `Secure` du cookie de session : opt-out documenté pour le http de
+# boucle locale. L'écouteur ne peut de toute façon jamais quitter la loopback.
+export VERTEX_AUTH_COOKIE_INSECURE_DEV="${VERTEX_AUTH_COOKIE_INSECURE_DEV:-1}"
+
 echo "== API (uvicorn, 127.0.0.1:${PORT_API}) =="
-python3 -m uvicorn vertex_api.app:create_app --factory \
+"${PYTHON}" -m uvicorn vertex_api.app:create_app --factory \
   --host 127.0.0.1 --port "${PORT_API}" &
-PIDS+=("$!")
-attendre_http "http://127.0.0.1:${PORT_API}/api/v1/health"
+API_PID="$!"
+PIDS+=("${API_PID}")
+attendre_http "http://127.0.0.1:${PORT_API}/api/v1/health" "${API_PID}"
 
 # ── 5. Worker réel ──────────────────────────────────────────────────────────
 echo "== worker (python -m vertex_worker) =="
-python3 -m vertex_worker &
-PIDS+=("$!")
+"${PYTHON}" -m vertex_worker &
+WORKER_PID="$!"
+PIDS+=("${WORKER_PID}")
 
 # ── 6. Interface : build de production, servie sur loopback ─────────────────
 echo "== build web =="
-( cd "${WEB}" && pnpm build )
+( cd "${WEB}" && corepack pnpm build )
 echo "== interface (vite preview, 127.0.0.1:${PORT_WEB}) =="
-( cd "${WEB}" && pnpm exec vite preview --port "${PORT_WEB}" --strictPort --host 127.0.0.1 ) &
-PIDS+=("$!")
-attendre_http "http://127.0.0.1:${PORT_WEB}/"
+( cd "${WEB}" && corepack pnpm exec vite preview --port "${PORT_WEB}" --strictPort --host 127.0.0.1 ) &
+WEB_PID="$!"
+PIDS+=("${WEB_PID}")
+attendre_http "http://127.0.0.1:${PORT_WEB}/" "${WEB_PID}"
 
 cat <<INFO
 
 ════════════════════════════════════════════════════════════════════
   Vertex 1.0 Beta tourne.
 
-    http://127.0.0.1:${PORT_WEB}/system     ← ouvrir CETTE page d'abord
-    http://127.0.0.1:${PORT_WEB}/today
+    http://localhost:${PORT_WEB}/system     ← ouvrir CETTE page d'abord
+    http://localhost:${PORT_WEB}/today
+
+  Utiliser localhost et NON 127.0.0.1 : l'identifiant WebAuthn de la
+  partie de confiance est `localhost` (ADR-002), et la spécification exige
+  qu'il soit le domaine de l'origine. Depuis 127.0.0.1, le navigateur
+  refuse la création de passkey avant même d'appeler l'API.
 
   /system dit ce que le système sait de lui-même : base, migrations,
   horloge, sauvegarde, et l'état RÉEL de chaque capacité. Une capacité
@@ -114,11 +157,21 @@ cat <<INFO
 
   Aucune source réelle n'est connectée : tout porte SYNTHETIC.
   Pour peupler une base vide :
-      python3 tools/bootstrap_local.py --with-demo-data
+      .venv/bin/python tools/bootstrap_local.py --with-demo-data
 
   Ctrl-C pour arrêter les trois processus.
 ════════════════════════════════════════════════════════════════════
 
 INFO
 
-wait
+# Un service qui tombe rend la pile entière indisponible : ne jamais laisser
+# l'utilisateur devant une interface partiellement vivante.
+set +e
+wait -n "${PIDS[@]}"
+STATUT="$?"
+set -e
+echo "ERREUR: un service Vertex s'est arrêté ; arrêt coordonné de la pile." >&2
+if (( STATUT == 0 )); then
+  exit 1
+fi
+exit "${STATUT}"

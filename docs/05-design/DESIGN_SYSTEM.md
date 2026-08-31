@@ -1,4 +1,4 @@
-# Design system — Black Glass 1.0
+# Design system — Black Glass 1.2 « Titanium Ledger »
 
 > Portée Beta : interface Vertex exclusivement bureau/laptop. Les largeurs cible
 > sont 1280, 1440 et 1600 px ; 1024 px sert seulement de dégradation laptop.
@@ -7,31 +7,33 @@
 
 ## ADN conservé
 
-Fond noir/graphite, surfaces très proches, bordures argent discrètes, chiffres tabulaires, violet réservé aux options, vert positif, corail négatif et ambre avertissement. Aucun bleu de marque.
+Fond noir/graphite chaud, surfaces hiérarchisées, bordures titane discrètes,
+chiffres tabulaires, violet réservé aux options, vert positif et corail négatif.
+Un signal ambre métallique, rare et non financier, identifie la sélection, le
+focus de marque et l'action principale. Aucun bleu de marque.
 
 ## Palette canonique neuve
 
 ```css
 :root {
-  --vx-black: #040504;
-  --vx-app: #08090b;
-  --vx-surface-0: #0b0c0f;
-  --vx-surface-1: #101216;
-  --vx-surface-2: #15171c;
-  --vx-surface-3: #1b1e23;
-  --vx-hover: #232830;
-  --vx-border-soft: rgba(222, 227, 237, 0.09);
-  --vx-border: rgba(222, 227, 237, 0.14);
-  --vx-border-strong: rgba(222, 227, 237, 0.22);
-  --vx-text: #f3f5f8;
-  --vx-text-secondary: #b7bcc4;
-  --vx-text-muted: #828892;
-  --vx-silver: #c9cdd4;
-  --vx-positive: #36c889;
-  --vx-negative: #ed655c;
-  --vx-warning: #dda23b;
-  --vx-option: #9c79d0;
-  --vx-macro: #53b9ad;
+  --vx-black: #030302;
+  --vx-app: #080806;
+  --vx-surface-0: #0d0d0b;
+  --vx-surface-1: #141310;
+  --vx-surface-2: #1b1915;
+  --vx-surface-3: #242119;
+  --vx-text: #f6f2e8;
+  --vx-text-secondary: #b8b0a0;
+  --vx-text-muted: #948c7d;
+  --vx-silver: #d8d3c7;
+  --vx-titanium: #aaa497;
+  --vx-signal: #d7a94a;
+  --vx-signal-bright: #f2c76b;
+  --vx-positive: #50c992;
+  --vx-negative: #ef6f6c;
+  --vx-warning: #f0c36a;
+  --vx-option: #a88ae8;
+  --vx-macro: #6bc5bc;
 }
 ```
 
@@ -49,7 +51,7 @@ Le gris plus faible que `--vx-text-muted` n'est autorisé que pour décorations 
 ## Mise en page
 
 - largeur utile maximale 1600 px ;
-- rail desktop 232 px rétractable à 68 px ;
+- rail desktop 248 px rétractable à 68 px ;
 - grille 12 colonnes, gap 16–20 px ;
 - un visuel dominant occupe 6 à 8 colonnes ;
 - trois à cinq modules par page ;
@@ -67,6 +69,7 @@ Radix Primitives apporte le comportement accessible ; Vertex fournit tous les st
 - une couleur = une signification ;
 - jamais couleur seule : texte, icône ou motif ;
 - verre discret, pas de blur généralisé ;
+- le signal ambre n'exprime jamais une hausse, un score ou une validation ;
 - gradients réservés à sélection/action principale ;
 - jauges uniquement linéaires/segmentées, nommées et sourcées ; aucun cadran décoratif ou score opaque ;
 - animations 140–220 ms et désactivables ;

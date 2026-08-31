@@ -7,7 +7,7 @@ worker publishes (``vertex_worker.analysis.build_analysis_content``).
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi import FastAPI
@@ -15,11 +15,14 @@ from fastapi.testclient import TestClient
 from snapshot_fakes import FakeSnapshotReader, synthetic_session
 
 from vertex_api.auth import require_session
-from vertex_api.snapshot_reader import get_snapshot_reader
+from vertex_api.snapshot_reader import get_clock, get_snapshot_reader
 from vertex_api.snapshot_views import SnapshotContentError, build_analysis_response
 from vertex_persistence.repository.snapshots import CurrentSnapshot
 
 AS_OF = datetime(2026, 8, 25, 12, 0, 0, tzinfo=UTC)
+
+#: Horloge du relais, injectée (voir test_today_attention.py).
+_NOW = AS_OF + timedelta(minutes=30)
 INSTRUMENT = "SYN-TECH-01"
 
 
@@ -144,6 +147,10 @@ def reader() -> FakeSnapshotReader:
 def analysis_client(app: FastAPI, reader: FakeSnapshotReader) -> TestClient:
     app.dependency_overrides[require_session] = synthetic_session
     app.dependency_overrides[get_snapshot_reader] = lambda: reader
+    # Horloge FIXE : sans elle, le relais mesurerait l'âge de l'instantané
+    # contre l'heure réelle et le déclarerait périmé quelques jours après
+    # l'écriture de ce test, sans qu'aucun code ait changé.
+    app.dependency_overrides[get_clock] = lambda: (lambda: _NOW)
     client = TestClient(app)
     try:
         yield client
@@ -191,25 +198,27 @@ def test_published_dossier_is_relayed_verbatim(
 
 def test_snapshot_for_another_instrument_is_refused() -> None:
     with pytest.raises(SnapshotContentError):
-        build_analysis_response(snapshot(analysis_content()), instrument="SYN-TECH-02")
+        build_analysis_response(
+            snapshot(analysis_content()), instrument="SYN-TECH-02", now=_NOW
+        )
 
 
 def test_non_canonical_advice_status_is_refused() -> None:
     content = analysis_content()
     content["advice"]["status"] = "APPROVED"  # not a canonical AdviceStatus
     with pytest.raises(SnapshotContentError):
-        build_analysis_response(snapshot(content), instrument=INSTRUMENT)
+        build_analysis_response(snapshot(content), instrument=INSTRUMENT, now=_NOW)
 
 
 def test_gate_without_reason_code_is_refused() -> None:
     content = analysis_content()
     del content["advice"]["gates"][0]["reason_code"]
     with pytest.raises(SnapshotContentError):
-        build_analysis_response(snapshot(content), instrument=INSTRUMENT)
+        build_analysis_response(snapshot(content), instrument=INSTRUMENT, now=_NOW)
 
 
 def test_computed_scenarios_must_be_theoretical() -> None:
     content = analysis_content()
     content["scenarios"] = {"status": "OK", "grid": []}  # missing value_nature
     with pytest.raises(SnapshotContentError):
-        build_analysis_response(snapshot(content), instrument=INSTRUMENT)
+        build_analysis_response(snapshot(content), instrument=INSTRUMENT, now=_NOW)

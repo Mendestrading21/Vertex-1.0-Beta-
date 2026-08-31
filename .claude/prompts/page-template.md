@@ -22,12 +22,14 @@ Lis complètement :
 2. `docs/99-status/NOW.md` ;
 3. le lot et la spécification de page ;
 4. `docs/01-product/INFORMATION_ARCHITECTURE.md` ;
-5. `docs/05-design/DESIGN_SYSTEM.md` ;
-6. `docs/05-design/CHART_STANDARD.md` ;
-7. `docs/05-design/RESPONSIVE.md` ;
-8. `docs/05-design/ACCESSIBILITY.md` ;
-9. `docs/05-design/UI_STATES.md` ;
-10. les contrats, ADR et budgets cités par la page.
+5. `.claude/skills/vertex-titanium-ledger/SKILL.md` et les références qu'il
+   route pour la page ;
+6. `docs/05-design/DESIGN_SYSTEM.md` ;
+7. `docs/05-design/CHART_STANDARD.md` ;
+8. `docs/05-design/RESPONSIVE.md` ;
+9. `docs/05-design/ACCESSIBILITY.md` ;
+10. `docs/05-design/UI_STATES.md` ;
+11. les contrats, ADR et budgets cités par la page.
 
 ## Contrat de page
 
@@ -37,6 +39,8 @@ Avant de proposer ou écrire du code, établis une fiche courte :
 - action principale unique ;
 - visuel dominant unique ;
 - trois modules secondaires au maximum hors navigation ;
+- rythme et composition propres à cet écran, sans recopier le bento d'une autre
+  page ;
 - contrats backend consommés ;
 - unités, devise, timezone, source et fraîcheur affichées ;
 - ce que la page ne fait explicitement pas.

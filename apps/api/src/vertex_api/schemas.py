@@ -140,11 +140,18 @@ class AttentionSnapshotResponse(ContractModel):
     ``reason`` says why. ``state = "ok"`` carries the persisted snapshot
     version, ``as_of``, ``population`` (``SYNTHETIC`` shown as-is),
     the full coverage block and the published items.
+
+    ``state = "stale"`` relaie le MÊME contenu, mais dit que l'instantané
+    a dépassé son budget de fraîcheur (news_attention) : le worker n'a rien
+    publié de plus récent. ``age_seconds`` est publié dans TOUS les états
+    datables — son absence faisait passer un instantané de trois jours
+    pour un instantané d'une minute.
     """
 
-    state: Literal["ok", "empty"]
+    state: Literal["ok", "stale", "empty"]
     snapshot_version: PositiveInt | None
     as_of: UtcDatetime | None
+    age_seconds: int | None
     population: NonEmptyStr | None
     coverage: FrozenStrMapping | None
     items: tuple[AttentionItem, ...]
@@ -257,11 +264,18 @@ class MarketsOverviewResponse(ContractModel):
     verbatim: population (``SYNTHETIC`` shown as-is), the worker's own
     ``data_state`` (``ok``/``partial``/``stale``), the deterministic French
     conclusion sentence, sectors/tickers, breadth and the coverage account.
+
+    ``state = "stale"`` relaie le MÊME contenu, mais dit que l'instantané
+    a dépassé son budget de fraîcheur (daily_bar) : le worker n'a rien
+    publié de plus récent. ``age_seconds`` est publié dans TOUS les états
+    datables — son absence faisait passer un instantané de trois jours
+    pour un instantané d'une minute.
     """
 
-    state: Literal["ok", "empty"]
+    state: Literal["ok", "stale", "empty"]
     snapshot_version: PositiveInt | None
     as_of: UtcDatetime | None
+    age_seconds: int | None
     population: NonEmptyStr | None
     data_state: Literal["ok", "partial", "stale"] | None
     unit: NonEmptyStr | None
@@ -297,11 +311,18 @@ class AnalysisResponse(ContractModel):
     - ``scenarios`` is either the ``THEORETICAL`` scenario grid with its
       ``CalculationRecord`` lineage or an honest ``ABSENT`` block with its
       typed reason.
+
+    ``state = "stale"`` relaie le MÊME contenu, mais dit que l'instantané
+    a dépassé son budget de fraîcheur (daily_bar) : le worker n'a rien
+    publié de plus récent. ``age_seconds`` est publié dans TOUS les états
+    datables — son absence faisait passer un instantané de trois jours
+    pour un instantané d'une minute.
     """
 
-    state: Literal["ok", "empty"]
+    state: Literal["ok", "stale", "empty"]
     snapshot_version: PositiveInt | None
     as_of: UtcDatetime | None
+    age_seconds: int | None
     population: NonEmptyStr | None
     instrument: NonEmptyStr
     engine_version: NonEmptyStr | None
@@ -382,11 +403,18 @@ class OptionChainResponse(ContractModel):
     verbatim: population (``SYNTHETIC`` shown as-is), the synthetic spot,
     the pricing assumptions, the per-(expiration, trading_class) groups and
     the displayed row budget.
+
+    ``state = "stale"`` relaie le MÊME contenu, mais dit que l'instantané
+    a dépassé son budget de fraîcheur (option_surface) : le worker n'a rien
+    publié de plus récent. ``age_seconds`` est publié dans TOUS les états
+    datables — son absence faisait passer un instantané de trois jours
+    pour un instantané d'une minute.
     """
 
-    state: Literal["ok", "empty"]
+    state: Literal["ok", "stale", "empty"]
     snapshot_version: PositiveInt | None
     as_of: UtcDatetime | None
+    age_seconds: int | None
     population: NonEmptyStr | None
     underlying: NonEmptyStr
     engine_version: NonEmptyStr | None
@@ -468,11 +496,18 @@ class SystemCapabilitiesResponse(ContractModel):
     (``None`` when never published). ``unknown_probed_capability_ids`` lists
     probed ids absent from the manifest — never silently dropped, never
     merged into the declared set. ``checked_at`` is the response instant.
+
+    ``age_seconds`` dit depuis combien de temps cette matrice a été publiée.
+    Aucun état ``stale`` n'est ajouté ici et ce n'est PAS un oubli : la
+    péremption d'une capacité est portée champ par champ par le
+    ``expires_at`` de la sonde qui l'a établie. Déclarer un budget de relais
+    pour cette famille inventerait un TTL que le registre ne contient pas.
     """
 
     checked_at: UtcDatetime
     snapshot_version: PositiveInt | None
     as_of: UtcDatetime | None
+    age_seconds: int | None
     total: Annotated[int, Field(ge=0)]
     capabilities: tuple[CapabilityStatusEntry, ...]
     unknown_probed_capability_ids: tuple[NonEmptyStr, ...]

@@ -190,6 +190,26 @@ def test_bars_are_relayed_verbatim_with_last_close() -> None:
 
 
 @pytest.mark.parametrize(
+    ("age", "expected_fresh", "expected_reason"),
+    [
+        (timedelta(hours=48), True, "FRESH_AND_COHERENT"),
+        (timedelta(hours=48, seconds=1), False, "STALE_SNAPSHOT"),
+        (timedelta(hours=71), False, "STALE_SNAPSHOT"),
+        (timedelta(seconds=-1), False, "STALE_SNAPSHOT"),
+    ],
+)
+def test_freshness_gate_uses_the_declared_48h_window(
+    age: timedelta, expected_fresh: bool, expected_reason: str
+) -> None:
+    content = build([bars_record(as_of=NOW - age)])
+    bars_block = content["bars"]
+    assert bars_block["age_seconds"] == int(age.total_seconds())
+    assert bars_block["fresh"] is expected_fresh
+    gates = {gate["gate_id"]: gate for gate in content["advice"]["gates"]}
+    assert gates["snapshot_fresh_and_coherent"]["reason_code"] == expected_reason
+
+
+@pytest.mark.parametrize(
     "bad",
     [
         bar("2026-08-23", "100.00", "99.00", "98.00", "100.00"),  # high < max(o,c)

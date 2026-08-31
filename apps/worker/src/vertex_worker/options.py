@@ -107,7 +107,11 @@ newly written option-chain observation."""
 SNAPSHOT_KIND_OPTION_CHAIN = "option_chain"
 OPTION_CHAIN_SCHEMA_VERSION = "vertex.option-chain/1.0"
 
-OPTION_CHAIN_SCHEMA_PREFIXES: tuple[str, ...] = ("synthetic-option-chain/",)
+OPTION_CHAIN_SCHEMA_PREFIXES: tuple[str, ...] = (
+    "synthetic-option-chain/",
+    # Source REELLE : meme raison que pour les cotations.
+    "ibkr.option-chain/",
+)
 """Schema families recognized as option chains (extensible; deny by default)."""
 
 VALUE_NATURE_THEORETICAL = "THEORETICAL"

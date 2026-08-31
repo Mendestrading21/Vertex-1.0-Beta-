@@ -30,7 +30,7 @@ Everything below is SYNTHETIC and reaches nothing but the pure builders.
 from __future__ import annotations
 
 import re
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -500,6 +500,11 @@ from vertex_persistence.repository.snapshots import CurrentSnapshot  # noqa: E40
 
 AS_OF_FOR_RELAY_TESTS = datetime(2026, 8, 25, 12, 0, 0, tzinfo=UTC)
 
+#: Horloge du relais, injectée (voir test_today_attention.py) : une horloge
+#: RÉELLE rendrait l'instantané périmé au fil des jours et ferait échouer ces
+#: tests sans qu'aucun comportement ait changé.
+_NOW = AS_OF_FOR_RELAY_TESTS + timedelta(minutes=30)
+
 
 def _snapshot(content: dict) -> CurrentSnapshot:
     """Snapshot SYNTHETIC minimal, tel que le lit un builder de relais."""
@@ -514,11 +519,11 @@ def _snapshot(content: dict) -> CurrentSnapshot:
 
 
 def _analysis(content: dict):
-    return build_analysis_response(_snapshot(content), instrument=INSTRUMENT)
+    return build_analysis_response(_snapshot(content), instrument=INSTRUMENT, now=_NOW)
 
 
 def _markets(content: dict):
-    return build_markets_overview_response(_snapshot(content))
+    return build_markets_overview_response(_snapshot(content), now=_NOW)
 
 
 # --- 1. le vocabulaire est bien fermé, mais il ne PROUVE rien --------------
