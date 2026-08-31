@@ -68,7 +68,7 @@ const ROUTES = [
   '/follow-up',
   '/performance',
   '/ai',
-  '/system',
+  '/sources-reports',
 ] as const;
 
 async function expectNoWcagViolation(page: Page): Promise<void> {

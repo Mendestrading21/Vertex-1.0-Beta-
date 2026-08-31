@@ -4,7 +4,7 @@ import type { CapabilityEntry, SourceCapabilityStatus } from '../api/client.ts';
 import { StatusBadge } from '../components/StatusBadge.tsx';
 
 /**
- * Visuel dominant de la page Système : matrice de santé des sources.
+ * Visuel dominant de la page Sources & Rapports : matrice de santé des sources.
  *
  * Table accessible (caption, th scope) des capacités déclarées croisées avec
  * les sondes réellement persistées. Les lignes affichées sont EXACTEMENT les

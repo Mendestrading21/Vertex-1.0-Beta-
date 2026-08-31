@@ -39,7 +39,7 @@ ont le même propriétaire et la même preuve.
 | 21 | `apps/web/src/pages/simulator/` | scenario pricer/multileg lab | page Simulateur complète |
 | 22 | `apps/web/src/pages/portfolio/` | portefeuille/positions manuels | page Portefeuille complète |
 | 23 | `apps/web/src/pages/follow-up/`, `performance/` | tracking/performance | Suivi et Performance sans mélange réel/théorique |
-| 24 | `apps/web/src/pages/vertex-ai/`, `system/` | AI gateway/health/audits | explication sourcée et page Système exhaustive |
+| 24 | `apps/web/src/pages/vertex-ai/`, `system/` | AI gateway/health/audits | explication sourcée et page Sources & Rapports exhaustive |
 | 25 | `tests/`, `infra/`, release | tests et scripts donneurs sélectionnés | qualification, restauration, soak et RC bureau |
 
 ## Cycle de chaque dossier

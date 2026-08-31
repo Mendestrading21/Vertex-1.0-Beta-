@@ -8,7 +8,7 @@ import { ALL_PAGES } from './pages.ts';
 const INSTALLED_KEYS = new Set([
   'today',
   'markets',
-  'system',
+  'sources-reports',
   'options',
   'analysis',
   'simulator',
@@ -79,6 +79,24 @@ describe('routes — paramètres optionnels arbitrés', () => {
     expect(
       await screen.findByRole('heading', { level: 1, name: 'Simulateur' }),
     ).toBeDefined();
+  });
+});
+
+describe('routes — destinations absorbées (docs/05-design/PAGE_ARBITRATION.md)', () => {
+  // Règle 5 de l'arbitrage : une route retirée est remplacée par une
+  // redirection permanente, jamais par un 404. Sans ce test, la redirection
+  // n'est pas prouvée et un signet existant casserait en silence.
+  it('/system redirige durablement vers /sources-reports', () => {
+    const { router } = renderApp('/system');
+    expect(router.state.location.pathname).toBe('/sources-reports');
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'Sources & Rapports' }),
+    ).toBeDefined();
+  });
+
+  it("l'ancienne adresse ne laisse pas d'entrée dans l'historique (replace)", () => {
+    const { router } = renderApp('/system');
+    expect(router.state.historyAction).toBe('REPLACE');
   });
 });
 

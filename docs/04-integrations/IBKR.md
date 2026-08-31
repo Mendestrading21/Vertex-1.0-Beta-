@@ -50,7 +50,7 @@ Chaque observation porte `con_id`, `connection_epoch`, `market_data_type`, `obse
 - WSH : abonnement Corporate Event Data requis, une demande concurrente à la fois ;
 - événements : résultats, dividendes, expirations, splits, spinoffs et conférences selon couverture.
 
-La page Système affiche séparément droits TWS UI, droits API réellement testés, données retardées et capacités absentes.
+La page Sources & Rapports affiche séparément droits TWS UI, droits API réellement testés, données retardées et capacités absentes.
 
 ## Documentation officielle à conserver
 

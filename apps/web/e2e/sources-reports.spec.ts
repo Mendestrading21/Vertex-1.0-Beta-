@@ -7,9 +7,9 @@ import { expect, expectNoSeriousAxeViolations, screenshotPath, test } from './fi
 
 const EXPECTED_TOTAL = 14;
 
-test.describe('Page Système — SourceHealthMatrix', () => {
+test.describe('Page Sources & Rapports — SourceHealthMatrix', () => {
   test('matrice complète : 14 lignes exactes, badges, zéro cellule vide', async ({ page }) => {
-    await page.goto('/system');
+    await page.goto('/sources-reports');
     const table = page.getByRole('table');
     await expect(table).toBeVisible();
 
@@ -50,7 +50,7 @@ test.describe('Page Système — SourceHealthMatrix', () => {
   });
 
   test('filtres famille/statut : compteurs cohérents et persistance URL', async ({ page }) => {
-    await page.goto('/system');
+    await page.goto('/sources-reports');
     const table = page.getByRole('table');
     await expect(table.locator('tbody tr')).toHaveCount(EXPECTED_TOTAL);
 
@@ -75,7 +75,7 @@ test.describe('Page Système — SourceHealthMatrix', () => {
   });
 
   test('santé des composants et accessibilité (axe) + capture', async ({ page }, testInfo) => {
-    await page.goto('/system');
+    await page.goto('/sources-reports');
     await expect(page.getByRole('table')).toBeVisible();
 
     // Modules secondaires : santé db/snapshots/worker avec la limitation

@@ -21,6 +21,24 @@ describe('AppShell — landmarks et lien d’évitement', () => {
     expect(main.getAttribute('data-ledger-code')).toBe('TL / 07');
   });
 
+  // Garde-fou d'absorption : à chaque renommage de destination
+  // (docs/05-design/PAGE_ARBITRATION.md) une clé oubliée dans
+  // LEDGER_CODE_BY_PAGE ne casse rien — la signature retombe en silence sur
+  // « TL / — ». C'est arrivé au LOT-07 avec `system`. Ce test rend la
+  // régression bruyante pour les absorptions suivantes.
+  it('aucune page du rail ne retombe sur la signature de repli « TL / — »', () => {
+    const sansSignature: string[] = [];
+    for (const page of ALL_PAGES) {
+      const { unmount } = renderApp(page.navPath);
+      const code = screen.getByRole('main').getAttribute('data-ledger-code');
+      if (code === null || code === 'TL / —') {
+        sansSignature.push(page.key);
+      }
+      unmount();
+    }
+    expect(sansSignature).toEqual([]);
+  });
+
   it('le lien d’évitement pointe vers le contenu principal', () => {
     renderApp('/today');
     const skipLink = screen.getByRole('link', { name: 'Aller au contenu principal' });
@@ -149,7 +167,7 @@ describe('NavRail — navigation clavier (flèches + Entrée)', () => {
     renderApp('/today');
     const nav = screen.getByRole('navigation', { name: 'Navigation principale' });
     const toggle = within(nav).getByRole('button', { name: 'Réduire la navigation' });
-    const lastLink = within(nav).getByRole('link', { name: 'Système' });
+    const lastLink = within(nav).getByRole('link', { name: 'Sources & Rapports' });
 
     toggle.focus();
     await user.keyboard('{End}');

@@ -6,7 +6,7 @@ import { DataStateBoundary } from '../components/DataStateBoundary.tsx';
 import { NotFoundPage } from '../components/NotFoundPage.tsx';
 import { NotInstalledPage } from '../components/NotInstalledPage.tsx';
 import { AuthPage } from '../pages/AuthPage.tsx';
-import { SystemPage } from '../pages/SystemPage.tsx';
+import { SourcesReportsPage } from '../pages/SourcesReportsPage.tsx';
 import { TodayPage } from '../pages/TodayPage.tsx';
 import { AppShell } from '../shell/AppShell.tsx';
 import { ALL_PAGES, DEFAULT_PATH } from './pages.ts';
@@ -17,8 +17,8 @@ import type { PageDef } from './pages.ts';
  * installé » que lorsque ses routes, données, états et tests existent
  * (docs/07-delivery/FOLDER_BY_FOLDER_PROGRAM.md). Pages réelles installées :
  * Aujourd'hui (/today), Marchés (/markets), Options (/options/:underlying?),
- * Analyse (/analysis/:instrument?), Simulateur (/simulator) et Système
- * (/system), plus la page d'accès /auth (hors rail — elle n'est pas une page
+ * Analyse (/analysis/:instrument?), Simulateur (/simulator) et Sources &
+ * Rapports (/sources-reports), plus la page d'accès /auth (hors rail — pas une page
  * produit du blueprint). Vague 4 : Portefeuille (/portfolio), Suivi
  * (/follow-up) et Performance (/performance). Vague finale : Calendrier
  * (/calendar), Opportunités (/opportunities) et Vertex IA (/ai) — les 12
@@ -170,7 +170,7 @@ function AiRoute() {
 const INSTALLED_PAGES: Readonly<Record<string, () => React.JSX.Element>> = {
   today: TodayPage,
   markets: MarketsRoute,
-  system: SystemPage,
+  'sources-reports': SourcesReportsPage,
   options: OptionsRoute,
   analysis: AnalysisRoute,
   simulator: SimulatorRoute,
@@ -192,6 +192,20 @@ export const AUTH_PAGE: PageDef = {
   lot: 'LOT-14',
 };
 
+/**
+ * Anciennes routes → destination absorbée, d'après
+ * `docs/05-design/PAGE_ARBITRATION.md`.
+ *
+ * `/system` est devenu `/sources-reports` : la page portait déjà la santé des
+ * quatorze sources, la cible y ajoute lignage, incidents et rapports. La route
+ * API `/api/v1/system/capabilities` ne bouge PAS — seule la composition
+ * d'interface change, et `.claude/rules/architecture.md` interdit de déplacer
+ * une responsabilité serveur sans ADR.
+ */
+const LEGACY_REDIRECTS: ReadonlyArray<readonly [string, string]> = [
+  ['/system', '/sources-reports'],
+];
+
 export function buildRouteObjects(): RouteObject[] {
   return [
     {
@@ -207,6 +221,12 @@ export function buildRouteObjects(): RouteObject[] {
           };
         }),
         { path: AUTH_PAGE.routePath, element: <AuthPage />, handle: { page: AUTH_PAGE } },
+        // Redirections des destinations ABSORBÉES (docs/05-design/PAGE_ARBITRATION.md).
+        // Une route retirée sans redirection casserait un signet ou un lien
+        // profond existant : la règle 5 du document d'arbitrage l'interdit.
+        ...LEGACY_REDIRECTS.map(
+          ([from, to]): RouteObject => ({ path: from, element: <Navigate to={to} replace /> }),
+        ),
         { path: '*', element: <NotFoundPage /> },
       ],
     },

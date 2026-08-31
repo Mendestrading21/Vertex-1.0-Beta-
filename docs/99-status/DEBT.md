@@ -519,3 +519,26 @@ chemin de fraîcheur avec un lot de démarrage.
   `os_kernel`, `browser_version`, `viewport` et `device_pixel_ratio`, et un
   test balaie le manifeste réel : aucun profil à autorité absolue ne peut
   désormais se passer de décrire sa machine.
+
+## Trouvé au LOT-07 (2026-08-31)
+
+- **`LEDGER_CODE_BY_PAGE` retombait en silence sur `TL / —`** — **FERMÉ dans le
+  même lot.** Renommer la clé de page `system` en `sources-reports` a laissé
+  `apps/web/src/shell/AppShell.tsx` indexé sur l'ancienne clé ; la signature
+  Titanium Ledger de la page basculait sur son repli sans qu'aucun des 397 tests
+  ne bronche — le seul test existant vérifiait `/markets`. Corrigé, et un
+  garde-fou balaie désormais **les douze** pages du rail : aucune ne peut
+  retomber sur `TL / —`. Falsifié (remettre la clé `system` fait rougir
+  `expected [ 'sources-reports' ] to deeply equal []`). Les trois absorptions
+  suivantes passeront par cette porte.
+- **L'ordre des signatures `TL / NN` diverge des planches canoniques**
+  — **OUVERT**, hors périmètre du LOT-07. Les planches du skill imposent
+  `01 today, 02 markets, 03 opportunities, 04 analysis, 05 options,
+  06 simulator, 07 portfolio, 08 charts, 09 risks, 10 catalysts, 11 calendar,
+  12 sources-reports`. `AppShell.tsx` porte aujourd'hui `02 opportunities,
+  03 analysis, 04 options, 05 simulator, 06 calendar, 07 markets` — six codes
+  attribués à d'autres destinations. Ce n'est pas une régression de ce lot :
+  l'écart préexiste. Il ne peut pas non plus se corriger avant que Graphiques,
+  Risques et Catalyseurs existent, faute de quoi `08`, `09` et `10` désigneraient
+  des pages absentes. À traiter dans la refonte Titanium Ledger, après les
+  créations.

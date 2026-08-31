@@ -11,13 +11,23 @@ import { SyntheticBanner } from '../components/SyntheticBanner.tsx';
 import { SourceHealthMatrix } from './SourceHealthMatrix.tsx';
 
 /**
- * Page Système — question : « Puis-je faire confiance aux sources,
+ * Page Sources & Rapports — question : « Puis-je faire confiance aux sources,
  * traitements et sauvegardes maintenant ? »
+ *
+ * Destination du blueprint qui ABSORBE l'ancienne page Système
+ * (docs/05-design/PAGE_ARBITRATION.md) : la question et les capacités livrées
+ * sont inchangées, seule l'identité de destination l'est. Le lignage, les
+ * incidents et les rapports que la cible doit encore recevoir ne sont PAS
+ * simulés ici — ils resteront absents tant qu'ils ne seront pas réels.
  *
  * Visuel dominant unique : la matrice de santé des sources. Modules
  * secondaires : santé des composants (db, snapshots, worker en
  * heartbeat_proxy assumé comme limitation), état du flux SSE et bandeau de
  * population SYNTHETIC lorsqu'une population synthétique est publiée.
+ *
+ * La route API `/v1/system/capabilities` ne bouge PAS : la règle 2 de
+ * l'arbitrage et `.claude/rules/architecture.md` interdisent de déplacer une
+ * responsabilité serveur sans ADR.
  */
 
 const SSE_LABELS: Readonly<Record<SseConnectionState, string>> = {
@@ -93,7 +103,7 @@ function HealthPanel({ health }: { readonly health: SystemHealth }) {
   );
 }
 
-function SystemReady({ data }: { readonly data: SystemCapabilities }) {
+function SourcesReportsReady({ data }: { readonly data: SystemCapabilities }) {
   const attention = useAttention();
   // La nature vient d'une SECONDE requête. Tant qu'elle n'a pas répondu, on ne
   // sait pas encore — ce n'est pas la même chose qu'une nature non déclarée.
@@ -129,14 +139,14 @@ function SystemReady({ data }: { readonly data: SystemCapabilities }) {
   );
 }
 
-export function SystemPage() {
+export function SourcesReportsPage() {
   const capabilities = useCapabilities();
   const state = pageStateOf(capabilities);
 
   return (
-    <article className="vx-page" aria-labelledby="vx-page-title-system">
+    <article className="vx-page" aria-labelledby="vx-page-title-sources-reports">
       <div className="vx-page-header">
-        <h1 id="vx-page-title-system">Système</h1>
+        <h1 id="vx-page-title-sources-reports">Sources &amp; Rapports</h1>
         <p className="vx-page-question">
           Puis-je faire confiance aux sources, traitements et sauvegardes maintenant ?
         </p>
@@ -151,7 +161,7 @@ export function SystemPage() {
             ? { asOfLabel: `vérifié à ${capabilities.data.checked_at}` }
             : {})}
         >
-          {capabilities.data !== undefined ? <SystemReady data={capabilities.data} /> : null}
+          {capabilities.data !== undefined ? <SourcesReportsReady data={capabilities.data} /> : null}
         </DataStateBoundary>
       ) : (
         <DataStateBoundary

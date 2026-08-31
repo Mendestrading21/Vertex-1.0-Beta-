@@ -12,7 +12,7 @@ import { installSessionIsolation } from './api/sessionIsolation.ts';
 import { buildRouteObjects } from './app/routes.tsx';
 
 /**
- * Client React Query du shell. Les pages installées (Aujourd'hui, Système)
+ * Client React Query du shell. Les pages installées (Aujourd'hui, Sources & Rapports)
  * consomment les snapshots bornés de l'API locale ; l'abonnement SSE
  * signal-only invalide les clés de requête ciblées quand une tête de
  * snapshot change (le flux ne porte jamais la donnée).

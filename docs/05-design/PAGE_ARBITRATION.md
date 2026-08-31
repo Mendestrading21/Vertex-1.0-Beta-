@@ -68,3 +68,13 @@ Le **contenu** des deux pages à créer. Graphiques et Risques n'ont aujourd'hui
 ni contrat, ni endpoint, ni donnée : leur composition se décide à leur lot, à
 partir de leur planche canonique et des données réellement disponibles — jamais
 en remplissant une maquette avec ce qui n'existe pas.
+
+## Journal d'exécution
+
+| Date | Ligne arbitrée | Ce qui a été fait | Preuve |
+|---|---|---|---|
+| 2026-08-31 | `system` → **Sources & Rapports** | Renommage de la destination : clé de page, `navPath`, `routePath`, glyphe du rail, sélecteurs CSS, composant (`SystemPage` → `SourcesReportsPage`), spec e2e (`system.spec.ts` → `sources-reports.spec.ts`) et libellés produit dans `docs/`. Redirection permanente `/system` → `/sources-reports` ajoutée. La route API `/v1/system/capabilities` n'a **pas** bougé (règle 2). | `vitest run` 398 passed ; `playwright test` 405 passed ; `tools/run_checks.sh` TOUT VERT. Redirection falsifiée : en retirant `replace`, `routes.test.tsx` passe à `expected 'PUSH' to be 'REPLACE'`. |
+
+L'`ÉTENDRE` de cette ligne — lignage, incidents et rapports — n'est **pas**
+livré. Il n'est pas non plus simulé : la page affiche exactement les capacités
+qu'elle sait prouver, conformément à l'article 17 de la Constitution.

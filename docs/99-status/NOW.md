@@ -2,7 +2,8 @@
 
 ```yaml
 phase: rattrapage_complet_autorise
-lot: LOT-04 (CI verte), LOT-05 (marque canonique), LOT-06 (arbitrage des pages)
+lot: LOT-04 (CI verte), LOT-05 (marque canonique), LOT-06 (arbitrage des pages),
+     LOT-07 (première absorption : /system → /sources-reports)
 branch: codex/vertex-rattrapage-complet-20260831
 status: ci_reparee_puis_execution_en_cours_sans_fusion_automatique
 last_good_commit: bdf9f306 (= origin/main, CI 7/7 verte)
@@ -18,13 +19,23 @@ lots_de_cette_session:
      de currentColor. L'écart a disparu des target_gaps du script d'audit."
   - "LOT-06 — table d'arbitrage actuel → cible → décision, exigée par le skill
      avant tout renommage ou fusion. Décision humaine : ABSORBER."
+  - "LOT-07 — première ligne de la table exécutée : la destination `system`
+     devient Sources & Rapports. Renommage complet (clé, routes, glyphe, CSS,
+     composant, spec e2e, libellés docs) plus une redirection permanente
+     /system → /sources-reports. La route API /v1/system/capabilities n'a PAS
+     bougé : règle 2 de l'arbitrage. Le volet ÉTENDRE (lignage, incidents,
+     rapports) n'est ni livré ni simulé."
 mesures_de_cette_session:
-  - "playwright : 405 passed (5,7 min) — le job CI qui était rouge"
-  - "vitest : 395 passed / 30 fichiers ; tsc 0 ; biome 0 (131 fichiers)"
+  - "playwright : 405 passed (5,7 min) — le job CI qui était rouge ; recampagne
+     après LOT-07 : 405 passed, même total (spec renommée, pas supprimée)"
+  - "vitest : 398 passed / 30 fichiers ; tsc 0 ; biome 0 (127 fichiers) — mesuré
+     après LOT-07 : +2 tests de redirection, +1 garde-fou de signature TL"
   - "pytest : 3766 passed, 4 skipped — mesuré sur 35d48cb"
   - "run_checks.sh : TOUT VERT"
   - "audit_titanium_ledger.py : empreinte canonique vérifiée, 2 écarts restants
      (catalysts absent, 4 routes à absorber) — tous deux décisionnels"
+  - "falsification LOT-07 : `Navigate` sans `replace` fait rougir
+     routes.test.tsx avec `expected 'PUSH' to be 'REPLACE'`"
 
 active_work:
   - "commande utilisateur reçue : EXÉCUTE VERTEX RATTRAPAGE COMPLET"

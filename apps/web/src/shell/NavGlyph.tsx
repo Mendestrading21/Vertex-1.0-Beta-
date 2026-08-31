@@ -27,7 +27,7 @@ const GLYPH_BY_PAGE: Readonly<Record<string, string>> = {
   'follow-up': thesisActiveUrl,
   performance: auditTraceUrl,
   ai: evidenceRailUrl,
-  system: sourceCoverageUrl,
+  'sources-reports': sourceCoverageUrl,
 };
 
 export interface NavGlyphProps {

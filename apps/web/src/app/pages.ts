@@ -141,10 +141,10 @@ const vertexAi: PageDef = {
 };
 
 const system: PageDef = {
-  key: 'system',
-  title: 'Système',
-  navPath: '/system',
-  routePath: '/system',
+  key: 'sources-reports',
+  title: 'Sources & Rapports',
+  navPath: '/sources-reports',
+  routePath: '/sources-reports',
   question: 'Puis-je faire confiance aux sources, traitements et sauvegardes maintenant ?',
   lot: 'LOT-24',
 };
