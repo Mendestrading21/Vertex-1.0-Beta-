@@ -3,6 +3,7 @@ import type { KeyboardEvent } from 'react';
 import { NavLink } from 'react-router-dom';
 
 import { NAV_GROUPS } from '../app/pages.ts';
+import { BrandMark } from './BrandMark.tsx';
 import { NavGlyph } from './NavGlyph.tsx';
 
 export interface NavRailProps {
@@ -65,13 +66,8 @@ export function NavRail({ collapsed, onToggle }: NavRailProps) {
           aria-label="Vertex 1.0 Beta, thème Titanium Ledger"
         >
           <span className="vx-brand-mark" aria-hidden="true">
-            <span className="vx-brand-monogram">VX</span>
+            <BrandMark />
           </span>
-          {!collapsed && (
-            <span className="vx-rail-wordmark" aria-hidden="true">
-              Vertex <small>Titanium Ledger</small>
-            </span>
-          )}
         </span>
         <button
           type="button"

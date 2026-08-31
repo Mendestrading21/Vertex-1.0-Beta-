@@ -3656,14 +3656,21 @@ body {
   transform: rotate(32deg);
 }
 
-.vx-brand-monogram {
+/* Marque facettée : le contrat canonique interdit le monogramme `VX` et tout
+   texte adjacent. Le masque hérite de la couleur, donc la marque reste lisible
+   en monochrome comme l'exige `canonical-visual.md`. */
+.vx-brand-facet {
   position: relative;
   z-index: 1;
-  font-family: var(--vx-font-mono);
-  font-size: var(--vx-font-size-label);
-  font-weight: 780;
-  letter-spacing: -0.13em;
-  transform: translateX(-1px) skewX(-8deg);
+  width: 22px;
+  height: 22px;
+  background-color: currentcolor;
+  mask-repeat: no-repeat;
+  mask-position: center;
+  mask-size: contain;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  -webkit-mask-size: contain;
 }
 
 .vx-rail-wordmark {
