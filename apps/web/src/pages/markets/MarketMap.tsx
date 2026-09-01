@@ -110,8 +110,20 @@ export function MarketMap({ sectors, visibleGroups, description }: MarketMapProp
                 nodeClick: false,
                 breadcrumb: { show: false },
                 animation: false,
-                width: '100%',
-                height: '100%',
+                /*
+                  ANCRAGE AUX QUATRE BORDS, et non `width/height: '100%'`.
+                  Mesuré : avec les pourcentages, la carte dépassait son
+                  canevas — les tuiles du bas (« SYN-TECH-03 », les services
+                  publics) étaient COUPÉES par `overflow: hidden` du cadre.
+                  Une tuile tronquée, sur une carte dont la surface EST la
+                  donnée, fausse la lecture : le lecteur ne voit pas qu'un
+                  instrument manque. Les quatre bords se re-résolvent à chaque
+                  `resize()`, donc la carte tient toujours dans son cadre.
+                */
+                left: 0,
+                top: 0,
+                right: 0,
+                bottom: 0,
                 itemStyle: {
                   borderColor: cssToken('--vx-surface-0'),
                   borderWidth: 1,

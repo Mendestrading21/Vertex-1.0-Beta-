@@ -1311,32 +1311,34 @@ body {
   display: grid;
   grid-template-columns: minmax(0, 2fr) minmax(280px, 0.72fr);
   align-items: start;
-  gap: var(--vx-space-20);
+  /* Gouttière canonique 12–16 px. Elle valait 20 px. */
+  gap: var(--vx-space-12);
 }
 
+/* V3 — `.vx-today-primary` ne porte PLUS de surface : la carte en porte une,
+   et une seule. Cette classe ne sert plus qu'à la composition (placement dans
+   la grille), jamais à l'apparence — c'est exactement le contrat de
+   `Card.className`. */
 .vx-today-primary {
   min-width: 0;
-  padding: var(--vx-space-24);
-  border: 1px solid var(--vx-border);
-  border-radius: var(--vx-radius-18);
-  background: var(--vx-surface-0);
-  box-shadow: var(--vx-shadow-panel), var(--vx-shadow-inset);
 }
 
+/* Même tête que `.vx-card-head` : espaces, filet, alignement. Deux têtes de
+   panneau qui ne respirent pas pareil, c'est deux styles. */
 .vx-panel-head {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
-  gap: var(--vx-space-24);
-  margin-bottom: var(--vx-space-20);
-  padding-bottom: var(--vx-space-16);
+  gap: var(--vx-space-16);
+  margin-bottom: var(--vx-space-12);
+  padding-bottom: var(--vx-space-12);
   border-bottom: 1px solid var(--vx-border-soft);
 }
 
 .vx-panel-head h2 {
   margin: 0;
-  font-size: var(--vx-font-size-display);
-  font-weight: 650;
+  font-size: var(--vx-font-size-title);
+  font-weight: 620;
   letter-spacing: -0.02em;
 }
 
@@ -1358,34 +1360,18 @@ body {
   text-transform: uppercase;
 }
 
+/* V3 — le rail n'est plus une surface : c'est une PILE de cartes `quiet`.
+   Il portait auparavant sa propre bordure, son fond et son ombre AUTOUR de
+   deux sections qui en avaient déjà : une surface dans une surface, que le
+   contrat canonique refuse (« les cartes ne doivent pas devenir des
+   bulles »). */
 .vx-snapshot-rail {
   position: sticky;
-  top: calc(var(--vx-space-48) + var(--vx-space-40));
+  top: var(--vx-space-16);
   display: flex;
   min-width: 0;
   flex-direction: column;
-  gap: var(--vx-space-16);
-  padding: var(--vx-space-20);
-  border: 1px solid var(--vx-border-soft);
-  border-radius: var(--vx-radius-18);
-  background: var(--vx-surface-1);
-  box-shadow: var(--vx-shadow-inset);
-}
-
-.vx-snapshot-rail h2,
-.vx-snapshot-rail h3 {
-  margin: 0;
-  font-size: var(--vx-font-size-title);
-  font-weight: 600;
-}
-
-.vx-snapshot-rail-section + .vx-snapshot-rail-section {
-  padding-top: var(--vx-space-16);
-  border-top: 1px solid var(--vx-border-soft);
-}
-
-.vx-snapshot-rail-section h2 {
-  margin-bottom: var(--vx-space-12);
+  gap: var(--vx-space-12);
 }
 
 .vx-snapshot-rail-facts {
@@ -1639,12 +1625,23 @@ body {
 /* Page Marchés — cadre graphique (ChartFrame), carte, table, breadth  */
 /* ------------------------------------------------------------------ */
 
+/* V3 — LE CADRE GRAPHIQUE REJOINT LA GÉOMÉTRIE DE LA CARTE.
+   Il est la deuxième surface la plus utilisée du produit — Marchés, Analyse,
+   Simulateur, Portefeuille — et il portait sa PROPRE géométrie : 24 px
+   d'espace interne quand la carte en a 16, un rayon de 18 px quand tout le
+   reste est à 10, une tête à 20 px de marge quand la carte est à 12. Trois
+   écarts invisibles un par un, qui suffisaient à ce que deux pages voisines ne
+   se ressemblent pas.
+   Il ne devient pas une `Card` en JSX — sa tête porte une question, une
+   légende et un filtre que la primitive n'a pas — mais il en adopte la
+   géométrie. C'est le même style, décliné selon la page, et non une seconde
+   apparence. */
 .vx-chartframe {
-  padding: var(--vx-space-24);
+  padding: var(--vx-space-16);
   overflow: hidden;
   background: var(--vx-surface-0);
   border: 1px solid var(--vx-border);
-  border-radius: var(--vx-radius-18);
+  border-radius: var(--vx-radius-10);
   box-shadow: var(--vx-shadow-panel), var(--vx-shadow-inset);
 }
 
@@ -1652,8 +1649,8 @@ body {
   display: flex;
   flex-direction: column;
   gap: var(--vx-space-4);
-  margin-bottom: var(--vx-space-20);
-  padding-bottom: var(--vx-space-16);
+  margin-bottom: var(--vx-space-12);
+  padding-bottom: var(--vx-space-12);
   border-bottom: 1px solid var(--vx-border-soft);
 }
 
@@ -1673,12 +1670,12 @@ body {
 .vx-chartframe-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--vx-space-8) var(--vx-space-24);
-  margin: 0 0 var(--vx-space-16);
-  padding: var(--vx-space-12) var(--vx-space-16);
+  gap: var(--vx-space-8) var(--vx-space-20);
+  margin: 0 0 var(--vx-space-12);
+  padding: var(--vx-space-8) var(--vx-space-12);
   background: var(--vx-surface-1);
   border: 1px solid var(--vx-border-soft);
-  border-radius: var(--vx-radius-14);
+  border-radius: var(--vx-radius-6);
   box-shadow: var(--vx-shadow-inset);
   font-size: var(--vx-font-size-meta);
 }
@@ -1762,7 +1759,10 @@ body {
 
 .vx-marketmap-canvas {
   width: 100%;
-  height: 420px;
+  /* La dominante de Marchés respire : le contrat canonique veut « une grande
+     dominante » et 22 instruments répartis en six secteurs ne se lisent pas
+     dans 420 px. Bornée haut et bas pour rester une carte, pas une page. */
+  height: clamp(420px, 42vh, 560px);
   border: 1px solid var(--vx-border-soft);
   border-radius: var(--vx-radius-10);
   background: var(--vx-surface-0);
@@ -2873,9 +2873,10 @@ body {
 
 .vx-pf-bar-row {
   display: grid;
-  grid-template-columns: 120px 1fr 160px;
+  grid-template-columns: 120px minmax(0, 1fr) 140px;
   align-items: center;
   gap: var(--vx-space-12);
+  min-width: 0;
   margin-bottom: var(--vx-space-4);
 }
 
@@ -3429,10 +3430,18 @@ body {
   overflow-wrap: anywhere;
 }
 
+/* V3 — le poids exact ne déborde plus de sa ligne, et n'écrase plus la barre.
+   Le rendu était `word-break: break-all` sur une colonne de 160 px : une
+   chaîne de 28 décimales s'y étalait sur trois lignes, la ligne de barre
+   faisait 60 px de haut, et l'œil ne comparait plus rien.
+   Le texte est désormais borné à une ligne, tronqué par `text-overflow`. La
+   troncature est un fait de RENDU, pas un arrondi : aucune valeur nouvelle
+   n'est fabriquée. La chaîne complète reste au survol (`title`), dans le nom
+   accessible de la ligne, et dans la table équivalente juste dessous. */
 .vx-pf-bar-value {
-  /* Poids serveur exact (long décimal insécable) : coupure autorisée pour ne
-     jamais déborder la colonne fixe de la barre ni créer un scroll de page. */
-  word-break: break-all;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 /* ------------------------------------------------------------------ */
@@ -4060,22 +4069,11 @@ body {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .vx-today-primary {
-    padding: var(--vx-space-20);
-  }
-
   .vx-snapshot-rail {
     position: static;
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     align-items: start;
-  }
-
-  .vx-snapshot-rail-section + .vx-snapshot-rail-section {
-    padding-top: 0;
-    padding-left: var(--vx-space-16);
-    border-top: 0;
-    border-left: 1px solid var(--vx-border-soft);
   }
 
   .vx-panel-head {
@@ -4355,9 +4353,11 @@ body {
 
 /* Les surfaces principales ont une tranche métallique et un coin de registre.
    Les widgets secondaires restent plus calmes afin de préserver la hiérarchie. */
+/* `.vx-today-primary` et `.vx-snapshot-rail` ont QUITTÉ cette liste : leurs
+   surfaces viennent désormais de la primitive `.vx-card`. C'est le premier
+   retrait des 15 énumérations — chaque page migrée en retire d'autres, et le
+   lot V9 supprimera ce qu'il en restera. */
 .vx-chartframe,
-.vx-today-primary,
-.vx-snapshot-rail,
 .vx-health-item,
 .vx-perf-metric,
 .vx-pf-summary,
@@ -4381,8 +4381,6 @@ body {
 }
 
 .vx-chartframe::before,
-.vx-today-primary::before,
-.vx-snapshot-rail::before,
 .vx-pf-summary::before,
 .vx-sim-result::before {
   position: absolute;
@@ -4657,15 +4655,23 @@ textarea:hover {
    La couleur ne porte JAMAIS l'information seule : chaque case affiche son
    coefficient en clair, et son infobulle nomme la bande en francais. */
 
+/* V3 — LE PANNEAU GÉNÉRIQUE ADOPTE LA CARTE, ombre comprise.
+   Cette règle habille TOUS les panneaux de TOUTES les pages. Elle leur donnait
+   l'ombre de panneau et le fond profond réservés à la dominante : sur une page
+   à cinq panneaux, cinq surfaces revendiquaient le regard, donc aucune ne
+   l'obtenait. C'est la « dérive bento générique » que le contrat canonique
+   refuse nommément.
+   Les panneaux prennent donc l'apparence de `.vx-card` au rang par défaut —
+   verre graphite, bordure titane fine, aucune ombre — et la lumière reste à la
+   seule carte dominante de la page. */
 .vx-risk-page-section,
 .vx-page > .vx-panel {
   min-width: 0;
-  margin-bottom: var(--vx-space-20);
-  padding: var(--vx-space-24);
-  border: 1px solid var(--vx-border);
-  border-radius: var(--vx-radius-18);
-  background: var(--vx-surface-0);
-  box-shadow: var(--vx-shadow-panel), var(--vx-shadow-inset);
+  margin-bottom: var(--vx-space-12);
+  padding: var(--vx-space-16);
+  border: 1px solid var(--vx-border-soft);
+  border-radius: var(--vx-radius-10);
+  background: var(--vx-surface-1);
 }
 
 .vx-riskmatrix-scroll {
@@ -4896,5 +4902,166 @@ textarea:hover {
   .vx-riskmatrix-colhead,
   .vx-riskmatrix-rowhead {
     padding: var(--vx-space-4) var(--vx-space-8);
+  }
+}
+
+/* ================================================================== */
+/* LA CARTE — primitive unique des douze destinations                  */
+/* ================================================================== */
+
+/* Une surface, une anatomie, un jeu d'espaces. Ce bloc REMPLACE, à mesure que
+   les pages migrent, les 15 listes de sélecteurs énumérées plus haut : c'est
+   la seule façon de garantir « le même style sur toutes les pages » plutôt que
+   de l'espérer. Les espaces suivent le contrat canonique — « gouttières
+   principales : 12–16 px ; espace interne courant : 14–18 px ». */
+
+.vx-card {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--vx-space-12);
+  padding: var(--vx-space-16);
+  border: 1px solid var(--vx-border-soft);
+  border-radius: var(--vx-radius-10);
+  background: var(--vx-surface-1);
+}
+
+/* La tête : kicker, titre, et ce que la page aligne à droite. `flex-end`
+   plutôt que `center` — les deux blocs n'ont pas la même hauteur, et une
+   ligne de base commune vaut mieux qu'un centrage optique. */
+.vx-card-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--vx-space-16);
+  padding-bottom: var(--vx-space-12);
+  border-bottom: 1px solid var(--vx-border-soft);
+}
+
+.vx-card-heading {
+  min-width: 0;
+}
+
+.vx-card-kicker {
+  margin: 0 0 var(--vx-space-4);
+  color: var(--vx-signal);
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-meta);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.vx-card-head h2 {
+  margin: 0;
+  font-size: var(--vx-font-size-title);
+  font-weight: 620;
+  letter-spacing: -0.02em;
+}
+
+.vx-card-aside {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--vx-space-8);
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+  text-align: right;
+}
+
+.vx-card-body {
+  min-width: 0;
+}
+
+/* Le pied de PROVENANCE. Il est près de la donnée qu'il qualifie, jamais
+   relégué en bas de page : c'est la règle « microcopie et provenance proches
+   de la donnée » du contrat canonique. */
+.vx-card-foot {
+  padding-top: var(--vx-space-12);
+  border-top: 1px solid var(--vx-border-soft);
+  color: var(--vx-text-muted);
+  font-family: var(--vx-font-mono);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+/* ---- Rangs ------------------------------------------------------- */
+
+/* DOMINANT : la seule carte de la page qui reçoit la tranche métallique et
+   l'ombre de panneau. « Une lumière dominante maximum par carte, deux par
+   écran hors rouge/vert » — et une porte compte les porteurs. */
+.vx-card[data-rank='dominant'] {
+  position: relative;
+  overflow: hidden;
+  border-color: var(--vx-border);
+  background:
+    linear-gradient(135deg, var(--vx-titanium-soft), transparent 22%),
+    var(--vx-surface-1);
+  box-shadow: var(--vx-shadow-panel), var(--vx-shadow-inset);
+}
+
+.vx-card[data-rank='dominant']::before {
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  left: var(--vx-space-20);
+  width: 76px;
+  height: 2px;
+  background: linear-gradient(90deg, var(--vx-signal-bright), var(--vx-signal-deep));
+  content: '';
+}
+
+.vx-card[data-rank='dominant'] .vx-card-head h2 {
+  font-size: var(--vx-font-size-display);
+}
+
+/* QUIET : mesure, légende, pied. Il porte l'information sans la revendiquer —
+   c'est ce qui laisse la dominante être vue. */
+.vx-card[data-rank='quiet'] {
+  gap: var(--vx-space-8);
+  padding: var(--vx-space-12);
+  background: var(--vx-surface-0);
+}
+
+.vx-card[data-rank='quiet'] .vx-card-head {
+  padding-bottom: var(--vx-space-8);
+  border-bottom: 0;
+}
+
+.vx-card[data-rank='quiet'] .vx-card-head h2 {
+  font-size: var(--vx-font-size-body);
+  font-weight: 600;
+}
+
+/* ---- Compositions de page ---------------------------------------- */
+
+/* Une page = une dominante + ses modules. La dominante occupe « environ la
+   moitié de la largeur de travail » quand un inspecteur l'accompagne, la
+   majorité sinon. Les gouttières restent dans la bande canonique. */
+.vx-cards {
+  display: grid;
+  gap: var(--vx-space-12);
+}
+
+.vx-cards[data-layout='dominant-aside'] {
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.62fr);
+  align-items: start;
+}
+
+.vx-cards[data-layout='row-3'] {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.vx-cards[data-layout='row-4'] {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+@media (max-width: 1279px) {
+  .vx-cards[data-layout='dominant-aside'] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .vx-cards[data-layout='row-4'] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

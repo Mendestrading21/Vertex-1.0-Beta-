@@ -4,7 +4,16 @@
  * Le composant est volontairement pur : il affiche uniquement les props
  * reçues. Il ne lit ni l'horloge, ni le réseau, ne complète aucun champ absent
  * et ne calcule aucun ratio à partir de la couverture.
+ *
+ * REFONTE V3 — il est passé sur la primitive `Card`. Il portait auparavant sa
+ * propre surface (`.vx-snapshot-rail`) inscrite à la main dans les 15 listes
+ * de sélecteurs de la couche thématique, ET la tranche métallique réservée à
+ * la carte dominante : deux dominantes sur l'écran Aujourd'hui, c'est-à-dire
+ * aucune. Ses deux blocs sont désormais deux cartes de rang `quiet` : elles
+ * portent l'information sans la revendiquer, ce qui laisse la file d'attention
+ * être vue.
  */
+import { Card } from '../components/Card.tsx';
 
 export interface SnapshotRailProps {
   readonly snapshotVersion: number | null;
@@ -79,8 +88,12 @@ export function SnapshotRail({
 }: SnapshotRailProps) {
   return (
     <aside className="vx-snapshot-rail" aria-label="Vérité du snapshot">
-      <section className="vx-snapshot-rail-section" aria-labelledby="vx-snapshot-rail-title">
-        <h2 id="vx-snapshot-rail-title">Snapshot publié</h2>
+      <Card
+        rank="quiet"
+        kicker="Instantané"
+        title="Snapshot publié"
+        titleId="vx-snapshot-rail-title"
+      >
         <dl className="vx-snapshot-rail-facts">
           <div data-vx-snapshot-field="version">
             <dt>Version</dt>
@@ -113,10 +126,14 @@ export function SnapshotRail({
             <dd>{rejectedCount === null ? 'Non publié' : <code>{rejectedCount}</code>}</dd>
           </div>
         </dl>
-      </section>
+      </Card>
 
-      <section className="vx-snapshot-rail-section" aria-labelledby="vx-snapshot-coverage-title">
-        <h2 id="vx-snapshot-coverage-title">Couverture publiée</h2>
+      <Card
+        rank="quiet"
+        kicker="Périmètre"
+        title="Couverture publiée"
+        titleId="vx-snapshot-coverage-title"
+      >
         {coverage === null ? (
           <p className="vx-snapshot-rail-note">Couverture non publiée.</p>
         ) : (
@@ -130,7 +147,7 @@ export function SnapshotRail({
             </div>
           ))}
         </dl>
-      </section>
+      </Card>
     </aside>
   );
 }
