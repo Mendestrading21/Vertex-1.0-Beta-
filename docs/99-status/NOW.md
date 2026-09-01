@@ -11,7 +11,7 @@ lot: LOT-04 (CI verte), LOT-05 (marque canonique), LOT-06 (arbitrage des pages),
      LOT-25 (bord lecture seule des sources officielles),
      LOT-26 (SEC EDGAR point-in-time jusqu'au snapshot et à l'API)
 branch: lot/26-sec-edgar-pit
-status: lot_26_pr_13_correctif_schema_web_en_validation
+status: lot_26_pr_13_ci_107_verte_7_sur_7
 last_good_commit: bdf9f306 (= origin/main, CI 7/7 verte)
 lots_de_cette_session:
   - "LOT-04 — la purge de session effaçait l'erreur 401 qu'elle devait laisser
@@ -184,6 +184,9 @@ active_work:
      verts ; job web rouge uniquement parce que schema.d.ts n'avait pas été
      régénéré après OpenAPI. Reproducteur exact : pnpm gen:api puis git diff
      --exit-code -- src. Fichier généré ajouté au correctif."
+  - "CI #107 sur 747db7b : 7 jobs sur 7 verts après correctif — garde-fous,
+     Ruff/mypy strict, unitaires Python, intégration PostgreSQL 18, web,
+     supply-chain et E2E Chromium sur trois viewports avec axe."
   - "LOT-25 — PR brouillon #12 : adaptateurs HTTPS bornés pour SEC EDGAR,
      FRED/ALFRED, OpenFIGI, BCE et BNS, plus configuration locale et sonde live
      explicite. FMP et ORATS restent désactivés ; WSH reste dans l'adaptateur
@@ -500,7 +503,7 @@ lot_25_validation_locale:
      proxy SOCKS injecté par l'environnement sur un test HTTP localhost ; le test
      isolé repasse vert avec les variables proxy retirées. Le job unitaire CI #98,
      sans cette particularité, était déjà vert."
-prochaine_commande: "VALIDE PR #12 — relire humainement le lot vert, puis décider
-   de sa fusion. Les clés SEC/FRED/OpenFIGI restent exclusivement locales. Le
-   branchement aux pages exige un lot consommateur séparé, famille par famille."
+prochaine_commande: "VALIDE PR #13 — relire humainement LOT-26 puis décider de sa
+   fusion. Après validation seulement, ouvrir LOT-27 pour FRED/ALFRED PIT. Les
+   clés, identifiants et droits fournisseurs restent exclusivement locaux."
 ```
