@@ -431,7 +431,7 @@ invariants:
   status: PROVEN
   proofs:
   - >-
-    apps/web/src/pages/markets/marketsView.test.ts::parse une chaîne serveur finie,
+    apps/web/src/components/markets/marketsView.test.ts::parse une chaîne serveur finie,
     0 sinon (jamais NaN dans le rendu)
   - >-
     apps/web/src/pages/portfolio/PortfolioPage.test.tsx::valuationContentOf relaie
