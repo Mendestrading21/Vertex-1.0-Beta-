@@ -83,6 +83,60 @@ mesure. Aucune définition de page n'a été modifiée.
 5. **Une redirection permanente remplace chaque route retirée**, pour ne pas
    casser un signet ou un lien profond existant.
 
+## Pourquoi Graphiques et Risques ne sont toujours pas créées
+
+Mesuré le 2026-09-01, pas supposé. Catalyseurs a montré qu'une destination
+« sans contrat » pouvait en fait être constructible depuis des contrats déjà
+servis ; la même vérification a donc été refaite pour les deux dernières.
+
+Les trente routes du contrat OpenAPI ne comportent **ni `charts` ni `risks`**.
+La question est alors : ces pages sont-elles assemblables depuis l'existant,
+comme Catalyseurs l'était ?
+
+**Graphiques (§8) — non.** Sa dominante est « un espace graphique configurable
+avec séries autorisées » et son widget distinctif est la **comparaison**.
+Comparer deux séries de prix suppose de les rebaser, c'est-à-dire de calculer
+un rendement dans le navigateur — ce que `.claude/rules/frontend.md` interdit
+explicitement. L'alternative, un double axe, est interdite au même endroit.
+Sans overlays ni comparaison servis par le serveur, il ne resterait qu'un
+graphique d'un seul instrument : ce que `/analysis` fait déjà, et le
+dupliquer créerait un second propriétaire pour la même donnée.
+
+**Risques (§9) — non.** Sa dominante est « la matrice des risques avec
+exposition, horizon, sévérité et preuve ». Les morceaux existent bien
+(concentration dans `/v1/portfolio`, gates bloquantes dans `/v1/analysis`,
+santé des sources dans `/v1/system/capabilities`), mais **aucune source ne
+publie de sévérité ni d'horizon par risque**. Les attribuer côté navigateur
+serait fabriquer un score, ce que `.claude/rules/architecture.md` réserve à
+`AdviceEngine` et que le §9 lui-même interdit (« aucun score global vert
+dérivé de mesures partielles »).
+
+Les deux pages attendent donc un **contrat serveur**, pas une décision
+d'interface. Les inventer maintenant produirait exactement la façade que
+l'article 17 de la Constitution interdit.
+
+## Deux motifs d'inspecteur coexistent — à trancher
+
+Constat du LOT-12, non corrigé, à traiter avant la refonte des pages.
+
+L'anatomie canonique décrit un inspecteur **persistant à droite**, et c'est
+celui que le LOT-11 a livré. Mais deux pages en avaient déjà un, livré comme
+**dialogue modal** : le panneau latéral d'Aujourd'hui et `OptionInspector`
+d'Options — tous deux `role="dialog"`, avec piège de focus, `Échap` et
+restauration du focus, et tous deux utilisant les mêmes noms de classes
+`.vx-inspector-*`.
+
+Les convertir n'est pas mécanique : passer d'un modal à une colonne
+persistante **retire le piège de focus et la touche Échap**, propriétés
+aujourd'hui asserées par des tests d'accessibilité. Une conversion faite sans
+soin dégraderait l'accessibilité de deux pages livrées. Ce lot doit donc être
+explicite sur ce qu'il remplace, page par page, et prouver l'accessibilité
+après conversion — pas seulement avant.
+
+Vérifié au passage : les classes `.vx-inspector-hash`, `-note`, `-value`,
+`-unit`, `-absent` sont des utilitaires génériques non scopés (taille, couleur,
+césure). Les panneaux du LOT-11 et du LOT-12 les réutilisent sans conflit.
+
 ## Ce que ce document ne décide pas
 
 Le **contenu** des deux pages à créer. Graphiques et Risques n'ont aujourd'hui

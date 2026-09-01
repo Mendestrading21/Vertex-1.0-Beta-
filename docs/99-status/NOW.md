@@ -242,6 +242,12 @@ pages_reelles: [/today, /opportunities, /analysis, /options, /simulator,
                 /sources-reports, plus /auth hors rail]
 pages_non_implementees: []
 destinations_cibles_manquantes: [charts, risks]
+# Bloquées par un CONTRAT SERVEUR absent, pas par une décision d'interface.
+# Vérifié le 2026-09-01 contre les 30 routes du contrat OpenAPI : ni `charts`
+# ni `risks`, et ni la comparaison de séries (Graphiques) ni la sévérité par
+# risque (Risques) ne sont dérivables sans calculer un rendement ou un score
+# dans le navigateur — tous deux interdits. Raisonnement complet dans
+# docs/05-design/PAGE_ARBITRATION.md.
 redirections_permanentes: ["/system -> /sources-reports", "/performance -> /portfolio",
                            "/follow-up -> /catalysts", "/ai -> /analysis"]
 ecarts_declares:
