@@ -344,13 +344,149 @@ body {
 }
 
 /* ------------------------------------------------------------------ */
+/* Ticker du shell — point 4 de l'anatomie canonique                   */
+/* ------------------------------------------------------------------ */
+
+/* « ticker horizontal compact en haut, dans une surface vitrée continue ».
+   CONTINUE : il partage la surface et le flou de la barre de contexte et n'a
+   pas de bordure haute — les deux ne forment qu'un seul bandeau vitré. Il
+   n'est PAS collant : seule la barre de contexte l'est, sinon deux hauteurs
+   collantes mangeraient la zone de travail. */
+.vx-ticker {
+  display: flex;
+  align-items: center;
+  gap: var(--vx-space-12);
+  min-height: 34px;
+  padding: 0 var(--vx-space-32);
+  background: var(--vx-overlay);
+  backdrop-filter: blur(var(--vx-space-16));
+  -webkit-backdrop-filter: blur(var(--vx-space-16));
+}
+
+.vx-ticker-notice,
+.vx-ticker-nature,
+.vx-ticker-caveat {
+  margin: 0;
+  flex: 0 0 auto;
+  font-size: var(--vx-font-size-meta);
+  white-space: nowrap;
+}
+
+.vx-ticker-notice {
+  color: var(--vx-text-muted);
+}
+
+/* Nature de la population : ambre = prudence, rouge = risque, neutre sinon.
+   Mêmes tons que `SyntheticBanner`, qui possède le vocabulaire. */
+.vx-ticker-nature {
+  letter-spacing: 0.04em;
+  font-weight: 600;
+  color: var(--vx-text-secondary);
+}
+
+.vx-ticker-nature[data-vx-tone='caution'] {
+  color: var(--vx-warning);
+}
+
+.vx-ticker-nature[data-vx-tone='risk'] {
+  color: var(--vx-negative);
+}
+
+.vx-ticker-freshness {
+  margin: 0;
+  flex: 0 0 auto;
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+  white-space: nowrap;
+}
+
+.vx-ticker-caveat {
+  padding: 0 var(--vx-space-8);
+  border: 1px solid var(--vx-warning);
+  border-radius: var(--vx-radius-pill);
+  color: var(--vx-warning);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+/* Région défilante horizontale. Aucune animation : « aucun ticker animé
+   faisant croire à une donnée live ». Le focus est visible parce que la
+   région est atteignable au clavier. */
+.vx-ticker-list {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: var(--vx-space-20);
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  overflow-x: auto;
+  list-style: none;
+  scrollbar-width: thin;
+}
+
+.vx-ticker-item {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: baseline;
+  gap: var(--vx-space-8);
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-meta);
+  font-variant-numeric: tabular-nums;
+}
+
+.vx-ticker-symbol {
+  color: var(--vx-text-secondary);
+  font-weight: 600;
+}
+
+.vx-ticker-close {
+  color: var(--vx-text);
+}
+
+.vx-ticker-currency {
+  color: var(--vx-text-muted);
+}
+
+/* Vert/rouge : sens financier uniquement. Le signe est déjà DANS la chaîne
+   du serveur, donc la couleur ne porte jamais l'information seule. */
+.vx-ticker-return {
+  color: var(--vx-text-secondary);
+}
+
+.vx-ticker-item[data-group='up'] .vx-ticker-return {
+  color: var(--vx-positive);
+}
+
+.vx-ticker-item[data-group='down'] .vx-ticker-return {
+  color: var(--vx-negative);
+}
+
+/* Surfaces opaques quand la transparence est refusée. */
+@media (prefers-reduced-transparency: reduce) {
+  .vx-ticker {
+    background: var(--vx-surface-0);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /* Barre de contexte                                                   */
 /* ------------------------------------------------------------------ */
 
-.vx-contextbar {
+/* Le bandeau vitré : barre de contexte + ticker. Le collant et l'arête basse
+   vivent ICI, pas sur les deux enfants — sinon le ticker défilerait sous la
+   barre et une bordure les séparerait, ce que « surface vitrée continue »
+   interdit. */
+.vx-topbar {
   position: sticky;
   top: 0;
   z-index: var(--vx-z-sticky);
+  border-bottom: 1px solid var(--vx-border-soft);
+}
+
+.vx-contextbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -358,7 +494,6 @@ body {
   min-height: 64px;
   padding: 0 var(--vx-space-32);
   background: var(--vx-overlay);
-  border-bottom: 1px solid var(--vx-border-soft);
   box-shadow: var(--vx-shadow-inset);
   backdrop-filter: blur(var(--vx-space-16));
   -webkit-backdrop-filter: blur(var(--vx-space-16));
@@ -3724,7 +3859,8 @@ body {
 /* Dégradation laptop de la composition Aujourd'hui. Le plancher global reste
    strictement 1024 px : ceci n'introduit ni navigation ni layout téléphone. */
 @media (max-width: 1279px) {
-  .vx-contextbar {
+  .vx-contextbar,
+  .vx-ticker {
     padding-inline: var(--vx-space-24);
   }
 
@@ -3881,6 +4017,11 @@ body {
   background:
     linear-gradient(90deg, var(--vx-titanium-soft), transparent 28%),
     var(--vx-overlay);
+}
+
+/* L'arête basse a suivi le collant : elle appartient au bandeau, pas à la
+   barre. La reposer ici recréerait la ligne qui coupait le bandeau en deux. */
+.vx-topbar {
   border-bottom-color: var(--vx-border);
 }
 

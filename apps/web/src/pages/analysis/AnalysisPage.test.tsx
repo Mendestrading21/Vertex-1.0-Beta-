@@ -125,7 +125,10 @@ describe('Page Analyse — état nominal', () => {
     // as_of du cadre (il réapparaît aussi dans la validité de l'AdviceCard).
     expect(screen.getAllByText('2026-08-25T12:00:00+00:00').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText(/3 barre\(s\) valides/)).toBeDefined();
-    expect(screen.getByText('DONNÉES SYNTHÉTIQUES')).toBeDefined();
+    // Portée à la PAGE : depuis le LOT-14 le ticker du shell porte sa propre
+    // étiquette de population. Chercher dans tout le document trouverait les
+    // deux — et surtout ne prouverait plus que la PAGE porte la sienne.
+    expect(within(screen.getByRole('main')).getByText('DONNÉES SYNTHÉTIQUES')).toBeDefined();
   });
 
   it('dominante : moteur substitué monté avec les 60 barres (ici 3) + attribution TradingView', async () => {

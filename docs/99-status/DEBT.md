@@ -565,6 +565,17 @@ chemin de fraîcheur avec un lot de démarrage.
   vide : une cloche sans notifications ou un badge de mode sans propriétaire de
   mode serait exactement la façade que l'article 17 interdit. À traiter quand
   ces trois sources existeront.
+
+  **Précisé au LOT-14, et la nuance compte.** Le ticker publie bien une
+  population et un âge, et la capture canonique montre bien un badge
+  `DONNÉES FICTIVES` en haut à droite. Ce ne sont PAS les mêmes objets : ceux
+  du ticker qualifient l'instantané `markets_overview`, celui de la capture
+  qualifie l'application. Les déplacer dans le coin haut-droit leur donnerait
+  une portée « Vertex » qu'aucune source ne publie — il n'existe ni mode de
+  données global, ni fraîcheur globale, `population` étant un champ PAR
+  instantané. Ils restent donc portés par la bande. L'emplacement du point 5
+  reste vide, et c'est maintenant une décision argumentée, plus seulement un
+  constat d'absence.
 - **Le point 6 (inspecteur contextuel)** — **EMPLACEMENT LIVRÉ au LOT-11,
   REMPLISSAGE PARTIEL.** Le shell porte l'aside, sa largeur canonique et sa
   règle « aucune colonne morte ». Une seule destination le remplit
@@ -572,10 +583,21 @@ chemin de fraîcheur avec un lot de démarrage.
   inspectable déclaré — elles n'affichent donc aucune colonne, ce qui est le
   comportement voulu, pas un manque masqué. Le contrat des douze pages fixe le
   contenu attendu pour chacune ; il reste à le livrer page par page.
-- **Le point 4 (ticker horizontal) n'est pas livré** — **OUVERT.** Il exige
-  une source d'indices servie au shell sur chaque page, donc une décision de
-  charge réseau et un contrat. Ce n'est pas un écart de composition : c'est
-  une capacité à part entière.
+- ~~**Le point 4 (ticker horizontal) n'est pas livré**~~ — **FERMÉ au LOT-14,
+  et la raison écrite ici était FAUSSE.** L'entrée disait qu'il exigeait « une
+  décision de charge réseau ET UN CONTRAT ». La moitié « contrat » était
+  inexacte : `/api/v1/markets/overview` publie `MarketsTicker` depuis la
+  première vague — `ticker`, `last_close`, `return_1d_pct`, `currency`,
+  `quality`, `synthetic`, `trading_day` — tous calculés et formatés par le
+  worker. Rien ne manquait côté serveur.
+
+  **Dixième chiffre ou affirmation erronée de ce registre**, et la même erreur
+  que Catalyseurs au LOT-10 : une destination déclarée « sans contrat » l'était
+  en réalité par défaut de vérification, pas par défaut de contrat. La
+  vérification refaite le 2026-09-01 contre les 30 routes du contrat OpenAPI a
+  suffi à la lever. Règle retenue : une entrée de dette qui affirme « le
+  contrat manque » doit NOMMER la route absente ; sans nom, elle n'est qu'une
+  supposition.
 - **L'ordre des signatures `TL / NN`** reste ouvert (voir LOT-07) : rien n'a
   changé, les trois destinations manquantes sont toujours la condition
   préalable.
@@ -647,3 +669,45 @@ chemin de fraîcheur avec un lot de démarrage.
   `role="dialog"` ni `aria-modal` dans l'application, et les deux pages
   asserent la propriété non modale : depuis le dernier élément du panneau, la
   tabulation SORT vers le reste de la page.
+
+## Trouvé au LOT-14 (2026-09-01)
+
+- **Le ticker squattait `data-state`** — **FERMÉ.** La bande portait
+  `data-state={queryState}`, alors que cet attribut appartient à
+  `DataStateBoundary`. Hors ligne, `[data-state="offline"]` résolvait donc à
+  DEUX éléments sur chaque page, et la campagne e2e est tombée d'un coup :
+  **58 échecs sur 435**, répartis sur onze fichiers. Renommé en
+  `data-ticker-state`.
+
+  **Ce qui a failli passer inaperçu, et c'est le vrai enseignement.** La
+  première campagne a rendu un résumé « 377 passed » avec un code de sortie 0
+  relayé par l'outillage. Les deux étaient trompeurs : `377 = 435 - 58`, et
+  `e2e-artifacts/test-output/.last-run.json` disait `"status": "failed"` avec
+  58 identifiants. Sans cette relecture, un lot rouge aurait été déclaré vert.
+
+  **Règle retenue, qui prolonge celle du LOT-13 :** un résumé de campagne ne
+  vaut que confronté au compte DÉCLARÉ (`playwright test --list`). Un total
+  qui ne correspond pas au nombre de tests déclarés est un échec silencieux,
+  quel que soit le code de sortie affiché.
+- **Un composant de shell rend AMBIGUËS les assertions de page** — **FERMÉ,
+  et généralisable.** Trois fichiers unitaires et sept fichiers e2e cherchaient
+  `DONNÉES SYNTHÉTIQUES` dans TOUT le document. Le ticker portant sa propre
+  étiquette de population, ces recherches en trouvaient deux. Les assertions
+  sont désormais portées par `main` — ce qui est plus fort, pas plus faible :
+  elles prouvent que la PAGE porte son bandeau, ce que la recherche globale ne
+  prouvait déjà plus.
+
+  **Règle retenue :** tout ajout au SHELL doit être confronté aux assertions
+  non scopées des pages avant d'être poussé. Le shell est rendu sur les douze
+  destinations : ce qu'il ajoute, il l'ajoute partout.
+- **`fetchMock.mockResolvedValue(uneRéponse)` est un piège** — **corrigé dans
+  les tests touchés.** Un `Response` ne se lit qu'une fois. Depuis que le shell
+  interroge le ticker, deux requêtes partent par rendu : la première consomme
+  le corps, la seconde reçoit une réponse vide. `src/test/shellQueries.ts` route
+  désormais par chemin et fabrique une réponse neuve à chaque appel.
+- **« Aucune requête envoyée » n'est plus un invariant testable** —
+  **remplacé par plus précis.** Deux tests du simulateur asseraient
+  `expect(fetchMock).not.toHaveBeenCalled()`. Ce qu'ils protègent est qu'aucune
+  PRÉVISUALISATION ne part, pas qu'aucun octet ne circule. Ils asserent
+  maintenant l'absence de `/api/v1/simulations/preview` dans les chemins
+  appelés, plus l'absence de tout appel autre que celui du shell.

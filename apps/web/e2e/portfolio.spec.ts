@@ -52,7 +52,7 @@ test.describe('Page Portefeuille — valorisation réelle', () => {
 
     await page.goto('/portfolio');
     await expect(page.getByTestId('pf-marks-badge')).toContainText('Marks : DONNÉES SYNTHÉTIQUES');
-    await expect(page.getByText('DONNÉES SYNTHÉTIQUES', { exact: true })).toBeVisible();
+    await expect(page.locator('main').getByText('DONNÉES SYNTHÉTIQUES', { exact: true })).toBeVisible();
 
     // Chaque valeur affichée est la chaîne API verbatim (aucun total local).
     const blocks = content['positions_by_currency'] as Record<string, unknown>[];

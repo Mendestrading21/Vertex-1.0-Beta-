@@ -59,7 +59,7 @@ test.describe('Page Options — chaîne, groupes jamais fusionnés, inspecteur',
     expect(new Set(near.map((group) => group.trading_class)).size).toBe(2);
 
     await page.goto(`/options/${UNDERLYING}`);
-    await expect(page.getByText('DONNÉES SYNTHÉTIQUES', { exact: true })).toBeVisible();
+    await expect(page.locator('main').getByText('DONNÉES SYNTHÉTIQUES', { exact: true })).toBeVisible();
     const groups = page.getByTestId('chain-group');
     await expect(groups).toHaveCount(3);
     // Deux entrées distinctes pour la même date : jamais fusionnées. Le

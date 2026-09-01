@@ -9,8 +9,8 @@ import { SyntheticBanner } from '../../components/SyntheticBanner.tsx';
 import { BreadthPanel } from './BreadthPanel.tsx';
 import { MarketMap } from './MarketMap.tsx';
 import { MarketsTable } from './MarketsTable.tsx';
-import type { SignGroup } from './marketsView.ts';
-import { GROUP_LABELS_FR, flattenTickers } from './marketsView.ts';
+import type { SignGroup } from '../../components/markets/marketsView.ts';
+import { GROUP_LABELS_FR, flattenTickers } from '../../components/markets/marketsView.ts';
 
 /**
  * Page Marchés — question : « Dans quel contexte de marché vais-je analyser

@@ -1,5 +1,5 @@
 import type { MarketsBreadth } from '../../api/client.ts';
-import { frDecimal } from './marketsView.ts';
+import { frDecimal } from '../../components/markets/marketsView.ts';
 
 /**
  * BreadthPanel — jauge factuelle en BARRE LINÉAIRE (jamais circulaire).

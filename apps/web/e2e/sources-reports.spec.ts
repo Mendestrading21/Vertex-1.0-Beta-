@@ -46,7 +46,7 @@ test.describe('Page Sources & Rapports — SourceHealthMatrix', () => {
     await expect(table.locator('[aria-label="jamais sondé"]')).toHaveCount(9);
 
     // Bandeau population SYNTHETIC (le pipeline E2E est 100 % synthétique).
-    await expect(page.getByText('DONNÉES SYNTHÉTIQUES')).toBeVisible();
+    await expect(page.locator('main').getByText('DONNÉES SYNTHÉTIQUES')).toBeVisible();
   });
 
   test('filtres famille/statut : compteurs cohérents et persistance URL', async ({ page }) => {

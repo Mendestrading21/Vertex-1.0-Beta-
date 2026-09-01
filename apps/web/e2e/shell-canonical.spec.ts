@@ -188,6 +188,62 @@ test.describe('Shell — anatomie canonique', () => {
     expect(boiteCartouche!.x + boiteCartouche!.width).toBeLessThanOrEqual(boiteMain!.x);
   });
 
+  test('point 4 : le ticker est horizontal, en haut, dans une surface continue', async ({
+    page,
+  }) => {
+    // « ticker horizontal compact en haut, dans une surface vitrée continue ».
+    await page.goto('/today');
+    const ticker = page.locator('.vx-ticker');
+    await expect(ticker).toBeVisible();
+
+    // EN HAUT : sous la barre de contexte, au-dessus de la zone de travail.
+    const boiteTicker = (await ticker.boundingBox())!;
+    const boiteBarre = (await page.locator('.vx-contextbar').boundingBox())!;
+    const boiteMain = (await page.locator('main').boundingBox())!;
+    expect(boiteTicker.y).toBeGreaterThanOrEqual(boiteBarre.y + boiteBarre.height - 1);
+    expect(boiteTicker.y + boiteTicker.height).toBeLessThanOrEqual(boiteMain.y + 1);
+
+    // HORIZONTAL et COMPACT : plus large que haut, d'un ordre de grandeur, et
+    // sous la hauteur de la barre de contexte qu'il prolonge.
+    expect(boiteTicker.width).toBeGreaterThan(boiteTicker.height * 10);
+    expect(boiteTicker.height).toBeLessThan(boiteBarre.height);
+
+    // CONTINUE : aucune arête entre la barre et le ticker. C'est l'enveloppe
+    // `.vx-topbar` qui porte l'unique arête basse du bandeau.
+    const arete = await page
+      .locator('.vx-contextbar')
+      .evaluate((element) => getComputedStyle(element).borderBottomWidth);
+    expect(arete).toBe('0px');
+    const areteBandeau = await page
+      .locator('.vx-topbar')
+      .evaluate((element) => getComputedStyle(element).borderBottomWidth);
+    expect(areteBandeau).not.toBe('0px');
+
+    // AUCUN MOUVEMENT : « aucun ticker animé faisant croire à une donnée live ».
+    const anime = await ticker.evaluate((element) => {
+      const style = getComputedStyle(element);
+      const liste = element.querySelector('.vx-ticker-list');
+      const listeStyle = liste === null ? null : getComputedStyle(liste);
+      return {
+        nom: style.animationName,
+        nomListe: listeStyle?.animationName ?? 'none',
+        transition: listeStyle?.transitionProperty ?? 'none',
+      };
+    });
+    expect(anime.nom).toBe('none');
+    expect(anime.nomListe).toBe('none');
+
+    // La bande porte SA nature et SA fraîcheur — pas le coin haut-droit, qui
+    // leur donnerait une portée applicative qu'aucune source ne publie.
+    await expect(ticker.locator('.vx-ticker-nature')).toBeVisible();
+    await expect(ticker.locator('.vx-ticker-freshness')).toBeVisible();
+    await expect(page.locator('.vx-contextbar .vx-ticker-nature')).toHaveCount(0);
+
+    // La région défilante est atteignable au clavier (axe
+    // `scrollable-region-focusable`, impact « serious »).
+    await expect(ticker.locator('.vx-ticker-list')).toHaveAttribute('tabindex', '0');
+  });
+
   test('point 6 : l’inspecteur n’occupe la grille que si une page le remplit', async ({
     page,
   }) => {
@@ -237,6 +293,7 @@ test.describe('Shell — anatomie canonique', () => {
       await page.goto(route);
       await expect(page.locator('.vx-rail .vx-edition-cartouche')).toBeVisible();
       await expect(page.locator('.vx-brand-mark')).toBeVisible();
+      await expect(page.locator('.vx-ticker')).toBeVisible();
       await expect(page.locator('.vx-rail-link[aria-current="page"]')).toHaveCount(1);
     }
   });

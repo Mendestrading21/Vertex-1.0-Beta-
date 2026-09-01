@@ -5,7 +5,9 @@ phase: rattrapage_complet_autorise
 lot: LOT-04 (CI verte), LOT-05 (marque canonique), LOT-06 (arbitrage des pages),
      LOT-07 (/system → /sources-reports), LOT-08 (/performance → Portefeuille),
      LOT-09 (conformité du shell), LOT-10 (création de Catalyseurs),
-     LOT-11 (inspecteur contextuel du shell), LOT-12 (/ai → inspecteur)
+     LOT-11 (inspecteur contextuel du shell), LOT-12 (/ai → inspecteur),
+     LOT-13 et LOT-13b (motif d'inspecteur unifié : plus aucun dialogue modal),
+     LOT-14 (ticker du shell, point 4 de l'anatomie canonique)
 branch: codex/vertex-rattrapage-complet-20260831
 status: ci_reparee_puis_execution_en_cours_sans_fusion_automatique
 last_good_commit: bdf9f306 (= origin/main, CI 7/7 verte)
@@ -86,6 +88,50 @@ lots_de_cette_session:
      disparaître la PAGE ENTIÈRE, dossier financier compris. Garde de forme
      ajoutée, testée et falsifiée. Le rail passe à DIX destinations, et AUCUNE
      route historique ne reste à arbitrer."
+  - "LOT-13 — DEUX motifs d'inspecteur coexistaient : le panneau persistant du
+     shell livré au LOT-11, et deux dialogues MODAUX hérités sur Aujourd'hui et
+     Options, qui portaient les mêmes noms de classes. L'anatomie canonique
+     n'en décrit qu'un — « le shell reste identique sur les douze
+     destinations » — et la capture montre une colonne persistante. Le motif
+     est tranché en faveur du panneau du shell ; Aujourd'hui est converti.
+     LE PIÈGE DE FOCUS EST RETIRÉ, ET C'EST LA CORRECTION, PAS UN
+     AFFAIBLISSEMENT : un piège n'est correct que pour un dialogue modal, où le
+     reste de la page est justement inerte. Sur un panneau NON modal, il
+     enfermerait l'utilisateur hors de sa propre page. Les deux assertions qui
+     l'exigeaient sont remplacées par leur contrepartie CORRECTE — depuis le
+     dernier élément du panneau, la tabulation SORT vers le reste de la page —
+     et le focus entrant, `Échap` et la restitution du focus sont conservés.
+     Deux défauts introduits par la conversion, trouvés et corrigés : le focus
+     n'entrait plus dans le panneau (monté par PORTAIL, le nœud d'accueil n'est
+     pas résolu au premier rendu, donc un `useEffect([])` ne trouve rien à
+     focaliser — remplacé par une ref de rappel) ; et `.vx-sheet` restait une
+     surcouche `position: fixed` pleine hauteur, ombrée et floutée, que la
+     couche Titanium Ledger lui redonnait EN PLUS."
+  - "LOT-13b — Options convertie avec la même recette. Il ne reste plus AUCUN
+     `role=\"dialog\"` ni `aria-modal` dans le rendu : les seules occurrences
+     restantes sont des commentaires qui expliquent pourquoi ils ont disparu.
+     La conversion s'est réduite au composant et à ses assertions, parce que
+     les deux défauts d'Aujourd'hui étaient déjà corrigés à la racine — la ref
+     de rappel vit dans le composant, la règle `.vx-sheet` dans la feuille
+     partagée. Rien de nouveau ici : la première conversion avait payé le coût."
+  - "LOT-14 — point 4 de l'anatomie canonique, le ticker horizontal. Il était
+     déclaré OUVERT dans DEBT.md au motif qu'il « exige […] un contrat ».
+     C'était FAUX : `/api/v1/markets/overview` publie `MarketsTicker` depuis la
+     première vague — ticker, dernier cours, rendement 1 j, devise, qualité,
+     drapeau synthétique, jour de séance — TOUS calculés et formatés par le
+     worker. Dixième affirmation erronée de ce registre, et la MÊME erreur
+     qu'au LOT-10 sur Catalyseurs : une capacité déclarée « sans contrat »
+     l'était par défaut de vérification. Ce qui restait vraiment était une
+     décision de charge réseau ; elle est prise et bornée — même clé de
+     requête que la page Marchés (donc une seule requête sur /markets) et
+     `staleTime: Infinity`, donc aucun trafic de fond. La bande n'affiche
+     AUCUN chiffre qu'elle ne peut qualifier : hors ligne, sans session, sans
+     instantané ou en erreur, elle dit ce qui manque. Elle ne trie pas
+     (l'ordre est celui du worker), elle ne bouge pas, et elle porte SA
+     population et SA fraîcheur — les poser en haut à droite (point 5) leur
+     donnerait une portée applicative qu'aucune source ne publie, `population`
+     étant un champ PAR instantané. Le point 5 reste donc vide, et c'est
+     désormais argumenté."
 mesures_de_cette_session:
   - "playwright : 405 passed après LOT-07 (le job CI qui était rouge), puis
      399 passed après LOT-08. La baisse de 6 est intégralement expliquée dans
@@ -104,9 +150,15 @@ mesures_de_cette_session:
      une redirection (le même DOM est balayé via /analysis et /portfolio),
      +3 la redirection /ai -> /analysis, +3 l'invariant « jamais d'explication
      sans le bandeau B-05 ». Aucun test supprimé : ai.spec.ts est devenu
-     ai-inspector.spec.ts."
-  - "vitest : 423 passed / 31 fichiers ; tsc 0 ; biome 0 (135 fichiers) — mesuré
-     après LOT-12"
+     ai-inspector.spec.ts. Puis 432 après LOT-13, +3 décomposés : le test
+     unique « panneau latéral accessible au clavier (Entrée, piège de focus,
+     Échap) » d'Aujourd'hui est SCINDÉ en deux — « inspecteur accessible au
+     clavier (Entrée, focus entrant, Échap) » et « le panneau n'est PLUS modal
+     et ne piège plus le clavier » — soit +1 test x 3 viewports. LOT-13b ne
+     déclare AUCUN test nouveau : il ne change que les assertions
+     d'options.spec.ts, donc 432 inchangé."
+  - "vitest : 424 passed / 31 fichiers ; tsc 0 ; biome 0 (135 fichiers) — mesuré
+     après LOT-13b"
   - "pytest : 3766 passed, 4 skipped — mesuré sur 35d48cb"
   - "run_checks.sh : TOUT VERT"
   - "audit_titanium_ledger.py après LOT-10 : empreinte canonique vérifiée,
@@ -400,8 +452,12 @@ outillage_cloudflare:
      le verrou du Worker n'est PAS couvert par la porte release/notices.
      Ecart ecrit dans THIRD_PARTY_NOTICES.md plutot que laisse silencieux."
   deploiement: "AUCUN — B-03 en attente"
-prochaine_commande: "Redemarrer la pile pour que le worker charge le code
-   corrige (le processus en cours date d'avant la correction), puis, avec
-   l'accord explicite de l'utilisateur, probe_entitlements.py --persist
-   pour que /system cesse d'afficher NEVER_TESTED"
+prochaine_commande: "PR #11 (brouillon) porte LOT-07 a LOT-13b et attend une
+   VALIDATION HUMAINE : aucune fusion automatique. Les deux destinations
+   restantes, Graphiques et Risques, sont bloquees par un CONTRAT SERVEUR
+   absent, pas par une decision d'interface : les creer maintenant exigerait de
+   calculer un rendement rebase ou une severite dans le navigateur, tous deux
+   interdits. Le travail non bloque qui reste est la refonte Titanium Ledger
+   des dix destinations contre la capture canonique, aux viewports 1280, 1440
+   et 1600"
 ```

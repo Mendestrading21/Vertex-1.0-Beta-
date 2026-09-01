@@ -51,7 +51,7 @@ test.describe('Page Analyse — chandeliers, table équivalente, AdviceCard', ()
     await expect(page.locator('.vx-candles-canvas canvas').first()).toBeVisible({
       timeout: 15_000,
     });
-    await expect(page.getByText('DONNÉES SYNTHÉTIQUES', { exact: true })).toBeVisible();
+    await expect(page.locator('main').getByText('DONNÉES SYNTHÉTIQUES', { exact: true })).toBeVisible();
     // ATTRIBUTION obligatoire : mention TradingView VISIBLE dans la légende du
     // cadre ET dans le pied de méthode (le moteur ajoute en plus son propre
     // logo-lien « Charting by TradingView », jamais retiré).

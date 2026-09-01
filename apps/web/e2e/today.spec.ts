@@ -17,7 +17,7 @@ test.describe("Page Aujourd'hui — AttentionQueue", () => {
 
     // Marqueur SYNTHÉTIQUE sur CHAQUE item + bandeau population global.
     await expect(page.locator('.vx-queue-item .vx-badge-synthetic')).toHaveCount(count);
-    await expect(page.getByText('DONNÉES SYNTHÉTIQUES')).toBeVisible();
+    await expect(page.locator('main').getByText('DONNÉES SYNTHÉTIQUES')).toBeVisible();
 
     // Chaque ligne porte titre, sources, âge (badge de fraîcheur) et raisons.
     const firstItem = items.first();

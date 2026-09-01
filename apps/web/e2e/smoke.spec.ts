@@ -43,7 +43,7 @@ test.describe('Dégradation 1024×768', () => {
   }, testInfo) => {
     await page.goto('/markets');
     await expect(page.locator('.vx-marketmap-canvas canvas')).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByText('DONNÉES SYNTHÉTIQUES', { exact: true })).toBeVisible();
+    await expect(page.locator('main').getByText('DONNÉES SYNTHÉTIQUES', { exact: true })).toBeVisible();
     // L'alternative tabulaire reste disponible sous la dominante (22 couverts).
     const table = page.getByRole('table', { name: 'Table équivalente de la carte des marchés' });
     await expect(table.locator('tbody tr')).toHaveCount(22);
@@ -66,7 +66,7 @@ test.describe('Dégradation 1024×768', () => {
     const table = page.getByRole('table', { name: /Chaîne d'options/ });
     await expect(table).toBeVisible();
     await expect(table.locator('tbody tr')).toHaveCount(12); // 12 strikes appariés
-    await expect(page.getByText('DONNÉES SYNTHÉTIQUES', { exact: true })).toBeVisible();
+    await expect(page.locator('main').getByText('DONNÉES SYNTHÉTIQUES', { exact: true })).toBeVisible();
     await expectNoHorizontalPageScroll(page);
     const scrollMode = await page
       .locator('.vx-chain-table-scroll')
@@ -120,7 +120,7 @@ test.describe('Dégradation 1024×768', () => {
     expect(count).toBeGreaterThanOrEqual(8);
     // Le marqueur SYNTHÉTIQUE de chaque item reste rendu (jamais masqué).
     await expect(page.locator('.vx-queue-item .vx-badge-synthetic')).toHaveCount(count);
-    await expect(page.getByText('DONNÉES SYNTHÉTIQUES')).toBeVisible();
+    await expect(page.locator('main').getByText('DONNÉES SYNTHÉTIQUES')).toBeVisible();
     await expectNoHorizontalPageScroll(page);
     await page.screenshot({
       path: screenshotPath('today-smoke', testInfo.project.name),
@@ -171,7 +171,7 @@ test.describe('Dégradation 1024×768', () => {
     const body = (await response.json()) as { agenda: { event_id: string }[] };
     await expect(page.locator('.vx-cal-event')).toHaveCount(body.agenda.length);
     await expect(page.getByTestId('cal-counters')).toBeVisible();
-    await expect(page.getByText('DONNÉES SYNTHÉTIQUES')).toBeVisible();
+    await expect(page.locator('main').getByText('DONNÉES SYNTHÉTIQUES')).toBeVisible();
     await expectNoHorizontalPageScroll(page);
     // Seul le conteneur des compteurs (et lui seul) peut défiler.
     const scrollMode = await page

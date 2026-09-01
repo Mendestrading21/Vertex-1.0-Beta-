@@ -196,6 +196,49 @@ en remplissant une maquette avec ce qui n'existe pas.
 
 | 2026-09-01 | `ai` → **inspecteur contextuel** | Dernière ligne d'absorption. Le module d'explication passe sous `src/components/ai/` et est monté par les pages qui portent un dossier explicable : Analyse (`analysis`) et Portefeuille (`portfolio_valuation`, `performance`). Le sélecteur de sujet disparaît au profit des dossiers RÉELLEMENT ouverts sur la page hôte. `/ai` quitte le rail et redirige vers `/analysis`. Routes API inchangées (règle 2). | vitest 423 ; playwright 429 ; `run_checks.sh` TOUT VERT ; l'audit ne liste plus aucune route à arbitrer |
 
+| 2026-09-01 | (shell) **ticker horizontal** | Point 4 de l'anatomie canonique. Aucune ligne d'arbitrage : c'est une capacité de shell, pas une destination. Livré parce que la raison écrite pour ne PAS le livrer s'est révélée fausse — voir ci-dessous. | vitest 434 ; playwright 435 ; `run_checks.sh` TOUT VERT |
+
+### Le ticker : une dette fondée sur une vérification jamais faite (LOT-14)
+
+`docs/99-status/DEBT.md` déclarait le point 4 ouvert parce qu'il « exige une
+source d'indices servie au shell sur chaque page, donc une décision de charge
+réseau **et un contrat** ». La seconde moitié était fausse.
+
+`/api/v1/markets/overview` publie `MarketsTicker` depuis la première vague :
+`ticker`, `last_close`, `return_1d_pct`, `currency`, `quality`, `synthetic`,
+`trading_day` — **tous calculés et formatés par le worker**. Il n'y avait rien
+à obtenir du serveur.
+
+C'est **exactement l'erreur de Catalyseurs au LOT-10** : une capacité déclarée
+« sans contrat » l'était par défaut de vérification. La leçon avait été écrite ;
+elle n'avait pas été appliquée aux deux points d'anatomie restants. Elle l'est
+maintenant, et la règle est plus dure : *une entrée de dette qui affirme « le
+contrat manque » doit **nommer la route absente**. Sans nom, ce n'est pas un
+constat, c'est une supposition.*
+
+Ce qui restait réellement — la charge réseau — est une décision, et elle est
+bornée : la clé de requête est `markets_overview/global`, **exactement** celle
+de la page Marchés, donc react-query dédoublonne sur `/markets` ; et
+`staleTime: Infinity` interdit tout re-fetch périodique. Le ticker ne « bat »
+pas.
+
+### Ce que le ticker n'affiche pas, et pourquoi
+
+- **Aucun chiffre qu'il ne peut pas qualifier.** Hors ligne, sans session, sans
+  instantané ou en erreur, la bande affiche un message et **aucun cours**.
+  Garder les derniers cours pendant une coupure présenterait un cache comme du
+  courant, ce que `.claude/rules/financial-safety.md` interdit.
+- **Aucun tri.** L'ordre est celui du worker, secteur par secteur. Reclasser
+  produirait un classement financier côté navigateur.
+- **Aucun mouvement.** « Aucun ticker animé faisant croire à une donnée live » :
+  le défilement est celui de l'utilisateur, et un test e2e vérifie qu'aucune
+  animation n'est déclarée.
+- **Aucune portée applicative.** La population et la fraîcheur sont portées par
+  la bande, pas par le coin haut-droit (point 5). `population` est un champ
+  **par instantané** : le poser en haut à droite lui donnerait une portée
+  « Vertex » qu'aucune source ne publie. Le point 5 reste donc vide — et c'est
+  désormais une décision argumentée, plus un simple constat d'absence.
+
 ### Le défaut que l'absorption de `/ai` a révélé
 
 En montant le panneau dans une page hôte, celle-ci lui a servi — via son mock
