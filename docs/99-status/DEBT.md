@@ -532,16 +532,27 @@ chemin de fraîcheur avec un lot de démarrage.
   `expected [ 'sources-reports' ] to deeply equal []`). Les trois absorptions
   suivantes passeront par cette porte.
 - **L'ordre des signatures `TL / NN` diverge des planches canoniques**
-  — **OUVERT**, hors périmètre du LOT-07. Les planches du skill imposent
-  `01 today, 02 markets, 03 opportunities, 04 analysis, 05 options,
-  06 simulator, 07 portfolio, 08 charts, 09 risks, 10 catalysts, 11 calendar,
-  12 sources-reports`. `AppShell.tsx` porte aujourd'hui `02 opportunities,
-  03 analysis, 04 options, 05 simulator, 06 calendar, 07 markets` — six codes
-  attribués à d'autres destinations. Ce n'est pas une régression de ce lot :
-  l'écart préexiste. Il ne peut pas non plus se corriger avant que Graphiques,
-  Risques et Catalyseurs existent, faute de quoi `08`, `09` et `10` désigneraient
-  des pages absentes. À traiter dans la refonte Titanium Ledger, après les
-  créations.
+  — **FERMÉ (2026-09-01).** Les planches imposent `01 today, 02 markets,
+  03 opportunities, 04 analysis, 05 options, 06 simulator, 07 portfolio,
+  08 charts, 09 risks, 10 catalysts, 11 calendar, 12 sources-reports`.
+  **Huit destinations sur dix** portaient un code faux — `markets` affichait
+  `TL / 07` au lieu de `02`, visible sur chaque capture d'écran E2E.
+
+  **Le motif de blocage inscrit ici était faux, et le fichier le prouvait
+  lui-même.** Il affirmait que la correction exigeait l'existence préalable de
+  Graphiques, Risques et Catalyseurs, « faute de quoi `08`, `09` et `10`
+  désigneraient des pages absentes ». Or `AppShell.tsx` attribuait déjà
+  `catalysts: TL / 09` puis `sources-reports: TL / 12` : les codes `10` et `11`
+  n'étaient attribués à **rien**, et rien n'en souffrait. La contiguïté n'a
+  jamais été requise — réserver un code pour une destination à venir est
+  exactement ce que cette table faisait déjà. `08 charts` et `09 risks` sont
+  donc réservés, avec un test qui vérifie leur absence délibérée.
+
+  **Pourquoi le garde-fou n'a rien vu.** Il vérifiait qu'aucune page ne
+  RETOMBE sur `TL / —`, jamais que le code servi est le BON : un code faux lui
+  était invisible. C'est ce trou qui a laissé huit écarts durer. Le test épingle
+  désormais la table entière et compare, page par page, le code rendu à celui
+  de sa clé. Falsifié (remettre `markets: TL / 07` fait rougir deux tests).
 
 ## Trouvé au LOT-09 (2026-08-31)
 

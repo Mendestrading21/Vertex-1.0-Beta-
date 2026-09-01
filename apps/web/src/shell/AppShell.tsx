@@ -23,16 +23,26 @@ function isPageHandle(handle: unknown): handle is PageHandle {
   );
 }
 
-const LEDGER_CODE_BY_PAGE: Readonly<Record<string, string>> = {
+/**
+ * Signatures Titanium Ledger, dans l'ordre des planches canoniques.
+ *
+ * `08 charts` et `09 risks` sont RÉSERVÉS : les deux destinations attendent un
+ * contrat serveur (voir `docs/05-design/PAGE_ARBITRATION.md`). Un code réservé
+ * n'est pas un code cassé — la table saute déjà des numéros sans que rien n'en
+ * souffre, et c'est précisément ce qui rend la réservation possible.
+ */
+export const LEDGER_CODE_BY_PAGE: Readonly<Record<string, string>> = {
   today: 'TL / 01',
-  opportunities: 'TL / 02',
-  analysis: 'TL / 03',
-  options: 'TL / 04',
-  simulator: 'TL / 05',
-  calendar: 'TL / 06',
-  markets: 'TL / 07',
-  portfolio: 'TL / 08',
-  catalysts: 'TL / 09',
+  markets: 'TL / 02',
+  opportunities: 'TL / 03',
+  analysis: 'TL / 04',
+  options: 'TL / 05',
+  simulator: 'TL / 06',
+  portfolio: 'TL / 07',
+  // 08 charts — réservé, destination absente
+  // 09 risks  — réservé, destination absente
+  catalysts: 'TL / 10',
+  calendar: 'TL / 11',
   'sources-reports': 'TL / 12',
   auth: 'TL / ACCESS',
 };

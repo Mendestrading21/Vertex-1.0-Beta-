@@ -4057,42 +4057,49 @@ body {
   user-select: none;
 }
 
-/* Numérotation éditoriale des douze espaces. Elle identifie l'écran, jamais
-   une performance ni une priorité. */
+/* Numérotation éditoriale des douze espaces, dans l'ordre des planches
+   canoniques. Elle identifie l'écran, jamais une performance ni une
+   priorité.
+
+   CES LIBELLÉS DOIVENT SUIVRE `LEDGER_CODE_BY_PAGE` (shell/AppShell.tsx).
+   Ce sont deux sources pour le même numéro : le 2026-09-01 la table TSX a
+   été corrigée sans eux, et chaque page affichait `TL / 03` à côté de
+   `LEDGER 02`. Un test lit ce fichier et compare les deux — voir
+   shell.test.tsx. `08 charts` et `09 risks` restent réservés. */
 .vx-main[data-page='today'] {
   --vx-page-ledger: 'LEDGER 01 · NOW';
 }
 
 .vx-main[data-page='opportunities'] {
-  --vx-page-ledger: 'LEDGER 02 · SCREEN';
+  --vx-page-ledger: 'LEDGER 03 · SCREEN';
 }
 
 .vx-main[data-page='analysis'] {
-  --vx-page-ledger: 'LEDGER 03 · EVIDENCE';
+  --vx-page-ledger: 'LEDGER 04 · EVIDENCE';
 }
 
 .vx-main[data-page='options'] {
-  --vx-page-ledger: 'LEDGER 04 · CHAIN';
+  --vx-page-ledger: 'LEDGER 05 · CHAIN';
 }
 
 .vx-main[data-page='simulator'] {
-  --vx-page-ledger: 'LEDGER 05 · MODEL';
+  --vx-page-ledger: 'LEDGER 06 · MODEL';
 }
 
 .vx-main[data-page='calendar'] {
-  --vx-page-ledger: 'LEDGER 06 · EVENTS';
+  --vx-page-ledger: 'LEDGER 11 · EVENTS';
 }
 
 .vx-main[data-page='markets'] {
-  --vx-page-ledger: 'LEDGER 07 · REGIME';
+  --vx-page-ledger: 'LEDGER 02 · REGIME';
 }
 
 .vx-main[data-page='portfolio'] {
-  --vx-page-ledger: 'LEDGER 08 · BOOK';
+  --vx-page-ledger: 'LEDGER 07 · BOOK';
 }
 
 .vx-main[data-page='catalysts'] {
-  --vx-page-ledger: 'LEDGER 09 · CATALYST';
+  --vx-page-ledger: 'LEDGER 10 · CATALYST';
 }
 
 .vx-main[data-page='sources-reports'] {
