@@ -25,6 +25,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from datetime import datetime
+from decimal import Decimal, InvalidOperation
 from typing import Any, Literal
 
 from vertex_api.freshness import closed_session_budget, evaluate_relay_freshness
@@ -113,6 +114,39 @@ _COVERAGE_COUNTS: tuple[str, ...] = (
 )
 
 
+def _checked_correlation(raw: Any, *, field: str) -> None:
+    """Un coefficient de correlation : decimal RENDU, dans [-1, 1]. Toujours.
+
+    DEUX TROUS MESURES ICI, non signales par la passation :
+
+    1. `_checked_matrix` n'exigeait qu'une CHAINE. La cellule `abc` traversait
+       le relais et arrivait a l'ecran, ou elle aurait ete peinte comme une
+       case de correlation — une invention pure, exactement ce que la bande
+       « deny-by-default » de `_checked_bands` refuse un cran plus loin ;
+    2. rien ne bornait la valeur. `-4.2` passait. Ce n'est pas une correlation
+       faible, forte ou opposee : ce n'est pas une correlation.
+
+    La borne vit ICI et non dans le garde commun, parce que le garde commun
+    classe par NOM DE FEUILLE : il ne peut pas savoir que `extremes.*.value`
+    vit dans [-1, 1] tandis que `breadth.value` vit dans [0, 1]. La forme
+    appartient a la classe, la borne appartient a la page.
+
+    La chaine est verifiee, jamais reparee ni reformatee : ce qui est affiche
+    reste ce que le worker a rendu, arrondi compris.
+    """
+    _require_str(raw, field=field)
+    try:
+        coefficient = Decimal(raw)
+    except InvalidOperation as exc:
+        raise SnapshotContentError(
+            f"{field}: coefficient decimal requis", field=field
+        ) from exc
+    if not coefficient.is_finite() or coefficient < -1 or coefficient > 1:
+        raise SnapshotContentError(
+            f"{field}: coefficient de correlation dans [-1, 1] requis", field=field
+        )
+
+
 def _checked_pair(raw: Any, *, field: str) -> None:
     """Une paire extrême : deux instruments nommés et un coefficient rendu."""
     if raw is None:
@@ -120,9 +154,10 @@ def _checked_pair(raw: Any, *, field: str) -> None:
     pair = _require_mapping(raw, field=field)
     _require_str(pair.get("a"), field=f"{field}.a")
     _require_str(pair.get("b"), field=f"{field}.b")
-    # Le coefficient est une CHAÎNE déjà rendue : le relais ne la parse pas,
-    # ne l'arrondit pas et ne la recalcule pas.
-    _require_str(pair.get("value"), field=f"{field}.value")
+    # Le coefficient est une CHAÎNE déjà rendue : le relais ne l'arrondit pas
+    # et ne la recalcule pas. Il verifie seulement que c'en est un, et qu'il
+    # est dans la borne que sa definition impose.
+    _checked_correlation(pair.get("value"), field=f"{field}.value")
 
 
 def _checked_matrix(raw: Any, *, expected: int, field: str) -> None:
@@ -130,8 +165,12 @@ def _checked_matrix(raw: Any, *, expected: int, field: str) -> None:
 
     La vérification de FORME est faite ici parce qu'une matrice non carrée
     casserait l'écran en silence — chaque ligne serait lue en face du mauvais
-    instrument. Le CONTENU, lui, n'est pas jugé : le relais ne sait pas si un
-    coefficient est juste, et ne prétend pas le savoir.
+    instrument.
+
+    Le relais ne sait pas si un coefficient est JUSTE et ne pretend pas le
+    savoir. Mais il sait ce qu'un coefficient EST : un decimal de [-1, 1].
+    Une cellule hors de cette definition n'est pas une correlation douteuse,
+    c'est autre chose — et la peindre serait inventer.
     """
     lignes = _require_list(raw, field=field)
     if len(lignes) != expected:
@@ -147,7 +186,7 @@ def _checked_matrix(raw: Any, *, expected: int, field: str) -> None:
                 field=f"{field}[{index}]",
             )
         for colonne, cellule in enumerate(cellules):
-            _require_str(cellule, field=f"{field}[{index}][{colonne}]")
+            _checked_correlation(cellule, field=f"{field}[{index}][{colonne}]")
 
 
 def _checked_bands(raw: Any, *, expected: int, field: str) -> None:

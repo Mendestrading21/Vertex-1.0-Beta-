@@ -73,6 +73,7 @@ import math
 import re
 from collections.abc import Callable, Mapping, Sequence
 from datetime import UTC, date, datetime
+from decimal import Decimal, InvalidOperation
 from functools import lru_cache
 from typing import Any, cast
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -930,7 +931,6 @@ _DECIMAL_KEYS: tuple[str, ...] = (
     "spot_grid",
     "strike",
     "time_grid_years",
-    "value",
     "weight_global",
     "weight_in_sector",
 )
@@ -959,6 +959,18 @@ _SIGNED_DECIMAL_KEYS: tuple[str, ...] = (
     "theta",
     "theta_per_calendar_day",
     "total_return",
+    # Une correlation « la plus opposee » est NEGATIVE par definition — c'est
+    # ce que le mot veut dire. `value` vivait dans la classe non signee, ce qui
+    # rendait `extremes.most_opposed.value = -0.803` irrelayable : un 500
+    # latent sur la page Risques, invisible tant que la route garde son
+    # validateur propre (REPRENDRE_ICI.md §4.3).
+    #
+    # LE DESSERRAGE NE PERD RIEN, parce que les DEUX bornes semantiques que
+    # cette classe ne peut pas connaitre sont desormais tenues la ou elles ont
+    # un sens : `_checked_correlation` pour [-1, 1] cote Risques, et
+    # `_markets_breadth` pour [0, 1] cote Marches. La classe dit « c'est un
+    # decimal signe » ; la borne appartient a la page.
+    "value",
     "vega",
     "vega_per_point",
 )
@@ -1678,6 +1690,32 @@ def _markets_sector(raw: Any, *, index: int) -> MarketsSector:
     )
 
 
+def _bounded_ratio(raw: Any, *, field: str) -> str | None:
+    """Une PARTICIPATION vit dans [0, 1] — jamais negative, jamais au-dessus de 1.
+
+    `breadth.value` est le nombre d'instruments au-dessus de leur repere
+    rapporte aux couverts. Elle n'etait lue que par `_optional_str` : le garde
+    commun, via la classe NON SIGNEE, etait sa SEULE protection. Depuis que
+    `value` a rejoint la classe signee (une correlation opposee est negative),
+    cette borne doit vivre ICI, sinon le desserrage aurait troque un faux refus
+    sur Risques contre une vraie perte sur Marches.
+    """
+    value = _optional_str(raw, field=field)
+    if value is None:
+        return None
+    try:
+        ratio = Decimal(value)
+    except InvalidOperation as exc:
+        raise SnapshotContentError(
+            f"{field}: plain decimal string required", field=field
+        ) from exc
+    if not ratio.is_finite() or ratio < 0 or ratio > 1:
+        raise SnapshotContentError(
+            f"{field}: participation ratio within [0, 1] required", field=field
+        )
+    return value
+
+
 def _markets_breadth(raw: Any) -> MarketsBreadth:
     entry = _require_mapping(raw, field="breadth")
     status = entry.get("status")
@@ -1689,7 +1727,7 @@ def _markets_breadth(raw: Any) -> MarketsBreadth:
     return MarketsBreadth(
         status=status,
         reason=_optional_str(entry.get("reason"), field="breadth.reason"),
-        value=_optional_str(entry.get("value"), field="breadth.value"),
+        value=_bounded_ratio(entry.get("value"), field="breadth.value"),
         value_pct=_optional_str(entry.get("value_pct"), field="breadth.value_pct"),
         above_count=_require_non_negative_int(
             entry.get("above_count"), field="breadth.above_count"
