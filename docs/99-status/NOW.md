@@ -11,7 +11,7 @@ lot: LOT-04 (CI verte), LOT-05 (marque canonique), LOT-06 (arbitrage des pages),
      LOT-25 (bord lecture seule des sources officielles),
      LOT-26 (SEC EDGAR point-in-time jusqu'au snapshot et à l'API)
 branch: lot/26-sec-edgar-pit
-status: lot_26_qualifie_tout_vert_avant_publication
+status: lot_26_pr_13_correctif_schema_web_en_validation
 last_good_commit: bdf9f306 (= origin/main, CI 7/7 verte)
 lots_de_cette_session:
   - "LOT-04 — la purge de session effaçait l'erreur 401 qu'elle devait laisser
@@ -180,6 +180,10 @@ active_work:
      PostgreSQL ignorées hors base ; run_checks.sh atteint == TOUT VERT == ;
      Biome 142 fichiers, mypy strict 139 sources, Vitest 434/434, build Vite
      et budget Chromium verts."
+  - "CI #106 sur b338fec : garde-fous, Ruff/mypy, unitaires et supply-chain
+     verts ; job web rouge uniquement parce que schema.d.ts n'avait pas été
+     régénéré après OpenAPI. Reproducteur exact : pnpm gen:api puis git diff
+     --exit-code -- src. Fichier généré ajouté au correctif."
   - "LOT-25 — PR brouillon #12 : adaptateurs HTTPS bornés pour SEC EDGAR,
      FRED/ALFRED, OpenFIGI, BCE et BNS, plus configuration locale et sonde live
      explicite. FMP et ORATS restent désactivés ; WSH reste dans l'adaptateur
