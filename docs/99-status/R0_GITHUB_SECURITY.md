@@ -41,8 +41,9 @@ globale, force-push ni réécriture d'historique.
 - [x] Aucune référence n'est supprimée, déplacée ou réécrite.
 - [ ] `main` applique le ruleset documenté ; cette action exige les réglages
       GitHub administrateur, non exposés par le connecteur de cette session.
-- [ ] La visibilité publique est tranchée humainement avant toute remédiation
-      d'historique.
+- [x] La visibilité publique est tranchée humainement : le dépôt reste public.
+      Le risque résiduel de contenu historique accessible est accepté ; aucune
+      remédiation d'historique n'est autorisée dans R0.
 
 ## Validation
 
@@ -51,8 +52,9 @@ python .claude/skills/vertex-titanium-ledger/scripts/audit_titanium_ledger.py
 bash tools/run_checks.sh
 ```
 
-Le lot reste `PARTIAL / SECURITY HOLD` tant que les deux critères humains ne
-sont pas clos.
+Le lot reste `PARTIAL / SECURITY HOLD` tant que le ruleset de `main` n'est pas
+actif et vérifié. Le maintien public ne vaut pas autorisation de réécrire
+l'historique.
 
 ## Exécution du 1er septembre 2026
 
@@ -63,3 +65,5 @@ sont pas clos.
   pnpm 10.33.0 et variables proxy retirées ;
 - test HTTP local qui échouait avec le proxy SOCKS : vert isolément sans proxy ;
 - aucune référence Git distante supprimée, déplacée ou réécrite.
+- décision humaine : le dépôt reste public, avec risque historique résiduel
+  accepté et sans réécriture destructive.
