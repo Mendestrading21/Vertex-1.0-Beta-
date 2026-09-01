@@ -29,9 +29,7 @@ from vertex_edge_ibkr.port import ContractSpec, NewsHeadline, NewsHeadlinesPaylo
 
 NOW = datetime(2026, 9, 1, 12, 0, 0, tzinfo=UTC)
 CON_ID = 208813720
-SPEC = ContractSpec(
-    sec_type="STK", con_id=CON_ID, symbol="GOOG", exchange="SMART", currency="USD"
-)
+SPEC = ContractSpec(sec_type="STK", con_id=CON_ID, symbol="GOOG", exchange="SMART", currency="USD")
 
 
 def source() -> DataEnvelope[NewsHeadlinesPayload]:
@@ -57,11 +55,10 @@ def charge(*depeches: NewsHeadline, con_id: int = CON_ID) -> NewsHeadlinesPayloa
     return NewsHeadlinesPayload(con_id=con_id, headlines=depeches)
 
 
-def depeche(titre: str, *, article: str = "a1", fournisseur: str = "BRFG",
-            quand: datetime | None = None) -> NewsHeadline:
-    return NewsHeadline(
-        provider_code=fournisseur, article_id=article, headline=titre, time=quand
-    )
+def depeche(
+    titre: str, *, article: str = "a1", fournisseur: str = "BRFG", quand: datetime | None = None
+) -> NewsHeadline:
+    return NewsHeadline(provider_code=fournisseur, article_id=article, headline=titre, time=quand)
 
 
 def test_une_depeche_devient_une_observation_de_CONTENU() -> None:
@@ -100,9 +97,7 @@ def test_le_prefixe_IBKR_est_ANALYSE_pas_supprime() -> None:
 def test_un_champ_de_prefixe_INCONNU_est_conserve() -> None:
     """IBKR peut ajouter des champs ; les perdre en silence serait pire que
     de les nommer maladroitement."""
-    enveloppes, _ = news_headline_envelopes(
-        source(), charge(depeche("{Z:valeur:L:fr}Titre")), SPEC
-    )
+    enveloppes, _ = news_headline_envelopes(source(), charge(depeche("{Z:valeur:L:fr}Titre")), SPEC)
     assert enveloppes[0].payload["ibkr_z"] == "valeur"
 
 
@@ -127,9 +122,7 @@ def test_une_depeche_SANS_DATE_ne_s_en_invente_pas() -> None:
 
 def test_une_depeche_datee_porte_sa_date() -> None:
     quand = datetime(2026, 8, 30, 9, 30, tzinfo=UTC)
-    enveloppes, _ = news_headline_envelopes(
-        source(), charge(depeche("T", quand=quand)), SPEC
-    )
+    enveloppes, _ = news_headline_envelopes(source(), charge(depeche("T", quand=quand)), SPEC)
     assert enveloppes[0].published_at == quand
 
 
@@ -142,17 +135,13 @@ def test_un_titre_reduit_a_son_prefixe_est_ecarte_ET_compte(titre: str) -> None:
     deja ce cas en amont. Reste le titre entierement consomme par son prefixe
     de metadonnees, qui lui est parfaitement constructible.
     """
-    enveloppes, resultat = news_headline_envelopes(
-        source(), charge(depeche(titre)), SPEC
-    )
+    enveloppes, resultat = news_headline_envelopes(source(), charge(depeche(titre)), SPEC)
     assert enveloppes == ()
     assert resultat.skipped == 1
 
 
 def test_sans_con_id_l_instrument_entier_est_refuse() -> None:
-    enveloppes, resultat = news_headline_envelopes(
-        source(), charge(depeche("T"), con_id=0), SPEC
-    )
+    enveloppes, resultat = news_headline_envelopes(source(), charge(depeche("T"), con_id=0), SPEC)
     assert enveloppes == ()
     assert resultat.refused_reason == REASON_CON_ID_MISSING
 
@@ -175,3 +164,34 @@ def test_la_provenance_est_HERITEE_de_la_reponse() -> None:
     assert enveloppes[0].rights == origine.rights
     assert enveloppes[0].connection_epoch == origine.connection_epoch
     assert enveloppes[0].quality_status == origine.quality_status
+
+
+def test_un_horodatage_SANS_FUSEAU_est_conserve_en_le_disant() -> None:
+    """IBKR date ses depeches sans fuseau, mesure le 2026-09-01.
+
+    Le jeter perdait l information ; le traiter comme de l UTC serait une
+    supposition. Il est conserve sous un nom qui dit son defaut, et
+     reste ABSENT puisque l instant, lui, reste inconnu.
+    """
+    # Derive d'un instant date plutot que construit : `DTZ001` interdit
+    # `datetime()` sans fuseau, et desactiver la regle pour un test qui
+    # porte precisement sur les fuseaux serait absurde.
+    naif = datetime(2026, 6, 2, 14, 50, 49, tzinfo=UTC).replace(tzinfo=None)
+    enveloppes, _ = news_headline_envelopes(
+        source(),
+        charge(
+            NewsHeadline(
+                provider_code="BRFG",
+                article_id="a1",
+                headline="Alphabet recule",
+                time=None,
+                time_unzoned=naif,
+            )
+        ),
+        SPEC,
+    )
+    charge_utile = enveloppes[0].payload
+    assert charge_utile["provider_time_unzoned"] == naif.isoformat()
+    assert enveloppes[0].published_at is None, (
+        "un instant inconnu ne doit pas etre publie comme connu"
+    )
