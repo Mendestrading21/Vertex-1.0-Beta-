@@ -21,6 +21,7 @@ from vertex_core.calculations.market import (
     breadth,
     log_return,
     realized_volatility,
+    rebase_series,
     relative_strength,
     simple_return,
 )
@@ -618,3 +619,94 @@ class TestBreadthProperties:
         assert 0.0 <= result <= 1.0
         # Registry invariant between_minus_one_and_one is a superset of [0, 1].
         assert -1.0 <= result <= 1.0
+
+
+class TestRebaseSeries:
+    """``market.rebased_series`` — la comparaison rendue possible côté serveur.
+
+    Ce calcul existe pour une raison précise, écrite dans
+    `docs/05-design/PAGE_ARBITRATION.md` : comparer deux séries suppose de les
+    rebaser, et le faire dans le navigateur est interdit. Le rebasage côté
+    serveur respecte l'interdiction au lieu de la contourner.
+    """
+
+    def test_vecteurs_derives_a_la_main(self):
+        result = rebase_series([100, 110, 90], adjustment_bases=[BASIS] * 3)
+        assert result == (100.0, 110.0, 90.0)
+
+    def test_le_premier_point_EST_la_base_sans_arrondi(self):
+        """Il n'est pas calculé, donc aucun arrondi ne peut le déplacer."""
+        result = rebase_series(
+            [Decimal("37.77"), Decimal("41.03")],
+            adjustment_bases=[BASIS] * 2,
+            base_value=1000,
+        )
+        assert result[0] == 1000.0
+
+    def test_base_personnalisee(self):
+        result = rebase_series([50, 75], adjustment_bases=[BASIS] * 2, base_value=1.0)
+        assert result[1] == pytest.approx(1.5, rel=FLOAT64_REL_TOL)
+
+    def test_serie_a_un_seul_point(self):
+        assert rebase_series([42.0], adjustment_bases=[BASIS]) == (100.0,)
+
+    def test_entrees_decimales_converties_explicitement(self):
+        result = rebase_series(
+            [Decimal("100.00"), Decimal("101.50")], adjustment_bases=[BASIS] * 2
+        )
+        assert result[1] == pytest.approx(101.5, rel=FLOAT64_REL_TOL)
+
+    # -- portes, chacune nommée par son code stable -----------------------
+
+    def test_serie_vide_refusee(self):
+        """Une série sans point n'a pas de base ; en inventer une fabriquerait
+        une donnée."""
+        with pytest.raises(CalculationInputError) as capture:
+            rebase_series([], adjustment_bases=[])
+        assert capture.value.reason == "empty_series"
+
+    def test_etiquettes_desalignees_refusees(self):
+        with pytest.raises(CalculationInputError) as capture:
+            rebase_series([100, 110], adjustment_bases=[BASIS])
+        assert capture.value.reason == "misaligned_adjustment_bases"
+
+    @pytest.mark.parametrize("mauvais", [0, -1, float("nan"), float("inf")])
+    def test_prix_non_positif_ou_non_fini_refuse(self, mauvais):
+        with pytest.raises(CalculationInputError):
+            rebase_series([100, mauvais], adjustment_bases=[BASIS] * 2)
+
+    def test_bases_d_ajustement_differentes_refusees(self):
+        """Comparer un cours ajusté à un cours brut afficherait un écart FAUX,
+        que rien à l'écran ne signalerait."""
+        with pytest.raises(CalculationInputError) as capture:
+            rebase_series([100, 110], adjustment_bases=[BASIS, "brut"])
+        assert capture.value.reason == "adjustment_basis_mismatch"
+
+    def test_base_non_positive_refusee(self):
+        with pytest.raises(CalculationInputError):
+            rebase_series([100], adjustment_bases=[BASIS], base_value=0)
+
+    def test_booleen_refuse_a_la_frontiere(self):
+        with pytest.raises(CalculationInputError):
+            rebase_series([True, 110], adjustment_bases=[BASIS] * 2)
+
+    # -- invariant vis-à-vis d'un calcul DÉJÀ approuvé --------------------
+
+    @given(
+        p0=st.floats(min_value=1e-2, max_value=1e3, allow_nan=False),
+        p1=st.floats(min_value=1e-2, max_value=1e3, allow_nan=False),
+    )
+    def test_rebased_series_matches_simple_return(self, p0, p1):
+        """Chaque point rebasé redit exactement ce que dit ``simple_return``.
+
+        C'est ce qui rend le rebasage vérifiable : il ne produit aucune
+        information nouvelle, il présente autrement une information déjà
+        approuvée par le registre.
+        """
+        serie = rebase_series([p0, p1], adjustment_bases=[BASIS] * 2)
+        attendu = simple_return(
+            p0, p1, adjustment_basis_t0=BASIS, adjustment_basis_t1=BASIS
+        )
+        assert serie[1] / 100.0 - 1.0 == pytest.approx(
+            attendu, rel=FLOAT64_REL_TOL, abs=FLOAT64_ABS_TOL
+        )

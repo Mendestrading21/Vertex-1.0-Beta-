@@ -86,6 +86,52 @@ calculations:
       - packages/python/vertex_core/tests/calculations/test_market.py
       - apps/worker/tests/test_markets_content.py
       - apps/api/tests/test_markets_overview.py
+  - id: market.rebased_series
+    owner: market_statistics
+    inputs: [prices, adjustment_bases, base_value]
+    output_unit: index
+    gates: [empty_series, misaligned_adjustment_bases, positive_prices, same_adjustment_basis, positive_base_value]
+    invariants: [first_point_equals_base, finite, consistent_with_simple_return]
+    runtime_status: APPROVED
+    spec_version: "1.0.0"
+    implementation: packages/python/vertex_core/src/vertex_core/calculations/market.py::rebase_series
+    method: closed_form_base_times_price_ratio
+    assumptions:
+      - "Each point is base_value * p_i / p_0, computed in float64 after an explicit conversion of int/float/Decimal inputs; bool is rejected at the boundary."
+      - "The first point is returned as float(base_value) itself, never computed: it IS the base, so no rounding can move it."
+      - "Every price must carry the same adjustment basis label. Comparing an adjusted close to an unadjusted one displays a FALSE spread that nothing on screen would signal; the mismatch is rejected, never silently accepted."
+      - "One label per price is required. A missing label is not inferred from its neighbours."
+      - "An empty series is rejected: a series with no point has no base, and inventing one would fabricate data."
+      - "Dimensionless index output; currency, instrument identity and calendar alignment stay with the caller. Two rebased series are only comparable if the caller aligned their start dates."
+    parameter_schema:
+      prices: {type: "Sequence[int | float | Decimal]", unit: price, constraint: "non-empty, each finite and > 0"}
+      adjustment_bases: {type: "Sequence[str]", unit: label, constraint: "keyword-only, same length as prices, each non-empty, all equal"}
+      base_value: {type: "int | float | Decimal", unit: index, constraint: "keyword-only, finite and > 0, default 100.0"}
+      returns: {type: "tuple[float, ...]", unit: index}
+    tolerances:
+      float64_rel_tol: 1.0e-9
+      float64_abs_tol: 1.0e-12
+      note: >-
+        FLOAT64_REL_TOL and FLOAT64_ABS_TOL are module constants of
+        calculations/market.py. The identity
+        rebase_series(p)[i] / base_value - 1 == simple_return(p[0], p[i]) is
+        asserted with rel_tol=FLOAT64_REL_TOL on prices bounded to [1e-2, 1e3]
+        (documented in the test file). The first point is asserted EXACTLY
+        equal to base_value, without tolerance.
+    oracle: hand_derived_golden_vectors
+    oracle_evidence: >-
+      Hand-derived values asserted in TestRebaseSeries (100 -> 110 -> 90 with
+      base 100 gives exactly (100.0, 110.0, 90.0)) plus the Hypothesis identity
+      test_rebased_series_matches_simple_return, which ties every point back to
+      the already-approved market.simple_return.
+    oracle_limitation: >-
+      No third-party independent implementation is used; the vectors are not
+      registered under the pytest golden marker. The calculation is a ratio
+      times a constant, so it inherits the numerical limits of
+      market.simple_return without adding any of its own.
+    criticality: high
+    tests:
+      - packages/python/vertex_core/tests/calculations/test_market.py
   - id: market.log_return
     owner: market_statistics
     inputs: [price_t0, price_t1]
