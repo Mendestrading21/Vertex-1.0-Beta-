@@ -234,7 +234,12 @@ def _record_from_row(row: Observation) -> ObservationRecord:
 
 
 def load_recent_observation_records(
-    session: Session, *, now: datetime, lookback: timedelta, limit: int
+    session: Session,
+    *,
+    now: datetime,
+    lookback: timedelta,
+    limit: int,
+    instrument_ref: str | None = None,
 ) -> list[ObservationRecord]:
     """Load the bounded recent observation window, deterministically ordered.
 
@@ -243,14 +248,28 @@ def load_recent_observation_records(
     capped at ``limit`` rows. Capability probe observations are part of the
     window and are counted by the coverage report; having no title, they can
     never enter the content ranking.
+
+    ``instrument_ref`` RESTREINT la fenêtre à un instrument, et le cadrage se
+    fait alors AVANT la borne. Mesuré le 2026-09-01 : avec 1376 dépêches sur
+    28 instruments, la fenêtre globale de 500 ne contenait plus AUCUNE dépêche
+    de GOOG — collectées en premier, donc chassées par les suivantes. Le rail
+    de preuves affichait « aucune preuve » alors que 140 existaient en base.
+
+    L'appelant qui veut le classement TOUS instruments confondus — la file
+    d'attention — laisse ce paramètre absent : ce sont deux besoins distincts,
+    d'où un filtre optionnel plutôt qu'un changement de comportement.
     """
     now = _require_aware_utc_now(now)
+    requete = select(Observation).where(
+        Observation.as_of <= now, Observation.as_of >= now - lookback
+    )
+    if instrument_ref is not None:
+        requete = requete.where(Observation.instrument_ref == instrument_ref)
     rows = (
         session.execute(
-            select(Observation)
-            .where(Observation.as_of <= now, Observation.as_of >= now - lookback)
-            .order_by(Observation.as_of.desc(), Observation.id.desc())
-            .limit(limit)
+            requete.order_by(Observation.as_of.desc(), Observation.id.desc()).limit(
+                limit
+            )
         )
         .scalars()
         .all()

@@ -426,6 +426,23 @@ def _validate_bar(raw: Any) -> tuple[dict[str, Any] | None, str | None]:
     }, None
 
 
+def _instrument_ref_de(
+    bar_records: Sequence[Any], instrument: str
+) -> str | None:
+    """`instrument_ref` de l'instrument, releve sur ses propres barres.
+
+    Les observations portent le `con_id` en `instrument_ref` tandis que les
+    pages parlent en TICKER : la correspondance n'est nulle part ailleurs, et
+    l'inventer serait deviner. Sans barre pour cet instrument, on rend `None`
+    et la fenetre reste globale — le comportement d'avant, jamais pire.
+    """
+    for record in bar_records:
+        charge = record.payload if isinstance(record.payload, Mapping) else {}
+        if charge.get("ticker") == instrument and record.instrument_ref:
+            return str(record.instrument_ref)
+    return None
+
+
 def _build_indicators(
     valid_bars: Sequence[Mapping[str, Any]],
     *,
@@ -1039,12 +1056,6 @@ class AnalysisHandler:
             lookback=self._config.lookback,
             limit=self._config.max_observations,
         )
-        evidence_records = load_recent_observation_records(
-            session,
-            now=now,
-            lookback=self._config.lookback,
-            limit=self._config.max_observations,
-        )
         seen = {
             record.payload.get("ticker")
             for record in bar_records
@@ -1056,6 +1067,18 @@ class AnalysisHandler:
                 # its honest empty state until bars actually exist.
                 continue
             chain = get_current_snapshot(session, kind=SNAPSHOT_KIND_OPTION_CHAIN, key=instrument)
+            # Preuves cadrées sur l'instrument : demander la fenêtre globale
+            # puis filtrer affamait chaque dossier dès que d'autres
+            # instruments étaient collectés après lui. Mesuré le 2026-09-01 :
+            # 0 dépêche GOOG dans les 500 plus récentes, alors que 140
+            # existaient en base.
+            evidence_records = load_recent_observation_records(
+                session,
+                now=now,
+                lookback=self._config.lookback,
+                limit=self._config.max_observations,
+                instrument_ref=_instrument_ref_de(bar_records, instrument),
+            )
             content = build_analysis_content(
                 bar_records,
                 instrument=instrument,
