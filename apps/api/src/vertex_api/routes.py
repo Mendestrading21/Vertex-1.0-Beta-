@@ -106,6 +106,7 @@ from vertex_api.schemas import (
     HealthResponse,
     MarketsOverviewResponse,
     OptionChainResponse,
+    SecFundamentalsResponse,
     SystemCapabilitiesResponse,
 )
 from vertex_api.simulation import (
@@ -121,6 +122,7 @@ from vertex_api.snapshot_views import (
     build_capabilities_response,
     build_markets_overview_response,
     build_option_chain_response,
+    build_sec_fundamentals_response,
 )
 from vertex_core.calculations.options import OptionInputError
 from vertex_core.contracts.decision import AdviceResult
@@ -140,6 +142,7 @@ SNAPSHOT_KIND_CAPABILITIES = "capabilities"
 SNAPSHOT_KIND_MARKETS = "markets_overview"
 SNAPSHOT_KIND_OPTION_CHAIN = "option_chain"
 SNAPSHOT_KIND_ANALYSIS = "analysis"
+SNAPSHOT_KIND_SEC_FUNDAMENTALS = "sec_fundamentals"
 SNAPSHOT_KEY_GLOBAL = "global"
 
 UNDERLYING_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$"
@@ -362,6 +365,22 @@ def get_analysis(
     """
     snapshot = reader.current(kind=SNAPSHOT_KIND_ANALYSIS, key=instrument)
     return build_analysis_response(snapshot, instrument=instrument, now=clock())
+
+
+@protected_router.get(
+    "/sources/sec/{instrument}/fundamentals",
+    operation_id="get_sec_fundamentals",
+    response_model=SecFundamentalsResponse,
+    summary="Official point-in-time SEC filings and facts for one instrument",
+)
+def get_sec_fundamentals(
+    instrument: Annotated[str, Path(pattern=UNDERLYING_PATTERN)],
+    reader: Annotated[SnapshotReader, Depends(get_snapshot_reader)],
+    clock: Annotated[Clock, Depends(get_clock)],
+) -> SecFundamentalsResponse:
+    """Relay the last SEC snapshot; no ratio, score or advice is computed."""
+    snapshot = reader.current(kind=SNAPSHOT_KIND_SEC_FUNDAMENTALS, key=instrument)
+    return build_sec_fundamentals_response(snapshot, instrument=instrument, now=clock())
 
 
 @protected_router.get(

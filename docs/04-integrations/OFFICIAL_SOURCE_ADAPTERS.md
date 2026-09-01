@@ -62,10 +62,27 @@ stockage/affichage/export, les quotas et la procédure de résiliation. Une clé
 absente produit `NOT_ENTITLED` ou une capacité désactivée, jamais de faux
 fallback.
 
-## Prochaine frontière d'intégration
+## SEC EDGAR branché au LOT-26
 
-Ces adaptateurs retournent les réponses brutes autorisées. Un prochain lot doit
-choisir une seule famille — par exemple les faits SEC — puis écrire le
-normaliseur typé, les règles `available_at`, la persistance PostgreSQL, les
-corrections, le rejeu, le snapshot consommateur et les tests de panne. Aucun
-payload de ce lot n'alimente encore un verdict ou une page.
+Le parcours SEC est maintenant exécutable de bout en bout jusqu'au relais API :
+
+```bash
+export VERTEX_SEC_USER_AGENT='Vertex research contact@example.com'
+uv run python tools/run_sec_edgar.py --cik 320193 --instrument AAPL
+
+export VERTEX_DATABASE_URL='postgresql+psycopg://...'
+uv run python tools/run_sec_edgar.py --cik 320193 --instrument AAPL --persist
+```
+
+La commande récupère Submissions et Company Facts, normalise les dépôts et
+faits point-in-time, puis, avec `--persist`, passe par l'ingestion append-only
+et le worker qui publie `sec_fundamentals/{instrument}`. Le relais protégé est
+`GET /api/v1/sources/sec/{instrument}/fundamentals`.
+
+Les corps bruts ne sont pas persistés : la politique les limite à 24 h et le
+dépôt ne possède pas encore de reaper pour cette famille. Chaque fait conserve
+les identifiants et hash des deux réponses source. La SEC n'alimente encore ni
+Analyse, ni Opportunités, ni `AdviceEngine`.
+
+La prochaine famille autorisée est FRED/ALFRED point-in-time, dans un lot
+séparé ; les autres clients du LOT-25 restent au stade transport/sonde.

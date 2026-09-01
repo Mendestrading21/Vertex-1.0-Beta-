@@ -8,9 +8,10 @@ lot: LOT-04 (CI verte), LOT-05 (marque canonique), LOT-06 (arbitrage des pages),
      LOT-11 (inspecteur contextuel du shell), LOT-12 (/ai → inspecteur),
      LOT-13 et LOT-13b (motif d'inspecteur unifié : plus aucun dialogue modal),
      LOT-14 (ticker du shell, point 4 de l'anatomie canonique),
-     LOT-25 (bord lecture seule des sources officielles)
-branch: lot/25-official-source-adapters
-status: lot_25_publie_pr_12_ci_7_sur_7_verte
+     LOT-25 (bord lecture seule des sources officielles),
+     LOT-26 (SEC EDGAR point-in-time jusqu'au snapshot et à l'API)
+branch: lot/26-sec-edgar-pit
+status: lot_26_qualifie_tout_vert_avant_publication
 last_good_commit: bdf9f306 (= origin/main, CI 7/7 verte)
 lots_de_cette_session:
   - "LOT-04 — la purge de session effaçait l'erreur 401 qu'elle devait laisser
@@ -171,6 +172,14 @@ mesures_de_cette_session:
      fait rougir shell-canonical.spec.ts avec `Expected: not \"none\"`"
 
 active_work:
+  - "LOT-26 — SEC EDGAR : contrats Filing/FundamentalFact, disponibilité PIT,
+     corrections et conflits sans élection silencieuse, ingestion append-only,
+     snapshot par instrument, relais API protégé et runner one-shot. Aucun
+     branchement AdviceEngine/Analyse/Opportunités."
+  - "Qualification LOT-26 : 3797 tests Python collectés, 4 intégrations
+     PostgreSQL ignorées hors base ; run_checks.sh atteint == TOUT VERT == ;
+     Biome 142 fichiers, mypy strict 139 sources, Vitest 434/434, build Vite
+     et budget Chromium verts."
   - "LOT-25 — PR brouillon #12 : adaptateurs HTTPS bornés pour SEC EDGAR,
      FRED/ALFRED, OpenFIGI, BCE et BNS, plus configuration locale et sonde live
      explicite. FMP et ORATS restent désactivés ; WSH reste dans l'adaptateur

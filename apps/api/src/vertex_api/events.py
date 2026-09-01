@@ -53,6 +53,7 @@ WATCHED_SNAPSHOT_KINDS: tuple[str, ...] = (
     "performance",
     "portfolio_valuation",
     "review_queue",
+    "sec_fundamentals",
 )
 """Kinds watched BY PREFIX: every published key of these kinds is signalled
 as ``<kind>/<key>`` (e.g. ``option_chain/SYN-TECH-01``,

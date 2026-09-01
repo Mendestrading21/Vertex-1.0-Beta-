@@ -40,6 +40,10 @@ from vertex_worker.options import (
     TOPIC_OPTION_CHAINS_INGESTED,
     is_option_chain_schema,
 )
+from vertex_worker.sec_fundamentals import (
+    TOPIC_SEC_FUNDAMENTALS_INGESTED,
+    is_sec_fundamentals_schema,
+)
 
 __all__ = [
     "OUTBOX_NOTIFY_CHANNEL",
@@ -164,6 +168,19 @@ def ingest_envelope(session: Session, envelope: DataEnvelope[Any]) -> IngestResu
         enqueue_outbox(
             session,
             TOPIC_CALENDAR_INGESTED,
+            {
+                "event_id": envelope.event_id,
+                "source": envelope.source,
+                "schema_version": envelope.schema_version,
+            },
+        )
+    if is_sec_fundamentals_schema(envelope.schema_version):
+        # Normalized SEC filings and facts own a dedicated point-in-time
+        # snapshot. They do NOT enqueue analysis/opportunities: a regulatory
+        # publication is evidence, never an automatic recommendation.
+        enqueue_outbox(
+            session,
+            TOPIC_SEC_FUNDAMENTALS_INGESTED,
             {
                 "event_id": envelope.event_id,
                 "source": envelope.source,
