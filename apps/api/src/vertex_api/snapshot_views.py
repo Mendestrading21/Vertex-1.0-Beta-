@@ -1877,6 +1877,7 @@ def build_analysis_response(
             instrument=instrument,
             engine_version=None,
             bars=None,
+            indicators=None,
             evidence=None,
             scenarios=None,
             advice=None,
@@ -1921,6 +1922,14 @@ def build_analysis_response(
             content.get("engine_version"), field="engine_version"
         ),
         bars=bars,
+        # FACULTATIF : un dossier publié avant l'ajout des indicateurs n'en
+        # porte aucun. Exiger la clé transformerait cette absence légitime
+        # en 500 — une absence n'est jamais une erreur.
+        indicators=(
+            _wire_mapping(content["indicators"], field="indicators")
+            if content.get("indicators") is not None
+            else None
+        ),
         evidence=_wire_mapping(content.get("evidence"), field="evidence"),
         scenarios=scenarios,
         advice=dict(_checked_advice(content.get("advice"))),

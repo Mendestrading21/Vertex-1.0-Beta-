@@ -610,7 +610,7 @@
       },
       "AnalysisResponse": {
         "additionalProperties": false,
-        "description": "The last ``analysis/{instrument}`` snapshot — or an honest empty state.\n\n``state = \"empty\"`` means NO dossier was ever published for this\ninstrument: every snapshot-derived field is ``None`` (never invented)\nand ``reason`` says why. ``state = \"ok\"`` relays the persisted content\nverbatim:\n\n- ``advice`` is the canonical ``AdviceResult`` produced by THE single\n  ``AdviceEngine`` — status, direction, the ten gates with their reason\n  codes, limitations — exactly as published; the API neither recomputes\n  nor softens it;\n- ``bars`` carries the validated synthetic OHLCV series (decimal\n  strings) with its per-bar discard account;\n- ``evidence`` is the fusion-cluster rail of the instrument;\n- ``scenarios`` is either the ``THEORETICAL`` scenario grid with its\n  ``CalculationRecord`` lineage or an honest ``ABSENT`` block with its\n  typed reason.\n\n``state = \"stale\"`` relaie le MÊME contenu, mais dit que l'instantané\na dépassé son budget de fraîcheur (daily_bar) : le worker n'a rien\npublié de plus récent. ``age_seconds`` est publié dans TOUS les états\ndatables — son absence faisait passer un instantané de trois jours\npour un instantané d'une minute.",
+        "description": "The last ``analysis/{instrument}`` snapshot — or an honest empty state.\n\n``state = \"empty\"`` means NO dossier was ever published for this\ninstrument: every snapshot-derived field is ``None`` (never invented)\nand ``reason`` says why. ``state = \"ok\"`` relays the persisted content\nverbatim:\n\n- ``advice`` is the canonical ``AdviceResult`` produced by THE single\n  ``AdviceEngine`` — status, direction, the ten gates with their reason\n  codes, limitations — exactly as published; the API neither recomputes\n  nor softens it;\n- ``bars`` carries the validated synthetic OHLCV series (decimal\n  strings) with its per-bar discard account;\n- ``indicators`` carries the technical indicators computed by the\n  approved engine (``market.realized_volatility``, ``market.atr``), each\n  with its ``CalculationRecord`` lineage — or a NAMED absence\n  (``INSUFFICIENT_SAMPLE``) when the declared window exceeds the\n  available history. No interpretation is published: a value, never a\n  level, a regime or a signal;\n- ``evidence`` is the fusion-cluster rail of the instrument;\n- ``scenarios`` is either the ``THEORETICAL`` scenario grid with its\n  ``CalculationRecord`` lineage or an honest ``ABSENT`` block with its\n  typed reason.\n\n``state = \"stale\"`` relaie le MÊME contenu, mais dit que l'instantané\na dépassé son budget de fraîcheur (daily_bar) : le worker n'a rien\npublié de plus récent. ``age_seconds`` est publié dans TOUS les états\ndatables — son absence faisait passer un instantané de trois jours\npour un instantané d'une minute.",
         "properties": {
           "advice": {
             "anyOf": [
@@ -695,6 +695,18 @@
             ],
             "title": "Evidence"
           },
+          "indicators": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Indicators"
+          },
           "instrument": {
             "minLength": 1,
             "title": "Instrument",
@@ -767,6 +779,7 @@
           "instrument",
           "engine_version",
           "bars",
+          "indicators",
           "evidence",
           "scenarios",
           "advice",

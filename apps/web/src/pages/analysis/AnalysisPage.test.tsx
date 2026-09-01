@@ -236,3 +236,48 @@ describe('Page Analyse — états', () => {
     await screen.findByText('Session requise');
   });
 });
+
+describe('Page Analyse — indicateurs techniques', () => {
+  it('affiche la valeur SERVEUR, sans jamais la recalculer', async () => {
+    repondre(jsonResponse(makeAnalysis()));
+    await renderAnalysis();
+    const bloc = await screen.findByTestId('indicator-volatility');
+    // `27.95` vient de `value_pct`, produit par le serveur : multiplier par
+    // 100 dans le navigateur serait le calcul financier interdit.
+    expect(bloc.textContent).toContain('27.95');
+    expect(bloc.textContent).toContain('%');
+    expect(bloc.textContent).toContain('20');
+  });
+
+  it('affiche une absence NOMMÉE plutôt qu’une case vide', async () => {
+    repondre(jsonResponse(makeAnalysis()));
+    await renderAnalysis();
+    const absent = await screen.findByTestId('indicator-atr-absent');
+    expect(absent.textContent).toContain('INSUFFICIENT_SAMPLE');
+    // Le compte réel de barres, pas seulement un statut.
+    expect(absent.textContent).toContain('3');
+  });
+
+  it('publie la méthode du calcul, pas un jugement', async () => {
+    repondre(jsonResponse(makeAnalysis()));
+    await renderAnalysis();
+    await screen.findByTestId('indicator-volatility');
+    expect(screen.getByText(/market\.realized_volatility/)).toBeDefined();
+  });
+
+  it('n’affiche AUCUNE interprétation de la mesure', async () => {
+    /**
+     * Un ATR est une amplitude, une volatilité un écart-type annualisé.
+     * Les qualifier d’« élevé » supposerait un seuil, et aucun seuil n’est
+     * déclaré. Ce test empêche qu’un futur ajout en introduise un en douce.
+     */
+    repondre(jsonResponse(makeAnalysis()));
+    await renderAnalysis();
+    const section = (await screen.findByTestId('indicator-volatility')).closest('section');
+    expect(section).not.toBeNull();
+    const texte = section?.textContent ?? '';
+    for (const mot of ['élevé', 'faible', 'normal', 'suracheté', 'survendu', 'signal']) {
+      expect(texte.toLowerCase()).not.toContain(mot);
+    }
+  });
+});

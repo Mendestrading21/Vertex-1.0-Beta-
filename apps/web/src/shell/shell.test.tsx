@@ -58,14 +58,19 @@ describe('AppShell — landmarks et lien d’évitement', () => {
     const motif = /\.vx-main\[data-page='([a-z-]+)'\]\s*\{\s*--vx-page-ledger:\s*'LEDGER (\d{2})/g;
     const trouves = new Map<string, string>();
     for (const [, page, numero] of css.matchAll(motif)) {
-      trouves.set(page, numero);
+      // Les groupes de `matchAll` sont optionnels pour TypeScript : un motif
+      // qui ne capture pas rendrait `undefined`, et l'ignorer masquerait une
+      // page absente du CSS.
+      if (page !== undefined && numero !== undefined) {
+        trouves.set(page, numero);
+      }
     }
     expect(trouves.size).toBeGreaterThan(0);
 
     const divergences: string[] = [];
     for (const [page, numero] of trouves) {
       const code = LEDGER_CODE_BY_PAGE[page];
-      if (code !== `TL / ${numero}`) {
+      if (code === undefined || code !== `TL / ${numero}`) {
         divergences.push(`${page}: CSS ${numero} vs shell ${code ?? 'absent'}`);
       }
     }

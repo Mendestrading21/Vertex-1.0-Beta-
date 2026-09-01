@@ -55,7 +55,7 @@ import re
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
-from decimal import Decimal, InvalidOperation
+from decimal import ROUND_HALF_EVEN, Decimal, InvalidOperation
 from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import ColumnElement, select
@@ -491,11 +491,19 @@ def _build_indicators(
                 completed_at=now,
                 source_event_ids=evenements,
             )
+            # Forme en pourcentage produite ICI : multiplier par 100 dans le
+            # navigateur serait un calcul financier en TypeScript, ce que
+            # `.claude/rules/frontend.md` interdit. La page Marches suit deja
+            # cette regle avec `return_1d_pct`.
+            en_pourcent = (Decimal(_num_string(valeur)) * 100).quantize(
+                Decimal("0.01"), rounding=ROUND_HALF_EVEN
+            )
             indicateurs["realized_volatility"] = {
                 "status": "OK",
                 "window": VOLATILITY_WINDOW,
                 "unit": "annualized_ratio",
                 "value": _num_string(valeur),
+                "value_pct": format(en_pourcent, "f"),
                 "calculation": _calculation_meta(enregistrement),
             }
 

@@ -314,7 +314,7 @@ export function OptionsPage() {
           <UnderlyingPicker current={null} />
           <DataStateBoundary
             state="empty"
-            detail="Aucun sous-jacent sélectionné — choisir un sous-jacent synthétique ci-dessus. Aucun instrument n'est ouvert par défaut."
+            detail="Aucun sous-jacent sélectionné — en choisir un ci-dessus. Aucun instrument n'est ouvert par défaut."
           />
         </>
       ) : (

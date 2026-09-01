@@ -1047,6 +1047,12 @@ export interface components {
          *       nor softens it;
          *     - ``bars`` carries the validated synthetic OHLCV series (decimal
          *       strings) with its per-bar discard account;
+         *     - ``indicators`` carries the technical indicators computed by the
+         *       approved engine (``market.realized_volatility``, ``market.atr``), each
+         *       with its ``CalculationRecord`` lineage — or a NAMED absence
+         *       (``INSUFFICIENT_SAMPLE``) when the declared window exceeds the
+         *       available history. No interpretation is published: a value, never a
+         *       level, a regime or a signal;
          *     - ``evidence`` is the fusion-cluster rail of the instrument;
          *     - ``scenarios`` is either the ``THEORETICAL`` scenario grid with its
          *       ``CalculationRecord`` lineage or an honest ``ABSENT`` block with its
@@ -1079,6 +1085,10 @@ export interface components {
             engine_version: string | null;
             /** Evidence */
             evidence: {
+                [key: string]: unknown;
+            } | null;
+            /** Indicators */
+            indicators: {
                 [key: string]: unknown;
             } | null;
             /** Instrument */
