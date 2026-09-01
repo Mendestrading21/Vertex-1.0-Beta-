@@ -22,7 +22,8 @@ fournisseurs payants sans les activer.
 3. Clients stricts et `DataEnvelope` pour les cinq sources.
 4. Registre de capacités, droits, secrets locaux et fallbacks explicites.
 5. Tests synthétiques de routes, provenance, ambiguïté et pannes.
-6. Documentation d'installation et ADR.
+6. Chargement sécurisé du `.env` et commande de sonde réelle sans payload brut.
+7. Documentation d'installation et ADR.
 
 ## Non-objectifs
 

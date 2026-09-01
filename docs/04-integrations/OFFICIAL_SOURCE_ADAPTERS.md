@@ -31,6 +31,29 @@ compte, ordre, position, P&L ou exécution.
 
 Ne jamais coller une clé dans Git, une issue, une PR, un log ou une capture.
 
+## Vérification directe sur l'ordinateur Vertex
+
+Après avoir renseigné le `.env` local, la commande sans réseau montre ce qui
+est configuré, sans afficher aucune clé :
+
+```bash
+uv run python tools/probe_official_sources.py
+```
+
+Chaque sonde réseau est volontairement explicite et bornée :
+
+```bash
+uv run python tools/probe_official_sources.py --live --source sec-submissions --cik 0000320193
+uv run python tools/probe_official_sources.py --live --source fred --series-id GDP
+uv run python tools/probe_official_sources.py --live --source openfigi --id-type TICKER --id-value IBM --exchange-code US
+uv run python tools/probe_official_sources.py --live --source ecb --flow-ref EXR --series-key D.USD.EUR.SP00.A
+uv run python tools/probe_official_sources.py --live --source snb --cube-id snbmonagglech --language fr
+```
+
+La sortie est un reçu technique (`source`, schéma, heures, qualité, droits et
+hash), jamais le payload financier brut. Une erreur de configuration, un 429,
+une panne ou une réponse invalide rend le code 2 et un état `ERROR`.
+
 ## Ce qui reste volontairement désactivé
 
 FMP et ORATS ne sont pas implémentés. Avant activation, une personne doit

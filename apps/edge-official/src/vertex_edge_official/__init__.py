@@ -13,6 +13,7 @@ from vertex_edge_official.clients import (
     SecEdgarClient,
     SnbDataClient,
 )
+from vertex_edge_official.config import OfficialSourceConfig
 from vertex_edge_official.transport import (
     HttpRequest,
     HttpResponse,
@@ -28,6 +29,7 @@ __all__ = [
     "HttpResponse",
     "HttpTransport",
     "OfficialSourceError",
+    "OfficialSourceConfig",
     "OpenFigiClient",
     "OpenFigiMapping",
     "SecEdgarClient",
