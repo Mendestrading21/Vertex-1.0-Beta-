@@ -52,6 +52,7 @@ if TYPE_CHECKING:  # import-time cycle avoidance (ingest -> markets)
     from vertex_worker.calendar import CalendarConfig
     from vertex_worker.markets import MarketsConfig
     from vertex_worker.options import OptionsConfig
+    from vertex_worker.risk import RiskConfig
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -672,6 +673,7 @@ def build_registry(
     analysis_config: AnalysisConfig | None = None,
     calendar_config: CalendarConfig | None = None,
     opportunities_config: AnalysisConfig | None = None,
+    risk_config: RiskConfig | None = None,
 ) -> HandlerRegistry:
     """Build the worker registry with the canonical topics.
 
@@ -704,6 +706,7 @@ def build_registry(
     )
     from vertex_worker.performance import register_performance_handler
     from vertex_worker.portfolio import register_portfolio_handler
+    from vertex_worker.risk import register_risk_handler
 
     registry = HandlerRegistry()
     registry.register(
@@ -754,4 +757,9 @@ def build_registry(
     register_follow_up_handler(registry, clock=clock, config=fusion_config)
     # Performance (page 10): same quote registry as the markets handler.
     register_performance_handler(registry, clock=clock, config=resolved_markets_config)
+    # Risques : le handler n'existe QUE si un perimetre est declare. Sans
+    # perimetre, aucun instantane n'est publie et la page reste vide EN LE
+    # DISANT — plutot que de comparer des instruments choisis au hasard.
+    if risk_config is not None:
+        register_risk_handler(registry, clock=clock, config=risk_config)
     return registry

@@ -103,6 +103,7 @@ def main() -> int:
         analysis_config=profil.analysis,
         calendar_config=profil.calendar,
         opportunities_config=profil.opportunities,
+        risk_config=profil.risk,
     )
     engine = create_engine(url, pool_pre_ping=True)
     runner = WorkerRunner(

@@ -674,6 +674,11 @@ class MarketsOverviewHandler:
                 precedent.content, to_jsonb_object("content", content)
             ):
                 self._enqueue_portfolio_revaluations(session)
+                # La matrice de correlation depend des CLOTURES, exactement
+                # comme les revalorisations : meme porte, meme transaction.
+                # Un message GLOBAL — elle ne depend d'aucun portefeuille,
+                # elle decrit le perimetre declare.
+                self._enqueue_risk_matrix(session)
             else:
                 log.info(
                     "cotes inchangees : aucune revalorisation enfilee "
@@ -705,6 +710,20 @@ class MarketsOverviewHandler:
         return canonical_json_hash(sans_horodatage(precedent)) != canonical_json_hash(
             sans_horodatage(courant)
         )
+
+    @staticmethod
+    def _enqueue_risk_matrix(session: Session) -> None:
+        """Enfile UN recalcul global de la matrice de correlation.
+
+        Meme raisonnement que les revalorisations : une cote qui ne deplace
+        aucune cloture publiee ne peut deplacer aucune correlation. Le chemin
+        d'ingestion n'est deliberement pas utilise — les nouvelles clotures
+        quotidiennes existent exactement quand l'apercu publie a bouge.
+        """
+        from vertex_persistence.repository.outbox import enqueue_outbox
+        from vertex_worker.risk import TOPIC_RISK_MATRIX_REFRESH
+
+        enqueue_outbox(session, TOPIC_RISK_MATRIX_REFRESH, {})
 
     @staticmethod
     def _enqueue_portfolio_revaluations(session: Session) -> None:
