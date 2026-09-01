@@ -24,7 +24,6 @@ const GLYPH_BY_PAGE: Readonly<Record<string, string>> = {
   markets: marketRegimeUrl,
   portfolio: manualLedgerUrl,
   catalysts: thesisActiveUrl,
-  ai: evidenceRailUrl,
   'sources-reports': sourceCoverageUrl,
 };
 

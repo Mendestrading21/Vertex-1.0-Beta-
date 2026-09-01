@@ -579,3 +579,30 @@ chemin de fraîcheur avec un lot de démarrage.
 - **L'ordre des signatures `TL / NN`** reste ouvert (voir LOT-07) : rien n'a
   changé, les trois destinations manquantes sont toujours la condition
   préalable.
+
+## Trouvé au LOT-12 (2026-09-01)
+
+- **Un panneau accessoire pouvait faire tomber sa page hôte** — **FERMÉ.**
+  `AiAnswerView` parcourait sans garde les six listes que le contrat `AiAnswer`
+  promet. Une réponse hors contrat servie à `/v1/ai/explain` faisait échouer
+  `ClaimsBlock` sur `catalog is not iterable`, et l'erreur remontait jusqu'à la
+  frontière de route React Router : c'était la page ENTIÈRE — analyse, avis,
+  barres — qui disparaissait à cause d'un panneau d'explication.
+
+  Le défaut PRÉEXISTAIT ; il était invisible tant que l'explication vivait
+  seule sur sa propre destination, où elle n'avait qu'elle-même à emporter.
+  L'absorption dans l'inspecteur l'a rendu visible en la plaçant à côté d'un
+  dossier financier. Corrigé par `isWellFormedAnswer` : une réponse hors
+  contrat se dégrade en état `error` visible et le dossier de l'hôte reste
+  intact. Falsifié — neutraliser la garde fait réapparaître l'erreur.
+
+  **Règle générale à retenir pour les absorptions restantes :** un composant
+  déplacé dans un hôte hérite de la responsabilité de ne jamais le faire
+  tomber. À vérifier pour chaque panneau monté dans l'inspecteur.
+- **Le bandeau B-05 n'est plus rendu hors ligne** — **ASSUMÉ, non régressif.**
+  L'ancienne page le gardait visible en état dégradé. Le panneau n'étant plus
+  monté quand aucun dossier n'est ouvert, le bandeau disparaît avec lui. Il ne
+  disparaît PAS d'un écran qui montre une explication : c'est l'explication
+  entière qui est absente, donc aucune phrase non qualifiée n'est jamais
+  affichée. L'invariant qui compte — jamais d'explication sans le bandeau — est
+  désormais asséré explicitement sur les deux pages hôtes.

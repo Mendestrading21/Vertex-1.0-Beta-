@@ -2,6 +2,7 @@ import { Link, useParams } from 'react-router-dom';
 
 import type { AnalysisResponse } from '../../api/client.ts';
 import { pageStateOf, useAnalysis } from '../../api/hooks.ts';
+import { AiExplanationPanel } from '../../components/ai/AiExplanationPanel.tsx';
 import { AuthRequiredNotice } from '../../components/AuthRequiredNotice.tsx';
 import { DataStateBoundary } from '../../components/DataStateBoundary.tsx';
 import type { DataState } from '../../components/DataStateBoundary.tsx';
@@ -428,6 +429,7 @@ function AnalysisRoute({ instrument }: { readonly instrument: string }) {
   return (
     <>
       <InstrumentPicker current={instrument} />
+
       {state === 'auth-required' ? (
         <AuthRequiredNotice />
       ) : state === 'empty' ? (
@@ -447,7 +449,18 @@ function AnalysisRoute({ instrument }: { readonly instrument: string }) {
               : {})}
         />
       ) : data !== undefined ? (
-        <AnalysisFrame key={instrument} data={data} state={state} instrument={instrument} />
+        <>
+          <AnalysisFrame key={instrument} data={data} state={state} instrument={instrument} />
+
+          {/*
+            LOT-12 : l'explication IA vit dans l'inspecteur et porte sur le
+            dossier OUVERT. Elle n'est donc montée QUE lorsque le dossier est
+            réellement affiché : sans dossier chargé, il n'y a rien à
+            expliquer, et un panneau d'explication à côté d'un écran hors
+            ligne serait un second état dégradé pour rien.
+          */}
+          <AiExplanationPanel dossiers={[{ kind: 'analysis', key: instrument }]} />
+        </>
       ) : null}
     </>
   );

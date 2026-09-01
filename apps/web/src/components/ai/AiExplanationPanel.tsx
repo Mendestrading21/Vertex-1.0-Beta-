@@ -5,18 +5,17 @@ import { isApiError } from '../../api/client.ts';
 import type { AiAnswer } from '../../api/client.ts';
 import { postAiExplain, useAiStatus } from '../../api/decisionApi.ts';
 import { pageStateOf } from '../../api/hooks.ts';
-import { usePortfolio } from '../../api/portfolioApi.ts';
-import { AuthRequiredNotice } from '../../components/AuthRequiredNotice.tsx';
-import { DataStateBoundary } from '../../components/DataStateBoundary.tsx';
-import type { DataState } from '../../components/DataStateBoundary.tsx';
-import { useDeclaredInstruments } from '../devUniverse.ts';
+import { AuthRequiredNotice } from '../AuthRequiredNotice.tsx';
+import { DataStateBoundary } from '../DataStateBoundary.tsx';
+import type { DataState } from '../DataStateBoundary.tsx';
+import { InspectorPanel } from '../../shell/inspector.tsx';
 import {
   AI_NOTE_CAPABILITY_STATE,
   AI_PERMANENT_NOTICE,
-  AI_SUBJECT_KINDS,
   AI_SUBJECT_LABELS,
   AI_SUBJECT_RESOURCE_LABELS,
   isAiSubjectKind,
+  isWellFormedAnswer,
 } from './aiView.ts';
 import type { AiSubjectKind } from './aiView.ts';
 import {
@@ -31,8 +30,25 @@ import {
 } from './AiAnswerView.tsx';
 
 /**
- * Page Vertex IA — question : « Comment expliquer, relier et résumer les
- * données certifiées sans créer une seconde vérité ? »
+ * Explication IA — panneau d'INSPECTEUR, plus une destination.
+ *
+ * Question conservée : « Comment expliquer, relier et résumer les données
+ * certifiées sans créer une seconde vérité ? »
+ *
+ * Absorbé depuis `/ai` au LOT-12, d'après `docs/05-design/PAGE_ARBITRATION.md` :
+ * « l'IA explique le dossier ouvert, donc elle vit dans l'inspecteur ». Le
+ * contrat serveur ne connaît que TROIS sujets — `analysis/<instrument>`,
+ * `portfolio_valuation/<portefeuille>` et `performance/<portefeuille>` — qui
+ * sont exactement les dossiers d'Analyse et de Portefeuille. L'absorption est
+ * donc mécanique : la page HÔTE dit quel dossier est ouvert, ce composant
+ * l'explique.
+ *
+ * Ce qui a disparu, et pourquoi : le sélecteur de sujet. Il laissait choisir
+ * un sujet qu'aucune page n'affichait — l'inverse d'« expliquer le dossier
+ * ouvert ». Les sujets proposés sont désormais ceux que la page hôte porte
+ * RÉELLEMENT, et rien d'autre.
+ *
+ * La route API `/v1/ai/explain` et `/v1/ai/status` ne bougent pas (règle 2).
  *
  * Aucun fournisseur d'IA n'existe dans ce dépôt : la décision B-05 est en
  * attente et `/ai/status` le dit. Le seul chemin d'explication est le gabarit
@@ -102,19 +118,38 @@ function ProviderBanner({
   );
 }
 
-export function AiPage() {
+/** Un dossier que la page hôte affiche réellement et sait faire expliquer. */
+export interface AiDossier {
+  readonly kind: AiSubjectKind;
+  /** Clé du sujet. Vide = la page n'a pas encore résolu son dossier. */
+  readonly key: string;
+}
+
+export interface AiExplanationPanelProps {
+  /**
+   * Dossiers ouverts sur la page hôte, dans l'ordre d'affichage. Le premier
+   * est expliqué par défaut. Une liste vide ne monte AUCUN panneau : sans
+   * dossier ouvert, il n'y a rien à expliquer.
+   */
+  readonly dossiers: readonly AiDossier[];
+}
+
+export function AiExplanationPanel({ dossiers }: AiExplanationPanelProps) {
+  // Le sujet expliqué vit dans l'URL : il survit à un rechargement et rend le
+  // dossier expliqué partageable, comme l'ancienne page le faisait.
   const [params, setParams] = useSearchParams();
-  const kindParam = params.get('subject') ?? '';
-  const kind: AiSubjectKind = isAiSubjectKind(kindParam) ? kindParam : 'analysis';
-  const declares = useDeclaredInstruments();
-  const instrument = params.get('instrument') ?? declares[0] ?? '';
+  const kindParam = params.get('explain') ?? '';
+  const chosen =
+    isAiSubjectKind(kindParam) && dossiers.some((entry) => entry.kind === kindParam)
+      ? kindParam
+      : (dossiers[0]?.kind ?? null);
+  const dossier = dossiers.find((entry) => entry.kind === chosen) ?? null;
 
   const statusQuery = useAiStatus();
   const statusState = pageStateOf(statusQuery);
-  const portfolioQuery = usePortfolio();
-  const portfolioId = portfolioQuery.data?.portfolio.id ?? null;
 
-  const key = kind === 'analysis' ? instrument : portfolioId === null ? '' : String(portfolioId);
+  const kind: AiSubjectKind = dossier?.kind ?? 'analysis';
+  const key = dossier?.key ?? '';
 
   const answerQuery = useQuery<AiAnswer>({
     queryKey: ['ai', 'explain', kind, key] as const,
@@ -136,15 +171,18 @@ export function AiPage() {
     setParams(next, { replace: true });
   }
 
+  // Sans dossier ouvert, aucun panneau n'est monté : l'inspecteur reste libre
+  // (règle « aucune colonne morte » du LOT-11).
+  if (dossier === null) {
+    return null;
+  }
+
   return (
-    <article className="vx-ai" aria-labelledby="vx-page-title-ai">
-      <header className="vx-page-header">
-        <h1 id="vx-page-title-ai">Vertex IA</h1>
-        <p className="vx-page-question">
-          Comment expliquer, relier et résumer les données certifiées sans créer une seconde
-          vérité ?
-        </p>
-      </header>
+    <InspectorPanel subject="explication">
+      <p className="vx-page-question">
+        Comment expliquer, relier et résumer les données certifiées sans créer une seconde
+        vérité ?
+      </p>
 
       <ProviderBanner
         provider={statusQuery.data?.provider ?? null}
@@ -154,44 +192,36 @@ export function AiPage() {
       />
 
       <section className="vx-ai-subject" aria-labelledby="vx-ai-subject-title">
-        <h2 id="vx-ai-subject-title">Sujet expliqué</h2>
-        <div className="vx-matrix-filters">
-          <label>
-            Sujet
-            <select
-              name="subject"
-              value={kind}
-              onChange={(bubble) => updateParam('subject', bubble.target.value)}
-            >
-              {AI_SUBJECT_KINDS.map((entry) => (
-                <option key={entry} value={entry}>
-                  {AI_SUBJECT_LABELS[entry]}
-                </option>
-              ))}
-            </select>
-          </label>
-          {kind === 'analysis' ? (
+        <h3 id="vx-ai-subject-title">Dossier expliqué</h3>
+        {/*
+          Le choix ne porte QUE sur les dossiers que la page hôte affiche
+          réellement. Un dossier absent de la page n'est pas proposé : on
+          explique ce qui est ouvert, jamais ce qui ne l'est pas. Un seul
+          dossier ouvert = aucun choix à faire, donc aucun contrôle affiché.
+        */}
+        {dossiers.length > 1 ? (
+          <div className="vx-matrix-filters">
             <label>
-              Instrument
+              Dossier
               <select
-                name="instrument"
-                value={instrument}
-                onChange={(bubble) => updateParam('instrument', bubble.target.value)}
+                name="explain"
+                value={kind}
+                onChange={(bubble) => updateParam('explain', bubble.target.value)}
               >
-                {declares.map((entry) => (
-                  <option key={entry} value={entry}>
-                    {entry}
+                {dossiers.map((entry) => (
+                  <option key={entry.kind} value={entry.kind}>
+                    {AI_SUBJECT_LABELS[entry.kind]}
                   </option>
                 ))}
               </select>
             </label>
-          ) : null}
-        </div>
+          </div>
+        ) : null}
         <p className="vx-ai-subject-note" data-testid="ai-subject-resource">
           Ressource expliquée : <code>{AI_SUBJECT_RESOURCE_LABELS[kind]}</code> — clé résolue :{' '}
           {key === '' ? (
             <span className="vx-cell-absent">
-              aucun portefeuille déclaré n’a encore été lu : rien n’est expliqué
+              le dossier de cette page n’est pas encore résolu : rien n’est expliqué
             </span>
           ) : (
             <code data-testid="ai-subject-key">{key}</code>
@@ -218,10 +248,21 @@ export function AiPage() {
       ) : key === '' ? (
         <DataStateBoundary
           state="empty"
-          detail="Aucune clé de sujet résolue : le portefeuille déclaré n’a pas encore été lu."
+          detail="Aucune clé de sujet résolue : le dossier de cette page n’a pas encore été lu."
         />
       ) : answer === undefined ? (
         <DataStateBoundary state={answerState as DataState} />
+      ) : !isWellFormedAnswer(answer) ? (
+        // Réponse hors contrat : l'explication est refusée en bloc plutôt que
+        // rendue à moitié. Ce panneau vit DANS une page qui porte un dossier
+        // financier — il ne doit jamais emporter son hôte en échouant.
+        <DataStateBoundary
+          state="error"
+          detail={
+            'Réponse d’explication hors contrat (listes attendues absentes) — rien n’est ' +
+            'affiché à la place, et le dossier de la page reste intact.'
+          }
+        />
       ) : (
         <DataStateBoundary state={answerState as DataState}>
           {answer.state === 'refused' ? (
@@ -248,13 +289,13 @@ export function AiPage() {
 
       <section className="vx-ai-note" aria-labelledby="vx-ai-note-title" data-testid="ai-note">
         <p className="vx-badge vx-badge-warning">{AI_NOTE_CAPABILITY_STATE}</p>
-        <h2 id="vx-ai-note-title">Enregistrer une note à partir de cette explication</h2>
+        <h3 id="vx-ai-note-title">Enregistrer une note à partir de cette explication</h3>
         <p>
           Capacité {AI_NOTE_CAPABILITY_STATE} : aucune route, aucun stockage et aucun exécuteur
-          n’existent pour enregistrer une note issue de cette page. Rien n’est proposé en attente,
-          et aucun formulaire n’est affiché.
+          n’existent pour enregistrer une note. Rien n’est proposé en attente, et aucun
+          formulaire n’est affiché.
         </p>
       </section>
-    </article>
+    </InspectorPanel>
   );
 }

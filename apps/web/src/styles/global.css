@@ -3511,7 +3511,7 @@ body {
 }
 
 /* ------------------------------------------------------------------ */
-/* Vague finale — Vertex IA (/ai)                                      */
+/* Vague finale — explication IA, absorbée dans l'inspecteur (LOT-12)  */
 /* ------------------------------------------------------------------ */
 
 .vx-ai-provider {
@@ -3972,10 +3972,6 @@ body {
   --vx-page-ledger: 'LEDGER 09 · CATALYST';
 }
 
-.vx-main[data-page='ai'] {
-  --vx-page-ledger: 'LEDGER 11 · INTELLIGENCE';
-}
-
 .vx-main[data-page='sources-reports'] {
   --vx-page-ledger: 'LEDGER 12 · CONTROL';
 }
@@ -4289,7 +4285,7 @@ textarea:hover {
   border-color: var(--vx-signal-deep);
 }
 
-.vx-main[data-page='ai'] .vx-ai-claim-ref,
+.vx-inspector .vx-ai-claim-ref,
 .vx-main[data-page='sources-reports'] .vx-health-method {
   color: var(--vx-signal);
 }

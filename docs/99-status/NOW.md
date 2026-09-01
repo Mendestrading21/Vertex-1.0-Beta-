@@ -5,7 +5,7 @@ phase: rattrapage_complet_autorise
 lot: LOT-04 (CI verte), LOT-05 (marque canonique), LOT-06 (arbitrage des pages),
      LOT-07 (/system → /sources-reports), LOT-08 (/performance → Portefeuille),
      LOT-09 (conformité du shell), LOT-10 (création de Catalyseurs),
-     LOT-11 (inspecteur contextuel du shell)
+     LOT-11 (inspecteur contextuel du shell), LOT-12 (/ai → inspecteur)
 branch: codex/vertex-rattrapage-complet-20260831
 status: ci_reparee_puis_execution_en_cours_sans_fusion_automatique
 last_good_commit: bdf9f306 (= origin/main, CI 7/7 verte)
@@ -74,6 +74,18 @@ lots_de_cette_session:
      estimé/confirmé, révisions, conflits, fraîcheur déclarée), jamais une
      probabilité : le contrat d'agenda n'en publie aucune, et une probabilité
      sans calibration est interdite. L'inspecteur le DIT à l'écran."
+  - "LOT-12 — dernière absorption : /ai quitte le rail. Le contrat serveur ne
+     connaît que TROIS sujets explicables, qui sont exactement les dossiers
+     d'Analyse et de Portefeuille : l'explication est donc montée dans
+     l'inspecteur de ces deux pages, et le sélecteur de sujet est remplacé par
+     les dossiers RÉELLEMENT ouverts sur la page hôte — l'ancien laissait
+     choisir un sujet qu'aucune page n'affichait. Défaut RÉVÉLÉ par
+     l'absorption et corrigé dans le même lot : une réponse hors contrat
+     faisait planter ClaimsBlock sur « catalog is not iterable », et l'erreur
+     remontait jusqu'à la frontière de route — un panneau accessoire faisait
+     disparaître la PAGE ENTIÈRE, dossier financier compris. Garde de forme
+     ajoutée, testée et falsifiée. Le rail passe à DIX destinations, et AUCUNE
+     route historique ne reste à arbitrer."
 mesures_de_cette_session:
   - "playwright : 405 passed après LOT-07 (le job CI qui était rouge), puis
      399 passed après LOT-08. La baisse de 6 est intégralement expliquée dans
@@ -87,15 +99,19 @@ mesures_de_cette_session:
      nouveau e2e/legacy-redirects.spec.ts (4 x 3), qui couvre les TROIS
      redirections au lieu de deux. Aucun test supprimé : follow-up.spec.ts
      est devenu catalysts.spec.ts, ses 6 tests intacts (27 = 9 x 3). Puis
-     435 après LOT-11 : +3 = une mesure d'inspecteur x 3 viewports."
-  - "vitest : 420 passed / 31 fichiers ; tsc 0 ; biome 0 (135 fichiers) — mesuré
-     après LOT-11"
+     435 après LOT-11 (+3 = une mesure d'inspecteur x 3 viewports), puis 429
+     après LOT-12 : -12 les quatre contrôles d'accessibilité sur /ai devenue
+     une redirection (le même DOM est balayé via /analysis et /portfolio),
+     +3 la redirection /ai -> /analysis, +3 l'invariant « jamais d'explication
+     sans le bandeau B-05 ». Aucun test supprimé : ai.spec.ts est devenu
+     ai-inspector.spec.ts."
+  - "vitest : 423 passed / 31 fichiers ; tsc 0 ; biome 0 (135 fichiers) — mesuré
+     après LOT-12"
   - "pytest : 3766 passed, 4 skipped — mesuré sur 35d48cb"
   - "run_checks.sh : TOUT VERT"
   - "audit_titanium_ledger.py après LOT-10 : empreinte canonique vérifiée,
-     écarts = 'charts, risks' à créer, 'ai' à absorber. 'system',
-     'performance' et 'follow-up' ont quitté la liste — c'est la mesure du
-     lot, pas une affirmation"
+     écart unique = 'charts, risks' à créer. AUCUNE route historique ne
+     reste à arbitrer : les quatre lignes de la table sont exécutées"
   - "falsification LOT-07 : `Navigate` sans `replace` fait rougir
      routes.test.tsx avec `expected 'PUSH' to be 'REPLACE'`"
   - "falsification LOT-09 : retirer les guillemets de `url()` dans BrandMark
@@ -222,12 +238,12 @@ checks_locaux:
   - "worker Cloudflare : 53 tests de contrat"
   - "run_checks.sh TOUT VERT"
 pages_reelles: [/today, /opportunities, /analysis, /options, /simulator,
-                /calendar, /markets, /portfolio, /catalysts, /ai,
+                /calendar, /markets, /portfolio, /catalysts,
                 /sources-reports, plus /auth hors rail]
 pages_non_implementees: []
 destinations_cibles_manquantes: [charts, risks]
 redirections_permanentes: ["/system -> /sources-reports", "/performance -> /portfolio",
-                           "/follow-up -> /catalysts"]
+                           "/follow-up -> /catalysts", "/ai -> /analysis"]
 ecarts_declares:
   - "WCAG 1.4.10 (reflow) NON CONFORME : plancher min-width 1024px, 384 px de
      débordement mesurés à 200 % de zoom — épinglé par test, inscrit à DEBT.md"

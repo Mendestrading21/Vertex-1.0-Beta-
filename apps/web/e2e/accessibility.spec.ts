@@ -70,7 +70,9 @@ const ROUTES = [
   // ici ne mesurerait plus qu'une redirection. Le module Performance est
   // désormais dans le DOM de '/portfolio', donc balayé par cette entrée —
   // c'est une couverture ajoutée, pas retirée.
-  '/ai',
+  // '/ai' a été absorbée dans l'inspecteur (LOT-12) : la visiter ici ne
+  // mesurerait plus qu'une redirection. Le panneau d'explication est dans le
+  // DOM de '/analysis' et de '/portfolio', donc balayé par ces deux entrées.
   '/sources-reports',
 ] as const;
 

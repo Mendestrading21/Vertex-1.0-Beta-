@@ -157,6 +157,10 @@ test.describe('Page Analyse — chandeliers, table équivalente, AdviceCard', ()
   test('hors ligne simulé (routes /api interrompues) → état offline honnête', async ({ page }) => {
     await page.route('**/api/**', (route) => route.abort());
     await page.goto(`/analysis/${INSTRUMENT}`);
+    // Locator STRICT et non `.first()` : depuis le LOT-12, le panneau
+    // d'explication n'est monté que si le dossier est chargé. Hors ligne il ne
+    // l'est pas, donc il ne doit y avoir QU'UN seul état hors ligne sur la
+    // page. Un `.first()` masquerait un second panneau dégradé surnuméraire.
     const boundary = page.locator('[data-state="offline"]');
     await expect(boundary).toBeVisible();
     await expect(boundary).toContainText('Hors ligne');

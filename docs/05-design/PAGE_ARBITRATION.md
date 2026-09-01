@@ -102,6 +102,26 @@ en remplissant une maquette avec ce qui n'existe pas.
 
 | 2026-09-01 | (shell) **inspecteur contextuel** | Point 6 de l'anatomie canonique livré comme EMPLACEMENT du shell, rempli par la page. Premier remplissage : Catalyseurs (§10). Débloque la ligne `ai`, qui attendait cet emplacement. | vitest 420 ; playwright 435 ; largeur mesurée dans 300–340 px ; « aucune colonne morte » vérifiée sur `/today` et `/catalysts` |
 
+| 2026-09-01 | `ai` → **inspecteur contextuel** | Dernière ligne d'absorption. Le module d'explication passe sous `src/components/ai/` et est monté par les pages qui portent un dossier explicable : Analyse (`analysis`) et Portefeuille (`portfolio_valuation`, `performance`). Le sélecteur de sujet disparaît au profit des dossiers RÉELLEMENT ouverts sur la page hôte. `/ai` quitte le rail et redirige vers `/analysis`. Routes API inchangées (règle 2). | vitest 423 ; playwright 429 ; `run_checks.sh` TOUT VERT ; l'audit ne liste plus aucune route à arbitrer |
+
+### Le défaut que l'absorption de `/ai` a révélé
+
+En montant le panneau dans une page hôte, celle-ci lui a servi — via son mock
+de test — le corps d'une AUTRE ressource. `ClaimsBlock` a échoué sur
+`catalog is not iterable`, et l'erreur est remontée jusqu'à la frontière de
+route : **c'est la page entière qui disparaissait** — analyse, avis, barres —
+à cause d'un panneau accessoire.
+
+Le défaut préexistait l'absorption ; il était simplement invisible tant que
+l'explication vivait seule sur sa propre page, où elle n'avait qu'elle-même à
+emporter. Corrigé par une garde de forme (`isWellFormedAnswer`) : une réponse
+hors contrat se dégrade en état `error` visible et **le dossier de la page
+hôte reste intact**. Falsifié — neutraliser la garde fait réapparaître
+`catalog is not iterable`.
+
+C'est la leçon générale de ce lot : un composant déplacé dans un hôte hérite
+de la responsabilité de ne jamais le faire tomber.
+
 ### Ce que Catalyseurs n'invente pas
 
 La page ne crée aucune donnée en croisant deux snapshots publiés :

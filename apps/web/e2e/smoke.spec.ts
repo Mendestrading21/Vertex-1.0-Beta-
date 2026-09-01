@@ -203,17 +203,19 @@ test.describe('Dégradation 1024×768', () => {
     });
   });
 
-  test('/ai : bandeau B-05, affirmations et extraits externes séparés, pas de scroll horizontal', async ({
+  test('/analysis (inspecteur IA) : bandeau B-05, affirmations et extraits externes séparés, pas de scroll horizontal', async ({
     page,
   }, testInfo) => {
-    await page.goto('/ai');
+    // Un instrument EXPLICITE : sans dossier ouvert, l'inspecteur ne monte
+    // aucun panneau — c'est la règle « aucune colonne morte ».
+    await page.goto('/analysis/SYN-TECH-01');
     await expect(page.getByTestId('ai-provider-banner')).toBeVisible({ timeout: 20_000 });
     await expect(page.getByTestId('ai-claims')).toBeVisible();
     await expect(page.getByTestId('ai-external')).toBeVisible();
     await expect(page.getByTestId('ai-note')).toContainText('NON_IMPLÉMENTÉ');
     await expectNoHorizontalPageScroll(page);
     await page.screenshot({
-      path: screenshotPath('ai-smoke', testInfo.project.name),
+      path: screenshotPath('ai-inspector-smoke', testInfo.project.name),
       fullPage: true,
     });
   });

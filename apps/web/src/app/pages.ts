@@ -1,5 +1,5 @@
 /**
- * Modèle de navigation — 4 groupes. Onze destinations réelles aujourd'hui,
+ * Modèle de navigation — 4 groupes. Dix destinations réelles aujourd'hui,
  * douze en cible (voir ALL_PAGES).
  * Sources : docs/01-product/NAVIGATION.md, docs/01-product/ROUTES.md et les
  * fiches docs/01-product/pages/NN-*.md (questions métier reprises mot à mot).
@@ -121,16 +121,6 @@ const catalysts: PageDef = {
   lot: 'LOT-23',
 };
 
-const vertexAi: PageDef = {
-  key: 'ai',
-  title: 'Vertex IA',
-  navPath: '/ai',
-  routePath: '/ai',
-  question:
-    'Comment expliquer, relier et résumer les données certifiées sans créer une seconde vérité ?',
-  lot: 'LOT-24',
-};
-
 const system: PageDef = {
   key: 'sources-reports',
   title: 'Sources & Rapports',
@@ -145,16 +135,17 @@ export const NAV_GROUPS: readonly NavGroup[] = [
   { label: 'Décider', pages: [today, opportunities, analysis, options, simulator] },
   { label: 'Observer', pages: [calendar, markets] },
   { label: 'Piloter', pages: [portfolio, catalysts] },
-  { label: 'Assistance', pages: [vertexAi, system] },
+  { label: 'Assistance', pages: [system] },
 ];
 
 /**
  * Les destinations RÉELLES du rail, à plat, dans l'ordre.
  *
  * La cible du blueprint est douze (`references/pages.md`). Le rail en porte
- * onze pendant les absorptions : `performance` a rejoint Portefeuille
+ * dix pendant les absorptions : `performance` a rejoint Portefeuille
  * (LOT-08), `follow-up` a rejoint la destination Catalyseurs créée au LOT-10,
- * et Graphiques et Risques n'existent pas encore.
+ * `ai` a rejoint l'inspecteur d'Analyse et de Portefeuille (LOT-12), et
+ * Graphiques et Risques n'existent pas encore.
  * L'écart est mesuré par `scripts/audit_titanium_ledger.py` et journalisé
  * dans `docs/05-design/PAGE_ARBITRATION.md`. Il n'est PAS comblé par une
  * entrée de rail sans route, données ni tests : une façade serait un
