@@ -43,6 +43,11 @@ SKIP_PARTS = {
     "e2e-artifacts",
 }
 
+# LOT-25 prolonge le blueprint avec le bord des sources officielles. Cette
+# constante reste explicite : une numérotation ajoutée sans mettre la porte à
+# jour doit continuer à faire échouer la CI.
+LAST_BLUEPRINT_LOT = 25
+
 
 def scan_files(root: Path, *patterns: str) -> list[Path]:
     paths: list[Path] = []
@@ -130,7 +135,7 @@ def validate_lots(root: Path, errors: list[str], counts: Counter[str]) -> None:
         if number in found:
             add_error(errors, path.relative_to(root), f"duplicate LOT-{number:02d}")
         found[number] = path
-    expected = list(range(25))
+    expected = list(range(LAST_BLUEPRINT_LOT + 1))
     if sorted(found) != expected:
         errors.append(f"lot sequence is {sorted(found)}, expected {expected}")
     counts["lots"] = len(found)
@@ -215,4 +220,3 @@ def main() -> int:
 
 if __name__ == "__main__":
     sys.exit(main())
-

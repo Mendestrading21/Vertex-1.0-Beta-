@@ -42,6 +42,7 @@ dependencies:
     - vertex-api
     - vertex-worker
     - vertex-edge-ibkr
+    - vertex-edge-official
     - vertex-ingress-tradingview
 
 containers:

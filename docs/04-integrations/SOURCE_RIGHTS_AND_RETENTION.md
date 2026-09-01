@@ -40,6 +40,9 @@ Une donnée dérivée hérite des restrictions de sa source si elle permet de re
 | IBKR WSH | payload ≤ 24 h | jusqu’à 30 j après événement | révisions/preuves ≤ 1 an si permis | appliquer révisions, purge à fin d’entitlement |
 | SEC EDGAR | réponse API ≤ 24 h ; pas de miroir complet par défaut | accession, CIK, formulaires et faits durables | durable avec accession/version | contrôle hebdomadaire des corrections/suppressions |
 | FRED/ALFRED | réponse API ≤ 24 h | durable seulement pour série autorisée | même droit que la série, vintage obligatoire | appliquer révisions ; désactiver si droit change |
+| BCE Data API | réponse API ≤ 24 h | durable seulement pour série autorisée | même droit que la série | appliquer corrections et conditions d'attribution de la série |
+| BNS Data Portal | réponse API ≤ 24 h | durable seulement pour cube autorisé | même droit que la série | appliquer corrections et conditions d'attribution du cube |
+| OpenFIGI | réponse API ≤ 24 h | mapping minimisé et daté | aucun enrichissement reconstructible par défaut | rejouer le mapping ; ne jamais écraser une ambiguïté |
 | GDELT | réponse API ≤ 24 h ; aucun texte d’éditeur | métadonnées GDELT ≤ 1 an | agrégats non personnels ≤ 5 ans | rectifier le lien/source ; respecter retrait éditeur |
 | Bluesky | texte ≤ 24 h, aucun média | URI/CID/DID utiles ≤ 7 j | agrégats réversibles ≤ 30 j | purge suppression/désactivation/takedown ≤ 24 h |
 | Reddit | texte/auteur/métadonnées ≤ 24 h | aucune conservation au-delà de 48 h | fenêtre courte et réversible, sinon aucune | contenu/auteur supprimé dès détection ; purge globale < 48 h |

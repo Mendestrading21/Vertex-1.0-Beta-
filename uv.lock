@@ -11,6 +11,7 @@ members = [
     "vertex-api",
     "vertex-core",
     "vertex-edge-ibkr",
+    "vertex-edge-official",
     "vertex-ingress-tradingview",
     "vertex-one",
     "vertex-persistence",
@@ -1845,6 +1846,26 @@ requires-dist = [
 provides-extras = ["dev"]
 
 [[package]]
+name = "vertex-edge-official"
+version = "0.1.0"
+source = { editable = "apps/edge-official" }
+dependencies = [
+    { name = "vertex-core" },
+]
+
+[package.optional-dependencies]
+dev = [
+    { name = "pytest" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=8" },
+    { name = "vertex-core", editable = "packages/python/vertex_core" },
+]
+provides-extras = ["dev"]
+
+[[package]]
 name = "vertex-ingress-tradingview"
 version = "0.1.0"
 source = { editable = "apps/ingress-tradingview" }
@@ -1874,6 +1895,7 @@ dependencies = [
     { name = "vertex-api" },
     { name = "vertex-core" },
     { name = "vertex-edge-ibkr" },
+    { name = "vertex-edge-official" },
     { name = "vertex-ingress-tradingview" },
     { name = "vertex-persistence" },
     { name = "vertex-worker" },
@@ -1916,6 +1938,7 @@ requires-dist = [
     { name = "vertex-api", editable = "apps/api" },
     { name = "vertex-core", editable = "packages/python/vertex_core" },
     { name = "vertex-edge-ibkr", editable = "apps/edge-ibkr" },
+    { name = "vertex-edge-official", editable = "apps/edge-official" },
     { name = "vertex-ingress-tradingview", editable = "apps/ingress-tradingview" },
     { name = "vertex-persistence", editable = "packages/python/vertex_persistence" },
     { name = "vertex-worker", editable = "apps/worker" },
