@@ -98,7 +98,7 @@ class UrllibTransport:
             method=request.method,
         )
         try:
-            with self._opener.open(  # noqa: S310 (scheme + host validated above)
+            with self._opener.open(
                 raw_request, timeout=request.timeout_seconds
             ) as response:
                 body = response.read(self._max_body_bytes + 1)

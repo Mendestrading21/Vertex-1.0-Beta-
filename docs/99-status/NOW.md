@@ -10,7 +10,7 @@ lot: LOT-04 (CI verte), LOT-05 (marque canonique), LOT-06 (arbitrage des pages),
      LOT-14 (ticker du shell, point 4 de l'anatomie canonique),
      LOT-25 (bord lecture seule des sources officielles)
 branch: lot/25-official-source-adapters
-status: lot_25_commite_localement_push_attend_autorisation_humaine
+status: lot_25_publie_pr_12_correctif_ci_en_validation
 last_good_commit: bdf9f306 (= origin/main, CI 7/7 verte)
 lots_de_cette_session:
   - "LOT-04 — la purge de session effaçait l'erreur 401 qu'elle devait laisser
@@ -171,11 +171,13 @@ mesures_de_cette_session:
      fait rougir shell-canonical.spec.ts avec `Expected: not \"none\"`"
 
 active_work:
-  - "LOT-25 — commit local 9552538 : adaptateurs HTTPS bornés pour SEC EDGAR,
-     FRED/ALFRED, OpenFIGI, BCE et BNS. FMP et ORATS restent désactivés ; WSH
-     reste dans l'adaptateur IBKR existant. Aucun payload réel n'a transité."
-  - "Publication BLOQUÉE avant toute écriture distante : le push de la branche
-     lot/25-official-source-adapters exige une autorisation humaine explicite."
+  - "LOT-25 — PR brouillon #12 : adaptateurs HTTPS bornés pour SEC EDGAR,
+     FRED/ALFRED, OpenFIGI, BCE et BNS, plus configuration locale et sonde live
+     explicite. FMP et ORATS restent désactivés ; WSH reste dans l'adaptateur
+     IBKR existant. Aucun secret ni payload réel n'a été poussé."
+  - "Publication autorisée et effectuée sur lot/25-official-source-adapters,
+     empilée sur codex/vertex-rattrapage-complet-20260831. Aucune fusion
+     automatique."
   - "commande utilisateur reçue : EXÉCUTE VERTEX RATTRAPAGE COMPLET"
   - "autorité canonique extraite du commit 72d55629 sans reprendre sa branche
      divergée comme base de code"
@@ -459,21 +461,28 @@ outillage_cloudflare:
      Ecart ecrit dans THIRD_PARTY_NOTICES.md plutot que laisse silencieux."
   deploiement: "AUCUN — B-03 en attente"
 lot_25_validation_locale:
-  commit: "9552538"
+  pr: "https://github.com/Mendestrading21/Vertex-1.0-Beta-/pull/12"
+  commit_distant_avant_correctif_ci: "90685bae172187995dec63b0e97a6db4dd1e636d"
   controles_verts:
     - "compilation Python du nouveau package"
-    - "smoke manuel synthétique : 6/6"
+    - "tests du bord officiel : 14/14"
+    - "ruff : 0 violation"
+    - "mypy --strict : 144 fichiers, 0 erreur"
     - "uv lock --check --offline"
     - "verify_blueprint : OK, 26 lots"
     - "policy : OK"
-    - "secrets : 0 secret sur 778 fichiers suivis"
+    - "secrets : 0 secret sur 781 fichiers suivis"
     - "frontière financière : 0 appel interdit"
     - "notices et traceability : OK"
-  non_executes:
-    - "pytest/ruff/mypy complets : environnement du clone sans dépendances et
-       téléchargement réseau refusé ; la CI distante doit les exécuter après push"
-prochaine_commande: "AUTORISE PUSH LOT-25 — publier la branche
-   lot/25-official-source-adapters, ouvrir une PR brouillon empilée sur
-   codex/vertex-rattrapage-complet-20260831, puis laisser la CI complète rendre
-   son verdict. Aucune fusion automatique."
+  ci_98:
+    resultat: "6 jobs verts sur 7 ; seul Ruff rouge"
+    cause: "RUF022 sur l'ordre de __all__ et RUF100 sur un noqa devenu inutile"
+    correction: "les deux lignes sont corrigées et revalidées localement avant push"
+  note_environnement_local: "la suite pytest complète a rencontré uniquement le
+     proxy SOCKS injecté par l'environnement sur un test HTTP localhost ; le test
+     isolé repasse vert avec les variables proxy retirées. Le job unitaire CI #98,
+     sans cette particularité, était déjà vert."
+prochaine_commande: "ATTENDS CI LOT-25 — vérifier le nouveau run de la PR #12.
+   Si les sept jobs sont verts, demander la validation humaine de la PR. Aucune
+   fusion automatique et aucune clé API dans Git."
 ```
