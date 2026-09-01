@@ -427,10 +427,25 @@ body {
    pas de bordure haute — les deux ne forment qu'un seul bandeau vitré. Il
    n'est PAS collant : seule la barre de contexte l'est, sinon deux hauteurs
    collantes mangeraient la zone de travail. */
+/* LOT-A1 — GRILLE À TROIS PISTES, et pas un `flex` réordonné.
+   La bande doit afficher, de gauche à droite : la dégradation, les cours,
+   puis l'identité de l'instantané. Mais l'ordre du DOM, lui, doit rester
+   celui de la LECTURE — dégradation, identité, cours — parce qu'un lecteur
+   d'écran suit le document et qu'« un cours lu avant son étiquette est un
+   cours lu sans elle » (LOT-14).
+   La grille est le seul mécanisme qui dissocie les deux par PLACEMENT
+   explicite. La propriété `flex` équivalente porte un nom que la porte
+   `no-raw-colors` interdit — c'est un terme d'ordre boursier — et cette
+   porte ne s'assouplit pas pour une préférence de mise en page.
+   `column-gap: 0` est délibéré : une piste vide garderait sa gouttière et
+   décalerait le premier symbole de 12 px par rapport à la barre de contexte
+   au-dessus. L'espacement est donc porté par les cellules elles-mêmes, qui
+   n'existent que lorsqu'elles ont un contenu. */
 .vx-ticker {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: var(--vx-space-12);
+  column-gap: 0;
   min-height: 34px;
   padding: 0 var(--vx-space-32);
   background: var(--vx-overlay);
@@ -444,6 +459,69 @@ body {
   margin: 0;
   flex: 0 0 auto;
   font-size: var(--vx-font-size-meta);
+  white-space: nowrap;
+}
+
+/* Placement explicite dans les trois pistes. Aucun élément focalisable ne vit
+   dans la piste de droite : l'ordre de tabulation ne se dissocie donc jamais
+   de l'ordre visuel — la seule chose qu'un placement hors document pourrait
+   casser. Le message des huit états dégradés, lui, prend toute la largeur :
+   il REMPLACE la bande, il ne s'y ajoute pas. */
+/* `grid-row: 1` sur les TROIS : sans lui, le placement automatique avance et
+   ne revient jamais en arrière. L'ordre du DOM étant « dégradation, identité,
+   cours », il posait l'identité en colonne 3 de la rangée 1, puis ne pouvait
+   plus reculer pour les cours : la bande faisait DEUX lignes et les cours
+   étaient tronqués. Aucun test unitaire ni e2e ne l'a vu — la capture, oui.
+   D'où l'assertion « une seule rangée » ajoutée au point 5. */
+.vx-ticker-notice {
+  grid-column: 1 / -1;
+  grid-row: 1;
+}
+
+.vx-ticker-caveat {
+  grid-column: 1;
+  grid-row: 1;
+  margin-right: var(--vx-space-12);
+}
+
+.vx-ticker-list {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+/* Bloc d'identité de l'instantané, calé à l'extrémité droite de la bande.
+   Rien n'y est tronqué — une heure coupée serait une heure fausse, et une
+   nature coupée serait pire encore. Quand la place manque, le bloc RETOURNE
+   À LA LIGNE au lieu de rétrécir son contenu.
+   CE QUE CE `flex-wrap` RÉPARE, MESURÉ. Sans lui, la largeur minimale du bloc
+   (nature + fraîcheur + heure, toutes en `nowrap`) devient celle de la bande,
+   donc celle du shell : le plancher desktop déclaré à 1024 px passait à
+   1088 px, et 51 tests sur 450 le disaient — la campagne d'accessibilité
+   épingle ce plancher AU PIXEL précisément pour qu'un composant ne puisse pas
+   l'élargir en silence. Avec le retour à la ligne, la largeur minimale
+   redevient celle du plus large des trois éléments, et rien n'est perdu :
+   à 1024 px la bande fait deux lignes, ce qui est une dégradation VISIBLE et
+   non une donnée escamotée. */
+.vx-ticker-meta {
+  display: flex;
+  grid-column: 3;
+  grid-row: 1;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--vx-space-4) var(--vx-space-12);
+  min-width: 0;
+  margin-left: var(--vx-space-20);
+}
+
+/* L'heure SERVIE. Chiffres tabulaires : la largeur ne bouge pas d'une
+   republication à l'autre, donc rien ne « saute » à droite de la bande. */
+.vx-ticker-clock {
+  flex: 0 0 auto;
+  color: var(--vx-text-muted);
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-meta);
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 

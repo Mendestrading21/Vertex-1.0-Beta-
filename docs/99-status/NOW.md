@@ -572,3 +572,67 @@ Aucune ne se deduit du code :
   ni `$` ni `@` : `a$c$h$e$t$e$z` echappe a `detect_forbidden_language`.
   Defaut reel, anterieur, a ouvrir separement.
 
+
+---
+
+## SESSION 2026-09-01 (suite) — phase « affichage d'abord »
+
+### Ce qui a ete decide avec l'utilisateur
+
+Quatre planches canoniques fixent DOUZE pages. Consigne explicite : livrer la
+COMPOSITION d'abord, les branchements ensuite, avec une capture a chaque lot.
+
+Cet ordre n'est legitime qu'a une condition, et c'est ce que LOT-A0 installe :
+un module non branche montre sa GEOMETRIE reelle et NOMME son absence ; il
+n'affiche jamais un chiffre de maquette, jamais un rectangle gris muet.
+Article 17 de la Constitution.
+
+### LOT-A0 — le socle (commit `812320d`)
+
+- `apps/web/src/components/AbsentModule.tsx` : vocabulaire FERME de quatre
+  motifs (`AUCUNE SOURCE`, `ABONNEMENT REQUIS`, `CONTRAT SERVEUR ABSENT`,
+  `DECISION EN ATTENTE`). Le corps du module ne porte AUCUN chiffre, et un
+  test le refuse.
+- `apps/web/src/design/no-fabricated-values.test.ts` : balayage AST de
+  `src/pages/**` refusant tout litteral en forme de valeur financiere.
+  Quatre exemptions NOMMEES une par une, motif ecrit.
+
+### LOT-A1 — points 4 et 5 de l'anatomie du shell
+
+Les planches posent nature, fraicheur et heure UTC a l'extremite DROITE de la
+bande de ticker. Livre :
+
+- `servedClockOf()` : l'heure affichee est l'`as_of` SERVI, jamais
+  `Date.now()`. Une horloge murale qui avance a cote d'un instantane fige
+  fabrique une impression de courant. Sans `as_of`, AUCUNE heure n'est rendue.
+- Le deplacement a droite est VISUEL, par placement de grille CSS. L'ordre du
+  DOM reste l'ordre de lecture, et il place la DEGRADATION (`PERIME`,
+  `COUVERTURE PARTIELLE`) AVANT les cours qu'elle qualifie.
+
+**Defaut trouve par la campagne, pas par la revue.** La premiere version
+laissait le bloc de droite imposer sa largeur maximale au shell : le plancher
+desktop declare a 1024 px passait a 1088 px, et **51 tests sur 450** l'ont dit.
+La campagne d'accessibilite epingle ce plancher AU PIXEL exactement pour cela.
+Corrige par un retour a la ligne du bloc (`flex-wrap`) : a 1024 px la bande
+fait deux lignes — une degradation VISIBLE, jamais une donnee escamotee.
+
+**Piege de lecture, deuxieme occurrence.** Le premier lancement a ete rapporte
+« exit 0 » par l'outillage alors que Playwright sortait en **1** : le 0 etait
+celui du `tail` final de la commande composee. Le code reel se lit dans la
+sortie (`CODE REEL : 1`), le total se confronte a `--list` (450) et a
+`.last-run.json` (`status: failed`, 51 identifiants). Regle deja consignee a
+`DEBT.md`, re-verifiee ici.
+
+### Ce qui reste
+
+Phase 1 : LOT-A2 (creation de `Graphiques`, 12e destination), puis A3 a A8
+(composition page par page), puis A9 (refonte Titanium Ledger).
+Phase 2 : branchements, dans l'ordre de valeur.
+
+**Correction d'une affirmation fausse de cette session.** J'ai ecrit que les
+fondamentaux exigeaient un abonnement IBKR payant. C'est FAUX : la PR #12
+livre des adaptateurs SEC EDGAR / FRED / OpenFIGI / BCE / BNS, et la PR #13 la
+normalisation point-in-time de SEC Company Facts. Les fondamentaux passent de
+« abonnement requis » a « contrat de calcul manquant ». FRED debloque aussi le
+taux sans risque de la chaine d'options ; dividende, `style` et `settlement`
+restent a trancher.

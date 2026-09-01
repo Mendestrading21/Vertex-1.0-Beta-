@@ -700,6 +700,20 @@ chemin de fraîcheur avec un lot de démarrage.
   vaut que confronté au compte DÉCLARÉ (`playwright test --list`). Un total
   qui ne correspond pas au nombre de tests déclarés est un échec silencieux,
   quel que soit le code de sortie affiché.
+
+  **DEUXIÈME OCCURRENCE, 2026-09-01, et elle nomme le mécanisme.** Au LOT-A1
+  la campagne a de nouveau été rapportée « exit 0 » alors que Playwright
+  sortait en **1** avec 51 échecs sur 450. Cette fois la cause est nette : la
+  commande lancée était composée — `playwright test > log; echo "CODE REEL :
+  $?"; tail log` — et le code de sortie observé par l'outillage est celui de
+  la DERNIÈRE commande du groupe, le `tail`. Le code de Playwright n'existait
+  plus que dans la ligne `CODE REEL :` écrite au milieu.
+
+  **Conséquence pratique :** le code de sortie d'une commande composée ne dit
+  rien de l'étape qui compte. Soit la commande de vérification est lancée
+  SEULE, soit son code est capturé explicitement et RELU dans la sortie. Les
+  trois sources — code réel, total déclaré, `.last-run.json` — se recoupent
+  avant toute affirmation de vert.
 - **Un composant de shell rend AMBIGUËS les assertions de page** — **FERMÉ,
   et généralisable.** Trois fichiers unitaires et sept fichiers e2e cherchaient
   `DONNÉES SYNTHÉTIQUES` dans TOUT le document. Le ticker portant sa propre

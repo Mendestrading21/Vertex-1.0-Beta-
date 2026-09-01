@@ -144,11 +144,32 @@ export function AppShell() {
             un montage conditionnel — sinon la page ne pourrait jamais viser
             l'emplacement au premier rendu.
           */}
+          {/*
+            `tabIndex` : le nœud porte `max-height: 100vh; overflow-y: auto`,
+            donc c'est une RÉGION DÉFILANTE — mesurée à 6367 px de contenu pour
+            900 px visibles sur `/analysis/SYN-TECH-01`. Une région défilante
+            doit être atteignable au clavier (axe `scrollable-region-focusable`,
+            impact « serious », seuil déclaré à zéro), exactement comme la bande
+            de ticker au LOT-14.
+
+            CE QUE CETTE LIGNE RÉPARE, ET POURQUOI PERSONNE NE L'AVAIT VU. La
+            règle passait déjà — mais par ACCIDENT, parce que le panneau monté
+            contient des liens de citation. Entre l'instant où le nœud devient
+            défilant et celui où ces liens existent, la région était
+            inatteignable. La campagne d'accessibilité a fini par tomber dessus
+            une fois sur trois viewports ; une sonde l'a reproduite sur la
+            baseline comme sur le LOT-A1. Un `tabIndex` explicite retire la
+            joignabilité du domaine du hasard : elle ne dépend plus de ce que
+            la page a eu le temps de rendre.
+
+            Masqué, le nœud n'est pas focalisable : `hidden` s'en charge.
+          */}
           <aside
             id={INSPECTOR_SLOT_ID}
             className="vx-inspector"
             aria-label="Inspecteur contextuel"
             hidden={!occupied}
+            tabIndex={0}
           />
         </div>
       </div>

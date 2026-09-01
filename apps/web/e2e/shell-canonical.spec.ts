@@ -16,6 +16,8 @@
  * des valeurs de pixels : une recomposition ultérieure reste libre tant
  * qu'elle respecte ces propriétés.
  */
+import AxeBuilder from '@axe-core/playwright';
+
 import { expect, test } from './fixtures.ts';
 
 /**
@@ -242,6 +244,137 @@ test.describe('Shell — anatomie canonique', () => {
     // La région défilante est atteignable au clavier (axe
     // `scrollable-region-focusable`, impact « serious »).
     await expect(ticker.locator('.vx-ticker-list')).toHaveAttribute('tabindex', '0');
+  });
+
+  test('point 5 : l’identité de l’instantané est à DROITE, et son heure est celle servie', async ({
+    page,
+  }) => {
+    // LOT-A1. Les planches posent nature, fraîcheur et heure UTC à
+    // l'extrémité droite de la bande. Ce test mesure les DEUX moitiés de la
+    // promesse : la position réelle à l'écran, et le fait que l'heure vienne
+    // du serveur — les tests unitaires ne peuvent prouver ni l'une ni l'autre.
+    await page.goto('/today');
+    const ticker = page.locator('.vx-ticker');
+    await expect(ticker).toHaveAttribute('data-mode', 'values');
+
+    const meta = ticker.locator('.vx-ticker-meta');
+    const liste = ticker.locator('.vx-ticker-list');
+    await expect(meta).toBeVisible();
+
+    const boiteMeta = (await meta.boundingBox())!;
+    const boiteListe = (await liste.boundingBox())!;
+    const boiteBande = (await ticker.boundingBox())!;
+
+    // À DROITE des cours, et collé au bord droit de la bande : c'est la
+    // planche. Une tolérance de 40 px couvre la gouttière et le padding, pas
+    // un bloc qui aurait glissé au milieu.
+    expect(boiteMeta.x).toBeGreaterThan(boiteListe.x);
+
+    // UNE SEULE RANGÉE. « Ticker horizontal COMPACT » : les cours et le bloc
+    // d'identité partagent la même bande. Cette assertion manquait, et une
+    // première version du placement de grille a bel et bien produit DEUX
+    // lignes — les cours renvoyés sous le bloc de droite et tronqués — sans
+    // qu'aucun test ne bronche. C'est la capture qui l'a montré.
+    const centre = (boite: { y: number; height: number }) => boite.y + boite.height / 2;
+    expect(Math.abs(centre(boiteMeta) - centre(boiteListe))).toBeLessThan(6);
+    const bordDroitBande = boiteBande.x + boiteBande.width;
+    const bordDroitMeta = boiteMeta.x + boiteMeta.width;
+    expect(bordDroitBande - bordDroitMeta).toBeLessThan(40);
+
+    // L'ORDRE DU DOM, lui, n'a pas bougé : l'identité reste AVANT les cours
+    // dans le document, donc lue avant eux par un lecteur d'écran. C'est ce
+    // que le placement de grille permet et qu'un déplacement du DOM aurait
+    // détruit.
+    const precede = await ticker.evaluate((bande) => {
+      const bloc = bande.querySelector('.vx-ticker-meta');
+      const cours = bande.querySelector('.vx-ticker-list');
+      if (bloc === null || cours === null) {
+        return null;
+      }
+      // eslint-disable-next-line no-bitwise
+      return (bloc.compareDocumentPosition(cours) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+    });
+    expect(precede).toBe(true);
+
+    // L'HEURE EST CELLE DE L'INSTANTANÉ. La preuve tient à la comparaison
+    // avec ce que l'API a réellement servi : une horloge murale dériverait de
+    // cette valeur dès la seconde suivante.
+    const horloge = ticker.locator('[data-testid="ticker-clock"]');
+    await expect(horloge).toBeVisible();
+    const servi = await horloge.getAttribute('datetime');
+    expect(servi).not.toBeNull();
+    const attendu = await page.evaluate(async () => {
+      const reponse = await fetch('/api/v1/markets/overview', { credentials: 'include' });
+      const corps = (await reponse.json()) as { as_of: string | null };
+      return corps.as_of;
+    });
+    expect(servi).toBe(attendu);
+
+    // Et le texte rendu est bien cet instant-là, converti en UTC.
+    const rendu = (await horloge.textContent())?.trim() ?? '';
+    expect(rendu).toMatch(/^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2} UTC$/);
+    const instant = new Date(servi!);
+    const deux = (valeur: number) => String(valeur).padStart(2, '0');
+    expect(rendu).toBe(
+      `${deux(instant.getUTCDate())}/${deux(instant.getUTCMonth() + 1)}/` +
+        `${instant.getUTCFullYear()} ${deux(instant.getUTCHours())}:` +
+        `${deux(instant.getUTCMinutes())} UTC`,
+    );
+  });
+
+  test('point 6 : l’inspecteur défilant est atteignable au clavier PAR LUI-MÊME', async ({
+    page,
+  }) => {
+    /**
+     * DÉFAUT ANTÉRIEUR AU LOT-A1, trouvé par la campagne et confirmé identique
+     * sur la baseline. `.vx-inspector` porte `max-height: 100vh;
+     * overflow-y: auto` : dès que son contenu dépasse — mesuré à 6367 px pour
+     * 900 px visibles sur `/analysis/SYN-TECH-01` — c'est une RÉGION
+     * DÉFILANTE, et une région défilante inatteignable au clavier est la
+     * violation axe `scrollable-region-focusable`, impact « serious », sur un
+     * seuil déclaré à zéro. Même faute que `.vx-ticker-list` au LOT-14.
+     *
+     * CE QUE LA MESURE A MONTRÉ, ET QUI CHANGE LE DIAGNOSTIC. La règle passait
+     * déjà, mais par ACCIDENT : le panneau monté contient 22 éléments
+     * focalisables (les liens de citation), et axe s'en contente. Entre
+     * l'instant où le nœud devient défilant et celui où ces liens existent, la
+     * région était inatteignable. C'est une COURSE, pas un état stable — d'où
+     * une campagne verte pendant des sessions, puis rouge sur un seul des
+     * trois viewports.
+     *
+     * CE QUE CE TEST VÉRIFIE DONC, et c'est plus fort que la règle axe : la
+     * joignabilité ne dépend PAS de ce que la page a eu le temps de rendre.
+     * Le nœud est atteignable par son propre `tabindex`, contenu vide ou non.
+     * Un test qui n'aurait mesuré qu'axe serait resté vert avant le correctif
+     * — vérifié : il l'était.
+     */
+    await page.setViewportSize({ width: 1440, height: 420 });
+    await page.goto('/analysis/SYN-TECH-01');
+    await expect(page.getByRole('main')).toBeVisible();
+    const inspecteur = page.locator('#vx-inspector-slot');
+    await expect(inspecteur).toBeVisible();
+
+    // Le dépassement est bien réel : sans lui, le test ne prouverait rien.
+    const deborde = await inspecteur.evaluate(
+      (noeud) => noeud.scrollHeight > noeud.clientHeight + 1,
+    );
+    expect(deborde, 'la fenêtre courte devait faire déborder l’inspecteur').toBe(true);
+
+    // L'INVARIANT : le nœud lui-même est un point d'arrêt clavier. C'est ce
+    // qui retire la joignabilité du domaine du hasard.
+    await expect(inspecteur).toHaveAttribute('tabindex', '0');
+
+    // Et le clavier y arrive vraiment, pas seulement l'attribut.
+    await inspecteur.focus();
+    await expect(inspecteur).toBeFocused();
+
+    const resultats = await new AxeBuilder({ page })
+      .withRules(['scrollable-region-focusable'])
+      .analyze();
+    expect(
+      resultats.violations.flatMap((violation) => violation.nodes.map((n) => n.target)),
+      'une région défilante doit être atteignable au clavier',
+    ).toEqual([]);
   });
 
   test('point 6 : l’inspecteur n’occupe la grille que si une page le remplit', async ({

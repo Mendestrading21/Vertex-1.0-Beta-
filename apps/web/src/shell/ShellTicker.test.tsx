@@ -10,7 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { makeEmptyMarketsOverview, makeMarketsOverview } from '../test/fixtures.ts';
 import { renderApp } from '../test/render.tsx';
-import { tickerFrameOf } from './ShellTicker.tsx';
+import { servedClockOf, tickerFrameOf } from './ShellTicker.tsx';
 
 const fetchMock = vi.fn<typeof fetch>();
 
@@ -184,5 +184,116 @@ describe('Ticker du shell — rendu', () => {
       });
       unmount();
     }
+  });
+});
+
+/**
+ * LOT-A1 — points 4 et 5 de l'anatomie : l'heure SERVIE, à droite.
+ *
+ * Les planches canoniques posent une heure UTC à l'extrémité droite de la
+ * bande. Le piège est nommé d'avance : une horloge murale qui AVANCE à côté
+ * d'un instantané FIGÉ fabrique une impression de courant, et
+ * `.claude/rules/financial-safety.md` interdit de présenter un cache comme du
+ * live. L'heure affichée est donc celle de l'`as_of` servi, jamais
+ * `Date.now()` — et quand aucun instantané n'est servi, il n'y a AUCUNE heure
+ * à afficher, parce qu'il n'y a pas d'instant dont elle serait l'heure.
+ */
+describe('servedClockOf — l’heure vient de l’instantané, jamais du navigateur', () => {
+  it('formate l’instant SERVI en UTC, sans dépendre du fuseau du navigateur', () => {
+    // `SYNTHETIC_AS_OF` vaut `2026-08-25T12:00:00+00:00`. Le rendu doit être le
+    // MÊME à Zurich, à Tokyo ou à New York : c'est un instant de marché, pas
+    // une heure locale de lecture.
+    expect(servedClockOf('2026-08-25T12:00:00+00:00')).toBe('25/08/2026 12:00 UTC');
+    // Un décalage de fuseau dans la chaîne servie est CONVERTI, pas tronqué.
+    expect(servedClockOf('2026-08-25T14:00:00+02:00')).toBe('25/08/2026 12:00 UTC');
+    // Passage de jour : convertir puis lire, jamais lire puis convertir.
+    expect(servedClockOf('2026-08-25T23:30:00-05:00')).toBe('26/08/2026 04:30 UTC');
+  });
+
+  it('AUCUNE heure de repli : absence et illisible sortent `null`', () => {
+    // Le cœur du lot. Une heure de repli — `Date.now()`, minuit, une chaîne
+    // brute — serait une valeur que personne n'a servie.
+    expect(servedClockOf(null)).toBeNull();
+    expect(servedClockOf(undefined)).toBeNull();
+    expect(servedClockOf('')).toBeNull();
+    expect(servedClockOf('pas une date')).toBeNull();
+    expect(servedClockOf('2026-13-45T99:99:99Z')).toBeNull();
+  });
+
+  it('ne bouge pas entre deux lectures — un instantané n’a qu’une heure', () => {
+    const premier = servedClockOf('2026-08-25T12:00:00+00:00');
+    const second = servedClockOf('2026-08-25T12:00:00+00:00');
+    expect(premier).toBe(second);
+  });
+});
+
+describe('Ticker — l’heure servie et le bloc de droite', () => {
+  it('affiche l’heure de l’instantané, et c’est bien CELLE-LÀ', async () => {
+    fetchMock.mockImplementation(async () => jsonResponse(makeMarketsOverview()));
+    renderApp('/today');
+
+    const bande = await waitFor(() => {
+      const found = ticker();
+      expect(found.getAttribute('data-mode')).toBe('values');
+      return found;
+    });
+    const horloge = within(bande).getByTestId('ticker-clock');
+    expect(horloge.textContent).toBe('25/08/2026 12:00 UTC');
+    // L'heure porte son `datetime` machine : la même vérité, lisible par un
+    // outil, et impossible à confondre avec une heure de lecture.
+    expect(horloge.getAttribute('datetime')).toBe('2026-08-25T12:00:00+00:00');
+  });
+
+  it('un instantané SANS `as_of` n’affiche aucune heure', async () => {
+    fetchMock.mockImplementation(async () =>
+      jsonResponse(makeMarketsOverview({ as_of: null })),
+    );
+    renderApp('/today');
+
+    const bande = await waitFor(() => {
+      const found = ticker();
+      expect(found.getAttribute('data-mode')).toBe('values');
+      return found;
+    });
+    // Les cours restent — le serveur les sert. L'heure, elle, n'existe pas.
+    expect(within(bande).getByTestId('ticker-SYN-ENER-01')).toBeDefined();
+    expect(within(bande).queryByTestId('ticker-clock')).toBeNull();
+  });
+
+  it('hors ligne : aucune heure non plus — il n’y a pas d’instantané', async () => {
+    fetchMock.mockImplementation(async () => {
+      throw new TypeError('Failed to fetch');
+    });
+    renderApp('/today');
+
+    const bande = await waitFor(() => {
+      const found = ticker();
+      expect(found.getAttribute('data-mode')).toBe('notice');
+      return found;
+    });
+    expect(within(bande).queryByTestId('ticker-clock')).toBeNull();
+  });
+
+  it('la DÉGRADATION reste avant les valeurs, la métadonnée passe après', async () => {
+    fetchMock.mockImplementation(async () =>
+      jsonResponse(makeMarketsOverview({ data_state: 'stale' })),
+    );
+    renderApp('/today');
+
+    const bande = await waitFor(() => {
+      const found = ticker();
+      expect(found.getAttribute('data-mode')).toBe('values');
+      return found;
+    });
+    // L'ordre du DOM est l'ordre de LECTURE, y compris au lecteur d'écran.
+    // `PÉRIMÉ` qualifie les cours : il doit être lu AVANT eux. Nature,
+    // fraîcheur et heure identifient l'instantané : elles peuvent suivre.
+    // Le placement à droite des planches est obtenu par la grille CSS, pas
+    // en déplaçant le DOM — sinon on perdrait exactement ce que le LOT-14 a
+    // établi : « un cours lu avant son étiquette est un cours lu sans elle ».
+    const textes = Array.from(bande.querySelectorAll('[data-ticker-slot]')).map((noeud) =>
+      noeud.getAttribute('data-ticker-slot'),
+    );
+    expect(textes).toEqual(['caveat', 'meta', 'list']);
   });
 });
