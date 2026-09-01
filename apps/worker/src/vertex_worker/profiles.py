@@ -132,12 +132,14 @@ RISK_PERIMETER: tuple[str, ...] = (
     "SMI",
 )
 
-#: Libelles francais du perimetre de risque.
+#: Libellés du périmètre de risque — ils ATTEIGNENT l'écran, donc ils sont
+#: écrits en français correct : un « Volatilite » sans accent se lirait à
+#: l'affichage comme une négligence, pas comme une contrainte technique.
 RISK_LABELS: dict[str, str] = {
     "SPX": "S&P 500",
     "NDX": "Nasdaq 100",
     "RUT": "Russell 2000",
-    "VIX": "Volatilite S&P",
+    "VIX": "Volatilité S&P 500",
     "DAX": "DAX 40",
     "ESTX50": "Euro Stoxx 50",
     "N225": "Nikkei 225",

@@ -577,6 +577,42 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/risk/matrix": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Last published correlation matrix (or honest empty state)
+         * @description Serve the LAST ``risk_matrix/global`` snapshot as persisted.
+         *
+         *     The API relays the worker's published content — the declared perimeter,
+         *     the matrix ALREADY RENDERED AS STRINGS, the extreme pairs, the coverage
+         *     and its alignment cost — and computes no coefficient. The key is
+         *     ``global`` because the matrix describes the declared perimeter, not a
+         *     portfolio.
+         *
+         *     With no snapshot ever published the answer is a 200 with
+         *     ``state = "empty"``: that happens when no perimeter is declared, or when
+         *     no bars have been collected yet. Absent stays absent.
+         *
+         *     A snapshot carrying ``coverage.refusal_reason`` stays ``state = "ok"``:
+         *     the worker DID publish, and what it published is a reasoned refusal —
+         *     too short a perimeter, too few common sessions, a constant series.
+         *     Downgrading it to ``empty`` would erase the reason and leave the screen
+         *     blank as if something had broken.
+         */
+        get: operations["get_risk_matrix"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/simulations/preview": {
         parameters: {
             query?: never;
@@ -2524,6 +2560,47 @@ export interface components {
             registered: true;
         };
         /**
+         * RiskMatrixResponse
+         * @description La dernière matrice publiée — ou un état vide honnête.
+         *
+         *     ``state = "ok"`` relaie le contenu persisté VERBATIM : instruments,
+         *     matrice en chaînes, extrêmes, avertissement de synchronicité et
+         *     couverture. L'API ne calcule aucun coefficient.
+         *
+         *     ``state = "empty"`` signifie que le worker n'a JAMAIS publié — soit parce
+         *     qu'aucun périmètre n'est déclaré, soit parce qu'aucune barre n'a encore
+         *     été collectée. ``reason`` le dit ; rien n'est inventé.
+         *
+         *     ``state = "stale"`` relaie le MÊME contenu mais signale que l'instantané a
+         *     dépassé le budget de séance fermée : le worker n'a rien publié de plus
+         *     récent. ``age_seconds`` est publié dans tous les états datables — une
+         *     corrélation vieille de trois jours ne doit pas se lire comme une mesure
+         *     de la minute.
+         *
+         *     Un instantané qui porte ``coverage.refusal_reason`` reste ``state = "ok"``
+         *     : le worker a bien publié, et ce qu'il a publié est un refus motivé. Le
+         *     dégrader en ``empty`` effacerait le motif.
+         */
+        RiskMatrixResponse: {
+            /** Age Seconds */
+            age_seconds: number | null;
+            /** As Of */
+            as_of: string | null;
+            /** Content */
+            content: {
+                [key: string]: unknown;
+            } | null;
+            /** Reason */
+            reason: string | null;
+            /** Snapshot Version */
+            snapshot_version: number | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "ok" | "stale" | "empty";
+        };
+        /**
          * SessionEventInput
          * @description Facts for gate 4 (``session_and_event_known``).
          */
@@ -3643,6 +3720,33 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+        };
+    };
+    get_risk_matrix: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RiskMatrixResponse"];
+                };
+            };
+            /** @description Authentication required: no valid WebAuthn session cookie (or missing/invalid CSRF header on a mutation). Always the same generic body with detail code AUTH_REQUIRED. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
