@@ -332,7 +332,7 @@ function AnalysisFrame({
       : 'Aucune série de barres exploitable publiée.';
 
   return (
-    <section className="vx-chartframe" aria-labelledby="vx-analysis-title">
+    <section className="vx-chartframe" data-rank="dominant" aria-labelledby="vx-analysis-title">
       <header className="vx-chartframe-head">
         <p className="vx-chartframe-question">
           Que disent les données certifiées sur cet instrument, et quelles limites restent ouvertes ?

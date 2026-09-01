@@ -96,7 +96,7 @@ function MarketsFrame({ data, state }: { readonly data: MarketsOverview; readonl
         : undefined;
 
   return (
-    <section className="vx-chartframe" aria-labelledby="vx-marketmap-title">
+    <section className="vx-chartframe" data-rank="dominant" aria-labelledby="vx-marketmap-title">
       {/* 1. WidgetHeader : question + titre */}
       <header className="vx-chartframe-head">
         <p className="vx-chartframe-question">

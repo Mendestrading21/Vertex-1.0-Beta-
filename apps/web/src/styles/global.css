@@ -4401,9 +4401,28 @@ body {
   box-shadow: var(--vx-shadow-panel), var(--vx-shadow-inset);
 }
 
-.vx-chartframe::before,
-.vx-pf-summary::before,
-.vx-sim-result::before {
+/* V5 — LA TRANCHE MÉTALLIQUE APPARTIENT AU RANG, plus à une liste de noms.
+
+   La liste énumérée (`.vx-chartframe`, `.vx-pf-summary`, `.vx-sim-result`)
+   fonctionnait ; ce qu'elle ne pouvait pas faire, c'est arbitrer PAR PAGE.
+   `.vx-chartframe` habille quatre destinations, et rien ne disait laquelle de
+   ses instances domine son écran : sur Portefeuille, la synthèse ET le cadre
+   du graphique de performance pouvaient briller ensemble. Deux dominantes sur
+   un écran, c'est zéro dominante — le regard n'a plus de point d'entrée.
+
+   Le sélecteur suit désormais l'attribut `data-rank`, quel que soit l'élément
+   qui le porte. Une page DÉCLARE ce qui domine ; elle ne l'hérite plus d'un
+   nom de classe qu'un renommage suffit à perdre, et la porte
+   `one-dominant-per-page.test.ts` compte les déclarations.
+
+   AVERTISSEMENT DE MÉTHODE, payé sur ce lot. Ma première mesure annonçait
+   « dix pages sur onze sans aucune dominante ». Elle était FAUSSE : la sonde
+   attendait `main` visible, ce qui arrive AVANT que les données n'arrivent,
+   et lisait donc le squelette de chargement (`.vx-dsb-skeleton`) sur chaque
+   route. Mesure refaite en attendant un témoin de contenu réel : exactement
+   une dominante sur chaque page chargée, zéro sur le Simulateur au repos —
+   ce qui est correct, le contrat dit « une lumière dominante MAXIMUM ». */
+[data-rank='dominant']::before {
   position: absolute;
   z-index: 1;
   top: 0;
@@ -4412,6 +4431,14 @@ body {
   height: 2px;
   background: linear-gradient(90deg, var(--vx-signal-bright), var(--vx-signal-deep));
   content: '';
+}
+
+/* Le matériau de la dominante, lui aussi porté par le rang. */
+[data-rank='dominant'] {
+  position: relative;
+  overflow: hidden;
+  border-color: var(--vx-border);
+  box-shadow: var(--vx-shadow-panel), var(--vx-shadow-inset);
 }
 
 .vx-chartframe-head,

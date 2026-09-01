@@ -465,6 +465,7 @@ export function EventAgenda({ events, grouping, viewerTimeZone }: EventAgendaPro
     */
     <div
       className="vx-cal-agenda"
+      data-rank="dominant"
       data-testid="cal-agenda"
       data-grouping={grouping}
       tabIndex={0}

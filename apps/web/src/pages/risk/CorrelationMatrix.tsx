@@ -60,7 +60,7 @@ export function CorrelationMatrix({ instruments, matrix, bands }: CorrelationMat
   const rows = correlationRowsOf({ instruments, matrix, bands });
 
   return (
-    <div className="vx-riskmatrix">
+    <div className="vx-riskmatrix" data-rank="dominant">
       <div className="vx-riskmatrix-scroll" role="region" aria-labelledby="vx-riskmatrix-title" tabIndex={0}>
         <table className="vx-riskmatrix-table">
           <caption id="vx-riskmatrix-title" className="vx-riskmatrix-caption">

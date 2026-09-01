@@ -40,7 +40,7 @@ const SSE_LABELS: Readonly<Record<SseConnectionState, string>> = {
 function HealthPanel({ health }: { readonly health: SystemHealth }) {
   const sseState = useSyncExternalStore(sseStateStore.subscribe, sseStateStore.getState);
   return (
-    <section className="vx-health" aria-label="Santé des composants">
+    <section className="vx-health" data-rank="dominant" aria-label="Santé des composants">
       <h2>Santé des composants</h2>
       <dl className="vx-health-grid">
         <div className="vx-health-item">

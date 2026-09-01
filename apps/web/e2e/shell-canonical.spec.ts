@@ -216,6 +216,60 @@ test.describe('Shell — anatomie canonique', () => {
     }
   });
 
+  test('une seule lumière dominante par écran, sur les onze destinations', async ({ page }) => {
+    /**
+     * « Une lumière dominante maximum par carte, deux par écran hors
+     * rouge/vert. » — `references/canonical-visual.md`.
+     *
+     * POURQUOI CE TEST EXISTE, ET POURQUOI IL ATTEND UN TÉMOIN DE CONTENU.
+     * La porte statique `one-dominant-per-page.test.ts` compte les
+     * déclarations dans le source ; elle ne peut pas voir ce qui est
+     * RÉELLEMENT rendu. Ce test-ci le voit — à une condition apprise à ses
+     * dépens : une sonde qui attend seulement `main` visible mesure le
+     * SQUELETTE DE CHARGEMENT (`.vx-dsb-skeleton`) et rapporte zéro dominante
+     * partout. C'est exactement l'erreur qui m'a fait annoncer « dix pages sur
+     * onze sans dominante » alors que la règle fonctionnait. Chaque route
+     * attend donc un témoin de son contenu réel.
+     *
+     * ZÉRO EST PERMIS, DEUX NE L'EST PAS. Le contrat dit « maximum », et le
+     * Simulateur au repos n'a rien à faire dominer : sa carte de résultat
+     * n'existe qu'après un calcul. Un formulaire sans dominante est honnête ;
+     * deux dominantes ne le sont jamais.
+     */
+    const ROUTES: ReadonlyArray<readonly [string, string]> = [
+      ['/today', '.vx-today-primary'],
+      ['/markets', '.vx-chartframe'],
+      ['/opportunities', '.vx-opp-group'],
+      ['/analysis/SYN-TECH-01', '.vx-chartframe'],
+      ['/options/SYN-TECH-01', '.vx-chartframe'],
+      ['/simulator', '.vx-sim-composer'],
+      ['/portfolio', '.vx-pf-summary'],
+      ['/risks', '.vx-riskmatrix'],
+      ['/catalysts', '.vx-fu-queue'],
+      ['/calendar', '.vx-cal-agenda'],
+      ['/sources-reports', '.vx-health'],
+    ];
+
+    for (const [route, temoin] of ROUTES) {
+      await page.goto(route);
+      await expect(page.locator(temoin).first()).toBeVisible({ timeout: 15000 });
+      const porteurs = await page.evaluate(() => {
+        const main = document.querySelector('.vx-main');
+        if (main === null) {
+          return null;
+        }
+        return Array.from(main.querySelectorAll('[data-rank="dominant"]')).map((element) =>
+          ((element as HTMLElement).className || element.tagName).toString(),
+        );
+      });
+      expect(porteurs, `${route} : aucun \`.vx-main\``).not.toBeNull();
+      expect(
+        porteurs?.length,
+        `${route} porte ${porteurs?.length} dominantes : ${porteurs?.join(', ')}`,
+      ).toBeLessThanOrEqual(1);
+    }
+  });
+
   test('point 1 : la marque est un glyphe facetté argent, pas une tuile', async ({ page }) => {
     await page.goto('/today');
     const marque = page.locator('.vx-brand-mark');

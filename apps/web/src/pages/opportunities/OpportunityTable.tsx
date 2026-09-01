@@ -172,6 +172,13 @@ export function OpportunityTable({
   return (
     <section
       className="vx-opp-group"
+      /*
+        SEUL le groupe « qualifiés » domine : c'est lui qui répond à la
+        question de la page (« quels candidats méritent une analyse ? »). Le
+        groupe des exclus reste au rang par défaut — il informe, il ne dirige
+        pas le regard. Deux dominantes sur un écran, c'est zéro dominante.
+      */
+      {...(isQualified ? { 'data-rank': 'dominant' } : {})}
       data-group={group}
       data-testid={`opp-group-${group}`}
       aria-labelledby={titleId}

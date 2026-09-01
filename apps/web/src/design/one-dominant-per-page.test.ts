@@ -52,7 +52,13 @@ function countDominant(source: string, fileName = 'page.tsx'): number {
   const file = ts.createSourceFile(fileName, source, ts.ScriptTarget.ES2022, true, ts.ScriptKind.TSX);
   let total = 0;
   const visit = (node: ts.Node): void => {
-    if (ts.isJsxAttribute(node) && node.name.getText(file) === 'rank') {
+    // Deux écritures désignent le MÊME rang : `rank="dominant"` sur la
+    // primitive `Card`, et `data-rank="dominant"` sur une surface héritée qui
+    // n'est pas encore une `Card` (le cadre graphique, la matrice de risque,
+    // l'agenda…). N'en compter qu'une laisserait passer la moitié des pages —
+    // et c'est précisément par cette moitié que la règle se perdrait.
+    const nomAttribut = ts.isJsxAttribute(node) ? node.name.getText(file) : '';
+    if (nomAttribut === 'rank' || nomAttribut === 'data-rank' || nomAttribut === "'data-rank'") {
       const valeur = node.initializer;
       if (valeur !== undefined && ts.isStringLiteral(valeur) && valeur.text === 'dominant') {
         total += 1;
@@ -63,6 +69,17 @@ function countDominant(source: string, fileName = 'page.tsx'): number {
         ts.isStringLiteral(valeur.expression) &&
         valeur.expression.text === 'dominant'
       ) {
+        total += 1;
+      }
+    }
+    // Forme conditionnelle : `{...(cond ? { 'data-rank': 'dominant' } : {})}`.
+    // Elle n'est PAS un `JsxAttribute` — sans ce cas, la porte serait aveugle
+    // à toute dominante conditionnelle, c'est-à-dire au cas le plus fréquent
+    // dès qu'une page choisit sa dominante selon l'état servi.
+    if (ts.isPropertyAssignment(node)) {
+      const cle = node.name.getText(file).replace(/['"]/g, '');
+      const valeur = node.initializer;
+      if (cle === 'data-rank' && ts.isStringLiteral(valeur) && valeur.text === 'dominant') {
         total += 1;
       }
     }
@@ -93,5 +110,9 @@ describe('Une seule lumière dominante par page', () => {
     expect(countDominant('<Card rank={"dominant"} title="A" />')).toBe(1);
     expect(countDominant('<><Card rank="dominant" /><Card rank="dominant" /></>')).toBe(2);
     expect(countDominant('<Card rank="quiet" /><Card title="B" />')).toBe(0);
+    // Les deux écritures héritées, et la forme conditionnelle.
+    expect(countDominant('<section data-rank="dominant" />')).toBe(1);
+    expect(countDominant("<section {...(ok ? { 'data-rank': 'dominant' } : {})} />")).toBe(1);
+    expect(countDominant("<section {...(ok ? { 'data-rank': 'quiet' } : {})} />")).toBe(0);
   });
 });
