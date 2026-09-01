@@ -578,7 +578,21 @@ def build_markets_overview_content(
     qualities = [entry["quality"] for entry in covered.values()]
     if covered and all(q == "STALE" for q in qualities):
         data_state = "stale"
-    elif discarded or rejected_records or any(q != "VALID" for q in qualities):
+    # `rejected_records` NE degrade PAS (REPRENDRE_ICI.md §4.2). Deux mots,
+    # deux faits, et les confondre produisait un ecran qui se refutait :
+    #
+    #   `discarded`        = un ticker ATTENDU qui manque  -> vraie lacune ;
+    #   `rejected_records` = une observation NON DEMANDEE  -> aucun manque.
+    #
+    # Sur le poste de travail, ces rejets sont trois cotations hors univers.
+    # L'ecran annoncait « Donnees partielles » puis « 161 couverts sur 161,
+    # 0 ecartes » — la degradation etait fausse. Refuser une observation hors
+    # univers est le deny-by-default qui fonctionne ; le compter comme une
+    # degradation punit le systeme pour avoir bien fait son travail.
+    #
+    # Les rejets restent PUBLIES dans `coverage.rejected_records`, avec leur
+    # motif : ils sont visibles, ils ne sont simplement plus un verdict.
+    elif discarded or any(q != "VALID" for q in qualities):
         data_state = "partial"
     else:
         data_state = "ok"

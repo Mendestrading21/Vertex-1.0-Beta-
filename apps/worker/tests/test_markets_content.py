@@ -213,7 +213,12 @@ def test_undeclared_source_rights_and_ticker_are_rejected() -> None:
     aaa = next(s for s in content["sectors"] if s["sector"] == "SYN-AAA")
     t1 = next(t for t in aaa["tickers"] if t["ticker"] == "SYN-AAA-01")
     assert t1["last_close"] == "110.00"
-    assert content["data_state"] == "partial"
+    # §4.2 : ce test porte sur les MOTIFS de rejet, pas sur l'etat. Un rejet
+    # est une observation NON DEMANDEE, pas un trou de couverture — il ne
+    # degrade donc plus. La couverture etant complete et toutes les qualites
+    # VALID, l'etat est `ok`, et les rejets restent publies avec leur motif.
+    assert content["data_state"] == "ok"
+    assert content["coverage"]["discarded"] == 0
 
 
 def test_adjustment_basis_mismatch_discards_the_ticker() -> None:
@@ -295,3 +300,53 @@ def test_naive_now_rejected() -> None:
 def test_dev_config_matches_synthetic_universe() -> None:
     assert len(DEV_SYNTHETIC_MARKETS_CONFIG.all_tickers()) == 24
     assert DEV_SYNTHETIC_MARKETS_CONFIG.coverage_threshold == Decimal("0.8")
+
+
+def test_une_observation_HORS_UNIVERS_ne_degrade_pas_la_couverture() -> None:
+    """§4.2 — REPRODUCTEUR. `rejected_records` ne vaut pas `partial`.
+
+    `markets.py` declenchait `partial` sur `rejected_records`. Sur le poste de
+    travail, ces enregistrements sont TROIS cotations `GNL PRE` — des
+    observations EN TROP, hors univers declare, pas un trou de couverture.
+
+    L'ecran affichait donc « Donnees partielles » puis, juste en dessous,
+    « 161 couverts sur 161, 0 ecartes » : un texte qui se refute lui-meme.
+
+    CONFUSION CORRIGEE, et les deux mots restent distincts :
+      - `discarded`        = un ticker ATTENDU qui manque  -> vraie lacune ;
+      - `rejected_records` = une observation NON DEMANDEE  -> aucun manque.
+
+    Refuser une observation hors univers est le comportement voulu (le
+    deny-by-default). Le compter comme une degradation punit le systeme pour
+    avoir bien fait son travail.
+    """
+    records = [
+        *full_records(),
+        # Hors univers : refuse a l'entree, et c'est correct.
+        quote("SYN-ZZZ-01", "SYN-ZZZ", "2026-08-24", "1.00", event_id="x:hors-univers"),
+    ]
+    content = build_markets_overview_content(records, now=NOW, config=SMALL_CONFIG)
+
+    coverage = content["coverage"]
+    assert coverage["rejected_records"], "le reproducteur exige un rejet, sinon il ne prouve rien"
+    # `discarded` est un COMPTE, `discarded_tickers` la liste — ne pas les
+    # confondre, c'est justement la confusion que ce lot corrige.
+    assert coverage["discarded"] == 0, "aucun ticker attendu ne manque"
+    assert coverage["discarded_tickers"] == []
+    assert coverage["covered"] == coverage["expected"], "la couverture est COMPLETE"
+
+    # L'ecran ne doit donc pas annoncer une degradation qui n'existe pas.
+    assert content["data_state"] == "ok"
+
+
+def test_un_ticker_ATTENDU_qui_manque_degrade_toujours() -> None:
+    """La moitie qui empeche d'affaiblir la garde en la corrigeant.
+
+    Retirer `rejected_records` du declencheur ne doit pas rendre `partial`
+    inatteignable : une vraie lacune de couverture doit toujours le lever.
+    """
+    manquant = [r for r in full_records() if "SYN-AAA-02" not in r.instrument_ref]
+    content = build_markets_overview_content(manquant, now=NOW, config=SMALL_CONFIG)
+
+    assert content["coverage"]["discarded"] > 0, "le reproducteur exige un ticker manquant"
+    assert content["data_state"] == "partial"
