@@ -10,7 +10,7 @@ lot: LOT-04 (CI verte), LOT-05 (marque canonique), LOT-06 (arbitrage des pages),
      LOT-14 (ticker du shell, point 4 de l'anatomie canonique),
      LOT-25 (bord lecture seule des sources officielles)
 branch: lot/25-official-source-adapters
-status: lot_25_publie_pr_12_correctif_ci_en_validation
+status: lot_25_publie_pr_12_ci_7_sur_7_verte
 last_good_commit: bdf9f306 (= origin/main, CI 7/7 verte)
 lots_de_cette_session:
   - "LOT-04 — la purge de session effaçait l'erreur 401 qu'elle devait laisser
@@ -478,11 +478,16 @@ lot_25_validation_locale:
     resultat: "6 jobs verts sur 7 ; seul Ruff rouge"
     cause: "RUF022 sur l'ordre de __all__ et RUF100 sur un noqa devenu inutile"
     correction: "les deux lignes sont corrigées et revalidées localement avant push"
+  ci_99:
+    commit: "3a8df77bdb3895c641e96bd0eb557522bcfe9961"
+    resultat: "7 jobs sur 7 verts"
+    preuves: "Ruff et mypy strict, tests unitaires Python, PostgreSQL 18, web,
+       garde-fous, supply chain et E2E Chromium sur trois viewports"
   note_environnement_local: "la suite pytest complète a rencontré uniquement le
      proxy SOCKS injecté par l'environnement sur un test HTTP localhost ; le test
      isolé repasse vert avec les variables proxy retirées. Le job unitaire CI #98,
      sans cette particularité, était déjà vert."
-prochaine_commande: "ATTENDS CI LOT-25 — vérifier le nouveau run de la PR #12.
-   Si les sept jobs sont verts, demander la validation humaine de la PR. Aucune
-   fusion automatique et aucune clé API dans Git."
+prochaine_commande: "VALIDE PR #12 — relire humainement le lot vert, puis décider
+   de sa fusion. Les clés SEC/FRED/OpenFIGI restent exclusivement locales. Le
+   branchement aux pages exige un lot consommateur séparé, famille par famille."
 ```
