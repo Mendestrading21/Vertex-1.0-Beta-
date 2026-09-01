@@ -17,9 +17,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiError } from '../../api/client.ts';
 import {
   makeAiAnswer,
+  makeAnalysis,
+  makeMarketsOverview,
   makePortfolioResponse,
   makeRefusedAiAnswer,
-  makeMarketsOverview,
 } from '../../test/fixtures.ts';
 import { renderApp } from '../../test/render.tsx';
 import { isNoSnapshotError } from './AiExplanationPanel.tsx';
@@ -80,6 +81,20 @@ function mockAi(handlers: AiHandlers = {}): void {
     if (url.endsWith('/v1/markets/overview')) {
       // Le sélecteur d'instruments lit l'univers RÉELLEMENT publié.
       return jsonResponse(makeMarketsOverview());
+    }
+    // Le panneau n'est monté QUE lorsque la page hôte a chargé son dossier.
+    // Sans cette route, Analyse reste en erreur et le panneau n'apparaît
+    // jamais.
+    //
+    // Cette route manquait, et la CI l'a attrapé. Le test avait été écrit
+    // quand le panneau était monté HORS de la branche « dossier chargé » : il
+    // passait alors légitimement. Déplacer le montage à l'intérieur de cette
+    // branche l'a invalidé, et la suite unitaire n'a pas été relancée après ce
+    // déplacement — seule la campagne e2e l'a été. Ce n'était donc pas un test
+    // instable : il échouait de façon parfaitement reproductible, 3 fois sur 3
+    // en isolation.
+    if (url.includes('/v1/analysis/')) {
+      return jsonResponse(makeAnalysis());
     }
     return jsonResponse({ detail: 'unexpected route' }, 500);
   });

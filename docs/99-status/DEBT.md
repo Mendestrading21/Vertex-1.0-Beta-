@@ -606,3 +606,21 @@ chemin de fraîcheur avec un lot de démarrage.
   entière qui est absente, donc aucune phrase non qualifiée n'est jamais
   affichée. L'invariant qui compte — jamais d'explication sans le bandeau — est
   désormais asséré explicitement sur les deux pages hôtes.
+- **Un test unitaire poussé cassé, faute d'avoir relancé la suite après un
+  changement de structure** — **FERMÉ, et la cause est un manquement de
+  process, pas un test instable.** Au LOT-12, le montage du panneau
+  d'explication a été déplacé à l'intérieur de la branche « dossier chargé »
+  d'Analyse pour supprimer un second état hors ligne. Ce déplacement a
+  invalidé un test écrit quand le panneau était monté à l'extérieur : son mock
+  ne servait pas `/v1/analysis/…`, donc le dossier ne chargeait jamais.
+
+  Après ce déplacement, seule la campagne e2e a été relancée ; la suite
+  unitaire ne l'a pas été. La CI l'a attrapé, et l'écart a été poussé en
+  attendant. Le test échouait 3 fois sur 3 en isolation : il n'était pas
+  flaky, il était faux.
+
+  **Règle retenue :** toute modification de la STRUCTURE de rendu d'un
+  composant (déplacement d'un montage, changement de branche conditionnelle)
+  invalide potentiellement des mocks écrits pour l'ancienne structure. La
+  suite unitaire doit être relancée après ce type de changement, pas seulement
+  la campagne e2e qui l'a motivé.
