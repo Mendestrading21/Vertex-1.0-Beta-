@@ -20,9 +20,9 @@ L'interface distingue la richesse visible dans une application de la capacité r
 
 ## Sources officielles complémentaires
 
-| Capacité | Source primaire | État Vertex après LOT-25 |
+| Capacité | Source primaire | État Vertex après LOT-26 |
 |---|---|---|
-| Filings et faits US | SEC EDGAR | client livré, normalisation/persistance non branchées |
+| Filings et faits US | SEC EDGAR | normalisation PIT, persistance, snapshot et API branchés ; consommateur Analyse non branché |
 | Macro US point-in-time | FRED/ALFRED | client livré, clé locale obligatoire |
 | Macro zone euro | BCE Data API | client livré, allowlist de séries à définir |
 | Macro suisse | BNS Data Portal | client livré, allowlist de cubes à définir |

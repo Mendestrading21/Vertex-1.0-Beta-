@@ -678,6 +678,7 @@ def build_registry(
     )
     from vertex_worker.performance import register_performance_handler
     from vertex_worker.portfolio import register_portfolio_handler
+    from vertex_worker.sec_fundamentals import register_sec_fundamentals_handler
 
     registry = HandlerRegistry()
     registry.register(
@@ -728,4 +729,5 @@ def build_registry(
     register_follow_up_handler(registry, clock=clock, config=fusion_config)
     # Performance (page 10): same quote registry as the markets handler.
     register_performance_handler(registry, clock=clock, config=resolved_markets_config)
+    register_sec_fundamentals_handler(registry, clock=clock)
     return registry

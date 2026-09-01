@@ -44,6 +44,7 @@ __all__ = [
     "OptionChainContract",
     "OptionChainExpiration",
     "OptionChainResponse",
+    "SecFundamentalsResponse",
     "SnapshotHealth",
     "SystemCapabilitiesResponse",
     "SystemHealth",
@@ -330,6 +331,33 @@ class AnalysisResponse(ContractModel):
     evidence: FrozenStrMapping | None
     scenarios: FrozenStrMapping | None
     advice: FrozenStrMapping | None
+    coverage: FrozenStrMapping | None
+    reason: NonEmptyStr | None
+
+
+# ---------------------------------------------------------------------------
+# GET /api/v1/sources/sec/{instrument}/fundamentals — official PIT evidence
+# ---------------------------------------------------------------------------
+
+
+class SecFundamentalsResponse(ContractModel):
+    """Official SEC filings and XBRL facts, relayed without financial logic."""
+
+    state: Literal["ok", "stale", "empty"]
+    snapshot_version: PositiveInt | None
+    as_of: UtcDatetime | None
+    age_seconds: int | None
+    population: NonEmptyStr | None
+    instrument: NonEmptyStr
+    source: NonEmptyStr | None
+    rights: NonEmptyStr | None
+    identity_state: Literal["RESOLVED", "CONFLICTING_IDENTITY", "ABSENT"] | None
+    cik: NonEmptyStr | None
+    entity_name: NonEmptyStr | None
+    data_as_of: UtcDatetime | None
+    filings: tuple[FrozenStrMapping, ...]
+    facts: tuple[FrozenStrMapping, ...]
+    conflicts: tuple[FrozenStrMapping, ...]
     coverage: FrozenStrMapping | None
     reason: NonEmptyStr | None
 

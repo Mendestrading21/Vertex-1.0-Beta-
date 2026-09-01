@@ -12,6 +12,7 @@ import json
 import re
 from dataclasses import dataclass
 from datetime import date, timedelta
+from decimal import Decimal
 from typing import Any
 from urllib.parse import urlencode
 
@@ -62,7 +63,7 @@ def _json_payload(response: HttpResponse) -> dict[str, Any] | list[Any]:
     if response.status_code != 200:
         raise OfficialSourceError(f"provider returned HTTP {response.status_code}")
     try:
-        decoded = json.loads(response.body.decode("utf-8"))
+        decoded = json.loads(response.body.decode("utf-8"), parse_float=Decimal)
     except (UnicodeDecodeError, json.JSONDecodeError):
         raise OfficialSourceError("provider returned invalid UTF-8 JSON") from None
     if not isinstance(decoded, (dict, list)):
@@ -159,7 +160,7 @@ class SecEdgarClient:
             source="sec_edgar",
             schema_version=schema,
             source_event_id=f"CIK{padded}:{family.replace('/', '-')}",
-            rights="R1_PUBLIC_FACT:SEC_EDGAR_POLICY_2026-08-28",
+            rights="R1_PUBLIC_FACT_SEC_EDGAR_POLICY_2026_08_28",
             response=response,
             payload=payload,
         )

@@ -4124,6 +4124,218 @@
         "title": "RegisterVerifyResponse",
         "type": "object"
       },
+      "SecFundamentalsResponse": {
+        "additionalProperties": false,
+        "description": "Official SEC filings and XBRL facts, relayed without financial logic.",
+        "properties": {
+          "age_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age Seconds"
+          },
+          "as_of": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "As Of"
+          },
+          "cik": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cik"
+          },
+          "conflicts": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Conflicts",
+            "type": "array"
+          },
+          "coverage": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Coverage"
+          },
+          "data_as_of": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data As Of"
+          },
+          "entity_name": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Entity Name"
+          },
+          "facts": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Facts",
+            "type": "array"
+          },
+          "filings": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "title": "Filings",
+            "type": "array"
+          },
+          "identity_state": {
+            "anyOf": [
+              {
+                "enum": [
+                  "RESOLVED",
+                  "CONFLICTING_IDENTITY",
+                  "ABSENT"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Identity State"
+          },
+          "instrument": {
+            "minLength": 1,
+            "title": "Instrument",
+            "type": "string"
+          },
+          "population": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Population"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "rights": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rights"
+          },
+          "snapshot_version": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Snapshot Version"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "state": {
+            "enum": [
+              "ok",
+              "stale",
+              "empty"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "snapshot_version",
+          "as_of",
+          "age_seconds",
+          "population",
+          "instrument",
+          "source",
+          "rights",
+          "identity_state",
+          "cik",
+          "entity_name",
+          "data_as_of",
+          "filings",
+          "facts",
+          "conflicts",
+          "coverage",
+          "reason"
+        ],
+        "title": "SecFundamentalsResponse",
+        "type": "object"
+      },
       "SessionEventInput": {
         "additionalProperties": false,
         "description": "Facts for gate 4 (``session_and_event_known``).",
@@ -5720,6 +5932,50 @@
           }
         },
         "summary": "THEORETICAL preview of one declared structure (no persistence)"
+      }
+    },
+    "/api/v1/sources/sec/{instrument}/fundamentals": {
+      "get": {
+        "description": "Relay the last SEC snapshot; no ratio, score or advice is computed.",
+        "operationId": "get_sec_fundamentals",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "instrument",
+            "required": true,
+            "schema": {
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$",
+              "title": "Instrument",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SecFundamentalsResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Authentication required: no valid WebAuthn session cookie (or missing/invalid CSRF header on a mutation). Always the same generic body with detail code AUTH_REQUIRED."
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Official point-in-time SEC filings and facts for one instrument"
       }
     },
     "/api/v1/system/capabilities": {

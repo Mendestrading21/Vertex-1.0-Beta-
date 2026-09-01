@@ -59,6 +59,7 @@ def test_openapi_structure_is_explicit() -> None:
         "get_today_attention",
         "get_markets_overview",
         "get_analysis",
+        "get_sec_fundamentals",
         "get_option_chain",
         "get_system_capabilities",
         "get_events_stream",
