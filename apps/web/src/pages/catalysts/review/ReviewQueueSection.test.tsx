@@ -1,5 +1,6 @@
 /**
- * Page Suivi — file due dans l'ordre SERVEUR, badge « nouvelle information »
+ * Module de revue de Catalyseurs (ex-page /follow-up) — file due dans
+ * l'ordre SERVEUR, badge « nouvelle information »
  * avec raison et provenance, fiche thèse (invalidation visible, historique
  * append-only honnête), formulaire de thèse (invalidation obligatoire,
  * idempotency_key client réutilisée sur retry, 200 created=false silencieux)
@@ -9,9 +10,13 @@ import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { makeFollowUpQueue, makeQueueContent } from '../../test/fixtures.ts';
-import { renderApp } from '../../test/render.tsx';
-import { queueFrameStateOf } from './FollowUpPage.tsx';
+import {
+  makeCalendarResponse,
+  makeFollowUpQueue,
+  makeQueueContent,
+} from '../../../test/fixtures.ts';
+import { renderApp } from '../../../test/render.tsx';
+import { queueFrameStateOf } from './ReviewQueueSection.tsx';
 import { buildRevisionRequest } from './ThesisSheet.tsx';
 import { queueContentOf } from './followUpView.ts';
 
@@ -51,13 +56,22 @@ function mockRoutes(handlers: {
     if (method === 'GET' && url.endsWith('/v1/follow-up/queue')) {
       return handlers.queue?.() ?? jsonResponse(makeFollowUpQueue());
     }
+    // La page hôte lit AUSSI l'agenda : les deux snapshots sont indépendants
+    // et la file doit rester lisible quel que soit l'état de l'agenda.
+    if (method === 'GET' && url.includes('/v1/calendar')) {
+      return jsonResponse(makeCalendarResponse());
+    }
     return jsonResponse({ detail: 'unexpected route' }, 500);
   });
 }
 
+// LOT-10 : la revue n'est plus une destination. C'est le module qui suit la
+// timeline de Catalyseurs. Les assertions ci-dessous sont INCHANGÉES — leur
+// rôle est de prouver que l'absorption n'a retiré aucune capacité (règle 1
+// de docs/05-design/PAGE_ARBITRATION.md).
 async function renderFollowUp(): Promise<void> {
-  renderApp('/follow-up');
-  await screen.findByRole('heading', { level: 1, name: 'Suivi' });
+  renderApp('/catalysts');
+  await screen.findByRole('heading', { level: 2, name: 'Revue des thèses' });
 }
 
 describe('queueFrameStateOf', () => {

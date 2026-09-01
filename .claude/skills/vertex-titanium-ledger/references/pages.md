@@ -1,135 +1,141 @@
-# Architecture détaillée des douze écrans
+# Contrats des douze pages Vertex
 
 ## Règle commune
 
-Chaque page possède une question, une dominante et une cadence propres. Les
-widgets secondaires expliquent la dominante ; ils ne rivalisent pas avec elle.
-L'ordre ci-dessous est l'ordre de reconstruction, pas la numérotation Ledger.
+Le shell reste celui de `canonical-visual.md`. Chaque page change seulement la
+question, la dominante, les preuves secondaires et l'inspecteur. Une page ne
+doit pas répéter un bento générique ni inventer une donnée pour remplir l'espace.
 
-## 1. Aujourd'hui — TL/01
+Les planches dans `assets/` illustrent les compositions par paire. Elles peuvent
+contenir du texte ou des chiffres générés : ils sont non contractuels. Les
+libellés finaux sont français et les valeurs viennent uniquement des contrats.
 
-**Question :** qu'est-ce qui exige mon attention maintenant, et avec quelle
-qualité de données ?
+## 1. Aujourd'hui
 
-- Dominante : Attention Queue en Evidence Rows, tri serveur préservé.
-- Bande supérieure : santé, couverture, population et fraîcheur.
-- Rail : Snapshot Rail, provenance, raisons de blocage et état des recalculs.
-- Action primaire : ouvrir l'élément sélectionné, jamais « acheter ».
-- Interdit : indice inventé, sparkline sans série, carte prix si le DTO ne la
-  fournit pas.
+**Question :** que dois-je regarder maintenant, pourquoi et avec quelle qualité ?
 
-## 2. Marchés — TL/07
+- Planche : `pages-01-02-today-markets.png`, moitié gauche.
+- Dominante : régime de marché + graphique global et événements superposés.
+- Widgets : marché global, volatilité, prochain catalyseur, santé des sources,
+  opportunités, risques actifs, secteurs, portefeuille manuel, calendrier.
+- Inspecteur : thèse, catalyseurs vérifiés, risques, preuves et exclusions.
+- Interdit : urgence, rang, santé ou recommandation inventés.
 
-**Question :** où se concentrent force, faiblesse et participation ?
+## 2. Marchés
 
-- Dominante : treemap secteurs vers tickers, légende divergente autour de zéro.
-- Supports : breadth, filtres, couverture et rejets.
-- Table exacte : ticker, secteur, valeur signée, méthode et fraîcheur.
-- Interaction : sélection synchronisée graphique/table, conservée au clavier.
-- Interdit : surface proportionnelle à une donnée inexistante ou classement local.
+**Question :** où se concentrent force, faiblesse, participation et risque ?
 
-## 3. Analyse — TL/03
+- Planche : `pages-01-02-today-markets.png`, moitié droite.
+- Dominante : carte/treemap multi-actifs avec breadth et table exacte.
+- Widgets : indices, secteurs, devises, taux, volatilité, couverture et rejets.
+- Inspecteur : instrument/secteur sélectionné, contexte et sources.
+- Interdit : taille ou classement fondé sur une donnée absente.
 
-**Question :** quels faits confirment ou invalident la lecture de l'instrument ?
-
-- Dominante : chandeliers + volume avec table OHLCV accessible.
-- En-tête : instrument, venue, intervalle, heure, source et qualité.
-- Rail : scénarios, invalidations, preuves, contradictions et limites.
-- Sous-zone : faits techniques fournis, événements liés, historique de sélection.
-- Interdit : indicateur calculé dans le navigateur ou recommandation maquillée.
-
-## 4. Options — TL/04
-
-**Question :** quelles cotations et échéances sont réellement exploitables ?
-
-- Dominante : chaîne calls/puts groupée par échéance, strike central lisible.
-- Bande : sous-jacent, timestamp, droits, couverture et statut de source.
-- Inspecteur : contrat, bid/ask, taille, greeks fournis, méthode et absences.
-- Navigation : clavier bidimensionnel seulement si la grille interactive est
-  pleinement implémentée ; sinon table native.
-- Interdit : IV ou grecques recomputées localement, cotation manquante transformée
-  en zéro.
-
-## 5. Simulateur — TL/05
-
-**Question :** comment le scénario fourni se comporte-t-il selon ses hypothèses ?
-
-- Dominante : payoff avec axe zéro, breakevens, zones et points exacts.
-- Composeur : jambes, quantité, sens, strike, expiration et validation.
-- Rail : hypothèses, résultats serveur, limites, coûts et données absentes.
-- Table : points de payoff et résultats exacts.
-- Interdit : calcul de payoff ou breakeven côté navigateur.
-
-## 6. Portefeuille — TL/08
-
-**Question :** que contient mon registre manuel et où sont ses concentrations ?
-
-- Dominante : Manual Ledger, lots et mouvements.
-- Résumé : métriques serveur, marques absentes, lots exclus, devise et date.
-- Supports : concentration, historique, transaction manuelle, import CSV contrôlé.
-- Actions : ajouter/corriger un mouvement manuel avec récapitulatif explicite.
-- Interdit : lecture IBKR du compte, cash, NAV, positions, P&L ou transactions.
-
-## 7. Calendrier — TL/06
-
-**Question :** quels événements vérifiés peuvent affecter les instruments suivis ?
-
-- Dominante : agenda chronologique ou grille selon densité réelle.
-- Supports : fenêtre, catégories, compteurs, versions et révisions.
-- Détail : source, fuseau, statut, instruments liés et historique de correction.
-- Clavier : appliquer le pattern grille/dialogue WAI si un date picker est utilisé.
-- Interdit : événement extrapolé ou horaire sans fuseau.
-
-## 8. Opportunités — TL/02
+## 3. Opportunités
 
 **Question :** quels candidats passent les règles et lesquels sont exclus ?
 
-- Dominante : candidats admissibles par profil/groupe, ordre serveur conservé.
-- Supports : gates, exclusions, calendrier lié, preuves et fraîcheur.
-- Fiche : faits, contradictions, motif d'admission/abstention et provenance.
-- Interdit : score, rang ou probabilité non calibrés calculés dans l'UI.
+- Planche : `pages-03-04-opportunities-analysis.png`, moitié gauche.
+- Dominante : file de candidats et gates serveur.
+- Widgets : profil, horizon, groupes, preuves, exclusions, catalyseurs et qualité.
+- Inspecteur : motif d'admission, abstention, contradictions et provenance.
+- Interdit : score ou probabilité UI, ordre local modifiant la priorité canonique.
 
-## 9. Suivi — TL/09
+## 4. Analyse
 
-**Question :** quelles thèses demandent revue, confirmation ou clôture manuelle ?
+**Question :** quels faits confirment ou invalident la lecture de l'instrument ?
 
-- Dominante : Thesis Queue avec raisons et échéances.
-- Supports : états, filtres, historique, fiche latérale et actions autorisées.
-- Une modification affiche son effet sur le registre local avant confirmation.
-- Interdit : état rassurant par défaut ou clôture automatique silencieuse.
+- Planche : `pages-03-04-opportunities-analysis.png`, moitié droite.
+- Dominante : chandeliers + volume, overlays contractuels et table OHLCV.
+- Widgets : scénarios, niveaux, faits techniques, événements, contradictions.
+- Inspecteur : thèse, invalidation, méthode, limites et sources.
+- Interdit : indicateur, signal ou recommandation calculé dans le navigateur.
 
-## 10. Performance — TL/10
+## 5. Options
 
-**Question :** quelle performance le serveur peut-il réellement établir, avec
-quelles exclusions ?
+**Question :** quelles cotations, échéances et contraintes sont exploitables ?
 
-- Dominante : valeur brute/nette et drawdown, unités et périodes explicites.
-- Supports : Metric Blocks, heatmap mensuelle, mois et points quotidiens.
-- Dégradation : jours/lots exclus visibles à côté de la courbe.
-- Interdit : rendement, agrégation, annualisation ou drawdown recalculés localement.
+- Planche : `pages-05-06-options-simulator.png`, moitié gauche.
+- Dominante : chaîne calls/puts par échéance, strike central et droits visibles.
+- Widgets : sous-jacent, volatilité fournie, open interest, spread et couverture.
+- Inspecteur : contrat, bid/ask, taille, greeks fournis, méthode et absences.
+- Interdit : IV/grecques locales, cotation manquante transformée en zéro.
 
-## 11. Vertex IA — TL/11
+## 6. Simulateur
 
-**Question :** que peut expliquer l'IA à partir du packet validé et sourcé ?
+**Question :** comment le scénario fourni réagit-il aux hypothèses explicites ?
 
-- Dominante : réponse structurée en claims et références.
-- Supports : fournisseur, sujet, contradictions, limites et état de disponibilité.
-- Chaque claim renvoie à une source ou est marqué comme limite/interprétation.
-- Interdit : chiffre nouveau, verdict modifié, source inventée ou IA présentée
-  comme disponible lorsqu'elle est désactivée.
+- Planche : `pages-05-06-options-simulator.png`, moitié droite.
+- Dominante : payoff avec axe zéro, breakevens et points exacts serveur.
+- Widgets : composeur de jambes, hypothèses, coûts, résultats et limites.
+- Inspecteur : scénario, méthode, données absentes, comparaison et export.
+- Interdit : calcul de payoff/breakeven UI ou bouton d'exécution.
 
-## 12. Système — TL/12
+## 7. Portefeuille
 
-**Question :** quelles sources et capacités sont saines, dégradées ou inconnues ?
+**Question :** que contient mon registre manuel et où sont ses concentrations ?
 
-- Dominante : matrice des sources, méthodes et droits.
-- Supports : composants, probes, versions, fraîcheur, fallback et incidents.
-- Les probes inconnues restent inconnues ; une absence de mesure n'est pas saine.
-- Interdit : état global vert dérivé de contrôles partiels.
+- Planche : `pages-07-08-portfolio-charts.png`, moitié gauche.
+- Dominante : ledger manuel avec lots, mouvements, devise et date.
+- Widgets : valeur calculée serveur, allocation, concentration, historique,
+  anomalies et import CSV contrôlé.
+- Inspecteur : ligne sélectionnée, provenance manuelle, corrections et impacts.
+- Interdit : lecture de compte, positions, cash, NAV ou P&L IBKR.
+
+## 8. Graphiques
+
+**Question :** quelles relations puis-je explorer sans perdre méthode et contexte ?
+
+- Planche : `pages-07-08-portfolio-charts.png`, moitié droite.
+- Dominante : espace graphique configurable avec séries autorisées.
+- Widgets : instrument, horizon, overlays serveur, comparaison, table et notes.
+- Inspecteur : définition des séries, unités, source, fraîcheur et exclusions.
+- Interdit : studio libre permettant une formule financière côté navigateur.
+
+## 9. Risques
+
+**Question :** quels risques sont actifs, mesurés, inconnus ou bloquants ?
+
+- Planche : `pages-09-10-risks-catalysts.png`, moitié gauche.
+- Dominante : matrice des risques avec exposition, horizon, sévérité et preuve.
+- Widgets : concentration, liquidité, volatilité, macro, géopolitique, données.
+- Inspecteur : mécanisme, déclencheur, mitigation, limites et état de mesure.
+- Interdit : score global vert dérivé de mesures partielles.
+
+## 10. Catalyseurs
+
+**Question :** quels événements vérifiés peuvent modifier la thèse et quand ?
+
+- Planche : `pages-09-10-risks-catalysts.png`, moitié droite.
+- Dominante : timeline liée aux instruments et aux thèses.
+- Widgets : importance, statut, consensus fourni, révisions, conflits et fenêtre.
+- Inspecteur : source, fuseau, historique, instruments liés et incertitude.
+- Interdit : événement extrapolé ou impact présenté comme certain.
+
+## 11. Calendrier
+
+**Question :** que se passe-t-il dans ma fenêtre temporelle et dans quel fuseau ?
+
+- Planche : `pages-11-12-calendar-sources-reports.png`, moitié gauche.
+- Dominante : agenda dense ou grille selon la population réelle.
+- Widgets : catégories, filtres, compteurs, versions, révisions et conflits.
+- Inspecteur : événement, source, fuseau, statut et instruments concernés.
+- Interdit : date/heure naïve, élément sans source ou calendrier décoratif.
+
+## 12. Sources & Rapports
+
+**Question :** puis-je faire confiance aux données et exporter leurs preuves ?
+
+- Planche : `pages-11-12-calendar-sources-reports.png`, moitié droite.
+- Dominante : matrice des sources, méthodes, droits, fraîcheur et couverture.
+- Widgets : incidents, versions, rapports, exports, sauvegardes et audit trail.
+- Inspecteur : source/rapport sélectionné, limites, champs, licence et historique.
+- Interdit : santé globale rassurante sans couverture complète ; export perdant
+  provenance, état, unité ou étiquette de simulation.
 
 ## Livrable par page
 
-Pour chaque page, joindre au lot : contrat de composition, inventaire de champs,
-matrice d'états, composants touchés, captures des trois viewports, tests exécutés,
-budget mesuré, écarts connus, rollback et validation humaine requise.
-
+Avant code, produire : question, décision préparée, dominante, données autorisées,
+contexte partagé, états, action primaire, alternative accessible, budget,
+interdits et critères binaires. Après code, joindre tests exacts, captures des
+trois viewports, comparaison canonique, écarts, mesures et rollback.

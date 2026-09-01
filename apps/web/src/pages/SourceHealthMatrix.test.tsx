@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 import { makeCapabilityEntries } from '../test/fixtures.ts';
 import { SourceHealthMatrix } from './SourceHealthMatrix.tsx';
 
-function renderMatrix(initialPath = '/system') {
+function renderMatrix(initialPath = '/sources-reports') {
   const entries = makeCapabilityEntries();
   const view = render(
     <MemoryRouter initialEntries={[initialPath]}>
@@ -73,7 +73,7 @@ describe('SourceHealthMatrix', () => {
   });
 
   it('filtre statut initialisé depuis l’URL (persistance)', () => {
-    const { entries } = renderMatrix('/system?statut=DELAYED');
+    const { entries } = renderMatrix('/sources-reports?statut=DELAYED');
     const expected = entries.filter((entry) => entry.tested_status === 'DELAYED').length;
     expect(expected).toBeGreaterThan(0);
     expect(bodyRows()).toHaveLength(expected);

@@ -1,5 +1,21 @@
 # Vertex 1.0 Beta — système visuel Titanium Ledger
 
+## Référence canonique verrouillée
+
+La capture conservée dans
+`.claude/skills/vertex-titanium-ledger/assets/vertex-dashboard-canonical.png` est
+l'unique autorité de style validée par l'utilisateur. Elle remplace toute
+interprétation précédente concernant le shell, le logo, la palette, la densité,
+les surfaces Black Glass, les bordures, les rayons et la navigation. Les autres
+planches du skill décrivent seulement la composition des douze pages ; elles ne
+peuvent pas faire dériver cette identité.
+
+Le shell cible utilise un symbole facetté argent, un rail gauche fin intégré, un
+ticker supérieur compact, un fond noir pétrole très discret, des panneaux
+graphite gris-vert translucides, des bordures titane et un ambre rare pour la
+sélection. Les anciennes variantes `VX`, rail large, noir chaud opaque ou bento
+générique doivent être traitées comme des écarts lors de la reconstruction.
+
 ## Thèse
 
 Titanium Ledger transforme Vertex en registre décisionnel premium : la densité
@@ -17,20 +33,19 @@ rouge/verte utilisées comme décoration.
 
 ### Logotype principal
 
-- monogramme `VX` angulaire dans une plaque de métal brossé ;
-- mot-symbole `VERTEX` en capitale, compact et stable ;
-- signature secondaire `TITANIUM LEDGER` en mono, petite et espacée ;
-- version produit `Vertex 1.0 Beta` séparée de la marque afin qu'elle puisse
-  évoluer sans redessiner le logotype.
+- symbole polyédrique/hexagonal facetté en argent et titane ;
+- aucune lettre, flèche, pièce, hausse ou baisse dans le symbole ;
+- aucune signature adjacente dans le rail compact ;
+- version produit `VERTEX 1.0 BETA` dans un cartouche séparé en bas à gauche.
 
 ### Variantes autorisées
 
 | Variante | Usage |
 |---|---|
-| plaque `VX` | rail compact, favicon futur, avatar produit |
-| plaque + `VERTEX` | rail ouvert, écran d'accès |
-| mot-symbole seul | documents et exports étroits |
-| signature `Titanium Ledger` | barre de contexte et documentation visuelle |
+| symbole facetté | rail compact, favicon futur, avatar produit |
+| symbole monochrome | contraste forcé, petite taille, documents |
+| cartouche `VERTEX 1.0 BETA` | version produit dans le shell |
+| mention `Titanium Ledger` | documentation uniquement |
 
 Le monogramme n'emploie jamais le vert ou le rouge. Il ne représente ni une
 hausse, ni un signal de marché.

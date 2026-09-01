@@ -1,21 +1,34 @@
 import { useRef, useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 
-import { pageStateOf, queryKeyForResource } from '../../api/hooks.ts';
-import { useFollowUpQueue } from '../../api/portfolioApi.ts';
-import type { PageDataState } from '../../api/hooks.ts';
-import type { FollowUpQueueResponse } from '../../api/client.ts';
-import { AuthRequiredNotice } from '../../components/AuthRequiredNotice.tsx';
-import { DataStateBoundary } from '../../components/DataStateBoundary.tsx';
-import type { DataState } from '../../components/DataStateBoundary.tsx';
+import { pageStateOf, queryKeyForResource } from '../../../api/hooks.ts';
+import { useFollowUpQueue } from '../../../api/portfolioApi.ts';
+import type { PageDataState } from '../../../api/hooks.ts';
+import type { FollowUpQueueResponse } from '../../../api/client.ts';
+import { AuthRequiredNotice } from '../../../components/AuthRequiredNotice.tsx';
+import { DataStateBoundary } from '../../../components/DataStateBoundary.tsx';
+import type { DataState } from '../../../components/DataStateBoundary.tsx';
 import { ThesisForm } from './ThesisForm.tsx';
 import { ThesisSheet } from './ThesisSheet.tsx';
 import { queueContentOf, thesisStatusLabel } from './followUpView.ts';
 import type { QueueContentView } from './followUpView.ts';
 
 /**
- * Page Suivi — question : « Quelles thèses, alertes et informations doivent
- * être revues ? »
+ * Module de revue de la page Catalyseurs — question conservée :
+ * « Quelles thèses, alertes et informations doivent être revues ? »
+ *
+ * Était la destination `/follow-up`. Absorbée d'après
+ * `docs/05-design/PAGE_ARBITRATION.md` : le contrat des douze pages (§10)
+ * donne à Catalyseurs la question « quels événements vérifiés peuvent
+ * modifier LA THÈSE et quand ? ». Une thèse est mise en revue PARCE QU'un
+ * catalyseur l'a touchée — la file de revue est la conséquence de la
+ * timeline, pas une destination concurrente.
+ *
+ * Règle 4 de l'arbitrage : une page absorbée garde sa question. Elle est
+ * affichée telle quelle ci-dessous.
+ *
+ * Les routes API `/v1/follow-up/queue`, `/v1/theses` et leurs révisions ne
+ * bougent pas (règle 2).
  *
  * Dominante : la file de revues DUE, dans l'ordre lexicographique documenté
  * du serveur (jamais retriée localement). Une « nouvelle information » élève
@@ -52,7 +65,7 @@ export function queueFrameStateOf(
   return { state: queryState, view };
 }
 
-export function FollowUpPage() {
+export function ReviewQueueSection() {
   const query = useFollowUpQueue();
   const queryClient = useQueryClient();
   const queryState = pageStateOf(query);
@@ -76,9 +89,9 @@ export function FollowUpPage() {
       : null;
 
   return (
-    <article className="vx-page" aria-labelledby="vx-page-title-follow-up">
+    <section className="vx-fu-module" aria-labelledby="vx-fu-module-title">
       <div className="vx-page-header">
-        <h1 id="vx-page-title-follow-up">Suivi</h1>
+        <h2 id="vx-fu-module-title">Revue des thèses</h2>
         <p className="vx-page-question">
           Quelles thèses, alertes et informations doivent être revues ?
         </p>
@@ -120,9 +133,9 @@ export function FollowUpPage() {
           </p>
 
           <section className="vx-fu-queue" aria-labelledby="vx-fu-queue-title">
-            <h2 id="vx-fu-queue-title">
+            <h3 id="vx-fu-queue-title">
               File de revues — {frame.view.due.length} thèse(s) à revoir
-            </h2>
+            </h3>
             <p className="vx-fu-ordering">
               Ordre du serveur (lexicographique) : {frame.view.orderingKeys.join(' ; ') || '—'}.
             </p>
@@ -177,7 +190,7 @@ export function FollowUpPage() {
           </section>
 
           <section className="vx-fu-theses" aria-labelledby="vx-fu-theses-title">
-            <h2 id="vx-fu-theses-title">Toutes les thèses ({frame.view.theses.length})</h2>
+            <h3 id="vx-fu-theses-title">Toutes les thèses ({frame.view.theses.length})</h3>
             {frame.view.theses.length === 0 ? (
               <p className="vx-cell-absent">Aucune thèse déclarée.</p>
             ) : (
@@ -250,6 +263,6 @@ export function FollowUpPage() {
           ) : null}
         </DataStateBoundary>
       )}
-    </article>
+    </section>
   );
 }

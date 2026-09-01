@@ -13,6 +13,7 @@ import { CsvImportPanel } from './CsvImportPanel.tsx';
 import { LedgerPanel } from './LedgerPanel.tsx';
 import { PortfolioSummary } from './PortfolioSummary.tsx';
 import { PortfolioTable } from './PortfolioTable.tsx';
+import { PerformanceSection } from './performance/PerformanceSection.tsx';
 import { TransactionForm } from './TransactionForm.tsx';
 import { valuationContentOf } from './portfolioView.ts';
 import type { ValuationContentView } from './portfolioView.ts';
@@ -26,6 +27,12 @@ import type { ValuationContentView } from './portfolioView.ts';
  * relayé verbatim : marques SYNTHÉTIQUES étiquetées, lots exclus listés à
  * part avec raison, totaux serveur uniquement. L'interface enregistre des
  * FAITS PASSÉS et n'émet aucune instruction.
+ *
+ * Depuis le LOT-08, la page porte aussi le module Performance, absorbé depuis
+ * l'ancienne destination `/performance` (docs/05-design/PAGE_ARBITRATION.md).
+ * Le contrat des douze pages range l'« historique » du registre parmi les
+ * widgets de Portefeuille, et les deux vues lisent le même portefeuille
+ * manuel : ce sont deux lectures d'UN seul registre, pas deux destinations.
  */
 
 /** État du CADRE de valorisation (les sections dérivées du snapshot). */
@@ -145,6 +152,8 @@ export function PortfolioPage() {
               </DataStateBoundary>
             )}
           </section>
+
+          <PerformanceSection />
 
           <LedgerPanel transactions={data.transactions} onCompensated={refetchPortfolio} />
           <TransactionForm onRecorded={refetchPortfolio} />

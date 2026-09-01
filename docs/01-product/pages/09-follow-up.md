@@ -1,5 +1,11 @@
 # Page 09 — Suivi `/follow-up`
 
+> **Statut depuis le LOT-10 : ce n'est plus une destination.** Le contenu
+> ci-dessous reste le contrat du MODULE de revue, désormais rendu par
+> `/catalysts` (voir `docs/05-design/PAGE_ARBITRATION.md`). La question, les
+> états et les critères d'acceptation sont inchangés ; seule la page hôte
+> change. `/follow-up` redirige en permanence vers `/catalysts`.
+
 ## Question
 
 Quelles thèses, alertes et informations doivent être revues ?

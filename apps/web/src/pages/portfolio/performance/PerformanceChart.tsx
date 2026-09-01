@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 
-import type { EChartsInstance } from '../../charts/echartsLoader.ts';
+import type { EChartsInstance } from '../../../charts/echartsLoader.ts';
 import { geometryNumber } from './performanceView.ts';
 import type { MetricBlockView, SeriesPointView } from './performanceView.ts';
 
@@ -45,7 +45,7 @@ export function PerformanceChart({
         return;
       }
       try {
-        const { echarts } = await import('../../charts/echartsLoader.ts');
+        const { echarts } = await import('../../../charts/echartsLoader.ts');
         if (disposed || containerRef.current === null) {
           return;
         }

@@ -1,5 +1,4 @@
 import attentionQueueUrl from '../../../../design-assets/icons/custom/attention-queue.svg?url';
-import auditTraceUrl from '../../../../design-assets/icons/custom/audit-trace.svg?url';
 import evidenceRailUrl from '../../../../design-assets/icons/custom/evidence-rail.svg?url';
 import gatePassUrl from '../../../../design-assets/icons/custom/gate-pass.svg?url';
 import manualLedgerUrl from '../../../../design-assets/icons/custom/manual-ledger.svg?url';
@@ -24,10 +23,9 @@ const GLYPH_BY_PAGE: Readonly<Record<string, string>> = {
   calendar: newsClusterUrl,
   markets: marketRegimeUrl,
   portfolio: manualLedgerUrl,
-  'follow-up': thesisActiveUrl,
-  performance: auditTraceUrl,
+  catalysts: thesisActiveUrl,
   ai: evidenceRailUrl,
-  system: sourceCoverageUrl,
+  'sources-reports': sourceCoverageUrl,
 };
 
 export interface NavGlyphProps {

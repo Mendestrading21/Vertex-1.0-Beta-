@@ -8,25 +8,54 @@ import { ALL_PAGES } from './pages.ts';
 const INSTALLED_KEYS = new Set([
   'today',
   'markets',
-  'system',
+  'sources-reports',
   'options',
   'analysis',
   'simulator',
   'portfolio',
-  'follow-up',
-  'performance',
+  'catalysts',
   'calendar',
   'opportunities',
   'ai',
 ]);
 
 describe('routes — couverture du blueprint', () => {
-  it('les 12 pages du rail sont installées : plus aucune façade « Lot non installé »', () => {
+  // L'INVARIANT est « aucune façade » : toute entrée du rail est une page
+  // réelle. Il est inchangé.
+  it('toute entrée du rail est une page réelle : aucune façade « Lot non installé »', () => {
     const missing = ALL_PAGES.filter((entry) => !INSTALLED_KEYS.has(entry.key)).map(
       (entry) => entry.key,
     );
     expect(missing).toEqual([]);
-    expect(ALL_PAGES.length).toBe(12);
+  });
+
+  // Le COMPTE, lui, dit la vérité du moment. La cible est douze
+  // (`references/pages.md`) ; le rail en porte onze pendant les absorptions,
+  // et l'écart est journalisé dans docs/05-design/PAGE_ARBITRATION.md.
+  // Ce test échoue si une destination apparaît ou disparaît sans que
+  // l'arbitrage soit mis à jour — il n'est pas relâché, il est déplacé de
+  // « combien » vers « lesquelles ».
+  it('le rail porte exactement les onze destinations réelles, dans l’ordre', () => {
+    expect(ALL_PAGES.map((entry) => entry.key)).toEqual([
+      'today',
+      'opportunities',
+      'analysis',
+      'options',
+      'simulator',
+      'calendar',
+      'markets',
+      'portfolio',
+      'catalysts',
+      'ai',
+      'sources-reports',
+    ]);
+  });
+
+  it('les deux destinations cibles restantes ne sont PAS présentes en façade', () => {
+    const keys = new Set(ALL_PAGES.map((entry) => entry.key));
+    for (const attendue of ['charts', 'risks']) {
+      expect(keys.has(attendue)).toBe(false);
+    }
   });
 });
 
@@ -79,6 +108,24 @@ describe('routes — paramètres optionnels arbitrés', () => {
     expect(
       await screen.findByRole('heading', { level: 1, name: 'Simulateur' }),
     ).toBeDefined();
+  });
+});
+
+describe('routes — destinations absorbées (docs/05-design/PAGE_ARBITRATION.md)', () => {
+  // Règle 5 de l'arbitrage : une route retirée est remplacée par une
+  // redirection permanente, jamais par un 404. Sans ce test, la redirection
+  // n'est pas prouvée et un signet existant casserait en silence.
+  it('/system redirige durablement vers /sources-reports', () => {
+    const { router } = renderApp('/system');
+    expect(router.state.location.pathname).toBe('/sources-reports');
+    expect(
+      screen.getByRole('heading', { level: 1, name: 'Sources & Rapports' }),
+    ).toBeDefined();
+  });
+
+  it("l'ancienne adresse ne laisse pas d'entrée dans l'historique (replace)", () => {
+    const { router } = renderApp('/system');
+    expect(router.state.historyAction).toBe('REPLACE');
   });
 });
 

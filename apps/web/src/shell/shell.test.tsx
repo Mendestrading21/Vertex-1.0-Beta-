@@ -21,6 +21,34 @@ describe('AppShell — landmarks et lien d’évitement', () => {
     expect(main.getAttribute('data-ledger-code')).toBe('TL / 07');
   });
 
+  // Garde-fou d'absorption : à chaque renommage de destination
+  // (docs/05-design/PAGE_ARBITRATION.md) une clé oubliée dans
+  // LEDGER_CODE_BY_PAGE ne casse rien — la signature retombe en silence sur
+  // « TL / — ». C'est arrivé au LOT-07 avec `system`. Ce test rend la
+  // régression bruyante pour les absorptions suivantes.
+  it('aucune page du rail ne retombe sur la signature de repli « TL / — »', () => {
+    const sansSignature: string[] = [];
+    for (const page of ALL_PAGES) {
+      const { unmount } = renderApp(page.navPath);
+      const code = screen.getByRole('main').getAttribute('data-ledger-code');
+      if (code === null || code === 'TL / —') {
+        sansSignature.push(page.key);
+      }
+      unmount();
+    }
+    expect(sansSignature).toEqual([]);
+  });
+
+  // Point 7 de l'anatomie canonique. Le DOM est vérifié ici ; le POSITIONNEMENT
+  // réel (bas à gauche) et les styles calculés le sont dans
+  // e2e/shell-canonical.spec.ts, que jsdom ne peut pas mesurer.
+  it('le cartouche d’édition est rendu dans le rail, pas dans l’en-tête', () => {
+    renderApp('/today');
+    const nav = screen.getByRole('navigation', { name: 'Navigation principale' });
+    expect(within(nav).getByText('Vertex 1.0 Beta')).toBeDefined();
+    expect(within(screen.getByRole('banner')).queryByText('Vertex 1.0 Beta')).toBeNull();
+  });
+
   it('le lien d’évitement pointe vers le contenu principal', () => {
     renderApp('/today');
     const skipLink = screen.getByRole('link', { name: 'Aller au contenu principal' });
@@ -56,14 +84,16 @@ describe('NavRail — groupes et liens', () => {
     ]);
   });
 
-  it('rend les 12 pages avec leurs chemins arbitrés', () => {
+  it('rend chaque destination réelle avec son chemin arbitré', () => {
     renderApp('/today');
     const nav = screen.getByRole('navigation', { name: 'Navigation principale' });
     for (const page of ALL_PAGES) {
       const link = within(nav).getByRole('link', { name: page.title });
       expect(link.getAttribute('href')).toBe(page.navPath);
     }
-    expect(ALL_PAGES).toHaveLength(12);
+    // Onze destinations pendant les absorptions, douze en cible : le compte
+    // exact est asséré dans routes.test.tsx, avec la liste ordonnée.
+    expect(ALL_PAGES).toHaveLength(11);
     expect(ALL_PAGES.map((page) => page.navPath)).toContain('/ai');
     expect(ALL_PAGES.map((page) => page.navPath)).not.toContain('/vertex-ai');
   });
@@ -149,7 +179,7 @@ describe('NavRail — navigation clavier (flèches + Entrée)', () => {
     renderApp('/today');
     const nav = screen.getByRole('navigation', { name: 'Navigation principale' });
     const toggle = within(nav).getByRole('button', { name: 'Réduire la navigation' });
-    const lastLink = within(nav).getByRole('link', { name: 'Système' });
+    const lastLink = within(nav).getByRole('link', { name: 'Sources & Rapports' });
 
     toggle.focus();
     await user.keyboard('{End}');

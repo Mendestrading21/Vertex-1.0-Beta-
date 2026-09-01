@@ -1,11 +1,11 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
 
-import { isApiError } from '../../api/client.ts';
-import { postThesisRevision } from '../../api/portfolioApi.ts';
-import type { ThesisRevisionRequest } from '../../api/client.ts';
-import { serverRejectionOf } from '../portfolio/portfolioView.ts';
-import type { ServerRejectionView } from '../portfolio/portfolioView.ts';
+import { isApiError } from '../../../api/client.ts';
+import { postThesisRevision } from '../../../api/portfolioApi.ts';
+import type { ThesisRevisionRequest } from '../../../api/client.ts';
+import { serverRejectionOf } from '../../portfolio/portfolioView.ts';
+import type { ServerRejectionView } from '../../portfolio/portfolioView.ts';
 import { thesisStatusLabel } from './followUpView.ts';
 import type { ThesisEntryView } from './followUpView.ts';
 

@@ -1,5 +1,12 @@
 /**
- * Parcours /follow-up — file de revues réelle (snapshot publié par le worker
+ * Parcours /catalysts — destination créée au LOT-10, qui ABSORBE l'ancienne
+ * page /follow-up (docs/05-design/PAGE_ARBITRATION.md).
+ *
+ * Règle 3 de l'arbitrage : les assertions du module de revue sont DÉPLACÉES,
+ * pas supprimées. Seule la route visitée change ; ce que chaque test vérifie
+ * est identique. La timeline des catalyseurs est testée à part, plus bas.
+ *
+ * Module de revue — file de revues réelle (snapshot publié par le worker
  * sur les thèses semées) : ordre serveur, badge « nouvelle information »
  * avec raison, fiche thèse (invalidation), nouvelle thèse via le formulaire
  * (idempotency_key client) qui APPARAÎT dans la file, revue qui fait
@@ -37,7 +44,7 @@ function seededDueThesis(content: Record<string, unknown>): QueueThesis {
   return found!;
 }
 
-test.describe('Page Suivi — file de revues réelle', () => {
+test.describe('Catalyseurs — module de revue (ex-page /follow-up)', () => {
   test('populations séparées, file due ordonnée par le serveur, provenance du contexte', async ({
     page,
   }) => {
@@ -45,7 +52,7 @@ test.describe('Page Suivi — file de revues réelle', () => {
     const due = content['due'] as { thesis_id: number; rank: number }[];
     expect(due.length).toBeGreaterThanOrEqual(1);
 
-    await page.goto('/follow-up');
+    await page.goto('/catalysts');
     const populations = page.getByTestId('fu-populations');
     await expect(populations).toContainText('USER_DECLARED');
     await expect(populations).toContainText('SYNTHETIC');
@@ -63,7 +70,7 @@ test.describe('Page Suivi — file de revues réelle', () => {
     const content = await apiQueue(page);
     const seeded = seededDueThesis(content);
 
-    await page.goto('/follow-up');
+    await page.goto('/catalysts');
     await page
       .getByTestId(`fu-due-${seeded.thesis.id}`)
       .getByRole('button')
@@ -90,7 +97,7 @@ test.describe('Page Suivi — file de revues réelle', () => {
     const totalBefore = (before['theses'] as unknown[]).length;
     const title = `[SYNTHETIC] These E2E ${Date.now()}`;
 
-    await page.goto('/follow-up');
+    await page.goto('/catalysts');
     await page.getByLabel('Titre').fill(title);
     await page.getByLabel(/Hypothèses/).fill('[SYNTHETIC] Hypothese saisie par le test E2E.');
     await page.getByLabel(/Invalidation \(OBLIGATOIRE/).fill('[SYNTHETIC] Invalidee si Y.');
@@ -113,7 +120,7 @@ test.describe('Page Suivi — file de revues réelle', () => {
     const seededBefore = seededDueThesis(before);
     const revisionsBefore = seededBefore.state.revision_count;
 
-    await page.goto('/follow-up');
+    await page.goto('/catalysts');
     const badge = page.getByTestId(`fu-new-info-${seededBefore.thesis.id}`);
     if (seededBefore.has_new_information) {
       // Première revue (1er projet de viewport) : le badge est encore là,
@@ -155,21 +162,98 @@ test.describe('Page Suivi — file de revues réelle', () => {
   });
 
   test('axe : zéro violation critique/sérieuse + capture', async ({ page }, testInfo) => {
-    await page.goto('/follow-up');
+    await page.goto('/catalysts');
     await expect(page.getByTestId('fu-due-list')).toBeVisible();
     await expectNoSeriousAxeViolations(page);
     await page.screenshot({
-      path: screenshotPath('follow-up', testInfo.project.name),
+      path: screenshotPath('catalysts-review', testInfo.project.name),
       fullPage: true,
     });
   });
 
-  test('hors ligne simulé → état offline honnête', async ({ page }) => {
+  test('hors ligne simulé → état offline honnête, propre à CHAQUE source', async ({ page }) => {
     await page.route('**/api/**', (route) => route.abort());
-    await page.goto('/follow-up');
-    const boundary = page.locator('[data-state="offline"]');
-    await expect(boundary).toBeVisible();
-    await expect(boundary).toContainText('Hors ligne');
+    await page.goto('/catalysts');
+
+    // La page lit DEUX snapshots indépendants (agenda et file de revue). Hors
+    // ligne, chacun affiche son propre état : `.claude/rules/frontend.md`
+    // exige que « chaque vue et composant connecté » couvre explicitement
+    // `offline`. Un seul bandeau partagé laisserait croire à une seule
+    // source, et masquerait le cas — bien plus fréquent — où une seule des
+    // deux est indisponible.
+    const boundaries = page.locator('[data-state="offline"]');
+    await expect(boundaries).toHaveCount(2);
+
+    // Les deux disent laquelle des deux sources manque : jamais deux fois le
+    // même message.
+    await expect(boundaries.first()).toContainText('aucun catalyseur affiché');
+    await expect(boundaries.last()).toContainText('aucune file affichée');
+    for (const index of [0, 1]) {
+      await expect(boundaries.nth(index)).toContainText('Hors ligne');
+    }
+
     await expect(page.getByTestId('fu-due-list')).toHaveCount(0);
+    await expect(page.getByTestId('cat-list')).toHaveCount(0);
+  });
+});
+
+test.describe('Catalyseurs — timeline reliée aux thèses et positions', () => {
+  test('la timeline ne montre QUE des événements reliés, et dit combien ne le sont pas', async ({
+    page,
+  }) => {
+    await page.goto('/catalysts');
+    const scope = page.getByTestId('cat-unlinked');
+    await expect(scope).toBeVisible();
+
+    // L'agenda complet est servi par l'API ; la page n'en garde que la part
+    // reliée. Les deux nombres doivent s'additionner à l'agenda servi — sinon
+    // un événement aurait été perdu, ce qui serait pire qu'un événement de
+    // trop.
+    const agenda = await page.request.get('/api/v1/calendar');
+    expect(agenda.ok()).toBe(true);
+    const corps = (await agenda.json()) as { agenda: Record<string, unknown>[] };
+    const relies = corps.agenda.filter((event) => {
+      const contexte = event['event_context'] as
+        | { positions?: unknown[]; theses?: unknown[] }
+        | undefined;
+      return (
+        (contexte?.positions?.length ?? 0) > 0 || (contexte?.theses?.length ?? 0) > 0
+      );
+    });
+
+    expect(Number(await scope.innerText())).toBe(corps.agenda.length - relies.length);
+
+    if (relies.length === 0) {
+      await expect(page.getByTestId('cat-empty')).toBeVisible();
+      return;
+    }
+    const items = page.locator('.vx-cat-item');
+    await expect(items).toHaveCount(relies.length);
+
+    // Chaque élément affiché porte au moins un motif de rétention EXPLICITE.
+    for (let index = 0; index < relies.length; index += 1) {
+      const item = items.nth(index);
+      const motifs = await item.locator('.vx-cat-links .vx-badge').count();
+      expect(motifs).toBeGreaterThanOrEqual(1);
+    }
+  });
+
+  test('le widget « consensus fourni » du contrat est déclaré absent, pas approximé', async ({
+    page,
+  }) => {
+    await page.goto('/catalysts');
+    await expect(page.getByTestId('cat-missing-widget')).toContainText('ABSENT');
+  });
+
+  test('axe : zéro violation critique/sérieuse sur la page complète + capture', async ({
+    page,
+  }, testInfo) => {
+    await page.goto('/catalysts');
+    await expect(page.getByTestId('cat-unlinked')).toBeVisible();
+    await expectNoSeriousAxeViolations(page);
+    await page.screenshot({
+      path: screenshotPath('catalysts', testInfo.project.name),
+      fullPage: true,
+    });
   });
 });

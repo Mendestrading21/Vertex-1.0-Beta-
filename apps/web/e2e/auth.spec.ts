@@ -30,7 +30,7 @@ test.describe('Accès passkey', () => {
     // La barre de contexte reflète l'état observé (401 reçu → non connecté).
     await expect(page.getByRole('banner').getByText('Non connecté')).toBeVisible();
 
-    await page.goto('/system');
+    await page.goto('/sources-reports');
     await expect(page.locator('[data-state="auth-required"]')).toBeVisible();
     await expect(page.getByRole('table')).toHaveCount(0);
 

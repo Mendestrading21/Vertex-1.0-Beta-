@@ -3,6 +3,7 @@ import { Outlet, useMatches } from 'react-router-dom';
 
 import type { PageDef } from '../app/pages.ts';
 import { ContextBar } from './ContextBar.tsx';
+import { INSPECTOR_SLOT_ID, useInspectorOccupied } from './inspector.tsx';
 import { NavRail } from './NavRail.tsx';
 
 /** Clé localStorage de l'état replié du rail. */
@@ -30,10 +31,9 @@ const LEDGER_CODE_BY_PAGE: Readonly<Record<string, string>> = {
   calendar: 'TL / 06',
   markets: 'TL / 07',
   portfolio: 'TL / 08',
-  'follow-up': 'TL / 09',
-  performance: 'TL / 10',
+  catalysts: 'TL / 09',
   ai: 'TL / 11',
-  system: 'TL / 12',
+  'sources-reports': 'TL / 12',
   auth: 'TL / ACCESS',
 };
 
@@ -56,8 +56,19 @@ function writeStoredCollapsed(collapsed: boolean): void {
 
 /**
  * Coquille applicative desktop : lien d'évitement, rail de navigation
- * (landmark nav), barre de contexte (landmark header) et contenu (landmark
- * main). Desktop only — aucune variante téléphone (Mobile = LATER).
+ * (landmark nav), barre de contexte (landmark header), contenu (landmark
+ * main) et inspecteur contextuel (landmark complementary).
+ *
+ * Point 6 de l'anatomie canonique : « zone de travail dense avec une
+ * dominante centrale et un inspecteur contextuel à droite ». L'inspecteur est
+ * un EMPLACEMENT : son contenu vient de la page active, via
+ * `InspectorPanel`. Le shell ne lit aucune donnée pour le remplir.
+ *
+ * Il n'occupe la grille que si une page y a monté quelque chose
+ * (`data-inspector`). Une destination sans élément inspectable n'affiche donc
+ * pas une colonne vide — ce serait de la chrome décorative.
+ *
+ * Desktop only — aucune variante téléphone (Mobile = LATER).
  */
 export function AppShell() {
   const [collapsed, setCollapsed] = useState(readStoredCollapsed);
@@ -65,6 +76,8 @@ export function AppShell() {
   const pageMatch = [...matches].reverse().find((match) => isPageHandle(match.handle));
   const pageKey =
     pageMatch !== undefined && isPageHandle(pageMatch.handle) ? pageMatch.handle.page.key : 'unknown';
+
+  const occupied = useInspectorOccupied();
 
   const toggle = useCallback(() => {
     setCollapsed((previous) => {
@@ -75,22 +88,40 @@ export function AppShell() {
   }, []);
 
   return (
-    <div className="vx-shell" data-rail={collapsed ? 'collapsed' : 'open'}>
+    <div
+      className="vx-shell"
+      data-rail={collapsed ? 'collapsed' : 'open'}
+      data-inspector={occupied ? 'open' : 'empty'}
+    >
       <a className="vx-skip-link" href="#vx-main">
         Aller au contenu principal
       </a>
       <NavRail collapsed={collapsed} onToggle={toggle} />
       <div className="vx-shell-body">
         <ContextBar />
-        <main
-          id="vx-main"
-          className="vx-main"
-          tabIndex={-1}
-          data-page={pageKey}
-          data-ledger-code={LEDGER_CODE_BY_PAGE[pageKey] ?? 'TL / —'}
-        >
-          <Outlet />
-        </main>
+        <div className="vx-work">
+          <main
+            id="vx-main"
+            className="vx-main"
+            tabIndex={-1}
+            data-page={pageKey}
+            data-ledger-code={LEDGER_CODE_BY_PAGE[pageKey] ?? 'TL / —'}
+          >
+            <Outlet />
+          </main>
+          {/*
+            Le nœud d'accueil existe TOUJOURS dans le DOM : un portail a besoin
+            d'une cible montée. C'est `hidden` qui décide de son affichage, pas
+            un montage conditionnel — sinon la page ne pourrait jamais viser
+            l'emplacement au premier rendu.
+          */}
+          <aside
+            id={INSPECTOR_SLOT_ID}
+            className="vx-inspector"
+            aria-label="Inspecteur contextuel"
+            hidden={!occupied}
+          />
+        </div>
       </div>
     </div>
   );

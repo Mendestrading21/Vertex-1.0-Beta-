@@ -1,12 +1,12 @@
 """Barre quotidienne IBKR → enregistrement de barres : la page Analyse.
 
 CE QUE CES TESTS EMPÊCHENT. Que la page Analyse reste vide alors que la donnée
-est en base — le défaut réellement mesuré le 2026-08-31 : 251 barres IBKR
-ingérées, zéro lue, parce que le schéma produit n'était déclaré nulle part côté
+est en base — un défaut de contrat déjà observé : des barres ingérées pouvaient
+être ignorées parce que le schéma produit n'était déclaré nulle part côté
 consommateur. Une page vide sans message est le pire des échecs : elle
 ressemble à « pas de données » alors qu'elle signifie « données ignorées ».
 
-Le test le plus important est `test_le_consommateur_REEL_accepte`. Il ne
+Le test le plus important est `test_le_consommateur_CANONIQUE_accepte`. Il ne
 vérifie pas une forme que j'aurais inventée : il fait relire la charge utile
 produite par le validateur RÉEL de `vertex_worker.analysis`. Producteur et
 consommateur vivent dans deux paquets qui ne se connaissent pas ; sans cet
@@ -37,35 +37,36 @@ from vertex_edge_ibkr.normalize import (
 from vertex_edge_ibkr.port import BarObservation, BarsPayload, ContractSpec
 
 SPEC = ContractSpec(
-    sec_type="STK", con_id=208813720, symbol="GOOG", exchange="SMART", currency="USD"
+    sec_type="STK", con_id=990000001, symbol="SYNBAR", exchange="SMART", currency="USD"
 )
 
-#: Valeurs RÉELLES relevées sur le contrat GOOG le 2026-08-31.
-BARRE_REELLE = BarObservation(
+#: Fixture entièrement synthétique : aucune observation de marché réelle ne
+#: doit entrer dans l'historique Git sous couvert d'un test de contrat.
+BARRE_SYNTHETIQUE = BarObservation(
     time=datetime(2025, 8, 29, tzinfo=UTC),
-    open=Decimal("211.27"),
-    high=Decimal("215.34"),
-    low=Decimal("210.97"),
-    close=Decimal("213.53"),
-    volume=Decimal("11006698.0"),
-    average=Decimal("213.229"),
-    bar_count=62967,
+    open=Decimal("100.10"),
+    high=Decimal("103.40"),
+    low=Decimal("99.80"),
+    close=Decimal("102.25"),
+    volume=Decimal("12000.0"),
+    average=Decimal("101.875"),
+    bar_count=240,
 )
 
 
 def barres(*observations: BarObservation, **surcharges: object) -> BarsPayload:
     parametres: dict[str, object] = {
-        "con_id": 208813720,
+        "con_id": 990000001,
         "bar_size": "1 day",
         "what_to_show": "TRADES",
         "use_rth": True,
-        "bars": observations or (BARRE_REELLE,),
+        "bars": observations or (BARRE_SYNTHETIQUE,),
     }
     parametres.update(surcharges)
     return BarsPayload(**parametres)  # type: ignore[arg-type]
 
 
-def test_le_consommateur_REEL_accepte_ce_que_l_edge_produit() -> None:
+def test_le_consommateur_CANONIQUE_accepte_ce_que_l_edge_produit() -> None:
     """L'appariement producteur/consommateur, mesuré et non supposé."""
     from vertex_worker.analysis import (
         _basis_code_or_none,
@@ -86,8 +87,8 @@ def test_le_consommateur_REEL_accepte_ce_que_l_edge_produit() -> None:
 
     barre, raison = _validate_bar(charge["bars"][0])
     assert barre is not None, f"le consommateur refuse la barre produite : {raison}"
-    assert barre["close"] == "213.53", "le centime n'a pas survécu au trajet"
-    assert barre["volume"] == 11006698, "le volume doit être un entier exact"
+    assert barre["close"] == "102.25", "le centime n'a pas survécu au trajet"
+    assert barre["volume"] == 12000, "le volume doit être un entier exact"
 
 
 def test_la_base_d_ajustement_avoue_que_TRADES_n_est_pas_ajuste() -> None:
@@ -113,7 +114,7 @@ def test_refus_de_structure(surcharges: dict[str, object], attendu: str) -> None
 
 
 def test_sans_symbole_l_instrument_entier_est_refuse() -> None:
-    spec = ContractSpec(sec_type="STK", con_id=208813720, exchange="SMART", currency="USD")
+    spec = ContractSpec(sec_type="STK", con_id=990000001, exchange="SMART", currency="USD")
     resultat = daily_bars_payload_from_bars(barres(), spec)
     assert resultat.refused_reason == REASON_SYMBOL_MISSING
 
@@ -121,7 +122,7 @@ def test_sans_symbole_l_instrument_entier_est_refuse() -> None:
 def test_sans_devise_l_enregistrement_est_refuse_AVANT_la_base() -> None:
     """Le consommateur rejette l'enregistrement entier sans devise. Refuser
     ici nomme la cause ; laisser passer produirait une page vide muette."""
-    spec = ContractSpec(sec_type="STK", con_id=208813720, symbol="GOOG", exchange="SMART")
+    spec = ContractSpec(sec_type="STK", con_id=990000001, symbol="SYNBAR", exchange="SMART")
     resultat = daily_bars_payload_from_bars(barres(), spec)
     assert resultat.refused_reason == REASON_CURRENCY_MISSING
 
@@ -136,7 +137,7 @@ def test_une_barre_partielle_est_ecartee_ET_comptee() -> None:
         close=Decimal("211"),
         volume=Decimal("1000"),
     )
-    resultat = daily_bars_payload_from_bars(barres(partielle, BARRE_REELLE), SPEC)
+    resultat = daily_bars_payload_from_bars(barres(partielle, BARRE_SYNTHETIQUE), SPEC)
     assert resultat.payload is not None
     assert resultat.produced == 1, "seule la barre complète doit passer"
     assert resultat.skipped_bars == 1, "l'écart doit être compté, jamais silencieux"
@@ -166,9 +167,9 @@ def test_aucune_barre_utilisable_refuse_au_lieu_de_publier_du_vide() -> None:
 def test_l_identite_est_STABLE_donc_une_relance_ne_duplique_rien() -> None:
     """`ingest_envelope` est idempotent sur `event_id` : un identifiant tiré
     au hasard ferait doubler tout l'historique à chaque remplissage."""
-    premier = daily_bars_event_id(208813720, "2025-08-29", "2026-08-28")
-    second = daily_bars_event_id(208813720, "2025-08-29", "2026-08-28")
+    premier = daily_bars_event_id(990000001, "2025-08-29", "2026-08-28")
+    second = daily_bars_event_id(990000001, "2025-08-29", "2026-08-28")
     assert premier == second
-    assert premier == "ibkr:daily-bars:208813720:2025-08-29:2026-08-28"
-    autre = daily_bars_event_id(208813720, "2025-08-29", "2026-08-27")
+    assert premier == "ibkr:daily-bars:990000001:2025-08-29:2026-08-28"
+    autre = daily_bars_event_id(990000001, "2025-08-29", "2026-08-27")
     assert autre != premier, "une fenêtre différente est un enregistrement différent"

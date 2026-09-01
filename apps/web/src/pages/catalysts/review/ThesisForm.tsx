@@ -1,10 +1,10 @@
 import { useState } from 'react';
 
-import { isApiError } from '../../api/client.ts';
-import { postThesis } from '../../api/portfolioApi.ts';
-import type { CreateThesisRequest } from '../../api/client.ts';
-import { localDateTimeToUtcIso, serverRejectionOf } from '../portfolio/portfolioView.ts';
-import type { ServerRejectionView } from '../portfolio/portfolioView.ts';
+import { isApiError } from '../../../api/client.ts';
+import { postThesis } from '../../../api/portfolioApi.ts';
+import type { CreateThesisRequest } from '../../../api/client.ts';
+import { localDateTimeToUtcIso, serverRejectionOf } from '../../portfolio/portfolioView.ts';
+import type { ServerRejectionView } from '../../portfolio/portfolioView.ts';
 
 /**
  * « Nouvelle thèse » — déclaration utilisateur : énoncé + hypothèses +

@@ -8,10 +8,11 @@ import './design/tokens.css';
 import './styles/global.css';
 
 import { installSnapshotEvents } from './api/events.ts';
+import { installSessionIsolation } from './api/sessionIsolation.ts';
 import { buildRouteObjects } from './app/routes.tsx';
 
 /**
- * Client React Query du shell. Les pages installées (Aujourd'hui, Système)
+ * Client React Query du shell. Les pages installées (Aujourd'hui, Sources & Rapports)
  * consomment les snapshots bornés de l'API locale ; l'abonnement SSE
  * signal-only invalide les clés de requête ciblées quand une tête de
  * snapshot change (le flux ne porte jamais la donnée).
@@ -27,6 +28,7 @@ const queryClient = new QueryClient({
 
 // Le flux SSE ne vit que pendant une session authentifiée (sinon 401).
 installSnapshotEvents(queryClient);
+installSessionIsolation(queryClient);
 
 const rootElement = document.getElementById('root');
 if (rootElement === null) {

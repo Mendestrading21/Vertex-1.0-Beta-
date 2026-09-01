@@ -1,11 +1,115 @@
 # État courant
 
 ```yaml
-phase: lot_24a_fusionne_sonde_entitlements_executable
-lot: LOT-24b (sonde IBKR exécutable) + LOT-24c (fraîcheur au relais, P0)
-branch: claude/vertex-connection-kgkntr
-status: plus_aucun_relais_ne_sert_une_valeur_sans_dire_son_age
-last_good_commit: 37a7097 (= origin/main, PR #6 fusionnée)
+phase: rattrapage_complet_autorise
+lot: LOT-04 (CI verte), LOT-05 (marque canonique), LOT-06 (arbitrage des pages),
+     LOT-07 (/system → /sources-reports), LOT-08 (/performance → Portefeuille),
+     LOT-09 (conformité du shell), LOT-10 (création de Catalyseurs),
+     LOT-11 (inspecteur contextuel du shell)
+branch: codex/vertex-rattrapage-complet-20260831
+status: ci_reparee_puis_execution_en_cours_sans_fusion_automatique
+last_good_commit: bdf9f306 (= origin/main, CI 7/7 verte)
+lots_de_cette_session:
+  - "LOT-04 — la purge de session effaçait l'erreur 401 qu'elle devait laisser
+     voir. CI ROUGE à l'arrivée sur b09b3785 : 3 échecs e2e/auth.spec.ts sur les
+     trois viewports. Cause : `previous !== 'unauthenticated'` était vrai dès le
+     PREMIER 401 puisque l'état initial est 'unknown'. Corrigé en
+     `previous === 'authenticated'`. Reproducteur écrit avant le correctif."
+  - "LOT-05 — le rail portait le monogramme VX, nommément interdit par
+     references/canonical-visual.md, et un texte adjacent que l'anatomie
+     canonique interdit aussi. Remplacés par un polyèdre facetté SVG héritant
+     de currentColor. L'écart a disparu des target_gaps du script d'audit."
+  - "LOT-06 — table d'arbitrage actuel → cible → décision, exigée par le skill
+     avant tout renommage ou fusion. Décision humaine : ABSORBER."
+  - "LOT-07 — première ligne de la table exécutée : la destination `system`
+     devient Sources & Rapports. Renommage complet (clé, routes, glyphe, CSS,
+     composant, spec e2e, libellés docs) plus une redirection permanente
+     /system → /sources-reports. La route API /v1/system/capabilities n'a PAS
+     bougé : règle 2 de l'arbitrage. Le volet ÉTENDRE (lignage, incidents,
+     rapports) n'est ni livré ni simulé."
+  - "LOT-08 — deuxième absorption : le module Performance entier rejoint
+     Portefeuille et /performance est redirigée. Le rail passe à ONZE
+     destinations réelles ; l'écart aux douze est journalisé, jamais comblé
+     par une façade. Contradiction trouvée dans le skill maître : son script
+     d'inventaire normalisait performance->charts et follow-up->risks, ce que
+     son propre contrat des douze pages contredit. Script corrigé, contrat
+     inchangé."
+  - "LOT-09 — conformité du shell à l'anatomie canonique, mesurée dans un vrai
+     navigateur. Cinq écarts, tous invisibles aux 399 tests existants :
+     (1) le rail portait une plaque (dégradé + bordure + ombre) que le point 2
+     interdit ; (2) chaque icône portait une pastille et l'item actif une barre
+     latérale au lieu de la capsule ambre du point 3 ; (3) la marque était une
+     tuile dégradée argent→ambre ombrée, barrée d'une diagonale ambre vif, avec
+     un glyphe NOIR — le point 1 demande un glyphe facetté argent ; (4) le
+     cartouche VERTEX 1.0 BETA du point 7 avait sa règle CSS mais AUCUN
+     composant ne le rendait, et l'édition occupait le haut à droite que le
+     point 5 réserve au mode, à la cloche et à la fraîcheur ; (5) le masque de
+     la marque était SILENCIEUSEMENT invalide — `url()` non guillemeté sur une
+     data URI — donc calculé à `none`, et le carré se remplissait entièrement.
+     Le point 5 n'est PAS livré : ni cloche, ni badge de mode, ni fraîcheur de
+     shell n'ont de propriétaire canonique, et les dessiner sans source serait
+     une façade."
+  - "LOT-10 — création de la DOUZIÈME destination, Catalyseurs, et absorption
+     de /follow-up. Elle n'ajoute aucun endpoint : elle croise deux snapshots
+     déjà servis — calendar/global, dont chaque événement porte déjà son
+     event_context (thèses et positions touchées), et review_queue/global.
+     Le croisement ne crée aucune donnée : une thèse citée par un événement
+     mais absente de la file est DITE absente, jamais complétée, et les
+     événements non reliés sont comptés, jamais masqués. Les deux requêtes
+     restent indépendantes : hors ligne, chacune affiche SON état, avec un
+     message distinct — un seul bandeau partagé masquerait le cas où une
+     seule des deux sources tombe. Le widget « consensus fourni » que le
+     contrat §10 nomme n'a AUCUN champ dans le contrat d'agenda : il est
+     déclaré absent à l'écran, pas approximé."
+  - "LOT-11 — l'inspecteur contextuel du shell, point 6 de l'anatomie
+     canonique, existait dans la capture et nulle part dans le code. Il est
+     désormais un EMPLACEMENT du shell rempli PAR LA PAGE, jamais un composant
+     qui lirait les données lui-même. Deux propriétés le tiennent : aucune
+     colonne morte (l'aside n'occupe la grille que si une page y a monté un
+     panneau — une colonne vide en permanence serait de la chrome
+     décorative), et aucun panneau ne survit à la page qui l'a monté.
+     Premier remplissage : Catalyseurs, dont le contrat §10 fixe exactement le
+     contenu — source, fuseau, historique, instruments liés, incertitude. Les
+     cinq sont relayés verbatim. L'« incertitude » est FACTUELLE (statut
+     estimé/confirmé, révisions, conflits, fraîcheur déclarée), jamais une
+     probabilité : le contrat d'agenda n'en publie aucune, et une probabilité
+     sans calibration est interdite. L'inspecteur le DIT à l'écran."
+mesures_de_cette_session:
+  - "playwright : 405 passed après LOT-07 (le job CI qui était rouge), puis
+     399 passed après LOT-08. La baisse de 6 est intégralement expliquée dans
+     PAGE_ARBITRATION.md : -12 contrôles d'accessibilité sur une route devenue
+     une redirection (le même DOM est balayé via /portfolio), +6 tests de
+     redirection permanente. Aucun test supprimé. Puis 417 après LOT-09 :
+     +18 = six mesures d'anatomie canonique x trois viewports, dans le nouveau
+     e2e/shell-canonical.spec.ts. Puis 432 après LOT-10, +15 décomposés :
+     +9 la timeline de Catalyseurs (3 tests x 3 viewports) ; -6 les deux
+     tests de redirection sortis de portfolio-performance.spec.ts ; +12 le
+     nouveau e2e/legacy-redirects.spec.ts (4 x 3), qui couvre les TROIS
+     redirections au lieu de deux. Aucun test supprimé : follow-up.spec.ts
+     est devenu catalysts.spec.ts, ses 6 tests intacts (27 = 9 x 3). Puis
+     435 après LOT-11 : +3 = une mesure d'inspecteur x 3 viewports."
+  - "vitest : 420 passed / 31 fichiers ; tsc 0 ; biome 0 (135 fichiers) — mesuré
+     après LOT-11"
+  - "pytest : 3766 passed, 4 skipped — mesuré sur 35d48cb"
+  - "run_checks.sh : TOUT VERT"
+  - "audit_titanium_ledger.py après LOT-10 : empreinte canonique vérifiée,
+     écarts = 'charts, risks' à créer, 'ai' à absorber. 'system',
+     'performance' et 'follow-up' ont quitté la liste — c'est la mesure du
+     lot, pas une affirmation"
+  - "falsification LOT-07 : `Navigate` sans `replace` fait rougir
+     routes.test.tsx avec `expected 'PUSH' to be 'REPLACE'`"
+  - "falsification LOT-09 : retirer les guillemets de `url()` dans BrandMark
+     fait rougir shell-canonical.spec.ts avec `Expected: not \"none\"`"
+
+active_work:
+  - "commande utilisateur reçue : EXÉCUTE VERTEX RATTRAPAGE COMPLET"
+  - "autorité canonique extraite du commit 72d55629 sans reprendre sa branche
+     divergée comme base de code"
+  - "capture canonique et six planches de pages intégrées au skill maître"
+  - "ordre d'exécution : fermer les P0, stabiliser données/runtime, reconstruire
+     le shell, puis traiter les douze pages et la qualification finale"
+  - "aucune fusion ni publication automatique ; recette TWS/IBKR réelle différée
+     au poste utilisateur avec données de marché exclues de Git"
 completed:
   - vagues_1_a_5: 13 routes sur 13 réelles (PR #1, #2 et #3 fusionnées)
   - ci: 7 jobs, 25 portes nommées — VERTE sur 5a40bc8 ; actions épinglées par SHA de COMMIT
@@ -117,8 +221,13 @@ checks_locaux:
   - "ruff : All checks passed ; mypy --strict : 115 fichiers, 0 erreur"
   - "worker Cloudflare : 53 tests de contrat"
   - "run_checks.sh TOUT VERT"
-pages_reelles: [/today, /markets, /system, /auth, /options, /analysis, /simulator, /portfolio, /follow-up, /performance, /calendar, /opportunities, /ai]
+pages_reelles: [/today, /opportunities, /analysis, /options, /simulator,
+                /calendar, /markets, /portfolio, /catalysts, /ai,
+                /sources-reports, plus /auth hors rail]
 pages_non_implementees: []
+destinations_cibles_manquantes: [charts, risks]
+redirections_permanentes: ["/system -> /sources-reports", "/performance -> /portfolio",
+                           "/follow-up -> /catalysts"]
 ecarts_declares:
   - "WCAG 1.4.10 (reflow) NON CONFORME : plancher min-width 1024px, 384 px de
      débordement mesurés à 200 % de zoom — épinglé par test, inscrit à DEBT.md"

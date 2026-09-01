@@ -1,5 +1,5 @@
 /**
- * Page Performance — bandeau de population non masquable, métriques brut|net
+ * Module Performance de Portefeuille (ex-page /performance) — bandeau de population non masquable, métriques brut|net
  * verbatim (statut INSUFFICIENT_DATA/INVALID affiché AVEC SA RAISON à la
  * place de toute valeur), heatmap + table équivalente (mois incomplets
  * marqués), série quotidienne exacte et export servi par l'API.
@@ -14,16 +14,16 @@ import {
   makePerformanceContent,
   makePerformanceSnapshot,
   makePortfolioResponse,
-} from '../../test/fixtures.ts';
-import { renderApp } from '../../test/render.tsx';
-import { performanceFrameStateOf } from './PerformancePage.tsx';
+} from '../../../test/fixtures.ts';
+import { renderApp } from '../../../test/render.tsx';
+import { performanceFrameStateOf } from './PerformanceSection.tsx';
 import { performanceContentOf } from './performanceView.ts';
 
 const setOption = vi.fn();
 const dispose = vi.fn();
 const resize = vi.fn();
 
-vi.mock('../../charts/echartsLoader.ts', () => ({
+vi.mock('../../../charts/echartsLoader.ts', () => ({
   echarts: {
     init: vi.fn(() => ({ setOption, dispose, resize })),
   },
@@ -70,9 +70,13 @@ function mockRoutes(handlers: { readonly performance?: () => Response } = {}): v
   });
 }
 
+// LOT-08 : la performance n'est plus une destination. Elle est un module de
+// Portefeuille, atteint par /portfolio. Les assertions ci-dessous sont
+// INCHANGÉES — c'est précisément leur rôle : prouver que l'absorption n'a
+// retiré aucune capacité (règle 1 de docs/05-design/PAGE_ARBITRATION.md).
 async function renderPerformance(): Promise<void> {
-  renderApp('/performance');
-  await screen.findByRole('heading', { level: 1, name: 'Performance' });
+  renderApp('/portfolio');
+  await screen.findByRole('heading', { level: 2, name: 'Performance' });
 }
 
 describe('performanceFrameStateOf', () => {
@@ -242,8 +246,16 @@ describe('Page Performance — série insuffisante, vide, hors ligne', () => {
   });
 
   it('réseau coupé → offline honnête', async () => {
+    // Ce test n'attend PAS le titre du module : hors ligne, Portefeuille rend
+    // un seul état hors ligne pour toute la page et ne monte aucun module.
+    // Une seconde mention « Performance : hors ligne » à l'intérieur d'un
+    // écran déjà hors ligne n'ajouterait rien.
+    //
+    // La propriété de sûreté, elle, est INCHANGÉE et reste asserée
+    // textuellement : un état hors ligne explicite est rendu, et AUCUNE
+    // métrique n'est affichée à la place.
     fetchMock.mockRejectedValue(new TypeError('network down'));
-    await renderPerformance();
+    renderApp('/portfolio');
     await waitFor(() => {
       expect(document.querySelector('[data-state="offline"]')).not.toBeNull();
     });

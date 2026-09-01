@@ -3,9 +3,11 @@
 ## Thèse perceptive
 
 Titanium Ledger n'est ni un thème crypto néon, ni un clone de terminal. C'est un
-instrument de lecture : graphite chaud pour le silence, titane pour la structure,
-argent pour les valeurs, ambre rare pour l'intention. La densité vient de la
-précision des alignements et non de l'accumulation d'effets.
+instrument de lecture Black Glass : noir pétrole très discret pour le silence,
+verre graphite gris-vert pour les plans, titane pour la structure, argent pour
+les valeurs et ambre rare pour l'intention. La densité vient de la précision des
+alignements et non de l'accumulation d'effets. `canonical-visual.md` et sa capture
+priment sur toute formulation plus ancienne de cette référence.
 
 À la première seconde, l'utilisateur doit percevoir :
 
@@ -58,12 +60,12 @@ la porte `no-raw-colors`.
 
 ## Logo et signature
 
-- Monogramme `VX` angulaire, plaque métal, aucun symbole de hausse ou baisse.
-- `VERTEX` est le mot-symbole ; `TITANIUM LEDGER` est une signature secondaire.
-- `Vertex 1.0 Beta` est une version produit indépendante du logo.
-- Zone de respiration minimale : hauteur du `V` autour de la plaque.
-- Pas d'ombre néon, de chandelier, de pièce, de flèche, de vert ou de rouge.
-- Toute nouvelle variante doit rester lisible monochrome et à petite taille.
+- Symbole facetté argent/titane, géométrie hexagonale/polyédrique conforme à la
+  capture canonique ; aucun `VX`, symbole de hausse ou baisse.
+- Le rail n'ajoute pas de mot-symbole à côté du symbole.
+- `VERTEX 1.0 BETA` est un cartouche de version indépendant, en bas à gauche.
+- Pas d'ombre néon, chandelier, pièce, flèche, vert ou rouge dans la marque.
+- Toute variante doit rester lisible monochrome et à petite taille.
 
 ## Typographie
 
@@ -105,4 +107,3 @@ la porte `no-raw-colors`.
 - modes mouvement réduit, contraste renforcé, couleurs forcées et transparence
   réduite considérés dès qu'un composant les sollicite ;
 - aucune information portée uniquement par teinte, opacité ou mouvement.
-

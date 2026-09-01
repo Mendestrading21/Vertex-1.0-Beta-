@@ -249,6 +249,7 @@ class IbAsyncInformationAdapter:
         port: int = 7497,
         client_id: int = DEFAULT_CLIENT_ID,
         state: ConnectionStateMachine | None = None,
+        manage_connection_state: bool = True,
         clock: Callable[[], datetime] = _utc_now,
         sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
         connect_timeout_seconds: float = 4.0,
@@ -274,6 +275,7 @@ class IbAsyncInformationAdapter:
         self._port = port
         self._client_id = client_id
         self._state = state
+        self._manage_connection_state = manage_connection_state
         self._clock = clock
         self._sleep = sleep
         self._connect_timeout = connect_timeout_seconds
@@ -294,7 +296,7 @@ class IbAsyncInformationAdapter:
 
     async def connect(self) -> None:
         """Open the session: loopback, read-only, empty startup fetch mask."""
-        if self._state is not None:
+        if self._state is not None and self._manage_connection_state:
             self._state.begin_connect()
         try:
             await self._ib.connectAsync(
@@ -306,15 +308,15 @@ class IbAsyncInformationAdapter:
                 fetchFields=_NO_STARTUP_FETCH,
             )
         except Exception:
-            if self._state is not None:
+            if self._state is not None and self._manage_connection_state:
                 self._state.on_connect_failed()
             raise
-        if self._state is not None:
+        if self._state is not None and self._manage_connection_state:
             self._state.on_connected()
 
     async def disconnect(self) -> None:
         self._ib.disconnect()
-        if self._state is not None:
+        if self._state is not None and self._manage_connection_state:
             self._state.stop()
 
     async def server_time(self) -> datetime:

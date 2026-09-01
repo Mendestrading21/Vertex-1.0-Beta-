@@ -3,6 +3,7 @@ import type { KeyboardEvent } from 'react';
 import { NavLink } from 'react-router-dom';
 
 import { NAV_GROUPS } from '../app/pages.ts';
+import { BrandMark } from './BrandMark.tsx';
 import { NavGlyph } from './NavGlyph.tsx';
 
 export interface NavRailProps {
@@ -65,13 +66,8 @@ export function NavRail({ collapsed, onToggle }: NavRailProps) {
           aria-label="Vertex 1.0 Beta, thème Titanium Ledger"
         >
           <span className="vx-brand-mark" aria-hidden="true">
-            <span className="vx-brand-monogram">VX</span>
+            <BrandMark />
           </span>
-          {!collapsed && (
-            <span className="vx-rail-wordmark" aria-hidden="true">
-              Vertex <small>Titanium Ledger</small>
-            </span>
-          )}
         </span>
         <button
           type="button"
@@ -122,6 +118,23 @@ export function NavRail({ collapsed, onToggle }: NavRailProps) {
           </ul>
         </div>
       ))}
+
+      {/*
+        Point 7 de l'anatomie canonique : cartouche VERTEX 1.0 BETA discret en
+        bas à gauche. Il nomme l'ÉDITION du produit, pas un état de données :
+        aucune donnée, aucune fraîcheur, aucun droit n'en dépend.
+
+        Il était jusqu'ici affiché en haut à droite de la barre de contexte,
+        où la capture canonique attend le badge de mode, la cloche et la
+        fraîcheur. Le déplacer libère cet emplacement pour ce qu'il doit
+        porter.
+
+        Masqué quand le rail est replié (68 px) : la règle CSS l'écarte plutôt
+        que de le tronquer.
+      */}
+      <div className="vx-rail-foot">
+        <span className="vx-edition-cartouche">Vertex 1.0 Beta</span>
+      </div>
     </nav>
   );
 }

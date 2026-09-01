@@ -1,14 +1,14 @@
 import { useState } from 'react';
 
-import { isApiError } from '../../api/client.ts';
-import { saveTextAsFile } from '../../app/downloadFile.ts';
-import { getPerformanceExport, usePerformance, usePortfolio } from '../../api/portfolioApi.ts';
-import type { PerformanceSnapshotResponse } from '../../api/client.ts';
-import { pageStateOf } from '../../api/hooks.ts';
-import type { PageDataState } from '../../api/hooks.ts';
-import { AuthRequiredNotice } from '../../components/AuthRequiredNotice.tsx';
-import { DataStateBoundary } from '../../components/DataStateBoundary.tsx';
-import type { DataState } from '../../components/DataStateBoundary.tsx';
+import { isApiError } from '../../../api/client.ts';
+import { saveTextAsFile } from '../../../app/downloadFile.ts';
+import { getPerformanceExport, usePerformance, usePortfolio } from '../../../api/portfolioApi.ts';
+import type { PerformanceSnapshotResponse } from '../../../api/client.ts';
+import { pageStateOf } from '../../../api/hooks.ts';
+import type { PageDataState } from '../../../api/hooks.ts';
+import { AuthRequiredNotice } from '../../../components/AuthRequiredNotice.tsx';
+import { DataStateBoundary } from '../../../components/DataStateBoundary.tsx';
+import type { DataState } from '../../../components/DataStateBoundary.tsx';
 import { MonthlyHeatmap } from './MonthlyHeatmap.tsx';
 import { PerformanceChart } from './PerformanceChart.tsx';
 import {
@@ -20,8 +20,19 @@ import {
 import type { MetricBlockView, MetricKey, PerformanceContentView } from './performanceView.ts';
 
 /**
- * Page Performance — question : « Quelle performance ai-je réellement
- * enregistrée, avec quels risques et contributions ? »
+ * Module Performance de la page Portefeuille — question conservée :
+ * « Quelle performance ai-je réellement enregistrée, avec quels risques et
+ * contributions ? »
+ *
+ * Était la destination `/performance`. Absorbée d'après
+ * `docs/05-design/PAGE_ARBITRATION.md` : le contrat des douze pages
+ * (`references/pages.md`, §7) range l'« historique » du registre dans les
+ * widgets de Portefeuille, et les deux vues lisent le MÊME portefeuille
+ * manuel. Règle 1 de l'arbitrage : aucune capacité ne disparaît — chaque
+ * composante (courbe, métriques, heatmap, série quotidienne, jours exclus,
+ * export, conventions) est conservée telle quelle, y compris ses tests.
+ *
+ * La route API `/v1/performance/{id}` ne bouge pas (règle 2).
  *
  * Tout vient du snapshot `performance/<id>` publié par le worker : série
  * quotidienne, TWR/XIRR/drawdown brut|net avec leur lignage de calcul,
@@ -88,7 +99,7 @@ function MetricsBand({ view }: { readonly view: PerformanceContentView }) {
   const lastDay = view.points[view.points.length - 1]?.tradingDay ?? null;
   return (
     <section className="vx-perf-metrics" aria-labelledby="vx-perf-metrics-title">
-      <h2 id="vx-perf-metrics-title">Métriques (jours ouvrables valorisés)</h2>
+      <h3 id="vx-perf-metrics-title">Métriques (jours ouvrables valorisés)</h3>
       <dl className="vx-perf-metrics-grid" data-testid="perf-metrics">
         {METRIC_KEYS.map((key) => {
           const block = view.metrics[key];
@@ -146,7 +157,7 @@ function MetricsBand({ view }: { readonly view: PerformanceContentView }) {
   );
 }
 
-export function PerformancePage() {
+export function PerformanceSection() {
   const portfolioQuery = usePortfolio();
   const portfolioId = portfolioQuery.data?.portfolio.id ?? null;
   const performanceQuery = usePerformance(portfolioId);
@@ -202,9 +213,9 @@ export function PerformancePage() {
   }
 
   return (
-    <article className="vx-page" aria-labelledby="vx-page-title-performance">
+    <section className="vx-perf-module" aria-labelledby="vx-perf-module-title">
       <div className="vx-page-header">
-        <h1 id="vx-page-title-performance">Performance</h1>
+        <h2 id="vx-perf-module-title">Performance</h2>
         <p className="vx-page-question">
           Quelle performance ai-je réellement enregistrée, avec quels risques et contributions ?
         </p>
@@ -264,7 +275,7 @@ export function PerformancePage() {
           <MetricsBand view={frame.view} />
 
           <section className="vx-perf-heatmap-section" aria-labelledby="vx-perf-heatmap-title">
-            <h2 id="vx-perf-heatmap-title">Rendements mensuels</h2>
+            <h3 id="vx-perf-heatmap-title">Rendements mensuels</h3>
             <MonthlyHeatmap heatmap={frame.view.heatmap} />
             {frame.view.heatmap.status === 'OK' ? (
               <div
@@ -313,7 +324,7 @@ export function PerformancePage() {
 
           {frame.view.points.length > 0 ? (
             <section aria-labelledby="vx-perf-points-title">
-              <h2 id="vx-perf-points-title">Points quotidiens (valeurs serveur exactes)</h2>
+              <h3 id="vx-perf-points-title">Points quotidiens (valeurs serveur exactes)</h3>
               <div className="vx-pf-table-scroll" tabIndex={0} role="region" aria-label="Points quotidiens défilants">
                 <table className="vx-perf-points-table" aria-label="Série quotidienne de valorisation">
                   <thead>
@@ -351,9 +362,9 @@ export function PerformancePage() {
 
           {frame.view.excludedDays.length > 0 ? (
             <section aria-labelledby="vx-perf-excluded-title" data-testid="perf-excluded-days">
-              <h2 id="vx-perf-excluded-title">
+              <h3 id="vx-perf-excluded-title">
                 Jours exclus de la série ({frame.view.excludedDays.length})
-              </h2>
+              </h3>
               <ul>
                 {frame.view.excludedDays.map((day) => (
                   <li key={day.tradingDay}>
@@ -366,7 +377,7 @@ export function PerformancePage() {
           ) : null}
 
           <section className="vx-perf-export" aria-labelledby="vx-perf-export-title">
-            <h2 id="vx-perf-export-title">Export reproductible</h2>
+            <h3 id="vx-perf-export-title">Export reproductible</h3>
             <p>
               CSV des points quotidiens et manifeste d'audit JSON (méthodes, versions, hashes) —
               fonction pure du snapshot publié : deux exports du même snapshot sont identiques
@@ -409,7 +420,7 @@ export function PerformancePage() {
           </section>
 
           <section className="vx-perf-conventions" aria-labelledby="vx-perf-conventions-title">
-            <h2 id="vx-perf-conventions-title">Conventions du calcul (serveur)</h2>
+            <h3 id="vx-perf-conventions-title">Conventions du calcul (serveur)</h3>
             <dl className="vx-perf-conventions-list">
               {Object.entries(frame.view.conventions).map(([key, value]) => (
                 <div key={key}>
@@ -431,6 +442,6 @@ export function PerformancePage() {
           </section>
         </DataStateBoundary>
       )}
-    </article>
+    </section>
   );
 }

@@ -6,7 +6,7 @@ import { DataStateBoundary } from '../components/DataStateBoundary.tsx';
 import { NotFoundPage } from '../components/NotFoundPage.tsx';
 import { NotInstalledPage } from '../components/NotInstalledPage.tsx';
 import { AuthPage } from '../pages/AuthPage.tsx';
-import { SystemPage } from '../pages/SystemPage.tsx';
+import { SourcesReportsPage } from '../pages/SourcesReportsPage.tsx';
 import { TodayPage } from '../pages/TodayPage.tsx';
 import { AppShell } from '../shell/AppShell.tsx';
 import { ALL_PAGES, DEFAULT_PATH } from './pages.ts';
@@ -15,26 +15,23 @@ import type { PageDef } from './pages.ts';
 /**
  * Table de routes du shell. Une page réelle ne remplace l'entrée « Lot non
  * installé » que lorsque ses routes, données, états et tests existent
- * (docs/07-delivery/FOLDER_BY_FOLDER_PROGRAM.md). Pages réelles installées :
- * Aujourd'hui (/today), Marchés (/markets), Options (/options/:underlying?),
- * Analyse (/analysis/:instrument?), Simulateur (/simulator) et Système
- * (/system), plus la page d'accès /auth (hors rail — elle n'est pas une page
- * produit du blueprint). Vague 4 : Portefeuille (/portfolio), Suivi
- * (/follow-up) et Performance (/performance). Vague finale : Calendrier
- * (/calendar), Opportunités (/opportunities) et Vertex IA (/ai) — les 12
- * pages du blueprint sont désormais réelles.
+ * (docs/07-delivery/FOLDER_BY_FOLDER_PROGRAM.md).
  *
- * /markets, /options, /analysis et /simulator sont chargées PARESSEUSEMENT
- * (React.lazy) : leurs chunks — et les chunks moteurs qu'elles importent
- * dynamiquement (ECharts pour /markets et /simulator, Lightweight Charts
- * pour /analysis) — ne grossissent pas le bundle initial (CHART_STANDARD :
- * un moteur de graphique par route, jamais dans le bundle initial).
+ * Onze destinations du rail sont installées : Aujourd'hui, Opportunités,
+ * Analyse, Options, Simulateur, Calendrier, Marchés, Portefeuille,
+ * Catalyseurs, Vertex IA et Sources & Rapports. S'y ajoute /auth, hors rail : c'est une
+ * route de session, pas une destination du blueprint.
  *
- * Vague finale : Calendrier (/calendar), Opportunités (/opportunities) et
- * Vertex IA (/ai) sont réelles et chargées paresseusement elles aussi. Les
- * 12 pages du blueprint (13 routes avec /auth) sont donc installées ;
- * `NotInstalledPage` ne sert plus aucune page du rail, mais reste le rendu
- * par défaut de toute page future non encore livrée.
+ * Graphiques et Risques, que la cible attend, n'existent pas encore. `NotInstalledPage` ne sert aujourd'hui
+ * AUCUNE entrée du rail : les destinations manquantes sont absentes du rail
+ * plutôt que présentes en façade.
+ *
+ * Toutes les pages sauf Aujourd'hui et Sources & Rapports sont chargées
+ * PARESSEUSEMENT (React.lazy) : leurs chunks — et les chunks moteurs
+ * importés dynamiquement (ECharts pour /markets, /simulator et le module
+ * Performance de /portfolio ; Lightweight Charts pour /analysis) — ne
+ * grossissent pas le bundle initial (CHART_STANDARD : un moteur de graphique
+ * par route, jamais dans le bundle initial).
  */
 
 const LazyMarketsPage = lazy(async () => {
@@ -62,14 +59,9 @@ const LazyPortfolioPage = lazy(async () => {
   return { default: module.PortfolioPage };
 });
 
-const LazyFollowUpPage = lazy(async () => {
-  const module = await import('../pages/follow-up/FollowUpPage.tsx');
-  return { default: module.FollowUpPage };
-});
-
-const LazyPerformancePage = lazy(async () => {
-  const module = await import('../pages/performance/PerformancePage.tsx');
-  return { default: module.PerformancePage };
+const LazyCatalystsPage = lazy(async () => {
+  const module = await import('../pages/catalysts/CatalystsPage.tsx');
+  return { default: module.CatalystsPage };
 });
 
 const LazyCalendarPage = lazy(async () => {
@@ -127,18 +119,10 @@ function PortfolioRoute() {
   );
 }
 
-function FollowUpRoute() {
+function CatalystsRoute() {
   return (
     <Suspense fallback={<DataStateBoundary state="loading" />}>
-      <LazyFollowUpPage />
-    </Suspense>
-  );
-}
-
-function PerformanceRoute() {
-  return (
-    <Suspense fallback={<DataStateBoundary state="loading" />}>
-      <LazyPerformancePage />
+      <LazyCatalystsPage />
     </Suspense>
   );
 }
@@ -170,13 +154,12 @@ function AiRoute() {
 const INSTALLED_PAGES: Readonly<Record<string, () => React.JSX.Element>> = {
   today: TodayPage,
   markets: MarketsRoute,
-  system: SystemPage,
+  'sources-reports': SourcesReportsPage,
   options: OptionsRoute,
   analysis: AnalysisRoute,
   simulator: SimulatorRoute,
   portfolio: PortfolioRoute,
-  'follow-up': FollowUpRoute,
-  performance: PerformanceRoute,
+  catalysts: CatalystsRoute,
   calendar: CalendarRoute,
   opportunities: OpportunitiesRoute,
   ai: AiRoute,
@@ -191,6 +174,32 @@ export const AUTH_PAGE: PageDef = {
   question: 'Ouvrir une session locale par passkey — aucun mot de passe, aucun repli.',
   lot: 'LOT-14',
 };
+
+/**
+ * Anciennes routes → destination absorbée, d'après
+ * `docs/05-design/PAGE_ARBITRATION.md`.
+ *
+ * `/system` est devenu `/sources-reports` : la page portait déjà la santé des
+ * quatorze sources, la cible y ajoute lignage, incidents et rapports.
+ *
+ * `/performance` a rejoint `/portfolio` : le contrat des douze pages range
+ * l'« historique » du registre parmi les widgets de Portefeuille, et les deux
+ * vues lisent le MÊME portefeuille manuel.
+ *
+ * `/follow-up` a rejoint `/catalysts` : §10 du contrat donne à Catalyseurs la
+ * question « quels événements vérifiés peuvent modifier LA THÈSE et quand ? ».
+ * Une thèse est mise en revue parce qu'un catalyseur l'a touchée.
+ *
+ * Les routes API `/api/v1/system/capabilities` et `/api/v1/performance/{id}`
+ * ne bougent PAS — seule la composition d'interface change, et
+ * `.claude/rules/architecture.md` interdit de déplacer une responsabilité
+ * serveur sans ADR.
+ */
+const LEGACY_REDIRECTS: ReadonlyArray<readonly [string, string]> = [
+  ['/system', '/sources-reports'],
+  ['/performance', '/portfolio'],
+  ['/follow-up', '/catalysts'],
+];
 
 export function buildRouteObjects(): RouteObject[] {
   return [
@@ -207,6 +216,12 @@ export function buildRouteObjects(): RouteObject[] {
           };
         }),
         { path: AUTH_PAGE.routePath, element: <AuthPage />, handle: { page: AUTH_PAGE } },
+        // Redirections des destinations ABSORBÉES (docs/05-design/PAGE_ARBITRATION.md).
+        // Une route retirée sans redirection casserait un signet ou un lien
+        // profond existant : la règle 5 du document d'arbitrage l'interdit.
+        ...LEGACY_REDIRECTS.map(
+          ([from, to]): RouteObject => ({ path: from, element: <Navigate to={to} replace /> }),
+        ),
         { path: '*', element: <NotFoundPage /> },
       ],
     },

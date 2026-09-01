@@ -58,7 +58,7 @@ Le classement est décomposable : lien direct à une position, thèse, watchlist
 
 Un abonnement visible dans TWS ou TradingView ne garantit pas un accès automatisé identique. Au démarrage, Vertex sonde uniquement les capacités autorisées et construit une matrice : `AVAILABLE`, `DELAYED`, `MANUAL_EXPORT`, `NOT_ENTITLED`, `UNSUPPORTED` ou `ERROR`.
 
-Un manque de droit ne déclenche jamais un remplacement silencieux. La page Système explique l'abonnement ou l'export nécessaire.
+Un manque de droit ne déclenche jamais un remplacement silencieux. La page Sources & Rapports explique l'abonnement ou l'export nécessaire.
 
 ## Imports TradingView officiels
 

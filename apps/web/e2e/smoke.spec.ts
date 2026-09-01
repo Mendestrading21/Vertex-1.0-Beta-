@@ -17,10 +17,10 @@ async function expectNoHorizontalPageScroll(page: import('@playwright/test').Pag
 }
 
 test.describe('Dégradation 1024×768', () => {
-  test('/system : les 14 capacités restent présentes, sans défilement horizontal de page', async ({
+  test('/sources-reports : les 14 capacités restent présentes, sans défilement horizontal de page', async ({
     page,
   }, testInfo) => {
-    await page.goto('/system');
+    await page.goto('/sources-reports');
     const table = page.getByRole('table');
     await expect(table).toBeVisible();
     // Aucune donnée masquée : les 14 lignes et 6 colonnes existent toutes.
@@ -33,7 +33,7 @@ test.describe('Dégradation 1024×768', () => {
       .evaluate((element) => getComputedStyle(element).overflowX);
     expect(scrollMode).toBe('auto');
     await page.screenshot({
-      path: screenshotPath('system-smoke', testInfo.project.name),
+      path: screenshotPath('sources-reports-smoke', testInfo.project.name),
       fullPage: true,
     });
   });
@@ -148,15 +148,15 @@ test.describe('Dégradation 1024×768', () => {
     });
   });
 
-  test('/follow-up : file due et populations séparées visibles, pas de scroll horizontal', async ({
+  test('/catalysts : timeline, file due et populations séparées visibles, pas de scroll horizontal', async ({
     page,
   }, testInfo) => {
-    await page.goto('/follow-up');
+    await page.goto('/catalysts');
     await expect(page.getByTestId('fu-due-list')).toBeVisible({ timeout: 20_000 });
     await expect(page.getByTestId('fu-populations')).toContainText('USER_DECLARED');
     await expectNoHorizontalPageScroll(page);
     await page.screenshot({
-      path: screenshotPath('follow-up-smoke', testInfo.project.name),
+      path: screenshotPath('catalysts-smoke', testInfo.project.name),
       fullPage: true,
     });
   });
@@ -218,15 +218,15 @@ test.describe('Dégradation 1024×768', () => {
     });
   });
 
-  test('/performance : bandeau population, métriques et table quotidienne présents, pas de scroll horizontal', async ({
+  test('/portfolio (module Performance) : bandeau population, métriques et table quotidienne présents, pas de scroll horizontal', async ({
     page,
   }, testInfo) => {
-    await page.goto('/performance');
+    await page.goto('/portfolio');
     await expect(page.getByTestId('perf-population')).toBeVisible({ timeout: 20_000 });
     await expect(page.getByTestId('perf-metrics')).toBeVisible();
     await expectNoHorizontalPageScroll(page);
     await page.screenshot({
-      path: screenshotPath('performance-smoke', testInfo.project.name),
+      path: screenshotPath('portfolio-performance-smoke', testInfo.project.name),
       fullPage: true,
     });
   });

@@ -13,8 +13,17 @@ import random
 from typing import Any
 
 import pytest
-from fakes import full_quote, make_envelope, make_snapshot_result
+from fakes import (
+    FakeIB,
+    FakeTicker,
+    fixed_clock,
+    full_quote,
+    instant_sleep,
+    make_envelope,
+    make_snapshot_result,
+)
 
+from vertex_edge_ibkr.adapter import IbAsyncInformationAdapter
 from vertex_edge_ibkr.pacing import LineBudget, MessagePacer, Priority
 from vertex_edge_ibkr.port import ContractSpec, EdgeIbkrError, ProviderError, ProviderErrorInfo
 from vertex_edge_ibkr.runner import EdgeIbkrRunner
@@ -160,6 +169,30 @@ def test_un_cycle_ingere_et_compte() -> None:
     assert stats.requested == 1
 
 
+def test_composition_reelle_runner_adapter_ne_double_pas_la_transition() -> None:
+    """Le point d'entrée réel partage l'état sans bloquer avant connectAsync."""
+    fake_ib = FakeIB(ticker=FakeTicker(bid=100.0, ask=100.5, last=100.2, volume=12.0))
+    state = ConnectionStateMachine(rng=random.Random(1234))
+    adapter = IbAsyncInformationAdapter(
+        ib=fake_ib,
+        state=state,
+        manage_connection_state=False,
+        clock=fixed_clock(),
+        sleep=instant_sleep,
+        snapshot_timeout_seconds=0.2,
+        snapshot_poll_seconds=0.1,
+        event_id_factory=iter(f"composition-{i}" for i in range(20)).__next__,
+    )
+    runner, sink, _, _ = build_runner(adapter, state=state)
+
+    stats = asyncio.run(runner.run())
+
+    assert len(fake_ib.connect_calls) == 1
+    assert stats.reconnects == 1
+    assert stats.ingested == 1
+    assert sink.total == 1
+
+
 def test_un_doublon_n_est_pas_compte_comme_insere() -> None:
     """Rejouer une observation connue n'ajoute aucun travail (idempotence)."""
     port = FakePort(snapshots={CON_A: quote_result(CON_A)})
@@ -270,9 +303,7 @@ def test_1101_declenche_un_reabonnement_complet() -> None:
     port = FakePort(
         snapshots={
             CON_A: [
-                make_snapshot_result(
-                    (), errors=(ProviderErrorInfo(code=1101, message="perte"),)
-                ),
+                make_snapshot_result((), errors=(ProviderErrorInfo(code=1101, message="perte"),)),
                 quote_result(CON_A, epoch=2),
             ]
         }
