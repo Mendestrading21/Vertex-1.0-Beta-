@@ -18,3 +18,15 @@
 
 L'interface distingue la richesse visible dans une application de la capacité réellement exposée par une API ou un export autorisé. « Disponible dans TradingView » ne signifie pas « récupérable automatiquement par Vertex ».
 
+## Sources officielles complémentaires
+
+| Capacité | Source primaire | État Vertex après LOT-25 |
+|---|---|---|
+| Filings et faits US | SEC EDGAR | client livré, normalisation/persistance non branchées |
+| Macro US point-in-time | FRED/ALFRED | client livré, clé locale obligatoire |
+| Macro zone euro | BCE Data API | client livré, allowlist de séries à définir |
+| Macro suisse | BNS Data Portal | client livré, allowlist de cubes à définir |
+| Correspondance d'identifiants | OpenFIGI | client livré, ambiguïtés conservées |
+| Événements société | IBKR WSH | adaptateur existant, abonnement séparé à sonder |
+| Fondamentaux/estimations agrégés | FMP | désactivé en attente du plan et des droits |
+| Analytique options payante | ORATS | désactivé en attente du plan et des droits |

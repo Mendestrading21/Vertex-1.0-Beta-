@@ -32,7 +32,14 @@ L'interface News Flow/Calendars n'est pas automatisée sans API officielle expli
 | Filings et faits US | https://www.sec.gov/search-filings/edgar-application-programming-interfaces | Submissions et Company Facts avec politique SEC |
 | Données macro | https://fred.stlouisfed.org/docs/api/fred/ | Séries et métadonnées FRED |
 | Vintages macro | https://fred.stlouisfed.org/docs/api/fred/realtime_period.html | Point-in-time ALFRED/realtime periods |
+| Données zone euro | https://data.ecb.europa.eu/help/api/data | Séries officielles BCE, sélectionnées par flow et clé |
+| Données suisses | https://data.snb.ch/en/help_api | Cubes officiels BNS, sélectionnés explicitement |
+| Identifiants | https://www.openfigi.com/api/documentation | Candidats FIGI, sans résolution automatique des ambiguïtés |
 | Horaires de marché | https://www.nyse.com/markets/hours-calendars | Référence NYSE, complétée par calendrier instrument/exchange |
+
+Les cinq adaptateurs correspondants vivent dans `apps/edge-official`. Leur
+configuration et leur frontière actuelle sont décrites dans
+`OFFICIAL_SOURCE_ADAPTERS.md`.
 
 Les relations investisseurs et émetteurs restent des liens primaires ; un connecteur automatique exige robots/CGU/licence, schéma et tests dédiés.
 

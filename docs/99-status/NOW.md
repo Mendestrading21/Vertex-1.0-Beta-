@@ -7,9 +7,10 @@ lot: LOT-04 (CI verte), LOT-05 (marque canonique), LOT-06 (arbitrage des pages),
      LOT-09 (conformité du shell), LOT-10 (création de Catalyseurs),
      LOT-11 (inspecteur contextuel du shell), LOT-12 (/ai → inspecteur),
      LOT-13 et LOT-13b (motif d'inspecteur unifié : plus aucun dialogue modal),
-     LOT-14 (ticker du shell, point 4 de l'anatomie canonique)
-branch: codex/vertex-rattrapage-complet-20260831
-status: ci_reparee_puis_execution_en_cours_sans_fusion_automatique
+     LOT-14 (ticker du shell, point 4 de l'anatomie canonique),
+     LOT-25 (bord lecture seule des sources officielles)
+branch: lot/25-official-source-adapters
+status: lot_25_publie_pr_12_ci_7_sur_7_verte
 last_good_commit: bdf9f306 (= origin/main, CI 7/7 verte)
 lots_de_cette_session:
   - "LOT-04 — la purge de session effaçait l'erreur 401 qu'elle devait laisser
@@ -170,6 +171,13 @@ mesures_de_cette_session:
      fait rougir shell-canonical.spec.ts avec `Expected: not \"none\"`"
 
 active_work:
+  - "LOT-25 — PR brouillon #12 : adaptateurs HTTPS bornés pour SEC EDGAR,
+     FRED/ALFRED, OpenFIGI, BCE et BNS, plus configuration locale et sonde live
+     explicite. FMP et ORATS restent désactivés ; WSH reste dans l'adaptateur
+     IBKR existant. Aucun secret ni payload réel n'a été poussé."
+  - "Publication autorisée et effectuée sur lot/25-official-source-adapters,
+     empilée sur codex/vertex-rattrapage-complet-20260831. Aucune fusion
+     automatique."
   - "commande utilisateur reçue : EXÉCUTE VERTEX RATTRAPAGE COMPLET"
   - "autorité canonique extraite du commit 72d55629 sans reprendre sa branche
      divergée comme base de code"
@@ -452,12 +460,34 @@ outillage_cloudflare:
      le verrou du Worker n'est PAS couvert par la porte release/notices.
      Ecart ecrit dans THIRD_PARTY_NOTICES.md plutot que laisse silencieux."
   deploiement: "AUCUN — B-03 en attente"
-prochaine_commande: "PR #11 (brouillon) porte LOT-07 a LOT-13b et attend une
-   VALIDATION HUMAINE : aucune fusion automatique. Les deux destinations
-   restantes, Graphiques et Risques, sont bloquees par un CONTRAT SERVEUR
-   absent, pas par une decision d'interface : les creer maintenant exigerait de
-   calculer un rendement rebase ou une severite dans le navigateur, tous deux
-   interdits. Le travail non bloque qui reste est la refonte Titanium Ledger
-   des dix destinations contre la capture canonique, aux viewports 1280, 1440
-   et 1600"
+lot_25_validation_locale:
+  pr: "https://github.com/Mendestrading21/Vertex-1.0-Beta-/pull/12"
+  commit_distant_avant_correctif_ci: "90685bae172187995dec63b0e97a6db4dd1e636d"
+  controles_verts:
+    - "compilation Python du nouveau package"
+    - "tests du bord officiel : 14/14"
+    - "ruff : 0 violation"
+    - "mypy --strict : 144 fichiers, 0 erreur"
+    - "uv lock --check --offline"
+    - "verify_blueprint : OK, 26 lots"
+    - "policy : OK"
+    - "secrets : 0 secret sur 781 fichiers suivis"
+    - "frontière financière : 0 appel interdit"
+    - "notices et traceability : OK"
+  ci_98:
+    resultat: "6 jobs verts sur 7 ; seul Ruff rouge"
+    cause: "RUF022 sur l'ordre de __all__ et RUF100 sur un noqa devenu inutile"
+    correction: "les deux lignes sont corrigées et revalidées localement avant push"
+  ci_99:
+    commit: "3a8df77bdb3895c641e96bd0eb557522bcfe9961"
+    resultat: "7 jobs sur 7 verts"
+    preuves: "Ruff et mypy strict, tests unitaires Python, PostgreSQL 18, web,
+       garde-fous, supply chain et E2E Chromium sur trois viewports"
+  note_environnement_local: "la suite pytest complète a rencontré uniquement le
+     proxy SOCKS injecté par l'environnement sur un test HTTP localhost ; le test
+     isolé repasse vert avec les variables proxy retirées. Le job unitaire CI #98,
+     sans cette particularité, était déjà vert."
+prochaine_commande: "VALIDE PR #12 — relire humainement le lot vert, puis décider
+   de sa fusion. Les clés SEC/FRED/OpenFIGI restent exclusivement locales. Le
+   branchement aux pages exige un lot consommateur séparé, famille par famille."
 ```
