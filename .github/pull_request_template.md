@@ -32,6 +32,8 @@
 - [ ] E2E, accessibilité, responsive et performance applicables passent.
 - [ ] Migrations montée/rollback et sauvegarde/restauration applicables passent.
 - [ ] Scans secrets, SAST, dépendances, licences et capacités interdites passent.
+- [ ] L'historique des commits repris a été contrôlé ; aucun payload réel ou
+      sensible retiré de l'arbre courant n'est réintroduit.
 - [ ] OpenAPI et client généré sont synchronisés.
 
 ## Supply-chain
@@ -61,6 +63,8 @@
 - [ ] `docs/99-status/NOW.md` et la documentation concernée sont à jour.
 - [ ] Aucun TODO, skip/xfail, feature flag critique ou fallback caché.
 - [ ] Une revue humaine est requise avant squash merge.
+- [ ] La branche part du `main` courant ; aucune PR Claude/Codex divergente
+      n'est fusionnée ou rebasée globalement.
 - [ ] Le lot suivant ne démarrera pas automatiquement.
 
 Verdict proposé : `GO` / `NO-GO`
