@@ -473,8 +473,51 @@ _CURRENCY_RE = re.compile(r"^[A-Z]{3}$")
 _TRADING_DAY_RE = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}$")
 """Strict ISO calendar day (the value must ALSO be a real date)."""
 
-_CODE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:@/+-]{0,127}$")
-"""Technical code: identity, version, hash, event id, resource path."""
+_CODE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:@/+$-]{0,127}$")
+"""Technical code: identity, version, hash, event id, resource path.
+
+Le `$` est admis DANS la classe, jamais en premier caractère, parce qu'un
+``event_id`` de presse encastre l'``article_id`` frappé PAR LE FOURNISSEUR :
+IBKR News émet ``DJ-RT$1e0664c8``, d'où ``ibkr:news:DJ-RT:DJ-RT$1e0664c8``.
+
+MESURE DU 2026-09-01 sur ``vertex_live`` — l'ampleur était très supérieure aux
+deux routes d'abord constatées : 6108 observations concernées, toutes de
+schéma ``ibkr.news-headline/1`` ; 1207 valeurs refusées sur les 170 têtes
+publiées, soit **72 réponses HTTP en 500** (1 ``attention``, 71 des 162
+dossiers ``analysis``, soit 43,8 % d'entre eux).
+
+POURQUOI ÉLARGIR LE LECTEUR PLUTÔT QUE D'ASSAINIR À LA FRAPPE. ``event_id``
+est la CLÉ D'IDEMPOTENCE de ``ingest_envelope`` : changer sa dérivation
+ré-ingérerait les 6108 dépêches en doublons. Et la migration de rattrapage est
+IMPOSSIBLE — ``UPDATE``/``DELETE`` sur ``observations`` et ``snapshots`` sont
+refusés par le déclencheur ``vertex_forbid_mutation``. Élargir le lecteur est
+la seule voie non destructrice, et la seule qui rende servables des
+instantanés immuables sans les toucher.
+
+Mesuré aussi : ré-écrire l'identité ne corrigerait même pas les 500. Sur 40
+dépêches réelles, 40/40 des clusters mêlent ancienne et nouvelle identité, et
+40/40 élisent un représentant portant encore le `$`.
+
+L'AUTORITÉ DE CONTRAT N'IMPOSE AUCUNE FORME ICI :
+``vertex_core.contracts.envelope`` déclare ``event_id: NonEmptyStr``, soit
+``StringConstraints(min_length=1)``. Fermer plus étroitement que l'autorité
+qui PRODUIT la valeur est exactement ce que le docstring de ``_HASH_KEYS``
+interdit plus bas dans ce même fichier.
+
+ORDRE OBLIGATOIRE : le `$` est placé AVANT le `-` final. Écrit ``+-$``,
+Python lirait une plage de caractères au lieu de trois littéraux.
+
+CE QUE CELA NE RÈGLE PAS, et qu'il ne faut pas annoncer réglé : deux valeurs
+restent refusées après ce correctif, ``instrument`` et ``instrument_id`` de
+l'instantané ``analysis/GNL PRE``. Le caractère fautif y est l'ESPACE, jamais
+adressé par le `$`. Cet instantané est de toute façon inatteignable —
+``UNDERLYING_PATTERN`` le refuse en 422 avant toute lecture de base.
+
+LA VRAIE PARADE n'est pas dans ce motif. Ce caractère est calibré sur UN
+fournisseur observé UN jour ; Reuters ou un identifiant en UUID à accolades
+rouvriront la question. Ce qui ferme la classe, c'est le test structurel de
+``test_relay_value_contracts.py`` : ce que l'edge frappe, le relais doit le
+relayer."""
 
 _UPPER_CODE_RE = re.compile(r"^[A-Z][A-Z0-9_]{0,63}$")
 """Uppercase status/reason token."""

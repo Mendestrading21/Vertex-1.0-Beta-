@@ -154,6 +154,15 @@ def test_l_identite_est_STABLE_donc_une_relance_ne_duplique_rien() -> None:
     assert premier == "ibkr:news:BRFG:800015"
     assert premier != news_headline_event_id("DJ-RTG", "800015")
 
+    # « 800015 » ne porte PAS de dollar : avec ce seul cas, toute
+    # « normalisation » du `$` passait la suite au vert tout en dupliquant les
+    # 6108 dépêches déjà stockées. `event_id` est la clé d'idempotence de
+    # l'ingestion et les tables sont append-only : la duplication serait
+    # irréversible. Mesuré le 2026-09-01, IBKR émet bien des `article_id`
+    # porteurs de `$` — l'identité doit les traverser INCHANGÉS.
+    reel = news_headline_event_id("DJ-RT", "DJ-RT$1e0664c8")
+    assert reel == "ibkr:news:DJ-RT:DJ-RT$1e0664c8"
+
 
 def test_la_provenance_est_HERITEE_de_la_reponse() -> None:
     """Une depeche derivee ne peut pas etre plus fiable que la reponse dont
