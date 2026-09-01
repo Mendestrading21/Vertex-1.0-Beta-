@@ -46,6 +46,9 @@ from vertex_core.contracts import (
 )
 
 __all__ = [
+    "PROVIDER_ARTICLE_SEPARATOR",
+    "PROVIDER_SHAPED_STORY_COUNT",
+    "SYNTHETIC_NEWS_PROVIDER",
     "SYNTHETIC_RIGHTS",
     "SYNTHETIC_SCHEMA_NEWS",
     "SYNTHETIC_SCHEMA_QUOTE",
@@ -53,10 +56,55 @@ __all__ = [
     "SYNTHETIC_TITLE_PREFIX",
     "generate_envelopes",
     "is_synthetic",
+    "provider_shaped_event_id",
 ]
 
 
 SYNTHETIC_SOURCE = "synthetic-dev"
+
+SYNTHETIC_NEWS_PROVIDER = "SYNWIRE"
+"""Espace de noms de fournisseur de presse, SYNTHETIQUE.
+
+Un fournisseur de presse encastre son ``article_id`` dans l'``event_id``, et
+cet identifiant porte un ``$`` (forme reelle : ``ibkr:news:DJ-RT:DJ-RT$1e0664c8``).
+Le corpus reproduit cette GRAMMAIRE — quatre segments, le dernier portant
+``<espace de noms>$<identifiant opaque>`` — sans emprunter la PROVENANCE : la
+source reste ``synthetic-dev`` et les droits ``SYNTHETIC``.
+
+Sans un seul identifiant de cette forme, la campagne e2e ne peut pas voir un
+relais qui refuserait la grammaire des fournisseurs. C'est exactement ce qui
+s'est produit : verte, pendant que 72 reponses partaient en 500
+(``docs/08-runbooks/REPRENDRE_ICI.md`` §4.4).
+"""
+
+PROVIDER_ARTICLE_SEPARATOR = "$"
+"""Separateur entre l'espace de noms du fournisseur et son identifiant opaque."""
+
+PROVIDER_SHAPED_STORY_COUNT = 3
+"""PLAFOND de depeches portant la grammaire d'un fournisseur.
+
+C'est un plafond, pas une garantie : un corpus court contient moins de
+depeches distinctes que ce nombre, et en produit alors moins. Mesure sur le
+corpus e2e (48 enveloppes) : DEUX identifiants distincts, chacun repete par
+les doublons voulus.
+
+Plusieurs plutot qu'un seul : une depeche unique pourrait etre ecartee par un
+filtre de qualite ou de fraicheur et laisser le corpus muet sans que rien ne
+le dise.
+"""
+
+
+def provider_shaped_event_id(number: int) -> str:
+    """L'identifiant d'une depeche a la forme d'un fournisseur, DETERMINISTE.
+
+    ``synthetic-dev:news:SYNWIRE:SYNWIRE$<hex>`` — meme grammaire que le reel,
+    provenance synthetique assumee par le premier segment.
+    """
+    opaque = f"{(number + 1) * 0x1E0664C8 % 0x100000000:08x}"
+    return (
+        f"{SYNTHETIC_SOURCE}:news:{SYNTHETIC_NEWS_PROVIDER}:"
+        f"{SYNTHETIC_NEWS_PROVIDER}{PROVIDER_ARTICLE_SEPARATOR}{opaque}"
+    )
 """Source stamped on every generated envelope (never a real provider name)."""
 
 SYNTHETIC_RIGHTS = "SYNTHETIC"
@@ -159,11 +207,15 @@ def _make_envelope(
     published_at: datetime,
     quality: EnvelopeQuality,
     payload: dict[str, Any],
+    event_id: str | None = None,
 ) -> DataEnvelope[dict[str, Any]]:
     received_at = published_at + _RECEIVE_LAG
     stale_after = received_at if quality is EnvelopeQuality.STALE else received_at + _STALE_GRACE
     return DataEnvelope[dict[str, Any]](
-        event_id=f"{SYNTHETIC_SOURCE}:{seed}:{index:04d}",
+        # Par defaut l'identifiant est frappe par Vertex. Une depeche peut en
+        # imposer un a la GRAMMAIRE d'un fournisseur : c'est la seule forme que
+        # le relais lit, et la seule qui exerce son analyseur.
+        event_id=event_id or f"{SYNTHETIC_SOURCE}:{seed}:{index:04d}",
         schema_version=schema_version,
         source=SYNTHETIC_SOURCE,
         source_event_id=source_event_id,
@@ -235,19 +287,33 @@ def generate_envelopes(
                 title = SYNTHETIC_TITLE_PREFIX + rng.choice(_HEADLINE_TEMPLATES).format(
                     n=number, tag=tag
                 )
+                # Les PREMIERES depeches portent la grammaire d'un fournisseur.
+                # Les premieres, et non un tirage : un identifiant present une
+                # fois sur deux selon la graine ne serait pas une couverture.
+                impose = (
+                    provider_shaped_event_id(number)
+                    if number < PROVIDER_SHAPED_STORY_COUNT
+                    else None
+                )
                 story = _Story(
                     number=number,
                     ticker=ticker,
                     title=title,
                     canonical_url=(f"https://synthetic.invalid/news/story-{number:03d}"),
-                    native_id=f"syn-native-{number:03d}",
+                    native_id=(
+                        f"{SYNTHETIC_NEWS_PROVIDER}"
+                        f"{PROVIDER_ARTICLE_SEPARATOR}{impose.rsplit(chr(36), 1)[1]}"
+                        if impose is not None
+                        else f"syn-native-{number:03d}"
+                    ),
                     quality=rng.choice(_QUALITY_CHOICES),
-                    event_id=f"{SYNTHETIC_SOURCE}:{seed}:{index:04d}",
+                    event_id=impose or f"{SYNTHETIC_SOURCE}:{seed}:{index:04d}",
                 )
                 stories.append(story)
                 envelope = _make_envelope(
                     seed=seed,
                     index=index,
+                    event_id=impose,
                     schema_version=SYNTHETIC_SCHEMA_NEWS,
                     source_event_id=story.native_id,
                     instrument_id=story.ticker,
