@@ -719,7 +719,14 @@ def build_registry(
     resolved_markets_config = (
         markets_config if markets_config is not None else DEV_SYNTHETIC_MARKETS_CONFIG
     )
-    register_markets_handler(registry, clock=clock, config=resolved_markets_config)
+    # Le constructeur est le SEUL a savoir si un handler de risque sera
+    # enregistre : il transmet ce fait plutot que de le laisser supposer.
+    register_markets_handler(
+        registry,
+        clock=clock,
+        config=resolved_markets_config,
+        risk_enabled=risk_config is not None,
+    )
     register_options_handler(
         registry,
         clock=clock,

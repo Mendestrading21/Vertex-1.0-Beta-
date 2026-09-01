@@ -65,6 +65,11 @@ const ROUTES = [
   `/options/${INSTRUMENT_SYNTHETIQUE}`,
   '/simulator',
   '/portfolio',
+  // Risques porte une GRILLE dense et défilable : c'est précisément le genre
+  // de composant où l'accessibilité se perd — en-têtes de ligne collants,
+  // région à défilement clavier, couleur porteuse de sens. D'où sa présence
+  // ici, plutôt qu'une confiance dans la relecture.
+  '/risks',
   '/catalysts',
   // '/performance' a été absorbée dans '/portfolio' (LOT-08) : la visiter
   // ici ne mesurerait plus qu'une redirection. Le module Performance est

@@ -50,6 +50,7 @@ def contenu(
     *,
     instruments: tuple[str, ...] = ("SPX", "NDX"),
     matrix: list[list[str]] | None = None,
+    bands: list[list[str]] | None = None,
     refusal: str | None = None,
     population: str = "REAL",
     data_state: str = "ok",
@@ -65,6 +66,9 @@ def contenu(
         "conclusion": "Matrice synthétique de test.",
         "instruments": [{"ticker": t, "label": t} for t in instruments],
         "matrix": matrix if matrix is not None else [["1.000", "0.927"], ["0.927", "1.000"]],
+        "matrix_bands": bands
+        if bands is not None
+        else [["self", "strong_positive"], ["strong_positive", "self"]],
         "extremes": {
             "most_correlated": {"a": "SPX", "b": "NDX", "value": "0.927"},
             "most_opposed": {"a": "SPX", "b": "NDX", "value": "0.927"},
@@ -79,7 +83,9 @@ def contenu(
             "rejected_records": [],
             "common_trading_days": 243,
             "minimum_common_days": 30,
-            "trading_days_per_instrument": {t: 251 for t in instruments},
+            "moderate_threshold": "0.30",
+            "strong_threshold": "0.70",
+            "trading_days_per_instrument": dict.fromkeys(instruments, 251),
             "observations_considered": 8,
             "lookback_seconds": 1209600,
             "refusal_reason": refusal,
@@ -159,6 +165,7 @@ class TestRoute:
         charge = contenu(
             instruments=(),
             matrix=[],
+            bands=[],
             refusal="insufficient_common_days",
             data_state="insufficient",
         )
@@ -246,3 +253,26 @@ class TestRelaisPur:
         premier = build_risk_response(snap, now=NOW)
         second = build_risk_response(snap, now=NOW)
         assert premier.content == second.content
+
+    def test_bande_inconnue_refusee(self) -> None:
+        """Deny-by-default sur les bandes, comme sur les sources.
+
+        Peindre une case inclassable d une couleur par defaut la ferait passer
+        pour « faiblement corrélée ». Le relais refuse plutôt que de laisser
+        l écran deviner.
+        """
+        with pytest.raises(SnapshotContentError, match="bande inconnue"):
+            checked_risk_content(
+                contenu(bands=[["self", "tres_fort"], ["tres_fort", "self"]])
+            )
+
+    def test_bandes_de_forme_incoherente_refusees(self) -> None:
+        """Des bandes plus courtes que la matrice décaleraient les couleurs."""
+        with pytest.raises(SnapshotContentError, match="non carrées"):
+            checked_risk_content(contenu(bands=[["self", "strong_positive"], ["self"]]))
+
+    def test_seuils_publies_pour_etre_lus(self) -> None:
+        """Un seuil qu on ne peut pas lire ne peut pas être discuté."""
+        valide = checked_risk_content(contenu())
+        assert valide["coverage"]["moderate_threshold"] == "0.30"
+        assert valide["coverage"]["strong_threshold"] == "0.70"

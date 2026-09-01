@@ -43,8 +43,8 @@ from vertex_core.calculations.risk import (
     covariance,
 )
 from vertex_core.synthetic import (
+    SYNTHETIC_FOCUS_TICKERS,
     SYNTHETIC_RIGHTS,
-    SYNTHETIC_SECTOR_TICKERS,
     SYNTHETIC_SOURCE,
 )
 from vertex_core.version import ENGINE_VERSION
@@ -53,6 +53,14 @@ from vertex_worker.analysis import BarRecord, load_daily_bar_records
 from vertex_worker.registry import HandlerRegistry
 
 __all__ = [
+    "BAND_MODERATE_NEGATIVE",
+    "BAND_MODERATE_POSITIVE",
+    "BAND_SELF",
+    "BAND_STRONG_NEGATIVE",
+    "BAND_STRONG_POSITIVE",
+    "BAND_WEAK",
+    "DEFAULT_MODERATE_THRESHOLD",
+    "DEFAULT_STRONG_THRESHOLD",
     "DEV_SYNTHETIC_RISK_CONFIG",
     "MINIMUM_COMMON_DAYS",
     "REASON_CALCULATION_REFUSED",
@@ -85,6 +93,22 @@ qu un nombre SORT qu il veut dire quelque chose : une correlation sur trois
 seances est du bruit presente comme une mesure. Le seuil est declare ici et
 publie dans ``coverage`` — pas cache dans une condition."""
 
+BAND_SELF = "self"
+BAND_STRONG_POSITIVE = "strong_positive"
+BAND_MODERATE_POSITIVE = "moderate_positive"
+BAND_WEAK = "weak"
+BAND_MODERATE_NEGATIVE = "moderate_negative"
+BAND_STRONG_NEGATIVE = "strong_negative"
+
+DEFAULT_MODERATE_THRESHOLD = 0.3
+DEFAULT_STRONG_THRESHOLD = 0.7
+"""Seuils PAR DEFAUT separant faible / modere / fort.
+
+Ce sont des CONVENTIONS, pas des verites : 0.7 ne devient pas « fort » par
+une propriete des marches. Elles sont declarees dans `RiskConfig`, publiees
+avec la matrice, et l ecran les affiche — un seuil qu on ne peut pas lire ne
+peut pas etre discute."""
+
 REASON_NO_BARS = "no_bars"
 REASON_PERIMETER_TOO_SMALL = "perimeter_too_small"
 REASON_INSUFFICIENT_COMMON_DAYS = "insufficient_common_days"
@@ -107,6 +131,8 @@ class RiskConfig:
     allowed_sources: frozenset[str]
     usable_rights: frozenset[str]
     minimum_common_days: int = MINIMUM_COMMON_DAYS
+    moderate_threshold: float = DEFAULT_MODERATE_THRESHOLD
+    strong_threshold: float = DEFAULT_STRONG_THRESHOLD
     lookback: timedelta = timedelta(days=14)
     max_observations: int = 500
 
@@ -124,6 +150,11 @@ class RiskConfig:
             raise ValueError("lookback: must be a positive duration")
         if not isinstance(self.max_observations, int) or self.max_observations < 1:
             raise ValueError("max_observations: must be an int >= 1")
+        if not 0.0 < self.moderate_threshold < self.strong_threshold < 1.0:
+            raise ValueError(
+                "thresholds: 0 < moderate < strong < 1 required — des seuils "
+                "croises rendraient les bandes incoherentes"
+            )
 
 
 def _est_synthetique(record: BarRecord) -> bool:
@@ -192,6 +223,22 @@ def _closes_by_day(
     return par_ticker, rejets
 
 
+def _bande(valeur: float, config: RiskConfig) -> str:
+    """La bande d un coefficient, d apres les seuils DECLARES du registre.
+
+    Le signe compte autant que l intensite : deux actifs a -0.85 sont aussi
+    fortement lies que deux a +0.85, mais en sens contraire. Les confondre
+    dans une seule bande « fort » effacerait la seule information qui rend une
+    matrice utile — ce qui protege de ce qui accompagne.
+    """
+    intensite = abs(valeur)
+    if intensite >= config.strong_threshold:
+        return BAND_STRONG_POSITIVE if valeur > 0 else BAND_STRONG_NEGATIVE
+    if intensite >= config.moderate_threshold:
+        return BAND_MODERATE_POSITIVE if valeur > 0 else BAND_MODERATE_NEGATIVE
+    return BAND_WEAK
+
+
 def build_risk_matrix_content(
     records: Sequence[BarRecord], *, now: datetime, config: RiskConfig
 ) -> dict[str, Any]:
@@ -227,6 +274,7 @@ def build_risk_matrix_content(
             "conclusion": message,
             "instruments": [],
             "matrix": [],
+            "matrix_bands": [],
             "extremes": None,
             "synchronicity_warning": None,
             "coverage": {
@@ -238,6 +286,8 @@ def build_risk_matrix_content(
                 "rejected_records": rejets,
                 "common_trading_days": communs,
                 "minimum_common_days": config.minimum_common_days,
+                "moderate_threshold": f"{config.moderate_threshold:.2f}",
+                "strong_threshold": f"{config.strong_threshold:.2f}",
                 "trading_days_per_instrument": seances_par_instrument,
                 "observations_considered": len(records),
                 "lookback_seconds": int(config.lookback.total_seconds()),
@@ -311,6 +361,14 @@ def build_risk_matrix_content(
         "instruments": [{"ticker": t, "label": config.labels.get(t, t)} for t in retenus],
         # Chaines rendues cote serveur : le navigateur ne calcule rien.
         "matrix": [[f"{valeur:.3f}" for valeur in ligne] for ligne in resultat.matrix],
+        # La BANDE de chaque case, decidee ICI : classer un coefficient
+        # (« fortement lie », « faible ») est un jugement de domaine, pas une
+        # mise en page. L ecran choisit une couleur a partir d un NOM et ne
+        # relit jamais le nombre — `.claude/rules/frontend.md`.
+        "matrix_bands": [
+            [BAND_SELF if i == j else _bande(valeur, config) for j, valeur in enumerate(ligne)]
+            for i, ligne in enumerate(resultat.matrix)
+        ],
         "extremes": {"most_correlated": paire(plus_haute), "most_opposed": paire(plus_basse)},
         "synchronicity_warning": (
             "Les places ne ferment pas à la même heure. Deux rendements « du "
@@ -326,6 +384,10 @@ def build_risk_matrix_content(
             "rejected_records": rejets,
             "common_trading_days": len(communs),
             "minimum_common_days": config.minimum_common_days,
+            # Publies pour etre LUS a l ecran : un seuil invisible ne se
+            # discute pas.
+            "moderate_threshold": f"{config.moderate_threshold:.2f}",
+            "strong_threshold": f"{config.strong_threshold:.2f}",
             "trading_days_per_instrument": seances_par_instrument,
             # Le prix de l alignement, publie plutot que laisse deviner.
             "trading_days_lost_to_alignment": perdues,
@@ -381,11 +443,13 @@ def register_risk_handler(registry: HandlerRegistry, *, clock: Clock, config: Ri
     registry.register(TOPIC_RISK_MATRIX_REFRESH, RiskMatrixHandler(config=config, clock=clock))
 
 
-_SYNTHETIC_PERIMETER = tuple(
-    ticker
-    for sector in sorted(SYNTHETIC_SECTOR_TICKERS)
-    for ticker in SYNTHETIC_SECTOR_TICKERS[sector]
-)[:6]
+_SYNTHETIC_PERIMETER = SYNTHETIC_FOCUS_TICKERS
+"""Les QUATRE tickers de mise au point, et pas six pris au hasard.
+
+Ce sont les SEULS du jeu synthetique a porter des barres quotidiennes
+(`generate_daily_bar_envelopes`, 60 barres chacun). Un perimetre visant
+d autres tickers ferait refuser la page « aucune barre » sur une base pourtant
+semee — un ecran vide dont la cause serait introuvable."""
 
 DEV_SYNTHETIC_RISK_CONFIG = RiskConfig(
     perimeter=_SYNTHETIC_PERIMETER,

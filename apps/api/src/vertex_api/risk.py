@@ -89,6 +89,20 @@ est refusée plutôt que lue comme « pas REAL, donc inoffensif »."""
 
 _DATA_STATES = frozenset({"ok", "partial", "insufficient"})
 
+_BANDS = frozenset(
+    {
+        "self",
+        "strong_positive",
+        "moderate_positive",
+        "weak",
+        "moderate_negative",
+        "strong_negative",
+    }
+)
+"""Bandes admises. Deny-by-default : un nom inconnu est REFUSE plutot que
+peint d une couleur par defaut — une case grise au milieu d une grille se
+lirait comme « faiblement correle », ce qui serait une invention."""
+
 _COVERAGE_COUNTS: tuple[str, ...] = (
     "perimeter_size",
     "retained_count",
@@ -134,6 +148,33 @@ def _checked_matrix(raw: Any, *, expected: int, field: str) -> None:
             )
         for colonne, cellule in enumerate(cellules):
             _require_str(cellule, field=f"{field}[{index}][{colonne}]")
+
+
+def _checked_bands(raw: Any, *, expected: int, field: str) -> None:
+    """Les bandes : meme forme que la matrice, et des noms CONNUS.
+
+    La bande dit « fortement lie » ou « faiblement lie ». Un nom inconnu peint
+    en couleur par defaut ferait passer une case inclassable pour une case
+    faible — le relais refuse plutot que de laisser l ecran deviner.
+    """
+    lignes = _require_list(raw, field=field)
+    if len(lignes) != expected:
+        raise SnapshotContentError(
+            f"{field}: {expected} lignes attendues, comme la matrice", field=field
+        )
+    for index, ligne in enumerate(lignes):
+        cellules = _require_list(ligne, field=f"{field}[{index}]")
+        if len(cellules) != expected:
+            raise SnapshotContentError(
+                f"{field}[{index}]: bandes non carrées — {expected} colonnes attendues",
+                field=f"{field}[{index}]",
+            )
+        for colonne, cellule in enumerate(cellules):
+            if cellule not in _BANDS:
+                raise SnapshotContentError(
+                    f"{field}[{index}][{colonne}]: bande inconnue",
+                    field=f"{field}[{index}][{colonne}]",
+                )
 
 
 def checked_risk_content(raw: Any) -> Mapping[str, Any]:
@@ -184,9 +225,18 @@ def checked_risk_content(raw: Any) -> Mapping[str, Any]:
     _require_list(coverage.get("discarded"), field="content.coverage.discarded")
     _require_list(coverage.get("rejected_records"), field="content.coverage.rejected_records")
     _optional_str(coverage.get("refusal_reason"), field="content.coverage.refusal_reason")
+    # Seuils RENDUS cote serveur : ils sont AFFICHES tels quels, jamais
+    # relus pour reclasser une case.
+    _require_str(coverage.get("moderate_threshold"), field="content.coverage.moderate_threshold")
+    _require_str(coverage.get("strong_threshold"), field="content.coverage.strong_threshold")
 
     _checked_matrix(
         mapping.get("matrix"), expected=len(instruments), field="content.matrix"
+    )
+    _checked_bands(
+        mapping.get("matrix_bands"),
+        expected=len(instruments),
+        field="content.matrix_bands",
     )
     extremes = mapping.get("extremes")
     if extremes is not None:

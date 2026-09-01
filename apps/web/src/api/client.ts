@@ -67,6 +67,7 @@ export type PerformanceSnapshotResponse = components['schemas']['PerformanceSnap
 export type CalendarResponse = components['schemas']['CalendarResponse'];
 export type CalendarWindowEcho = components['schemas']['CalendarWindow'];
 export type OpportunitiesResponse = components['schemas']['OpportunitiesResponse'];
+export type RiskMatrixResponse = components['schemas']['RiskMatrixResponse'];
 export type AiAnswer = components['schemas']['AiAnswer'];
 export type AiClaim = components['schemas']['AiClaim'];
 export type AiContradiction = components['schemas']['AiContradiction'];

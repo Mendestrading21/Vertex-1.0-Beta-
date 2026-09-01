@@ -162,7 +162,7 @@ mesures_de_cette_session:
   - "pytest : 3766 passed, 4 skipped — mesuré sur 35d48cb"
   - "run_checks.sh : TOUT VERT"
   - "audit_titanium_ledger.py après LOT-10 : empreinte canonique vérifiée,
-     écart unique = 'charts, risks' à créer. AUCUNE route historique ne
+     écart unique = 'charts' à créer (Risques installée le 2026-09-01). AUCUNE route historique ne
      reste à arbitrer : les quatre lignes de la table sont exécutées"
   - "falsification LOT-07 : `Navigate` sans `replace` fait rougir
      routes.test.tsx avec `expected 'PUSH' to be 'REPLACE'`"
@@ -290,16 +290,26 @@ checks_locaux:
   - "worker Cloudflare : 53 tests de contrat"
   - "run_checks.sh TOUT VERT"
 pages_reelles: [/today, /opportunities, /analysis, /options, /simulator,
-                /calendar, /markets, /portfolio, /catalysts,
+                /calendar, /markets, /portfolio, /risks, /catalysts,
                 /sources-reports, plus /auth hors rail]
 pages_non_implementees: []
-destinations_cibles_manquantes: [charts, risks]
-# Bloquées par un CONTRAT SERVEUR absent, pas par une décision d'interface.
-# Vérifié le 2026-09-01 contre les 30 routes du contrat OpenAPI : ni `charts`
-# ni `risks`, et ni la comparaison de séries (Graphiques) ni la sévérité par
-# risque (Risques) ne sont dérivables sans calculer un rendement ou un score
-# dans le navigateur — tous deux interdits. Raisonnement complet dans
-# docs/05-design/PAGE_ARBITRATION.md.
+destinations_cibles_manquantes: [charts]
+# Graphiques reste bloquée par un CONTRAT SERVEUR absent : la comparaison de
+# séries rebasées n'est pas dérivable sans calculer un rendement dans le
+# navigateur, ce qui est interdit. Raisonnement dans PAGE_ARBITRATION.md.
+#
+# RISQUES A ÉTÉ INSTALLÉE le 2026-09-01, et son contrat a été CRÉÉ plutôt
+# qu'attendu : `risk.correlation` déclaré au registre des calculs, publié par
+# `vertex_worker.risk` dans `risk_matrix/global`, relayé par
+# `GET /api/v1/risk/matrix`. La matrice arrive RENDUE EN CHAÎNES et les
+# bandes de couleur arrivent sous forme de NOMS — le navigateur ne calcule ni
+# n'arrondit ni ne reclasse rien.
+#
+# ELLE N'EST PAS FINIE POUR AUTANT. Le blueprint décrit « la matrice des
+# risques avec exposition, horizon, SÉVÉRITÉ et preuve » ; ce qui est livré
+# est la matrice de CORRÉLATION. La sévérité par risque suppose un barème,
+# c'est-à-dire une décision d'utilisateur — comme le périmètre et l'indice de
+# référence, elle sera DÉCLARÉE, jamais devinée par le code.
 redirections_permanentes: ["/system -> /sources-reports", "/performance -> /portfolio",
                            "/follow-up -> /catalysts", "/ai -> /analysis"]
 ecarts_declares:
@@ -462,11 +472,103 @@ outillage_cloudflare:
      Ecart ecrit dans THIRD_PARTY_NOTICES.md plutot que laisse silencieux."
   deploiement: "AUCUN — B-03 en attente"
 prochaine_commande: "PR #11 (brouillon) porte LOT-07 a LOT-13b et attend une
-   VALIDATION HUMAINE : aucune fusion automatique. Les deux destinations
-   restantes, Graphiques et Risques, sont bloquees par un CONTRAT SERVEUR
-   absent, pas par une decision d'interface : les creer maintenant exigerait de
-   calculer un rendement rebase ou une severite dans le navigateur, tous deux
-   interdits. Le travail non bloque qui reste est la refonte Titanium Ledger
-   des dix destinations contre la capture canonique, aux viewports 1280, 1440
-   et 1600"
+   VALIDATION HUMAINE : aucune fusion automatique. Risques est installee depuis
+   le 2026-09-01 avec la matrice de correlation, son contrat serveur ayant ete
+   CREE plutot qu'attendu. Deux choses restent, et ce sont des DECISIONS
+   d'utilisateur, pas du code : le bareme de SEVERITE que le blueprint attend
+   pour Risques, et le perimetre affiche (huit indices mondiaux aujourd'hui,
+   declares dans profiles.RISK_PERIMETER). Graphiques reste bloquee par un
+   contrat serveur absent : une serie rebasee exigerait un rendement calcule
+   dans le navigateur. Le travail non bloque qui reste est la refonte Titanium
+   Ledger des onze destinations contre la capture canonique, aux viewports
+   1280, 1440 et 1600"
 ```
+
+## REPRISE 2026-09-01 — etat mesure en fin de session
+
+### Corrige et pousse
+
+**`_CODE_RE` admet le `$`** (`apps/api/src/vertex_api/snapshot_views.py`).
+IBKR News encastre l'`article_id` du fournisseur dans l'`event_id`, et cet
+article_id porte un `$` (`DJ-RT$1e0664c8`). Mesure : 6108 observations
+concernees, 1207 valeurs refusees sur 170 tetes publiees, soit **72 reponses
+HTTP en 500** (1 `attention`, 71 des 162 dossiers `analysis`).
+
+Verification : tetes servies **91/163 avant, 162/163 apres**. La seule encore
+refusee est `analysis/GNL PRE`, dont le caractere fautif est l'ESPACE — et
+elle est inatteignable de toute facon (`UNDERLYING_PATTERN` la refuse en 422).
+NE PAS annoncer « zero identifiant hors forme ».
+
+Test reproducteur ecrit AVANT le correctif (`.claude/rules/testing.md`) :
+17 rouges, puis verts. Il porte des identifiants RELEVES en base. Le defaut de
+fond etait que tout le corpus de test est frappe par Vertex
+(`synthetic-dev:{seed}:{index:04d}`) : aucune identite de fournisseur reelle
+n'avait jamais traverse le relais.
+
+**Page Risques installee** (`LEDGER 09`), avec `risk.correlation` declare au
+registre des calculs, publie par `vertex_worker.risk` et relaye par
+`GET /api/v1/risk/matrix`. Mesure sur donnees reelles : 8 indices, 242
+rendements, du 2025-09-02 au 2026-08-31.
+
+**Acces local ouvert** (`VERTEX_AUTH_OPEN_LOCAL=1`, pose dans
+`~/.vertex/env.live`) : Vertex ne demande plus de passkey. FERME PAR DEFAUT —
+sans la variable, 401 partout, verifie sur sept routes.
+
+### Reste casse — MESURE, a corriger
+
+**Huit etiquettes de population qui mentent.** Le bandeau `population` est
+juste ; c'est le texte autour qui ment.
+
+| Emplacement | Texte | Verdict |
+|---|---|---|
+| `apps/web/src/pages/markets/MarketsPage.tsx:99` | « Carte des marches synthetiques » | faux (`population='REAL'`, 0/161 synthetic) |
+| `MarketsPage.tsx:119` | « `synthetic-dev` via snapshot worker » | faux (source `ibkr`) |
+| `MarketsPage.tsx:83` | repli « Carte des marches synthetiques » | faux, latent |
+| `MarketsPage.tsx:202` | « Poids = parts descriptives des clotures (synthetiques) » | faux |
+| `MarketsPage.tsx:206` | « Limites : donnees SYNTHETIQUES de developpement » | faux |
+| `apps/worker/src/vertex_worker/markets.py:362` | « Sur N instruments synthetiques attendus » | faux, PERSISTE dans le contenu |
+| `apps/worker/src/vertex_worker/portfolio.py:117` et `:825` | `MARK_POPULATION_SYNTHETIC` ecrit inconditionnellement | faux (marques issues de `markets_overview` en `REAL`) |
+| `apps/worker/src/vertex_worker/performance.py:136` et `:810` | `marks = "SYNTHETIC"` | faux, meme cause (`ledger: USER_DECLARED` est juste) |
+
+**`data_state='partial'` trompeur sur Marches.** `markets.py:581` declenche
+`partial` sur `rejected_records`, alimente par 3 cotations `GNL PRE` — des
+observations EN TROP, hors univers, pas un trou de couverture. L'ecran affiche
+« Donnees partielles » puis « 161 couverts sur 161, 0 ecartes » : un texte qui
+se refute lui-meme. Confusion entre `discarded` (attendu manquant) et
+`rejected_records` (non demande). Meme pollution sur `performance/1`.
+
+**500 latent sur Risques.** `value` est dans `_DECIMAL_KEYS`
+(`snapshot_views.py:890`, classe NON SIGNEE) alors que
+`extremes.most_opposed.value` vaut `-0.803` — une correlation « la plus
+opposee » est negative par definition. La route rend 200 aujourd'hui parce que
+`risk.py:300` appelle son propre validateur `checked_risk_content`. Toute
+uniformisation qui la brancherait sur le garde commun la mettrait en 500.
+Correction : deplacer `"value"` vers `_SIGNED_DECIMAL_KEYS` (`:896`). COMMIT
+SEPARE — `value` sert aussi a `breadth.value` (`:1649`).
+
+**Trou E2E.** `apps/web/e2e/analysis.spec.ts` et `today.spec.ts` sont passes
+au vert pendant que les deux routes rendaient 500 : le semis
+(`e2e/seed_synthetic.py`) ne produit aucun identifiant de fournisseur. Semer
+au moins un cluster de presse en forme reelle
+`ibkr:news:<provider>:<provider>$<hex>`.
+
+### Decisions d'UTILISATEUR qui bloquent la suite
+
+Aucune ne se deduit du code :
+
+1. **Bareme de severite** de la page Risques. Le blueprint decrit « la matrice
+   des risques avec exposition, horizon, SEVERITE et preuve » ; seule la
+   matrice de correlation est livree.
+2. **Perimetre affiche** : huit indices mondiaux aujourd'hui
+   (`profiles.RISK_PERIMETER`). Comparer les 161 titres ferait tomber
+   l'intersection des calendriers, et une grille 161x161 n'est pas un ecran.
+3. **Fenetre et date de base** de la page Graphiques, non installee.
+
+### Non verifie
+
+- `calendar/global` et `option_chain/*` n'ont aucun instantane publie : leurs
+  relais n'ont JAMAIS ete exerces sur donnees reelles.
+- `ai_explain._INTRA_WORD_SEPARATOR` normalise `- . _ * + ~ / \ | : ; '` mais
+  ni `$` ni `@` : `a$c$h$e$t$e$z` echappe a `detect_forbidden_language`.
+  Defaut reel, anterieur, a ouvrir separement.
+

@@ -26,10 +26,18 @@ function isPageHandle(handle: unknown): handle is PageHandle {
 /**
  * Signatures Titanium Ledger, dans l'ordre des planches canoniques.
  *
- * `08 charts` et `09 risks` sont RÉSERVÉS : les deux destinations attendent un
- * contrat serveur (voir `docs/05-design/PAGE_ARBITRATION.md`). Un code réservé
- * n'est pas un code cassé — la table saute déjà des numéros sans que rien n'en
- * souffre, et c'est précisément ce qui rend la réservation possible.
+ * `08 charts` reste RÉSERVÉ : la destination attend un contrat serveur (voir
+ * `docs/05-design/PAGE_ARBITRATION.md`). Un code réservé n'est pas un code
+ * cassé — la table saute déjà des numéros sans que rien n'en souffre, et
+ * c'est précisément ce qui rend la réservation possible.
+ *
+ * `09 risks` ne l'est plus : son contrat serveur existe
+ * (`GET /api/v1/risk/matrix`), avec sa route, ses données et ses tests.
+ *
+ * CES CODES DOIVENT SUIVRE `--vx-page-ledger` (styles/global.css). Ce sont
+ * deux sources pour le même numéro : le 2026-09-01 cette table a été corrigée
+ * SANS le CSS, et chaque page affichait `TL / 03` à côté de `LEDGER 02`. Un
+ * test lit les deux fichiers et les compare — voir shell.test.tsx.
  */
 export const LEDGER_CODE_BY_PAGE: Readonly<Record<string, string>> = {
   today: 'TL / 01',
@@ -40,7 +48,7 @@ export const LEDGER_CODE_BY_PAGE: Readonly<Record<string, string>> = {
   simulator: 'TL / 06',
   portfolio: 'TL / 07',
   // 08 charts — réservé, destination absente
-  // 09 risks  — réservé, destination absente
+  risks: 'TL / 09',
   catalysts: 'TL / 10',
   calendar: 'TL / 11',
   'sources-reports': 'TL / 12',

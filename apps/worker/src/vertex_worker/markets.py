@@ -626,9 +626,16 @@ def build_markets_overview_content(
 class MarketsOverviewHandler:
     """Handler of ``quotes.ingested``: recompute the markets overview."""
 
-    def __init__(self, *, config: MarketsConfig, clock: Clock) -> None:
+    def __init__(
+        self, *, config: MarketsConfig, clock: Clock, risk_enabled: bool = False
+    ) -> None:
         self._config = config
         self._clock = clock
+        # Un message que PERSONNE ne reclamera reste en attente pour toujours :
+        # `HandlerRegistry` ne reclame jamais un sujet inconnu. Le handler de
+        # risque n existe que si un perimetre est declare, donc l enfilement
+        # doit connaitre ce fait plutot que le supposer.
+        self._risk_enabled = risk_enabled
 
     def __call__(self, session: Session, message: ClaimedOutboxMessage) -> None:
         # Local import avoids a module cycle (handlers imports this module).
@@ -677,8 +684,11 @@ class MarketsOverviewHandler:
                 # La matrice de correlation depend des CLOTURES, exactement
                 # comme les revalorisations : meme porte, meme transaction.
                 # Un message GLOBAL — elle ne depend d'aucun portefeuille,
-                # elle decrit le perimetre declare.
-                self._enqueue_risk_matrix(session)
+                # elle decrit le perimetre declare. Et SEULEMENT si ce
+                # perimetre existe : sinon le message n aurait aucun
+                # reclamant et s accumulerait sans fin.
+                if self._risk_enabled:
+                    self._enqueue_risk_matrix(session)
             else:
                 log.info(
                     "cotes inchangees : aucune revalorisation enfilee "
@@ -719,6 +729,9 @@ class MarketsOverviewHandler:
         aucune cloture publiee ne peut deplacer aucune correlation. Le chemin
         d'ingestion n'est deliberement pas utilise — les nouvelles clotures
         quotidiennes existent exactement quand l'apercu publie a bouge.
+
+        L'appelant garantit qu'un handler existe (voir `_risk_enabled`) : un
+        sujet sans reclamant laisserait le message en attente indefiniment.
         """
         from vertex_persistence.repository.outbox import enqueue_outbox
         from vertex_worker.risk import TOPIC_RISK_MATRIX_REFRESH
@@ -762,9 +775,19 @@ class MarketsOverviewHandler:
 
 
 def register_markets_handler(
-    registry: HandlerRegistry, *, clock: Clock, config: MarketsConfig
+    registry: HandlerRegistry,
+    *,
+    clock: Clock,
+    config: MarketsConfig,
+    risk_enabled: bool = False,
 ) -> None:
-    """Register the markets overview handler on ``quotes.ingested``."""
+    """Register the markets overview handler on ``quotes.ingested``.
+
+    ``risk_enabled`` dit si un handler de matrice de risque est enregistre
+    ailleurs dans CE registre. Par defaut non : enfiler un sujet sans
+    reclamant laisserait le message en attente pour toujours.
+    """
     registry.register(
-        TOPIC_QUOTES_INGESTED, MarketsOverviewHandler(config=config, clock=clock)
+        TOPIC_QUOTES_INGESTED,
+        MarketsOverviewHandler(config=config, clock=clock, risk_enabled=risk_enabled),
     )

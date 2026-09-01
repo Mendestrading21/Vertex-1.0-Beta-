@@ -26,8 +26,9 @@ describe('AppShell — landmarks et lien d’évitement', () => {
 
   // L'ordre canonique lui-même, épinglé. Le garde-fou d'en dessous ne voyait
   // qu'un code ABSENT ; un code FAUX lui était invisible, et huit destinations
-  // sur dix en portaient un. `08 charts` et `09 risks` sont réservés : leur
-  // absence de la table est intentionnelle et vérifiée ici.
+  // sur dix en portaient un. `08 charts` reste réservé : son absence de la
+  // table est intentionnelle et vérifiée ici. `09 risks` a été installé le
+  // 2026-09-01 — route, données et tests — donc il y figure désormais.
   it('les signatures suivent l’ordre des planches canoniques', () => {
     expect(LEDGER_CODE_BY_PAGE).toEqual({
       today: 'TL / 01',
@@ -37,13 +38,15 @@ describe('AppShell — landmarks et lien d’évitement', () => {
       options: 'TL / 05',
       simulator: 'TL / 06',
       portfolio: 'TL / 07',
+      risks: 'TL / 09',
       catalysts: 'TL / 10',
       calendar: 'TL / 11',
       'sources-reports': 'TL / 12',
       auth: 'TL / ACCESS',
     });
+    // `08 charts` reste réservé ; `09 risks` est installé depuis le
+    // 2026-09-01 (route, données et tests), donc il DOIT figurer ci-dessus.
     expect(Object.values(LEDGER_CODE_BY_PAGE)).not.toContain('TL / 08');
-    expect(Object.values(LEDGER_CODE_BY_PAGE)).not.toContain('TL / 09');
   });
 
   // DEUX sources portent le même numéro : `LEDGER_CODE_BY_PAGE` (ici) et les
@@ -160,9 +163,11 @@ describe('NavRail — groupes et liens', () => {
       const link = within(nav).getByRole('link', { name: page.title });
       expect(link.getAttribute('href')).toBe(page.navPath);
     }
-    // Dix destinations pendant les absorptions, douze en cible : le compte
-    // exact est asséré dans routes.test.tsx, avec la liste ordonnée.
-    expect(ALL_PAGES).toHaveLength(10);
+    // Onze destinations : douze en cible, moins Graphiques qui attend encore
+    // son contrat serveur. Risques a ete installe le 2026-09-01 avec sa route,
+    // ses donnees et ses tests — la condition posee dans app/pages.ts.
+    // Le compte exact est asséré dans routes.test.tsx, avec la liste ordonnée.
+    expect(ALL_PAGES).toHaveLength(11);
     // `/ai` a quitté le rail au LOT-12 : l'explication vit dans l'inspecteur.
     expect(ALL_PAGES.map((page) => page.navPath)).not.toContain('/ai');
     expect(ALL_PAGES.map((page) => page.navPath)).not.toContain('/vertex-ai');

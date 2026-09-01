@@ -4065,7 +4065,9 @@ body {
    Ce sont deux sources pour le même numéro : le 2026-09-01 la table TSX a
    été corrigée sans eux, et chaque page affichait `TL / 03` à côté de
    `LEDGER 02`. Un test lit ce fichier et compare les deux — voir
-   shell.test.tsx. `08 charts` et `09 risks` restent réservés. */
+   shell.test.tsx. `08 charts` reste réservé ; `09 risks` est désormais
+   installé — sa route, ses données et ses tests existent, ce qui est
+   exactement la condition posée dans app/pages.ts. */
 .vx-main[data-page='today'] {
   --vx-page-ledger: 'LEDGER 01 · NOW';
 }
@@ -4096,6 +4098,10 @@ body {
 
 .vx-main[data-page='portfolio'] {
   --vx-page-ledger: 'LEDGER 07 · BOOK';
+}
+
+.vx-main[data-page='risks'] {
+  --vx-page-ledger: 'LEDGER 09 · EXPOSURE';
 }
 
 .vx-main[data-page='catalysts'] {
@@ -4434,5 +4440,271 @@ textarea:hover {
 @media (prefers-reduced-motion: reduce) {
   body {
     background-attachment: scroll;
+  }
+}
+
+
+/* ==========================================================================
+   Page Risques (LEDGER 09) — matrice de correlation
+   ==========================================================================
+
+   POURQUOI PAS LE VERT ET LE ROUGE. Dans ce theme, `--vx-positive` veut dire
+   « le prix monte » et `--vx-negative` « le prix baisse ». Une correlation
+   n'est ni l'un ni l'autre : deux actifs a +0,93 ne sont pas « en hausse »,
+   ils sont LIES — et selon ce qu'on detient, c'est une concentration a
+   craindre ou une couverture a chercher. Peindre en vert une correlation
+   forte la ferait lire comme une bonne nouvelle ; ce serait une opinion
+   glissee dans une couleur.
+
+   L'echelle est donc divergente sur DEUX teintes qui ne signifient pas de
+   gain dans cette application :
+     - l'or du theme (`--vx-signal`) pour « ils bougent ensemble » ;
+     - le turquoise macro (`--vx-macro`) pour « ils bougent en sens
+       contraire ».
+   L'intensite dit la force, la teinte dit le sens. Ni l'une ni l'autre ne dit
+   si c'est bien.
+
+   La couleur ne porte JAMAIS l'information seule : chaque case affiche son
+   coefficient en clair, et son infobulle nomme la bande en francais. */
+
+.vx-risk-page-section,
+.vx-page > .vx-panel {
+  min-width: 0;
+  margin-bottom: var(--vx-space-20);
+  padding: var(--vx-space-24);
+  border: 1px solid var(--vx-border);
+  border-radius: var(--vx-radius-18);
+  background: var(--vx-surface-0);
+  box-shadow: var(--vx-shadow-panel), var(--vx-shadow-inset);
+}
+
+.vx-riskmatrix-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--vx-border-soft);
+  border-radius: var(--vx-radius-10);
+}
+
+.vx-riskmatrix-scroll:focus-visible {
+  outline: 2px solid var(--vx-signal);
+  outline-offset: 2px;
+}
+
+.vx-riskmatrix-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-meta);
+  font-variant-numeric: tabular-nums;
+}
+
+.vx-riskmatrix-caption {
+  padding: var(--vx-space-12) var(--vx-space-16);
+  color: var(--vx-text-muted);
+  font-family: var(--vx-font-sans, inherit);
+  font-size: var(--vx-font-size-meta);
+  text-align: left;
+}
+
+.vx-riskmatrix-colhead,
+.vx-riskmatrix-rowhead {
+  padding: var(--vx-space-8) var(--vx-space-12);
+  color: var(--vx-text-secondary);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.vx-riskmatrix-colhead {
+  border-bottom: 1px solid var(--vx-border);
+}
+
+.vx-riskmatrix-rowhead {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  border-right: 1px solid var(--vx-border);
+  background: var(--vx-surface-0);
+  text-align: left;
+}
+
+.vx-riskmatrix-corner {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: var(--vx-surface-0);
+}
+
+.vx-riskmatrix-colhead abbr,
+.vx-riskmatrix-rowhead abbr {
+  border: 0;
+  text-decoration: none;
+}
+
+.vx-riskmatrix-cell {
+  padding: var(--vx-space-8) var(--vx-space-12);
+  border: 1px solid var(--vx-grid-line);
+  color: var(--vx-text);
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* Les cinq bandes PUBLIEES par le serveur. Aucune valeur par defaut : une
+   bande inconnue n'atteint jamais l'ecran, le relais API la refuse. */
+.vx-riskmatrix-cell[data-band='self'],
+.vx-riskmatrix-swatch[data-band='self'] {
+  background: var(--vx-titanium-soft);
+  color: var(--vx-text-muted);
+}
+
+.vx-riskmatrix-cell[data-band='strong_positive'],
+.vx-riskmatrix-swatch[data-band='strong_positive'] {
+  background: var(--vx-signal-soft);
+  box-shadow: inset 0 0 0 1px var(--vx-signal);
+  color: var(--vx-signal-bright);
+}
+
+.vx-riskmatrix-cell[data-band='moderate_positive'],
+.vx-riskmatrix-swatch[data-band='moderate_positive'] {
+  background: var(--vx-signal-faint);
+  color: var(--vx-signal);
+}
+
+.vx-riskmatrix-cell[data-band='weak'],
+.vx-riskmatrix-swatch[data-band='weak'] {
+  background: transparent;
+  color: var(--vx-text-muted);
+}
+
+.vx-riskmatrix-cell[data-band='moderate_negative'],
+.vx-riskmatrix-swatch[data-band='moderate_negative'] {
+  background: var(--vx-macro-soft);
+  color: var(--vx-macro);
+}
+
+.vx-riskmatrix-cell[data-band='strong_negative'],
+.vx-riskmatrix-swatch[data-band='strong_negative'] {
+  background: var(--vx-macro-soft);
+  box-shadow: inset 0 0 0 1px var(--vx-macro);
+  color: var(--vx-macro);
+}
+
+.vx-riskmatrix-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--vx-space-12) var(--vx-space-20);
+  margin: var(--vx-space-16) 0 0;
+  padding: 0;
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+  list-style: none;
+}
+
+.vx-riskmatrix-legend-item {
+  display: flex;
+  align-items: center;
+  gap: var(--vx-space-8);
+}
+
+.vx-riskmatrix-swatch {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 1px solid var(--vx-border);
+  border-radius: var(--vx-radius-6);
+}
+
+.vx-risk-extremes,
+.vx-risk-coverage {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--vx-space-16);
+  margin: var(--vx-space-20) 0 0;
+}
+
+.vx-risk-extremes dt,
+.vx-risk-coverage dt {
+  margin: 0 0 var(--vx-space-4);
+  color: var(--vx-text-muted);
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-meta);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.vx-risk-extremes dd,
+.vx-risk-coverage dd {
+  margin: 0;
+  color: var(--vx-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.vx-risk-extremes strong {
+  color: var(--vx-signal-bright);
+  font-family: var(--vx-font-mono);
+}
+
+/* L'avertissement de synchronicite : visible, jamais range en note de bas de
+   page. Sans lui, SPX/N225 a +0,168 se lirait comme une decorrelation du
+   Japon au lieu d'un artefact de fuseau horaire. */
+.vx-risk-caveat {
+  margin: var(--vx-space-20) 0 0;
+  padding: var(--vx-space-12) var(--vx-space-16);
+  border-left: 2px solid var(--vx-warning);
+  border-radius: var(--vx-radius-6);
+  background: var(--vx-warning-soft);
+  color: var(--vx-text-secondary);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-risk-alignment,
+.vx-risk-discards {
+  margin-top: var(--vx-space-24);
+  padding-top: var(--vx-space-16);
+  border-top: 1px solid var(--vx-border-soft);
+}
+
+.vx-risk-alignment h3,
+.vx-risk-discards h3 {
+  margin: 0 0 var(--vx-space-8);
+  color: var(--vx-text-secondary);
+  font-size: var(--vx-font-size-body, inherit);
+  font-weight: 600;
+}
+
+.vx-risk-alignment > p {
+  max-width: 68ch;
+  margin: 0 0 var(--vx-space-12);
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-risk-alignment ul,
+.vx-risk-discards ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--vx-space-8) var(--vx-space-20);
+  margin: 0;
+  padding: 0;
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+  list-style: none;
+}
+
+.vx-risk-alignment li span,
+.vx-risk-discards li span {
+  color: var(--vx-text-secondary);
+  font-family: var(--vx-font-mono);
+  font-weight: 600;
+}
+
+@media (max-width: 900px) {
+  .vx-riskmatrix-table {
+    font-size: 11px;
+  }
+
+  .vx-riskmatrix-cell,
+  .vx-riskmatrix-colhead,
+  .vx-riskmatrix-rowhead {
+    padding: var(--vx-space-4) var(--vx-space-8);
   }
 }
