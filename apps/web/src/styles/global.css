@@ -74,7 +74,17 @@ body {
 /* ------------------------------------------------------------------ */
 
 .vx-shell {
-  --vx-rail-width: 232px;
+  /* V2 — DENSITÉ CANONIQUE. « Navigation visuelle : environ 120 px »
+     (`canonical-visual.md`), et la dérive « rail gauche large » est
+     nommément interdite. Le rail valait 232 px : il mangeait 128 px de
+     largeur utile sur chacune des onze destinations.
+     POURQUOI 136 ET NON 120. Les libellés français de Vertex sont plus longs
+     que ceux de la capture : « Sources & Rapports » demande 192 px de largeur
+     intrinsèque, le cartouche 154 px, la tête 126 px. À 120 px stricts, les
+     trois sont TRONQUÉS — et un libellé de navigation coupé est un défaut
+     plus grave que 16 px de marge. 136 px tient « environ 120 px » sans rien
+     couper ; le test de densité mesure les deux à la fois. */
+  --vx-rail-width: 136px;
   position: relative;
   display: flex;
   min-height: 100vh;
@@ -110,7 +120,11 @@ body {
   flex-direction: column;
   overflow-y: auto;
   overflow-x: hidden;
-  scrollbar-gutter: stable;
+  /* `scrollbar-gutter: stable` réservait ~15 px EN PERMANENCE — plus de 10 %
+     d'un rail de 136 px, et c'est ce qui faisait casser « Aujourd'hui » au
+     milieu du mot. Le rail ne défile qu'en fenêtre très basse ; on préfère un
+     léger décalage dans ce cas rare à une amputation permanente des
+     libellés. */
   /* Point 2 de l'anatomie canonique : « rail gauche fin et INTÉGRÉ AU FOND,
      sans grande plaque flottante ». Le rail portait une surface, une bordure
      droite et une ombre interne : trois marqueurs de plaque. Il partage
@@ -124,11 +138,11 @@ body {
 
 .vx-rail-head {
   display: flex;
-  min-height: 72px;
+  min-height: 56px;
   align-items: center;
   justify-content: space-between;
-  gap: var(--vx-space-12);
-  padding: var(--vx-space-16);
+  gap: var(--vx-space-8);
+  padding: var(--vx-space-12) var(--vx-space-8);
   border-bottom: 1px solid var(--vx-border-soft);
 }
 
@@ -143,9 +157,9 @@ body {
 
 .vx-brand-mark {
   display: inline-flex;
-  width: var(--vx-space-40);
-  height: var(--vx-space-40);
-  flex: 0 0 var(--vx-space-40);
+  width: var(--vx-space-32);
+  height: var(--vx-space-32);
+  flex: 0 0 var(--vx-space-32);
   align-items: center;
   justify-content: center;
   border: 1px solid transparent;
@@ -159,8 +173,8 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: var(--vx-space-40);
-  min-height: var(--vx-space-40);
+  min-width: 28px;
+  min-height: 28px;
   padding: 0;
   border: 1px solid var(--vx-border-soft);
   border-radius: var(--vx-radius-10);
@@ -198,13 +212,13 @@ body {
 }
 
 .vx-rail-group {
-  padding: var(--vx-space-12) var(--vx-space-8) var(--vx-space-4);
+  padding: var(--vx-space-8) var(--vx-space-4) var(--vx-space-4);
 }
 
 .vx-rail-group + .vx-rail-group {
-  margin-top: var(--vx-space-8);
+  margin-top: var(--vx-space-4);
   border-top: 1px solid var(--vx-border-soft);
-  padding-top: var(--vx-space-12);
+  padding-top: var(--vx-space-8);
 }
 
 .vx-rail-group-label {
@@ -234,14 +248,26 @@ body {
 .vx-rail-link {
   display: flex;
   align-items: center;
-  gap: var(--vx-space-12);
-  min-height: 42px;
-  padding: var(--vx-space-8) var(--vx-space-12);
+  gap: var(--vx-space-8);
+  min-height: 32px;
+  padding: var(--vx-space-4);
   border: 1px solid transparent;
   border-radius: var(--vx-radius-10);
   color: var(--vx-text-secondary);
+  font-size: var(--vx-font-size-meta);
   text-decoration: none;
-  white-space: nowrap;
+  /* `nowrap` retiré : à 136 px, « Sources & Rapports » ne tient pas sur une
+     ligne, et le garder en `nowrap` le ferait DÉBORDER sous
+     `overflow-x: hidden` — c'est-à-dire le tronquer sans le dire.
+     MAIS LA COUPURE NE SE FAIT QU'AUX ESPACES. Une première version portait
+     `overflow-wrap: anywhere` : la capture a montré « Aujourd / 'hui »,
+     « Opportu / nités », « Portefeu / ille » — une amputation au milieu des
+     mots, pire que la troncature qu'elle évitait. Un libellé SANS espace doit
+     tenir sur une ligne, et le test de densité l'exige désormais. */
+  line-height: 1.2;
+  overflow-wrap: normal;
+  word-break: normal;
+  hyphens: none;
   transition:
     background-color var(--vx-motion-140) var(--vx-ease-standard),
     border-color var(--vx-motion-140) var(--vx-ease-standard),
@@ -312,13 +338,15 @@ body {
 
 .vx-edition-cartouche {
   display: inline-block;
-  padding: var(--vx-space-4) var(--vx-space-8);
+  padding: var(--vx-space-4);
   border: 1px solid var(--vx-signal-soft);
   border-radius: var(--vx-radius-6);
   color: var(--vx-signal);
   font-family: var(--vx-font-mono);
-  font-size: var(--vx-font-size-meta);
-  letter-spacing: 0.08em;
+  /* 154 px intrinsèques ne tiennent pas dans un rail de 136 px : la chasse et
+     l'interlettrage cèdent, jamais le texte. */
+  font-size: 10px;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
   white-space: nowrap;
 }
@@ -447,7 +475,9 @@ body {
   align-items: center;
   column-gap: 0;
   min-height: 34px;
-  padding: 0 var(--vx-space-32);
+  /* Aligné sur la gouttière de travail (20 px) : le bandeau et le premier
+     module de la page partagent la même verticale gauche. */
+  padding: 0 var(--vx-space-20);
   background: var(--vx-overlay);
   backdrop-filter: blur(var(--vx-space-16));
   -webkit-backdrop-filter: blur(var(--vx-space-16));
@@ -644,8 +674,10 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: var(--vx-space-16);
-  min-height: 64px;
-  padding: 0 var(--vx-space-32);
+  /* V2 : 64 -> 52 px. « Ticker : hauteur compacte » vaut aussi pour la barre
+     qui le surmonte — les deux ne forment qu'un bandeau. */
+  min-height: 52px;
+  padding: 0 var(--vx-space-20);
   background: var(--vx-overlay);
   box-shadow: var(--vx-shadow-inset);
   backdrop-filter: blur(var(--vx-space-16));
@@ -730,7 +762,10 @@ body {
   width: 100%;
   max-width: 1600px; /* largeur utile bornée (docs/05-design/DESIGN_SYSTEM.md) */
   margin-inline: auto;
-  padding: var(--vx-space-32) var(--vx-space-32) var(--vx-space-48);
+  /* « Gouttières principales : 12–16 px ». La marge valait 40 / 32 / 48 px,
+     deux à trois fois le contrat. Le bas garde une réserve plus généreuse :
+     c'est une fin de page, pas une gouttière entre deux modules. */
+  padding: var(--vx-space-16) var(--vx-space-20) var(--vx-space-32);
 }
 
 .vx-page {
@@ -4014,11 +4049,11 @@ body {
 @media (max-width: 1279px) {
   .vx-contextbar,
   .vx-ticker {
-    padding-inline: var(--vx-space-24);
+    padding-inline: var(--vx-space-16);
   }
 
   .vx-main {
-    padding: var(--vx-space-24) var(--vx-space-20) var(--vx-space-40);
+    padding: var(--vx-space-16) var(--vx-space-16) var(--vx-space-32);
   }
 
   .vx-today-layout {
@@ -4097,23 +4132,24 @@ body {
   background: transparent;
 }
 
-.vx-shell {
-  --vx-rail-width: 248px;
-}
+/* V2 — LA LARGEUR DU RAIL N'A PLUS QU'UN PROPRIÉTAIRE.
+   Elle était déclarée TROIS fois : 232 px en base, 248 px ici, 232 px dans la
+   dégradation laptop. La valeur effective était donc celle-ci, et changer la
+   base ne changeait rien — mesuré : le rail restait à 248 px après un passage
+   de la base à 136 px. C'est la même pathologie que décrit
+   `docs/05-design/REFONTE_TITANIUM_LEDGER.md` : la couche thématique
+   redéclare au lieu d'hériter. Les deux surcharges sont retirées ; la valeur
+   vit à `.vx-shell`, une fois.
 
-/* Le rail n'a ni surface ni bordure : point 2 de l'anatomie canonique. La
-   couche Titanium Ledger lui rendait un dégradé de surface et une bordure de
-   séparation — c'est-à-dire exactement la « grande plaque flottante » que le
-   contrat refuse. Seule la hauteur de tête est conservée. */
-.vx-rail-head {
-  min-height: 80px;
-}
+   Le rail n'a par ailleurs ni surface ni bordure (point 2 de l'anatomie) : la
+   couche lui rendait un dégradé et une bordure de séparation, c'est-à-dire la
+   « grande plaque flottante » que le contrat refuse. La hauteur de tête,
+   elle aussi, appartient désormais à la déclaration de base. */
 
 .vx-brand-mark {
   position: relative;
-  width: 42px;
-  height: 42px;
-  flex-basis: 42px;
+  /* 42 px annulait les 32 px de la base, comme la largeur du rail. La taille
+     appartient à la déclaration de base ; ce bloc ne garde que le matériau. */
   border-color: transparent;
   background: none;
   box-shadow: none;
@@ -4191,7 +4227,12 @@ body {
 .vx-main {
   position: relative;
   isolation: isolate;
-  padding-top: var(--vx-space-40);
+  /* V2 — cette surcharge portait 40 px et ANNULAIT la gouttière déclarée plus
+     haut : la marge mesurée valait donc 40 px, pas 16. Elle réservait de l'air
+     sous le bandeau pour le filigrane de registre — lequel est en
+     `position: fixed; z-index: -1`, donc DERRIÈRE le contenu : il n'a jamais
+     eu besoin qu'on lui pousse la page. */
+  padding-top: var(--vx-space-16);
 }
 
 .vx-main::before {
@@ -4577,10 +4618,6 @@ textarea:hover {
 }
 
 @media (max-width: 1279px) {
-  .vx-shell {
-    --vx-rail-width: 232px;
-  }
-
   .vx-page-header {
     padding-right: 128px;
   }

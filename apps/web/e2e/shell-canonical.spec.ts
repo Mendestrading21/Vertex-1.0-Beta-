@@ -126,6 +126,96 @@ test.describe('Shell — anatomie canonique', () => {
     expect(Number(graisseActive)).toBeGreaterThan(Number(graisseInactive));
   });
 
+  test('points 2 et 6 : la densité canonique, mesurée en pixels', async ({ page }) => {
+    /**
+     * V2 — LA DENSITÉ. `references/canonical-visual.md`, « Densité et
+     * géométrie », donne trois nombres et un interdit :
+     *
+     *   « Navigation visuelle : environ 120 px »
+     *   « Gouttières principales : 12–16 px »
+     *   « Inspecteur : 300–340 px selon viewport »
+     *   dérive interdite : « rail gauche large, flottant ou très arrondi »
+     *
+     * MESURE AVANT CORRECTIF, à 1600×1000 : rail **248 px** et marge de travail
+     * **40 / 32 / 48 px**. Le rail mangeait donc 128 px de largeur utile sur
+     * CHACUNE des onze destinations, et la marge valait deux à trois fois la
+     * gouttière canonique. Aucune porte ne mesurait ces trois nombres : le
+     * contrat les écrivait, le code s'en éloignait, et rien ne le disait.
+     *
+     * LA BANDE ACCEPTÉE, ET POURQUOI ELLE N'EST PAS « 120 » AU PIXEL. Les
+     * libellés français de Vertex sont plus longs que ceux de la capture :
+     * « Sources & Rapports » demande 192 px de largeur intrinsèque, le
+     * cartouche 154 px, la tête 126 px. Un rail de 120 px stricts les
+     * TRONQUERAIT — et un libellé de navigation tronqué est pire qu'un rail de
+     * 16 px trop large. La bande retenue est donc 120–140 px : « environ
+     * 120 px » au sens du contrat, sans rien couper.
+     */
+    for (const largeurFenetre of [1280, 1440, 1600]) {
+      await page.setViewportSize({ width: largeurFenetre, height: 900 });
+      await page.goto('/today');
+      await expect(page.getByRole('main')).toBeVisible();
+
+      const mesure = await page.evaluate(() => {
+        const rail = document.querySelector('.vx-rail') as HTMLElement;
+        const main = document.querySelector('.vx-main') as HTMLElement;
+        const style = getComputedStyle(main);
+        return {
+          rail: Math.round(rail.getBoundingClientRect().width),
+          hautMain: Number.parseFloat(style.paddingTop),
+          coteMain: Number.parseFloat(style.paddingLeft),
+          // Débordement horizontal d'un libellé : le seul vrai risque de la
+          // compression. `scrollWidth > clientWidth` sur le rail le dit.
+          railDeborde: rail.scrollWidth > rail.clientWidth + 1,
+        };
+      });
+
+      expect(
+        mesure.rail,
+        `rail ${mesure.rail} px à ${largeurFenetre} — le contrat dit « environ 120 px »`,
+      ).toBeGreaterThanOrEqual(120);
+      expect(mesure.rail).toBeLessThanOrEqual(140);
+
+      expect(
+        mesure.coteMain,
+        `marge latérale ${mesure.coteMain} px à ${largeurFenetre} — gouttière canonique 12–16 px`,
+      ).toBeLessThanOrEqual(20);
+      expect(mesure.hautMain).toBeLessThanOrEqual(20);
+
+      // Rien n'est coupé. C'est la contrepartie obligatoire de la compression :
+      // sans cette assertion, le test récompenserait un rail étroit qui
+      // tronque ses libellés.
+      expect(mesure.railDeborde, `le rail tronque son contenu à ${largeurFenetre}`).toBe(false);
+
+      // ET RIEN N'EST COUPÉ AU MILIEU D'UN MOT. La première version de ce lot
+      // autorisait `overflow-wrap: anywhere` : le rail ne débordait pas, le
+      // test passait, et la capture montrait « Aujourd / 'hui »,
+      // « Opportu / nités », « Portefeu / ille ». Un libellé sans espace n'a
+      // aucun point de coupure légitime : il doit tenir sur une ligne.
+      const coupesDansUnMot = await page.evaluate(() => {
+        const liens = Array.from(document.querySelectorAll('.vx-rail-link')) as HTMLElement[];
+        return liens
+          .map((lien) => {
+            const etiquette = lien.querySelector('span:not(.vx-rail-link-short)');
+            const texte = (etiquette?.textContent ?? '').trim();
+            if (texte === '' || texte.includes(' ')) {
+              return null;
+            }
+            const boite = (etiquette as HTMLElement).getBoundingClientRect();
+            const hauteurLigne = Number.parseFloat(
+              getComputedStyle(etiquette as HTMLElement).lineHeight,
+            );
+            // Plus d'une ligne pour un mot unique = coupure interne.
+            return boite.height > hauteurLigne * 1.5 ? texte : null;
+          })
+          .filter((valeur): valeur is string => valeur !== null);
+      });
+      expect(
+        coupesDansUnMot,
+        `libellés coupés au milieu d’un mot à ${largeurFenetre} : ${coupesDansUnMot.join(', ')}`,
+      ).toEqual([]);
+    }
+  });
+
   test('point 1 : la marque est un glyphe facetté argent, pas une tuile', async ({ page }) => {
     await page.goto('/today');
     const marque = page.locator('.vx-brand-mark');
