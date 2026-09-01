@@ -239,6 +239,14 @@ TRADING_PERIODS_PER_YEAR = 252
 #: Statut publie quand la fenetre demandee depasse l'historique disponible.
 REASON_INSUFFICIENT_SAMPLE = "INSUFFICIENT_SAMPLE"
 
+#: Horizon de la force relative, en seances communes aux deux series.
+RELATIVE_STRENGTH_HORIZON = 60
+
+#: Raisons d'absence de la force relative, chacune nommee.
+REASON_NO_BENCHMARK = "NO_BENCHMARK_DECLARED"
+REASON_BENCHMARK_ABSENT = "BENCHMARK_NOT_OBSERVED"
+REASON_IS_BENCHMARK = "INSTRUMENT_IS_BENCHMARK"
+
 
 def is_daily_bars_schema(schema_version: str) -> bool:
     """``True`` when ``schema_version`` belongs to a declared bars family."""
@@ -276,6 +284,10 @@ class AnalysisConfig:
     advice_validity: timedelta = timedelta(hours=1)
     max_evidence: int = 5
     horizon: str = "1d"
+    #: Symbole de l'indice de reference pour `market.relative_strength`.
+    #: `None` = aucun indice declare : l'indicateur est ABSENT avec sa raison,
+    #: jamais calcule contre un indice choisi par le code.
+    benchmark: str | None = None
     portfolio_risk_required: bool = False
     """Whether gate 7 must be OBSERVED for this population.
 
@@ -578,6 +590,134 @@ def _build_indicators(
             }
 
     return indicateurs
+
+
+def _barres_de(
+    bar_records: Sequence[Any], ticker: str
+) -> list[Mapping[str, Any]]:
+    """Barres VALIDES d'un ticker, prises dans les enregistrements deja charges.
+
+    Le constructeur possede deja toutes les barres de la fenetre : selectionner
+    celles de l'indice de reference ne coute aucune requete supplementaire.
+    """
+    for record in sorted(bar_records, key=lambda r: (r.as_of, r.event_id), reverse=True):
+        charge = record.payload if isinstance(record.payload, Mapping) else {}
+        if charge.get("ticker") != ticker:
+            continue
+        brutes = charge.get("bars")
+        if not isinstance(brutes, list):
+            continue
+        retenues: list[Mapping[str, Any]] = []
+        for brute in brutes:
+            barre, _ = _validate_bar(brute)
+            if barre is not None:
+                retenues.append(barre)
+        if retenues:
+            retenues.sort(key=lambda b: b["trading_day"])
+            return retenues
+    return []
+
+
+def _relative_strength_block(
+    valid_bars: Sequence[Mapping[str, Any]],
+    benchmark_bars: Sequence[Mapping[str, Any]] | None,
+    *,
+    instrument: str,
+    benchmark: str | None,
+    now: datetime,
+) -> dict[str, Any]:
+    """Force relative contre un indice DECLARE, sur calendriers alignes.
+
+    L'alignement est explicite : `market.relative_strength` refuse deux series
+    de longueurs differentes et ne tronque jamais. Deux places n'ont pas les
+    memes jours feries, on intersecte donc les jours de bourse AVANT d'appeler,
+    et on publie le nombre de seances communes retenues.
+    """
+    from vertex_core.calculations.market import (
+        CalculationInputError,
+        relative_strength,
+    )
+
+    if benchmark is None:
+        return {"status": REASON_NO_BENCHMARK, "detail": "aucun indice de référence déclaré"}
+    if benchmark == instrument:
+        return {
+            "status": REASON_IS_BENCHMARK,
+            "benchmark": benchmark,
+            "detail": "un instrument ne se compare pas à lui-même",
+        }
+    if not benchmark_bars:
+        return {
+            "status": REASON_BENCHMARK_ABSENT,
+            "benchmark": benchmark,
+            "detail": f"aucune barre observée pour {benchmark}",
+        }
+
+    # Intersection des jours de bourse : alignement, jamais troncature.
+    par_jour_actif = {bar["trading_day"]: Decimal(bar["close"]) for bar in valid_bars}
+    par_jour_indice = {
+        bar["trading_day"]: Decimal(bar["close"]) for bar in benchmark_bars
+    }
+    jours = sorted(set(par_jour_actif) & set(par_jour_indice))
+    if len(jours) < RELATIVE_STRENGTH_HORIZON + 1:
+        return {
+            "status": REASON_INSUFFICIENT_SAMPLE,
+            "benchmark": benchmark,
+            "horizon": RELATIVE_STRENGTH_HORIZON,
+            "common_sessions": len(jours),
+            "detail": (
+                f"{RELATIVE_STRENGTH_HORIZON + 1} séances communes requises ; "
+                f"{len(jours)} partagées avec {benchmark}"
+            ),
+        }
+
+    fenetre = jours[-(RELATIVE_STRENGTH_HORIZON + 1) :]
+    rendements_actif = [
+        float(par_jour_actif[fenetre[i]] / par_jour_actif[fenetre[i - 1]] - 1)
+        for i in range(1, len(fenetre))
+    ]
+    rendements_indice = [
+        float(par_jour_indice[fenetre[i]] / par_jour_indice[fenetre[i - 1]] - 1)
+        for i in range(1, len(fenetre))
+    ]
+
+    debut = now
+    try:
+        valeur = relative_strength(
+            rendements_actif, rendements_indice, RELATIVE_STRENGTH_HORIZON
+        )
+    except CalculationInputError as erreur:
+        return {
+            "status": "REFUSED",
+            "benchmark": benchmark,
+            "horizon": RELATIVE_STRENGTH_HORIZON,
+            "reason": erreur.reason,
+            "detail": erreur.detail,
+        }
+
+    enregistrement = make_calculation_record(
+        calculation_id="market.relative_strength",
+        calculation_type="market_statistic",
+        code_sha=f"module:vertex_core.calculations.market@{ENGINE_VERSION}",
+        method="compounded asset return divided by compounded benchmark return",
+        inputs={
+            "sessions": fenetre,
+            "benchmark": benchmark,
+            "horizon": RELATIVE_STRENGTH_HORIZON,
+        },
+        result={"value": _num_string(valeur)},
+        started_at=debut,
+        completed_at=now,
+    )
+    return {
+        "status": "OK",
+        "benchmark": benchmark,
+        "horizon": RELATIVE_STRENGTH_HORIZON,
+        "common_sessions": len(jours),
+        "unit": "ratio",
+        "value": _num_string(valeur),
+        "calculation": _calculation_meta(enregistrement),
+    }
 
 
 def _build_evidence(
@@ -924,6 +1064,15 @@ def build_analysis_content(
         valid_bars,
         now=now,
         source_event_id=chosen.event_id if chosen is not None else None,
+    )
+    # Force relative contre l'indice DECLARE par la configuration. Ses barres
+    # sortent du meme chargement : aucune requete supplementaire.
+    indicators["relative_strength"] = _relative_strength_block(
+        valid_bars,
+        _barres_de(bar_records, config.benchmark) if config.benchmark else None,
+        instrument=instrument,
+        benchmark=config.benchmark,
+        now=now,
     )
 
     # -- evidence and scenarios ----------------------------------------------

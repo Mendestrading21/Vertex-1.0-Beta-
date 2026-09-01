@@ -654,3 +654,138 @@ class TestIndicateurs:
 
         indicateurs = _build_indicators(_barres_croissantes(60), now=NOW, source_event_id="evt-42")
         assert indicateurs["realized_volatility"]["status"] == "OK"
+
+
+class TestForceRelative:
+    """`market.relative_strength` : la performance contre un indice DECLARE.
+
+    Mesure du 2026-09-01 sur donnees reelles : SMI partage 244 seances avec
+    SPX quand les valeurs americaines en partagent 250 — les feries suisses.
+    Cet ecart est publie, jamais efface.
+    """
+
+    def _serie(self, nombre: int, pas: float, depart: float = 100.0):
+        from datetime import date, timedelta
+
+        premier = date(2026, 1, 2)
+        barres = []
+        for index in range(nombre):
+            cloture = depart * (1.0 + pas) ** index
+            barres.append(
+                {
+                    "trading_day": (premier + timedelta(days=index)).isoformat(),
+                    "open": f"{cloture:.4f}",
+                    "high": f"{cloture * 1.01:.4f}",
+                    "low": f"{cloture * 0.99:.4f}",
+                    "close": f"{cloture:.4f}",
+                    "volume": 1000,
+                }
+            )
+        return barres
+
+    def test_un_actif_qui_monte_plus_vite_a_une_force_superieure_a_1(self):
+        from vertex_worker.analysis import _relative_strength_block
+
+        bloc = _relative_strength_block(
+            self._serie(80, 0.002),
+            self._serie(80, 0.001),
+            instrument="AAA",
+            benchmark="SPX",
+            now=NOW,
+        )
+        assert bloc["status"] == "OK"
+        assert float(bloc["value"]) > 1.0
+
+    def test_un_actif_qui_monte_moins_vite_a_une_force_inferieure_a_1(self):
+        from vertex_worker.analysis import _relative_strength_block
+
+        bloc = _relative_strength_block(
+            self._serie(80, 0.0005),
+            self._serie(80, 0.002),
+            instrument="AAA",
+            benchmark="SPX",
+            now=NOW,
+        )
+        assert bloc["status"] == "OK"
+        assert float(bloc["value"]) < 1.0
+
+    def test_sans_indice_DECLARE_l_indicateur_est_absent(self):
+        """Comparer a un indice choisi par le code repondrait a une question
+        que personne n'a posee."""
+        from vertex_worker.analysis import REASON_NO_BENCHMARK, _relative_strength_block
+
+        bloc = _relative_strength_block(
+            self._serie(80, 0.001), None, instrument="AAA", benchmark=None, now=NOW
+        )
+        assert bloc["status"] == REASON_NO_BENCHMARK
+        assert "value" not in bloc
+
+    def test_un_instrument_ne_se_compare_pas_a_lui_meme(self):
+        from vertex_worker.analysis import REASON_IS_BENCHMARK, _relative_strength_block
+
+        bloc = _relative_strength_block(
+            self._serie(80, 0.001),
+            self._serie(80, 0.001),
+            instrument="SPX",
+            benchmark="SPX",
+            now=NOW,
+        )
+        assert bloc["status"] == REASON_IS_BENCHMARK
+
+    def test_un_indice_NON_OBSERVE_est_nomme(self):
+        from vertex_worker.analysis import (
+            REASON_BENCHMARK_ABSENT,
+            _relative_strength_block,
+        )
+
+        bloc = _relative_strength_block(
+            self._serie(80, 0.001), [], instrument="AAA", benchmark="SPX", now=NOW
+        )
+        assert bloc["status"] == REASON_BENCHMARK_ABSENT
+        assert bloc["benchmark"] == "SPX"
+
+    def test_les_calendriers_sont_INTERSECTES_jamais_tronques(self):
+        """Deux places n'ont pas les memes feries. Tronquer comparerait des
+        jours differents ; intersecter compare les memes."""
+        from vertex_worker.analysis import _relative_strength_block
+
+        actif = self._serie(80, 0.002)
+        indice = self._serie(80, 0.001)
+        # L'indice perd dix seances au milieu : un jour ferie de sa place.
+        del indice[30:40]
+
+        bloc = _relative_strength_block(actif, indice, instrument="AAA", benchmark="SPX", now=NOW)
+        assert bloc["status"] == "OK"
+        assert bloc["common_sessions"] == 70, "seules les seances PARTAGEES comptent"
+
+    def test_trop_peu_de_seances_communes_est_NOMME_avec_le_compte(self):
+        """Le chiffre dit sur quoi la comparaison aurait repose."""
+        from vertex_worker.analysis import (
+            REASON_INSUFFICIENT_SAMPLE,
+            _relative_strength_block,
+        )
+
+        bloc = _relative_strength_block(
+            self._serie(80, 0.002),
+            self._serie(10, 0.001),
+            instrument="AAA",
+            benchmark="SPX",
+            now=NOW,
+        )
+        assert bloc["status"] == REASON_INSUFFICIENT_SAMPLE
+        assert bloc["common_sessions"] == 10
+        assert "value" not in bloc
+
+    def test_la_valeur_porte_sa_tracabilite(self):
+        from vertex_worker.analysis import _relative_strength_block
+
+        bloc = _relative_strength_block(
+            self._serie(80, 0.002),
+            self._serie(80, 0.001),
+            instrument="AAA",
+            benchmark="SPX",
+            now=NOW,
+        )
+        calcul = bloc["calculation"]
+        assert calcul["calculation_id"] == "market.relative_strength"
+        assert calcul["input_hash"].startswith("sha256:")

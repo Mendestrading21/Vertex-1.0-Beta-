@@ -97,6 +97,16 @@ PROFILE_REAL = "real"
 #: `stale_after` et par l'âge publié à côté de chaque valeur.
 REAL_LOOKBACK = timedelta(days=8)
 
+#: Indice de référence de `market.relative_strength`, déclaré et non deviné.
+#: Il n'est appliqué QUE s'il figure réellement dans l'univers collecté :
+#: déclarer une référence absente produirait `BENCHMARK_NOT_OBSERVED` sur
+#: chaque instrument, une absence bruyante qui n'apprend rien.
+#:
+#: SPX est le choix le plus large pour un univers d'actions américaines. Pour
+#: un univers européen ce serait un autre indice — d'où un champ configurable
+#: plutôt qu'une constante gravée dans le calcul.
+REFERENCE_BENCHMARK = "SPX"
+
 #: L'univers réel reste borné : la fusion charge un nombre d'observations
 #: plafonné, et un univers démesuré produirait une couverture trompeuse.
 MAX_REAL_INSTRUMENTS = 500
@@ -222,6 +232,9 @@ def real_ibkr_profile(instruments: Sequence[RealInstrument]) -> WorkerProfile:
             allowed_sources=sources,
             usable_rights=droits,
             lookback=REAL_LOOKBACK,
+            # Déclaré SEULEMENT s'il est réellement collecté : une référence
+            # absente rendrait `BENCHMARK_NOT_OBSERVED` partout.
+            benchmark=REFERENCE_BENCHMARK if REFERENCE_BENCHMARK in symboles else None,
         ),
         calendar=CalendarConfig(
             allowed_sources=sources,
