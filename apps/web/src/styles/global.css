@@ -3545,7 +3545,26 @@ body {
 .vx-cal-agenda {
   display: flex;
   flex-direction: column;
-  gap: var(--vx-space-24);
+  gap: var(--vx-space-12);
+  /* Bornée : voir le commentaire de `EventAgenda.tsx`. 6 928 px de page
+     mesurés avant, sur une capture 1600×1000. */
+  max-height: 640px;
+  overflow-y: auto;
+  padding-right: var(--vx-space-8);
+}
+
+.vx-cal-agenda:focus-visible {
+  outline: 2px solid var(--vx-signal);
+  outline-offset: 2px;
+}
+
+/* Le titre de groupe reste visible pendant le défilement : une date de groupe
+   perdue, et les événements en dessous ne se rattachent plus à rien. */
+.vx-cal-group-title {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--vx-surface-1);
 }
 
 .vx-cal-group-title {
@@ -3697,12 +3716,14 @@ body {
 /* Vague finale — Opportunités (/opportunities)                         */
 /* ------------------------------------------------------------------ */
 
+/* Gouttière canonique entre les deux groupes : elle valait 32 px, soit le
+   double de la bande 12–16 px, et séparait deux blocs qui se comparent. */
 .vx-opp-group {
-  margin-bottom: var(--vx-space-32);
+  margin-bottom: var(--vx-space-12);
   padding: var(--vx-space-16);
-  border: 1px solid var(--vx-border);
+  border: 1px solid var(--vx-border-soft);
   border-radius: var(--vx-radius-10);
-  background: var(--vx-surface-0);
+  background: var(--vx-surface-1);
 }
 
 .vx-opp-group[data-group='qualified'] {
@@ -5064,4 +5085,47 @@ textarea:hover {
   .vx-cards[data-layout='row-4'] {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+}
+
+/* ================================================================== */
+/* TABLES LONGUES — bornées, avec en-tête collant                      */
+/* ================================================================== */
+
+/* POURQUOI. Mesuré sur les captures 1600×1000 : Analyse fait 4 280 px de
+   haut, Portefeuille 5 030 px. La cause n'est pas le contenu — c'est que
+   chaque table se déroule intégralement. Une table OHLCV de 60 séances et un
+   journal de 9 lignes occupent la page entière, et la « zone de travail dense »
+   du contrat canonique devient un long parchemin où plus rien n'est comparable
+   d'un coup d'œil.
+
+   CE QUI EST BORNÉ, ET CE QUI NE L'EST PAS. Uniquement les conteneurs qui
+   portent DÉJÀ `tabindex` — c'est-à-dire ceux que le clavier atteint. Rendre
+   défilant un conteneur inatteignable créerait la violation axe
+   `scrollable-region-focusable` (impact « serious », seuil zéro), exactement
+   celle qui a été trouvée sur l'inspecteur au LOT-A1. La borne suit donc la
+   joignabilité, elle ne la précède pas.
+
+   AUCUNE LIGNE N'EST MASQUÉE : le conteneur défile, il ne tronque pas. Le
+   nombre de lignes servies reste le nombre de lignes présentes. */
+
+.vx-ohlcv-scroll[tabindex],
+.vx-pf-table-scroll[tabindex],
+.vx-markets-table-scroll[tabindex],
+.vx-matrix-scroll[tabindex],
+.vx-cal-scroll[tabindex] {
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+/* En-tête collant : sans lui, une table bornée perd le nom de ses colonnes dès
+   la deuxième ligne, et un chiffre sans son en-tête n'est plus une donnée. */
+.vx-ohlcv-scroll[tabindex] thead th,
+.vx-pf-table-scroll[tabindex] thead th,
+.vx-markets-table-scroll[tabindex] thead th,
+.vx-matrix-scroll[tabindex] thead th,
+.vx-cal-scroll[tabindex] thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--vx-surface-2);
 }

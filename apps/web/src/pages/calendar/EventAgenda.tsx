@@ -447,7 +447,30 @@ export function EventAgenda({ events, grouping, viewerTimeZone }: EventAgendaPro
     );
   }
   return (
-    <div className="vx-cal-agenda" data-testid="cal-agenda" data-grouping={grouping}>
+    /*
+      RÉGION DÉFILANTE BORNÉE (refonte V3). Mesuré sur la capture 1600×1000 :
+      la page Calendrier faisait 6 928 px de haut — sept écrans — parce que
+      l'agenda déroulait tous ses groupes et tous leurs détails imbriqués. Une
+      « zone de travail dense » qui exige sept défilements n'est plus dense :
+      plus rien n'y est comparable d'un coup d'œil.
+
+      RIEN N'EST MASQUÉ : la région défile, elle ne tronque pas. Le nombre
+      d'événements servis reste le nombre d'événements présents, et chaque
+      groupe garde son compte affiché.
+
+      `tabIndex` et `role="region"` sont OBLIGATOIRES ici, pas décoratifs : une
+      région défilante inatteignable au clavier est la violation axe
+      `scrollable-region-focusable`, impact « serious », sur un seuil déclaré à
+      zéro. C'est le défaut exact trouvé sur l'inspecteur au LOT-A1.
+    */
+    <div
+      className="vx-cal-agenda"
+      data-testid="cal-agenda"
+      data-grouping={grouping}
+      tabIndex={0}
+      role="region"
+      aria-label="Agenda des événements, région défilante"
+    >
       {groups.map((group) => (
         <section key={group.key} className="vx-cal-group" aria-labelledby={`vx-cal-group-${group.key}`}>
           <h3 id={`vx-cal-group-${group.key}`} className="vx-cal-group-title">
