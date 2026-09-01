@@ -8,7 +8,7 @@ every blocking gate at UNEVALUABLE — the builder never forces a status.
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 import pytest
 
@@ -369,9 +369,7 @@ def test_undeclared_instrument_is_refused() -> None:
 
 
 def test_dev_config_is_synthetic_only() -> None:
-    assert DEV_SYNTHETIC_ANALYSIS_CONFIG.allowed_sources == frozenset(
-        {SYNTHETIC_SOURCE}
-    )
+    assert DEV_SYNTHETIC_ANALYSIS_CONFIG.allowed_sources == frozenset({SYNTHETIC_SOURCE})
     assert DEV_SYNTHETIC_ANALYSIS_CONFIG.usable_rights == frozenset({SYNTHETIC_RIGHTS})
     assert len(DEV_SYNTHETIC_ANALYSIS_CONFIG.instruments) == 4
 
@@ -473,9 +471,7 @@ def test_source_controlled_trading_day_must_be_an_iso_date(bad_day) -> None:
     )
     bars_block = content["bars"]
     # The bar is discarded WITH its typed reason; the healthy series remains.
-    assert bars_block["discarded"] == [
-        {"index": 3, "reason": REASON_INVALID_TRADING_DAY}
-    ]
+    assert bars_block["discarded"] == [{"index": 3, "reason": REASON_INVALID_TRADING_DAY}]
     assert bars_block["count"] == 3
     assert bars_block["last_trading_day"] == "2026-08-24"
     assert all(entry["trading_day"] != bad_day for entry in bars_block["bars"])
@@ -560,8 +556,101 @@ def test_a_bar_discarded_for_its_day_still_degrades_the_snapshot_quality() -> No
     content = build(
         [bars_record(bars=[*good_bars(), bar(HOSTILE_TRADING_DAY, "1.00", "2.00", "0.50", "1.50")])]
     )
-    assert content["bars"]["discarded"] == [
-        {"index": 3, "reason": REASON_INVALID_TRADING_DAY}
-    ]
+    assert content["bars"]["discarded"] == [{"index": 3, "reason": REASON_INVALID_TRADING_DAY}]
     gates = {g["gate_id"]: g for g in content["advice"]["gates"]}
     assert gates["snapshot_fresh_and_coherent"]["reason_code"] == "PARTIAL_SNAPSHOT"
+
+
+# --------------------------------------------------------------------------
+# Indicateurs techniques : une valeur tracee, jamais une interpretation
+# --------------------------------------------------------------------------
+
+
+def _barres_croissantes(nombre: int, depart: float = 100.0):
+    """Serie OHLC coherente et deterministe.
+
+    Les jours sont derives par arithmetique de dates : les composer a la main
+    fabriquait un 29 fevrier 2026 inexistant, et `date.fromisoformat` le
+    refusait — a juste titre.
+    """
+    premier = date(2026, 1, 2)
+    barres = []
+    for index in range(nombre):
+        cloture = depart + index
+        barres.append(
+            {
+                "trading_day": (premier + timedelta(days=index)).isoformat(),
+                "open": f"{cloture - 0.5:.2f}",
+                "high": f"{cloture + 1.0:.2f}",
+                "low": f"{cloture - 1.0:.2f}",
+                "close": f"{cloture:.2f}",
+                "volume": 1000,
+            }
+        )
+    return barres
+
+
+class TestIndicateurs:
+    """`market.realized_volatility` et `market.atr` etaient APPROUVES au
+    registre et jamais appeles en production. Ces tests couvrent leur
+    branchement, pas leur mathematique — celle-ci est deja testee dans
+    `packages/python/vertex_core/tests/calculations/test_market.py`."""
+
+    def test_une_serie_suffisante_produit_les_deux_indicateurs(self):
+        from vertex_worker.analysis import _build_indicators
+
+        indicateurs = _build_indicators(_barres_croissantes(60), now=NOW, source_event_id="evt-1")
+        assert indicateurs["realized_volatility"]["status"] == "OK"
+        assert indicateurs["atr"]["status"] == "OK"
+
+    def test_chaque_valeur_porte_sa_tracabilite(self):
+        """Une valeur financiere sans lignee n'est pas publiable."""
+        from vertex_worker.analysis import _build_indicators
+
+        indicateurs = _build_indicators(_barres_croissantes(60), now=NOW, source_event_id="evt-1")
+        for nom in ("realized_volatility", "atr"):
+            calcul = indicateurs[nom]["calculation"]
+            assert calcul["status"] == "OK"
+            assert calcul["input_hash"].startswith("sha256:")
+            assert calcul["result_hash"].startswith("sha256:")
+            assert calcul["engine_version"]
+
+    def test_aucune_interpretation_n_est_publiee(self):
+        """Un ATR est une amplitude, jamais un jugement. Publier « eleve »
+        supposerait un seuil, et aucun seuil n'est declare."""
+        from vertex_worker.analysis import _build_indicators
+
+        indicateurs = _build_indicators(_barres_croissantes(60), now=NOW, source_event_id=None)
+        interdits = {"level", "severity", "regime", "signal", "verdict", "score"}
+        for bloc in indicateurs.values():
+            assert not (interdits & set(bloc)), "un indicateur ne publie qu'une valeur et sa lignee"
+
+    def test_une_fenetre_trop_courte_est_NOMMEE_jamais_approchee(self):
+        """Calculer une volatilite « sur ce qu'on a » produirait un nombre
+        dont personne ne connaitrait la periode."""
+        from vertex_worker.analysis import (
+            REASON_INSUFFICIENT_SAMPLE,
+            VOLATILITY_WINDOW,
+            _build_indicators,
+        )
+
+        indicateurs = _build_indicators(_barres_croissantes(5), now=NOW, source_event_id=None)
+        vol = indicateurs["realized_volatility"]
+        assert vol["status"] == REASON_INSUFFICIENT_SAMPLE
+        assert vol["available_bars"] == 5
+        assert vol["window"] == VOLATILITY_WINDOW
+        assert "value" not in vol, "aucune valeur ne doit etre publiee"
+
+    def test_une_serie_vide_ne_leve_pas(self):
+        """Un instrument sans barre est un cas NORMAL, pas une panne."""
+        from vertex_worker.analysis import _build_indicators
+
+        indicateurs = _build_indicators([], now=NOW, source_event_id=None)
+        assert indicateurs["realized_volatility"]["available_bars"] == 0
+        assert indicateurs["atr"]["available_bars"] == 0
+
+    def test_l_evenement_source_est_relaye_dans_la_lignee(self):
+        from vertex_worker.analysis import _build_indicators
+
+        indicateurs = _build_indicators(_barres_croissantes(60), now=NOW, source_event_id="evt-42")
+        assert indicateurs["realized_volatility"]["status"] == "OK"

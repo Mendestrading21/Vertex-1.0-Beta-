@@ -54,7 +54,7 @@ import logging
 import re
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import TYPE_CHECKING, Any
 
@@ -225,6 +225,19 @@ def _price_or_none(value: Any) -> tuple[str, Decimal] | None:
 _CODE_SHA = f"module:vertex_core.calculations.options@{ENGINE_VERSION}"
 _SPOT_SHOCKS = (Decimal("0.90"), Decimal("0.95"), Decimal("1.00"), Decimal("1.05"), Decimal("1.10"))
 _CENTS = Decimal("0.01")
+
+#: Fenetres des indicateurs. Declarees ici, jamais deduites de la taille des
+#: donnees disponibles : calculer une volatilite « sur ce qu'on a » produirait
+#: un nombre dont personne ne connaitrait la periode.
+VOLATILITY_WINDOW = 20
+ATR_LOOKBACK = 14
+
+#: Seances par an, pour l'annualisation. 252 est la convention des barres
+#: quotidiennes de marches actions.
+TRADING_PERIODS_PER_YEAR = 252
+
+#: Statut publie quand la fenetre demandee depasse l'historique disponible.
+REASON_INSUFFICIENT_SAMPLE = "INSUFFICIENT_SAMPLE"
 
 
 def is_daily_bars_schema(schema_version: str) -> bool:
@@ -411,6 +424,135 @@ def _validate_bar(raw: Any) -> tuple[dict[str, Any] | None, str | None]:
         "close": prices["close"][0],
         "volume": volume,
     }, None
+
+
+def _build_indicators(
+    valid_bars: Sequence[Mapping[str, Any]],
+    *,
+    now: datetime,
+    source_event_id: str | None,
+) -> dict[str, Any]:
+    """Indicateurs techniques, calcules par le moteur approuve.
+
+    Chaque entree porte sa valeur ET sa tracabilite. Aucune interpretation
+    n'est publiee : un ATR est une amplitude, pas un jugement ; le qualifier
+    d'« eleve » exigerait un seuil declare, et il n'y en a pas.
+
+    Une fenetre plus longue que l'historique disponible ne produit PAS une
+    valeur approchee : elle produit `INSUFFICIENT_SAMPLE` avec le compte reel.
+    """
+    from vertex_core.calculations.market import (
+        CalculationInputError,
+        OhlcBar,
+        atr,
+        realized_volatility,
+    )
+
+    indicateurs: dict[str, Any] = {}
+    evenements = (source_event_id,) if source_event_id else ()
+
+    # -- volatilite realisee annualisee -------------------------------------
+    cloture_series = [Decimal(bar["close"]) for bar in valid_bars]
+    if len(cloture_series) < VOLATILITY_WINDOW + 1:
+        indicateurs["realized_volatility"] = {
+            "status": REASON_INSUFFICIENT_SAMPLE,
+            "window": VOLATILITY_WINDOW,
+            "available_bars": len(cloture_series),
+            "detail": (
+                f"{VOLATILITY_WINDOW + 1} clotures requises pour "
+                f"{VOLATILITY_WINDOW} rendements ; {len(cloture_series)} disponibles"
+            ),
+        }
+    else:
+        fenetre = cloture_series[-(VOLATILITY_WINDOW + 1) :]
+        rendements = [float(fenetre[i] / fenetre[i - 1] - 1) for i in range(1, len(fenetre))]
+        debut = now
+        try:
+            valeur = realized_volatility(rendements, TRADING_PERIODS_PER_YEAR)
+        except CalculationInputError as erreur:
+            indicateurs["realized_volatility"] = {
+                "status": "REFUSED",
+                "window": VOLATILITY_WINDOW,
+                "reason": erreur.reason,
+                "detail": erreur.detail,
+            }
+        else:
+            enregistrement = make_calculation_record(
+                calculation_id="market.realized_volatility",
+                calculation_type="market_statistic",
+                code_sha=f"module:vertex_core.calculations.market@{ENGINE_VERSION}",
+                method="unbiased sample stdev of daily simple returns, annualized",
+                inputs={
+                    "returns": [_num_string(r) for r in rendements],
+                    "periods_per_year": TRADING_PERIODS_PER_YEAR,
+                },
+                result={"value": _num_string(valeur)},
+                started_at=debut,
+                completed_at=now,
+                source_event_ids=evenements,
+            )
+            indicateurs["realized_volatility"] = {
+                "status": "OK",
+                "window": VOLATILITY_WINDOW,
+                "unit": "annualized_ratio",
+                "value": _num_string(valeur),
+                "calculation": _calculation_meta(enregistrement),
+            }
+
+    # -- ATR ----------------------------------------------------------------
+    if len(valid_bars) < ATR_LOOKBACK + 1:
+        indicateurs["atr"] = {
+            "status": REASON_INSUFFICIENT_SAMPLE,
+            "lookback": ATR_LOOKBACK,
+            "available_bars": len(valid_bars),
+            "detail": (f"{ATR_LOOKBACK + 1} barres requises ; {len(valid_bars)} disponibles"),
+        }
+    else:
+        recentes = list(valid_bars)[-(ATR_LOOKBACK + 1) :]
+        debut = now
+        try:
+            barres = tuple(
+                OhlcBar(
+                    timestamp=datetime.fromisoformat(bar["trading_day"]).replace(tzinfo=UTC),
+                    open=Decimal(bar["open"]),
+                    high=Decimal(bar["high"]),
+                    low=Decimal(bar["low"]),
+                    close=Decimal(bar["close"]),
+                )
+                for bar in recentes
+            )
+            valeur = atr(barres, ATR_LOOKBACK)
+        except (CalculationInputError, ValueError) as erreur:
+            indicateurs["atr"] = {
+                "status": "REFUSED",
+                "lookback": ATR_LOOKBACK,
+                "reason": getattr(erreur, "reason", "invalid_bar"),
+                "detail": str(erreur),
+            }
+        else:
+            enregistrement = make_calculation_record(
+                calculation_id="market.atr",
+                calculation_type="market_statistic",
+                code_sha=f"module:vertex_core.calculations.market@{ENGINE_VERSION}",
+                method="Wilder true range, arithmetic mean over the lookback",
+                inputs={
+                    "bars": [bar["trading_day"] for bar in recentes],
+                    "lookback": ATR_LOOKBACK,
+                },
+                result={"value": _num_string(valeur)},
+                started_at=debut,
+                completed_at=now,
+                source_event_ids=evenements,
+            )
+            indicateurs["atr"] = {
+                "status": "OK",
+                "lookback": ATR_LOOKBACK,
+                "unit": "price",
+                "value": _num_string(valeur),
+                "calculation": _calculation_meta(enregistrement),
+            }
+
+    return indicateurs
 
 
 def _build_evidence(
@@ -749,6 +891,16 @@ def build_analysis_content(
         "bars": valid_bars,
     }
 
+    # -- indicateurs techniques ----------------------------------------------
+    # Calculs DEJA approuves au registre et jamais appeles jusqu'ici. Ils ne
+    # publient qu'une valeur et sa tracabilite : aucune interpretation, aucun
+    # seuil, aucun regime.
+    indicators = _build_indicators(
+        valid_bars,
+        now=now,
+        source_event_id=chosen.event_id if chosen is not None else None,
+    )
+
     # -- evidence and scenarios ----------------------------------------------
     evidence = _build_evidence(evidence_records, instrument=instrument, config=config)
     scenarios = _build_scenarios(option_chain_content, chain_version=option_chain_version, now=now)
@@ -836,6 +988,7 @@ def build_analysis_content(
         "instrument": instrument,
         "engine_version": ENGINE_VERSION,
         "bars": bars_block,
+        "indicators": indicators,
         "evidence": evidence,
         "scenarios": scenarios,
         "advice": advice.model_dump(mode="json"),
