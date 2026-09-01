@@ -550,6 +550,13 @@ def build_capabilities_content(
 # --------------------------------------------------------------------------
 
 
+#: Cle d'horodatage de PUBLICATION portee par le contenu des snapshots.
+#: Elle bouge a chaque recalcul : toute comparaison qui cherche un changement
+#: d'INFORMATION doit l'exclure. `publish_if_changed`, lui, l'inclut
+#: deliberement — un recalcul plus tard est un fait publie nouveau.
+PUBLICATION_TIMESTAMP_KEY = "as_of"
+
+
 def publish_if_changed(
     session: Session, *, kind: str, key: str, content: Any, as_of: datetime
 ) -> PublishedSnapshot | None:

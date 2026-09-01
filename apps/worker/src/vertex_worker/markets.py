@@ -53,6 +53,7 @@ from vertex_core.calculations.market import (
     simple_return,
 )
 from vertex_core.contracts import CalculationRecord, make_calculation_record
+from vertex_core.contracts.hashing import canonical_json_hash
 from vertex_core.synthetic import (
     SYNTHETIC_RIGHTS,
     SYNTHETIC_SECTOR_LABELS_FR,
@@ -643,6 +644,14 @@ class MarketsOverviewHandler:
             limit=self._config.max_observations,
         )
         content = build_markets_overview_content(records, now=now, config=self._config)
+        from vertex_persistence.json_codec import to_jsonb_object
+        from vertex_persistence.repository.snapshots import get_current_snapshot
+
+        # Etat publie AVANT cette passe : c'est lui qui dit si les cotes ont
+        # reellement bouge, indépendamment de l'horodatage.
+        precedent = get_current_snapshot(
+            session, kind=SNAPSHOT_KIND_MARKETS, key="global"
+        )
         published = publish_if_changed(
             session,
             kind=SNAPSHOT_KIND_MARKETS,
@@ -658,7 +667,44 @@ class MarketsOverviewHandler:
                 published.version,
                 message.id,
             )
-            self._enqueue_portfolio_revaluations(session)
+            # La revalorisation repart d'un MOUVEMENT des cotes, jamais d'une
+            # simple republication : c'est ce que documente
+            # `_enqueue_portfolio_revaluations`, et qui ne s'appliquait pas.
+            if precedent is None or self._cotes_ont_bouge(
+                precedent.content, to_jsonb_object("content", content)
+            ):
+                self._enqueue_portfolio_revaluations(session)
+            else:
+                log.info(
+                    "cotes inchangees : aucune revalorisation enfilee "
+                    "(message_id=%s)",
+                    message.id,
+                )
+
+    @staticmethod
+    def _cotes_ont_bouge(precedent: Any, courant: Any) -> bool:
+        """Le contenu publie a-t-il bouge AUTREMENT que par son horodatage ?
+
+        `publish_if_changed` publie des que quoi que ce soit change, `as_of`
+        compris — c'est voulu : un recalcul plus tard EST un fait publie
+        nouveau. Mais une revalorisation de portefeuille, elle, ne depend que
+        des COTES. Les faire repartir sur un horodatage revalorise 17 000 fois
+        un portefeuille que rien n'a touche.
+        """
+        from vertex_worker.handlers import PUBLICATION_TIMESTAMP_KEY
+
+        def sans_horodatage(charge: Any) -> Any:
+            if isinstance(charge, Mapping) and PUBLICATION_TIMESTAMP_KEY in charge:
+                return {
+                    cle: valeur
+                    for cle, valeur in charge.items()
+                    if cle != PUBLICATION_TIMESTAMP_KEY
+                }
+            return charge
+
+        return canonical_json_hash(sans_horodatage(precedent)) != canonical_json_hash(
+            sans_horodatage(courant)
+        )
 
     @staticmethod
     def _enqueue_portfolio_revaluations(session: Session) -> None:
