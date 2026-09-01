@@ -697,9 +697,25 @@ chemin de fraîcheur avec un lot de démarrage.
   elles prouvent que la PAGE porte son bandeau, ce que la recherche globale ne
   prouvait déjà plus.
 
+  **Troisième occurrence de la MÊME classe, trouvée à la campagne suivante :**
+  `portfolio.spec.ts` remplissait un champ par `page.getByLabel(/^Ticker/)`.
+  L'`aria-label` de la bande — « Ticker des marchés » — matche ce motif, donc
+  le locator résolvait à deux éléments. Scopé à `main` lui aussi.
+
+  Après cette troisième, la recherche a été faite EXHAUSTIVEMENT plutôt qu'une
+  occurrence à la fois : balayage de tous les `page.getBy*` non scopés des 17
+  fichiers e2e contre l'ensemble des textes et rôles que la bande introduit
+  (nature, âge, marques de dégradation, symboles, les cinq messages, `region`,
+  `list`, `listitem`). Deux seuls candidats restants, tous deux des
+  `getByTestId` — un identifiant de test est unique à sa page, donc sans
+  collision possible.
+
   **Règle retenue :** tout ajout au SHELL doit être confronté aux assertions
-  non scopées des pages avant d'être poussé. Le shell est rendu sur les douze
-  destinations : ce qu'il ajoute, il l'ajoute partout.
+  non scopées des pages avant d'être poussé, et cette confrontation doit être
+  EXHAUSTIVE dès la première collision. Le shell est rendu sur les douze
+  destinations : ce qu'il ajoute, il l'ajoute partout. Trois campagnes ont été
+  dépensées ici à découvrir une occurrence à la fois ce qu'un balayage
+  donnait d'un coup.
 - **`fetchMock.mockResolvedValue(uneRéponse)` est un piège** — **corrigé dans
   les tests touchés.** Un `Response` ne se lit qu'une fois. Depuis que le shell
   interroge le ticker, deux requêtes partent par rendu : la première consomme
