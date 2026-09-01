@@ -344,6 +344,81 @@ body {
 }
 
 /* ------------------------------------------------------------------ */
+/* Module absent — la place tenue, l'absence déclarée                  */
+/* ------------------------------------------------------------------ */
+
+/* La GÉOMÉTRIE est celle d'un module servi : même surface, même bordure,
+   même rayon. Ce qui change, c'est le contenu — et le motif de son absence.
+   Une boîte plus petite ou plus pâle laisserait croire à un module secondaire
+   alors qu'il s'agit d'un module PRINCIPAL non branché. */
+.vx-absent {
+  display: flex;
+  flex-direction: column;
+  gap: var(--vx-space-8);
+  padding: var(--vx-space-16);
+  border: 1px dashed var(--vx-border);
+  border-radius: var(--vx-radius-10);
+  background: var(--vx-surface-1);
+}
+
+/* Tiret plutôt que trait plein : à la première lecture, sans rien lire, la
+   carte se distingue d'un module servi. La couleur ne porte pas seule
+   l'information — le badge la nomme en toutes lettres. */
+
+.vx-absent-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--vx-space-12);
+}
+
+.vx-absent-head h3 {
+  margin: 0;
+  color: var(--vx-text-secondary);
+  font-size: var(--vx-font-size-title);
+  font-weight: 600;
+}
+
+.vx-absent-badge {
+  flex: 0 0 auto;
+  padding: var(--vx-space-4) var(--vx-space-8);
+  border: 1px solid var(--vx-warning);
+  border-radius: var(--vx-radius-pill);
+  color: var(--vx-warning);
+  font-size: var(--vx-font-size-meta);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.vx-absent-question {
+  margin: 0;
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+  font-style: italic;
+}
+
+.vx-absent-body {
+  margin: 0;
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-absent-body p {
+  margin: 0 0 var(--vx-space-8);
+}
+
+.vx-absent-body p:last-child {
+  margin-bottom: 0;
+}
+
+.vx-absent-note {
+  padding-left: var(--vx-space-12);
+  border-left: 2px solid var(--vx-border-strong);
+  color: var(--vx-text-secondary);
+}
+
+/* ------------------------------------------------------------------ */
 /* Ticker du shell — point 4 de l'anatomie canonique                   */
 /* ------------------------------------------------------------------ */
 
