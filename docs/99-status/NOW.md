@@ -15,7 +15,7 @@ status: r0_non_destructif_prepare_ruleset_et_recuperation_claude
 last_good_commit: a5b7d205388e58f4e2716deeba5ecbea0ca9af21 (= main, CI 7/7 verte)
 security_hold:
   - "main non protégée et aucun ruleset au relevé GitHub du 2026-09-01"
-  - "dépôt public : décision humaine requise avant toute remédiation d'historique"
+  - "dépôt maintenu public par décision humaine ; risque historique résiduel accepté, sans autorisation de réécriture"
   - "PR #14 Claude figée pour R0 à 6226b8d ; aucune fusion globale autorisée"
   - "23 commits post-socle classés dans docs/99-status/CLAUDE_RECOVERY_PLAN.md"
   - "R0 local : verify_blueprint OK, audit canonique exécuté, run_checks.sh TOUT VERT"
