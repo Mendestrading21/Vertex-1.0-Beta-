@@ -642,10 +642,8 @@ chemin de fraîcheur avec un lot de démarrage.
   sans avoir vérifié le CODE DE SORTIE du run qui devait le produire. Et après
   toute édition de `global.css`, lancer `pnpm build` — la suite unitaire ne
   compile pas la feuille de style.
-- **Options porte encore un inspecteur modal** — **OUVERT.**
-  `OptionInspector` reste un `role="dialog"` avec piège de focus, alors que le
-  motif est tranché (inspecteur persistant du shell). La conversion suit celle
-  d'Aujourd'hui : retirer le piège, garder focus entrant / `Échap` /
-  restauration, remplacer les assertions de piège par leur contrepartie
-  non modale, et vérifier que `.vx-inspector-*` ne reste pas positionné en
-  surcouche.
+- ~~**Options porte encore un inspecteur modal**~~ — **FERMÉ.** Converti au
+  LOT-13 avec la même recette qu'Aujourd'hui. Il ne reste plus aucun
+  `role="dialog"` ni `aria-modal` dans l'application, et les deux pages
+  asserent la propriété non modale : depuis le dernier élément du panneau, la
+  tabulation SORT vers le reste de la page.

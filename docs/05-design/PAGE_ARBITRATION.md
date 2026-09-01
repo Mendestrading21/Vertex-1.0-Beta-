@@ -115,11 +115,12 @@ Les deux pages attendent donc un **contrat serveur**, pas une décision
 d'interface. Les inventer maintenant produirait exactement la façade que
 l'article 17 de la Constitution interdit.
 
-## Le motif d'inspecteur, tranché (LOT-13, Aujourd'hui)
+## Le motif d'inspecteur, tranché et appliqué (LOT-13)
 
 Décision : **l'inspecteur persistant du shell est le motif unique.** Le
-dialogue modal disparaît, page par page. Aujourd'hui est converti ; Options
-reste à faire.
+dialogue modal a disparu des deux pages qui en portaient un — Aujourd'hui et
+Options. Il ne reste plus aucun `role="dialog"` ni `aria-modal` dans
+l'application.
 
 **Le piège de focus a été retiré, et c'est la correction, pas un
 affaiblissement.** Un piège n'est correct que pour un dialogue modal, où le
@@ -146,7 +147,13 @@ Deux défauts introduits par la conversion, trouvés et corrigés :
    l'encadrement visuel est celui de `.vx-inspector-panel`, commun à tous les
    panneaux.
 
-## Ce qui reste du motif d'inspecteur — Options
+Options a suivi exactement la même recette, et sans surprise : les deux
+défauts trouvés sur Aujourd'hui (focus perdu par le portail, surcouche
+`position: fixed`) étaient déjà corrigés à la racine — la ref de rappel dans
+le composant, la règle `.vx-sheet` dans la feuille de style. La conversion s'y
+est donc réduite au composant et à ses assertions.
+
+## Ancienne section — deux motifs coexistaient
 
 Constat du LOT-12, non corrigé, à traiter avant la refonte des pages.
 

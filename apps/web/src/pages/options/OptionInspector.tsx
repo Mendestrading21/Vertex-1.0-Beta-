@@ -1,16 +1,16 @@
-import { useEffect, useId, useRef } from 'react';
-import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
+import { useCallback, useEffect, useId, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import type { OptionChainContract } from '../../api/client.ts';
+import { InspectorPanel } from '../../shell/inspector.tsx';
 import { SIMULATOR_TRANSFER_VERSION } from '../simulator/transfer.ts';
 import type { SimulatorTransfer } from '../simulator/transfer.ts';
 import type { CalculationMetaView, SpotView } from './optionsView.ts';
 import { greeksViewOf, ivAbsentLabel, ivViewOf, quoteViewOf } from './optionsView.ts';
 
 /**
- * OptionInspector — panneau latéral (dialog accessible : focus piégé, Échap,
- * focus restitué par l'appelant) montrant UN contrat tel que publié :
+ * OptionInspector — panneau de l'INSPECTEUR du shell (LOT-13), montrant UN
+ * contrat tel que publié :
  * identité complète, quote verbatim + qualité, IV/Greeks Vertex avec unités,
  * badge THÉORIQUE et lignée `CalculationRecord`, ou leur raison d'absence
  * typée (jamais un zéro).
@@ -84,46 +84,46 @@ export function OptionInspector({
   population,
   onClose,
 }: OptionInspectorProps) {
-  const sheetRef = useRef<HTMLDivElement | null>(null);
   const titleId = useId();
   const navigate = useNavigate();
+  const [sheetNode, setSheetNode] = useState<HTMLDivElement | null>(null);
 
-  useEffect(() => {
-    const sheet = sheetRef.current;
-    if (sheet !== null) {
-      sheet.querySelector<HTMLElement>('button')?.focus();
-    }
+  /**
+   * Le focus entre dans le panneau dès que son nœud existe.
+   *
+   * Une ref de rappel, et non un `useEffect([])` : le panneau est monté par
+   * PORTAIL, et au premier rendu le nœud d'accueil du shell n'est pas encore
+   * résolu. Un effet de montage ne trouverait alors aucun bouton à focaliser —
+   * c'est le défaut rencontré en convertissant Aujourd'hui.
+   */
+  const attacherPanneau = useCallback((node: HTMLDivElement | null) => {
+    setSheetNode(node);
+    node?.querySelector<HTMLElement>('button')?.focus();
   }, []);
 
-  const handleKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
-    if (event.key === 'Escape') {
-      event.stopPropagation();
-      onClose();
+  /**
+   * `Échap` referme depuis n'importe quel élément du panneau.
+   *
+   * Écouteur NATIF sur le nœud plutôt que `onKeyDown` sur le conteneur :
+   * sans `role="dialog"`, ce conteneur est un élément statique, et la règle
+   * d'accessibilité du linter refuse — à juste titre — d'y accrocher un
+   * gestionnaire clavier.
+   */
+  useEffect(() => {
+    if (sheetNode === null) {
       return;
     }
-    if (event.key !== 'Tab') {
-      return;
+    function onKeyDown(event: KeyboardEvent): void {
+      if (event.key === 'Escape') {
+        event.stopPropagation();
+        onClose();
+      }
     }
-    const sheet = sheetRef.current;
-    if (sheet === null) {
-      return;
-    }
-    const focusables = Array.from(
-      sheet.querySelectorAll<HTMLElement>('button, a[href], [tabindex]:not([tabindex="-1"])'),
-    );
-    if (focusables.length === 0) {
-      return;
-    }
-    const first = focusables[0];
-    const last = focusables[focusables.length - 1];
-    if (event.shiftKey && document.activeElement === first) {
-      event.preventDefault();
-      last?.focus();
-    } else if (!event.shiftKey && document.activeElement === last) {
-      event.preventDefault();
-      first?.focus();
-    }
-  };
+    sheetNode.addEventListener('keydown', onKeyDown);
+    return () => {
+      sheetNode.removeEventListener('keydown', onKeyDown);
+    };
+  }, [sheetNode, onClose]);
 
   const quote = quoteViewOf(contract);
   const iv = ivViewOf(contract);
@@ -155,24 +155,21 @@ export function OptionInspector({
   }
 
   return (
-    <div
-      ref={sheetRef}
-      className="vx-sheet"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby={titleId}
-      onKeyDown={handleKeyDown}
-      data-testid="option-inspector"
+    <InspectorPanel
+      subject={`${contract.right ?? '?'} ${contract.strike ?? '—'} · ${contract.expiration} · ${contract.trading_class}`}
     >
-      <div className="vx-sheet-head">
-        <h2 id={titleId}>
-          {contract.right ?? '?'} {contract.strike ?? '—'} · {contract.expiration} ·{' '}
-          {contract.trading_class}
-        </h2>
-        <button type="button" className="vx-sheet-close" onClick={onClose}>
-          Fermer
-        </button>
-      </div>
+      <div ref={attacherPanneau} className="vx-sheet" data-testid="option-inspector">
+        <div className="vx-sheet-head">
+          {/* Le sujet est déjà rendu par l'inspecteur : ce titre reste pour
+              `aria-labelledby` sans doubler visuellement l'en-tête. */}
+          <h3 id={titleId} className="vx-visually-hidden">
+            {contract.right ?? '?'} {contract.strike ?? '—'} · {contract.expiration} ·{' '}
+            {contract.trading_class}
+          </h3>
+          <button type="button" className="vx-sheet-close" onClick={onClose}>
+            Fermer
+          </button>
+        </div>
       {contract.synthetic ? <p className="vx-badge vx-badge-synthetic">SYNTHÉTIQUE</p> : null}
 
       <h3>Identité du contrat</h3>
@@ -384,6 +381,7 @@ export function OptionInspector({
           transaction.
         </p>
       </div>
-    </div>
+      </div>
+    </InspectorPanel>
   );
 }
