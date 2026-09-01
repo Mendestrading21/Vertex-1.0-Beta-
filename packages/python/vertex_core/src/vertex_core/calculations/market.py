@@ -356,14 +356,11 @@ def atr(bars: Sequence[OhlcBar], lookback: int) -> float:
         typed_bars.append(bar)
     lb = _require_int(lookback, "lookback")
     if lb < 1:
-        raise CalculationInputError(
-            "invalid_lookback", f"lookback must be >= 1, got {lb}"
-        )
+        raise CalculationInputError("invalid_lookback", f"lookback must be >= 1, got {lb}")
     if len(typed_bars) < lb + 1:
         raise CalculationInputError(
             "minimum_sample",
-            f"ATR with lookback {lb} requires at least {lb + 1} bars, "
-            f"got {len(typed_bars)}",
+            f"ATR with lookback {lb} requires at least {lb + 1} bars, got {len(typed_bars)}",
         )
     previous_ts: datetime | None = None
     for i, bar in enumerate(typed_bars):
@@ -383,14 +380,10 @@ def atr(bars: Sequence[OhlcBar], lookback: int) -> float:
         high = _to_float(bar.high, f"bars[{i}].high")
         low = _to_float(bar.low, f"bars[{i}].low")
         prev_close = _to_float(prev.close, f"bars[{i - 1}].close")
-        true_ranges.append(
-            max(high - low, abs(high - prev_close), abs(low - prev_close))
-        )
+        true_ranges.append(max(high - low, abs(high - prev_close), abs(low - prev_close)))
     result = _finite_result(math.fsum(true_ranges) / lb, "market.atr")
     if result < 0.0:  # defensive: TR terms are non-negative by construction
-        raise CalculationInputError(
-            "non_finite_result", "market.atr produced a negative range"
-        )
+        raise CalculationInputError("non_finite_result", "market.atr produced a negative range")
     return result
 
 
@@ -451,9 +444,7 @@ def rebase_series(
     rebased = [base]
     for index, price in enumerate(prices[1:], start=1):
         valeur = _require_positive_price(price, f"prices[{index}]")
-        rebased.append(
-            _finite_result(base * valeur / p0, "market.rebased_series")
-        )
+        rebased.append(_finite_result(base * valeur / p0, "market.rebased_series"))
     return tuple(rebased)
 
 
@@ -581,8 +572,7 @@ def breadth(
     if above < 0 or above > covered:
         raise CalculationInputError(
             "invalid_count",
-            f"above_count must be within [0, covered_count], got {above} "
-            f"for coverage {covered}",
+            f"above_count must be within [0, covered_count], got {above} for coverage {covered}",
         )
     threshold = _to_float(coverage_threshold, "coverage_threshold")
     if threshold <= 0.0 or threshold > 1.0:

@@ -35,9 +35,7 @@ positive_maturities = st.floats(
     min_value=1.0 / 365.0, max_value=3.0, allow_nan=False, allow_infinity=False
 )
 vols = st.floats(min_value=0.0, max_value=1.5, allow_nan=False, allow_infinity=False)
-positive_vols = st.floats(
-    min_value=0.01, max_value=1.5, allow_nan=False, allow_infinity=False
-)
+positive_vols = st.floats(min_value=0.01, max_value=1.5, allow_nan=False, allow_infinity=False)
 rates = st.floats(min_value=-0.01, max_value=0.08, allow_nan=False, allow_infinity=False)
 yields_ = st.floats(min_value=0.0, max_value=0.05, allow_nan=False, allow_infinity=False)
 rights = st.sampled_from(["CALL", "PUT"])
@@ -69,12 +67,14 @@ def test_monotonicity_in_spot(s1, bump, m, t, vol, r, q):
     s2 = s1 + bump
     k = s1 * m
     tol = 1e-9 * max(1.0, s2)
-    assert european_price(s2, k, t, r, q, vol, "CALL") >= european_price(
-        s1, k, t, r, q, vol, "CALL"
-    ) - tol
-    assert european_price(s2, k, t, r, q, vol, "PUT") <= european_price(
-        s1, k, t, r, q, vol, "PUT"
-    ) + tol
+    assert (
+        european_price(s2, k, t, r, q, vol, "CALL")
+        >= european_price(s1, k, t, r, q, vol, "CALL") - tol
+    )
+    assert (
+        european_price(s2, k, t, r, q, vol, "PUT")
+        <= european_price(s1, k, t, r, q, vol, "PUT") + tol
+    )
 
 
 @settings(deadline=None, max_examples=200)
@@ -112,8 +112,13 @@ def test_price_respects_no_arbitrage_bounds(s, m, t, vol, r, q, right):
 
 @settings(deadline=None, max_examples=200)
 @given(
-    s=spots, m=moneyness, t=positive_maturities, vol=positive_vols, r=rates,
-    q=yields_, right=rights,
+    s=spots,
+    m=moneyness,
+    t=positive_maturities,
+    vol=positive_vols,
+    r=rates,
+    q=yields_,
+    right=rights,
 )
 def test_iv_round_trip_within_relative_tolerance(s, m, t, vol, r, q, right):
     """price -> implied_volatility -> price within 1e-7 relative."""
@@ -162,8 +167,15 @@ leg_strategy = st.builds(
 )
 spot_grid_strategy = st.lists(
     st.sampled_from(
-        [Decimal("0"), Decimal("80"), Decimal("95.50"), Decimal("100"),
-         Decimal("112.25"), Decimal("130"), Decimal("250")]
+        [
+            Decimal("0"),
+            Decimal("80"),
+            Decimal("95.50"),
+            Decimal("100"),
+            Decimal("112.25"),
+            Decimal("130"),
+            Decimal("250"),
+        ]
     ),
     min_size=1,
     max_size=5,

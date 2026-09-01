@@ -45,17 +45,27 @@ from pydantic import AfterValidator, model_validator
 from vertex_core.contracts.types import ContractModel, NonEmptyStr, PositiveInt
 
 __all__ = [
+    "CORRELATION_BOUND_TOLERANCE",
     "COVARIANCE_PSD_TOLERANCE",
     "COVARIANCE_SYMMETRY_TOLERANCE",
+    "CorrelationResult",
     "CovarianceResult",
     "EstimatorNotImplementedError",
     "MinimumSampleError",
     "RiskCalculationError",
+    "correlation",
     "covariance",
 ]
 
 COVARIANCE_SYMMETRY_TOLERANCE = 1e-12
 """Max admissible |S - S.T| relative to max(1, max|S|) before symmetrization."""
+
+CORRELATION_BOUND_TOLERANCE = 1e-9
+"""Depassement admissible de |rho| au-dela de 1, du seul fait du float64.
+
+Un coefficient qui sort de [-1, 1] au-dela de cette marge n'est pas un
+arrondi : c'est une matrice incoherente, et elle est REFUSEE plutot que
+ramenee de force dans les bornes."""
 
 COVARIANCE_PSD_TOLERANCE = 1e-10
 """Min admissible eigenvalue: >= -tolerance * max(1, max|eigenvalue|)."""
@@ -150,6 +160,77 @@ def _validate_matrix(aligned_returns: Sequence[Sequence[float]]) -> list[list[fl
     if width == 0:
         raise RiskCalculationError("aligned_returns needs at least one asset column")
     return converted
+
+
+class CorrelationResult(ContractModel):
+    """Matrice de correlation, derivee d'une covariance deja validee.
+
+    ``matrix`` est exactement symetrique et sa diagonale vaut exactement
+    ``1.0`` — elle n'est pas calculee mais posee : un actif est parfaitement
+    correle a lui-meme, et laisser un arrondi la deplacer serait absurde.
+    """
+
+    n_observations: PositiveInt
+    n_assets: PositiveInt
+    matrix: tuple[tuple[FiniteFloat, ...], ...]
+
+
+def correlation(result: CovarianceResult) -> CorrelationResult:
+    """``risk.correlation`` — correlation de Pearson depuis une covariance.
+
+    Methode : ``rho_ij = S_ij / sqrt(S_ii * S_jj)``, sur une matrice deja
+    validee par :func:`covariance` (symetrique, PSD dans sa tolerance).
+
+    Gates :
+
+    - ``positive_variances`` : chaque variance diagonale strictement positive.
+      Une serie constante a une variance nulle et n'a AUCUNE correlation
+      definie — la division serait une invention, pas un calcul ;
+    - ``bounded_coefficients`` : ``|rho| <= 1 + CORRELATION_BOUND_TOLERANCE``.
+      Au-dela, la matrice est incoherente et REFUSEE ; la ramener de force
+      dans les bornes masquerait le defaut.
+
+    Invariants (testes) : diagonale exactement ``1.0``, matrice exactement
+    symetrique, et chaque coefficient egal a sa covariance renormalisee.
+    """
+    matrice = result.matrix
+    n = result.n_assets
+    variances = [matrice[i][i] for i in range(n)]
+    for index, variance in enumerate(variances):
+        if not (variance > 0.0):
+            raise RiskCalculationError(
+                f"risk.correlation : variance nulle ou negative pour l'actif "
+                f"#{index} ({variance}). Une serie constante n'a pas de "
+                "correlation definie ; l'inventer serait une falsification."
+            )
+
+    ecarts = [math.sqrt(variance) for variance in variances]
+    lignes: list[tuple[float, ...]] = []
+    for i in range(n):
+        ligne: list[float] = []
+        for j in range(n):
+            if i == j:
+                # Posee, jamais calculee : un actif est parfaitement correle a
+                # lui-meme, et un arrondi ne doit pas l'en eloigner.
+                ligne.append(1.0)
+                continue
+            rho = matrice[i][j] / (ecarts[i] * ecarts[j])
+            if abs(rho) > 1.0 + CORRELATION_BOUND_TOLERANCE:
+                raise RiskCalculationError(
+                    f"risk.correlation : coefficient hors bornes ({rho}) pour "
+                    f"({i}, {j}). La matrice est incoherente ; la ramener de "
+                    "force dans [-1, 1] masquerait le defaut."
+                )
+            # Le seul recadrage admis : celui du float64, dans sa tolerance.
+            ligne.append(_ensure_finite_float(max(-1.0, min(1.0, rho))))
+        lignes.append(tuple(ligne))
+
+    # Symetrie exacte : `(M + M.T) / 2` sur des valeurs deja quasi symetriques.
+    symetrique = tuple(
+        tuple(1.0 if i == j else (lignes[i][j] + lignes[j][i]) / 2.0 for j in range(n))
+        for i in range(n)
+    )
+    return CorrelationResult(n_observations=result.n_observations, n_assets=n, matrix=symetrique)
 
 
 def covariance(

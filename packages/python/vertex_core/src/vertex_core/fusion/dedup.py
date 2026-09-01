@@ -342,6 +342,7 @@ def _sign_binding_digit_index(folded: str, index: int) -> int | None:
         return None
     return None
 
+
 _DIRECTION_MARKERS: Mapping[str, str] = MappingProxyType(
     {
         # Downward direction — same asserted polarity as a negative sign.
@@ -375,9 +376,7 @@ they appear.
 POLARITY_MARKERS = ("+", "-", "<", ">")
 """Canonical polarity markers produced by :func:`title_polarity_markers`."""
 
-_OPPOSITE_MARKER: Mapping[str, str] = MappingProxyType(
-    {"+": "-", "-": "+", ">": "<", "<": ">"}
-)
+_OPPOSITE_MARKER: Mapping[str, str] = MappingProxyType({"+": "-", "-": "+", ">": "<", "<": ">"})
 """The single explicit opposite of each canonical marker."""
 
 
@@ -416,9 +415,7 @@ def _scan_title(title: str) -> tuple[str, tuple[str, ...]]:
         sign = _SIGN_MARKERS.get(character)
         if sign is not None:
             after_alphanumeric = index > 0 and folded[index - 1].isalnum()
-            digit_index = (
-                None if after_alphanumeric else _sign_binding_digit_index(folded, index)
-            )
+            digit_index = None if after_alphanumeric else _sign_binding_digit_index(folded, index)
             if digit_index is None:
                 pieces.append(" ")  # a hyphen or a dash: ordinary punctuation
                 index += 1
@@ -476,9 +473,7 @@ def title_polarity_markers(title: str) -> tuple[str, ...]:
     return tuple(sorted(set(_scan_title(title)[1])))
 
 
-def opposed_markers(
-    first: Iterable[str], second: Iterable[str]
-) -> tuple[str, str] | None:
+def opposed_markers(first: Iterable[str], second: Iterable[str]) -> tuple[str, str] | None:
     """Return the first explicitly opposed marker pair, or ``None``.
 
     Two marker sets are opposed when one asserts a direction the other
@@ -652,8 +647,7 @@ def fuse(observations: Sequence[ContentObservation]) -> FusionResult:
     union = _UnionFind(ordered_ids)
     link_decisions: list[FusionDecision] = []
     markers: dict[str, tuple[str, ...]] = {
-        content_id: title_polarity_markers(by_id[content_id].title)
-        for content_id in ordered_ids
+        content_id: title_polarity_markers(by_id[content_id].title) for content_id in ordered_ids
     }
 
     # Level 1 — exact provider native id, per source.

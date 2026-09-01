@@ -247,9 +247,7 @@ class ConcentrationResult(ContractModel):
     herfindahl_index: FiniteDecimal
 
 
-def _as_tuple_of(
-    values: Sequence[object], expected_type: type, name: str
-) -> tuple[Any, ...]:
+def _as_tuple_of(values: Sequence[object], expected_type: type, name: str) -> tuple[Any, ...]:
     if isinstance(values, (str, bytes)):
         raise LedgerError(f"{name} must be a sequence of {expected_type.__name__} instances")
     items = tuple(values)

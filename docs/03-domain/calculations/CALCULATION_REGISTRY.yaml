@@ -1017,6 +1017,49 @@ calculations:
     runtime_usage: not_called_by_production_code_yet
     tests:
       - packages/python/vertex_core/tests/calculations/test_risk.py
+  - id: risk.correlation
+    owner: portfolio_risk
+    inputs: [covariance_result]
+    output_unit: correlation_coefficient
+    gates: [positive_variances, bounded_coefficients]
+    invariants: [symmetric, unit_diagonal, bounded_within_tolerance]
+    runtime_status: APPROVED
+    spec_version: "1.0.0"
+    implementation: packages/python/vertex_core/src/vertex_core/calculations/risk.py::correlation
+    method: pearson_renormalisation_of_an_approved_covariance
+    assumptions:
+      - "rho_ij = S_ij / sqrt(S_ii * S_jj), applied to a CovarianceResult ALREADY validated by risk.covariance (rectangular, complete, exactly symmetric, PSD within its tolerance). This calculation adds NO information: it renormalises an approved result so that coefficients become comparable across assets whose scales differ."
+      - "The diagonal is POSED at exactly 1.0, never computed: an asset is perfectly correlated with itself and a rounding error must not move it."
+      - "A zero or negative diagonal variance is REJECTED (positive_variances). A constant series has no defined correlation; dividing by its zero standard deviation would invent a number rather than compute one."
+      - "A coefficient beyond 1 + CORRELATION_BOUND_TOLERANCE is REJECTED (bounded_coefficients) rather than clamped: an incoherent matrix must stay visible, and forcing it back into [-1, 1] would hide the defect. Inside the tolerance the value is clipped, which is the float64 rounding alone."
+      - "Alignment, the point-in-time universe, and the choice of WHICH instruments form the matrix are the upstream duty of the caller, inherited from risk.covariance. The perimeter is declared by configuration, never deduced by the code."
+    parameter_schema:
+      covariance_result: {type: CovarianceResult, unit: covariance, constraint: "produced by risk.covariance; strictly positive diagonal"}
+      returns: {type: CorrelationResult, unit: correlation_coefficient, note: "n_observations, n_assets and matrix, each coefficient in [-1, 1] with an exact unit diagonal"}
+    tolerances:
+      correlation_bound_tolerance: 1.0e-9
+      oracle_atol: 1.0e-12
+      note: >-
+        CORRELATION_BOUND_TOLERANCE is a module constant of
+        calculations/risk.py. It bounds the float64 overshoot of |rho| beyond 1
+        that may be clipped; past that bound the matrix is refused. The oracle
+        test compares against numpy.corrcoef at atol=1e-12.
+    oracle: numpy_corrcoef_independent_implementation_in_test
+    oracle_evidence: >-
+      test_correlation_oracle_matches_numpy_corrcoef (marker pytest.mark.oracle)
+      compares the result with numpy.corrcoef(rowvar=False) at atol=1e-12;
+      test_golden_perfect_and_inverse (marker pytest.mark.golden) carries two
+      coefficients known by construction: a series and its double correlate at
+      +1.0, a series and its negation at -1.0 -- but NOT exactly in float64.
+      Measured 2026-09-01, that case returns 0.9999999999999999, one ULP below
+      1.0, because sqrt(S_aa * S_bb) rounds. The test therefore declares a
+      bound of 4 ULP rather than claiming an exactness the machine does not
+      have. The unit diagonal IS exact, because it is posed and not computed --
+      it would otherwise carry the same rounding.
+    criticality: high
+    runtime_usage: not_called_by_production_code_yet
+    tests:
+      - packages/python/vertex_core/tests/calculations/test_risk.py
   - id: probability.calibration
     owner: calibration
     inputs: [train_predictions, calibration_set, holdout]

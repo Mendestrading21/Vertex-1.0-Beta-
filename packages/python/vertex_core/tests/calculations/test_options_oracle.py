@@ -69,9 +69,7 @@ def quantlib_european(s, k, days, r, q, vol, right):
         ql.QuoteHandle(ql.SimpleQuote(s)),
         ql.YieldTermStructureHandle(ql.FlatForward(ANCHOR, q, day_count)),
         ql.YieldTermStructureHandle(ql.FlatForward(ANCHOR, r, day_count)),
-        ql.BlackVolTermStructureHandle(
-            ql.BlackConstantVol(ANCHOR, calendar, vol, day_count)
-        ),
+        ql.BlackVolTermStructureHandle(ql.BlackConstantVol(ANCHOR, calendar, vol, day_count)),
     )
     ql_right = ql.Option.Call if right == "CALL" else ql.Option.Put
     option = ql.VanillaOption(
@@ -98,12 +96,8 @@ class TestEuropeanPriceThreeWayOracle:
                     for r in RATES:
                         for q in YIELDS:
                             vertex = european_price(SPOT, k, t, r, q, vol, right)
-                            reference = scipy_reference_price(
-                                SPOT, k, t, r, q, vol, right
-                            )
-                            ql_price = quantlib_european(
-                                SPOT, k, days, r, q, vol, right
-                            ).NPV()
+                            reference = scipy_reference_price(SPOT, k, t, r, q, vol, right)
+                            ql_price = quantlib_european(SPOT, k, days, r, q, vol, right).NPV()
                             assert within_oracle_tolerance(vertex, reference), (
                                 f"vertex vs scipy diverge: right={right} T={t} "
                                 f"K={k} vol={vol} r={r} q={q}: "
@@ -116,9 +110,7 @@ class TestEuropeanPriceThreeWayOracle:
                             )
                             checked += 1
         # Guard against a silently empty grid.
-        assert checked == len(MATURITY_DAYS) * len(MONEYNESS) * len(VOLS) * len(
-            RATES
-        ) * len(YIELDS)
+        assert checked == len(MATURITY_DAYS) * len(MONEYNESS) * len(VOLS) * len(RATES) * len(YIELDS)
 
 
 def _american_process(s, r, q, vol):
@@ -129,9 +121,7 @@ def _american_process(s, r, q, vol):
         ql.QuoteHandle(ql.SimpleQuote(s)),
         ql.YieldTermStructureHandle(ql.FlatForward(ANCHOR, q, day_count)),
         ql.YieldTermStructureHandle(ql.FlatForward(ANCHOR, r, day_count)),
-        ql.BlackVolTermStructureHandle(
-            ql.BlackConstantVol(ANCHOR, calendar, vol, day_count)
-        ),
+        ql.BlackVolTermStructureHandle(ql.BlackConstantVol(ANCHOR, calendar, vol, day_count)),
     )
 
 
@@ -155,9 +145,7 @@ def quantlib_american_fd(s, k, days, r, q, vol, right, grid=800):
 def quantlib_american_crr(s, k, days, r, q, vol, right, steps=800):
     """SECOND independent numerical method: binomial CRR tree (test oracle)."""
     option = _american_option(k, days, right)
-    option.setPricingEngine(
-        ql.BinomialVanillaEngine(_american_process(s, r, q, vol), "crr", steps)
-    )
+    option.setPricingEngine(ql.BinomialVanillaEngine(_american_process(s, r, q, vol), "crr", steps))
     return option.NPV()
 
 

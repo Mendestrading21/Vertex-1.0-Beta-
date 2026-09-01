@@ -190,9 +190,7 @@ class TestIdentityLayer:
     def test_resolved_no_violation(self):
         assert check_identity(identity_status=IdentityStatus.RESOLVED) == ()
 
-    @pytest.mark.parametrize(
-        "status", [IdentityStatus.UNRESOLVED, IdentityStatus.AMBIGUOUS]
-    )
+    @pytest.mark.parametrize("status", [IdentityStatus.UNRESOLVED, IdentityStatus.AMBIGUOUS])
     def test_unresolved_or_ambiguous_blocking(self, status):
         (violation,) = check_identity(identity_status=status)
         assert violation.severity is ViolationSeverity.BLOCKING
@@ -211,9 +209,7 @@ class TestUnitLayer:
 
 class TestTimeLayer:
     def test_observed_after_received_blocking(self):
-        (violation,) = check_time_order(
-            observed_at=T0 + timedelta(seconds=1), received_at=T0
-        )
+        (violation,) = check_time_order(observed_at=T0 + timedelta(seconds=1), received_at=T0)
         assert violation.code == "OBSERVED_AFTER_RECEIVED"
         assert violation.severity is ViolationSeverity.BLOCKING
 

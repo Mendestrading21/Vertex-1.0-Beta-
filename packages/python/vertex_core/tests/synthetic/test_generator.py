@@ -49,7 +49,9 @@ class TestInputValidation:
     def test_naive_base_time_rejected(self) -> None:
         with pytest.raises(ValueError):
             generate_envelopes(
-                seed=1, count=5, base_time=datetime(2026, 8, 25, 12, 0, 0)  # noqa: DTZ001 (naïf délibéré : rejet vérifié)
+                seed=1,
+                count=5,
+                base_time=datetime(2026, 8, 25, 12, 0, 0),  # noqa: DTZ001 (naïf délibéré : rejet vérifié)
             )
 
     def test_zero_count_rejected(self) -> None:
@@ -126,9 +128,7 @@ class TestDuplicateLevels:
     def test_native_id_duplicate_present(self) -> None:
         envelopes = _generate()
         unique = {e.event_id: e for e in envelopes}.values()
-        native_pairs = [
-            (e.source, e.source_event_id) for e in unique if e.source_event_id
-        ]
+        native_pairs = [(e.source, e.source_event_id) for e in unique if e.source_event_id]
         assert len(native_pairs) > len(set(native_pairs))
 
     def test_canonical_url_duplicate_present(self) -> None:

@@ -100,9 +100,7 @@ def is_synthetic(envelope: DataEnvelope[Any]) -> bool:
     # `isinstance` contre elle rejette toutes les enveloppes réelles.
     # L'annotation et le contrôle runtime ne sont pas le même objet.
     if not isinstance(envelope, DataEnvelope):
-        raise TypeError(
-            f"envelope: expected DataEnvelope, got {type(envelope).__name__}"
-        )
+        raise TypeError(f"envelope: expected DataEnvelope, got {type(envelope).__name__}")
     return envelope.rights == SYNTHETIC_RIGHTS or envelope.source == SYNTHETIC_SOURCE
 
 
@@ -127,9 +125,7 @@ def _validate_inputs(seed: int, count: int, base_time: datetime) -> datetime:
     if count < 1:
         raise ValueError(f"count: must be >= 1, got {count}")
     if not isinstance(base_time, datetime):
-        raise TypeError(
-            f"base_time: expected datetime, got {type(base_time).__name__}"
-        )
+        raise TypeError(f"base_time: expected datetime, got {type(base_time).__name__}")
     return ensure_utc(base_time)
 
 
@@ -165,9 +161,7 @@ def _make_envelope(
     payload: dict[str, Any],
 ) -> DataEnvelope[dict[str, Any]]:
     received_at = published_at + _RECEIVE_LAG
-    stale_after = (
-        received_at if quality is EnvelopeQuality.STALE else received_at + _STALE_GRACE
-    )
+    stale_after = received_at if quality is EnvelopeQuality.STALE else received_at + _STALE_GRACE
     return DataEnvelope[dict[str, Any]](
         event_id=f"{SYNTHETIC_SOURCE}:{seed}:{index:04d}",
         schema_version=schema_version,
@@ -238,16 +232,14 @@ def generate_envelopes(
                 number = len(stories) + 1
                 ticker = f"SYN{number}"
                 tag = f"S{number:03d}"
-                title = SYNTHETIC_TITLE_PREFIX + rng.choice(
-                    _HEADLINE_TEMPLATES
-                ).format(n=number, tag=tag)
+                title = SYNTHETIC_TITLE_PREFIX + rng.choice(_HEADLINE_TEMPLATES).format(
+                    n=number, tag=tag
+                )
                 story = _Story(
                     number=number,
                     ticker=ticker,
                     title=title,
-                    canonical_url=(
-                        f"https://synthetic.invalid/news/story-{number:03d}"
-                    ),
+                    canonical_url=(f"https://synthetic.invalid/news/story-{number:03d}"),
                     native_id=f"syn-native-{number:03d}",
                     quality=rng.choice(_QUALITY_CHOICES),
                     event_id=f"{SYNTHETIC_SOURCE}:{seed}:{index:04d}",
@@ -261,9 +253,7 @@ def generate_envelopes(
                     instrument_id=story.ticker,
                     published_at=published_at,
                     quality=story.quality,
-                    payload=_news_payload(
-                        story.title, story.canonical_url, story.ticker
-                    ),
+                    payload=_news_payload(story.title, story.canonical_url, story.ticker),
                 )
         else:
             # Duplicate of an existing story. Indices 1..4 force one

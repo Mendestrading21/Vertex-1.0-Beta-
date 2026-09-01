@@ -64,18 +64,15 @@ class TestDeterminismAndMarkers:
     def test_naive_base_time_rejected(self) -> None:
         with pytest.raises(ValueError):
             generate_option_chain_envelopes(
-                seed=SEED, base_time=datetime(2026, 8, 25, 12, 0, 0)  # noqa: DTZ001 (naïf délibéré : rejet vérifié)
+                seed=SEED,
+                base_time=datetime(2026, 8, 25, 12, 0, 0),  # noqa: DTZ001 (naïf délibéré : rejet vérifié)
             )
 
 
 class TestStructure:
     def test_universe_is_four_declared_syn_tickers(self) -> None:
         assert len(SYNTHETIC_OPTION_UNDERLYINGS) == 4
-        declared = {
-            ticker
-            for tickers in SYNTHETIC_SECTOR_TICKERS.values()
-            for ticker in tickers
-        }
+        declared = {ticker for tickers in SYNTHETIC_SECTOR_TICKERS.values() for ticker in tickers}
         assert set(SYNTHETIC_OPTION_UNDERLYINGS) <= declared
 
     def test_three_slices_per_underlying(self, envelopes) -> None:
@@ -124,15 +121,11 @@ class TestStructure:
                 seen_con_ids.add(contract["con_id"])
                 assert Decimal(contract["strike"]) > 0
         # con_id is unique across the whole synthetic universe.
-        assert len(seen_con_ids) == sum(
-            len(e.payload["contracts"]) for e in envelopes
-        )
+        assert len(seen_con_ids) == sum(len(e.payload["contracts"]) for e in envelopes)
 
 
 class TestQuotes:
-    def test_sane_quotes_have_bid_below_ask_and_mid_inside_bounds(
-        self, envelopes
-    ) -> None:
+    def test_sane_quotes_have_bid_below_ask_and_mid_inside_bounds(self, envelopes) -> None:
         checked = 0
         for envelope in envelopes:
             payload = envelope.payload
@@ -164,9 +157,7 @@ class TestQuotes:
                 checked += 1
         assert checked > 150  # the sane quotes dominate the universe
 
-    def test_each_underlying_has_crossed_stale_and_missing_quotes(
-        self, envelopes
-    ) -> None:
+    def test_each_underlying_has_crossed_stale_and_missing_quotes(self, envelopes) -> None:
         for underlying in SYNTHETIC_OPTION_UNDERLYINGS:
             crossed = stale = missing = 0
             for envelope in slices_of(envelopes, underlying):
@@ -185,10 +176,7 @@ class TestQuotes:
 
     def test_degraded_slice_is_partial_quality(self, envelopes) -> None:
         for underlying in SYNTHETIC_OPTION_UNDERLYINGS:
-            qualities = [
-                envelope.quality_status
-                for envelope in slices_of(envelopes, underlying)
-            ]
+            qualities = [envelope.quality_status for envelope in slices_of(envelopes, underlying)]
             assert qualities.count(EnvelopeQuality.PARTIAL) == 1
             assert qualities.count(EnvelopeQuality.VALID) == 2
 

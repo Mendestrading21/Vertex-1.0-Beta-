@@ -133,17 +133,13 @@ class TestNoArbitrageBounds:
     def test_call_bounds_formula(self):
         s, k, t, r, q = 100.0, 90.0, 1.0, 0.03, 0.01
         lower, upper = no_arbitrage_bounds(s, k, t, r, q, OptionRight.CALL)
-        assert lower == pytest.approx(
-            s * math.exp(-q * t) - k * math.exp(-r * t), rel=1e-12
-        )
+        assert lower == pytest.approx(s * math.exp(-q * t) - k * math.exp(-r * t), rel=1e-12)
         assert upper == pytest.approx(s * math.exp(-q * t), rel=1e-12)
 
     def test_put_bounds_formula(self):
         s, k, t, r, q = 100.0, 130.0, 1.0, 0.03, 0.01
         lower, upper = no_arbitrage_bounds(s, k, t, r, q, OptionRight.PUT)
-        assert lower == pytest.approx(
-            k * math.exp(-r * t) - s * math.exp(-q * t), rel=1e-12
-        )
+        assert lower == pytest.approx(k * math.exp(-r * t) - s * math.exp(-q * t), rel=1e-12)
         assert upper == pytest.approx(k * math.exp(-r * t), rel=1e-12)
 
     def test_otm_lower_bound_is_zero_not_negative(self):
@@ -168,9 +164,7 @@ class TestEuropeanPrice:
     def test_zero_volatility_is_discounted_deterministic_bound(self):
         s, k, t, r, q = 100.0, 90.0, 2.0, 0.03, 0.01
         expected = s * math.exp(-q * t) - k * math.exp(-r * t)
-        assert european_price(s, k, t, r, q, 0.0, "CALL") == pytest.approx(
-            expected, rel=1e-12
-        )
+        assert european_price(s, k, t, r, q, 0.0, "CALL") == pytest.approx(expected, rel=1e-12)
         assert european_price(s, k, t, r, q, 0.0, "PUT") == 0.0
 
     def test_known_value_atm(self):
@@ -201,16 +195,12 @@ class TestEuropeanPrice:
         call = european_price(s, k, t, r, q, vol, "CALL")
         put = european_price(s, k, t, r, q, vol, "PUT")
         assert call == pytest.approx(0.0, abs=1e-9)
-        assert put == pytest.approx(
-            k * math.exp(-r * t) - s * math.exp(-q * t), rel=1e-9
-        )
+        assert put == pytest.approx(k * math.exp(-r * t) - s * math.exp(-q * t), rel=1e-9)
 
     def test_extreme_low_strike_call_near_forward_bound(self):
         s, k, t, r, q, vol = 100.0, 1e-6, 1.0, 0.03, 0.01, 0.5
         call = european_price(s, k, t, r, q, vol, "CALL")
-        assert call == pytest.approx(
-            s * math.exp(-q * t) - k * math.exp(-r * t), rel=1e-9
-        )
+        assert call == pytest.approx(s * math.exp(-q * t) - k * math.exp(-r * t), rel=1e-9)
 
     @pytest.mark.parametrize(
         "kwargs, reason",
@@ -281,25 +271,19 @@ class TestImpliedVolatility:
         # Deep ITM call: lower bound is strictly positive; go below it.
         lower, _ = no_arbitrage_bounds(100, 50, self.T, self.R, self.Q, "CALL")
         with pytest.raises(IVNoSolutionError) as err:
-            implied_volatility(
-                lower * 0.5, 100, 50, self.T, self.R, self.Q, "CALL", "MID"
-            )
+            implied_volatility(lower * 0.5, 100, 50, self.T, self.R, self.Q, "CALL", "MID")
         assert err.value.reason == "price_outside_no_arbitrage_bounds"
 
     def test_price_at_bound_rejected_strictness(self):
         lower, upper = no_arbitrage_bounds(100, 50, self.T, self.R, self.Q, "CALL")
         for at_bound in (lower, upper):
             with pytest.raises(IVNoSolutionError):
-                implied_volatility(
-                    at_bound, 100, 50, self.T, self.R, self.Q, "CALL", "MID"
-                )
+                implied_volatility(at_bound, 100, 50, self.T, self.R, self.Q, "CALL", "MID")
 
     def test_price_above_upper_bound_rejected(self):
         _, upper = no_arbitrage_bounds(self.S, self.K, self.T, self.R, self.Q, "CALL")
         with pytest.raises(IVNoSolutionError):
-            implied_volatility(
-                upper * 1.01, self.S, self.K, self.T, self.R, self.Q, "CALL", "MID"
-            )
+            implied_volatility(upper * 1.01, self.S, self.K, self.T, self.R, self.Q, "CALL", "MID")
 
     def test_price_inside_bounds_but_above_bracket_ceiling_rejected(self):
         # ATM call, price just below its upper bound: IV would exceed 5.0.
@@ -332,9 +316,7 @@ class TestImpliedVolatility:
 
     def test_non_finite_price_rejected(self):
         with pytest.raises(OptionInputError):
-            implied_volatility(
-                float("nan"), self.S, self.K, self.T, self.R, self.Q, "CALL", "MID"
-            )
+            implied_volatility(float("nan"), self.S, self.K, self.T, self.R, self.Q, "CALL", "MID")
 
     def test_iv_error_is_subclass_of_input_error(self):
         assert issubclass(IVNoSolutionError, OptionInputError)
@@ -347,16 +329,26 @@ class TestGreeks:
         params = {"s": self.S, "k": self.K, "t": self.T, "r": self.R, "q": self.Q, "vol": self.VOL}
         params.update(overrides)
         return greeks(
-            params["s"], params["k"], params["t"], params["r"], params["q"],
-            params["vol"], right,
+            params["s"],
+            params["k"],
+            params["t"],
+            params["r"],
+            params["q"],
+            params["vol"],
+            right,
         )
 
     def price(self, right="CALL", **overrides):
         params = {"s": self.S, "k": self.K, "t": self.T, "r": self.R, "q": self.Q, "vol": self.VOL}
         params.update(overrides)
         return european_price(
-            params["s"], params["k"], params["t"], params["r"], params["q"],
-            params["vol"], right,
+            params["s"],
+            params["k"],
+            params["t"],
+            params["r"],
+            params["q"],
+            params["vol"],
+            right,
         )
 
     @pytest.mark.parametrize("right", ["CALL", "PUT"])
@@ -428,15 +420,26 @@ class TestGreeks:
     def test_result_model_rejects_non_finite(self):
         with pytest.raises(ValidationError):
             GreeksResult(
-                delta=float("nan"), gamma=0.0, vega=0.0, vega_per_point=0.0,
-                theta=0.0, theta_per_calendar_day=0.0, rho=0.0, rho_per_bp=0.0,
+                delta=float("nan"),
+                gamma=0.0,
+                vega=0.0,
+                vega_per_point=0.0,
+                theta=0.0,
+                theta_per_calendar_day=0.0,
+                rho=0.0,
+                rho_per_bp=0.0,
             )
 
     def test_result_model_rejects_inconsistent_derived_view(self):
         with pytest.raises(ValidationError):
             GreeksResult(
-                delta=0.5, gamma=0.01, vega=40.0, vega_per_point=1.0,
-                theta=-5.0, theta_per_calendar_day=-5.0 / 365.0, rho=45.0,
+                delta=0.5,
+                gamma=0.01,
+                vega=40.0,
+                vega_per_point=1.0,
+                theta=-5.0,
+                theta_per_calendar_day=-5.0 / 365.0,
+                rho=45.0,
                 rho_per_bp=45.0 * 0.0001,
             )
 
@@ -488,7 +491,13 @@ class TestAmericanPrice:
     def test_discrete_dividends_not_implemented(self):
         with pytest.raises(OptionNotImplementedError) as err:
             american_price(
-                100, 100, T_ONE, 0.03, 0.0, 0.3, "PUT",
+                100,
+                100,
+                T_ONE,
+                0.03,
+                0.0,
+                0.3,
+                "PUT",
                 discrete_dividends=(Decimal("1.20"),),
             )
         assert "NOT_IMPLEMENTED" in str(err.value)
@@ -497,7 +506,13 @@ class TestAmericanPrice:
     def test_discrete_dividends_never_silently_ignored_even_when_zero(self):
         with pytest.raises(OptionNotImplementedError):
             american_price(
-                100, 100, T_ONE, 0.03, 0.0, 0.3, "PUT",
+                100,
+                100,
+                T_ONE,
+                0.03,
+                0.0,
+                0.3,
+                "PUT",
                 discrete_dividends=[Decimal("0")],
             )
 
@@ -508,9 +523,7 @@ class TestAmericanPrice:
 
     def test_steps_below_validated_grid_rejected(self):
         with pytest.raises(OptionInputError) as err:
-            american_price(
-                100, 100, T_ONE, 0.03, 0.0, 0.3, "PUT", steps=AMERICAN_MIN_STEPS - 1
-            )
+            american_price(100, 100, T_ONE, 0.03, 0.0, 0.3, "PUT", steps=AMERICAN_MIN_STEPS - 1)
         assert err.value.reason == "steps_below_validated_grid"
 
     def test_steps_must_be_int(self):
@@ -539,10 +552,10 @@ class TestAmericanPrice:
     @pytest.mark.parametrize(
         "t",
         [
-            1.5 / 365.0,   # would banker's-round UP to 2 days
-            183.5 / 365.0, # half-day off the grid, would round to 184
-            0.5,           # plain half-year = 182.5 days, off-grid
-            0.01,          # 3.65 days, off-grid
+            1.5 / 365.0,  # would banker's-round UP to 2 days
+            183.5 / 365.0,  # half-day off the grid, would round to 184
+            0.5,  # plain half-year = 182.5 days, off-grid
+            0.01,  # 3.65 days, off-grid
         ],
     )
     def test_off_grid_maturities_all_rejected(self, t):
@@ -606,8 +619,11 @@ class TestOptionLeg:
     def test_zero_quantity_rejected(self):
         with pytest.raises(ValidationError):
             OptionLeg(
-                quantity=0, right="CALL", strike=Decimal("100"),
-                premium=Decimal("1"), multiplier=100,
+                quantity=0,
+                right="CALL",
+                strike=Decimal("100"),
+                premium=Decimal("1"),
+                multiplier=100,
             )
 
     def test_option_leg_requires_strike(self):
@@ -617,29 +633,41 @@ class TestOptionLeg:
     def test_stock_leg_forbids_strike(self):
         with pytest.raises(ValidationError):
             OptionLeg(
-                quantity=1, right="STOCK", strike=Decimal("100"),
-                premium=Decimal("100"), multiplier=1,
+                quantity=1,
+                right="STOCK",
+                strike=Decimal("100"),
+                premium=Decimal("100"),
+                multiplier=1,
             )
 
     def test_negative_premium_rejected(self):
         with pytest.raises(ValidationError):
             OptionLeg(
-                quantity=1, right="PUT", strike=Decimal("100"),
-                premium=Decimal("-1"), multiplier=100,
+                quantity=1,
+                right="PUT",
+                strike=Decimal("100"),
+                premium=Decimal("-1"),
+                multiplier=100,
             )
 
     def test_non_positive_multiplier_rejected(self):
         with pytest.raises(ValidationError):
             OptionLeg(
-                quantity=1, right="PUT", strike=Decimal("100"),
-                premium=Decimal("1"), multiplier=0,
+                quantity=1,
+                right="PUT",
+                strike=Decimal("100"),
+                premium=Decimal("1"),
+                multiplier=0,
             )
 
     def test_unknown_right_rejected(self):
         with pytest.raises(ValidationError):
             OptionLeg(
-                quantity=1, right="FUTURE", strike=Decimal("100"),
-                premium=Decimal("1"), multiplier=100,
+                quantity=1,
+                right="FUTURE",
+                strike=Decimal("100"),
+                premium=Decimal("1"),
+                multiplier=100,
             )
 
     def test_frozen(self):
@@ -771,8 +799,12 @@ class TestScenarioGrid:
 
     def test_shape_and_finiteness(self):
         grid = scenario_grid(
-            self.legs(), [90.0, 100.0, 110.0], [0.5, 0.25, 0.0],
-            [(0.2, 0.2), (0.3, 0.3)], 0.03, 0.01,
+            self.legs(),
+            [90.0, 100.0, 110.0],
+            [0.5, 0.25, 0.0],
+            [(0.2, 0.2), (0.3, 0.3)],
+            0.03,
+            0.01,
         )
         assert len(grid) == 2
         assert all(len(row) == 3 for row in grid)
@@ -781,16 +813,19 @@ class TestScenarioGrid:
 
     def test_deterministic(self):
         args = (
-            self.legs(), [95.0, 105.0], [0.4, 0.1], [(0.25, 0.28)], 0.02, 0.0,
+            self.legs(),
+            [95.0, 105.0],
+            [0.4, 0.1],
+            [(0.25, 0.28)],
+            0.02,
+            0.0,
         )
         assert scenario_grid(*args) == scenario_grid(*args)
 
     def test_single_leg_cell_equals_bsm_repricing(self):
         legs = [call_leg(2, "100", "5")]
         grid = scenario_grid(legs, [104.0], [0.5], [(0.3,)], 0.03, 0.01)
-        expected = 2 * 100 * (
-            european_price(104.0, 100.0, 0.5, 0.03, 0.01, 0.3, "CALL") - 5.0
-        )
+        expected = 2 * 100 * (european_price(104.0, 100.0, 0.5, 0.03, 0.01, 0.3, "CALL") - 5.0)
         assert grid[0][0][0] == pytest.approx(expected, rel=1e-12)
 
     def test_converges_to_payoff_at_expiry(self):

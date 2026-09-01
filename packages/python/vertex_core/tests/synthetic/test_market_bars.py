@@ -95,13 +95,12 @@ def test_bars_are_a_continuous_series(envelopes) -> None:
 
 def test_unknown_ticker_is_rejected() -> None:
     with pytest.raises(ValueError):
-        generate_daily_bar_envelopes(
-            seed=SEED, base_time=BASE_TIME, tickers=("NOT-A-SYN",)
-        )
+        generate_daily_bar_envelopes(seed=SEED, base_time=BASE_TIME, tickers=("NOT-A-SYN",))
 
 
 def test_naive_base_time_rejected() -> None:
     with pytest.raises(ValueError):
         generate_daily_bar_envelopes(
-            seed=SEED, base_time=datetime(2026, 8, 25, 12, 0, 0)  # noqa: DTZ001 (naïf délibéré : rejet vérifié)
+            seed=SEED,
+            base_time=datetime(2026, 8, 25, 12, 0, 0),  # noqa: DTZ001 (naïf délibéré : rejet vérifié)
         )

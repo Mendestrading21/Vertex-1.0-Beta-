@@ -68,9 +68,18 @@ class TestGolden:
 
 
 class TestInvalidBranches:
-    @pytest.mark.parametrize("field", [
-        "entry", "stop", "target", "multiplier", "costs", "currency_match", "horizon_defined",
-    ])
+    @pytest.mark.parametrize(
+        "field",
+        [
+            "entry",
+            "stop",
+            "target",
+            "multiplier",
+            "costs",
+            "currency_match",
+            "horizon_defined",
+        ],
+    )
     def test_missing_input(self, field):
         result = risk_reward(**valid_kwargs(**{field: None}))
         assert result.status is CalculationStatus.INVALID
@@ -95,12 +104,15 @@ class TestInvalidBranches:
         assert result.status is CalculationStatus.INVALID
         assert result.reason == "NEGATIVE_COSTS"
 
-    @pytest.mark.parametrize("overrides", [
-        {"entry": Decimal("0")},
-        {"entry": Decimal("-1"), "stop": Decimal("-2")},
-        {"stop": Decimal("0"), "entry": Decimal("1"), "target": Decimal("2")},
-        {"target": Decimal("-5")},
-    ])
+    @pytest.mark.parametrize(
+        "overrides",
+        [
+            {"entry": Decimal("0")},
+            {"entry": Decimal("-1"), "stop": Decimal("-2")},
+            {"stop": Decimal("0"), "entry": Decimal("1"), "target": Decimal("2")},
+            {"target": Decimal("-5")},
+        ],
+    )
     def test_non_positive_price(self, overrides):
         result = risk_reward(**valid_kwargs(**overrides))
         assert result.status is CalculationStatus.INVALID
@@ -136,16 +148,19 @@ class TestInvalidBranches:
 
 
 class TestTypedErrors:
-    @pytest.mark.parametrize("field, value", [
-        ("entry", 100.0),
-        ("stop", 95),
-        ("target", "115"),
-        ("costs", 1.0),
-        ("multiplier", 1.0),
-        ("multiplier", True),
-        ("currency_match", 1),
-        ("horizon_defined", "yes"),
-    ])
+    @pytest.mark.parametrize(
+        "field, value",
+        [
+            ("entry", 100.0),
+            ("stop", 95),
+            ("target", "115"),
+            ("costs", 1.0),
+            ("multiplier", 1.0),
+            ("multiplier", True),
+            ("currency_match", 1),
+            ("horizon_defined", "yes"),
+        ],
+    )
     def test_wrong_type_raises(self, field, value):
         with pytest.raises(RiskRewardInputError):
             risk_reward(**valid_kwargs(**{field: value}))
@@ -201,12 +216,18 @@ class TestFinancialSemantics:
 
 
 PRICES = st.decimals(
-    min_value=Decimal("0.01"), max_value=Decimal("100000"),
-    places=4, allow_nan=False, allow_infinity=False,
+    min_value=Decimal("0.01"),
+    max_value=Decimal("100000"),
+    places=4,
+    allow_nan=False,
+    allow_infinity=False,
 )
 COSTS = st.decimals(
-    min_value=Decimal("0"), max_value=Decimal("1000"),
-    places=4, allow_nan=False, allow_infinity=False,
+    min_value=Decimal("0"),
+    max_value=Decimal("1000"),
+    places=4,
+    allow_nan=False,
+    allow_infinity=False,
 )
 MULTIPLIERS = st.integers(min_value=1, max_value=10000)
 
@@ -214,9 +235,13 @@ MULTIPLIERS = st.integers(min_value=1, max_value=10000)
 @pytest.mark.property
 class TestProperties:
     @given(
-        entry=PRICES, stop=PRICES, target=PRICES,
-        multiplier=MULTIPLIERS, costs=COSTS,
-        currency_match=st.booleans(), horizon_defined=st.booleans(),
+        entry=PRICES,
+        stop=PRICES,
+        target=PRICES,
+        multiplier=MULTIPLIERS,
+        costs=COSTS,
+        currency_match=st.booleans(),
+        horizon_defined=st.booleans(),
     )
     def test_never_a_ratio_when_risk_not_positive_finite_otherwise(
         self, entry, stop, target, multiplier, costs, currency_match, horizon_defined
@@ -243,17 +268,42 @@ class TestProperties:
             assert result.reason
 
     @given(
-        entry=st.decimals(min_value=Decimal("10"), max_value=Decimal("1000"), places=2,
-                          allow_nan=False, allow_infinity=False),
-        stop_gap=st.decimals(min_value=Decimal("0.01"), max_value=Decimal("5"), places=2,
-                             allow_nan=False, allow_infinity=False),
-        target_gap=st.decimals(min_value=Decimal("0.01"), max_value=Decimal("50"), places=2,
-                               allow_nan=False, allow_infinity=False),
+        entry=st.decimals(
+            min_value=Decimal("10"),
+            max_value=Decimal("1000"),
+            places=2,
+            allow_nan=False,
+            allow_infinity=False,
+        ),
+        stop_gap=st.decimals(
+            min_value=Decimal("0.01"),
+            max_value=Decimal("5"),
+            places=2,
+            allow_nan=False,
+            allow_infinity=False,
+        ),
+        target_gap=st.decimals(
+            min_value=Decimal("0.01"),
+            max_value=Decimal("50"),
+            places=2,
+            allow_nan=False,
+            allow_infinity=False,
+        ),
         multiplier=st.integers(min_value=1, max_value=100),
-        costs=st.decimals(min_value=Decimal("0"), max_value=Decimal("10"), places=2,
-                          allow_nan=False, allow_infinity=False),
-        extra_costs=st.decimals(min_value=Decimal("0.01"), max_value=Decimal("10"), places=2,
-                                allow_nan=False, allow_infinity=False),
+        costs=st.decimals(
+            min_value=Decimal("0"),
+            max_value=Decimal("10"),
+            places=2,
+            allow_nan=False,
+            allow_infinity=False,
+        ),
+        extra_costs=st.decimals(
+            min_value=Decimal("0.01"),
+            max_value=Decimal("10"),
+            places=2,
+            allow_nan=False,
+            allow_infinity=False,
+        ),
     )
     def test_costs_reduce_reward_property(
         self, entry, stop_gap, target_gap, multiplier, costs, extra_costs
