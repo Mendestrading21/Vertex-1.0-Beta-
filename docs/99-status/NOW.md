@@ -318,8 +318,17 @@ ecarts_declares:
      réel toujours INCONNU"
   - "6 interdictions absolues sur 30 ne sont pas prouvées par un test (24/30 prouvées) —
      détail dans manifests/traceability.yaml, imprimé à chaque exécution"
-  - "AUCUNE donnée réelle n'a jamais été observée — IBKR jamais contacté,
-     Cloudflare non déployé, Compose jamais exécuté (pas de démon Docker)"
+  - "Cloudflare non déployé, Compose jamais exécuté (pas de démon Docker)"
+  - "IBKR A ÉTÉ CONTACTÉ le 2026-08-31 depuis la machine de bureau, en API
+     lecture seule sur loopback : sonde de droits, découverte scanner puis
+     remplissage historique. 36 864 observations réelles, 153 instruments.
+     Détail mesuré dans `affichage_reel_mesure` plus bas. La ligne qui
+     précédait affirmait le contraire et n'avait pas été relue : ce dépôt
+     refuse qu'un écran affirme ce qu'il n'a pas mesuré, son propre
+     document d'état se doit la même règle."
+  - "RIEN de ces données réelles n'existe en intégration continue : la
+     collecte dépend de TWS, qui tourne sur la machine de l'utilisateur.
+     Toute population observée en CI reste SYNTHETIC."
 blocages_humains:
   - "B-02 : revue de l'inventaire du dépôt donneur"
   - "B-03 : projet Cloudflare"
