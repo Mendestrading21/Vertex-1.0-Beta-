@@ -43,10 +43,10 @@ SKIP_PARTS = {
     "e2e-artifacts",
 }
 
-# LOT-25 prolonge le blueprint avec le bord des sources officielles. Cette
+# LOT-26 prolonge le blueprint avec SEC EDGAR point-in-time. Cette
 # constante reste explicite : une numérotation ajoutée sans mettre la porte à
 # jour doit continuer à faire échouer la CI.
-LAST_BLUEPRINT_LOT = 25
+LAST_BLUEPRINT_LOT = 26
 
 
 def scan_files(root: Path, *patterns: str) -> list[Path]:

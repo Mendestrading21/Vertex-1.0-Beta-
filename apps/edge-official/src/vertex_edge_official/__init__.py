@@ -14,6 +14,7 @@ from vertex_edge_official.clients import (
     SnbDataClient,
 )
 from vertex_edge_official.config import OfficialSourceConfig
+from vertex_edge_official.sec import SecNormalizationError, normalize_sec_edgar
 from vertex_edge_official.transport import (
     HttpRequest,
     HttpResponse,
@@ -33,6 +34,8 @@ __all__ = [
     "OpenFigiClient",
     "OpenFigiMapping",
     "SecEdgarClient",
+    "SecNormalizationError",
     "SnbDataClient",
     "UrllibTransport",
+    "normalize_sec_edgar",
 ]

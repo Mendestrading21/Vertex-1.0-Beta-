@@ -95,6 +95,7 @@ from vertex_api.schemas import (
     OptionChainContract,
     OptionChainExpiration,
     OptionChainResponse,
+    SecFundamentalsResponse,
     SnapshotHealth,
     SystemCapabilitiesResponse,
     SystemHealth,
@@ -145,6 +146,7 @@ __all__ = [
     "build_capabilities_response",
     "build_markets_overview_response",
     "build_option_chain_response",
+    "build_sec_fundamentals_response",
     "build_system_health",
     "checked_relayed_content",
     "is_synthetic_marker",
@@ -167,11 +169,13 @@ ATTENTION_FRESHNESS_POLICY = "news_attention"
 MARKETS_FRESHNESS_POLICY = "daily_bar"
 ANALYSIS_FRESHNESS_POLICY = "daily_bar"
 OPTION_CHAIN_FRESHNESS_POLICY = "option_surface"
+SEC_FUNDAMENTALS_FRESHNESS_POLICY = "fundamental_filing"
 
 _ATTENTION_POLICY = get_freshness_policy(ATTENTION_FRESHNESS_POLICY)
 _MARKETS_POLICY = get_freshness_policy(MARKETS_FRESHNESS_POLICY)
 _ANALYSIS_POLICY = get_freshness_policy(ANALYSIS_FRESHNESS_POLICY)
 _OPTION_CHAIN_POLICY = get_freshness_policy(OPTION_CHAIN_FRESHNESS_POLICY)
+_SEC_FUNDAMENTALS_POLICY = get_freshness_policy(SEC_FUNDAMENTALS_FRESHNESS_POLICY)
 
 #: La matrice de capacités n'a AUCUN budget de relais, et c'est DÉCLARÉ : la
 #: péremption d'une capacité est portée champ par champ par le ``expires_at``
@@ -1924,6 +1928,97 @@ def build_analysis_response(
         evidence=_wire_mapping(content.get("evidence"), field="evidence"),
         scenarios=scenarios,
         advice=dict(_checked_advice(content.get("advice"))),
+        coverage=_wire_mapping(content.get("coverage"), field="coverage"),
+        reason=freshness.stale_reason,
+    )
+
+
+def build_sec_fundamentals_response(
+    snapshot: CurrentSnapshot | None, *, instrument: str, now: datetime
+) -> SecFundamentalsResponse:
+    """Relay one official SEC snapshot, or preserve its honest absence."""
+    if snapshot is None:
+        return SecFundamentalsResponse(
+            state="empty",
+            snapshot_version=None,
+            as_of=None,
+            age_seconds=None,
+            population=None,
+            instrument=instrument,
+            source=None,
+            rights=None,
+            identity_state=None,
+            cik=None,
+            entity_name=None,
+            data_as_of=None,
+            filings=(),
+            facts=(),
+            conflicts=(),
+            coverage=None,
+            reason=REASON_NO_SNAPSHOT_PUBLISHED,
+        )
+
+    content = checked_relayed_content(snapshot.content)
+    published_instrument = _require_str(content.get("instrument"), field="instrument")
+    if published_instrument != instrument:
+        raise SnapshotContentError(
+            "instrument: snapshot content does not match the requested key",
+            field="instrument",
+        )
+    if content.get("source") != "sec_edgar":
+        raise SnapshotContentError("source: sec_edgar required", field="source")
+    if content.get("rights") != "R1_PUBLIC_FACT_SEC_EDGAR_POLICY_2026_08_28":
+        raise SnapshotContentError("rights: SEC public-fact policy required", field="rights")
+    identity_state = content.get("identity_state")
+    if identity_state not in ("RESOLVED", "CONFLICTING_IDENTITY", "ABSENT"):
+        raise SnapshotContentError(
+            "identity_state: canonical SEC identity state required",
+            field="identity_state",
+        )
+
+    def mappings(field: str) -> tuple[dict[str, Any], ...]:
+        values = _require_list(content.get(field), field=field)
+        return tuple(
+            dict(_wire_mapping(value, field=f"{field}[{index}]"))
+            for index, value in enumerate(values)
+        )
+
+    cik_value = content.get("cik")
+    entity_value = content.get("entity_name")
+    data_as_of_value = content.get("data_as_of")
+    if identity_state == "RESOLVED":
+        cik = _require_str(cik_value, field="cik")
+        entity_name = _require_str(entity_value, field="entity_name")
+    else:
+        if cik_value is not None or entity_value is not None:
+            raise SnapshotContentError(
+                "cik/entity_name: must be absent when identity is unresolved",
+                field="identity_state",
+            )
+        cik = None
+        entity_name = None
+    data_as_of = (
+        _parse_utc(data_as_of_value, field="data_as_of")
+        if data_as_of_value is not None
+        else None
+    )
+    freshness = _relay_freshness(snapshot, now=now, policy=_SEC_FUNDAMENTALS_POLICY)
+    return SecFundamentalsResponse(
+        state="stale" if freshness.stale else "ok",
+        snapshot_version=snapshot.version,
+        as_of=_parse_utc(content.get("as_of"), field="as_of"),
+        age_seconds=freshness.age_seconds,
+        population=_require_str(content.get("population"), field="population"),
+        instrument=published_instrument,
+        source="sec_edgar",
+        rights="R1_PUBLIC_FACT_SEC_EDGAR_POLICY_2026_08_28",
+        identity_state=identity_state,
+        cik=cik,
+        entity_name=entity_name,
+        data_as_of=data_as_of,
+        filings=mappings("filings"),
+        facts=mappings("facts"),
+        conflicts=mappings("conflicts"),
         coverage=_wire_mapping(content.get("coverage"), field="coverage"),
         reason=freshness.stale_reason,
     )
