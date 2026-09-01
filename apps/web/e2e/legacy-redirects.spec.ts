@@ -15,6 +15,9 @@ const REDIRECTIONS = [
   { depuis: '/system', vers: '/sources-reports', titre: 'Sources & Rapports' },
   { depuis: '/performance', vers: '/portfolio', titre: 'Portefeuille' },
   { depuis: '/follow-up', vers: '/catalysts', titre: 'Catalyseurs' },
+  // `/ai` n'a plus de destination : l'explication vit dans l'inspecteur.
+  // Analyse est la plus proche continuation (sujet par défaut d'origine).
+  { depuis: '/ai', vers: '/analysis', titre: 'Analyse' },
 ] as const;
 
 test.describe('Destinations absorbées — redirections permanentes', () => {

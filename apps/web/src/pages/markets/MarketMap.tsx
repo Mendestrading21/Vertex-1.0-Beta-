@@ -2,8 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 
 import type { MarketsSector } from '../../api/client.ts';
 import type { EChartsInstance } from '../../charts/echartsLoader.ts';
-import type { SignGroup } from './marketsView.ts';
-import { flattenTickers, frDecimal, geometryNumber } from './marketsView.ts';
+import type { SignGroup } from '../../components/markets/marketsView.ts';
+import { flattenTickers, frDecimal, geometryNumber } from '../../components/markets/marketsView.ts';
 
 /**
  * MarketMap — treemap ECharts secteurs → tickers (dominante de /markets).

@@ -111,7 +111,11 @@ describe('Page Options — état nominal', () => {
       screen.getAllByRole('button', { name: /Inspecter CALL strike 100\.00/ })[0]!,
     );
     const inspector = await screen.findByTestId('option-inspector');
-    expect(inspector.getAttribute('role')).toBe('dialog');
+    // LOT-13 : ce n'est plus un dialogue modal mais un panneau de
+    // l'inspecteur du shell. Le contenu asséré ci-dessous est inchangé.
+    expect(inspector.closest('.vx-inspector-panel')).not.toBeNull();
+    expect(document.querySelector('[role="dialog"]')).toBeNull();
+    expect(document.querySelector('[aria-modal]')).toBeNull();
     const scoped = within(inspector);
     expect(scoped.getByText('900000101')).toBeDefined(); // con_id
     // sous-jacent ET trading class affichés (deux <code> distincts).
@@ -121,7 +125,7 @@ describe('Page Options — état nominal', () => {
     expect(scoped.getAllByText('THÉORIQUE').length).toBeGreaterThanOrEqual(2); // IV + Greeks
     expect(scoped.getAllByText('options.implied_volatility').length).toBeGreaterThan(0);
     expect(scoped.getAllByText('options.greeks').length).toBeGreaterThan(0);
-    // Fermeture par Échap : focus restitué (dialog démonté).
+    // CONSERVÉ : fermeture par Échap, panneau démonté.
     await user.keyboard('{Escape}');
     expect(screen.queryByTestId('option-inspector')).toBeNull();
   });

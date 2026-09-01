@@ -16,7 +16,6 @@ const INSTALLED_KEYS = new Set([
   'catalysts',
   'calendar',
   'opportunities',
-  'ai',
 ]);
 
 describe('routes — couverture du blueprint', () => {
@@ -30,12 +29,12 @@ describe('routes — couverture du blueprint', () => {
   });
 
   // Le COMPTE, lui, dit la vérité du moment. La cible est douze
-  // (`references/pages.md`) ; le rail en porte onze pendant les absorptions,
+  // (`references/pages.md`) ; le rail en porte dix pendant les absorptions,
   // et l'écart est journalisé dans docs/05-design/PAGE_ARBITRATION.md.
   // Ce test échoue si une destination apparaît ou disparaît sans que
   // l'arbitrage soit mis à jour — il n'est pas relâché, il est déplacé de
   // « combien » vers « lesquelles ».
-  it('le rail porte exactement les onze destinations réelles, dans l’ordre', () => {
+  it('le rail porte exactement les dix destinations réelles, dans l’ordre', () => {
     expect(ALL_PAGES.map((entry) => entry.key)).toEqual([
       'today',
       'opportunities',
@@ -46,8 +45,7 @@ describe('routes — couverture du blueprint', () => {
       'markets',
       'portfolio',
       'catalysts',
-      'ai',
-      'sources-reports',
+          'sources-reports',
     ]);
   });
 

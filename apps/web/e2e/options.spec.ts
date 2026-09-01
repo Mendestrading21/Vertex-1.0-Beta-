@@ -59,7 +59,7 @@ test.describe('Page Options — chaîne, groupes jamais fusionnés, inspecteur',
     expect(new Set(near.map((group) => group.trading_class)).size).toBe(2);
 
     await page.goto(`/options/${UNDERLYING}`);
-    await expect(page.getByText('DONNÉES SYNTHÉTIQUES', { exact: true })).toBeVisible();
+    await expect(page.locator('main').getByText('DONNÉES SYNTHÉTIQUES', { exact: true })).toBeVisible();
     const groups = page.getByTestId('chain-group');
     await expect(groups).toHaveCount(3);
     // Deux entrées distinctes pour la même date : jamais fusionnées. Le
@@ -174,8 +174,22 @@ test.describe('Page Options — chaîne, groupes jamais fusionnés, inspecteur',
     await expect(inspector).toContainText('options.implied_volatility');
     await expect(inspector).toContainText('options.greeks');
     await expect(inspector).toContainText('sha256:'); // input/result hashes
+    // LOT-13 : le panneau n'est plus modal. Il ne doit donc PAS piéger le
+    // clavier — un piège n'est correct que quand le reste de la page est
+    // inerte, ce qui n'est plus le cas.
+    await expect(page.locator('[role="dialog"]')).toHaveCount(0);
+    await expect(page.locator('[aria-modal]')).toHaveCount(0);
+    let sorti = false;
+    for (let index = 0; index < 20 && !sorti; index += 1) {
+      await page.keyboard.press('Tab');
+      sorti = !(await inspector.evaluate((element) => element.contains(document.activeElement)));
+    }
+    expect(sorti).toBe(true);
+
+    // CONSERVÉ : Échap referme le panneau.
+    await inspector.getByRole('button', { name: 'Fermer' }).focus();
     await page.keyboard.press('Escape');
-    await expect(inspector).not.toBeVisible();
+    await expect(inspector).toHaveCount(0);
   });
 
   test('axe : zéro violation critique/sérieuse + capture', async ({ page }, testInfo) => {

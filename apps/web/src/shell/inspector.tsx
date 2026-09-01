@@ -1,4 +1,4 @@
-import { useEffect, useState, useSyncExternalStore } from 'react';
+import { useEffect, useId, useState, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
 
 /**
@@ -77,6 +77,10 @@ export interface InspectorPanelProps {
  */
 export function InspectorPanel({ subject, children }: InspectorPanelProps) {
   const [slot, setSlot] = useState<HTMLElement | null>(null);
+  // Une page peut monter PLUSIEURS panneaux (un dossier ouvert, une
+  // explication). Un identifiant fixe les rendrait tous porteurs du même
+  // `id`, ce qu'axe refuse et ce qui casserait `aria-labelledby`.
+  const titleId = useId();
 
   useEffect(() => {
     mountedPanels += 1;
@@ -96,8 +100,8 @@ export function InspectorPanel({ subject, children }: InspectorPanelProps) {
   }
 
   return createPortal(
-    <section className="vx-inspector-panel" aria-labelledby="vx-inspector-title">
-      <h2 id="vx-inspector-title" className="vx-inspector-heading">
+    <section className="vx-inspector-panel" aria-labelledby={titleId}>
+      <h2 id={titleId} className="vx-inspector-heading">
         Inspecteur — {subject}
       </h2>
       {children}

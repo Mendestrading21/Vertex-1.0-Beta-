@@ -2,8 +2,8 @@ import { useMemo, useState } from 'react';
 
 import { saveTextAsFile } from '../../app/downloadFile.ts';
 
-import type { FlatTicker } from './marketsView.ts';
-import { GROUP_LABELS_FR, frDecimal, geometryNumber } from './marketsView.ts';
+import type { FlatTicker } from '../../components/markets/marketsView.ts';
+import { GROUP_LABELS_FR, frDecimal, geometryNumber } from '../../components/markets/marketsView.ts';
 
 /**
  * Table accessible ÉQUIVALENTE de la MarketMap : mêmes valeurs exactes

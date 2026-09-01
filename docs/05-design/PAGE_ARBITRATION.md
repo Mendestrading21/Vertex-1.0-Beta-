@@ -83,6 +83,98 @@ mesure. Aucune définition de page n'a été modifiée.
 5. **Une redirection permanente remplace chaque route retirée**, pour ne pas
    casser un signet ou un lien profond existant.
 
+## Pourquoi Graphiques et Risques ne sont toujours pas créées
+
+Mesuré le 2026-09-01, pas supposé. Catalyseurs a montré qu'une destination
+« sans contrat » pouvait en fait être constructible depuis des contrats déjà
+servis ; la même vérification a donc été refaite pour les deux dernières.
+
+Les trente routes du contrat OpenAPI ne comportent **ni `charts` ni `risks`**.
+La question est alors : ces pages sont-elles assemblables depuis l'existant,
+comme Catalyseurs l'était ?
+
+**Graphiques (§8) — non.** Sa dominante est « un espace graphique configurable
+avec séries autorisées » et son widget distinctif est la **comparaison**.
+Comparer deux séries de prix suppose de les rebaser, c'est-à-dire de calculer
+un rendement dans le navigateur — ce que `.claude/rules/frontend.md` interdit
+explicitement. L'alternative, un double axe, est interdite au même endroit.
+Sans overlays ni comparaison servis par le serveur, il ne resterait qu'un
+graphique d'un seul instrument : ce que `/analysis` fait déjà, et le
+dupliquer créerait un second propriétaire pour la même donnée.
+
+**Risques (§9) — non.** Sa dominante est « la matrice des risques avec
+exposition, horizon, sévérité et preuve ». Les morceaux existent bien
+(concentration dans `/v1/portfolio`, gates bloquantes dans `/v1/analysis`,
+santé des sources dans `/v1/system/capabilities`), mais **aucune source ne
+publie de sévérité ni d'horizon par risque**. Les attribuer côté navigateur
+serait fabriquer un score, ce que `.claude/rules/architecture.md` réserve à
+`AdviceEngine` et que le §9 lui-même interdit (« aucun score global vert
+dérivé de mesures partielles »).
+
+Les deux pages attendent donc un **contrat serveur**, pas une décision
+d'interface. Les inventer maintenant produirait exactement la façade que
+l'article 17 de la Constitution interdit.
+
+## Le motif d'inspecteur, tranché et appliqué (LOT-13)
+
+Décision : **l'inspecteur persistant du shell est le motif unique.** Le
+dialogue modal a disparu des deux pages qui en portaient un — Aujourd'hui et
+Options. Il ne reste plus aucun `role="dialog"` ni `aria-modal` dans
+l'application.
+
+**Le piège de focus a été retiré, et c'est la correction, pas un
+affaiblissement.** Un piège n'est correct que pour un dialogue modal, où le
+reste de la page est justement inerte. Sur un panneau NON modal, piéger le
+clavier enfermerait l'utilisateur hors de sa propre page : ce serait un défaut
+d'accessibilité. Les assertions qui l'exigeaient sont remplacées par leur
+contrepartie correcte — depuis le dernier élément du panneau, la tabulation
+CONTINUE vers le reste de la page. C'est une propriété plus forte : elle
+prouve que la page reste opérable.
+
+Conservé à l'identique, parce que ces propriétés valent pour les deux motifs :
+le focus entre dans le panneau à l'ouverture, `Échap` referme, le focus revient
+au déclencheur. Axe reste à zéro violation critique/sérieuse.
+
+Deux défauts introduits par la conversion, trouvés et corrigés :
+
+1. **le focus n'entrait plus dans le panneau.** Le panneau est monté par
+   PORTAIL : au premier rendu, le nœud d'accueil n'est pas encore résolu, donc
+   un `useEffect([])` ne trouve aucun bouton à focaliser. Remplacé par une ref
+   de rappel, qui se déclenche à l'attachement réel du nœud ;
+2. **le panneau chevauchait la zone de travail.** `.vx-sheet` restait une
+   surcouche `position: fixed` pleine hauteur, avec ombre portée et flou —
+   toute la chrome du modal. Elle coule désormais dans la colonne, et
+   l'encadrement visuel est celui de `.vx-inspector-panel`, commun à tous les
+   panneaux.
+
+Options a suivi exactement la même recette, et sans surprise : les deux
+défauts trouvés sur Aujourd'hui (focus perdu par le portail, surcouche
+`position: fixed`) étaient déjà corrigés à la racine — la ref de rappel dans
+le composant, la règle `.vx-sheet` dans la feuille de style. La conversion s'y
+est donc réduite au composant et à ses assertions.
+
+## Ancienne section — deux motifs coexistaient
+
+Constat du LOT-12, non corrigé, à traiter avant la refonte des pages.
+
+L'anatomie canonique décrit un inspecteur **persistant à droite**, et c'est
+celui que le LOT-11 a livré. Mais deux pages en avaient déjà un, livré comme
+**dialogue modal** : le panneau latéral d'Aujourd'hui et `OptionInspector`
+d'Options — tous deux `role="dialog"`, avec piège de focus, `Échap` et
+restauration du focus, et tous deux utilisant les mêmes noms de classes
+`.vx-inspector-*`.
+
+Les convertir n'est pas mécanique : passer d'un modal à une colonne
+persistante **retire le piège de focus et la touche Échap**, propriétés
+aujourd'hui asserées par des tests d'accessibilité. Une conversion faite sans
+soin dégraderait l'accessibilité de deux pages livrées. Ce lot doit donc être
+explicite sur ce qu'il remplace, page par page, et prouver l'accessibilité
+après conversion — pas seulement avant.
+
+Vérifié au passage : les classes `.vx-inspector-hash`, `-note`, `-value`,
+`-unit`, `-absent` sont des utilitaires génériques non scopés (taille, couleur,
+césure). Les panneaux du LOT-11 et du LOT-12 les réutilisent sans conflit.
+
 ## Ce que ce document ne décide pas
 
 Le **contenu** des deux pages à créer. Graphiques et Risques n'ont aujourd'hui
@@ -101,6 +193,69 @@ en remplissant une maquette avec ce qui n'existe pas.
 | 2026-09-01 | `follow-up` → **Catalyseurs** | Création de la douzième destination et absorption du module de revue. Aucun endpoint ajouté : la page CROISE `calendar/global` (dont chaque événement porte déjà son `event_context`) et `review_queue/global`. `/follow-up` retirée du rail et redirigée vers `/catalysts`. Les routes API ne bougent pas (règle 2). | vitest 415 ; playwright 432 ; `run_checks.sh` TOUT VERT ; l'audit du skill ne liste plus `follow-up` |
 
 | 2026-09-01 | (shell) **inspecteur contextuel** | Point 6 de l'anatomie canonique livré comme EMPLACEMENT du shell, rempli par la page. Premier remplissage : Catalyseurs (§10). Débloque la ligne `ai`, qui attendait cet emplacement. | vitest 420 ; playwright 435 ; largeur mesurée dans 300–340 px ; « aucune colonne morte » vérifiée sur `/today` et `/catalysts` |
+
+| 2026-09-01 | `ai` → **inspecteur contextuel** | Dernière ligne d'absorption. Le module d'explication passe sous `src/components/ai/` et est monté par les pages qui portent un dossier explicable : Analyse (`analysis`) et Portefeuille (`portfolio_valuation`, `performance`). Le sélecteur de sujet disparaît au profit des dossiers RÉELLEMENT ouverts sur la page hôte. `/ai` quitte le rail et redirige vers `/analysis`. Routes API inchangées (règle 2). | vitest 423 ; playwright 429 ; `run_checks.sh` TOUT VERT ; l'audit ne liste plus aucune route à arbitrer |
+
+| 2026-09-01 | (shell) **ticker horizontal** | Point 4 de l'anatomie canonique. Aucune ligne d'arbitrage : c'est une capacité de shell, pas une destination. Livré parce que la raison écrite pour ne PAS le livrer s'est révélée fausse — voir ci-dessous. | vitest 434 ; playwright 435 ; `run_checks.sh` TOUT VERT |
+
+### Le ticker : une dette fondée sur une vérification jamais faite (LOT-14)
+
+`docs/99-status/DEBT.md` déclarait le point 4 ouvert parce qu'il « exige une
+source d'indices servie au shell sur chaque page, donc une décision de charge
+réseau **et un contrat** ». La seconde moitié était fausse.
+
+`/api/v1/markets/overview` publie `MarketsTicker` depuis la première vague :
+`ticker`, `last_close`, `return_1d_pct`, `currency`, `quality`, `synthetic`,
+`trading_day` — **tous calculés et formatés par le worker**. Il n'y avait rien
+à obtenir du serveur.
+
+C'est **exactement l'erreur de Catalyseurs au LOT-10** : une capacité déclarée
+« sans contrat » l'était par défaut de vérification. La leçon avait été écrite ;
+elle n'avait pas été appliquée aux deux points d'anatomie restants. Elle l'est
+maintenant, et la règle est plus dure : *une entrée de dette qui affirme « le
+contrat manque » doit **nommer la route absente**. Sans nom, ce n'est pas un
+constat, c'est une supposition.*
+
+Ce qui restait réellement — la charge réseau — est une décision, et elle est
+bornée : la clé de requête est `markets_overview/global`, **exactement** celle
+de la page Marchés, donc react-query dédoublonne sur `/markets` ; et
+`staleTime: Infinity` interdit tout re-fetch périodique. Le ticker ne « bat »
+pas.
+
+### Ce que le ticker n'affiche pas, et pourquoi
+
+- **Aucun chiffre qu'il ne peut pas qualifier.** Hors ligne, sans session, sans
+  instantané ou en erreur, la bande affiche un message et **aucun cours**.
+  Garder les derniers cours pendant une coupure présenterait un cache comme du
+  courant, ce que `.claude/rules/financial-safety.md` interdit.
+- **Aucun tri.** L'ordre est celui du worker, secteur par secteur. Reclasser
+  produirait un classement financier côté navigateur.
+- **Aucun mouvement.** « Aucun ticker animé faisant croire à une donnée live » :
+  le défilement est celui de l'utilisateur, et un test e2e vérifie qu'aucune
+  animation n'est déclarée.
+- **Aucune portée applicative.** La population et la fraîcheur sont portées par
+  la bande, pas par le coin haut-droit (point 5). `population` est un champ
+  **par instantané** : le poser en haut à droite lui donnerait une portée
+  « Vertex » qu'aucune source ne publie. Le point 5 reste donc vide — et c'est
+  désormais une décision argumentée, plus un simple constat d'absence.
+
+### Le défaut que l'absorption de `/ai` a révélé
+
+En montant le panneau dans une page hôte, celle-ci lui a servi — via son mock
+de test — le corps d'une AUTRE ressource. `ClaimsBlock` a échoué sur
+`catalog is not iterable`, et l'erreur est remontée jusqu'à la frontière de
+route : **c'est la page entière qui disparaissait** — analyse, avis, barres —
+à cause d'un panneau accessoire.
+
+Le défaut préexistait l'absorption ; il était simplement invisible tant que
+l'explication vivait seule sur sa propre page, où elle n'avait qu'elle-même à
+emporter. Corrigé par une garde de forme (`isWellFormedAnswer`) : une réponse
+hors contrat se dégrade en état `error` visible et **le dossier de la page
+hôte reste intact**. Falsifié — neutraliser la garde fait réapparaître
+`catalog is not iterable`.
+
+C'est la leçon générale de ce lot : un composant déplacé dans un hôte hérite
+de la responsabilité de ne jamais le faire tomber.
 
 ### Ce que Catalyseurs n'invente pas
 

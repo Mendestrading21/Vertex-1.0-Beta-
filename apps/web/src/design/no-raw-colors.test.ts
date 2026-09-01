@@ -276,9 +276,12 @@ describe("interdiction du vocabulaire d'ordre boursier", () => {
       join('src', 'pages', 'opportunities', 'OpportunitiesPage.tsx'),
       join('src', 'pages', 'opportunities', 'OpportunityTable.tsx'),
       join('src', 'pages', 'opportunities', 'opportunitiesView.ts'),
-      join('src', 'pages', 'ai', 'AiPage.tsx'),
-      join('src', 'pages', 'ai', 'AiAnswerView.tsx'),
-      join('src', 'pages', 'ai', 'aiView.ts'),
+      // LOT-12 : l'explication IA vit dans l'inspecteur. Les trois fichiers
+      // restent balayés — un déplacement ne sort jamais un fichier du
+      // périmètre des gardes.
+      join('src', 'components', 'ai', 'AiExplanationPanel.tsx'),
+      join('src', 'components', 'ai', 'AiAnswerView.tsx'),
+      join('src', 'components', 'ai', 'aiView.ts'),
     ]) {
       expect(files, `${expected} doit être couvert par les gardes`).toContain(expected);
     }

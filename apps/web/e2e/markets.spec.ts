@@ -49,7 +49,7 @@ test.describe('Page Marchés — MarketMap + table équivalente + breadth', () =
     await expect(page.locator('.vx-marketmap-canvas canvas')).toBeVisible({ timeout: 15_000 });
 
     // Bandeau SYNTHETIC et conclusion serveur verbatim.
-    await expect(page.getByText('DONNÉES SYNTHÉTIQUES', { exact: true })).toBeVisible();
+    await expect(page.locator('main').getByText('DONNÉES SYNTHÉTIQUES', { exact: true })).toBeVisible();
     const conclusion = page.getByTestId('markets-conclusion');
     await expect(conclusion).toHaveText(overview.conclusion ?? '');
 

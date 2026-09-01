@@ -71,3 +71,43 @@ export function isRefusal(answer: AiAnswer): boolean {
 export function subjectOf(kind: AiSubjectKind, key: string): AiSubject {
   return { kind, key };
 }
+
+/**
+ * Les six listes que le contrat `AiAnswer` promet toujours présentes.
+ *
+ * Elles sont parcourues sans garde par les blocs d'affichage : une réponse
+ * malformée les ferait donc échouer à l'itération.
+ */
+const AI_ANSWER_ARRAYS = [
+  'claims',
+  'contradictions',
+  'evidence_catalog',
+  'external_excerpts',
+  'limitations',
+  'missing_data',
+] as const;
+
+/**
+ * `true` seulement si la réponse porte réellement la forme du contrat.
+ *
+ * POURQUOI CETTE GARDE EXISTE. Le panneau d'explication est monté DANS des
+ * pages qui portent un dossier financier. Une réponse malformée servie à
+ * `/v1/ai/explain` faisait planter `ClaimsBlock` sur « catalog is not
+ * iterable », et l'erreur remontait jusqu'à la frontière de route : c'était
+ * la page ENTIÈRE — analyse, avis, barres — qui disparaissait à cause d'un
+ * panneau accessoire. Le défaut a été trouvé en absorbant `/ai` dans
+ * l'inspecteur, quand une page hôte a servi un corps d'une autre ressource.
+ *
+ * Une explication indisponible est une explication indisponible : elle doit
+ * se dégrader en état `error` visible, jamais emporter son hôte.
+ */
+export function isWellFormedAnswer(answer: unknown): answer is AiAnswer {
+  if (typeof answer !== 'object' || answer === null) {
+    return false;
+  }
+  const record = answer as Record<string, unknown>;
+  if (typeof record['state'] !== 'string') {
+    return false;
+  }
+  return AI_ANSWER_ARRAYS.every((field) => Array.isArray(record[field]));
+}

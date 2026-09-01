@@ -17,12 +17,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiError } from '../../api/client.ts';
 import {
   makeAiAnswer,
+  makeAnalysis,
+  makeMarketsOverview,
   makePortfolioResponse,
   makeRefusedAiAnswer,
-  makeMarketsOverview,
 } from '../../test/fixtures.ts';
 import { renderApp } from '../../test/render.tsx';
-import { isNoSnapshotError } from './AiPage.tsx';
+import { isNoSnapshotError } from './AiExplanationPanel.tsx';
+import { isWellFormedAnswer } from './aiView.ts';
 import {
   AI_PERMANENT_NOTICE,
   evidenceAnchorId,
@@ -80,13 +82,35 @@ function mockAi(handlers: AiHandlers = {}): void {
       // Le sélecteur d'instruments lit l'univers RÉELLEMENT publié.
       return jsonResponse(makeMarketsOverview());
     }
+    // Le panneau n'est monté QUE lorsque la page hôte a chargé son dossier.
+    // Sans cette route, Analyse reste en erreur et le panneau n'apparaît
+    // jamais.
+    //
+    // Cette route manquait, et la CI l'a attrapé. Le test avait été écrit
+    // quand le panneau était monté HORS de la branche « dossier chargé » : il
+    // passait alors légitimement. Déplacer le montage à l'intérieur de cette
+    // branche l'a invalidé, et la suite unitaire n'a pas été relancée après ce
+    // déplacement — seule la campagne e2e l'a été. Ce n'était donc pas un test
+    // instable : il échouait de façon parfaitement reproductible, 3 fois sur 3
+    // en isolation.
+    if (url.includes('/v1/analysis/')) {
+      return jsonResponse(makeAnalysis());
+    }
     return jsonResponse({ detail: 'unexpected route' }, 500);
   });
 }
 
-async function renderAi(path = '/ai'): Promise<void> {
+// LOT-12 : l'explication n'est plus une destination. C'est un panneau de
+// l'inspecteur, monté par les pages qui portent un dossier explicable. Les
+// assertions ci-dessous sont INCHANGÉES — c'est leur rôle : prouver que
+// l'absorption n'a retiré aucune capacité (règle 1 de l'arbitrage).
+//
+// `/portfolio` est la page hôte par défaut ici : elle porte DEUX dossiers
+// explicables (valorisation et performance), donc elle exerce aussi le choix
+// entre dossiers.
+async function renderAi(path = '/portfolio'): Promise<void> {
   renderApp(path);
-  await screen.findByRole('heading', { level: 1, name: 'Vertex IA' });
+  await screen.findByRole('heading', { level: 2, name: /^Inspecteur/ });
 }
 
 describe('aiView — aides pures', () => {
@@ -209,7 +233,11 @@ describe('page Vertex IA — rendu', () => {
     expect(within(note).queryByRole('textbox')).toBeNull();
   });
 
-  it('change de sujet et envoie la clé résolue du portefeuille déclaré', async () => {
+  it('change de dossier et envoie la clé résolue du portefeuille déclaré', async () => {
+    // Invariant INCHANGÉ : le panneau envoie au serveur la clé RÉSOLUE, jamais
+    // un identifiant deviné, et changer de dossier change le sujet envoyé.
+    // Seul le libellé du contrôle change : il ne propose plus que les dossiers
+    // que la page hôte affiche réellement.
     const subjects: unknown[] = [];
     mockAi({
       explain: (body) => {
@@ -219,16 +247,44 @@ describe('page Vertex IA — rendu', () => {
     });
     await renderAi();
     await screen.findByTestId('ai-claims');
+
+    // Dossier par défaut : le premier que la page porte.
+    await waitFor(() => {
+      expect(subjects).toContainEqual({ kind: 'portfolio_valuation', key: '1' });
+    });
+
     const user = userEvent.setup();
-    await user.selectOptions(
-      screen.getByRole('combobox', { name: 'Sujet' }),
-      'portfolio_valuation',
-    );
+    await user.selectOptions(screen.getByRole('combobox', { name: 'Dossier' }), 'performance');
     await waitFor(() => {
       expect(screen.getByTestId('ai-subject-key').textContent).toBe('1');
     });
     await waitFor(() => {
-      expect(subjects).toContainEqual({ kind: 'portfolio_valuation', key: '1' });
+      expect(subjects).toContainEqual({ kind: 'performance', key: '1' });
+    });
+  });
+
+  it('ne propose QUE les dossiers que la page hôte affiche réellement', async () => {
+    // L'ancienne page laissait choisir un sujet qu'aucune page n'affichait.
+    // Portefeuille porte la valorisation et la performance — pas l'analyse
+    // d'un instrument, qui appartient à une autre destination.
+    mockAi();
+    await renderAi();
+    const choix = await screen.findByRole('combobox', { name: 'Dossier' });
+    const options = Array.from(choix.querySelectorAll('option')).map((entry) => entry.value);
+    expect(options).toEqual(['portfolio_valuation', 'performance']);
+    expect(options).not.toContain('analysis');
+  });
+
+  it('une page à dossier unique n’affiche AUCUN sélecteur', async () => {
+    // Analyse ne porte qu'un dossier : proposer un choix d'un seul élément
+    // serait un contrôle sans décision, que `.claude/rules/frontend.md`
+    // interdit.
+    mockAi();
+    renderApp('/analysis/SYN-TECH-01');
+    await screen.findByRole('heading', { level: 2, name: /^Inspecteur/ });
+    expect(screen.queryByRole('combobox', { name: 'Dossier' })).toBeNull();
+    await waitFor(() => {
+      expect(screen.getByTestId('ai-subject-key').textContent).toBe('SYN-TECH-01');
     });
   });
 
@@ -245,5 +301,41 @@ describe('page Vertex IA — rendu', () => {
     // rendu. L exigence elle-même est inchangée.
     expect(await screen.findByText(/NO_SNAPSHOT_FOR_SUBJECT/)).toBeDefined();
     expect(screen.queryByTestId('ai-claims')).toBeNull();
+  });
+});
+
+describe('garde de forme — une explication ne doit jamais emporter sa page hôte', () => {
+  it('reconnaît une réponse conforme et refuse toute forme incomplète', () => {
+    expect(isWellFormedAnswer(makeAiAnswer())).toBe(true);
+    expect(isWellFormedAnswer(null)).toBe(false);
+    expect(isWellFormedAnswer('refused')).toBe(false);
+    expect(isWellFormedAnswer({})).toBe(false);
+    // Chacune des six listes du contrat suffit à invalider la réponse.
+    for (const champ of [
+      'claims',
+      'contradictions',
+      'evidence_catalog',
+      'external_excerpts',
+      'limitations',
+      'missing_data',
+    ]) {
+      const tronquee: Record<string, unknown> = { ...makeAiAnswer() };
+      delete tronquee[champ];
+      expect(isWellFormedAnswer(tronquee), `${champ} manquant doit invalider`).toBe(false);
+    }
+  });
+
+  it('une réponse hors contrat donne un état error, et la page hôte survit', async () => {
+    // Reproduit le défaut trouvé en absorbant /ai : une page hôte servant un
+    // corps d'une AUTRE ressource faisait planter ClaimsBlock sur
+    // « catalog is not iterable », et l'erreur emportait la route entière.
+    mockAi({ explain: () => jsonResponse({ state: 'ok', claims: [] }) });
+    await renderAi();
+    await waitFor(() => {
+      expect(document.querySelector('[data-state="error"]')).not.toBeNull();
+    });
+    expect(screen.queryByTestId('ai-claims')).toBeNull();
+    // La page hôte est TOUJOURS là : c'est la propriété qui compte.
+    expect(screen.getByRole('heading', { level: 1, name: 'Portefeuille' })).toBeDefined();
   });
 });

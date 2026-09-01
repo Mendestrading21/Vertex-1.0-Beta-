@@ -17,9 +17,9 @@ import type { PageDef } from './pages.ts';
  * installé » que lorsque ses routes, données, états et tests existent
  * (docs/07-delivery/FOLDER_BY_FOLDER_PROGRAM.md).
  *
- * Onze destinations du rail sont installées : Aujourd'hui, Opportunités,
+ * Dix destinations du rail sont installées : Aujourd'hui, Opportunités,
  * Analyse, Options, Simulateur, Calendrier, Marchés, Portefeuille,
- * Catalyseurs, Vertex IA et Sources & Rapports. S'y ajoute /auth, hors rail : c'est une
+ * Catalyseurs et Sources & Rapports. S'y ajoute /auth, hors rail : c'est une
  * route de session, pas une destination du blueprint.
  *
  * Graphiques et Risques, que la cible attend, n'existent pas encore. `NotInstalledPage` ne sert aujourd'hui
@@ -72,11 +72,6 @@ const LazyCalendarPage = lazy(async () => {
 const LazyOpportunitiesPage = lazy(async () => {
   const module = await import('../pages/opportunities/OpportunitiesPage.tsx');
   return { default: module.OpportunitiesPage };
-});
-
-const LazyAiPage = lazy(async () => {
-  const module = await import('../pages/ai/AiPage.tsx');
-  return { default: module.AiPage };
 });
 
 function MarketsRoute() {
@@ -143,14 +138,6 @@ function OpportunitiesRoute() {
   );
 }
 
-function AiRoute() {
-  return (
-    <Suspense fallback={<DataStateBoundary state="loading" />}>
-      <LazyAiPage />
-    </Suspense>
-  );
-}
-
 const INSTALLED_PAGES: Readonly<Record<string, () => React.JSX.Element>> = {
   today: TodayPage,
   markets: MarketsRoute,
@@ -162,7 +149,6 @@ const INSTALLED_PAGES: Readonly<Record<string, () => React.JSX.Element>> = {
   catalysts: CatalystsRoute,
   calendar: CalendarRoute,
   opportunities: OpportunitiesRoute,
-  ai: AiRoute,
 };
 
 /** Définition de la page d'accès (hors navigation, hors blueprint des 12). */
@@ -190,6 +176,10 @@ export const AUTH_PAGE: PageDef = {
  * question « quels événements vérifiés peuvent modifier LA THÈSE et quand ? ».
  * Une thèse est mise en revue parce qu'un catalyseur l'a touchée.
  *
+ * `/ai` n'a plus de destination : le contrat serveur ne connaît que trois
+ * sujets explicables, qui sont les dossiers d'Analyse et de Portefeuille.
+ * L'explication vit donc dans l'inspecteur de ces deux pages.
+ *
  * Les routes API `/api/v1/system/capabilities` et `/api/v1/performance/{id}`
  * ne bougent PAS — seule la composition d'interface change, et
  * `.claude/rules/architecture.md` interdit de déplacer une responsabilité
@@ -199,6 +189,10 @@ const LEGACY_REDIRECTS: ReadonlyArray<readonly [string, string]> = [
   ['/system', '/sources-reports'],
   ['/performance', '/portfolio'],
   ['/follow-up', '/catalysts'],
+  // `/ai` n'a plus de destination propre : l'explication vit dans
+  // l'inspecteur des pages qui portent un dossier explicable. Analyse est la
+  // plus proche continuation — c'était le sujet par défaut de l'ancienne page.
+  ['/ai', '/analysis'],
 ];
 
 export function buildRouteObjects(): RouteObject[] {

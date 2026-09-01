@@ -52,7 +52,7 @@ test.describe('Page Portefeuille — valorisation réelle', () => {
 
     await page.goto('/portfolio');
     await expect(page.getByTestId('pf-marks-badge')).toContainText('Marks : DONNÉES SYNTHÉTIQUES');
-    await expect(page.getByText('DONNÉES SYNTHÉTIQUES', { exact: true })).toBeVisible();
+    await expect(page.locator('main').getByText('DONNÉES SYNTHÉTIQUES', { exact: true })).toBeVisible();
 
     // Chaque valeur affichée est la chaîne API verbatim (aucun total local).
     const blocks = content['positions_by_currency'] as Record<string, unknown>[];
@@ -87,6 +87,10 @@ test.describe('Page Portefeuille — valorisation réelle', () => {
     await expect(page.getByTestId('pf-cash-absent').first()).toContainText('non publié');
   });
 
+  // Les champs du formulaire sont cherchés DANS `main` : le ticker du shell
+  // (LOT-14) porte `aria-label="Ticker des marchés"`, et `/^Ticker/` non scopé
+  // résolvait donc à deux éléments. Le shell est rendu sur les douze
+  // destinations — ce qu'il ajoute, il l'ajoute partout.
   test('saisie d’une transaction (fait passé) → revalorisation réelle vérifiée contre l’API', async ({
     page,
   }) => {
@@ -108,7 +112,7 @@ test.describe('Page Portefeuille — valorisation réelle', () => {
     await page.getByLabel(/Effet le/).fill(local);
     await page.getByLabel(/Impact de trésorerie signé/).fill('-110');
     await page.getByLabel('Devise', { exact: true }).fill('SYN');
-    await page.getByLabel(/^Ticker/).fill('SYN-FINL-01');
+    await page.locator('main').getByLabel(/^Ticker/).fill('SYN-FINL-01');
     await page.getByLabel('Quantité (décimal)').fill('1');
     await page.getByLabel('Prix unitaire (décimal)').fill('110');
     await page.getByRole('button', { name: 'Enregistrer la transaction' }).click();
@@ -146,7 +150,7 @@ test.describe('Page Portefeuille — valorisation réelle', () => {
     await page.getByLabel(/Effet le/).fill(local);
     await page.getByLabel(/Impact de trésorerie signé/).fill('-220');
     await page.getByLabel('Devise', { exact: true }).fill('SYN');
-    await page.getByLabel(/^Ticker/).fill('SYN-TECH-02');
+    await page.locator('main').getByLabel(/^Ticker/).fill('SYN-TECH-02');
     await page.getByLabel('Quantité (décimal)').fill('2');
     await page.getByLabel('Prix unitaire (décimal)').fill('110');
     await page.getByRole('button', { name: 'Enregistrer la transaction' }).click();

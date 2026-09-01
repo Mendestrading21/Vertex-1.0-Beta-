@@ -91,10 +91,11 @@ describe('NavRail — groupes et liens', () => {
       const link = within(nav).getByRole('link', { name: page.title });
       expect(link.getAttribute('href')).toBe(page.navPath);
     }
-    // Onze destinations pendant les absorptions, douze en cible : le compte
+    // Dix destinations pendant les absorptions, douze en cible : le compte
     // exact est asséré dans routes.test.tsx, avec la liste ordonnée.
-    expect(ALL_PAGES).toHaveLength(11);
-    expect(ALL_PAGES.map((page) => page.navPath)).toContain('/ai');
+    expect(ALL_PAGES).toHaveLength(10);
+    // `/ai` a quitté le rail au LOT-12 : l'explication vit dans l'inspecteur.
+    expect(ALL_PAGES.map((page) => page.navPath)).not.toContain('/ai');
     expect(ALL_PAGES.map((page) => page.navPath)).not.toContain('/vertex-ai');
   });
 

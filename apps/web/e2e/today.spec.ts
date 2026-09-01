@@ -17,7 +17,7 @@ test.describe("Page Aujourd'hui — AttentionQueue", () => {
 
     // Marqueur SYNTHÉTIQUE sur CHAQUE item + bandeau population global.
     await expect(page.locator('.vx-queue-item .vx-badge-synthetic')).toHaveCount(count);
-    await expect(page.getByText('DONNÉES SYNTHÉTIQUES')).toBeVisible();
+    await expect(page.locator('main').getByText('DONNÉES SYNTHÉTIQUES')).toBeVisible();
 
     // Chaque ligne porte titre, sources, âge (badge de fraîcheur) et raisons.
     const firstItem = items.first();
@@ -34,9 +34,10 @@ test.describe("Page Aujourd'hui — AttentionQueue", () => {
     await expect(page.locator('.vx-health-strip')).toContainText('Worker ·');
   });
 
-  test('panneau latéral accessible au clavier (Entrée, piège de focus, Échap)', async ({
-    page,
-  }) => {
+  test('inspecteur accessible au clavier (Entrée, focus entrant, Échap)', async ({ page }) => {
+    // LOT-13 : le détail n'est plus un dialogue modal, c'est un panneau de
+    // l'inspecteur du shell. Le contenu et les propriétés clavier qui
+    // comptent sont identiques ; ce qui change est asséré au test suivant.
     await page.goto('/today');
     const trigger = page.locator('.vx-queue-title').first();
     await expect(trigger).toBeVisible();
@@ -44,32 +45,53 @@ test.describe("Page Aujourd'hui — AttentionQueue", () => {
     // Activation au clavier uniquement.
     await trigger.focus();
     await page.keyboard.press('Enter');
-    const dialog = page.getByRole('dialog');
-    await expect(dialog).toBeVisible();
-    await expect(dialog).toHaveAttribute('aria-modal', 'true');
+    const panneau = page.locator('.vx-inspector-panel');
+    await expect(panneau).toBeVisible();
 
     // Provenance complète : cluster, événements membres, droits.
-    await expect(dialog.getByText('Cluster')).toBeVisible();
-    await expect(dialog.getByText('Événements membres')).toBeVisible();
-    await expect(dialog.getByText('Droits')).toBeVisible();
-    await expect(dialog.getByText('SYNTHETIC', { exact: true })).toBeVisible();
+    await expect(panneau.getByText('Cluster')).toBeVisible();
+    await expect(panneau.getByText('Événements membres')).toBeVisible();
+    await expect(panneau.getByText('Droits')).toBeVisible();
+    await expect(panneau.getByText('SYNTHETIC', { exact: true })).toBeVisible();
 
-    // Piège de focus : plusieurs tabulations restent dans le panneau.
-    for (let index = 0; index < 6; index += 1) {
-      await page.keyboard.press('Tab');
-      const inDialog = await dialog.evaluate(
-        (element) => element.contains(document.activeElement),
-      );
-      expect(inDialog).toBe(true);
-    }
+    // CONSERVÉ : le focus entre dans le panneau à l'ouverture.
+    const focusDansPanneau = await panneau.evaluate((element) =>
+      element.contains(document.activeElement),
+    );
+    expect(focusDansPanneau).toBe(true);
 
-    // Échap referme et rend le focus au déclencheur.
+    // CONSERVÉ : Échap referme et rend le focus au déclencheur.
     await page.keyboard.press('Escape');
-    await expect(dialog).not.toBeVisible();
+    await expect(panneau).toHaveCount(0);
     const focusedIsTrigger = await trigger.evaluate(
       (element) => element === document.activeElement,
     );
     expect(focusedIsTrigger).toBe(true);
+  });
+
+  test('le panneau n’est PLUS modal et ne piège plus le clavier', async ({ page }) => {
+    // Le piège de focus est CORRECT pour un dialogue modal, où le reste de la
+    // page est inerte. Sur un panneau non modal il serait un DÉFAUT : il
+    // enfermerait l'utilisateur hors de sa propre page. Cette assertion
+    // remplace donc l'ancienne, et elle est plus forte — elle prouve que la
+    // page reste opérable au clavier.
+    await page.goto('/today');
+    await page.locator('.vx-queue-title').first().focus();
+    await page.keyboard.press('Enter');
+    const panneau = page.locator('.vx-inspector-panel');
+    await expect(panneau).toBeVisible();
+
+    await expect(page.locator('[role="dialog"]')).toHaveCount(0);
+    await expect(page.locator('[aria-modal]')).toHaveCount(0);
+
+    // Assez de tabulations pour SORTIR du panneau : le clavier n'y reboucle
+    // pas. L'ancien test exigeait l'inverse, et c'était juste — pour un modal.
+    let sorti = false;
+    for (let index = 0; index < 12 && !sorti; index += 1) {
+      await page.keyboard.press('Tab');
+      sorti = !(await panneau.evaluate((element) => element.contains(document.activeElement)));
+    }
+    expect(sorti).toBe(true);
   });
 
   test('axe : zéro violation critique/sérieuse + capture', async ({ page }, testInfo) => {

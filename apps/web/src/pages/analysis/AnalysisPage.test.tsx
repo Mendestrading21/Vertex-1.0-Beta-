@@ -12,6 +12,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  makeAiAnswer,
   makeAnalysis,
   makeAnalysisBars,
   makeEmptyAnalysis,
@@ -57,6 +58,23 @@ function repondre(reponse: Response): void {
     const url = typeof entree === 'string' ? entree : String((entree as Request).url);
     if (url.includes('/markets/overview')) {
       return Promise.resolve(jsonResponse(makeMarketsOverview()));
+    }
+    // Depuis le LOT-12, la page monte le panneau d'explication dans
+    // l'inspecteur : elle appelle donc aussi `/v1/ai/*`. Ces routes sont
+    // servies explicitement — les laisser tomber dans le repli faisait
+    // recevoir au panneau un corps d'ANALYSE en guise d'explication, ce qui a
+    // révélé le défaut de robustesse corrigé dans le même lot.
+    if (url.includes('/v1/ai/status')) {
+      return Promise.resolve(
+        jsonResponse({
+          provider: 'DISABLED',
+          reason: 'B-05_HUMAN_DECISION_PENDING',
+          deterministic_template_available: true,
+        }),
+      );
+    }
+    if (url.includes('/v1/ai/explain')) {
+      return Promise.resolve(jsonResponse(makeAiAnswer()));
     }
     return Promise.resolve(reponse.clone());
   });
@@ -107,7 +125,10 @@ describe('Page Analyse — état nominal', () => {
     // as_of du cadre (il réapparaît aussi dans la validité de l'AdviceCard).
     expect(screen.getAllByText('2026-08-25T12:00:00+00:00').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText(/3 barre\(s\) valides/)).toBeDefined();
-    expect(screen.getByText('DONNÉES SYNTHÉTIQUES')).toBeDefined();
+    // Portée à la PAGE : depuis le LOT-14 le ticker du shell porte sa propre
+    // étiquette de population. Chercher dans tout le document trouverait les
+    // deux — et surtout ne prouverait plus que la PAGE porte la sienne.
+    expect(within(screen.getByRole('main')).getByText('DONNÉES SYNTHÉTIQUES')).toBeDefined();
   });
 
   it('dominante : moteur substitué monté avec les 60 barres (ici 3) + attribution TradingView', async () => {

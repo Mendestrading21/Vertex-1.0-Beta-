@@ -5,6 +5,7 @@ import type { PageDef } from '../app/pages.ts';
 import { ContextBar } from './ContextBar.tsx';
 import { INSPECTOR_SLOT_ID, useInspectorOccupied } from './inspector.tsx';
 import { NavRail } from './NavRail.tsx';
+import { ShellTicker } from './ShellTicker.tsx';
 
 /** Clé localStorage de l'état replié du rail. */
 export const RAIL_COLLAPSED_STORAGE_KEY = 'vx.rail.collapsed';
@@ -32,7 +33,6 @@ const LEDGER_CODE_BY_PAGE: Readonly<Record<string, string>> = {
   markets: 'TL / 07',
   portfolio: 'TL / 08',
   catalysts: 'TL / 09',
-  ai: 'TL / 11',
   'sources-reports': 'TL / 12',
   auth: 'TL / ACCESS',
 };
@@ -98,7 +98,18 @@ export function AppShell() {
       </a>
       <NavRail collapsed={collapsed} onToggle={toggle} />
       <div className="vx-shell-body">
-        <ContextBar />
+        {/*
+          Point 4 de l'anatomie canonique : « ticker horizontal compact en
+          haut, dans UNE SURFACE VITRÉE CONTINUE ». D'où l'enveloppe : la
+          barre de contexte et le ticker ne forment qu'un seul bandeau, avec
+          une seule arête basse et un seul plan collant. Deux éléments
+          collants séparés auraient laissé le ticker défiler sous la barre —
+          et une bordure entre les deux aurait cassé la continuité.
+        */}
+        <div className="vx-topbar">
+          <ContextBar />
+          <ShellTicker />
+        </div>
         <div className="vx-work">
           <main
             id="vx-main"

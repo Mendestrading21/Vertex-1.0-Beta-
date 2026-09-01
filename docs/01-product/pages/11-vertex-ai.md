@@ -1,5 +1,12 @@
 # Page 11 — Vertex AI `/ai`
 
+> **Statut depuis le LOT-12 : ce n'est plus une destination.** Le contenu
+> ci-dessous reste le contrat du PANNEAU d'explication, désormais monté dans
+> l'inspecteur des pages qui portent un dossier explicable — Analyse et
+> Portefeuille (voir `docs/05-design/PAGE_ARBITRATION.md`). La question, les
+> états, le bandeau B-05 et les critères d'acceptation sont inchangés ; seule
+> la page hôte change. `/ai` redirige en permanence vers `/analysis`.
+
 ## Question
 
 Comment expliquer, relier et résumer les données certifiées sans créer une seconde vérité ?

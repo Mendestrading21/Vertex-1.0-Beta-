@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { makeSimulationPreview } from '../../test/fixtures.ts';
 import { renderApp } from '../../test/render.tsx';
+import { SHELL_TICKER_PATH, calledPaths, withShellTicker } from '../../test/shellQueries.ts';
 import { buildPreviewRequest, rejectionViewOf, splitGrid } from './simulatorView.ts';
 import { EMPTY_ASSUMPTIONS, makeLegDraft } from './simulatorView.ts';
 import { parseSimulatorTransfer } from './transfer.ts';
@@ -147,7 +148,7 @@ describe('Page Simulateur — parcours', () => {
     expect(screen.getByText(/lot ultérieur/)).toBeDefined();
     expect(screen.getByText(/Aucun résultat/)).toBeDefined();
     expect(screen.getByRole('button', { name: 'Calculer' })).toBeDefined();
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(calledPaths(fetchMock.mock.calls)).not.toContain('/api/v1/simulations/preview');
   });
 
   it('composeur borné : 8 jambes maximum, ajout désactivé au plafond', async () => {
@@ -168,12 +169,17 @@ describe('Page Simulateur — parcours', () => {
     const invalid = await screen.findByTestId('sim-invalid-input');
     expect(invalid.textContent).toContain('rien n\'a été envoyé');
     expect(invalid.textContent).toContain('strike est requis');
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(calledPaths(fetchMock.mock.calls)).not.toContain('/api/v1/simulations/preview');
+    // Et rien d'autre non plus que la requête du shell : la page elle-même
+    // n'a lancé aucun appel.
+    expect(
+      calledPaths(fetchMock.mock.calls).filter((path) => !path.includes(SHELL_TICKER_PATH)),
+    ).toEqual([]);
   });
 
   it('Calculer → résultat THÉORIQUE : breakevens rendus avec résidu certifié, écho, avertissements', async () => {
     const user = userEvent.setup();
-    fetchMock.mockResolvedValue(jsonResponse(makeSimulationPreview()));
+    fetchMock.mockImplementation(withShellTicker(() => jsonResponse(makeSimulationPreview())));
     await renderSimulator();
     await fillMinimalForm(user);
     await user.click(screen.getByRole('button', { name: 'Calculer' }));
@@ -205,15 +211,17 @@ describe('Page Simulateur — parcours', () => {
 
   it('422 : raison EXACTE affichée (code + message serveur + explication française)', async () => {
     const user = userEvent.setup();
-    fetchMock.mockResolvedValue(
-      jsonResponse(
-        {
-          detail: {
-            code: 'UNCOVERED_SHORT_UPSIDE_TAIL',
-            message: 'net multiplier-weighted CALL+STOCK quantity on the S->inf tail is -100 < 0',
+    fetchMock.mockImplementation(
+      withShellTicker(() =>
+        jsonResponse(
+          {
+            detail: {
+              code: 'UNCOVERED_SHORT_UPSIDE_TAIL',
+              message: 'net multiplier-weighted CALL+STOCK quantity on the S->inf tail is -100 < 0',
+            },
           },
-        },
-        422,
+          422,
+        ),
       ),
     );
     await renderSimulator();
@@ -229,10 +237,12 @@ describe('Page Simulateur — parcours', () => {
 
   it('422 wire : les défauts exacts de validation sont listés', async () => {
     const user = userEvent.setup();
-    fetchMock.mockResolvedValue(
-      jsonResponse(
-        { detail: [{ loc: ['body', 'assumptions', 'spot'], msg: 'Invalid decimal', type: 'value_error' }] },
-        422,
+    fetchMock.mockImplementation(
+      withShellTicker(() =>
+        jsonResponse(
+          { detail: [{ loc: ['body', 'assumptions', 'spot'], msg: 'Invalid decimal', type: 'value_error' }] },
+          422,
+        ),
       ),
     );
     await renderSimulator();
@@ -245,7 +255,11 @@ describe('Page Simulateur — parcours', () => {
 
   it('offline honnête : aucun calcul effectué', async () => {
     const user = userEvent.setup();
-    fetchMock.mockRejectedValue(new TypeError('fetch failed'));
+    fetchMock.mockImplementation(
+      withShellTicker(() => {
+        throw new TypeError('fetch failed');
+      }),
+    );
     await renderSimulator();
     await fillMinimalForm(user);
     await user.click(screen.getByRole('button', { name: 'Calculer' }));
@@ -255,7 +269,9 @@ describe('Page Simulateur — parcours', () => {
 
   it('session requise sur 401', async () => {
     const user = userEvent.setup();
-    fetchMock.mockResolvedValue(jsonResponse({ detail: { code: 'AUTH_REQUIRED' } }, 401));
+    fetchMock.mockImplementation(
+      withShellTicker(() => jsonResponse({ detail: { code: 'AUTH_REQUIRED' } }, 401)),
+    );
     await renderSimulator();
     await fillMinimalForm(user);
     await user.click(screen.getByRole('button', { name: 'Calculer' }));

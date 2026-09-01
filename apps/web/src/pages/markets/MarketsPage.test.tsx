@@ -101,7 +101,10 @@ describe('Page Marchés — état nominal', () => {
     expect(screen.getByText('4/4 couverts, 0 écartés, 4 reçus')).toBeDefined();
 
     // Bandeau population SYNTHETIC non masquable.
-    expect(screen.getByText('DONNÉES SYNTHÉTIQUES')).toBeDefined();
+    // Portée à la PAGE : depuis le LOT-14 le ticker du shell porte sa propre
+    // étiquette de population. Chercher dans tout le document trouverait les
+    // deux — et surtout ne prouverait plus que la PAGE porte la sienne.
+    expect(within(screen.getByRole('main')).getByText('DONNÉES SYNTHÉTIQUES')).toBeDefined();
 
     // Conclusion textuelle serveur, verbatim.
     expect(screen.getByTestId('markets-conclusion').textContent).toContain(

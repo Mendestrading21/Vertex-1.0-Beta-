@@ -4,6 +4,8 @@ import { pageStateOf, queryKeyForResource } from '../../api/hooks.ts';
 import { usePortfolio } from '../../api/portfolioApi.ts';
 import type { PageDataState } from '../../api/hooks.ts';
 import type { PortfolioResponse } from '../../api/client.ts';
+import { AiExplanationPanel } from '../../components/ai/AiExplanationPanel.tsx';
+import type { AiDossier } from '../../components/ai/AiExplanationPanel.tsx';
 import { AuthRequiredNotice } from '../../components/AuthRequiredNotice.tsx';
 import { DataStateBoundary } from '../../components/DataStateBoundary.tsx';
 import type { DataState } from '../../components/DataStateBoundary.tsx';
@@ -84,6 +86,12 @@ export function PortfolioPage() {
     void queryClient.invalidateQueries({ queryKey: queryKeyForResource('portfolio_valuation/any') });
   }
 
+  const portfolioKey = data?.portfolio.id === undefined ? '' : String(data.portfolio.id);
+  const dossiersExplicables: readonly AiDossier[] = [
+    { kind: 'portfolio_valuation', key: portfolioKey },
+    { kind: 'performance', key: portfolioKey },
+  ];
+
   const excludedRows =
     frame.view === null
       ? []
@@ -154,6 +162,16 @@ export function PortfolioPage() {
           </section>
 
           <PerformanceSection />
+
+          {/*
+            LOT-12 : l'explication IA vit dans l'inspecteur et porte sur le
+            dossier OUVERT. Cette page en affiche deux — la valorisation et la
+            performance du même registre manuel — donc elle en propose deux, et
+            rien d'autre. La clé n'est passée que lorsque le portefeuille a
+            réellement été lu : une clé vide dit « pas encore résolu », elle
+            n'invente pas d'identifiant.
+          */}
+          <AiExplanationPanel dossiers={dossiersExplicables} />
 
           <LedgerPanel transactions={data.transactions} onCompensated={refetchPortfolio} />
           <TransactionForm onRecorded={refetchPortfolio} />
