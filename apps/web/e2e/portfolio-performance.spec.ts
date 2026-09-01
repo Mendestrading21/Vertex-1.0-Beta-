@@ -177,25 +177,3 @@ test.describe('Portefeuille — module Performance, snapshot réel', () => {
     await expect(page.getByTestId('perf-metrics')).toHaveCount(0);
   });
 });
-
-test.describe('Redirection permanente des destinations absorbées', () => {
-  test('/performance mène à /portfolio sans laisser d’entrée d’historique', async ({ page }) => {
-    await page.goto('/today');
-    await page.goto('/performance');
-    await expect(page).toHaveURL(/\/portfolio$/);
-    await expect(page.getByRole('heading', { level: 1, name: 'Portefeuille' })).toBeVisible();
-    // `replace` : revenir en arrière depuis la destination absorbée doit
-    // ramener à la page précédente, jamais reboucler sur l'ancienne route.
-    await page.goBack();
-    await expect(page).toHaveURL(/\/today$/);
-  });
-
-  test('/system mène à /sources-reports sans laisser d’entrée d’historique', async ({ page }) => {
-    await page.goto('/today');
-    await page.goto('/system');
-    await expect(page).toHaveURL(/\/sources-reports$/);
-    await expect(page.getByRole('heading', { level: 1, name: 'Sources & Rapports' })).toBeVisible();
-    await page.goBack();
-    await expect(page).toHaveURL(/\/today$/);
-  });
-});

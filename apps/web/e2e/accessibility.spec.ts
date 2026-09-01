@@ -65,7 +65,7 @@ const ROUTES = [
   `/options/${INSTRUMENT_SYNTHETIQUE}`,
   '/simulator',
   '/portfolio',
-  '/follow-up',
+  '/catalysts',
   // '/performance' a été absorbée dans '/portfolio' (LOT-08) : la visiter
   // ici ne mesurerait plus qu'une redirection. Le module Performance est
   // désormais dans le DOM de '/portfolio', donc balayé par cette entrée —

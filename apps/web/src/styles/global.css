@@ -2724,7 +2724,126 @@ body {
 }
 
 /* ------------------------------------------------------------------ */
-/* Vague 4 — Suivi (/follow-up)                                        */
+/* LOT-10 — Catalyseurs (/catalysts) : timeline reliée aux thèses      */
+/* ------------------------------------------------------------------ */
+
+.vx-cat-scope,
+.vx-cat-populations,
+.vx-cat-missing,
+.vx-cat-orphans-note {
+  margin: var(--vx-space-8) 0 var(--vx-space-16);
+  color: var(--vx-text-secondary);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-cat-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  counter-reset: vx-cat;
+}
+
+/* Chaque catalyseur est une CARTE : sans séparation, les sept blocs de
+   provenance formaient un mur de texte illisible. Une seule surface, un seul
+   bord — pas de lumière dominante ajoutée (une par carte au maximum). */
+.vx-cat-item {
+  display: grid;
+  grid-template-columns: minmax(190px, 220px) 1fr;
+  gap: var(--vx-space-8) var(--vx-space-16);
+  margin-bottom: var(--vx-space-12);
+  padding: var(--vx-space-12) var(--vx-space-16);
+  border: 1px solid var(--vx-border-soft);
+  border-radius: var(--vx-radius-10);
+  background: var(--vx-surface-1);
+}
+
+.vx-cat-when {
+  display: flex;
+  flex-direction: column;
+  gap: var(--vx-space-4);
+  grid-row: span 3;
+  color: var(--vx-text-secondary);
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-cat-local {
+  color: var(--vx-text-muted);
+}
+
+.vx-cat-what,
+.vx-cat-why,
+.vx-cat-quality {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--vx-space-8);
+  min-width: 0;
+}
+
+.vx-cat-title {
+  flex-basis: 100%;
+  color: var(--vx-text);
+  font-weight: 600;
+}
+
+.vx-cat-tags,
+.vx-cat-links {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--vx-space-8);
+}
+
+.vx-cat-theses {
+  flex-basis: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.vx-cat-theses li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--vx-space-8);
+  padding: var(--vx-space-4) 0;
+}
+
+.vx-cat-thesis-title {
+  color: var(--vx-text);
+}
+
+.vx-cat-due,
+.vx-cat-positions,
+.vx-cat-importance,
+.vx-cat-provenance {
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-cat-positions {
+  flex-basis: 100%;
+  margin: 0;
+}
+
+.vx-cat-quality {
+  border-top: 1px solid var(--vx-border-soft);
+  padding-top: var(--vx-space-8);
+}
+
+.vx-cat-orphans ul {
+  margin: 0;
+  padding-left: var(--vx-space-20);
+  color: var(--vx-text-secondary);
+}
+
+.vx-cat-orphans li {
+  padding: var(--vx-space-4) 0;
+}
+
+/* ------------------------------------------------------------------ */
+/* Vague 4 — module de revue, absorbé dans /catalysts (LOT-10)         */
 /* ------------------------------------------------------------------ */
 
 .vx-fu-due-list {
@@ -3730,8 +3849,8 @@ body {
   --vx-page-ledger: 'LEDGER 08 · BOOK';
 }
 
-.vx-main[data-page='follow-up'] {
-  --vx-page-ledger: 'LEDGER 09 · THESIS';
+.vx-main[data-page='catalysts'] {
+  --vx-page-ledger: 'LEDGER 09 · CATALYST';
 }
 
 .vx-main[data-page='ai'] {
@@ -4046,7 +4165,7 @@ textarea:hover {
 }
 
 .vx-main[data-page='options'] .vx-chain-group[aria-current='true'],
-.vx-main[data-page='follow-up'] .vx-fu-due-item:hover,
+.vx-main[data-page='catalysts'] .vx-fu-due-item:hover,
 .vx-main[data-page='opportunities'] .vx-opp-group:hover {
   border-color: var(--vx-signal-deep);
 }

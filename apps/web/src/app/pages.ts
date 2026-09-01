@@ -112,12 +112,12 @@ const portfolio: PageDef = {
   lot: 'LOT-22',
 };
 
-const followUp: PageDef = {
-  key: 'follow-up',
-  title: 'Suivi',
-  navPath: '/follow-up',
-  routePath: '/follow-up',
-  question: 'Quelles thèses, alertes et informations doivent être revues ?',
+const catalysts: PageDef = {
+  key: 'catalysts',
+  title: 'Catalyseurs',
+  navPath: '/catalysts',
+  routePath: '/catalysts',
+  question: 'Quels événements vérifiés peuvent modifier la thèse et quand ?',
   lot: 'LOT-23',
 };
 
@@ -144,7 +144,7 @@ const system: PageDef = {
 export const NAV_GROUPS: readonly NavGroup[] = [
   { label: 'Décider', pages: [today, opportunities, analysis, options, simulator] },
   { label: 'Observer', pages: [calendar, markets] },
-  { label: 'Piloter', pages: [portfolio, followUp] },
+  { label: 'Piloter', pages: [portfolio, catalysts] },
   { label: 'Assistance', pages: [vertexAi, system] },
 ];
 
@@ -153,7 +153,8 @@ export const NAV_GROUPS: readonly NavGroup[] = [
  *
  * La cible du blueprint est douze (`references/pages.md`). Le rail en porte
  * onze pendant les absorptions : `performance` a rejoint Portefeuille
- * (LOT-08), et Graphiques, Risques et Catalyseurs n'existent pas encore.
+ * (LOT-08), `follow-up` a rejoint la destination Catalyseurs créée au LOT-10,
+ * et Graphiques et Risques n'existent pas encore.
  * L'écart est mesuré par `scripts/audit_titanium_ledger.py` et journalisé
  * dans `docs/05-design/PAGE_ARBITRATION.md`. Il n'est PAS comblé par une
  * entrée de rail sans route, données ni tests : une façade serait un

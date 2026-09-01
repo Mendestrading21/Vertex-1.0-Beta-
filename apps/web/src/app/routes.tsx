@@ -18,12 +18,11 @@ import type { PageDef } from './pages.ts';
  * (docs/07-delivery/FOLDER_BY_FOLDER_PROGRAM.md).
  *
  * Onze destinations du rail sont installées : Aujourd'hui, Opportunités,
- * Analyse, Options, Simulateur, Calendrier, Marchés, Portefeuille, Suivi,
- * Vertex IA et Sources & Rapports. S'y ajoute /auth, hors rail : c'est une
+ * Analyse, Options, Simulateur, Calendrier, Marchés, Portefeuille,
+ * Catalyseurs, Vertex IA et Sources & Rapports. S'y ajoute /auth, hors rail : c'est une
  * route de session, pas une destination du blueprint.
  *
- * La douzième — et les deux autres que la cible attend, Graphiques et
- * Risques — n'existent pas encore. `NotInstalledPage` ne sert aujourd'hui
+ * Graphiques et Risques, que la cible attend, n'existent pas encore. `NotInstalledPage` ne sert aujourd'hui
  * AUCUNE entrée du rail : les destinations manquantes sont absentes du rail
  * plutôt que présentes en façade.
  *
@@ -60,9 +59,9 @@ const LazyPortfolioPage = lazy(async () => {
   return { default: module.PortfolioPage };
 });
 
-const LazyFollowUpPage = lazy(async () => {
-  const module = await import('../pages/follow-up/FollowUpPage.tsx');
-  return { default: module.FollowUpPage };
+const LazyCatalystsPage = lazy(async () => {
+  const module = await import('../pages/catalysts/CatalystsPage.tsx');
+  return { default: module.CatalystsPage };
 });
 
 const LazyCalendarPage = lazy(async () => {
@@ -120,10 +119,10 @@ function PortfolioRoute() {
   );
 }
 
-function FollowUpRoute() {
+function CatalystsRoute() {
   return (
     <Suspense fallback={<DataStateBoundary state="loading" />}>
-      <LazyFollowUpPage />
+      <LazyCatalystsPage />
     </Suspense>
   );
 }
@@ -160,7 +159,7 @@ const INSTALLED_PAGES: Readonly<Record<string, () => React.JSX.Element>> = {
   analysis: AnalysisRoute,
   simulator: SimulatorRoute,
   portfolio: PortfolioRoute,
-  'follow-up': FollowUpRoute,
+  catalysts: CatalystsRoute,
   calendar: CalendarRoute,
   opportunities: OpportunitiesRoute,
   ai: AiRoute,
@@ -187,6 +186,10 @@ export const AUTH_PAGE: PageDef = {
  * l'« historique » du registre parmi les widgets de Portefeuille, et les deux
  * vues lisent le MÊME portefeuille manuel.
  *
+ * `/follow-up` a rejoint `/catalysts` : §10 du contrat donne à Catalyseurs la
+ * question « quels événements vérifiés peuvent modifier LA THÈSE et quand ? ».
+ * Une thèse est mise en revue parce qu'un catalyseur l'a touchée.
+ *
  * Les routes API `/api/v1/system/capabilities` et `/api/v1/performance/{id}`
  * ne bougent PAS — seule la composition d'interface change, et
  * `.claude/rules/architecture.md` interdit de déplacer une responsabilité
@@ -195,6 +198,7 @@ export const AUTH_PAGE: PageDef = {
 const LEGACY_REDIRECTS: ReadonlyArray<readonly [string, string]> = [
   ['/system', '/sources-reports'],
   ['/performance', '/portfolio'],
+  ['/follow-up', '/catalysts'],
 ];
 
 export function buildRouteObjects(): RouteObject[] {

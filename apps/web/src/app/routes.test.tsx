@@ -13,7 +13,7 @@ const INSTALLED_KEYS = new Set([
   'analysis',
   'simulator',
   'portfolio',
-  'follow-up',
+  'catalysts',
   'calendar',
   'opportunities',
   'ai',
@@ -45,15 +45,15 @@ describe('routes — couverture du blueprint', () => {
       'calendar',
       'markets',
       'portfolio',
-      'follow-up',
+      'catalysts',
       'ai',
       'sources-reports',
     ]);
   });
 
-  it('les trois destinations cibles manquantes ne sont PAS présentes en façade', () => {
+  it('les deux destinations cibles restantes ne sont PAS présentes en façade', () => {
     const keys = new Set(ALL_PAGES.map((entry) => entry.key));
-    for (const attendue of ['charts', 'risks', 'catalysts']) {
+    for (const attendue of ['charts', 'risks']) {
       expect(keys.has(attendue)).toBe(false);
     }
   });

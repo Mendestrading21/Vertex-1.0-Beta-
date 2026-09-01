@@ -4,7 +4,7 @@
 phase: rattrapage_complet_autorise
 lot: LOT-04 (CI verte), LOT-05 (marque canonique), LOT-06 (arbitrage des pages),
      LOT-07 (/system → /sources-reports), LOT-08 (/performance → Portefeuille),
-     LOT-09 (conformité du shell à l'anatomie canonique)
+     LOT-09 (conformité du shell), LOT-10 (création de Catalyseurs)
 branch: codex/vertex-rattrapage-complet-20260831
 status: ci_reparee_puis_execution_en_cours_sans_fusion_automatique
 last_good_commit: bdf9f306 (= origin/main, CI 7/7 verte)
@@ -48,6 +48,18 @@ lots_de_cette_session:
      Le point 5 n'est PAS livré : ni cloche, ni badge de mode, ni fraîcheur de
      shell n'ont de propriétaire canonique, et les dessiner sans source serait
      une façade."
+  - "LOT-10 — création de la DOUZIÈME destination, Catalyseurs, et absorption
+     de /follow-up. Elle n'ajoute aucun endpoint : elle croise deux snapshots
+     déjà servis — calendar/global, dont chaque événement porte déjà son
+     event_context (thèses et positions touchées), et review_queue/global.
+     Le croisement ne crée aucune donnée : une thèse citée par un événement
+     mais absente de la file est DITE absente, jamais complétée, et les
+     événements non reliés sont comptés, jamais masqués. Les deux requêtes
+     restent indépendantes : hors ligne, chacune affiche SON état, avec un
+     message distinct — un seul bandeau partagé masquerait le cas où une
+     seule des deux sources tombe. Le widget « consensus fourni » que le
+     contrat §10 nomme n'a AUCUN champ dans le contrat d'agenda : il est
+     déclaré absent à l'écran, pas approximé."
 mesures_de_cette_session:
   - "playwright : 405 passed après LOT-07 (le job CI qui était rouge), puis
      399 passed après LOT-08. La baisse de 6 est intégralement expliquée dans
@@ -55,15 +67,20 @@ mesures_de_cette_session:
      une redirection (le même DOM est balayé via /portfolio), +6 tests de
      redirection permanente. Aucun test supprimé. Puis 417 après LOT-09 :
      +18 = six mesures d'anatomie canonique x trois viewports, dans le nouveau
-     e2e/shell-canonical.spec.ts."
-  - "vitest : 400 passed / 30 fichiers ; tsc 0 ; biome 0 (128 fichiers) — mesuré
-     après LOT-09"
+     e2e/shell-canonical.spec.ts. Puis 432 après LOT-10, +15 décomposés :
+     +9 la timeline de Catalyseurs (3 tests x 3 viewports) ; -6 les deux
+     tests de redirection sortis de portfolio-performance.spec.ts ; +12 le
+     nouveau e2e/legacy-redirects.spec.ts (4 x 3), qui couvre les TROIS
+     redirections au lieu de deux. Aucun test supprimé : follow-up.spec.ts
+     est devenu catalysts.spec.ts, ses 6 tests intacts (27 = 9 x 3)."
+  - "vitest : 415 passed / 31 fichiers ; tsc 0 ; biome 0 (133 fichiers) — mesuré
+     après LOT-10"
   - "pytest : 3766 passed, 4 skipped — mesuré sur 35d48cb"
   - "run_checks.sh : TOUT VERT"
-  - "audit_titanium_ledger.py après LOT-08 : empreinte canonique vérifiée,
-     écarts = 'charts, risks' à créer, 'follow-up, ai' à absorber. 'system' et
-     'performance' ont quitté la liste — c'est la mesure du lot, pas une
-     affirmation"
+  - "audit_titanium_ledger.py après LOT-10 : empreinte canonique vérifiée,
+     écarts = 'charts, risks' à créer, 'ai' à absorber. 'system',
+     'performance' et 'follow-up' ont quitté la liste — c'est la mesure du
+     lot, pas une affirmation"
   - "falsification LOT-07 : `Navigate` sans `replace` fait rougir
      routes.test.tsx avec `expected 'PUSH' to be 'REPLACE'`"
   - "falsification LOT-09 : retirer les guillemets de `url()` dans BrandMark
@@ -189,8 +206,13 @@ checks_locaux:
   - "ruff : All checks passed ; mypy --strict : 115 fichiers, 0 erreur"
   - "worker Cloudflare : 53 tests de contrat"
   - "run_checks.sh TOUT VERT"
-pages_reelles: [/today, /markets, /system, /auth, /options, /analysis, /simulator, /portfolio, /follow-up, /performance, /calendar, /opportunities, /ai]
+pages_reelles: [/today, /opportunities, /analysis, /options, /simulator,
+                /calendar, /markets, /portfolio, /catalysts, /ai,
+                /sources-reports, plus /auth hors rail]
 pages_non_implementees: []
+destinations_cibles_manquantes: [charts, risks]
+redirections_permanentes: ["/system -> /sources-reports", "/performance -> /portfolio",
+                           "/follow-up -> /catalysts"]
 ecarts_declares:
   - "WCAG 1.4.10 (reflow) NON CONFORME : plancher min-width 1024px, 384 px de
      débordement mesurés à 200 % de zoom — épinglé par test, inscrit à DEBT.md"

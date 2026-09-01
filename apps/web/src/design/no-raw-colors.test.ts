@@ -295,10 +295,16 @@ describe("interdiction du vocabulaire d'ordre boursier", () => {
       join('src', 'pages', 'portfolio', 'TransactionForm.tsx'),
       join('src', 'pages', 'portfolio', 'CsvImportPanel.tsx'),
       join('src', 'pages', 'portfolio', 'portfolioView.ts'),
-      join('src', 'pages', 'follow-up', 'FollowUpPage.tsx'),
-      join('src', 'pages', 'follow-up', 'ThesisSheet.tsx'),
-      join('src', 'pages', 'follow-up', 'ThesisForm.tsx'),
-      join('src', 'pages', 'follow-up', 'followUpView.ts'),
+      // LOT-10 : le module de revue vit sous Catalyseurs. Les quatre fichiers
+      // restent balayés — un déplacement ne sort jamais un fichier du
+      // périmètre des gardes. S'y ajoutent les deux fichiers créés.
+      join('src', 'pages', 'catalysts', 'review', 'ReviewQueueSection.tsx'),
+      join('src', 'pages', 'catalysts', 'review', 'ThesisSheet.tsx'),
+      join('src', 'pages', 'catalysts', 'review', 'ThesisForm.tsx'),
+      join('src', 'pages', 'catalysts', 'review', 'followUpView.ts'),
+      join('src', 'pages', 'catalysts', 'CatalystsPage.tsx'),
+      join('src', 'pages', 'catalysts', 'CatalystTimeline.tsx'),
+      join('src', 'pages', 'catalysts', 'catalystsView.ts'),
       // LOT-08 : le module Performance vit sous Portefeuille. Les quatre
       // fichiers restent balayés — un déplacement ne doit jamais sortir un
       // fichier du périmètre des gardes.

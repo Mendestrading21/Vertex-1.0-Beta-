@@ -98,6 +98,32 @@ en remplissant une maquette avec ce qui n'existe pas.
 
 | 2026-08-31 | `performance` → **Portefeuille** | Le module Performance entier (courbe, métriques brut\|net, heatmap + table mensuelle, série quotidienne, jours exclus, export CSV + manifeste, conventions) déplacé sous `src/pages/portfolio/performance/`, rendu dans `PortfolioPage`. `/performance` retirée du rail et redirigée vers `/portfolio`. La route API `/v1/performance/{id}` n'a **pas** bougé (règle 2). | `vitest run` 399 passed ; `playwright test` 399 passed ; `tools/run_checks.sh` TOUT VERT. Décompte e2e 405 → 399 intégralement expliqué ci-dessous. |
 
+| 2026-09-01 | `follow-up` → **Catalyseurs** | Création de la douzième destination et absorption du module de revue. Aucun endpoint ajouté : la page CROISE `calendar/global` (dont chaque événement porte déjà son `event_context`) et `review_queue/global`. `/follow-up` retirée du rail et redirigée vers `/catalysts`. Les routes API ne bougent pas (règle 2). | vitest 415 ; playwright 432 ; `run_checks.sh` TOUT VERT ; l'audit du skill ne liste plus `follow-up` |
+
+### Ce que Catalyseurs n'invente pas
+
+La page ne crée aucune donnée en croisant deux snapshots publiés :
+
+- une thèse **citée par un événement** mais absente de la file de revue est
+  affichée comme absente, avec son titre d'origine — jamais complétée par une
+  échéance ou un état qu'aucun snapshot ne publie ;
+- les événements que le snapshot ne relie à rien sont **comptés et annoncés**,
+  jamais silencieusement filtrés ;
+- les deux requêtes restent **indépendantes** : hors ligne, chacune affiche son
+  propre état avec un message distinct. Un bandeau partagé laisserait croire à
+  une source unique et masquerait le cas — le plus fréquent — où une seule des
+  deux tombe ;
+- le widget « **consensus fourni** » que le contrat §10 nomme n'a aucun champ
+  correspondant dans le contrat d'agenda publié. Il est déclaré **absent** à
+  l'écran, pas approximé.
+
+Distinction avec Calendrier (§11) : Calendrier sert **tout** l'agenda dans une
+fenêtre et son fuseau ; Catalyseurs n'en sert que la part reliée à une thèse ou
+une position. Un seul propriétaire de donnée, deux questions — jamais deux
+vérités. Un test e2e vérifie que les deux nombres (reliés + non reliés)
+s'additionnent exactement à l'agenda servi par l'API : un événement perdu
+serait pire qu'un événement de trop.
+
 ### Pourquoi le total Playwright passe de 405 à 399
 
 Un total qui baisse doit s'expliquer, sinon il cache une suppression.

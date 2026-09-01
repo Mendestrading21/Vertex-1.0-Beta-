@@ -148,15 +148,15 @@ test.describe('Dégradation 1024×768', () => {
     });
   });
 
-  test('/follow-up : file due et populations séparées visibles, pas de scroll horizontal', async ({
+  test('/catalysts : timeline, file due et populations séparées visibles, pas de scroll horizontal', async ({
     page,
   }, testInfo) => {
-    await page.goto('/follow-up');
+    await page.goto('/catalysts');
     await expect(page.getByTestId('fu-due-list')).toBeVisible({ timeout: 20_000 });
     await expect(page.getByTestId('fu-populations')).toContainText('USER_DECLARED');
     await expectNoHorizontalPageScroll(page);
     await page.screenshot({
-      path: screenshotPath('follow-up-smoke', testInfo.project.name),
+      path: screenshotPath('catalysts-smoke', testInfo.project.name),
       fullPage: true,
     });
   });

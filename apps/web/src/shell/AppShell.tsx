@@ -30,7 +30,7 @@ const LEDGER_CODE_BY_PAGE: Readonly<Record<string, string>> = {
   calendar: 'TL / 06',
   markets: 'TL / 07',
   portfolio: 'TL / 08',
-  'follow-up': 'TL / 09',
+  catalysts: 'TL / 09',
   ai: 'TL / 11',
   'sources-reports': 'TL / 12',
   auth: 'TL / ACCESS',

@@ -23,7 +23,7 @@ const GLYPH_BY_PAGE: Readonly<Record<string, string>> = {
   calendar: newsClusterUrl,
   markets: marketRegimeUrl,
   portfolio: manualLedgerUrl,
-  'follow-up': thesisActiveUrl,
+  catalysts: thesisActiveUrl,
   ai: evidenceRailUrl,
   'sources-reports': sourceCoverageUrl,
 };
