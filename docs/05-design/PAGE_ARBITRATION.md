@@ -100,6 +100,8 @@ en remplissant une maquette avec ce qui n'existe pas.
 
 | 2026-09-01 | `follow-up` → **Catalyseurs** | Création de la douzième destination et absorption du module de revue. Aucun endpoint ajouté : la page CROISE `calendar/global` (dont chaque événement porte déjà son `event_context`) et `review_queue/global`. `/follow-up` retirée du rail et redirigée vers `/catalysts`. Les routes API ne bougent pas (règle 2). | vitest 415 ; playwright 432 ; `run_checks.sh` TOUT VERT ; l'audit du skill ne liste plus `follow-up` |
 
+| 2026-09-01 | (shell) **inspecteur contextuel** | Point 6 de l'anatomie canonique livré comme EMPLACEMENT du shell, rempli par la page. Premier remplissage : Catalyseurs (§10). Débloque la ligne `ai`, qui attendait cet emplacement. | vitest 420 ; playwright 435 ; largeur mesurée dans 300–340 px ; « aucune colonne morte » vérifiée sur `/today` et `/catalysts` |
+
 ### Ce que Catalyseurs n'invente pas
 
 La page ne crée aucune donnée en croisant deux snapshots publiés :

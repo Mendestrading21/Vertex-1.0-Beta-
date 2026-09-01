@@ -129,3 +129,22 @@ export const LINK_LABELS: Readonly<Record<CatalystLink, string>> = {
   thesis: 'thèse liée',
   position: 'position liée',
 };
+
+/**
+ * Résout l'identifiant sélectionné en catalyseur SERVI, ou `null`.
+ *
+ * La page ne mémorise qu'un identifiant, jamais un objet : si le snapshot est
+ * rafraîchi et que l'événement n'y est plus, il n'y a plus rien à inspecter —
+ * et l'inspecteur ne doit pas rester figé sur une donnée qui n'est plus
+ * servie. Garder l'objet aurait affiché indéfiniment un état périmé sans le
+ * dire, ce que l'article 17 interdit.
+ */
+export function selectedCatalystOf(
+  selection: CatalystSelectionView | null,
+  selectedEventId: string | null,
+): CatalystView | null {
+  if (selection === null || selectedEventId === null) {
+    return null;
+  }
+  return selection.catalysts.find((entry) => entry.event.eventId === selectedEventId) ?? null;
+}

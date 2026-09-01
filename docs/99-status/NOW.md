@@ -4,7 +4,8 @@
 phase: rattrapage_complet_autorise
 lot: LOT-04 (CI verte), LOT-05 (marque canonique), LOT-06 (arbitrage des pages),
      LOT-07 (/system → /sources-reports), LOT-08 (/performance → Portefeuille),
-     LOT-09 (conformité du shell), LOT-10 (création de Catalyseurs)
+     LOT-09 (conformité du shell), LOT-10 (création de Catalyseurs),
+     LOT-11 (inspecteur contextuel du shell)
 branch: codex/vertex-rattrapage-complet-20260831
 status: ci_reparee_puis_execution_en_cours_sans_fusion_automatique
 last_good_commit: bdf9f306 (= origin/main, CI 7/7 verte)
@@ -60,6 +61,19 @@ lots_de_cette_session:
      seule des deux sources tombe. Le widget « consensus fourni » que le
      contrat §10 nomme n'a AUCUN champ dans le contrat d'agenda : il est
      déclaré absent à l'écran, pas approximé."
+  - "LOT-11 — l'inspecteur contextuel du shell, point 6 de l'anatomie
+     canonique, existait dans la capture et nulle part dans le code. Il est
+     désormais un EMPLACEMENT du shell rempli PAR LA PAGE, jamais un composant
+     qui lirait les données lui-même. Deux propriétés le tiennent : aucune
+     colonne morte (l'aside n'occupe la grille que si une page y a monté un
+     panneau — une colonne vide en permanence serait de la chrome
+     décorative), et aucun panneau ne survit à la page qui l'a monté.
+     Premier remplissage : Catalyseurs, dont le contrat §10 fixe exactement le
+     contenu — source, fuseau, historique, instruments liés, incertitude. Les
+     cinq sont relayés verbatim. L'« incertitude » est FACTUELLE (statut
+     estimé/confirmé, révisions, conflits, fraîcheur déclarée), jamais une
+     probabilité : le contrat d'agenda n'en publie aucune, et une probabilité
+     sans calibration est interdite. L'inspecteur le DIT à l'écran."
 mesures_de_cette_session:
   - "playwright : 405 passed après LOT-07 (le job CI qui était rouge), puis
      399 passed après LOT-08. La baisse de 6 est intégralement expliquée dans
@@ -72,9 +86,10 @@ mesures_de_cette_session:
      tests de redirection sortis de portfolio-performance.spec.ts ; +12 le
      nouveau e2e/legacy-redirects.spec.ts (4 x 3), qui couvre les TROIS
      redirections au lieu de deux. Aucun test supprimé : follow-up.spec.ts
-     est devenu catalysts.spec.ts, ses 6 tests intacts (27 = 9 x 3)."
-  - "vitest : 415 passed / 31 fichiers ; tsc 0 ; biome 0 (133 fichiers) — mesuré
-     après LOT-10"
+     est devenu catalysts.spec.ts, ses 6 tests intacts (27 = 9 x 3). Puis
+     435 après LOT-11 : +3 = une mesure d'inspecteur x 3 viewports."
+  - "vitest : 420 passed / 31 fichiers ; tsc 0 ; biome 0 (135 fichiers) — mesuré
+     après LOT-11"
   - "pytest : 3766 passed, 4 skipped — mesuré sur 35d48cb"
   - "run_checks.sh : TOUT VERT"
   - "audit_titanium_ledger.py après LOT-10 : empreinte canonique vérifiée,

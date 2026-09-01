@@ -1,3 +1,5 @@
+import { useState } from 'react';
+
 import { useCalendar } from '../../api/decisionApi.ts';
 import { useFollowUpQueue } from '../../api/portfolioApi.ts';
 import { pageStateOf } from '../../api/hooks.ts';
@@ -6,8 +8,9 @@ import { AuthRequiredNotice } from '../../components/AuthRequiredNotice.tsx';
 import { DataStateBoundary } from '../../components/DataStateBoundary.tsx';
 import type { DataState } from '../../components/DataStateBoundary.tsx';
 import { calendarEventsOf } from '../calendar/calendarView.ts';
+import { CatalystInspector } from './CatalystInspector.tsx';
 import { CatalystTimeline } from './CatalystTimeline.tsx';
-import { selectCatalysts } from './catalystsView.ts';
+import { selectCatalysts, selectedCatalystOf } from './catalystsView.ts';
 import type { CatalystSelectionView } from './catalystsView.ts';
 import { ReviewQueueSection } from './review/ReviewQueueSection.tsx';
 import { queueContentOf } from './review/followUpView.ts';
@@ -31,6 +34,11 @@ import { queueContentOf } from './review/followUpView.ts';
  * une fenêtre temporelle et son fuseau ; Catalyseurs n'en sert que la part
  * reliée à une thèse ou à une position. Un seul propriétaire de donnée, deux
  * questions — jamais deux vérités.
+ *
+ * Elle remplit aussi l'inspecteur contextuel du shell (point 6 de l'anatomie
+ * canonique) quand un catalyseur est sélectionné. Le contenu de cet
+ * inspecteur est fixé par le contrat §10 : source, fuseau, historique,
+ * instruments liés et incertitude.
  *
  * Les deux requêtes sont INDÉPENDANTES et leurs états ne sont pas fondus :
  * si l'agenda répond et pas la file, la timeline s'affiche et le module de
@@ -67,6 +75,7 @@ export function catalystFrameStateOf(
 }
 
 export function CatalystsPage() {
+  const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
   const calendarQuery = useCalendar(null);
   const queueQuery = useFollowUpQueue();
 
@@ -84,6 +93,8 @@ export function CatalystsPage() {
     calendarQuery.data !== undefined && frameState !== 'empty' && frameState !== 'error'
       ? selectCatalysts(calendarEventsOf(calendarQuery.data.agenda), queueView?.theses ?? [])
       : null;
+
+  const selected = selectedCatalystOf(selection, selectedEventId);
 
   return (
     <article className="vx-page" aria-labelledby="vx-page-title-catalysts">
@@ -142,7 +153,17 @@ export function CatalystsPage() {
               <CatalystTimeline
                 catalysts={selection.catalysts}
                 unlinkedCount={selection.unlinkedCount}
+                selectedEventId={selectedEventId}
+                onSelect={setSelectedEventId}
               />
+
+              {/*
+                L'inspecteur n'existe que si un catalyseur est RÉELLEMENT
+                sélectionné et toujours servi. Une sélection qui ne correspond
+                plus à rien (snapshot rafraîchi, événement disparu) ne laisse
+                pas un panneau figé : elle ne rend rien.
+              */}
+              {selected !== null ? <CatalystInspector catalyst={selected} /> : null}
 
               {selection.thesesWithoutCatalyst.length > 0 ? (
                 <section

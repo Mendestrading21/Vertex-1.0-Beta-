@@ -2724,6 +2724,125 @@ body {
 }
 
 /* ------------------------------------------------------------------ */
+/* LOT-11 — inspecteur contextuel (point 6 de l'anatomie canonique)    */
+/* ------------------------------------------------------------------ */
+
+/* « zone de travail dense avec une dominante centrale et un inspecteur
+   contextuel à droite ». La zone de travail devient donc une grille à deux
+   colonnes — mais la seconde n'existe QUE si une page y a monté un panneau.
+   Une colonne vide en permanence serait de la chrome décorative. */
+.vx-work {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  flex: 1;
+  min-width: 0;
+}
+
+.vx-shell[data-inspector='open'] .vx-work {
+  /* 300–340 px selon viewport (`canonical-visual.md`, « Densité et
+     géométrie »). La dominante garde le reste. */
+  grid-template-columns: minmax(0, 1fr) clamp(300px, 22vw, 340px);
+  gap: var(--vx-space-16);
+}
+
+.vx-inspector {
+  position: sticky;
+  top: 0;
+  align-self: start;
+  max-height: 100vh;
+  overflow-y: auto;
+  padding: var(--vx-space-16) var(--vx-space-16) var(--vx-space-16) 0;
+}
+
+.vx-inspector-panel {
+  padding: var(--vx-space-16);
+  border: 1px solid var(--vx-border-soft);
+  border-radius: var(--vx-radius-10);
+  background: var(--vx-surface-1);
+}
+
+.vx-inspector-heading {
+  margin: 0 0 var(--vx-space-12);
+  color: var(--vx-text);
+  font-size: var(--vx-font-size-title);
+}
+
+.vx-inspector-facts {
+  display: grid;
+  gap: var(--vx-space-8);
+  margin: 0;
+}
+
+.vx-inspector-facts > div {
+  display: grid;
+  grid-template-columns: minmax(0, 96px) minmax(0, 1fr);
+  gap: var(--vx-space-8);
+  align-items: baseline;
+}
+
+.vx-inspector-facts dt {
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-inspector-facts dd {
+  margin: 0;
+  color: var(--vx-text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.vx-inspector-block {
+  margin-top: var(--vx-space-16);
+  padding-top: var(--vx-space-12);
+  border-top: 1px solid var(--vx-border-soft);
+}
+
+.vx-inspector-block h3 {
+  margin: 0 0 var(--vx-space-8);
+  color: var(--vx-text-secondary);
+  font-size: var(--vx-font-size-meta);
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.vx-inspector-history,
+.vx-inspector-links {
+  margin: 0;
+  padding-left: var(--vx-space-20);
+  color: var(--vx-text-secondary);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-inspector-history li,
+.vx-inspector-links li {
+  padding: var(--vx-space-4) 0;
+}
+
+/* Bouton d'ouverture d'un catalyseur : c'est l'action primaire de la page. */
+.vx-cat-open {
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--vx-text);
+  font-size: var(--vx-font-size-body);
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.vx-cat-open:hover .vx-cat-title,
+.vx-cat-open:focus-visible .vx-cat-title {
+  text-decoration: underline;
+}
+
+/* L'élément ouvert est marqué par une BORDURE, pas par la seule couleur, et
+   `aria-pressed` le porte pour les technologies d'assistance. */
+.vx-cat-item[data-selected='true'] {
+  border-color: var(--vx-signal-soft);
+}
+
+/* ------------------------------------------------------------------ */
 /* LOT-10 — Catalyseurs (/catalysts) : timeline reliée aux thèses      */
 /* ------------------------------------------------------------------ */
 

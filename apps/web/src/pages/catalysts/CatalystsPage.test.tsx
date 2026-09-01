@@ -15,6 +15,7 @@
  *    relayés sans qu'aucun contenu ne soit reconstruit.
  */
 import { screen, waitFor, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
@@ -27,7 +28,7 @@ import {
 import { renderApp } from '../../test/render.tsx';
 import { calendarEventsOf } from '../calendar/calendarView.ts';
 import { catalystFrameStateOf } from './CatalystsPage.tsx';
-import { selectCatalysts } from './catalystsView.ts';
+import { selectCatalysts, selectedCatalystOf } from './catalystsView.ts';
 import { queueContentOf } from './review/followUpView.ts';
 
 const fetchMock = vi.fn<typeof fetch>();
@@ -266,5 +267,83 @@ describe('Page Catalyseurs — rendu', () => {
       expect(document.querySelector('[data-state="offline"]')).not.toBeNull();
     });
     expect(screen.queryByTestId('cat-list')).toBeNull();
+  });
+});
+
+describe('Catalyseurs — inspecteur contextuel (point 6 de l’anatomie)', () => {
+  it('aucune colonne morte : l’inspecteur reste masqué tant que rien n’est ouvert', async () => {
+    mockRoutes();
+    await renderCatalysts();
+    const inspecteur = document.getElementById('vx-inspector-slot');
+    expect(inspecteur).not.toBeNull();
+    // Le nœud existe (une cible de portail doit être montée) mais il est
+    // `hidden` : une colonne vide en permanence serait de la chrome.
+    expect(inspecteur?.hasAttribute('hidden')).toBe(true);
+    expect(screen.queryByRole('heading', { level: 2, name: /^Inspecteur/ })).toBeNull();
+  });
+
+  it('ouvrir un catalyseur remplit l’inspecteur avec les cinq champs du contrat §10', async () => {
+    const user = userEvent.setup();
+    mockRoutes();
+    await renderCatalysts();
+
+    const item = await screen.findByTestId('cat-syn-ev-earnings-SYN-ENER-01');
+    await user.click(within(item).getByRole('button'));
+
+    const titre = await screen.findByRole('heading', { level: 2, name: /^Inspecteur/ });
+    expect(titre.textContent).toContain('SYN-ENER-01');
+    expect(document.getElementById('vx-inspector-slot')?.hasAttribute('hidden')).toBe(false);
+
+    const panneau = titre.closest('.vx-inspector-panel');
+    expect(panneau).not.toBeNull();
+    const texte = panneau!.textContent ?? '';
+    // Les cinq champs que le contrat §10 nomme, tous relayés :
+    expect(texte).toContain('Source'); // source
+    expect(texte).toContain('Europe/Zurich'); // fuseau
+    expect(texte).toContain('Historique publié'); // historique
+    expect(texte).toContain('Éléments liés'); // instruments liés
+    expect(texte).toContain('Statut'); // incertitude factuelle
+  });
+
+  it('l’inspecteur n’affiche AUCUNE probabilité et le dit', async () => {
+    const user = userEvent.setup();
+    mockRoutes();
+    await renderCatalysts();
+    const item = await screen.findByTestId('cat-syn-ev-earnings-SYN-ENER-01');
+    await user.click(within(item).getByRole('button'));
+
+    const titre = await screen.findByRole('heading', { level: 2, name: /^Inspecteur/ });
+    const texte = titre.closest('.vx-inspector-panel')?.textContent ?? '';
+    expect(texte).toContain('Aucune probabilité n’est affichée');
+    // Le contrat d'agenda n'en publie aucune ; en afficher une sans
+    // calibration serait interdit par .claude/rules/financial-safety.md.
+    expect(texte).not.toMatch(/\d+\s*%\s*de (chance|probabilité)/);
+  });
+
+  it('l’état ouvert est porté par aria-pressed, pas par la seule couleur', async () => {
+    const user = userEvent.setup();
+    mockRoutes();
+    await renderCatalysts();
+    const item = await screen.findByTestId('cat-syn-ev-earnings-SYN-ENER-01');
+    const bouton = within(item).getByRole('button');
+    expect(bouton.getAttribute('aria-pressed')).toBe('false');
+    await user.click(bouton);
+    expect(bouton.getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('une sélection qui ne correspond plus à rien ne laisse pas un panneau figé', () => {
+    // La page ne mémorise qu'un IDENTIFIANT. Si le snapshot est rafraîchi et
+    // que l'événement n'y est plus, il n'y a plus rien à inspecter : garder
+    // l'objet aurait affiché indéfiniment un état périmé sans le dire.
+    const servi = selectCatalysts(calendarEventsOf([linkedEvent('ev-1', 1, 'A')]), []);
+    expect(selectedCatalystOf(servi, 'ev-1')?.event.eventId).toBe('ev-1');
+
+    const apresRafraichissement = selectCatalysts(
+      calendarEventsOf([linkedEvent('ev-2', 2, 'B')]),
+      [],
+    );
+    expect(selectedCatalystOf(apresRafraichissement, 'ev-1')).toBeNull();
+    expect(selectedCatalystOf(null, 'ev-1')).toBeNull();
+    expect(selectedCatalystOf(servi, null)).toBeNull();
   });
 });

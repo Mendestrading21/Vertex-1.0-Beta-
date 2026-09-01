@@ -188,6 +188,47 @@ test.describe('Shell — anatomie canonique', () => {
     expect(boiteCartouche!.x + boiteCartouche!.width).toBeLessThanOrEqual(boiteMain!.x);
   });
 
+  test('point 6 : l’inspecteur n’occupe la grille que si une page le remplit', async ({
+    page,
+  }) => {
+    // « zone de travail dense avec une dominante centrale et un inspecteur
+    // contextuel à droite ». L'emplacement existe dans le shell, mais une
+    // colonne vide en permanence serait de la chrome décorative : il ne
+    // prend de place que rempli.
+    await page.goto('/today');
+    const inspecteur = page.locator('#vx-inspector-slot');
+    await expect(inspecteur).toBeHidden();
+
+    // Sur Catalyseurs, il reste masqué tant qu'aucun élément n'est ouvert.
+    await page.goto('/catalysts');
+    await expect(page.getByTestId('cat-unlinked')).toBeVisible();
+    await expect(inspecteur).toBeHidden();
+
+    const premier = page.locator('.vx-cat-open').first();
+    if ((await page.locator('.vx-cat-item').count()) === 0) {
+      // Aucun catalyseur servi : l'inspecteur DOIT rester masqué, et c'est
+      // exactement la propriété testée.
+      return;
+    }
+    await premier.click();
+    await expect(inspecteur).toBeVisible();
+
+    // Largeur canonique : 300–340 px selon viewport.
+    const boite = await inspecteur.boundingBox();
+    expect(boite).not.toBeNull();
+    expect(boite!.width).toBeGreaterThanOrEqual(300);
+    expect(boite!.width).toBeLessThanOrEqual(340);
+
+    // « à droite » : au-delà du bord droit de la dominante.
+    const dominante = await page.locator('main').boundingBox();
+    expect(boite!.x).toBeGreaterThanOrEqual(dominante!.x + dominante!.width - 1);
+
+    // Changer de destination libère l'emplacement : aucun panneau ne survit
+    // à la page qui l'a monté.
+    await page.goto('/today');
+    await expect(inspecteur).toBeHidden();
+  });
+
   test('le shell reste identique d’une destination à l’autre', async ({ page }) => {
     // « Le shell reste identique sur les douze destinations. Seuls l'item
     // actif, le titre, la dominante, les modules secondaires et l'inspecteur

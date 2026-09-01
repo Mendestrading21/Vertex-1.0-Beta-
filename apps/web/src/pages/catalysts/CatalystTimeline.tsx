@@ -28,9 +28,17 @@ import type { CatalystView } from './catalystsView.ts';
 export interface CatalystTimelineProps {
   readonly catalysts: readonly CatalystView[];
   readonly unlinkedCount: number;
+  /** Identifiant de l'événement ouvert dans l'inspecteur, `null` si aucun. */
+  readonly selectedEventId: string | null;
+  readonly onSelect: (eventId: string) => void;
 }
 
-export function CatalystTimeline({ catalysts, unlinkedCount }: CatalystTimelineProps) {
+export function CatalystTimeline({
+  catalysts,
+  unlinkedCount,
+  selectedEventId,
+  onSelect,
+}: CatalystTimelineProps) {
   return (
     <section className="vx-cat-timeline" aria-labelledby="vx-cat-timeline-title">
       <h2 id="vx-cat-timeline-title">
@@ -52,7 +60,12 @@ export function CatalystTimeline({ catalysts, unlinkedCount }: CatalystTimelineP
       ) : (
         <ol className="vx-cat-list" data-testid="cat-list">
           {catalysts.map(({ event, links, theses, positions }) => (
-            <li key={event.eventId} className="vx-cat-item" data-testid={`cat-${event.eventId}`}>
+            <li
+              key={event.eventId}
+              className="vx-cat-item"
+              data-testid={`cat-${event.eventId}`}
+              data-selected={event.eventId === selectedEventId ? 'true' : undefined}
+            >
               <div className="vx-cat-when">
                 <time dateTime={event.eventTimeUtc} className="vx-num">
                   {event.eventTimeUtc}
@@ -67,7 +80,20 @@ export function CatalystTimeline({ catalysts, unlinkedCount }: CatalystTimelineP
               </div>
 
               <div className="vx-cat-what">
-                <span className="vx-cat-title">{event.title ?? event.eventId}</span>
+                {/*
+                  Ouvrir l'inspecteur est l'action PRIMAIRE de la page, et la
+                  seule. C'est un bouton, pas une ligne cliquable : le clavier
+                  doit l'atteindre dans l'ordre du document et `aria-pressed`
+                  dit lequel est ouvert.
+                */}
+                <button
+                  type="button"
+                  className="vx-cat-open"
+                  aria-pressed={event.eventId === selectedEventId}
+                  onClick={() => onSelect(event.eventId)}
+                >
+                  <span className="vx-cat-title">{event.title ?? event.eventId}</span>
+                </button>
                 <span className="vx-cat-tags">
                   <span className="vx-badge" data-category={event.category}>
                     {categoryLabelOf(event.category)}

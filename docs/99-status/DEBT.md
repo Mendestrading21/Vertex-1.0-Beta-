@@ -565,11 +565,17 @@ chemin de fraîcheur avec un lot de démarrage.
   vide : une cloche sans notifications ou un badge de mode sans propriétaire de
   mode serait exactement la façade que l'article 17 interdit. À traiter quand
   ces trois sources existeront.
-- **Le point 4 (ticker horizontal) et le point 6 (inspecteur contextuel) ne
-  sont pas livrés** — **OUVERT.** Le ticker exige une source d'indices servie
-  au shell sur chaque page, donc une décision de charge réseau et un contrat ;
-  l'inspecteur exige un contenu par destination. Ni l'un ni l'autre n'est un
-  écart de composition : ce sont des capacités à part entière.
+- **Le point 6 (inspecteur contextuel)** — **EMPLACEMENT LIVRÉ au LOT-11,
+  REMPLISSAGE PARTIEL.** Le shell porte l'aside, sa largeur canonique et sa
+  règle « aucune colonne morte ». Une seule destination le remplit
+  aujourd'hui : Catalyseurs. Les dix autres n'ont pas encore d'élément
+  inspectable déclaré — elles n'affichent donc aucune colonne, ce qui est le
+  comportement voulu, pas un manque masqué. Le contrat des douze pages fixe le
+  contenu attendu pour chacune ; il reste à le livrer page par page.
+- **Le point 4 (ticker horizontal) n'est pas livré** — **OUVERT.** Il exige
+  une source d'indices servie au shell sur chaque page, donc une décision de
+  charge réseau et un contrat. Ce n'est pas un écart de composition : c'est
+  une capacité à part entière.
 - **L'ordre des signatures `TL / NN`** reste ouvert (voir LOT-07) : rien n'a
   changé, les trois destinations manquantes sont toujours la condition
   préalable.
