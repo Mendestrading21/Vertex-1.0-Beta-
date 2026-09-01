@@ -624,3 +624,28 @@ chemin de fraîcheur avec un lot de démarrage.
   invalide potentiellement des mocks écrits pour l'ancienne structure. La
   suite unitaire doit être relancée après ce type de changement, pas seulement
   la campagne e2e qui l'a motivé.
+
+## Trouvé au LOT-13 (2026-09-01)
+
+- **Une capture d'écran lue sans vérifier que le run l'avait produite** —
+  **incident de méthode, corrigé.** Après une modification CSS, deux captures
+  ont été lues et commentées alors que le `pnpm build` de la campagne
+  ÉCHOUAIT : les images étaient celles du build précédent. La conclusion tirée
+  (« le correctif n'a rien changé ») était donc fausse, et fondée sur une
+  preuve périmée.
+
+  Cause du build cassé : une suppression de règle CSS par expression
+  régulière avait laissé une accolade orpheline, que `lightningcss` refuse.
+  Le test unitaire et `tsc` ne voient pas le CSS ; seul le build le compile.
+
+  **Règle retenue :** ne jamais lire un artefact (capture, rapport, export)
+  sans avoir vérifié le CODE DE SORTIE du run qui devait le produire. Et après
+  toute édition de `global.css`, lancer `pnpm build` — la suite unitaire ne
+  compile pas la feuille de style.
+- **Options porte encore un inspecteur modal** — **OUVERT.**
+  `OptionInspector` reste un `role="dialog"` avec piège de focus, alors que le
+  motif est tranché (inspecteur persistant du shell). La conversion suit celle
+  d'Aujourd'hui : retirer le piège, garder focus entrant / `Échap` /
+  restauration, remplacer les assertions de piège par leur contrepartie
+  non modale, et vérifier que `.vx-inspector-*` ne reste pas positionné en
+  surcouche.

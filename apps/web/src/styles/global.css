@@ -1179,34 +1179,16 @@ body {
 /* Panneau latéral de détail (SideSheet)                               */
 /* ------------------------------------------------------------------ */
 
+/* LOT-13 : ce panneau était une SURCOUCHE flottante de dialogue modal —
+   `position: fixed`, pleine hauteur, ombre portée, flou d'arrière-plan et
+   animation d'entrée. Devenu un panneau de l'inspecteur, il doit couler dans
+   la colonne : gardé tel quel, il chevauchait la zone de travail, ce que la
+   capture de vérification a montré immédiatement.
+
+   Toute la chrome de modal disparaît donc. L'encadrement visuel est désormais
+   celui de `.vx-inspector-panel`, commun à tous les panneaux. */
 .vx-sheet {
-  position: fixed;
-  top: 0;
-  right: 0;
-  z-index: var(--vx-z-sheet);
-  width: 480px;
-  max-width: 92vw;
-  height: 100vh;
-  overflow-y: auto;
-  padding: var(--vx-space-32);
-  background: var(--vx-overlay);
-  border-left: 1px solid var(--vx-border-strong);
-  box-shadow: var(--vx-shadow-floating);
-  backdrop-filter: blur(var(--vx-space-20));
-  -webkit-backdrop-filter: blur(var(--vx-space-20));
-  animation: vx-sheet-enter var(--vx-motion-220) var(--vx-ease-decelerate);
-}
-
-@keyframes vx-sheet-enter {
-  from {
-    opacity: 0;
-    transform: translateX(var(--vx-space-12));
-  }
-
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
+  display: block;
 }
 
 .vx-sheet-head {
@@ -1219,7 +1201,7 @@ body {
   border-bottom: 1px solid var(--vx-border-soft);
 }
 
-.vx-sheet-head h2 {
+.vx-sheet-head h3 {
   margin: 0;
   font-size: var(--vx-font-size-display);
   font-weight: 650;
@@ -4240,14 +4222,6 @@ textarea:hover {
 .vx-primary-action:hover:not(:disabled) {
   border-color: var(--vx-silver);
   background: linear-gradient(135deg, var(--vx-silver), var(--vx-signal-bright));
-}
-
-.vx-sheet {
-  border-left-color: var(--vx-border-strong);
-  background:
-    linear-gradient(150deg, var(--vx-titanium-soft), transparent 24%),
-    var(--vx-surface-1);
-  box-shadow: var(--vx-shadow-floating);
 }
 
 .vx-sheet-head {

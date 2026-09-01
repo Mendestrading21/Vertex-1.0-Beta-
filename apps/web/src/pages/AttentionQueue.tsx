@@ -1,8 +1,8 @@
-import { useEffect, useId, useRef, useState } from 'react';
-import type { KeyboardEvent as ReactKeyboardEvent } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 
 import type { AttentionItem } from '../api/client.ts';
 import { FreshnessBadge } from '../components/FreshnessBadge.tsx';
+import { InspectorPanel } from '../shell/inspector.tsx';
 
 /**
  * Visuel dominant de la page Aujourd'hui : la file d'attention.
@@ -71,47 +71,68 @@ interface SideSheetProps {
   readonly onClose: () => void;
 }
 
+/**
+ * LOT-13 : ce panneau était un DIALOGUE MODAL (`role="dialog"`,
+ * `aria-modal="true"`, piège de focus). Il est devenu un panneau de
+ * l'inspecteur du shell, comme l'anatomie canonique le décrit — « le shell
+ * reste identique sur les douze destinations », et l'inspecteur en fait
+ * partie.
+ *
+ * LE PIÈGE DE FOCUS A ÉTÉ RETIRÉ, ET C'EST LA CORRECTION, PAS UN
+ * AFFAIBLISSEMENT. Un piège n'est correct que pour un dialogue modal, où le
+ * reste de la page est justement inerte. Sur un panneau NON modal, piéger le
+ * clavier enfermerait l'utilisateur hors de sa propre page : ce serait un
+ * défaut d'accessibilité, pas une protection. Les tests qui l'asséraient sont
+ * remplacés par l'assertion correcte — depuis le dernier élément du panneau,
+ * la tabulation CONTINUE vers le reste de la page.
+ *
+ * Ce qui est CONSERVÉ, parce que ces propriétés valent pour les deux motifs :
+ * le focus entre dans le panneau à l'ouverture, `Échap` le referme, et le
+ * focus revient au déclencheur.
+ */
 function SideSheet({ item, asOf, onClose }: SideSheetProps) {
   const sheetRef = useRef<HTMLDivElement | null>(null);
   const titleId = useId();
+  const [sheetNode, setSheetNode] = useState<HTMLDivElement | null>(null);
 
-  useEffect(() => {
-    const sheet = sheetRef.current;
-    if (sheet !== null) {
-      const first = sheet.querySelector<HTMLElement>('button');
-      first?.focus();
-    }
+  /**
+   * Le focus entre dans le panneau DÈS QUE son nœud existe.
+   *
+   * Un `useEffect([])` ne suffit pas ici : le panneau est monté par PORTAIL,
+   * et le nœud d'accueil n'est résolu qu'après un premier rendu. À ce
+   * moment-là `sheetRef.current` est encore `null`, l'effet ne trouve aucun
+   * bouton, et le focus reste sur le déclencheur — c'est exactement le défaut
+   * que la conversion a introduit et que le test a rattrapé. Une ref de
+   * rappel, elle, se déclenche à l'attachement réel du nœud.
+   */
+  const attacherPanneau = useCallback((node: HTMLDivElement | null) => {
+    sheetRef.current = node;
+    setSheetNode(node);
+    node?.querySelector<HTMLElement>('button')?.focus();
   }, []);
 
-  const handleKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
-    if (event.key === 'Escape') {
-      event.stopPropagation();
-      onClose();
+  // `Échap` referme le panneau depuis n'importe quel élément qu'il contient.
+  //
+  // L'écouteur est attaché NATIVEMENT au panneau plutôt que posé en
+  // `onKeyDown` sur le conteneur : sans `role="dialog"`, ce conteneur est un
+  // élément statique, et y accrocher un gestionnaire clavier est justement ce
+  // que la règle d'accessibilité du linter refuse. Un écouteur natif sur le
+  // nœud réel couvre le même besoin sans prétendre que le div est interactif.
+  useEffect(() => {
+    if (sheetNode === null) {
       return;
     }
-    if (event.key !== 'Tab') {
-      return;
+    function onKeyDown(event: KeyboardEvent): void {
+      if (event.key === 'Escape') {
+        event.stopPropagation();
+        onClose();
+      }
     }
-    const sheet = sheetRef.current;
-    if (sheet === null) {
-      return;
-    }
-    const focusables = Array.from(
-      sheet.querySelectorAll<HTMLElement>('button, a[href], [tabindex]:not([tabindex="-1"])'),
-    );
-    if (focusables.length === 0) {
-      return;
-    }
-    const first = focusables[0];
-    const last = focusables[focusables.length - 1];
-    if (event.shiftKey && document.activeElement === first) {
-      event.preventDefault();
-      last?.focus();
-    } else if (!event.shiftKey && document.activeElement === last) {
-      event.preventDefault();
-      first?.focus();
-    }
-  };
+    sheetNode.addEventListener('keydown', onKeyDown);
+    return () => {
+      sheetNode.removeEventListener('keydown', onKeyDown);
+    };
+  }, [sheetNode, onClose]);
 
   const provenance = item.provenance;
   const memberIds = provStringList(provenance, 'member_event_ids');
@@ -121,20 +142,16 @@ function SideSheet({ item, asOf, onClose }: SideSheetProps) {
   const lastReceivedAt = provString(provenance, 'last_received_at');
 
   return (
-    <div
-      ref={sheetRef}
-      className="vx-sheet"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby={titleId}
-      onKeyDown={handleKeyDown}
-    >
-      <div className="vx-sheet-head">
-        <h2 id={titleId}>{item.title}</h2>
-        <button type="button" className="vx-sheet-close" onClick={onClose}>
-          Fermer
-        </button>
-      </div>
+    <InspectorPanel subject={item.title}>
+      <div ref={attacherPanneau} className="vx-sheet">
+        <div className="vx-sheet-head">
+          <h3 id={titleId} className="vx-visually-hidden">
+            {item.title}
+          </h3>
+          <button type="button" className="vx-sheet-close" onClick={onClose}>
+            Fermer
+          </button>
+        </div>
       {item.synthetic ? <p className="vx-badge vx-badge-synthetic">SYNTHÉTIQUE</p> : null}
       <dl className="vx-sheet-facts">
         <div>
@@ -207,8 +224,9 @@ function SideSheet({ item, asOf, onClose }: SideSheetProps) {
             {asOf === null ? <AbsentValue label="as_of absent" /> : <time dateTime={asOf}>{asOf}</time>}
           </dd>
         </div>
-      </dl>
-    </div>
+        </dl>
+      </div>
+    </InspectorPanel>
   );
 }
 
@@ -242,7 +260,9 @@ export function AttentionQueue({ items, asOf }: AttentionQueueProps) {
                 <button
                   type="button"
                   className="vx-queue-title"
-                  aria-haspopup="dialog"
+                  // Plus `aria-haspopup="dialog"` : le panneau n'est plus un
+                  // dialogue. `aria-expanded` reste, il décrit exactement ce
+                  // que fait le bouton — déployer un panneau de détail.
                   aria-expanded={openItemId === item.id}
                   onClick={(event) => {
                     triggerRef.current = event.currentTarget;

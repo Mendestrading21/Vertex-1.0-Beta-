@@ -115,7 +115,38 @@ Les deux pages attendent donc un **contrat serveur**, pas une décision
 d'interface. Les inventer maintenant produirait exactement la façade que
 l'article 17 de la Constitution interdit.
 
-## Deux motifs d'inspecteur coexistent — à trancher
+## Le motif d'inspecteur, tranché (LOT-13, Aujourd'hui)
+
+Décision : **l'inspecteur persistant du shell est le motif unique.** Le
+dialogue modal disparaît, page par page. Aujourd'hui est converti ; Options
+reste à faire.
+
+**Le piège de focus a été retiré, et c'est la correction, pas un
+affaiblissement.** Un piège n'est correct que pour un dialogue modal, où le
+reste de la page est justement inerte. Sur un panneau NON modal, piéger le
+clavier enfermerait l'utilisateur hors de sa propre page : ce serait un défaut
+d'accessibilité. Les assertions qui l'exigeaient sont remplacées par leur
+contrepartie correcte — depuis le dernier élément du panneau, la tabulation
+CONTINUE vers le reste de la page. C'est une propriété plus forte : elle
+prouve que la page reste opérable.
+
+Conservé à l'identique, parce que ces propriétés valent pour les deux motifs :
+le focus entre dans le panneau à l'ouverture, `Échap` referme, le focus revient
+au déclencheur. Axe reste à zéro violation critique/sérieuse.
+
+Deux défauts introduits par la conversion, trouvés et corrigés :
+
+1. **le focus n'entrait plus dans le panneau.** Le panneau est monté par
+   PORTAIL : au premier rendu, le nœud d'accueil n'est pas encore résolu, donc
+   un `useEffect([])` ne trouve aucun bouton à focaliser. Remplacé par une ref
+   de rappel, qui se déclenche à l'attachement réel du nœud ;
+2. **le panneau chevauchait la zone de travail.** `.vx-sheet` restait une
+   surcouche `position: fixed` pleine hauteur, avec ombre portée et flou —
+   toute la chrome du modal. Elle coule désormais dans la colonne, et
+   l'encadrement visuel est celui de `.vx-inspector-panel`, commun à tous les
+   panneaux.
+
+## Ce qui reste du motif d'inspecteur — Options
 
 Constat du LOT-12, non corrigé, à traiter avant la refonte des pages.
 
