@@ -1,7 +1,7 @@
 # État courant
 
 ```yaml
-phase: rattrapage_complet_autorise
+phase: security_hold_r0
 lot: LOT-04 (CI verte), LOT-05 (marque canonique), LOT-06 (arbitrage des pages),
      LOT-07 (/system → /sources-reports), LOT-08 (/performance → Portefeuille),
      LOT-09 (conformité du shell), LOT-10 (création de Catalyseurs),
@@ -10,9 +10,15 @@ lot: LOT-04 (CI verte), LOT-05 (marque canonique), LOT-06 (arbitrage des pages),
      LOT-14 (ticker du shell, point 4 de l'anatomie canonique),
      LOT-25 (bord lecture seule des sources officielles),
      LOT-26 (SEC EDGAR point-in-time jusqu'au snapshot et à l'API)
-branch: lot/26-sec-edgar-pit
-status: lot_26_pr_13_ci_107_verte_7_sur_7
-last_good_commit: bdf9f306 (= origin/main, CI 7/7 verte)
+branch: lot/r0-github-security
+status: r0_non_destructif_prepare_ruleset_et_recuperation_claude
+last_good_commit: a5b7d205388e58f4e2716deeba5ecbea0ca9af21 (= main, CI 7/7 verte)
+security_hold:
+  - "main non protégée et aucun ruleset au relevé GitHub du 2026-09-01"
+  - "dépôt public : décision humaine requise avant toute remédiation d'historique"
+  - "PR #14 Claude figée pour R0 à 6226b8d ; aucune fusion globale autorisée"
+  - "23 commits post-socle classés dans docs/99-status/CLAUDE_RECOVERY_PLAN.md"
+  - "R0 local : verify_blueprint OK, audit canonique exécuté, run_checks.sh TOUT VERT"
 lots_de_cette_session:
   - "LOT-04 — la purge de session effaçait l'erreur 401 qu'elle devait laisser
      voir. CI ROUGE à l'arrivée sur b09b3785 : 3 échecs e2e/auth.spec.ts sur les
