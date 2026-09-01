@@ -20,6 +20,7 @@ dependencies = [
     "vertex-api",
     "vertex-worker",
     "vertex-edge-ibkr",
+    "vertex-edge-official",
     "vertex-ingress-tradingview",
 ]
 
@@ -56,6 +57,7 @@ members = [
     "apps/api",
     "apps/worker",
     "apps/edge-ibkr",
+    "apps/edge-official",
     "apps/ingress-tradingview",
 ]
 
@@ -65,6 +67,7 @@ vertex-persistence = { workspace = true }
 vertex-api = { workspace = true }
 vertex-worker = { workspace = true }
 vertex-edge-ibkr = { workspace = true }
+vertex-edge-official = { workspace = true }
 vertex-ingress-tradingview = { workspace = true }
 
 # Cible runtime : Python 3.13 (uv.lock au LOT-01 sur la machine cible).
@@ -121,7 +124,7 @@ ignore = [
 [tool.ruff.lint.isort]
 known-first-party = [
     "vertex_core", "vertex_persistence", "vertex_api",
-    "vertex_worker", "vertex_edge_ibkr", "vertex_ingress_tv",
+    "vertex_worker", "vertex_edge_ibkr", "vertex_edge_official", "vertex_ingress_tv",
 ]
 
 # ── Porte `python-quality` : typage strict ──────────────────────────────────
@@ -141,6 +144,7 @@ mypy_path = [
     "apps/api/src",
     "apps/worker/src",
     "apps/edge-ibkr/src",
+    "apps/edge-official/src",
     "apps/ingress-tradingview/src",
     "research",
 ]
@@ -153,6 +157,7 @@ files = [
     "apps/api/src",
     "apps/worker/src",
     "apps/edge-ibkr/src",
+    "apps/edge-official/src",
     "apps/ingress-tradingview/src",
     "research/pipelines",
     "tools",
@@ -182,6 +187,7 @@ testpaths = [
     "packages/python/vertex_persistence/tests",
     "apps/api/tests",
     "apps/edge-ibkr/tests",
+    "apps/edge-official/tests",
     "apps/ingress-tradingview/tests",
     "apps/worker/tests",
     "tools/tests",

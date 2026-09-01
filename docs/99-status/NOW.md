@@ -7,9 +7,10 @@ lot: LOT-04 (CI verte), LOT-05 (marque canonique), LOT-06 (arbitrage des pages),
      LOT-09 (conformité du shell), LOT-10 (création de Catalyseurs),
      LOT-11 (inspecteur contextuel du shell), LOT-12 (/ai → inspecteur),
      LOT-13 et LOT-13b (motif d'inspecteur unifié : plus aucun dialogue modal),
-     LOT-14 (ticker du shell, point 4 de l'anatomie canonique)
-branch: codex/vertex-rattrapage-complet-20260831
-status: ci_reparee_puis_execution_en_cours_sans_fusion_automatique
+     LOT-14 (ticker du shell, point 4 de l'anatomie canonique),
+     LOT-25 (bord lecture seule des sources officielles)
+branch: lot/25-official-source-adapters
+status: lot_25_commite_localement_push_attend_autorisation_humaine
 last_good_commit: bdf9f306 (= origin/main, CI 7/7 verte)
 lots_de_cette_session:
   - "LOT-04 — la purge de session effaçait l'erreur 401 qu'elle devait laisser
@@ -170,6 +171,11 @@ mesures_de_cette_session:
      fait rougir shell-canonical.spec.ts avec `Expected: not \"none\"`"
 
 active_work:
+  - "LOT-25 — commit local 9552538 : adaptateurs HTTPS bornés pour SEC EDGAR,
+     FRED/ALFRED, OpenFIGI, BCE et BNS. FMP et ORATS restent désactivés ; WSH
+     reste dans l'adaptateur IBKR existant. Aucun payload réel n'a transité."
+  - "Publication BLOQUÉE avant toute écriture distante : le push de la branche
+     lot/25-official-source-adapters exige une autorisation humaine explicite."
   - "commande utilisateur reçue : EXÉCUTE VERTEX RATTRAPAGE COMPLET"
   - "autorité canonique extraite du commit 72d55629 sans reprendre sa branche
      divergée comme base de code"
@@ -452,12 +458,22 @@ outillage_cloudflare:
      le verrou du Worker n'est PAS couvert par la porte release/notices.
      Ecart ecrit dans THIRD_PARTY_NOTICES.md plutot que laisse silencieux."
   deploiement: "AUCUN — B-03 en attente"
-prochaine_commande: "PR #11 (brouillon) porte LOT-07 a LOT-13b et attend une
-   VALIDATION HUMAINE : aucune fusion automatique. Les deux destinations
-   restantes, Graphiques et Risques, sont bloquees par un CONTRAT SERVEUR
-   absent, pas par une decision d'interface : les creer maintenant exigerait de
-   calculer un rendement rebase ou une severite dans le navigateur, tous deux
-   interdits. Le travail non bloque qui reste est la refonte Titanium Ledger
-   des dix destinations contre la capture canonique, aux viewports 1280, 1440
-   et 1600"
+lot_25_validation_locale:
+  commit: "9552538"
+  controles_verts:
+    - "compilation Python du nouveau package"
+    - "smoke manuel synthétique : 6/6"
+    - "uv lock --check --offline"
+    - "verify_blueprint : OK, 26 lots"
+    - "policy : OK"
+    - "secrets : 0 secret sur 778 fichiers suivis"
+    - "frontière financière : 0 appel interdit"
+    - "notices et traceability : OK"
+  non_executes:
+    - "pytest/ruff/mypy complets : environnement du clone sans dépendances et
+       téléchargement réseau refusé ; la CI distante doit les exécuter après push"
+prochaine_commande: "AUTORISE PUSH LOT-25 — publier la branche
+   lot/25-official-source-adapters, ouvrir une PR brouillon empilée sur
+   codex/vertex-rattrapage-complet-20260831, puis laisser la CI complète rendre
+   son verdict. Aucune fusion automatique."
 ```
