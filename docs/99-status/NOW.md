@@ -922,3 +922,44 @@ Claude.
   tel quel (`.vx-census-count`).
 - `AiExplanationPanel.test.tsx` : Analyse monte désormais deux panneaux ;
   le test attend celui de l'EXPLICATION.
+
+### Ce qui a été vu SUR CAPTURE, pas par un test
+
+1. La grille d'Opportunités n'était pas une grille : la classe de composition
+   manquait, tout s'empilait sur une colonne. Les tests de composition ne
+   voient pas le CSS ; la capture, si. Corrigé, régénérée.
+2. Le libellé d'une barre de dénombrement (`INSUFFICIENT_DATA`) et la clé
+   d'une raison d'exclusion se coupaient lettre à lettre dans une cellule de
+   175 px à 1280 et 1440. Libellé sur sa ligne, barre et compte dessous ;
+   raisons d'exclusion sur deux colonnes, table à largeur de contenu qui
+   défile dans sa région. Deux passes de capture.
+
+### Mesuré sur cette machine (codes relus)
+
+- `tsc --noEmit` : 0 erreur ; `biome check src e2e` : 0 violation (188 fichiers).
+- `vitest run` : **50 fichiers, 598 tests, 0 échec** (551 sur A3 + 47) ;
+  portes de design rejouées après la passe CSS : 65 / 65.
+- Playwright (opportunities, analysis, shell-canonical, accessibility ;
+  1280/1440/1600) : **237 passés / 237 déclarés** (`--list`), `.last-run.json`
+  passed, code 0 — passe finale après les correctifs de capture ; passes
+  intermédiaires 45 / 45 puis 16 / 16 et 8 / 8 (Opportunités seule).
+- `tools/run_checks.sh` (racine, seul, après la fin des e2e) : toutes les
+  portes vertes dont la performance, Biome, ruff et mypy ; puis le seul rouge
+  déjà connu, `test_denylist.py::test_adapter_satisfies_the_port_protocol`
+  sur Python 3.11 — pas ce lot, aucun fichier Python touché, établi dans la
+  PR #25.
+
+### Transmis, non corrigé ici
+
+- PR empilée : après la fusion de #26, recibler la PR A4 sur `main` (merge de
+  `main` dans la branche). `NOW.md` et `REFONTE_TITANIUM_LEDGER.md` sont
+  modifiés en fin de fichier par #25, #26 et ce lot : garder toutes les
+  sections.
+- Aucun snapshot SEC n'est semé par le pipeline synthétique : le module
+  « Faits officiels » y montre son état vide honnête ; le cas servi est
+  couvert par les tests unitaires (fixture SYNTHÉTIQUE).
+- La table des exclus et la grille de scénarios défilent en largeur dans leur
+  cellule : lisible, pas élégant.
+
+Prochaine commande recommandée : revue humaine de la PR LOT-A4, puis
+`EXÉCUTE A5` (Options, Simulateur — planches §5, §6).
