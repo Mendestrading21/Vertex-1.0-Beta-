@@ -10,6 +10,11 @@ lot: LOT-04 (CI verte), LOT-05 (marque canonique), LOT-06 (arbitrage des pages),
      LOT-14 (ticker du shell, point 4 de l'anatomie canonique)
 branch: codex/vertex-rattrapage-complet-20260831
 status: ci_reparee_puis_execution_en_cours_sans_fusion_automatique
+     LOT-14 (ticker du shell, point 4 de l'anatomie canonique),
+     LOT-25 (bord lecture seule des sources officielles),
+     LOT-26 (SEC EDGAR point-in-time jusqu'au snapshot et à l'API)
+branch: lot/26-sec-edgar-pit
+status: lot_26_pr_13_ci_107_verte_7_sur_7
 last_good_commit: bdf9f306 (= origin/main, CI 7/7 verte)
 lots_de_cette_session:
   - "LOT-04 — la purge de session effaçait l'erreur 401 qu'elle devait laisser
@@ -170,6 +175,28 @@ mesures_de_cette_session:
      fait rougir shell-canonical.spec.ts avec `Expected: not \"none\"`"
 
 active_work:
+  - "LOT-26 — SEC EDGAR : contrats Filing/FundamentalFact, disponibilité PIT,
+     corrections et conflits sans élection silencieuse, ingestion append-only,
+     snapshot par instrument, relais API protégé et runner one-shot. Aucun
+     branchement AdviceEngine/Analyse/Opportunités."
+  - "Qualification LOT-26 : 3797 tests Python collectés, 4 intégrations
+     PostgreSQL ignorées hors base ; run_checks.sh atteint == TOUT VERT == ;
+     Biome 142 fichiers, mypy strict 139 sources, Vitest 434/434, build Vite
+     et budget Chromium verts."
+  - "CI #106 sur b338fec : garde-fous, Ruff/mypy, unitaires et supply-chain
+     verts ; job web rouge uniquement parce que schema.d.ts n'avait pas été
+     régénéré après OpenAPI. Reproducteur exact : pnpm gen:api puis git diff
+     --exit-code -- src. Fichier généré ajouté au correctif."
+  - "CI #107 sur 747db7b : 7 jobs sur 7 verts après correctif — garde-fous,
+     Ruff/mypy strict, unitaires Python, intégration PostgreSQL 18, web,
+     supply-chain et E2E Chromium sur trois viewports avec axe."
+  - "LOT-25 — PR brouillon #12 : adaptateurs HTTPS bornés pour SEC EDGAR,
+     FRED/ALFRED, OpenFIGI, BCE et BNS, plus configuration locale et sonde live
+     explicite. FMP et ORATS restent désactivés ; WSH reste dans l'adaptateur
+     IBKR existant. Aucun secret ni payload réel n'a été poussé."
+  - "Publication autorisée et effectuée sur lot/25-official-source-adapters,
+     empilée sur codex/vertex-rattrapage-complet-20260831. Aucune fusion
+     automatique."
   - "commande utilisateur reçue : EXÉCUTE VERTEX RATTRAPAGE COMPLET"
   - "autorité canonique extraite du commit 72d55629 sans reprendre sa branche
      divergée comme base de code"
@@ -482,6 +509,36 @@ prochaine_commande: "PR #11 (brouillon) porte LOT-07 a LOT-13b et attend une
    dans le navigateur. Le travail non bloque qui reste est la refonte Titanium
    Ledger des onze destinations contre la capture canonique, aux viewports
    1280, 1440 et 1600"
+lot_25_validation_locale:
+  pr: "https://github.com/Mendestrading21/Vertex-1.0-Beta-/pull/12"
+  commit_distant_avant_correctif_ci: "90685bae172187995dec63b0e97a6db4dd1e636d"
+  controles_verts:
+    - "compilation Python du nouveau package"
+    - "tests du bord officiel : 14/14"
+    - "ruff : 0 violation"
+    - "mypy --strict : 144 fichiers, 0 erreur"
+    - "uv lock --check --offline"
+    - "verify_blueprint : OK, 26 lots"
+    - "policy : OK"
+    - "secrets : 0 secret sur 781 fichiers suivis"
+    - "frontière financière : 0 appel interdit"
+    - "notices et traceability : OK"
+  ci_98:
+    resultat: "6 jobs verts sur 7 ; seul Ruff rouge"
+    cause: "RUF022 sur l'ordre de __all__ et RUF100 sur un noqa devenu inutile"
+    correction: "les deux lignes sont corrigées et revalidées localement avant push"
+  ci_99:
+    commit: "3a8df77bdb3895c641e96bd0eb557522bcfe9961"
+    resultat: "7 jobs sur 7 verts"
+    preuves: "Ruff et mypy strict, tests unitaires Python, PostgreSQL 18, web,
+       garde-fous, supply chain et E2E Chromium sur trois viewports"
+  note_environnement_local: "la suite pytest complète a rencontré uniquement le
+     proxy SOCKS injecté par l'environnement sur un test HTTP localhost ; le test
+     isolé repasse vert avec les variables proxy retirées. Le job unitaire CI #98,
+     sans cette particularité, était déjà vert."
+prochaine_commande: "VALIDE PR #13 — relire humainement LOT-26 puis décider de sa
+   fusion. Après validation seulement, ouvrir LOT-27 pour FRED/ALFRED PIT. Les
+   clés, identifiants et droits fournisseurs restent exclusivement locaux."
 ```
 
 ## REPRISE 2026-09-01 — etat mesure en fin de session

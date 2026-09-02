@@ -29,6 +29,7 @@ from vertex_core.contracts.enums import (
 from vertex_core.contracts.envelope import DataEnvelope
 from vertex_core.contracts.hashing import CanonicalizationError, canonical_json_hash
 from vertex_core.contracts.identity import InstrumentId, OptionContractId
+from vertex_core.contracts.information import Filing, FundamentalFact
 from vertex_core.contracts.types import (
     ContractModel,
     CurrencyCode,
@@ -72,8 +73,10 @@ __all__ = [
     "DirectionHypothesis",
     "EnvelopeQuality",
     "ExerciseStyle",
+    "Filing",
     "FiniteDecimal",
     "FrozenStrMapping",
+    "FundamentalFact",
     "GateResult",
     "GateStatus",
     "IdentityStatus",

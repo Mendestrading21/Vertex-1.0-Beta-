@@ -1,0 +1,90 @@
+schema_version: 1
+authority: adapters.official_sources
+documentation: docs/04-integrations/OFFICIAL_SOURCE_ADAPTERS.md
+mode: INFORMATION_ONLY
+read_only_required: true
+portfolio_source: MANUAL_VERTEX_ONLY
+fallback_policy: EXPLICIT_ONLY
+sources:
+  - id: sec_edgar
+    deployment_status: ACTIVE_AFTER_LOCAL_CONFIGURATION
+    capabilities: [submissions, company_facts]
+    base_host: data.sec.gov
+    authentication: USER_AGENT_CONTACT
+    secret_location: null
+    retention_class: R1_PUBLIC_FACT
+    raw_ttl_hours: 24
+    canonical_for: US_FILINGS_AND_COMPANY_FACTS
+    fallback: null
+
+  - id: fred_alfred
+    deployment_status: ACTIVE_AFTER_LOCAL_CONFIGURATION
+    capabilities: [series_observations, realtime_periods]
+    base_host: api.stlouisfed.org
+    authentication: API_KEY
+    secret_location: env:VERTEX_FRED_API_KEY
+    retention_class: R1_PUBLIC_FACT
+    raw_ttl_hours: 24
+    canonical_for: US_MACRO_AND_POINT_IN_TIME_VINTAGES
+    fallback: null
+
+  - id: ecb_data_portal
+    deployment_status: ACTIVE_AFTER_SERIES_ALLOWLIST
+    capabilities: [csv_series]
+    base_host: data-api.ecb.europa.eu
+    authentication: NONE
+    secret_location: null
+    retention_class: R1_PUBLIC_FACT
+    raw_ttl_hours: 24
+    canonical_for: EURO_AREA_OFFICIAL_MACRO
+    fallback: fred_alfred_if_same_primary_series_and_rights_are_recorded
+
+  - id: snb_data_portal
+    deployment_status: ACTIVE_AFTER_CUBE_ALLOWLIST
+    capabilities: [cube_csv]
+    base_host: data.snb.ch
+    authentication: NONE
+    secret_location: null
+    retention_class: R1_PUBLIC_FACT
+    raw_ttl_hours: 24
+    canonical_for: SWISS_OFFICIAL_MACRO
+    fallback: fred_alfred_if_same_primary_series_and_rights_are_recorded
+
+  - id: openfigi
+    deployment_status: OPTIONAL_KEY
+    capabilities: [identifier_mapping]
+    base_host: api.openfigi.com
+    authentication: OPTIONAL_API_KEY
+    secret_location: env:VERTEX_OPENFIGI_API_KEY
+    retention_class: R0_REFERENCE
+    raw_ttl_hours: 24
+    canonical_for: IDENTIFIER_MAPPING_CANDIDATES_ONLY
+    fallback: null
+    semantic_limits:
+      - NEVER_AUTO_RESOLVE_AMBIGUITY
+      - IBKR_CON_ID_REMAINS_CANONICAL_FOR_IBKR_MARKET_DATA
+
+  - id: ibkr_wsh
+    deployment_status: EXISTING_ADAPTER_NOT_ENTITLED_UNTIL_PROBED
+    implementation: apps/edge-ibkr
+    capabilities: [corporate_events]
+    authentication: IBKR_SESSION_AND_SEPARATE_SUBSCRIPTION
+    retention_class: R2_LICENSED_METADATA
+    canonical_for: CORPORATE_EVENTS_WHEN_ENTITLED
+    fallback: sec_edgar_for_confirmed_filing_events_only
+
+  - id: financial_modeling_prep
+    deployment_status: DISABLED_PENDING_PLAN_AND_RIGHTS_APPROVAL
+    implementation: NONE
+    capabilities: [fundamentals, estimates, calendar]
+    authentication: API_KEY
+    secret_location: env:VERTEX_FMP_API_KEY
+    fallback: null
+
+  - id: orats
+    deployment_status: DISABLED_PENDING_PLAN_AND_RIGHTS_APPROVAL
+    implementation: NONE
+    capabilities: [options_analytics, volatility_surface]
+    authentication: API_KEY
+    secret_location: env:VERTEX_ORATS_API_KEY
+    fallback: ibkr_market_data_plus_vertex_core_calculations

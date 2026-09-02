@@ -639,6 +639,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/sources/sec/{instrument}/fundamentals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Official point-in-time SEC filings and facts for one instrument
+         * @description Relay the last SEC snapshot; no ratio, score or advice is computed.
+         */
+        get: operations["get_sec_fundamentals"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/system/capabilities": {
         parameters: {
             query?: never;
@@ -2601,6 +2621,57 @@ export interface components {
             state: "ok" | "stale" | "empty";
         };
         /**
+         * SecFundamentalsResponse
+         * @description Official SEC filings and XBRL facts, relayed without financial logic.
+         */
+        SecFundamentalsResponse: {
+            /** Age Seconds */
+            age_seconds: number | null;
+            /** As Of */
+            as_of: string | null;
+            /** Cik */
+            cik: string | null;
+            /** Conflicts */
+            conflicts: {
+                [key: string]: unknown;
+            }[];
+            /** Coverage */
+            coverage: {
+                [key: string]: unknown;
+            } | null;
+            /** Data As Of */
+            data_as_of: string | null;
+            /** Entity Name */
+            entity_name: string | null;
+            /** Facts */
+            facts: {
+                [key: string]: unknown;
+            }[];
+            /** Filings */
+            filings: {
+                [key: string]: unknown;
+            }[];
+            /** Identity State */
+            identity_state: ("RESOLVED" | "CONFLICTING_IDENTITY" | "ABSENT") | null;
+            /** Instrument */
+            instrument: string;
+            /** Population */
+            population: string | null;
+            /** Reason */
+            reason: string | null;
+            /** Rights */
+            rights: string | null;
+            /** Snapshot Version */
+            snapshot_version: number | null;
+            /** Source */
+            source: string | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "ok" | "stale" | "empty";
+        };
+        /**
          * SessionEventInput
          * @description Facts for gate 4 (``session_and_event_known``).
          */
@@ -3785,6 +3856,44 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    get_sec_fundamentals: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                instrument: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SecFundamentalsResponse"];
+                };
+            };
+            /** @description Authentication required: no valid WebAuthn session cookie (or missing/invalid CSRF header on a mutation). Always the same generic body with detail code AUTH_REQUIRED. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
             };
         };
     };

@@ -707,6 +707,7 @@ def build_registry(
     from vertex_worker.performance import register_performance_handler
     from vertex_worker.portfolio import register_portfolio_handler
     from vertex_worker.risk import register_risk_handler
+    from vertex_worker.sec_fundamentals import register_sec_fundamentals_handler
 
     registry = HandlerRegistry()
     registry.register(
@@ -769,4 +770,5 @@ def build_registry(
     # DISANT — plutot que de comparer des instruments choisis au hasard.
     if risk_config is not None:
         register_risk_handler(registry, clock=clock, config=risk_config)
+    register_sec_fundamentals_handler(registry, clock=clock)
     return registry

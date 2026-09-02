@@ -164,3 +164,31 @@ def test_daily_bars_enqueue_analysis_and_opportunities(monkeypatch) -> None:
         "opportunities.refresh",
         "review_queue.refresh",
     ]
+
+
+def test_normalized_sec_enqueues_only_sec_snapshot_and_common_topics(
+    monkeypatch, envelope
+) -> None:
+    sec_envelope = envelope.model_copy(
+        update={
+            "schema_version": "sec.edgar.fundamental-fact/1",
+            "source": "sec_edgar",
+            "instrument_id": "AAPL",
+            "rights": "R1_PUBLIC_FACT_SEC_EDGAR_POLICY_2026_08_28",
+        }
+    )
+    monkeypatch.setattr(ingest_module, "insert_observation", lambda s, **k: True)
+    enqueues: list[str] = []
+    monkeypatch.setattr(
+        ingest_module,
+        "enqueue_outbox",
+        lambda session, topic, payload: enqueues.append(topic) or 1,
+    )
+
+    ingest_envelope(RecordingSession(), sec_envelope)
+
+    assert enqueues == [
+        TOPIC_OBSERVATION_INGESTED,
+        "sec.fundamentals.ingested",
+        "review_queue.refresh",
+    ]
