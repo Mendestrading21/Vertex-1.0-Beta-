@@ -6917,15 +6917,25 @@ label {
   list-style: none;
 }
 
+/* Vu sur capture 1280/1440 : trois colonnes cassaient le libellé lettre à
+   lettre dans une cellule de 175 px. Libellé et compte sur une ligne, la
+   barre en dessous sur toute la largeur — lisible à toute largeur. */
 .vx-census-row {
   display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(48px, 1fr) auto;
-  gap: var(--vx-space-12);
+  grid-template-areas:
+    'label label'
+    'track count';
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--vx-space-4) var(--vx-space-12);
   align-items: center;
   padding: var(--vx-space-8) 0;
   border-bottom: 1px solid var(--vx-border-soft);
   font-size: var(--vx-font-size-meta);
 }
+
+.vx-census-label { grid-area: label; }
+.vx-census-track { grid-area: track; }
+.vx-census-count { grid-area: count; }
 
 .vx-census-row:first-child {
   padding-top: 0;
@@ -6977,8 +6987,8 @@ label {
     'ideas score bias return'
     'ranking ranking ranking ranking'
     'biassplit health scatter factors'
-    'profile profile exclusions activity'
-    'provenance provenance quality quality';
+    'profile profile exclusions exclusions'
+    'provenance provenance quality activity';
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
@@ -7115,13 +7125,11 @@ label {
   overflow: auto;
 }
 
-.vx-opp-grid .vx-matrix-table {
-  min-width: 0;
+/* La table des raisons garde sa largeur de contenu et DÉFILE dans sa
+   région : une clé `gate:reason_code` ne se coupe jamais lettre à lettre. */
+.vx-opp-grid .vx-opp-reasons .vx-matrix-table {
   width: 100%;
-}
-
-.vx-opp-grid .vx-matrix-table th[scope='row'] code {
-  overflow-wrap: anywhere;
+  min-width: max-content;
 }
 
 /* Listes d'inspecteur : gates, preuves, limites. */

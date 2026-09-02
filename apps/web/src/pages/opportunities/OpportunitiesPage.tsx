@@ -223,7 +223,7 @@ function OpportunitiesBoard({
 
   return (
     <>
-      <div className="vx-opp-grid" data-testid="opportunities-grid">
+      <div className="vx-opp-grid vx-board" data-testid="opportunities-grid">
         <div data-module="active-ideas">
           <ActiveIdeasModule view={view} />
         </div>
