@@ -57,19 +57,21 @@ function countDominant(source: string, fileName = 'page.tsx'): number {
     // n'est pas encore une `Card` (le cadre graphique, la matrice de risque,
     // l'agenda…). N'en compter qu'une laisserait passer la moitié des pages —
     // et c'est précisément par cette moitié que la règle se perdrait.
-    const nomAttribut = ts.isJsxAttribute(node) ? node.name.getText(file) : '';
-    if (nomAttribut === 'rank' || nomAttribut === 'data-rank' || nomAttribut === "'data-rank'") {
-      const valeur = node.initializer;
-      if (valeur !== undefined && ts.isStringLiteral(valeur) && valeur.text === 'dominant') {
-        total += 1;
-      } else if (
-        valeur !== undefined &&
-        ts.isJsxExpression(valeur) &&
-        valeur.expression !== undefined &&
-        ts.isStringLiteral(valeur.expression) &&
-        valeur.expression.text === 'dominant'
-      ) {
-        total += 1;
+    if (ts.isJsxAttribute(node)) {
+      const nomAttribut = node.name.getText(file).replace(/['"]/g, '');
+      if (nomAttribut === 'rank' || nomAttribut === 'data-rank') {
+        const valeur = node.initializer;
+        if (valeur !== undefined && ts.isStringLiteral(valeur) && valeur.text === 'dominant') {
+          total += 1;
+        } else if (
+          valeur !== undefined &&
+          ts.isJsxExpression(valeur) &&
+          valeur.expression !== undefined &&
+          ts.isStringLiteral(valeur.expression) &&
+          valeur.expression.text === 'dominant'
+        ) {
+          total += 1;
+        }
       }
     }
     // Forme conditionnelle : `{...(cond ? { 'data-rank': 'dominant' } : {})}`.

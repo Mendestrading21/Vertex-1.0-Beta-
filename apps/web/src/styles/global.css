@@ -2131,6 +2131,27 @@ body {
   width: 100%;
   border-collapse: collapse;
   font-size: var(--vx-font-size-meta);
+  /* Chasse fixe : les colonnes ne se redimensionnent plus au gré du contenu.
+     Sans elle, une IV à seize décimales élargissait sa colonne et décalait
+     toutes les autres d'une ligne à l'autre. */
+  table-layout: fixed;
+}
+
+/* V6 — L'ALIGNEMENT DES COLONNES PRIME SUR L'EXHAUSTIVITÉ DU RENDU.
+   Le worker publie IV et Greeks en flottants complets — mesuré à l'écran :
+   `0.1848147947607191`, `-0.0013551540767774428`. Rendus tels quels, ils font
+   dix-huit caractères, désalignent la grille et rendent la chaîne
+   incomparable d'un strike à l'autre — or comparer les strikes EST la
+   fonction de cette table.
+   La valeur n'est PAS arrondie : arrondir fabriquerait un nombre que le worker
+   n'a pas publié. Elle est bornée au RENDU, et reste entière au survol
+   (`title`) ainsi que dans l'inspecteur, qui est la surface d'exactitude. */
+.vx-chain-table .vx-num {
+  overflow: hidden;
+  max-width: 12ch;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
 }
 
 .vx-chain-table th,
