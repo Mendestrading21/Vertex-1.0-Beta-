@@ -90,13 +90,22 @@ describe('Page Marchés — état nominal', () => {
     await screen.findByText(
       'Comment les secteurs et instruments suivis ont-ils évolué sur la dernière séance ?',
     );
+    // §4.1 : le titre ne QUALIFIE plus la nature. Il disait « synthétiques »
+    // en dur, au-dessus de 161 instruments IBKR réels sur le poste de travail.
+    // La nature appartient au bandeau de population, son seul propriétaire.
+    expect(screen.getByRole('heading', { level: 2, name: 'Carte des marchés' })).toBeDefined();
     expect(
-      screen.getByRole('heading', { level: 2, name: 'Carte des marchés synthétiques' }),
+      screen.queryByRole('heading', { level: 2, name: /synthétiques/ }),
+    ).toBeNull();
+    // Et la provenance est RECENSÉE depuis les drapeaux servis, plus écrite
+    // en dur : le fixture déclare 4 instruments, tous synthétiques.
+    expect(
+      screen.getByText(/4 instruments servis, tous déclarés synthétiques par le worker\./),
     ).toBeDefined();
+    expect(screen.queryByText('synthetic-dev')).toBeNull();
 
     // Métadonnées : unité, source, as_of, couverture.
     expect(screen.getByText(/rendement 1 jour en %/)).toBeDefined();
-    expect(screen.getByText('synthetic-dev')).toBeDefined();
     expect(screen.getByText('2026-08-25T12:00:00+00:00')).toBeDefined();
     expect(screen.getByText('4/4 couverts, 0 écartés, 4 reçus')).toBeDefined();
 

@@ -24,11 +24,7 @@ from vertex_core.fusion import (
 
 
 def _actions(result):
-    return [
-        decision.action
-        for cluster in result.clusters
-        for decision in cluster.decisions
-    ]
+    return [decision.action for cluster in result.clusters for decision in cluster.decisions]
 
 
 class TestNormalization:
@@ -45,9 +41,7 @@ class TestNormalization:
 
     def test_listed_tracking_params_stripped_and_rest_sorted(self):
         assert (
-            normalize_canonical_url(
-                "https://a.example/x?utm_campaign=z&b=2&gclid=123&a=1&fbclid=9"
-            )
+            normalize_canonical_url("https://a.example/x?utm_campaign=z&b=2&gclid=123&a=1&fbclid=9")
             == "https://a.example/x?a=1&b=2"
         )
 
@@ -377,9 +371,7 @@ class TestDeterminism:
         permutation_seed=st.integers(min_value=0, max_value=2**31 - 1),
         count=st.integers(min_value=2, max_value=40),
     )
-    def test_seeded_permutation_never_changes_the_result(
-        self, data_seed, permutation_seed, count
-    ):
+    def test_seeded_permutation_never_changes_the_result(self, data_seed, permutation_seed, count):
         observations = make_random_observations(random.Random(data_seed), count)
         shuffled = list(observations)
         random.Random(permutation_seed).shuffle(shuffled)
@@ -390,9 +382,7 @@ class TestDeterminism:
         assert [c.cluster_id for c in original.clusters] == [
             c.cluster_id for c in permuted.clusters
         ]
-        assert [c.decisions for c in original.clusters] == [
-            c.decisions for c in permuted.clusters
-        ]
+        assert [c.decisions for c in original.clusters] == [c.decisions for c in permuted.clusters]
         assert original == permuted
         assert fusion_result_hash(original) == fusion_result_hash(permuted)
 
@@ -426,14 +416,10 @@ class TestPolarityIsData:
 
     @pytest.mark.parametrize("negative,positive", OPPOSITE_PAIRS)
     def test_opposite_titles_never_share_a_fingerprint(self, negative, positive):
-        assert title_fingerprint(negative, ("SPX",)) != title_fingerprint(
-            positive, ("SPX",)
-        )
+        assert title_fingerprint(negative, ("SPX",)) != title_fingerprint(positive, ("SPX",))
 
     @pytest.mark.parametrize("negative,positive", OPPOSITE_PAIRS)
-    def test_opposite_titles_are_never_fused_by_the_fingerprint(
-        self, negative, positive
-    ):
+    def test_opposite_titles_are_never_fused_by_the_fingerprint(self, negative, positive):
         result = fuse(
             [
                 make_observation("c1", title=negative, entities=("SPX",)),
@@ -495,7 +481,6 @@ class TestPolarityIsData:
         assert FusionAction.FLAGGED_POLARITY_CONFLICT not in _actions(result)
 
 
-
 class TestSignBindingAcrossTypography:
     """8ᵉ audit — the sign must survive what real headlines put between it
     and its digits.
@@ -549,14 +534,10 @@ class TestSignBindingAcrossTypography:
     @pytest.mark.parametrize("label,negative,positive", OPPOSED_PAIRS)
     def test_opposite_titles_never_share_a_fingerprint(self, label, negative, positive):
         assert normalize_title(negative) != normalize_title(positive)
-        assert title_fingerprint(negative, ("SPX",)) != title_fingerprint(
-            positive, ("SPX",)
-        )
+        assert title_fingerprint(negative, ("SPX",)) != title_fingerprint(positive, ("SPX",))
 
     @pytest.mark.parametrize("label,negative,positive", OPPOSED_PAIRS)
-    def test_opposite_titles_are_never_fused_into_one_cluster(
-        self, label, negative, positive
-    ):
+    def test_opposite_titles_are_never_fused_into_one_cluster(self, label, negative, positive):
         result = fuse(
             [
                 make_observation("c1", title=negative, entities=("SPX",)),
@@ -567,9 +548,7 @@ class TestSignBindingAcrossTypography:
         assert FusionAction.LINKED_FINGERPRINT not in _actions(result)
 
     @pytest.mark.parametrize("label,negative,positive", OPPOSED_PAIRS)
-    def test_provider_identity_cluster_publishes_the_conflict(
-        self, label, negative, positive
-    ):
+    def test_provider_identity_cluster_publishes_the_conflict(self, label, negative, positive):
         """Levels 1 and 2 still link the two; the contradiction is NAMED."""
         result = fuse(
             [
@@ -655,12 +634,8 @@ class TestSignBindingAcrossTypography:
         # The error direction: a split, and no invented contradiction.
         result = fuse(
             [
-                make_observation(
-                    "c1", title="Apple - 3 nouveaux produits", entities=("AAPL",)
-                ),
-                make_observation(
-                    "c2", title="Apple : 3 nouveaux produits", entities=("AAPL",)
-                ),
+                make_observation("c1", title="Apple - 3 nouveaux produits", entities=("AAPL",)),
+                make_observation("c2", title="Apple : 3 nouveaux produits", entities=("AAPL",)),
             ]
         )
         assert len(result.clusters) == 2
@@ -677,13 +652,10 @@ class TestSignBindingAcrossTypography:
     def test_a_sign_flip_always_changes_the_fingerprint(self, head, digits, separator):
         negative = f"{head} -{separator}{digits} pour cent"
         positive = f"{head} +{separator}{digits} pour cent"
-        assert title_fingerprint(negative, (head,)) != title_fingerprint(
-            positive, (head,)
-        )
+        assert title_fingerprint(negative, (head,)) != title_fingerprint(positive, (head,))
         assert opposed_markers(
             title_polarity_markers(negative), title_polarity_markers(positive)
         ) == ("-", "+")
-
 
 
 class TestSignBindingResidueIsPinnedNotClaimedClosed:
@@ -744,17 +716,13 @@ class TestSignBindingResidueIsPinnedNotClaimedClosed:
         assert FusionAction.FLAGGED_POLARITY_CONFLICT not in _actions(result)
 
     def test_lexical_polarity_is_still_out_of_scope_but_does_not_fuse(self):
-        """"hausse"/"baisse" are not mapped (language-dependent). They do not
+        """ "hausse"/"baisse" are not mapped (language-dependent). They do not
         share a fingerprint either, so the two dispatches stay separate — no
         conflict is named, which is the documented scope limit."""
         result = fuse(
             [
-                make_observation(
-                    "c1", title="Nasdaq en baisse de 3 percent", entities=("SPX",)
-                ),
-                make_observation(
-                    "c2", title="Nasdaq en hausse de 3 percent", entities=("SPX",)
-                ),
+                make_observation("c1", title="Nasdaq en baisse de 3 percent", entities=("SPX",)),
+                make_observation("c2", title="Nasdaq en hausse de 3 percent", entities=("SPX",)),
             ]
         )
         assert len(result.clusters) == 2
@@ -780,12 +748,8 @@ class TestPolarityConflictInsideACluster:
 
     def _opposite_pair(self, **kwargs):
         return [
-            make_observation(
-                "c1", title="SPX -3,2 % sur la seance", entities=("SPX",), **kwargs
-            ),
-            make_observation(
-                "c2", title="SPX +3,2 % sur la seance", entities=("SPX",), **kwargs
-            ),
+            make_observation("c1", title="SPX -3,2 % sur la seance", entities=("SPX",), **kwargs),
+            make_observation("c2", title="SPX +3,2 % sur la seance", entities=("SPX",), **kwargs),
         ]
 
     def _conflicts(self, result):
@@ -883,9 +847,7 @@ class TestPolarityProperties:
         negative = f"{head} -{digits} % {tail}"
         positive = f"{head} +{digits} % {tail}"
         assert normalize_title(negative) != normalize_title(positive)
-        assert title_fingerprint(negative, ("ACME",)) != title_fingerprint(
-            positive, ("ACME",)
-        )
+        assert title_fingerprint(negative, ("ACME",)) != title_fingerprint(positive, ("ACME",))
 
     @pytest.mark.property
     @settings(max_examples=100, deadline=None)

@@ -78,6 +78,7 @@ from vertex_worker.registry import HandlerRegistry
 __all__ = [
     "LOT_METHOD_VERSION",
     "MARK_POPULATION_SYNTHETIC",
+    "MARK_POPULATION_UNQUALIFIED",
     "PORTFOLIO_VALUATION_SCHEMA_VERSION",
     "REASON_INVALID_MARK",
     "REASON_MARK_CURRENCY_MISMATCH",
@@ -115,9 +116,24 @@ SNAPSHOT_KIND_MARKETS_SOURCE = "markets_overview"
 PORTFOLIO_VALUATION_SCHEMA_VERSION = "vertex.portfolio-valuation/1.0"
 
 MARK_POPULATION_SYNTHETIC = "SYNTHETIC"
-"""Constant by design: the only marks Vertex 1.0 Beta has are the synthetic
-last closes of the markets overview snapshot. No valuation built here can
-ever claim a real or live mark population."""
+"""Retenu pour compatibilite d'import ; ce n'est PLUS la nature ecrite.
+
+Ce nom portait une affirmation devenue fausse : « the only marks Vertex 1.0
+Beta has are the synthetic last closes ». Le poste de travail sert
+`markets_overview` en `population = "REAL"` sur 161 instruments IBKR, dont
+zero synthetique. La nature est desormais RELAYEE depuis l'instantane source
+(`MarksView.population`), jamais decidee ici.
+"""
+
+MARK_POPULATION_UNQUALIFIED = "EMPTY"
+"""Nature ecrite quand la source ne declare pas la sienne — FAIL-CLOSED.
+
+Une marque dont on ignore la nature ne peut valoriser aucune position : le
+lecteur ne saurait pas ce qu'il regarde. `EMPTY` est le membre du vocabulaire
+qui dit « aucune observation retenue », et c'est exactement le cas. Choisir
+`SYNTHETIC` ou `REAL` par defaut fabriquerait une etiquette que personne n'a
+ecrite.
+"""
 
 LOT_METHOD_VERSION = "fifo/1.0"
 """Versioned lot derivation method (module docstring); changing it is a
@@ -186,6 +202,15 @@ class MarksView:
     as_of_text: str
     closes: Mapping[str, MarkQuote]
     invalid_tickers: tuple[str, ...]
+    population: str | None = None
+    """Nature DECLAREE par l'instantane source, relayee verbatim.
+
+    `None` = la source ne l'a pas declaree, ou l'a declaree hors texte. Le
+    worker ne juge pas le vocabulaire ferme : il appartient a la frontiere API
+    (`POPULATION_LABELS`), qui refuse une etiquette hors contrat au relais. Le
+    dupliquer ici creerait un second proprietaire de la meme verite et un
+    import inverse worker -> api.
+    """
 
 
 def _require_aware_utc(now: datetime) -> datetime:
@@ -263,6 +288,20 @@ def extract_marks_from_markets_content(
     invalid: list[str] = []
     as_of = content.get("as_of")
     as_of_text = as_of if isinstance(as_of, str) else ""
+    # La nature est lue AVANT les cours : sans elle, aucun cours n'est
+    # qualifiable, et un cours non qualifiable ne vaut aucune position.
+    raw_population = content.get("population")
+    population = (
+        raw_population if isinstance(raw_population, str) and raw_population else None
+    )
+    if population is None:
+        return MarksView(
+            snapshot_version=snapshot_version,
+            as_of_text=as_of_text,
+            closes={},
+            invalid_tickers=(),
+            population=None,
+        )
     sectors = content.get("sectors")
     if isinstance(sectors, Sequence) and not isinstance(sectors, (str, bytes)):
         for sector in sectors:
@@ -299,6 +338,7 @@ def extract_marks_from_markets_content(
         as_of_text=as_of_text,
         closes=closes,
         invalid_tickers=tuple(sorted(set(invalid))),
+        population=population,
     )
 
 
@@ -822,7 +862,14 @@ def build_portfolio_valuation_content(
             "name": portfolio.name,
             "base_currency": portfolio.base_currency,
         },
-        "mark_population": MARK_POPULATION_SYNTHETIC,
+        # RELAYEE, jamais decidee : une valorisation batie sur des marques
+        # reelles se declare reelle, et l'inverse aussi. Sans nature declaree
+        # a la source, `EMPTY` — et aucun lot n'a ete valorise plus haut.
+        "mark_population": (
+            marks.population
+            if marks is not None and marks.population is not None
+            else MARK_POPULATION_UNQUALIFIED
+        ),
         "lot_method": LOT_METHOD_VERSION,
         "marks": marks_block,
         "positions_by_currency": by_currency,

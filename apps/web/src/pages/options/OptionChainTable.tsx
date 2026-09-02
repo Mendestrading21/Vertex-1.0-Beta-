@@ -67,7 +67,13 @@ function IvCell({ contract }: { readonly contract: OptionChainContract }) {
   if (iv.status !== 'OK' || iv.value === null) {
     return <AbsentCell label={ivAbsentLabel(iv.reason)} />;
   }
-  const provenance = `IV Vertex THÉORIQUE (côté ${iv.quoteSide ?? '?'}) — ${
+  // La chaîne EXACTE est dans le `title` avec sa provenance : rien n'est perdu.
+  // Le rendu, lui, est borné par la colonne (voir `.vx-chain-table .vx-num` dans
+  // `global.css`) — une IV sur 16 décimales détruit l'alignement de la colonne,
+  // et une colonne désalignée est une chaîne d'options qu'on ne peut pas
+  // comparer d'un strike à l'autre. La valeur n'est PAS arrondie : arrondir
+  // fabriquerait un nombre que le worker n'a pas publié.
+  const provenance = `${iv.value} — IV Vertex THÉORIQUE (côté ${iv.quoteSide ?? '?'}) — ${
     iv.calculation?.calculationId ?? 'lignée non publiée'
   }`;
   return (
@@ -82,8 +88,12 @@ function DeltaCell({ contract }: { readonly contract: OptionChainContract }) {
   if (delta === null) {
     return <AbsentCell label="delta absent : IV non résolue, aucun Greek calculé" />;
   }
+  // Même règle que l'IV : la chaîne exacte au survol, le rendu borné par la
+  // colonne. Le delta n'est jamais arrondi ici.
   return (
-    <span title="Delta Vertex THÉORIQUE (voir l'inspecteur pour la lignée complète)">
+    <span
+      title={`${delta} — Delta Vertex THÉORIQUE (voir l’inspecteur pour la lignée complète)`}
+    >
       <code className="vx-num">{delta}</code>
     </span>
   );

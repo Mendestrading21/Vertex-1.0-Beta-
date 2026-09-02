@@ -235,7 +235,12 @@ function ResultPanel({ result }: { readonly result: SimulationPreviewResponse })
       : '—';
   };
   return (
-    <section className="vx-sim-result" aria-labelledby="vx-sim-result-title" data-testid="sim-result">
+    <section
+      className="vx-sim-result"
+      data-rank="dominant"
+      aria-labelledby="vx-sim-result-title"
+      data-testid="sim-result"
+    >
       <h3 id="vx-sim-result-title">
         Résultat <span className="vx-badge vx-badge-theoretical">THÉORIQUE</span>{' '}
         <span className="vx-sim-nature">({result.value_nature})</span>

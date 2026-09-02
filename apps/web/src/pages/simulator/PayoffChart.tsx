@@ -6,6 +6,7 @@ import type {
   SimulationPayoffPoint,
 } from '../../api/client.ts';
 import type { EChartsInstance } from '../../charts/echartsLoader.ts';
+import { chartAxis, chartBase } from '../../charts/theme.ts';
 
 /**
  * PayoffChart — courbe de P&L à l'expiration (dominante du résultat du
@@ -62,32 +63,20 @@ export function PayoffChart({ points, breakevens, maxGain, maxLoss }: PayoffChar
         chartRef.current = chart;
         chart.setOption(
           {
-            animation: false,
-            aria: { enabled: true },
-            grid: { left: 72, right: 24, top: 24, bottom: 40 },
-            tooltip: {
-              trigger: 'axis',
-              backgroundColor: cssToken('--vx-surface-2'),
-              borderColor: cssToken('--vx-border'),
-              textStyle: { color: cssToken('--vx-text'), fontSize: 12 },
-            },
+            ...chartBase(cssToken, { grid: { left: 72, right: 24, top: 24, bottom: 40 } }),
             xAxis: {
+              ...chartAxis(cssToken),
               type: 'value',
               name: 'spot terminal',
               nameLocation: 'middle',
               nameGap: 28,
-              axisLine: { lineStyle: { color: cssToken('--vx-border-strong') } },
-              axisLabel: { color: cssToken('--vx-text-secondary') },
-              splitLine: { lineStyle: { color: cssToken('--vx-border') } },
               min: 'dataMin',
               max: 'dataMax',
             },
             yAxis: {
+              ...chartAxis(cssToken),
               type: 'value',
               name: 'P&L théorique',
-              axisLine: { lineStyle: { color: cssToken('--vx-border-strong') } },
-              axisLabel: { color: cssToken('--vx-text-secondary') },
-              splitLine: { lineStyle: { color: cssToken('--vx-border') } },
             },
             series: [
               {

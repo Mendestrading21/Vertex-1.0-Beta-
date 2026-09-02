@@ -21,6 +21,7 @@ import type {
   AiStatusResponse,
   CalendarResponse,
   OpportunitiesResponse,
+  RiskMatrixResponse,
 } from './client.ts';
 import { queryKeyForResource } from './hooks.ts';
 
@@ -69,6 +70,11 @@ export function getOpportunities(): Promise<OpportunitiesResponse> {
   return request({ method: 'GET', path: '/v1/opportunities', protectedRoute: true });
 }
 
+/** Matrice de correlation du perimetre DECLARE (cle globale, pas un portefeuille). */
+export function getRiskMatrix(): Promise<RiskMatrixResponse> {
+  return request({ method: 'GET', path: '/v1/risk/matrix', protectedRoute: true });
+}
+
 export function getAiStatus(): Promise<AiStatusResponse> {
   return request({ method: 'GET', path: '/v1/ai/status', protectedRoute: true });
 }
@@ -101,6 +107,15 @@ export function useOpportunities(): UseQueryResult<OpportunitiesResponse> {
   return useQuery({
     queryKey: queryKeyForResource('opportunities/global'),
     queryFn: getOpportunities,
+    retry: false,
+    staleTime: Infinity,
+  });
+}
+
+export function useRiskMatrix(): UseQueryResult<RiskMatrixResponse> {
+  return useQuery({
+    queryKey: queryKeyForResource('risk_matrix/global'),
+    queryFn: getRiskMatrix,
     retry: false,
     staleTime: Infinity,
   });

@@ -7,6 +7,21 @@ import type { CurrencyBlockView } from './portfolioView.ts';
  * (`portfolio.concentration`, poids normalisés + Herfindahl). Le nombre n'est
  * parsé que pour la GÉOMÉTRIE de la barre (largeur), jamais pour recalculer
  * ou reformater une valeur.
+ *
+ * REFONTE V3 — OÙ VIT LA CHAÎNE EXACTE. Le poids serveur fait jusqu'à
+ * 28 décimales (`0.4295692665890570437233410943`, mesuré à l'écran). Affiché
+ * tel quel à côté de sa barre, il ne se lit pas : il occupe la moitié de la
+ * ligne et aucun œil n'en tire de comparaison. Il n'est pas question de
+ * l'arrondir ici — arrondir, c'est produire une valeur que le serveur n'a pas
+ * servie, ce que `.claude/rules/frontend.md` interdit.
+ *
+ * La résolution ne retire donc RIEN. La chaîne exacte reste :
+ *   1. dans la table équivalente juste dessous, dont l'en-tête dit lui-même
+ *      « Poids normalisé (chaîne serveur) » ;
+ *   2. dans le nom accessible de chaque ligne de barre — un lecteur d'écran
+ *      entend la valeur complète, chiffre par chiffre.
+ * Seul l'œil est soulagé, au profit de la barre, qui est la comparaison qu'il
+ * cherchait.
  */
 
 /** Largeur de barre en % (géométrie de rendu uniquement). */
@@ -37,14 +52,27 @@ export function ConcentrationPanel({ blocks }: { readonly blocks: readonly Curre
             <>
               <ul className="vx-pf-bars" data-testid={`pf-bars-${block.currency}`}>
                 {block.weights.map((entry) => (
-                  <li key={entry.ticker} className="vx-pf-bar-row">
+                  <li
+                    key={entry.ticker}
+                    className="vx-pf-bar-row"
+                    aria-label={`${entry.ticker} — poids normalisé ${entry.weight}`}
+                  >
                     <span className="vx-pf-bar-ticker">
                       <code>{entry.ticker}</code>
                     </span>
                     <span className="vx-pf-bar-track" aria-hidden="true">
                       <span className="vx-pf-bar-fill" style={{ width: `${barWidthPct(entry.weight)}%` }} />
                     </span>
-                    <span className="vx-num vx-pf-bar-value">{entry.weight}</span>
+                    {/*
+                      `title` porte la chaîne exacte au survol ; le texte visible
+                      est la MÊME chaîne, simplement bornée en largeur par le
+                      style. Rien n'est réécrit : `text-overflow` coupe le rendu,
+                      il ne fabrique pas un arrondi — la distinction compte, car
+                      un arrondi ressemblerait à une valeur servie.
+                    */}
+                    <span className="vx-num vx-pf-bar-value" title={entry.weight}>
+                      {entry.weight}
+                    </span>
                   </li>
                 ))}
               </ul>

@@ -36,11 +36,33 @@ import type { PageDataState } from '../api/hooks.ts';
  * 3. AUCUN MOUVEMENT. Le contrat canonique l'écrit : « aucun ticker animé
  *    faisant croire à une donnée live ». Le défilement est celui de
  *    l'utilisateur, jamais une animation.
- * 4. AUCUNE PORTÉE APPLICATIVE. La population et la fraîcheur affichées sont
- *    celles de CE snapshot, et elles sont portées PAR le ticker. Les poser
- *    dans le coin haut-droit (point 5) leur donnerait une portée « Vertex »
- *    qu'aucune source ne publie : il n'existe ni mode de données global, ni
- *    fraîcheur globale. Le point 5 reste donc vide, et c'est délibéré.
+ * 4. AUCUNE PORTÉE APPLICATIVE. La population, la fraîcheur et l'heure
+ *    affichées sont celles de CE snapshot, et elles sont portées PAR le
+ *    ticker. Les poser dans un coin haut-droit SÉPARÉ leur donnerait une
+ *    portée « Vertex » qu'aucune source ne publie : il n'existe ni mode de
+ *    données global, ni fraîcheur globale, ni heure globale.
+ *
+ * LOT-A1 — POINTS 4 ET 5 : L'HEURE SERVIE, À DROITE.
+ *
+ * Les planches canoniques posent une heure UTC à l'extrémité droite de la
+ * bande. Deux décisions la rendent honnête.
+ *
+ * A. L'HEURE EST CELLE DE L'INSTANTANÉ, JAMAIS `Date.now()`. Une horloge
+ *    murale qui AVANCE à côté d'un instantané FIGÉ fabrique une impression de
+ *    courant — exactement ce que `.claude/rules/financial-safety.md` interdit
+ *    quand il refuse qu'un cache soit présenté comme du live. Sans `as_of`
+ *    servi, il n'y a AUCUNE heure à afficher : `servedClockOf` sort `null` et
+ *    rien n'est rendu. Aucune heure de repli, jamais.
+ *
+ * B. LE DÉPLACEMENT À DROITE EST VISUEL, PAS STRUCTUREL. L'ordre du DOM reste
+ *    l'ordre de lecture — y compris au lecteur d'écran — et il place la
+ *    DÉGRADATION (`PÉRIMÉ`, `COUVERTURE PARTIELLE`) AVANT les cours qu'elle
+ *    qualifie : c'est ce que le LOT-14 avait établi, « un cours lu avant son
+ *    étiquette est un cours lu sans elle », et le retirer serait une
+ *    régression. Seul le PLACEMENT DE GRILLE en CSS pose le bloc de
+ *    métadonnées à droite. La répartition n'est pas arbitraire : ce qui
+ *    QUALIFIE les valeurs reste devant, ce qui IDENTIFIE l'instantané passe
+ *    derrière.
  *
  * Le ticker couvre ses huit états : sans instantané, sans session, hors ligne
  * ou en erreur, il n'affiche AUCUN chiffre — il dit ce qui manque. Un ticker
@@ -96,6 +118,40 @@ export function tickerFrameOf(
   return { mode: 'values', notice: null, caveat: null };
 }
 
+/**
+ * L'instant SERVI, formaté en UTC. `null` dès que rien n'est qualifiable.
+ *
+ * POURQUOI UNE FONCTION PURE ET EXPORTÉE. C'est la seule façon d'éprouver
+ * l'invariant sans navigateur : `null` sur absence, `null` sur illisible,
+ * aucune valeur de repli, et un résultat identique quel que soit le fuseau de
+ * la machine qui lit.
+ *
+ * POURQUOI DES COMPOSANTS `getUTC*` ET PAS `toLocaleString`. `toLocaleString`
+ * dépend du fuseau et de la locale du navigateur : deux lecteurs verraient
+ * deux heures pour le MÊME instantané, et aucun des deux ne saurait laquelle
+ * est celle du marché. Le suffixe `UTC` est écrit en clair pour la même
+ * raison — une heure sans fuseau n'est pas une heure.
+ *
+ * Ce n'est pas un calcul financier : aucune quantité de marché n'est dérivée,
+ * seul un instant déjà servi change de représentation.
+ */
+export function servedClockOf(asOf: string | null | undefined): string | null {
+  if (asOf === null || asOf === undefined || asOf === '') {
+    return null;
+  }
+  const instant = new Date(asOf);
+  if (Number.isNaN(instant.getTime())) {
+    return null;
+  }
+  const deuxChiffres = (valeur: number): string => String(valeur).padStart(2, '0');
+  const jour = deuxChiffres(instant.getUTCDate());
+  const mois = deuxChiffres(instant.getUTCMonth() + 1);
+  const annee = String(instant.getUTCFullYear()).padStart(4, '0');
+  const heures = deuxChiffres(instant.getUTCHours());
+  const minutes = deuxChiffres(instant.getUTCMinutes());
+  return `${jour}/${mois}/${annee} ${heures}:${minutes} UTC`;
+}
+
 export function ShellTicker() {
   const query = useMarketsOverview();
   const queryState = pageStateOf(query);
@@ -104,6 +160,7 @@ export function ShellTicker() {
 
   const entries = frame.mode === 'values' && data !== undefined ? flattenTickers(data.sectors) : [];
   const { key: populationKey, nature } = resolvePopulationNature(data?.population ?? null);
+  const horloge = servedClockOf(data?.as_of);
 
   // `data-ticker-state`, surtout PAS `data-state` : cet attribut appartient à
   // `DataStateBoundary`. Le poser ici faisait résoudre `[data-state="offline"]`
@@ -122,30 +179,55 @@ export function ShellTicker() {
       ) : (
         <>
           {/*
-            Nature et fraîcheur d'ABORD, avant le premier chiffre : la lecture
-            en français va de gauche à droite, et un cours lu avant son
-            étiquette est un cours lu sans elle.
+            LA DÉGRADATION D'ABORD, dans le DOM comme à l'écran. Elle QUALIFIE
+            les cours qui suivent : la lire après eux, ce serait les avoir déjà
+            lus sans elle. C'est le seul bloc que le LOT-A1 ne déplace pas.
           */}
-          <p className="vx-ticker-nature" data-vx-nature={populationKey} data-vx-tone={nature.tone}>
-            {nature.label}
-          </p>
-          <p className="vx-ticker-freshness">
-            <FreshnessBadge
-              ageSeconds={data?.age_seconds ?? null}
-              sourceLabel={`instantané v${data?.snapshot_version ?? '—'}`}
-            />
-          </p>
           {frame.caveat !== null ? (
-            <p className="vx-ticker-caveat" data-caveat={frame.caveat}>
+            <p className="vx-ticker-caveat" data-ticker-slot="caveat" data-caveat={frame.caveat}>
               {frame.caveat}
             </p>
           ) : null}
+          {/*
+            Nature, fraîcheur et heure IDENTIFIENT l'instantané. Elles restent
+            AVANT la liste dans le DOM — donc lues avant les cours par un
+            lecteur d'écran — et ne passent à droite que par le placement de
+            grille en CSS, comme le posent les planches. Aucun élément
+            focalisable ici : l'ordre de tabulation ne s'en trouve donc pas
+            dissocié de l'ordre visuel.
+          */}
+          <div className="vx-ticker-meta" data-ticker-slot="meta">
+            <p
+              className="vx-ticker-nature"
+              data-vx-nature={populationKey}
+              data-vx-tone={nature.tone}
+            >
+              {nature.label}
+            </p>
+            <p className="vx-ticker-freshness">
+              <FreshnessBadge
+                ageSeconds={data?.age_seconds ?? null}
+                sourceLabel={`instantané v${data?.snapshot_version ?? '—'}`}
+              />
+            </p>
+            {/*
+              L'HEURE DE L'INSTANTANÉ. `dateTime` porte la chaîne servie telle
+              quelle : la même vérité, lisible par un outil. Rien n'est rendu
+              quand le serveur n'a pas daté son instantané — une heure de repli
+              serait une valeur que personne n'a servie.
+            */}
+            {horloge !== null && data?.as_of != null ? (
+              <time className="vx-ticker-clock" data-testid="ticker-clock" dateTime={data.as_of}>
+                {horloge}
+              </time>
+            ) : null}
+          </div>
           {/*
             Région défilante : `tabIndex` obligatoire, sinon son contenu est
             inatteignable au clavier (axe `scrollable-region-focusable`,
             impact « serious », seuil zéro).
           */}
-          <ul className="vx-ticker-list" tabIndex={0}>
+          <ul className="vx-ticker-list" data-ticker-slot="list" tabIndex={0}>
             {entries.map((entry) => (
               <li
                 key={entry.ticker.ticker}

@@ -334,12 +334,20 @@ class NewsProvidersPayload(ContractModel):
 
 
 class NewsHeadline(ContractModel):
-    """One historical news headline with provider and article identity."""
+    """One historical news headline with provider and article identity.
+
+    ``time`` ne porte QUE des instants sans ambiguïté. ``time_unzoned`` porte
+    l'horodatage du fournisseur quand celui-ci arrive sans fuseau : mesuré le
+    2026-09-01, IBKR date toutes ses dépêches mais sans zone. Le jeter perdait
+    l'information ; le traiter comme de l'UTC serait une supposition. Il est
+    donc conservé sous un nom qui dit son défaut.
+    """
 
     provider_code: NonEmptyStr
     article_id: NonEmptyStr
     headline: NonEmptyStr
     time: UtcDatetime | None = None
+    time_unzoned: datetime | None = None
 
 
 class NewsHeadlinesPayload(ContractModel):

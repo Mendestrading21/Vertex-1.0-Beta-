@@ -610,7 +610,7 @@
       },
       "AnalysisResponse": {
         "additionalProperties": false,
-        "description": "The last ``analysis/{instrument}`` snapshot — or an honest empty state.\n\n``state = \"empty\"`` means NO dossier was ever published for this\ninstrument: every snapshot-derived field is ``None`` (never invented)\nand ``reason`` says why. ``state = \"ok\"`` relays the persisted content\nverbatim:\n\n- ``advice`` is the canonical ``AdviceResult`` produced by THE single\n  ``AdviceEngine`` — status, direction, the ten gates with their reason\n  codes, limitations — exactly as published; the API neither recomputes\n  nor softens it;\n- ``bars`` carries the validated synthetic OHLCV series (decimal\n  strings) with its per-bar discard account;\n- ``evidence`` is the fusion-cluster rail of the instrument;\n- ``scenarios`` is either the ``THEORETICAL`` scenario grid with its\n  ``CalculationRecord`` lineage or an honest ``ABSENT`` block with its\n  typed reason.\n\n``state = \"stale\"`` relaie le MÊME contenu, mais dit que l'instantané\na dépassé son budget de fraîcheur (daily_bar) : le worker n'a rien\npublié de plus récent. ``age_seconds`` est publié dans TOUS les états\ndatables — son absence faisait passer un instantané de trois jours\npour un instantané d'une minute.",
+        "description": "The last ``analysis/{instrument}`` snapshot — or an honest empty state.\n\n``state = \"empty\"`` means NO dossier was ever published for this\ninstrument: every snapshot-derived field is ``None`` (never invented)\nand ``reason`` says why. ``state = \"ok\"`` relays the persisted content\nverbatim:\n\n- ``advice`` is the canonical ``AdviceResult`` produced by THE single\n  ``AdviceEngine`` — status, direction, the ten gates with their reason\n  codes, limitations — exactly as published; the API neither recomputes\n  nor softens it;\n- ``bars`` carries the validated synthetic OHLCV series (decimal\n  strings) with its per-bar discard account;\n- ``indicators`` carries the technical indicators computed by the\n  approved engine (``market.realized_volatility``, ``market.atr``), each\n  with its ``CalculationRecord`` lineage — or a NAMED absence\n  (``INSUFFICIENT_SAMPLE``) when the declared window exceeds the\n  available history. No interpretation is published: a value, never a\n  level, a regime or a signal;\n- ``evidence`` is the fusion-cluster rail of the instrument;\n- ``scenarios`` is either the ``THEORETICAL`` scenario grid with its\n  ``CalculationRecord`` lineage or an honest ``ABSENT`` block with its\n  typed reason.\n\n``state = \"stale\"`` relaie le MÊME contenu, mais dit que l'instantané\na dépassé son budget de fraîcheur (daily_bar) : le worker n'a rien\npublié de plus récent. ``age_seconds`` est publié dans TOUS les états\ndatables — son absence faisait passer un instantané de trois jours\npour un instantané d'une minute.",
         "properties": {
           "advice": {
             "anyOf": [
@@ -695,6 +695,18 @@
             ],
             "title": "Evidence"
           },
+          "indicators": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Indicators"
+          },
           "instrument": {
             "minLength": 1,
             "title": "Instrument",
@@ -767,6 +779,7 @@
           "instrument",
           "engine_version",
           "bars",
+          "indicators",
           "evidence",
           "scenarios",
           "advice",
@@ -4124,6 +4137,90 @@
         "title": "RegisterVerifyResponse",
         "type": "object"
       },
+      "RiskMatrixResponse": {
+        "additionalProperties": false,
+        "description": "La dernière matrice publiée — ou un état vide honnête.\n\n``state = \"ok\"`` relaie le contenu persisté VERBATIM : instruments,\nmatrice en chaînes, extrêmes, avertissement de synchronicité et\ncouverture. L'API ne calcule aucun coefficient.\n\n``state = \"empty\"`` signifie que le worker n'a JAMAIS publié — soit parce\nqu'aucun périmètre n'est déclaré, soit parce qu'aucune barre n'a encore\nété collectée. ``reason`` le dit ; rien n'est inventé.\n\n``state = \"stale\"`` relaie le MÊME contenu mais signale que l'instantané a\ndépassé le budget de séance fermée : le worker n'a rien publié de plus\nrécent. ``age_seconds`` est publié dans tous les états datables — une\ncorrélation vieille de trois jours ne doit pas se lire comme une mesure\nde la minute.\n\nUn instantané qui porte ``coverage.refusal_reason`` reste ``state = \"ok\"``\n: le worker a bien publié, et ce qu'il a publié est un refus motivé. Le\ndégrader en ``empty`` effacerait le motif.",
+        "properties": {
+          "age_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age Seconds"
+          },
+          "as_of": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "As Of"
+          },
+          "content": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "snapshot_version": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Snapshot Version"
+          },
+          "state": {
+            "enum": [
+              "ok",
+              "stale",
+              "empty"
+            ],
+            "title": "State",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "snapshot_version",
+          "as_of",
+          "age_seconds",
+          "content",
+          "reason"
+        ],
+        "title": "RiskMatrixResponse",
+        "type": "object"
+      },
       "SecFundamentalsResponse": {
         "additionalProperties": false,
         "description": "Official SEC filings and XBRL facts, relayed without financial logic.",
@@ -5897,6 +5994,28 @@
           }
         },
         "summary": "Correct one recorded fact by appending its compensating row"
+      }
+    },
+    "/api/v1/risk/matrix": {
+      "get": {
+        "description": "Serve the LAST ``risk_matrix/global`` snapshot as persisted.\n\nThe API relays the worker's published content — the declared perimeter,\nthe matrix ALREADY RENDERED AS STRINGS, the extreme pairs, the coverage\nand its alignment cost — and computes no coefficient. The key is\n``global`` because the matrix describes the declared perimeter, not a\nportfolio.\n\nWith no snapshot ever published the answer is a 200 with\n``state = \"empty\"``: that happens when no perimeter is declared, or when\nno bars have been collected yet. Absent stays absent.\n\nA snapshot carrying ``coverage.refusal_reason`` stays ``state = \"ok\"``:\nthe worker DID publish, and what it published is a reasoned refusal —\ntoo short a perimeter, too few common sessions, a constant series.\nDowngrading it to ``empty`` would erase the reason and leave the screen\nblank as if something had broken.",
+        "operationId": "get_risk_matrix",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RiskMatrixResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Authentication required: no valid WebAuthn session cookie (or missing/invalid CSRF header on a mutation). Always the same generic body with detail code AUTH_REQUIRED."
+          }
+        },
+        "summary": "Last published correlation matrix (or honest empty state)"
       }
     },
     "/api/v1/simulations/preview": {

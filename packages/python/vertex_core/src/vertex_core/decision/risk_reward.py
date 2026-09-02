@@ -167,9 +167,7 @@ def risk_reward(
     _check_decimal_type("target", target)
     _check_decimal_type("costs", costs)
     if isinstance(multiplier, bool) or not isinstance(multiplier, int):
-        raise RiskRewardInputError(
-            f"multiplier must be an int, got {type(multiplier).__name__}"
-        )
+        raise RiskRewardInputError(f"multiplier must be an int, got {type(multiplier).__name__}")
     _check_bool_type("currency_match", currency_match)
     _check_bool_type("horizon_defined", horizon_defined)
 

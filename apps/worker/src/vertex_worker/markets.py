@@ -53,6 +53,7 @@ from vertex_core.calculations.market import (
     simple_return,
 )
 from vertex_core.contracts import CalculationRecord, make_calculation_record
+from vertex_core.contracts.hashing import canonical_json_hash
 from vertex_core.synthetic import (
     SYNTHETIC_RIGHTS,
     SYNTHETIC_SECTOR_LABELS_FR,
@@ -577,7 +578,21 @@ def build_markets_overview_content(
     qualities = [entry["quality"] for entry in covered.values()]
     if covered and all(q == "STALE" for q in qualities):
         data_state = "stale"
-    elif discarded or rejected_records or any(q != "VALID" for q in qualities):
+    # `rejected_records` NE degrade PAS (REPRENDRE_ICI.md §4.2). Deux mots,
+    # deux faits, et les confondre produisait un ecran qui se refutait :
+    #
+    #   `discarded`        = un ticker ATTENDU qui manque  -> vraie lacune ;
+    #   `rejected_records` = une observation NON DEMANDEE  -> aucun manque.
+    #
+    # Sur le poste de travail, ces rejets sont trois cotations hors univers.
+    # L'ecran annoncait « Donnees partielles » puis « 161 couverts sur 161,
+    # 0 ecartes » — la degradation etait fausse. Refuser une observation hors
+    # univers est le deny-by-default qui fonctionne ; le compter comme une
+    # degradation punit le systeme pour avoir bien fait son travail.
+    #
+    # Les rejets restent PUBLIES dans `coverage.rejected_records`, avec leur
+    # motif : ils sont visibles, ils ne sont simplement plus un verdict.
+    elif discarded or any(q != "VALID" for q in qualities):
         data_state = "partial"
     else:
         data_state = "ok"
@@ -625,9 +640,16 @@ def build_markets_overview_content(
 class MarketsOverviewHandler:
     """Handler of ``quotes.ingested``: recompute the markets overview."""
 
-    def __init__(self, *, config: MarketsConfig, clock: Clock) -> None:
+    def __init__(
+        self, *, config: MarketsConfig, clock: Clock, risk_enabled: bool = False
+    ) -> None:
         self._config = config
         self._clock = clock
+        # Un message que PERSONNE ne reclamera reste en attente pour toujours :
+        # `HandlerRegistry` ne reclame jamais un sujet inconnu. Le handler de
+        # risque n existe que si un perimetre est declare, donc l enfilement
+        # doit connaitre ce fait plutot que le supposer.
+        self._risk_enabled = risk_enabled
 
     def __call__(self, session: Session, message: ClaimedOutboxMessage) -> None:
         # Local import avoids a module cycle (handlers imports this module).
@@ -643,6 +665,14 @@ class MarketsOverviewHandler:
             limit=self._config.max_observations,
         )
         content = build_markets_overview_content(records, now=now, config=self._config)
+        from vertex_persistence.json_codec import to_jsonb_object
+        from vertex_persistence.repository.snapshots import get_current_snapshot
+
+        # Etat publie AVANT cette passe : c'est lui qui dit si les cotes ont
+        # reellement bouge, indépendamment de l'horodatage.
+        precedent = get_current_snapshot(
+            session, kind=SNAPSHOT_KIND_MARKETS, key="global"
+        )
         published = publish_if_changed(
             session,
             kind=SNAPSHOT_KIND_MARKETS,
@@ -658,7 +688,69 @@ class MarketsOverviewHandler:
                 published.version,
                 message.id,
             )
-            self._enqueue_portfolio_revaluations(session)
+            # La revalorisation repart d'un MOUVEMENT des cotes, jamais d'une
+            # simple republication : c'est ce que documente
+            # `_enqueue_portfolio_revaluations`, et qui ne s'appliquait pas.
+            if precedent is None or self._cotes_ont_bouge(
+                precedent.content, to_jsonb_object("content", content)
+            ):
+                self._enqueue_portfolio_revaluations(session)
+                # La matrice de correlation depend des CLOTURES, exactement
+                # comme les revalorisations : meme porte, meme transaction.
+                # Un message GLOBAL — elle ne depend d'aucun portefeuille,
+                # elle decrit le perimetre declare. Et SEULEMENT si ce
+                # perimetre existe : sinon le message n aurait aucun
+                # reclamant et s accumulerait sans fin.
+                if self._risk_enabled:
+                    self._enqueue_risk_matrix(session)
+            else:
+                log.info(
+                    "cotes inchangees : aucune revalorisation enfilee "
+                    "(message_id=%s)",
+                    message.id,
+                )
+
+    @staticmethod
+    def _cotes_ont_bouge(precedent: Any, courant: Any) -> bool:
+        """Le contenu publie a-t-il bouge AUTREMENT que par son horodatage ?
+
+        `publish_if_changed` publie des que quoi que ce soit change, `as_of`
+        compris — c'est voulu : un recalcul plus tard EST un fait publie
+        nouveau. Mais une revalorisation de portefeuille, elle, ne depend que
+        des COTES. Les faire repartir sur un horodatage revalorise 17 000 fois
+        un portefeuille que rien n'a touche.
+        """
+        from vertex_worker.handlers import PUBLICATION_TIMESTAMP_KEY
+
+        def sans_horodatage(charge: Any) -> Any:
+            if isinstance(charge, Mapping) and PUBLICATION_TIMESTAMP_KEY in charge:
+                return {
+                    cle: valeur
+                    for cle, valeur in charge.items()
+                    if cle != PUBLICATION_TIMESTAMP_KEY
+                }
+            return charge
+
+        return canonical_json_hash(sans_horodatage(precedent)) != canonical_json_hash(
+            sans_horodatage(courant)
+        )
+
+    @staticmethod
+    def _enqueue_risk_matrix(session: Session) -> None:
+        """Enfile UN recalcul global de la matrice de correlation.
+
+        Meme raisonnement que les revalorisations : une cote qui ne deplace
+        aucune cloture publiee ne peut deplacer aucune correlation. Le chemin
+        d'ingestion n'est deliberement pas utilise — les nouvelles clotures
+        quotidiennes existent exactement quand l'apercu publie a bouge.
+
+        L'appelant garantit qu'un handler existe (voir `_risk_enabled`) : un
+        sujet sans reclamant laisserait le message en attente indefiniment.
+        """
+        from vertex_persistence.repository.outbox import enqueue_outbox
+        from vertex_worker.risk import TOPIC_RISK_MATRIX_REFRESH
+
+        enqueue_outbox(session, TOPIC_RISK_MATRIX_REFRESH, {})
 
     @staticmethod
     def _enqueue_portfolio_revaluations(session: Session) -> None:
@@ -697,9 +789,19 @@ class MarketsOverviewHandler:
 
 
 def register_markets_handler(
-    registry: HandlerRegistry, *, clock: Clock, config: MarketsConfig
+    registry: HandlerRegistry,
+    *,
+    clock: Clock,
+    config: MarketsConfig,
+    risk_enabled: bool = False,
 ) -> None:
-    """Register the markets overview handler on ``quotes.ingested``."""
+    """Register the markets overview handler on ``quotes.ingested``.
+
+    ``risk_enabled`` dit si un handler de matrice de risque est enregistre
+    ailleurs dans CE registre. Par defaut non : enfiler un sujet sans
+    reclamant laisserait le message en attente pour toujours.
+    """
     registry.register(
-        TOPIC_QUOTES_INGESTED, MarketsOverviewHandler(config=config, clock=clock)
+        TOPIC_QUOTES_INGESTED,
+        MarketsOverviewHandler(config=config, clock=clock, risk_enabled=risk_enabled),
     )

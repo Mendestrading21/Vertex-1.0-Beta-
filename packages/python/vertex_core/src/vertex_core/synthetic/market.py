@@ -83,9 +83,7 @@ _TICKERS_PER_SECTOR = 4
 
 SYNTHETIC_SECTOR_TICKERS: Mapping[str, tuple[str, ...]] = MappingProxyType(
     {
-        sector: tuple(
-            f"{sector}-{index:02d}" for index in range(1, _TICKERS_PER_SECTOR + 1)
-        )
+        sector: tuple(f"{sector}-{index:02d}" for index in range(1, _TICKERS_PER_SECTOR + 1))
         for sector in SYNTHETIC_SECTORS
     }
 )
@@ -141,8 +139,7 @@ def _validate_inputs(seed: int, base_time: datetime, missing_close_count: int) -
         raise TypeError(f"seed: expected int, got {type(seed).__name__}")
     if not isinstance(missing_close_count, int) or isinstance(missing_close_count, bool):
         raise TypeError(
-            "missing_close_count: expected int, got "
-            f"{type(missing_close_count).__name__}"
+            f"missing_close_count: expected int, got {type(missing_close_count).__name__}"
         )
     total = len(_all_tickers())
     if not 0 <= missing_close_count <= total - _DEGRADED_PER_QUALITY * 2:
@@ -257,9 +254,7 @@ def generate_daily_quote_envelopes(
             )
             received_at = published_at + _RECEIVE_LAG
             stale_after = (
-                received_at
-                if quality is EnvelopeQuality.STALE
-                else received_at + _STALE_GRACE
+                received_at if quality is EnvelopeQuality.STALE else received_at + _STALE_GRACE
             )
             envelopes.append(
                 DataEnvelope[dict[str, Any]](

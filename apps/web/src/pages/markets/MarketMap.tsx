@@ -98,10 +98,21 @@ export function MarketMap({ sectors, visibleGroups, description }: MarketMapProp
           {
             animation: false,
             aria: { enabled: true },
+            textStyle: {
+              fontFamily: cssToken('--vx-font-mono'),
+              fontSize: 11,
+              color: cssToken('--vx-text-muted'),
+            },
             tooltip: {
               backgroundColor: cssToken('--vx-surface-2'),
               borderColor: cssToken('--vx-border'),
-              textStyle: { color: cssToken('--vx-text'), fontSize: 12 },
+              borderWidth: 1,
+              padding: [6, 10],
+              textStyle: {
+                color: cssToken('--vx-text'),
+                fontFamily: cssToken('--vx-font-mono'),
+                fontSize: 11,
+              },
             },
             series: [
               {
@@ -110,8 +121,20 @@ export function MarketMap({ sectors, visibleGroups, description }: MarketMapProp
                 nodeClick: false,
                 breadcrumb: { show: false },
                 animation: false,
-                width: '100%',
-                height: '100%',
+                /*
+                  ANCRAGE AUX QUATRE BORDS, et non `width/height: '100%'`.
+                  Mesuré : avec les pourcentages, la carte dépassait son
+                  canevas — les tuiles du bas (« SYN-TECH-03 », les services
+                  publics) étaient COUPÉES par `overflow: hidden` du cadre.
+                  Une tuile tronquée, sur une carte dont la surface EST la
+                  donnée, fausse la lecture : le lecteur ne voit pas qu'un
+                  instrument manque. Les quatre bords se re-résolvent à chaque
+                  `resize()`, donc la carte tient toujours dans son cadre.
+                */
+                left: 0,
+                top: 0,
+                right: 0,
+                bottom: 0,
                 itemStyle: {
                   borderColor: cssToken('--vx-surface-0'),
                   borderWidth: 1,
@@ -120,8 +143,11 @@ export function MarketMap({ sectors, visibleGroups, description }: MarketMapProp
                 label: {
                   show: true,
                   color: cssToken('--vx-black'),
-                  fontSize: 12,
-                  lineHeight: 16,
+                  // Ticker et rendement : « mono/tabular pour prix, dates,
+                  // unités et codes ». Une tuile porte les deux.
+                  fontFamily: cssToken('--vx-font-mono'),
+                  fontSize: 11,
+                  lineHeight: 15,
                 },
                 upperLabel: {
                   show: true,

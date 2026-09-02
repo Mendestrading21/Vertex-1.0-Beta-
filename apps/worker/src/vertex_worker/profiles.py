@@ -53,6 +53,7 @@ from vertex_worker.opportunities import (
     DEV_SYNTHETIC_OPPORTUNITIES_CONFIG,
 )
 from vertex_worker.options import DEV_SYNTHETIC_OPTIONS_CONFIG, OptionsConfig
+from vertex_worker.risk import DEV_SYNTHETIC_RISK_CONFIG, RiskConfig
 
 __all__ = [
     "IBKR_RIGHTS",
@@ -97,8 +98,57 @@ PROFILE_REAL = "real"
 #: `stale_after` et par l'âge publié à côté de chaque valeur.
 REAL_LOOKBACK = timedelta(days=8)
 
+#: Indice de référence de `market.relative_strength`, déclaré et non deviné.
+#: Il n'est appliqué QUE s'il figure réellement dans l'univers collecté :
+#: déclarer une référence absente produirait `BENCHMARK_NOT_OBSERVED` sur
+#: chaque instrument, une absence bruyante qui n'apprend rien.
+#:
+#: SPX est le choix le plus large pour un univers d'actions américaines. Pour
+#: un univers européen ce serait un autre indice — d'où un champ configurable
+#: plutôt qu'une constante gravée dans le calcul.
+REFERENCE_BENCHMARK = "SPX"
+
 #: L'univers réel reste borné : la fusion charge un nombre d'observations
 #: plafonné, et un univers démesuré produirait une couverture trompeuse.
+#: Perimetre DECLARE de la matrice de correlation (page Risques).
+#:
+#: Huit indices mondiaux, parce qu ils sont LISIBLES : une matrice se lit d un
+#: coup d oeil ou ne se lit pas. Comparer les 161 titres collectes ferait deux
+#: choses, toutes deux mauvaises — l intersection stricte des calendriers
+#: tomberait aux seuls jours ou trois continents cotent ensemble, et une grille
+#: 161x161 n est pas un ecran.
+#:
+#: Comme `REFERENCE_BENCHMARK`, ce perimetre n est applique que si ses membres
+#: sont REELLEMENT collectes. Choisir qui se compare a qui est une decision de
+#: produit, d ou un champ declare plutot qu une constante gravee dans le calcul.
+RISK_PERIMETER: tuple[str, ...] = (
+    "SPX",
+    "NDX",
+    "RUT",
+    "VIX",
+    "DAX",
+    "ESTX50",
+    "N225",
+    "SMI",
+)
+
+#: Libellés du périmètre de risque — ils ATTEIGNENT l'écran, donc ils sont
+#: écrits en français correct : un « Volatilite » sans accent se lirait à
+#: l'affichage comme une négligence, pas comme une contrainte technique.
+RISK_LABELS: dict[str, str] = {
+    "SPX": "S&P 500",
+    "NDX": "Nasdaq 100",
+    "RUT": "Russell 2000",
+    "VIX": "Volatilité S&P 500",
+    "DAX": "DAX 40",
+    "ESTX50": "Euro Stoxx 50",
+    "N225": "Nikkei 225",
+    "SMI": "SMI Suisse",
+}
+
+#: Deux instruments au minimum : une matrice de correlation COMPARE.
+MINIMUM_RISK_PERIMETER = 2
+
 MAX_REAL_INSTRUMENTS = 500
 
 
@@ -136,6 +186,10 @@ class WorkerProfile:
     analysis: AnalysisConfig
     calendar: CalendarConfig
     opportunities: AnalysisConfig
+    #: `None` quand le perimetre declare n est pas collecte : la page
+    #: Risques reste alors vide EN LE DISANT, plutot que de comparer
+    #: des instruments choisis au hasard pour la remplir.
+    risk: RiskConfig | None = None
 
     @property
     def is_real(self) -> bool:
@@ -152,6 +206,7 @@ def synthetic_profile() -> WorkerProfile:
         analysis=DEV_SYNTHETIC_ANALYSIS_CONFIG,
         calendar=DEV_SYNTHETIC_CALENDAR_CONFIG,
         opportunities=DEV_SYNTHETIC_OPPORTUNITIES_CONFIG,
+        risk=DEV_SYNTHETIC_RISK_CONFIG,
     )
 
 
@@ -194,6 +249,20 @@ def real_ibkr_profile(instruments: Sequence[RealInstrument]) -> WorkerProfile:
     symboles = tuple(dict.fromkeys(i.symbol for i in uniques.values()))
     sources = frozenset({IBKR_SOURCE})
     droits = frozenset({IBKR_RIGHTS})
+    # Meme regle que l indice de reference : declare ne veut pas dire
+    # present. On ne retient que les membres REELLEMENT collectes, et
+    # au-dessous de deux il n y a rien a comparer.
+    perimetre_risque = tuple(t for t in RISK_PERIMETER if t in symboles)
+    registre_risque = (
+        RiskConfig(
+            perimeter=perimetre_risque,
+            labels={t: RISK_LABELS.get(t, t) for t in perimetre_risque},
+            allowed_sources=sources,
+            usable_rights=droits,
+        )
+        if len(perimetre_risque) >= MINIMUM_RISK_PERIMETER
+        else None
+    )
     return WorkerProfile(
         name=PROFILE_REAL,
         fusion=FusionConfig(
@@ -222,6 +291,9 @@ def real_ibkr_profile(instruments: Sequence[RealInstrument]) -> WorkerProfile:
             allowed_sources=sources,
             usable_rights=droits,
             lookback=REAL_LOOKBACK,
+            # Déclaré SEULEMENT s'il est réellement collecté : une référence
+            # absente rendrait `BENCHMARK_NOT_OBSERVED` partout.
+            benchmark=REFERENCE_BENCHMARK if REFERENCE_BENCHMARK in symboles else None,
         ),
         calendar=CalendarConfig(
             allowed_sources=sources,
@@ -239,6 +311,7 @@ def real_ibkr_profile(instruments: Sequence[RealInstrument]) -> WorkerProfile:
             horizon=DEV_SYNTHETIC_OPPORTUNITIES_CONFIG.horizon,
             portfolio_risk_required=DEV_SYNTHETIC_OPPORTUNITIES_CONFIG.portfolio_risk_required,
         ),
+        risk=registre_risque,
     )
 
 

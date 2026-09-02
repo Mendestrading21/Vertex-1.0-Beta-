@@ -224,9 +224,7 @@ class DrawdownResult(ContractModel):
         return self
 
 
-def _as_tuple_of(
-    values: Sequence[object], expected_type: type, name: str
-) -> tuple[Any, ...]:
+def _as_tuple_of(values: Sequence[object], expected_type: type, name: str) -> tuple[Any, ...]:
     if isinstance(values, (str, bytes)):
         raise PerformanceCalculationError(
             f"{name} must be a sequence of {expected_type.__name__} instances"
@@ -396,8 +394,7 @@ def xirr(dated_cashflows: Sequence[CashflowEvent]) -> XirrResult:
         return XirrResult(
             status=CalculationStatus.INVALID,
             reason=(
-                "multiple NPV sign changes on the documented search grid: "
-                "the root is not unique"
+                "multiple NPV sign changes on the documented search grid: the root is not unique"
             ),
         )
 

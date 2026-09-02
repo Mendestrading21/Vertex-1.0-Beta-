@@ -62,9 +62,7 @@ class TestScalarRules:
 
     def test_aware_datetimes_hash_by_instant(self):
         paris = timezone(timedelta(hours=2))
-        assert canonical_json_hash(UTC_DT) == canonical_json_hash(
-            UTC_DT.astimezone(paris)
-        )
+        assert canonical_json_hash(UTC_DT) == canonical_json_hash(UTC_DT.astimezone(paris))
 
     def test_date_supported(self):
         assert HASH_RE.match(canonical_json_hash(date(2026, 3, 1)))

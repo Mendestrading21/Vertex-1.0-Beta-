@@ -86,6 +86,52 @@ calculations:
       - packages/python/vertex_core/tests/calculations/test_market.py
       - apps/worker/tests/test_markets_content.py
       - apps/api/tests/test_markets_overview.py
+  - id: market.rebased_series
+    owner: market_statistics
+    inputs: [prices, adjustment_bases, base_value]
+    output_unit: index
+    gates: [empty_series, misaligned_adjustment_bases, positive_prices, same_adjustment_basis, positive_base_value]
+    invariants: [first_point_equals_base, finite, consistent_with_simple_return]
+    runtime_status: APPROVED
+    spec_version: "1.0.0"
+    implementation: packages/python/vertex_core/src/vertex_core/calculations/market.py::rebase_series
+    method: closed_form_base_times_price_ratio
+    assumptions:
+      - "Each point is base_value * p_i / p_0, computed in float64 after an explicit conversion of int/float/Decimal inputs; bool is rejected at the boundary."
+      - "The first point is returned as float(base_value) itself, never computed: it IS the base, so no rounding can move it."
+      - "Every price must carry the same adjustment basis label. Comparing an adjusted close to an unadjusted one displays a FALSE spread that nothing on screen would signal; the mismatch is rejected, never silently accepted."
+      - "One label per price is required. A missing label is not inferred from its neighbours."
+      - "An empty series is rejected: a series with no point has no base, and inventing one would fabricate data."
+      - "Dimensionless index output; currency, instrument identity and calendar alignment stay with the caller. Two rebased series are only comparable if the caller aligned their start dates."
+    parameter_schema:
+      prices: {type: "Sequence[int | float | Decimal]", unit: price, constraint: "non-empty, each finite and > 0"}
+      adjustment_bases: {type: "Sequence[str]", unit: label, constraint: "keyword-only, same length as prices, each non-empty, all equal"}
+      base_value: {type: "int | float | Decimal", unit: index, constraint: "keyword-only, finite and > 0, default 100.0"}
+      returns: {type: "tuple[float, ...]", unit: index}
+    tolerances:
+      float64_rel_tol: 1.0e-9
+      float64_abs_tol: 1.0e-12
+      note: >-
+        FLOAT64_REL_TOL and FLOAT64_ABS_TOL are module constants of
+        calculations/market.py. The identity
+        rebase_series(p)[i] / base_value - 1 == simple_return(p[0], p[i]) is
+        asserted with rel_tol=FLOAT64_REL_TOL on prices bounded to [1e-2, 1e3]
+        (documented in the test file). The first point is asserted EXACTLY
+        equal to base_value, without tolerance.
+    oracle: hand_derived_golden_vectors
+    oracle_evidence: >-
+      Hand-derived values asserted in TestRebaseSeries (100 -> 110 -> 90 with
+      base 100 gives exactly (100.0, 110.0, 90.0)) plus the Hypothesis identity
+      test_rebased_series_matches_simple_return, which ties every point back to
+      the already-approved market.simple_return.
+    oracle_limitation: >-
+      No third-party independent implementation is used; the vectors are not
+      registered under the pytest golden marker. The calculation is a ratio
+      times a constant, so it inherits the numerical limits of
+      market.simple_return without adding any of its own.
+    criticality: high
+    tests:
+      - packages/python/vertex_core/tests/calculations/test_market.py
   - id: market.log_return
     owner: market_statistics
     inputs: [price_t0, price_t1]
@@ -967,6 +1013,49 @@ calculations:
       result with numpy.cov(rowvar=False, ddof=1) at atol=1e-15;
       test_golden_two_assets_hand_computed (marker pytest.mark.golden) carries
       the provenance comment "hand computation (documented 2026-08-28)".
+    criticality: high
+    runtime_usage: not_called_by_production_code_yet
+    tests:
+      - packages/python/vertex_core/tests/calculations/test_risk.py
+  - id: risk.correlation
+    owner: portfolio_risk
+    inputs: [covariance_result]
+    output_unit: correlation_coefficient
+    gates: [positive_variances, bounded_coefficients]
+    invariants: [symmetric, unit_diagonal, bounded_within_tolerance]
+    runtime_status: APPROVED
+    spec_version: "1.0.0"
+    implementation: packages/python/vertex_core/src/vertex_core/calculations/risk.py::correlation
+    method: pearson_renormalisation_of_an_approved_covariance
+    assumptions:
+      - "rho_ij = S_ij / sqrt(S_ii * S_jj), applied to a CovarianceResult ALREADY validated by risk.covariance (rectangular, complete, exactly symmetric, PSD within its tolerance). This calculation adds NO information: it renormalises an approved result so that coefficients become comparable across assets whose scales differ."
+      - "The diagonal is POSED at exactly 1.0, never computed: an asset is perfectly correlated with itself and a rounding error must not move it."
+      - "A zero or negative diagonal variance is REJECTED (positive_variances). A constant series has no defined correlation; dividing by its zero standard deviation would invent a number rather than compute one."
+      - "A coefficient beyond 1 + CORRELATION_BOUND_TOLERANCE is REJECTED (bounded_coefficients) rather than clamped: an incoherent matrix must stay visible, and forcing it back into [-1, 1] would hide the defect. Inside the tolerance the value is clipped, which is the float64 rounding alone."
+      - "Alignment, the point-in-time universe, and the choice of WHICH instruments form the matrix are the upstream duty of the caller, inherited from risk.covariance. The perimeter is declared by configuration, never deduced by the code."
+    parameter_schema:
+      covariance_result: {type: CovarianceResult, unit: covariance, constraint: "produced by risk.covariance; strictly positive diagonal"}
+      returns: {type: CorrelationResult, unit: correlation_coefficient, note: "n_observations, n_assets and matrix, each coefficient in [-1, 1] with an exact unit diagonal"}
+    tolerances:
+      correlation_bound_tolerance: 1.0e-9
+      oracle_atol: 1.0e-12
+      note: >-
+        CORRELATION_BOUND_TOLERANCE is a module constant of
+        calculations/risk.py. It bounds the float64 overshoot of |rho| beyond 1
+        that may be clipped; past that bound the matrix is refused. The oracle
+        test compares against numpy.corrcoef at atol=1e-12.
+    oracle: numpy_corrcoef_independent_implementation_in_test
+    oracle_evidence: >-
+      test_correlation_oracle_matches_numpy_corrcoef (marker pytest.mark.oracle)
+      compares the result with numpy.corrcoef(rowvar=False) at atol=1e-12;
+      test_golden_perfect_and_inverse (marker pytest.mark.golden) carries two
+      coefficients known by construction: a series and its double correlate at
+      +1.0, a series and its negation at -1.0 -- but NOT exactly in float64.
+      Measured 2026-09-01, that case returns 0.9999999999999999, one ULP below
+      1.0, because sqrt(S_aa * S_bb) rounds. The test therefore declares a
+      bound of 4 ULP rather than claiming an exactness the machine does not
+      have. The unit diagonal IS exact, because it is posed and not computed --
+      it would otherwise carry the same rounding.
     criticality: high
     runtime_usage: not_called_by_production_code_yet
     tests:

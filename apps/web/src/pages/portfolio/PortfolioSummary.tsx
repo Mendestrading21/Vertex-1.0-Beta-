@@ -40,7 +40,7 @@ function StatusValue({
 
 export function PortfolioSummary({ valuation }: { readonly valuation: ValuationContentView }) {
   return (
-    <section className="vx-pf-summary" aria-labelledby="vx-pf-summary-title">
+    <section className="vx-pf-summary" data-rank="dominant" aria-labelledby="vx-pf-summary-title">
       <div className="vx-pf-summary-head">
         <h2 id="vx-pf-summary-title">Valorisation publiée</h2>
         {valuation.markPopulation === 'SYNTHETIC' ? (

@@ -40,7 +40,19 @@ export function CatalystTimeline({
   onSelect,
 }: CatalystTimelineProps) {
   return (
-    <section className="vx-cat-timeline" aria-labelledby="vx-cat-timeline-title">
+    <section
+      className="vx-cat-timeline"
+      /*
+        LA DOMINANTE DE CATALYSEURS. La page demande « quels événements
+        vérifiés peuvent modifier la thèse et quand ? » : c'est cette timeline
+        qui répond. La file de revues portait la dominante ; elle vit pourtant
+        plus bas et répond à une autre question (« quelles thèses doivent être
+        revues »). Une dominante mal placée ne se voit dans aucun test — elle
+        se voit à la question que la page pose.
+      */
+      data-rank="dominant"
+      aria-labelledby="vx-cat-timeline-title"
+    >
       <h2 id="vx-cat-timeline-title">
         Timeline — {catalysts.length} événement(s) relié(s)
       </h2>
@@ -58,6 +70,22 @@ export function CatalystTimeline({
           snapshot, pas un défaut d'affichage.
         </p>
       ) : (
+        /*
+          LA RÉGION DÉFILANTE EST UNE ENVELOPPE, PAS LA LISTE.
+          Première version : `role="region"` posé directement sur le `<ol>`.
+          Un rôle explicite REMPLACE le rôle implicite : la liste cessait d'être
+          une liste, ses sept `<li>` n'étaient plus contenus dans une `<ul>` ou
+          `<ol>`, et axe l'a dit — violation `listitem`, impact « serious »,
+          sur un seuil déclaré à zéro. La borne de hauteur ne valait pas ça.
+          L'enveloppe porte donc la région et le `tabIndex` ; la liste reste
+          une liste.
+        */
+        <div
+          className="vx-cat-list-scroll"
+          tabIndex={0}
+          role="region"
+          aria-label="Timeline des catalyseurs, région défilante"
+        >
         <ol className="vx-cat-list" data-testid="cat-list">
           {catalysts.map(({ event, links, theses, positions }) => (
             <li
@@ -213,6 +241,7 @@ export function CatalystTimeline({
             </li>
           ))}
         </ol>
+        </div>
       )}
 
       <p className="vx-cat-missing" role="note" data-testid="cat-missing-widget">

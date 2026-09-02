@@ -10,7 +10,12 @@ import { BreadthPanel } from './BreadthPanel.tsx';
 import { MarketMap } from './MarketMap.tsx';
 import { MarketsTable } from './MarketsTable.tsx';
 import type { SignGroup } from '../../components/markets/marketsView.ts';
-import { GROUP_LABELS_FR, flattenTickers } from '../../components/markets/marketsView.ts';
+import {
+  GROUP_LABELS_FR,
+  censusOfNature,
+  flattenTickers,
+  provenanceSentence,
+} from '../../components/markets/marketsView.ts';
 
 /**
  * Page Marchés — question : « Dans quel contexte de marché vais-je analyser
@@ -59,6 +64,7 @@ function MarketsFrame({ data, state }: { readonly data: MarketsOverview; readonl
   );
 
   const allEntries = useMemo(() => flattenTickers(data.sectors), [data.sectors]);
+  const nature = useMemo(() => censusOfNature(data.sectors), [data.sectors]);
   const visibleEntries = useMemo(
     () => allEntries.filter((entry) => visibleGroups.has(entry.group)),
     [allEntries, visibleGroups],
@@ -80,7 +86,7 @@ function MarketsFrame({ data, state }: { readonly data: MarketsOverview; readonl
   const coverage = data.coverage;
   const asOf = data.as_of;
   const description =
-    data.conclusion ?? 'Carte des marchés synthétiques : aucune conclusion serveur fournie.';
+    data.conclusion ?? 'Carte des marchés : aucune conclusion serveur fournie.';
 
   const detail =
     state === 'partial'
@@ -90,13 +96,19 @@ function MarketsFrame({ data, state }: { readonly data: MarketsOverview; readonl
         : undefined;
 
   return (
-    <section className="vx-chartframe" aria-labelledby="vx-marketmap-title">
+    <section className="vx-chartframe" data-rank="dominant" aria-labelledby="vx-marketmap-title">
       {/* 1. WidgetHeader : question + titre */}
       <header className="vx-chartframe-head">
         <p className="vx-chartframe-question">
           Comment les secteurs et instruments suivis ont-ils évolué sur la dernière séance ?
         </p>
-        <h2 id="vx-marketmap-title">Carte des marchés synthétiques</h2>
+        {/*
+          §4.1 : le titre disait « synthétiques » EN DUR, au-dessus de 161
+          instruments IBKR réels. La nature appartient au bandeau de
+          population, seul propriétaire de ce vocabulaire ; la dupliquer ici
+          créait une seconde vérité, et elle était fausse.
+        */}
+        <h2 id="vx-marketmap-title">Carte des marchés</h2>
       </header>
 
       {/* 2. DataMeta : unité, devise, timezone, période, source, as_of, couverture */}
@@ -116,7 +128,13 @@ function MarketsFrame({ data, state }: { readonly data: MarketsOverview; readonl
         <div>
           <dt>Source</dt>
           <dd>
-            <code>synthetic-dev</code> via snapshot worker v{data.snapshot_version ?? '—'}
+            {/*
+              §4.1 : `synthetic-dev` était écrit en dur alors que la source
+              réelle est `ibkr`. Le contrat ne publie AUCUN champ de source ;
+              il publie un drapeau `synthetic` PAR instrument. On recense donc
+              ce qui est déclaré, au lieu de nommer une source qu'on ignore.
+            */}
+            snapshot worker v{data.snapshot_version ?? '—'} — {provenanceSentence(nature)}
           </dd>
         </div>
         <div>
@@ -199,13 +217,14 @@ function MarketsFrame({ data, state }: { readonly data: MarketsOverview; readonl
           <code>market.breadth</code> calculés par le worker (
           <code>{data.engine_version ?? 'version inconnue'}</code>, lignée{' '}
           <code>input_hash</code> conservée dans le snapshot). Poids = parts
-          descriptives des clôtures (synthétiques). Rendu : Apache ECharts
+          descriptives des clôtures servies. Rendu : Apache ECharts
           (licence Apache-2.0), chargé uniquement sur cette route.
         </p>
         <p>
-          Limites : données SYNTHÉTIQUES de développement, 2 clôtures par
-          instrument, breadth refusée sous le seuil de couverture ; un
-          instrument sans ses 2 clôtures est écarté et compté.
+          Limites : 2 clôtures par instrument, breadth refusée sous le seuil de
+          couverture ; un instrument sans ses 2 clôtures est écarté et compté.
+          Nature des données : voir le bandeau de population ci-dessus, qui en
+          est le seul propriétaire.
         </p>
       </footer>
     </section>

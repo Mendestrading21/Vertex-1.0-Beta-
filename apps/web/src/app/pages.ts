@@ -1,5 +1,5 @@
 /**
- * Modèle de navigation — 4 groupes. Dix destinations réelles aujourd'hui,
+ * Modèle de navigation — 4 groupes. Onze destinations réelles aujourd'hui,
  * douze en cible (voir ALL_PAGES).
  * Sources : docs/01-product/NAVIGATION.md, docs/01-product/ROUTES.md et les
  * fiches docs/01-product/pages/NN-*.md (questions métier reprises mot à mot).
@@ -121,6 +121,15 @@ const catalysts: PageDef = {
   lot: 'LOT-23',
 };
 
+const risk: PageDef = {
+  key: 'risks',
+  title: 'Risques',
+  navPath: '/risks',
+  routePath: '/risks',
+  question: "Qu'est-ce qui bouge ensemble dans mon périmètre, et qu'est-ce qui protège de quoi ?",
+  lot: 'LOT-22',
+};
+
 const system: PageDef = {
   key: 'sources-reports',
   title: 'Sources & Rapports',
@@ -134,7 +143,7 @@ const system: PageDef = {
 export const NAV_GROUPS: readonly NavGroup[] = [
   { label: 'Décider', pages: [today, opportunities, analysis, options, simulator] },
   { label: 'Observer', pages: [calendar, markets] },
-  { label: 'Piloter', pages: [portfolio, catalysts] },
+  { label: 'Piloter', pages: [portfolio, risk, catalysts] },
   { label: 'Assistance', pages: [system] },
 ];
 
@@ -142,10 +151,13 @@ export const NAV_GROUPS: readonly NavGroup[] = [
  * Les destinations RÉELLES du rail, à plat, dans l'ordre.
  *
  * La cible du blueprint est douze (`references/pages.md`). Le rail en porte
- * dix pendant les absorptions : `performance` a rejoint Portefeuille
- * (LOT-08), `follow-up` a rejoint la destination Catalyseurs créée au LOT-10,
- * `ai` a rejoint l'inspecteur d'Analyse et de Portefeuille (LOT-12), et
- * Graphiques et Risques n'existent pas encore.
+ * onze : `performance` a rejoint Portefeuille (LOT-08), `follow-up` a rejoint
+ * la destination Catalyseurs créée au LOT-10, `ai` a rejoint l'inspecteur
+ * d'Analyse et de Portefeuille (LOT-12). Graphiques n'existe pas encore.
+ *
+ * Risques a été installé le 2026-09-01 : sa route (`GET /api/v1/risk/matrix`),
+ * ses données (snapshot `risk_matrix/global`) et ses tests existent — c'est
+ * EXACTEMENT la condition posée juste en dessous, pas une exception à elle.
  * L'écart est mesuré par `scripts/audit_titanium_ledger.py` et journalisé
  * dans `docs/05-design/PAGE_ARBITRATION.md`. Il n'est PAS comblé par une
  * entrée de rail sans route, données ni tests : une façade serait un

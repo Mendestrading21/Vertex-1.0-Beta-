@@ -7,6 +7,7 @@ Pure, deterministic functions implementing the ``market.*`` entries of
 - ``market.log_return``          -> :func:`log_return`
 - ``market.realized_volatility`` -> :func:`realized_volatility`
 - ``market.atr``                 -> :func:`atr`
+- ``market.rebased_series``      -> :func:`rebase_series`
 - ``market.relative_strength``   -> :func:`relative_strength`
 - ``market.breadth``             -> :func:`breadth`
 
@@ -49,6 +50,7 @@ __all__ = [
     "breadth",
     "log_return",
     "realized_volatility",
+    "rebase_series",
     "relative_strength",
     "simple_return",
 ]
@@ -354,14 +356,11 @@ def atr(bars: Sequence[OhlcBar], lookback: int) -> float:
         typed_bars.append(bar)
     lb = _require_int(lookback, "lookback")
     if lb < 1:
-        raise CalculationInputError(
-            "invalid_lookback", f"lookback must be >= 1, got {lb}"
-        )
+        raise CalculationInputError("invalid_lookback", f"lookback must be >= 1, got {lb}")
     if len(typed_bars) < lb + 1:
         raise CalculationInputError(
             "minimum_sample",
-            f"ATR with lookback {lb} requires at least {lb + 1} bars, "
-            f"got {len(typed_bars)}",
+            f"ATR with lookback {lb} requires at least {lb + 1} bars, got {len(typed_bars)}",
         )
     previous_ts: datetime | None = None
     for i, bar in enumerate(typed_bars):
@@ -381,15 +380,72 @@ def atr(bars: Sequence[OhlcBar], lookback: int) -> float:
         high = _to_float(bar.high, f"bars[{i}].high")
         low = _to_float(bar.low, f"bars[{i}].low")
         prev_close = _to_float(prev.close, f"bars[{i - 1}].close")
-        true_ranges.append(
-            max(high - low, abs(high - prev_close), abs(low - prev_close))
-        )
+        true_ranges.append(max(high - low, abs(high - prev_close), abs(low - prev_close)))
     result = _finite_result(math.fsum(true_ranges) / lb, "market.atr")
     if result < 0.0:  # defensive: TR terms are non-negative by construction
-        raise CalculationInputError(
-            "non_finite_result", "market.atr produced a negative range"
-        )
+        raise CalculationInputError("non_finite_result", "market.atr produced a negative range")
     return result
+
+
+def rebase_series(
+    prices: Sequence[NumberLike],
+    *,
+    adjustment_bases: Sequence[str],
+    base_value: NumberLike = 100.0,
+) -> tuple[float, ...]:
+    """``market.rebased_series`` — série ramenée à une base commune.
+
+    Chaque point vaut ``base_value * p_i / p_0`` : la série devient
+    dimensionnelle-libre et directement comparable à une autre série rebasée,
+    SANS qu'aucun rendement ne soit calculé par le consommateur.
+
+    Gates (chaque violation lève :class:`CalculationInputError`) :
+
+    - ``non_empty_series`` : au moins un prix. Une série vide n'a pas de base,
+      et rendre un tuple vide laisserait le consommateur inventer la sienne ;
+    - ``aligned_bases`` : autant d'étiquettes d'ajustement que de prix. Une
+      étiquette manquante ne peut pas être devinée ;
+    - ``positive_prices`` : chaque prix fini et strictement positif ;
+    - ``same_adjustment_basis`` : toutes les étiquettes égales. Comparer un
+      cours ajusté des dividendes à un cours qui ne l'est pas affiche un écart
+      FAUX, et rien à l'écran ne le signalerait ;
+    - ``positive_base_value`` : base finie et strictement positive.
+
+    Invariant documenté : ``resultat[0] == float(base_value)`` exactement — le
+    premier point n'est jamais approché, il EST la base.
+
+    Rapport à :func:`simple_return` (invariant vérifié par test) :
+    ``resultat[i] / base_value - 1 == simple_return(p_0, p_i)`` à
+    ``FLOAT64_REL_TOL`` près.
+    """
+    if not prices:
+        raise CalculationInputError(
+            "empty_series",
+            "market.rebased_series: une série sans point n'a pas de base, "
+            "et en inventer une reviendrait à fabriquer une donnée",
+        )
+    if len(adjustment_bases) != len(prices):
+        raise CalculationInputError(
+            "misaligned_adjustment_bases",
+            f"market.rebased_series: {len(prices)} prix pour "
+            f"{len(adjustment_bases)} étiquettes d'ajustement ; une étiquette "
+            "manquante ne se devine pas",
+        )
+
+    # `_check_same_adjustment_basis` lève sur toute divergence : comparer un
+    # cours ajusté des dividendes à un cours qui ne l'est pas afficherait un
+    # écart FAUX, que rien à l'écran ne signalerait.
+    reference = adjustment_bases[0]
+    for basis in adjustment_bases:
+        _check_same_adjustment_basis(reference, basis)
+
+    base = _require_positive_price(base_value, "base_value")
+    p0 = _require_positive_price(prices[0], "prices[0]")
+    rebased = [base]
+    for index, price in enumerate(prices[1:], start=1):
+        valeur = _require_positive_price(price, f"prices[{index}]")
+        rebased.append(_finite_result(base * valeur / p0, "market.rebased_series"))
+    return tuple(rebased)
 
 
 def relative_strength(
@@ -516,8 +572,7 @@ def breadth(
     if above < 0 or above > covered:
         raise CalculationInputError(
             "invalid_count",
-            f"above_count must be within [0, covered_count], got {above} "
-            f"for coverage {covered}",
+            f"above_count must be within [0, covered_count], got {above} for coverage {covered}",
         )
     threshold = _to_float(coverage_threshold, "coverage_threshold")
     if threshold <= 0.0 or threshold > 1.0:

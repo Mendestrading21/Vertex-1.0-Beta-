@@ -186,22 +186,16 @@ class OptionNotImplementedError(NotImplementedError):
 def _to_float(value: object, name: str) -> float:
     """Convert a boundary number to finite float64; reject everything else."""
     if isinstance(value, bool):
-        raise OptionInputError(
-            "invalid_type", f"{name} must be int, float or Decimal, got bool"
-        )
+        raise OptionInputError("invalid_type", f"{name} must be int, float or Decimal, got bool")
     if isinstance(value, Decimal):
         if not value.is_finite():
-            raise OptionInputError(
-                "non_finite_input", f"{name} is a non-finite Decimal ({value})"
-            )
+            raise OptionInputError("non_finite_input", f"{name} is a non-finite Decimal ({value})")
         result = float(value)
     elif isinstance(value, int):
         try:
             result = float(value)
         except OverflowError:
-            raise OptionInputError(
-                "non_finite_input", f"{name} is too large for float64"
-            ) from None
+            raise OptionInputError("non_finite_input", f"{name} is too large for float64") from None
     elif isinstance(value, float):
         result = value
     else:
@@ -210,9 +204,7 @@ def _to_float(value: object, name: str) -> float:
             f"{name} must be int, float or Decimal, got {type(value).__name__}",
         )
     if not math.isfinite(result):
-        raise OptionInputError(
-            "non_finite_input", f"{name} is not finite in float64 ({result!r})"
-        )
+        raise OptionInputError("non_finite_input", f"{name} is not finite in float64 ({result!r})")
     return 0.0 if result == 0.0 else result
 
 
@@ -225,8 +217,7 @@ def _require_price_positive(value: object, name: str) -> float:
     if price > SPOT_STRIKE_MAX:
         raise OptionInputError(
             f"{name}_out_of_domain",
-            f"{name} {price!r} exceeds the validated model domain "
-            f"(0, {SPOT_STRIKE_MAX:g}]",
+            f"{name} {price!r} exceeds the validated model domain (0, {SPOT_STRIKE_MAX:g}]",
         )
     return price
 
@@ -234,14 +225,11 @@ def _require_price_positive(value: object, name: str) -> float:
 def _require_maturity(value: object, name: str = "maturity_years") -> float:
     t = _to_float(value, name)
     if t < 0.0:
-        raise OptionInputError(
-            "negative_maturity", f"{name} must be >= 0 years, got {t!r}"
-        )
+        raise OptionInputError("negative_maturity", f"{name} must be >= 0 years, got {t!r}")
     if t > MATURITY_MAX_YEARS:
         raise OptionInputError(
             "maturity_out_of_domain",
-            f"{name} {t!r} exceeds the validated model domain "
-            f"[0, {MATURITY_MAX_YEARS:g}] years",
+            f"{name} {t!r} exceeds the validated model domain [0, {MATURITY_MAX_YEARS:g}] years",
         )
     return t
 
@@ -249,14 +237,11 @@ def _require_maturity(value: object, name: str = "maturity_years") -> float:
 def _require_volatility(value: object, name: str = "volatility") -> float:
     vol = _to_float(value, name)
     if vol < 0.0:
-        raise OptionInputError(
-            "negative_volatility", f"{name} must be >= 0, got {vol!r}"
-        )
+        raise OptionInputError("negative_volatility", f"{name} must be >= 0, got {vol!r}")
     if vol > VOLATILITY_MAX:
         raise OptionInputError(
             "volatility_out_of_domain",
-            f"{name} {vol!r} exceeds the validated model domain "
-            f"[0, {VOLATILITY_MAX:g}]",
+            f"{name} {vol!r} exceeds the validated model domain [0, {VOLATILITY_MAX:g}]",
         )
     return vol
 
@@ -284,23 +269,18 @@ def _require_right(right: object) -> str:
         return right
     raise OptionInputError(
         "invalid_right",
-        f"right must be OptionRight.CALL/PUT or the string 'CALL'/'PUT', "
-        f"got {right!r}",
+        f"right must be OptionRight.CALL/PUT or the string 'CALL'/'PUT', got {right!r}",
     )
 
 
 def _require_int(value: object, name: str) -> int:
     if isinstance(value, bool) or not isinstance(value, int):
-        raise OptionInputError(
-            "invalid_type", f"{name} must be int, got {type(value).__name__}"
-        )
+        raise OptionInputError("invalid_type", f"{name} must be int, got {type(value).__name__}")
     return value
 
 
 def _require_sequence(value: object, name: str) -> Sequence[object]:
-    if isinstance(value, (str, bytes, bytearray)) or not isinstance(
-        value, (list, tuple)
-    ):
+    if isinstance(value, (str, bytes, bytearray)) or not isinstance(value, (list, tuple)):
         raise OptionInputError(
             "invalid_type",
             f"{name} must be a list or tuple, got {type(value).__name__}",
@@ -418,8 +398,7 @@ def no_arbitrage_bounds(
     if lower > upper:
         raise OptionInputError(
             "non_finite_result",
-            "options.no_arbitrage_bounds produced lower > upper "
-            f"({lower!r} > {upper!r})",
+            f"options.no_arbitrage_bounds produced lower > upper ({lower!r} > {upper!r})",
         )
     return lower, upper
 
@@ -508,9 +487,7 @@ def european_price(
     q = _require_rate(dividend_yield, "dividend_yield")
     vol = _require_volatility(volatility)
     right_s = _require_right(right)
-    return _finite_result(
-        _bsm_price_core(s, k, t, r, q, vol, right_s), "options.european_price"
-    )
+    return _finite_result(_bsm_price_core(s, k, t, r, q, vol, right_s), "options.european_price")
 
 
 # ---------------------------------------------------------------------------
@@ -853,8 +830,7 @@ def american_price(
     if n_steps < AMERICAN_MIN_STEPS:
         raise OptionInputError(
             "steps_below_validated_grid",
-            f"steps must be >= {AMERICAN_MIN_STEPS} (validated numerical "
-            f"grid), got {n_steps}",
+            f"steps must be >= {AMERICAN_MIN_STEPS} (validated numerical grid), got {n_steps}",
         )
     dividends_seq = _require_sequence(discrete_dividends, "discrete_dividends")
     if len(dividends_seq) > 0:
@@ -914,18 +890,14 @@ def american_price(
             _ql.QuoteHandle(_ql.SimpleQuote(s)),
             _ql.YieldTermStructureHandle(_ql.FlatForward(anchor, q, day_count)),
             _ql.YieldTermStructureHandle(_ql.FlatForward(anchor, r, day_count)),
-            _ql.BlackVolTermStructureHandle(
-                _ql.BlackConstantVol(anchor, calendar, vol, day_count)
-            ),
+            _ql.BlackVolTermStructureHandle(_ql.BlackConstantVol(anchor, calendar, vol, day_count)),
         )
         ql_right = _ql.Option.Call if right_s == "CALL" else _ql.Option.Put
         option = _ql.VanillaOption(
             _ql.PlainVanillaPayoff(ql_right, k),
             _ql.AmericanExercise(anchor, expiry),
         )
-        option.setPricingEngine(
-            _ql.FdBlackScholesVanillaEngine(process, n_steps, n_steps, 0)
-        )
+        option.setPricingEngine(_ql.FdBlackScholesVanillaEngine(process, n_steps, n_steps, 0))
         npv = float(option.NPV())
     finally:
         settings.evaluationDate = saved_evaluation_date
@@ -1037,9 +1009,7 @@ def _leg_strike(leg: OptionLeg) -> Decimal:
     """
     strike = leg.strike
     if strike is None:
-        raise OptionInputError(
-            "missing_leg_strike", f"a {leg.right} leg requires a strike"
-        )
+        raise OptionInputError("missing_leg_strike", f"a {leg.right} leg requires a strike")
     return strike
 
 
@@ -1103,22 +1073,16 @@ def _spot_to_exact_decimal(value: object, name: str) -> Decimal:
     the bankruptcy tail — but never negative).
     """
     if isinstance(value, bool):
-        raise OptionInputError(
-            "invalid_type", f"{name} must be int, float or Decimal, got bool"
-        )
+        raise OptionInputError("invalid_type", f"{name} must be int, float or Decimal, got bool")
     if isinstance(value, Decimal):
         if not value.is_finite():
-            raise OptionInputError(
-                "non_finite_input", f"{name} is a non-finite Decimal ({value})"
-            )
+            raise OptionInputError("non_finite_input", f"{name} is a non-finite Decimal ({value})")
         result = value
     elif isinstance(value, int):
         result = Decimal(value)
     elif isinstance(value, float):
         if not math.isfinite(value):
-            raise OptionInputError(
-                "non_finite_input", f"{name} is not finite ({value!r})"
-            )
+            raise OptionInputError("non_finite_input", f"{name} is not finite ({value!r})")
         result = Decimal(value)  # exact binary expansion, no rounding
     else:
         raise OptionInputError(
@@ -1126,9 +1090,7 @@ def _spot_to_exact_decimal(value: object, name: str) -> Decimal:
             f"{name} must be int, float or Decimal, got {type(value).__name__}",
         )
     if result < 0:
-        raise OptionInputError(
-            "negative_terminal_spot", f"{name} must be >= 0, got {result}"
-        )
+        raise OptionInputError("negative_terminal_spot", f"{name} must be >= 0, got {result}")
     return result
 
 
@@ -1171,22 +1133,15 @@ def payoff_at_expiry(
             f"fees must be Decimal, got {type(fees).__name__}",
         )
     if not fees.is_finite():
-        raise OptionInputError(
-            "non_finite_input", f"fees is a non-finite Decimal ({fees})"
-        )
+        raise OptionInputError("non_finite_input", f"fees is a non-finite Decimal ({fees})")
     if fees < 0:
         raise OptionInputError(
             "negative_fees", f"fees must be >= 0 (positive declared costs), got {fees}"
         )
     grid_seq = _require_sequence(terminal_spot_grid, "terminal_spot_grid")
     if len(grid_seq) == 0:
-        raise OptionInputError(
-            "empty_grid", "terminal_spot_grid must contain at least one spot"
-        )
-    spots = [
-        _spot_to_exact_decimal(v, f"terminal_spot_grid[{i}]")
-        for i, v in enumerate(grid_seq)
-    ]
+        raise OptionInputError("empty_grid", "terminal_spot_grid must contain at least one spot")
+    spots = [_spot_to_exact_decimal(v, f"terminal_spot_grid[{i}]") for i, v in enumerate(grid_seq)]
     zero = Decimal(0)
     results: list[Decimal] = []
     with localcontext() as ctx:
@@ -1204,11 +1159,7 @@ def payoff_at_expiry(
                         intrinsic = zero
                 else:  # STOCK
                     intrinsic = spot_t
-                total += (
-                    Decimal(leg.quantity)
-                    * Decimal(leg.multiplier)
-                    * (intrinsic - leg.premium)
-                )
+                total += Decimal(leg.quantity) * Decimal(leg.multiplier) * (intrinsic - leg.premium)
             total -= fees
             if total.is_zero() and total.is_signed():
                 total = total.copy_negate()  # normalize -0
@@ -1277,15 +1228,11 @@ def scenario_grid(
     spot_seq = _require_sequence(spot_grid, "spot_grid")
     if len(spot_seq) == 0:
         raise OptionInputError("empty_grid", "spot_grid must not be empty")
-    spots = [
-        _require_price_positive(v, f"spot_grid[{i}]") for i, v in enumerate(spot_seq)
-    ]
+    spots = [_require_price_positive(v, f"spot_grid[{i}]") for i, v in enumerate(spot_seq)]
     time_seq = _require_sequence(time_grid_years, "time_grid_years")
     if len(time_seq) == 0:
         raise OptionInputError("empty_grid", "time_grid_years must not be empty")
-    times = [
-        _require_maturity(v, f"time_grid_years[{i}]") for i, v in enumerate(time_seq)
-    ]
+    times = [_require_maturity(v, f"time_grid_years[{i}]") for i, v in enumerate(time_seq)]
     scen_seq = _require_sequence(iv_scenarios, "iv_scenarios")
     if len(scen_seq) == 0:
         raise OptionInputError("empty_grid", "iv_scenarios must not be empty")
@@ -1305,8 +1252,7 @@ def scenario_grid(
                 if vol_entry is not None:
                     raise OptionInputError(
                         "stock_leg_volatility",
-                        f"iv_scenarios[{si}][{li}] must be None for a STOCK "
-                        f"leg, got {vol_entry!r}",
+                        f"iv_scenarios[{si}][{li}] must be None for a STOCK leg, got {vol_entry!r}",
                     )
                 vols.append(None)
             else:
@@ -1317,9 +1263,7 @@ def scenario_grid(
                         f"{leg.right} leg; an annualized volatility is "
                         "required (absence is never converted to zero)",
                     )
-                vols.append(
-                    _require_volatility(vol_entry, f"iv_scenarios[{si}][{li}]")
-                )
+                vols.append(_require_volatility(vol_entry, f"iv_scenarios[{si}][{li}]"))
         scenarios.append(vols)
 
     leg_static = _leg_pricing_floats(typed_legs)
@@ -1342,9 +1286,7 @@ def scenario_grid(
                         # toujours les deux.
                         assert leg_strike is not None  # noqa: S101
                         assert vol is not None  # noqa: S101
-                        value = _bsm_price_core(
-                            s, leg_strike, t, r, q, vol, leg_right
-                        )
+                        value = _bsm_price_core(s, leg_strike, t, r, q, vol, leg_right)
                     total += qty_mult * (value - leg_premium)
                 spot_row.append(_finite_result(total, "options.scenario_grid"))
             time_rows.append(tuple(spot_row))
@@ -1433,9 +1375,7 @@ def _classify_all_long(typed_legs: tuple[OptionLeg, ...]) -> str:
 
 
 def _reject(reason_code: str, detail: str) -> DefinedRiskResult:
-    return DefinedRiskResult(
-        is_defined_risk=False, reason_code=reason_code, detail=detail
-    )
+    return DefinedRiskResult(is_defined_risk=False, reason_code=reason_code, detail=detail)
 
 
 def defined_risk_check(legs: Sequence[OptionLeg]) -> DefinedRiskResult:

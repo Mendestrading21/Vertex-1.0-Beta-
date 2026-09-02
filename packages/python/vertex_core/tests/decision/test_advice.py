@@ -98,30 +98,54 @@ def all_pass_inputs(**overrides) -> AdviceInputs:
 
 # One violation override per gate: exactly that gate turns BLOCK, others PASS.
 BLOCK_OVERRIDES_PER_GATE = {
-    "instrument_resolved": {"instrument": InstrumentResolutionInput(
-        identity_status=IdentityStatus.UNRESOLVED, resolved_with_conid=True)},
-    "entitlements_sufficient": {"entitlements": EntitlementsInput(
-        capability_status=SourceCapabilityStatus.NOT_ENTITLED)},
-    "snapshot_fresh_and_coherent": {"snapshot": SnapshotInput(
-        quality=SnapshotQuality.CONTRADICTORY, fresh=True)},
-    "session_and_event_known": {"session_event": SessionEventInput(
-        session_known=False, event_calendar_known=True)},
-    "minimum_liquidity": {"liquidity": LiquidityInput(
-        asset_class=AssetClass.STOCK,
-        observed_liquidity=Decimal("1"),
-        required_minimum=Decimal("100000"),
-        observation_delayed=False)},
-    "calculations_valid": {"calculations": CalculationsInput(
-        calculation_statuses={"decision.risk_reward": CalculationStatus.INVALID})},
-    "manual_portfolio_risk_available": {"portfolio_risk": PortfolioRiskInput(
-        risk_required=True, portfolio_risk_available=False, declarations_current=True)},
-    "probability_calibrated_if_used": {"probability": ProbabilityInput(
-        probability_used=True, calibration_valid=False,
-        out_of_sample_validated=True, calibration_current=True)},
-    "critical_contradictions_resolved": {"contradictions": ContradictionsInput(
-        unresolved_critical_count=1, explicit_contradiction_count=0)},
-    "user_constraints_versioned": {"constraints": ConstraintsInput(
-        constraints_version="", constraints_current=True)},
+    "instrument_resolved": {
+        "instrument": InstrumentResolutionInput(
+            identity_status=IdentityStatus.UNRESOLVED, resolved_with_conid=True
+        )
+    },
+    "entitlements_sufficient": {
+        "entitlements": EntitlementsInput(capability_status=SourceCapabilityStatus.NOT_ENTITLED)
+    },
+    "snapshot_fresh_and_coherent": {
+        "snapshot": SnapshotInput(quality=SnapshotQuality.CONTRADICTORY, fresh=True)
+    },
+    "session_and_event_known": {
+        "session_event": SessionEventInput(session_known=False, event_calendar_known=True)
+    },
+    "minimum_liquidity": {
+        "liquidity": LiquidityInput(
+            asset_class=AssetClass.STOCK,
+            observed_liquidity=Decimal("1"),
+            required_minimum=Decimal("100000"),
+            observation_delayed=False,
+        )
+    },
+    "calculations_valid": {
+        "calculations": CalculationsInput(
+            calculation_statuses={"decision.risk_reward": CalculationStatus.INVALID}
+        )
+    },
+    "manual_portfolio_risk_available": {
+        "portfolio_risk": PortfolioRiskInput(
+            risk_required=True, portfolio_risk_available=False, declarations_current=True
+        )
+    },
+    "probability_calibrated_if_used": {
+        "probability": ProbabilityInput(
+            probability_used=True,
+            calibration_valid=False,
+            out_of_sample_validated=True,
+            calibration_current=True,
+        )
+    },
+    "critical_contradictions_resolved": {
+        "contradictions": ContradictionsInput(
+            unresolved_critical_count=1, explicit_contradiction_count=0
+        )
+    },
+    "user_constraints_versioned": {
+        "constraints": ConstraintsInput(constraints_version="", constraints_current=True)
+    },
 }
 
 
@@ -158,13 +182,13 @@ class TestBlockDominance:
 
     def test_violation_block_maps_to_blocked(self):
         result = AdviceEngine().evaluate(
-            all_pass_inputs(**BLOCK_OVERRIDES_PER_GATE["entitlements_sufficient"]))
+            all_pass_inputs(**BLOCK_OVERRIDES_PER_GATE["entitlements_sufficient"])
+        )
         assert result.status is AdviceStatus.BLOCKED
 
     def test_unevaluable_block_maps_to_insufficient_data(self):
         """Documented rule: UNEVALUABLE (missing input) blocks map to INSUFFICIENT_DATA."""
-        result = AdviceEngine().evaluate(
-            all_pass_inputs(instrument=InstrumentResolutionInput()))
+        result = AdviceEngine().evaluate(all_pass_inputs(instrument=InstrumentResolutionInput()))
         blocked = [g for g in result.gates if g.status is GateStatus.BLOCK]
         assert [g.reason_code for g in blocked] == ["UNEVALUABLE"]
         assert result.status is AdviceStatus.INSUFFICIENT_DATA
@@ -172,17 +196,20 @@ class TestBlockDominance:
     def test_missing_reason_maps_to_insufficient_data(self):
         """MISSING_* reasons (e.g. MISSING_CALCULATIONS) also mean insufficient data."""
         result = AdviceEngine().evaluate(
-            all_pass_inputs(calculations=CalculationsInput(calculation_statuses={})))
+            all_pass_inputs(calculations=CalculationsInput(calculation_statuses={}))
+        )
         blocked = [g for g in result.gates if g.status is GateStatus.BLOCK]
         assert [g.reason_code for g in blocked] == ["MISSING_CALCULATIONS"]
         assert result.status is AdviceStatus.INSUFFICIENT_DATA
 
     def test_violation_dominates_missing_data(self):
         """One violation BLOCK + one UNEVALUABLE BLOCK => BLOCKED, not INSUFFICIENT_DATA."""
-        result = AdviceEngine().evaluate(all_pass_inputs(
-            instrument=InstrumentResolutionInput(),  # UNEVALUABLE
-            **BLOCK_OVERRIDES_PER_GATE["entitlements_sufficient"],  # violation
-        ))
+        result = AdviceEngine().evaluate(
+            all_pass_inputs(
+                instrument=InstrumentResolutionInput(),  # UNEVALUABLE
+                **BLOCK_OVERRIDES_PER_GATE["entitlements_sufficient"],  # violation
+            )
+        )
         assert result.status is AdviceStatus.BLOCKED
 
     def test_empty_inputs_fail_closed_to_insufficient_data(self):
@@ -204,8 +231,9 @@ class TestBlockDominance:
 
 class TestDegradeRules:
     def test_degrade_caps_qualified_at_review_and_adds_limitation(self):
-        inputs = all_pass_inputs(entitlements=EntitlementsInput(
-            capability_status=SourceCapabilityStatus.DELAYED))
+        inputs = all_pass_inputs(
+            entitlements=EntitlementsInput(capability_status=SourceCapabilityStatus.DELAYED)
+        )
         result = AdviceEngine().evaluate(inputs)
         assert result.status is AdviceStatus.REVIEW
         assert (
@@ -247,7 +275,8 @@ class TestEvidenceLadder:
 
     def test_upstream_limitation_caps_at_review(self):
         result = AdviceEngine().evaluate(
-            all_pass_inputs(limitations=("synthetic upstream limitation",)))
+            all_pass_inputs(limitations=("synthetic upstream limitation",))
+        )
         assert result.status is AdviceStatus.REVIEW
         assert "synthetic upstream limitation" in result.limitations
 
@@ -272,9 +301,11 @@ class TestDirectionIndependence:
     def test_same_direction_different_statuses(self):
         """The same BULLISH reading coexists with QUALIFIED and BLOCKED verdicts."""
         qualified = AdviceEngine().evaluate(all_pass_inputs(direction=Direction.BULLISH))
-        blocked = AdviceEngine().evaluate(all_pass_inputs(
-            direction=Direction.BULLISH,
-            **BLOCK_OVERRIDES_PER_GATE["entitlements_sufficient"]))
+        blocked = AdviceEngine().evaluate(
+            all_pass_inputs(
+                direction=Direction.BULLISH, **BLOCK_OVERRIDES_PER_GATE["entitlements_sufficient"]
+            )
+        )
         assert qualified.direction is blocked.direction is Direction.BULLISH
         assert qualified.status is not blocked.status
 
@@ -287,38 +318,52 @@ class TestProbabilityEvidence:
     }
 
     def test_none_when_probability_not_used(self):
-        result = AdviceEngine().evaluate(all_pass_inputs(
-            probability_evidence=self.CANDIDATE,
-            probability=ProbabilityInput(probability_used=False),
-        ))
+        result = AdviceEngine().evaluate(
+            all_pass_inputs(
+                probability_evidence=self.CANDIDATE,
+                probability=ProbabilityInput(probability_used=False),
+            )
+        )
         assert result.probability_evidence is None
         assert any("probability_evidence withheld" in item for item in result.limitations)
 
     def test_none_when_calibration_aging(self):
-        result = AdviceEngine().evaluate(all_pass_inputs(
-            probability_evidence=self.CANDIDATE,
-            probability=ProbabilityInput(
-                probability_used=True, calibration_valid=True,
-                out_of_sample_validated=True, calibration_current=False),
-        ))
+        result = AdviceEngine().evaluate(
+            all_pass_inputs(
+                probability_evidence=self.CANDIDATE,
+                probability=ProbabilityInput(
+                    probability_used=True,
+                    calibration_valid=True,
+                    out_of_sample_validated=True,
+                    calibration_current=False,
+                ),
+            )
+        )
         assert result.probability_evidence is None
         assert any("probability_evidence withheld" in item for item in result.limitations)
 
     def test_none_when_uncalibrated_and_blocked(self):
-        result = AdviceEngine().evaluate(all_pass_inputs(
-            probability_evidence=self.CANDIDATE,
-            **BLOCK_OVERRIDES_PER_GATE["probability_calibrated_if_used"],
-        ))
+        result = AdviceEngine().evaluate(
+            all_pass_inputs(
+                probability_evidence=self.CANDIDATE,
+                **BLOCK_OVERRIDES_PER_GATE["probability_calibrated_if_used"],
+            )
+        )
         assert result.status is AdviceStatus.BLOCKED
         assert result.probability_evidence is None
 
     def test_propagated_only_when_fully_calibrated(self):
-        result = AdviceEngine().evaluate(all_pass_inputs(
-            probability_evidence=self.CANDIDATE,
-            probability=ProbabilityInput(
-                probability_used=True, calibration_valid=True,
-                out_of_sample_validated=True, calibration_current=True),
-        ))
+        result = AdviceEngine().evaluate(
+            all_pass_inputs(
+                probability_evidence=self.CANDIDATE,
+                probability=ProbabilityInput(
+                    probability_used=True,
+                    calibration_valid=True,
+                    out_of_sample_validated=True,
+                    calibration_current=True,
+                ),
+            )
+        )
         assert result.probability_evidence is not None
         assert dict(result.probability_evidence) == self.CANDIDATE
 
@@ -342,8 +387,11 @@ class TestReplayDeterminism:
 
     def test_replay_blocked_scenario_identical_hash(self):
         hashes = {
-            canonical_json_hash(AdviceEngine().evaluate(
-                all_pass_inputs(**BLOCK_OVERRIDES_PER_GATE["minimum_liquidity"])))
+            canonical_json_hash(
+                AdviceEngine().evaluate(
+                    all_pass_inputs(**BLOCK_OVERRIDES_PER_GATE["minimum_liquidity"])
+                )
+            )
             for _ in range(100)
         }
         assert len(hashes) == 1
@@ -369,6 +417,6 @@ class TestSingleAuthority:
             matches = pattern.findall(path.read_text(encoding="utf-8"))
             if matches:
                 occurrences.append((path, len(matches)))
-        assert occurrences == [
-            (src_root / "vertex_core" / "decision" / "advice.py", 1)
-        ], f"expected exactly one AdviceEngine definition, found: {occurrences}"
+        assert occurrences == [(src_root / "vertex_core" / "decision" / "advice.py", 1)], (
+            f"expected exactly one AdviceEngine definition, found: {occurrences}"
+        )

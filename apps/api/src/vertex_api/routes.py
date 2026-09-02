@@ -98,6 +98,11 @@ from vertex_api.portfolio import (
     render_export_csv,
     validate_import_fields,
 )
+from vertex_api.risk import (
+    SNAPSHOT_KIND_RISK,
+    RiskMatrixResponse,
+    build_risk_response,
+)
 from vertex_api.schemas import (
     AdvicePreviewRequest,
     AnalysisResponse,
@@ -1279,6 +1284,38 @@ def record_thesis_revision_route(
         created=result.created,
         refresh_enqueued=result.created,
     )
+
+
+@protected_router.get(
+    "/risk/matrix",
+    operation_id="get_risk_matrix",
+    response_model=RiskMatrixResponse,
+    summary="Last published correlation matrix (or honest empty state)",
+)
+def get_risk_matrix(
+    reader: Annotated[SnapshotReader, Depends(get_snapshot_reader)],
+    clock: Annotated[Clock, Depends(get_clock)],
+) -> RiskMatrixResponse:
+    """Serve the LAST ``risk_matrix/global`` snapshot as persisted.
+
+    The API relays the worker's published content — the declared perimeter,
+    the matrix ALREADY RENDERED AS STRINGS, the extreme pairs, the coverage
+    and its alignment cost — and computes no coefficient. The key is
+    ``global`` because the matrix describes the declared perimeter, not a
+    portfolio.
+
+    With no snapshot ever published the answer is a 200 with
+    ``state = "empty"``: that happens when no perimeter is declared, or when
+    no bars have been collected yet. Absent stays absent.
+
+    A snapshot carrying ``coverage.refusal_reason`` stays ``state = "ok"``:
+    the worker DID publish, and what it published is a reasoned refusal —
+    too short a perimeter, too few common sessions, a constant series.
+    Downgrading it to ``empty`` would erase the reason and leave the screen
+    blank as if something had broken.
+    """
+    snapshot = reader.current(kind=SNAPSHOT_KIND_RISK, key="global")
+    return build_risk_response(snapshot, now=clock())
 
 
 @protected_router.get(

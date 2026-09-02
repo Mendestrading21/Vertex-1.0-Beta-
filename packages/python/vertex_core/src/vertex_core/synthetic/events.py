@@ -118,9 +118,7 @@ def _validate_inputs(seed: int, base_time: datetime) -> datetime:
     if not isinstance(seed, int) or isinstance(seed, bool):
         raise TypeError(f"seed: expected int, got {type(seed).__name__}")
     if not isinstance(base_time, datetime):
-        raise TypeError(
-            f"base_time: expected datetime, got {type(base_time).__name__}"
-        )
+        raise TypeError(f"base_time: expected datetime, got {type(base_time).__name__}")
     return ensure_utc(base_time)
 
 
@@ -132,9 +130,7 @@ def _local_instant(day: date, tz: ZoneInfo) -> datetime:
 def _time_fields(instant_local: datetime) -> dict[str, str]:
     """Both representations of one instant: UTC and the exchange timezone."""
     return {
-        "event_time_utc": instant_local.astimezone(
-            ZoneInfo("UTC")
-        ).isoformat(),
+        "event_time_utc": instant_local.astimezone(ZoneInfo("UTC")).isoformat(),
         "event_time_local": instant_local.isoformat(),
         "exchange_timezone": SYNTHETIC_EXCHANGE_TIMEZONE,
     }
@@ -163,8 +159,7 @@ def _event_payload(
         **_time_fields(instant_local),
         "revisions": revisions,
         "note": (
-            "[SYNTHETIC] fixture calendar event; generated data, never real "
-            "market information."
+            "[SYNTHETIC] fixture calendar event; generated data, never real market information."
         ),
     }
     if extra:
@@ -172,9 +167,7 @@ def _event_payload(
     return payload
 
 
-def _chain_expirations(
-    *, seed: int, base_time: datetime
-) -> list[tuple[str, str]]:
+def _chain_expirations(*, seed: int, base_time: datetime) -> list[tuple[str, str]]:
     """Unique (underlying, expiration ISO date) pairs of the generated chains.
 
     Read from the option-chain generator's own output so the calendar and the
@@ -219,9 +212,7 @@ def generate_calendar_event_envelopes(
         estimated_local = _local_instant(estimated_day, tz)
         stable_id = f"syn-ev-earnings-{ticker}"
         if index % 2 == 0:
-            confirmed_local = _local_instant(
-                estimated_day + timedelta(days=1), tz
-            )
+            confirmed_local = _local_instant(estimated_day + timedelta(days=1), tz)
             revisions = [
                 {
                     "revised_at": revised_at.isoformat(),
@@ -254,9 +245,7 @@ def generate_calendar_event_envelopes(
         entries.append((stable_id, payload))
 
     # -- dividends (confirmed ex-date facts) ---------------------------------
-    for index, ticker in enumerate(
-        SYNTHETIC_FOCUS_TICKERS[:_DIVIDEND_TICKER_COUNT]
-    ):
+    for index, ticker in enumerate(SYNTHETIC_FOCUS_TICKERS[:_DIVIDEND_TICKER_COUNT]):
         ex_day = (base + timedelta(days=_DIVIDEND_DAY_OFFSETS[index])).date()
         stable_id = f"syn-ev-dividend-{ticker}-{ex_day.isoformat()}"
         payload = _event_payload(
@@ -283,9 +272,7 @@ def generate_calendar_event_envelopes(
             status=EVENT_STATUS_CONFIRMED,
             title=f"Fictional option expiration of {underlying} ({expiration})",
             ticker=underlying,
-            instant_local=_local_instant(
-                datetime.fromisoformat(expiration).date(), tz
-            ),
+            instant_local=_local_instant(datetime.fromisoformat(expiration).date(), tz),
             revisions=[],
             extra={"expiration": expiration},
         )

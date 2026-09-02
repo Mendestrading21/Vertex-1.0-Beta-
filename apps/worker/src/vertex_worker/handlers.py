@@ -52,6 +52,7 @@ if TYPE_CHECKING:  # import-time cycle avoidance (ingest -> markets)
     from vertex_worker.calendar import CalendarConfig
     from vertex_worker.markets import MarketsConfig
     from vertex_worker.options import OptionsConfig
+    from vertex_worker.risk import RiskConfig
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -234,7 +235,12 @@ def _record_from_row(row: Observation) -> ObservationRecord:
 
 
 def load_recent_observation_records(
-    session: Session, *, now: datetime, lookback: timedelta, limit: int
+    session: Session,
+    *,
+    now: datetime,
+    lookback: timedelta,
+    limit: int,
+    instrument_ref: str | None = None,
 ) -> list[ObservationRecord]:
     """Load the bounded recent observation window, deterministically ordered.
 
@@ -243,14 +249,28 @@ def load_recent_observation_records(
     capped at ``limit`` rows. Capability probe observations are part of the
     window and are counted by the coverage report; having no title, they can
     never enter the content ranking.
+
+    ``instrument_ref`` RESTREINT la fenêtre à un instrument, et le cadrage se
+    fait alors AVANT la borne. Mesuré le 2026-09-01 : avec 1376 dépêches sur
+    28 instruments, la fenêtre globale de 500 ne contenait plus AUCUNE dépêche
+    de GOOG — collectées en premier, donc chassées par les suivantes. Le rail
+    de preuves affichait « aucune preuve » alors que 140 existaient en base.
+
+    L'appelant qui veut le classement TOUS instruments confondus — la file
+    d'attention — laisse ce paramètre absent : ce sont deux besoins distincts,
+    d'où un filtre optionnel plutôt qu'un changement de comportement.
     """
     now = _require_aware_utc_now(now)
+    requete = select(Observation).where(
+        Observation.as_of <= now, Observation.as_of >= now - lookback
+    )
+    if instrument_ref is not None:
+        requete = requete.where(Observation.instrument_ref == instrument_ref)
     rows = (
         session.execute(
-            select(Observation)
-            .where(Observation.as_of <= now, Observation.as_of >= now - lookback)
-            .order_by(Observation.as_of.desc(), Observation.id.desc())
-            .limit(limit)
+            requete.order_by(Observation.as_of.desc(), Observation.id.desc()).limit(
+                limit
+            )
         )
         .scalars()
         .all()
@@ -550,6 +570,13 @@ def build_capabilities_content(
 # --------------------------------------------------------------------------
 
 
+#: Cle d'horodatage de PUBLICATION portee par le contenu des snapshots.
+#: Elle bouge a chaque recalcul : toute comparaison qui cherche un changement
+#: d'INFORMATION doit l'exclure. `publish_if_changed`, lui, l'inclut
+#: deliberement — un recalcul plus tard est un fait publie nouveau.
+PUBLICATION_TIMESTAMP_KEY = "as_of"
+
+
 def publish_if_changed(
     session: Session, *, kind: str, key: str, content: Any, as_of: datetime
 ) -> PublishedSnapshot | None:
@@ -646,6 +673,7 @@ def build_registry(
     analysis_config: AnalysisConfig | None = None,
     calendar_config: CalendarConfig | None = None,
     opportunities_config: AnalysisConfig | None = None,
+    risk_config: RiskConfig | None = None,
 ) -> HandlerRegistry:
     """Build the worker registry with the canonical topics.
 
@@ -678,6 +706,7 @@ def build_registry(
     )
     from vertex_worker.performance import register_performance_handler
     from vertex_worker.portfolio import register_portfolio_handler
+    from vertex_worker.risk import register_risk_handler
     from vertex_worker.sec_fundamentals import register_sec_fundamentals_handler
 
     registry = HandlerRegistry()
@@ -691,7 +720,14 @@ def build_registry(
     resolved_markets_config = (
         markets_config if markets_config is not None else DEV_SYNTHETIC_MARKETS_CONFIG
     )
-    register_markets_handler(registry, clock=clock, config=resolved_markets_config)
+    # Le constructeur est le SEUL a savoir si un handler de risque sera
+    # enregistre : il transmet ce fait plutot que de le laisser supposer.
+    register_markets_handler(
+        registry,
+        clock=clock,
+        config=resolved_markets_config,
+        risk_enabled=risk_config is not None,
+    )
     register_options_handler(
         registry,
         clock=clock,
@@ -729,5 +765,10 @@ def build_registry(
     register_follow_up_handler(registry, clock=clock, config=fusion_config)
     # Performance (page 10): same quote registry as the markets handler.
     register_performance_handler(registry, clock=clock, config=resolved_markets_config)
+    # Risques : le handler n'existe QUE si un perimetre est declare. Sans
+    # perimetre, aucun instantane n'est publie et la page reste vide EN LE
+    # DISANT — plutot que de comparer des instruments choisis au hasard.
+    if risk_config is not None:
+        register_risk_handler(registry, clock=clock, config=risk_config)
     register_sec_fundamentals_handler(registry, clock=clock)
     return registry

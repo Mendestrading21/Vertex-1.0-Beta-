@@ -21,6 +21,7 @@ from vertex_core.calculations.market import (
     breadth,
     log_return,
     realized_volatility,
+    rebase_series,
     relative_strength,
     simple_return,
 )
@@ -55,15 +56,11 @@ def coherent_bars() -> list[OhlcBar]:
 
 class TestSimpleReturn:
     def test_nominal_gain(self):
-        result = simple_return(
-            100.0, 110.0, adjustment_basis_t0=BASIS, adjustment_basis_t1=BASIS
-        )
+        result = simple_return(100.0, 110.0, adjustment_basis_t0=BASIS, adjustment_basis_t1=BASIS)
         assert result == pytest.approx(0.10, rel=FLOAT64_REL_TOL)
 
     def test_nominal_loss(self):
-        result = simple_return(
-            200, 150, adjustment_basis_t0=BASIS, adjustment_basis_t1=BASIS
-        )
+        result = simple_return(200, 150, adjustment_basis_t0=BASIS, adjustment_basis_t1=BASIS)
         assert result == pytest.approx(-0.25, rel=FLOAT64_REL_TOL)
 
     def test_decimal_inputs_converted_explicitly(self):
@@ -76,9 +73,7 @@ class TestSimpleReturn:
         assert result == pytest.approx(0.015, rel=FLOAT64_REL_TOL)
 
     def test_flat_price_returns_positive_zero(self):
-        result = simple_return(
-            50.0, 50.0, adjustment_basis_t0=BASIS, adjustment_basis_t1=BASIS
-        )
+        result = simple_return(50.0, 50.0, adjustment_basis_t0=BASIS, adjustment_basis_t1=BASIS)
         assert result == 0.0
         assert math.copysign(1.0, result) == 1.0  # never -0.0
 
@@ -103,9 +98,7 @@ class TestSimpleReturn:
     @pytest.mark.parametrize("bad_basis", ["", None, 3])
     def test_invalid_adjustment_basis_rejected(self, bad_basis):
         with pytest.raises(CalculationInputError) as exc:
-            simple_return(
-                100.0, 110.0, adjustment_basis_t0=bad_basis, adjustment_basis_t1=BASIS
-            )
+            simple_return(100.0, 110.0, adjustment_basis_t0=bad_basis, adjustment_basis_t1=BASIS)
         assert exc.value.reason == "invalid_adjustment_basis"
 
     @pytest.mark.parametrize("bad", NON_FINITE_FLOATS + NON_FINITE_DECIMALS)
@@ -123,22 +116,15 @@ class TestSimpleReturn:
 
 class TestLogReturn:
     def test_nominal(self):
-        result = log_return(
-            100.0, 110.0, adjustment_basis_t0=BASIS, adjustment_basis_t1=BASIS
-        )
+        result = log_return(100.0, 110.0, adjustment_basis_t0=BASIS, adjustment_basis_t1=BASIS)
         assert result == pytest.approx(math.log(1.1), rel=FLOAT64_REL_TOL)
 
     def test_flat_price_is_zero(self):
-        assert (
-            log_return(42.0, 42.0, adjustment_basis_t0=BASIS, adjustment_basis_t1=BASIS)
-            == 0.0
-        )
+        assert log_return(42.0, 42.0, adjustment_basis_t0=BASIS, adjustment_basis_t1=BASIS) == 0.0
 
     def test_extreme_ratio_stays_finite(self):
         # log(p1) - log(p0) never overflows where p1/p0 would.
-        result = log_return(
-            1e-300, 1e300, adjustment_basis_t0=BASIS, adjustment_basis_t1=BASIS
-        )
+        result = log_return(1e-300, 1e300, adjustment_basis_t0=BASIS, adjustment_basis_t1=BASIS)
         assert math.isfinite(result)
         assert result == pytest.approx(600 * math.log(10.0), rel=FLOAT64_REL_TOL)
 
@@ -324,14 +310,10 @@ class TestRelativeStrength:
 
     def test_equal_series_give_one(self):
         series = (0.01, -0.02, 0.03)
-        assert relative_strength(series, series, 3) == pytest.approx(
-            1.0, rel=FLOAT64_REL_TOL
-        )
+        assert relative_strength(series, series, 3) == pytest.approx(1.0, rel=FLOAT64_REL_TOL)
 
     def test_decimal_returns_accepted(self):
-        result = relative_strength(
-            [Decimal("0.10")], [Decimal("0.05")], 1
-        )
+        result = relative_strength([Decimal("0.10")], [Decimal("0.05")], 1)
         assert result == pytest.approx(1.1 / 1.05, rel=FLOAT64_REL_TOL)
 
     def test_misaligned_calendars_rejected(self):
@@ -433,20 +415,14 @@ class TestBreadth:
 
 # --- Property-based invariants (Hypothesis) --------------------------------
 
-prices = st.floats(
-    min_value=1e-6, max_value=1e6, allow_nan=False, allow_infinity=False
-)
+prices = st.floats(min_value=1e-6, max_value=1e6, allow_nan=False, allow_infinity=False)
 # Composition identities pass through r = ratio - 1 then 1 + r, whose float64
 # round trip loses relative precision proportional to 1/ratio. The documented
 # tolerance (FLOAT64_REL_TOL) therefore applies to bounded ratios: with prices
 # in [1e-2, 1e3] the ratio stays within [1e-5, 1e5] and the round-trip error
 # is <= ~2.2e-16 / 1e-5 ~ 2.2e-11 relative, comfortably inside 1e-9.
-composition_prices = st.floats(
-    min_value=1e-2, max_value=1e3, allow_nan=False, allow_infinity=False
-)
-period_returns = st.floats(
-    min_value=-0.9, max_value=10.0, allow_nan=False, allow_infinity=False
-)
+composition_prices = st.floats(min_value=1e-2, max_value=1e3, allow_nan=False, allow_infinity=False)
+period_returns = st.floats(min_value=-0.9, max_value=10.0, allow_nan=False, allow_infinity=False)
 non_finite = st.sampled_from(NON_FINITE_FLOATS + NON_FINITE_DECIMALS)
 
 
@@ -479,9 +455,7 @@ def coherent_bar_series(draw):
 class TestReturnCompositionProperties:
     @given(p0=prices, p1=prices, p2=prices)
     def test_log_returns_compose_additively(self, p0, p1, p2):
-        direct = log_return(
-            p0, p2, adjustment_basis_t0=BASIS, adjustment_basis_t1=BASIS
-        )
+        direct = log_return(p0, p2, adjustment_basis_t0=BASIS, adjustment_basis_t1=BASIS)
         composed = log_return(
             p0, p1, adjustment_basis_t0=BASIS, adjustment_basis_t1=BASIS
         ) + log_return(p1, p2, adjustment_basis_t0=BASIS, adjustment_basis_t1=BASIS)
@@ -489,25 +463,15 @@ class TestReturnCompositionProperties:
 
     @given(p0=composition_prices, p1=composition_prices, p2=composition_prices)
     def test_simple_returns_compose_multiplicatively(self, p0, p1, p2):
-        direct = 1.0 + simple_return(
-            p0, p2, adjustment_basis_t0=BASIS, adjustment_basis_t1=BASIS
-        )
+        direct = 1.0 + simple_return(p0, p2, adjustment_basis_t0=BASIS, adjustment_basis_t1=BASIS)
         composed = (
-            1.0
-            + simple_return(p0, p1, adjustment_basis_t0=BASIS, adjustment_basis_t1=BASIS)
-        ) * (
-            1.0
-            + simple_return(p1, p2, adjustment_basis_t0=BASIS, adjustment_basis_t1=BASIS)
-        )
-        assert math.isclose(
-            direct, composed, rel_tol=FLOAT64_REL_TOL, abs_tol=FLOAT64_ABS_TOL
-        )
+            1.0 + simple_return(p0, p1, adjustment_basis_t0=BASIS, adjustment_basis_t1=BASIS)
+        ) * (1.0 + simple_return(p1, p2, adjustment_basis_t0=BASIS, adjustment_basis_t1=BASIS))
+        assert math.isclose(direct, composed, rel_tol=FLOAT64_REL_TOL, abs_tol=FLOAT64_ABS_TOL)
 
     @given(p0=composition_prices, p1=composition_prices)
     def test_log_return_matches_log1p_of_simple_return(self, p0, p1):
-        via_log = log_return(
-            p0, p1, adjustment_basis_t0=BASIS, adjustment_basis_t1=BASIS
-        )
+        via_log = log_return(p0, p1, adjustment_basis_t0=BASIS, adjustment_basis_t1=BASIS)
         via_simple = math.log1p(
             simple_return(p0, p1, adjustment_basis_t0=BASIS, adjustment_basis_t1=BASIS)
         )
@@ -515,20 +479,14 @@ class TestReturnCompositionProperties:
 
     @given(p0=prices, p1=prices)
     def test_simple_return_bounded_below_and_finite(self, p0, p1):
-        result = simple_return(
-            p0, p1, adjustment_basis_t0=BASIS, adjustment_basis_t1=BASIS
-        )
+        result = simple_return(p0, p1, adjustment_basis_t0=BASIS, adjustment_basis_t1=BASIS)
         assert math.isfinite(result)
         assert result > -1.0
 
     @given(p0=prices, p1=prices)
     def test_return_antisymmetry(self, p0, p1):
-        forward = log_return(
-            p0, p1, adjustment_basis_t0=BASIS, adjustment_basis_t1=BASIS
-        )
-        backward = log_return(
-            p1, p0, adjustment_basis_t0=BASIS, adjustment_basis_t1=BASIS
-        )
+        forward = log_return(p0, p1, adjustment_basis_t0=BASIS, adjustment_basis_t1=BASIS)
+        backward = log_return(p1, p0, adjustment_basis_t0=BASIS, adjustment_basis_t1=BASIS)
         assert math.isclose(forward, -backward, rel_tol=FLOAT64_REL_TOL, abs_tol=1e-12)
 
 
@@ -612,9 +570,94 @@ class TestBreadthProperties:
                 allow_infinity=False,
             )
         )
-        result = breadth(
-            above, universe, covered_count=covered, coverage_threshold=threshold
-        )
+        result = breadth(above, universe, covered_count=covered, coverage_threshold=threshold)
         assert 0.0 <= result <= 1.0
         # Registry invariant between_minus_one_and_one is a superset of [0, 1].
         assert -1.0 <= result <= 1.0
+
+
+class TestRebaseSeries:
+    """``market.rebased_series`` — la comparaison rendue possible côté serveur.
+
+    Ce calcul existe pour une raison précise, écrite dans
+    `docs/05-design/PAGE_ARBITRATION.md` : comparer deux séries suppose de les
+    rebaser, et le faire dans le navigateur est interdit. Le rebasage côté
+    serveur respecte l'interdiction au lieu de la contourner.
+    """
+
+    def test_vecteurs_derives_a_la_main(self):
+        result = rebase_series([100, 110, 90], adjustment_bases=[BASIS] * 3)
+        assert result == (100.0, 110.0, 90.0)
+
+    def test_le_premier_point_EST_la_base_sans_arrondi(self):
+        """Il n'est pas calculé, donc aucun arrondi ne peut le déplacer."""
+        result = rebase_series(
+            [Decimal("37.77"), Decimal("41.03")],
+            adjustment_bases=[BASIS] * 2,
+            base_value=1000,
+        )
+        assert result[0] == 1000.0
+
+    def test_base_personnalisee(self):
+        result = rebase_series([50, 75], adjustment_bases=[BASIS] * 2, base_value=1.0)
+        assert result[1] == pytest.approx(1.5, rel=FLOAT64_REL_TOL)
+
+    def test_serie_a_un_seul_point(self):
+        assert rebase_series([42.0], adjustment_bases=[BASIS]) == (100.0,)
+
+    def test_entrees_decimales_converties_explicitement(self):
+        result = rebase_series([Decimal("100.00"), Decimal("101.50")], adjustment_bases=[BASIS] * 2)
+        assert result[1] == pytest.approx(101.5, rel=FLOAT64_REL_TOL)
+
+    # -- portes, chacune nommée par son code stable -----------------------
+
+    def test_serie_vide_refusee(self):
+        """Une série sans point n'a pas de base ; en inventer une fabriquerait
+        une donnée."""
+        with pytest.raises(CalculationInputError) as capture:
+            rebase_series([], adjustment_bases=[])
+        assert capture.value.reason == "empty_series"
+
+    def test_etiquettes_desalignees_refusees(self):
+        with pytest.raises(CalculationInputError) as capture:
+            rebase_series([100, 110], adjustment_bases=[BASIS])
+        assert capture.value.reason == "misaligned_adjustment_bases"
+
+    @pytest.mark.parametrize("mauvais", [0, -1, float("nan"), float("inf")])
+    def test_prix_non_positif_ou_non_fini_refuse(self, mauvais):
+        with pytest.raises(CalculationInputError):
+            rebase_series([100, mauvais], adjustment_bases=[BASIS] * 2)
+
+    def test_bases_d_ajustement_differentes_refusees(self):
+        """Comparer un cours ajusté à un cours brut afficherait un écart FAUX,
+        que rien à l'écran ne signalerait."""
+        with pytest.raises(CalculationInputError) as capture:
+            rebase_series([100, 110], adjustment_bases=[BASIS, "brut"])
+        assert capture.value.reason == "adjustment_basis_mismatch"
+
+    def test_base_non_positive_refusee(self):
+        with pytest.raises(CalculationInputError):
+            rebase_series([100], adjustment_bases=[BASIS], base_value=0)
+
+    def test_booleen_refuse_a_la_frontiere(self):
+        with pytest.raises(CalculationInputError):
+            rebase_series([True, 110], adjustment_bases=[BASIS] * 2)
+
+    # -- invariant vis-à-vis d'un calcul DÉJÀ approuvé --------------------
+
+    @given(
+        p0=st.floats(min_value=1e-2, max_value=1e3, allow_nan=False),
+        p1=st.floats(min_value=1e-2, max_value=1e3, allow_nan=False),
+    )
+    def test_rebased_series_matches_simple_return(self, p0, p1):
+        """Chaque point rebasé redit exactement ce que dit ``simple_return``.
+
+        C'est ce qui rend le rebasage vérifiable : il ne produit aucune
+        information nouvelle, il présente autrement une information déjà
+        approuvée par le registre.
+        """
+        serie = rebase_series([p0, p1], adjustment_bases=[BASIS] * 2)
+        attendu = simple_return(p0, p1, adjustment_basis_t0=BASIS, adjustment_basis_t1=BASIS)
+        assert serie[1] / 100.0 - 1.0 == pytest.approx(
+            attendu, rel=FLOAT64_REL_TOL, abs=FLOAT64_ABS_TOL
+        )

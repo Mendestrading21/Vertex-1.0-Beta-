@@ -79,7 +79,18 @@ export function SourceHealthMatrix({ entries, total }: SourceHealthMatrixProps) 
   }
 
   return (
-    <section className="vx-matrix" aria-label="Matrice de santé des sources">
+    <section
+      className="vx-matrix"
+      /*
+        LA DOMINANTE DE SOURCES & RAPPORTS. La page demande « puis-je faire
+        confiance aux sources, traitements et sauvegardes maintenant ? » — et
+        c'est cette matrice, quatorze capacités croisées avec les sondes
+        réellement persistées, qui y répond. La santé des composants informe ;
+        elle ne tranche pas la question.
+      */
+      data-rank="dominant"
+      aria-label="Matrice de santé des sources"
+    >
       <div className="vx-matrix-filters">
         <label>
           Famille

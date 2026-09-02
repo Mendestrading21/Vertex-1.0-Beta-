@@ -43,9 +43,7 @@ def _by_category(envelopes, category):
 def test_deterministic_byte_identical() -> None:
     first = generate_calendar_event_envelopes(seed=SEED, base_time=BASE_TIME)
     second = generate_calendar_event_envelopes(seed=SEED, base_time=BASE_TIME)
-    assert [e.model_dump(mode="json") for e in first] == [
-        e.model_dump(mode="json") for e in second
-    ]
+    assert [e.model_dump(mode="json") for e in first] == [e.model_dump(mode="json") for e in second]
 
 
 def test_every_envelope_is_labeled_synthetic(envelopes) -> None:
@@ -84,15 +82,9 @@ def test_statuses_are_only_estimated_or_confirmed(envelopes) -> None:
 
 def test_earnings_cover_focus_tickers_with_dated_revisions(envelopes) -> None:
     earnings = _by_category(envelopes, EVENT_CATEGORY_EARNINGS)
-    assert sorted(e.payload["ticker"] for e in earnings) == sorted(
-        SYNTHETIC_FOCUS_TICKERS
-    )
-    confirmed = [
-        e for e in earnings if e.payload["status"] == EVENT_STATUS_CONFIRMED
-    ]
-    estimated = [
-        e for e in earnings if e.payload["status"] == EVENT_STATUS_ESTIMATED
-    ]
+    assert sorted(e.payload["ticker"] for e in earnings) == sorted(SYNTHETIC_FOCUS_TICKERS)
+    confirmed = [e for e in earnings if e.payload["status"] == EVENT_STATUS_CONFIRMED]
+    estimated = [e for e in earnings if e.payload["status"] == EVENT_STATUS_ESTIMATED]
     assert confirmed and estimated  # both labels really exist, never merged
     for envelope in confirmed:
         revisions = envelope.payload["revisions"]
@@ -101,19 +93,14 @@ def test_earnings_cover_focus_tickers_with_dated_revisions(envelopes) -> None:
         # The revision is DATED and preserves the previous value verbatim.
         assert datetime.fromisoformat(revision["revised_at"]) < BASE_TIME
         assert revision["previous_status"] == EVENT_STATUS_ESTIMATED
-        assert (
-            revision["previous_event_time_utc"]
-            != envelope.payload["event_time_utc"]
-        )
+        assert revision["previous_event_time_utc"] != envelope.payload["event_time_utc"]
     for envelope in estimated:
         assert envelope.payload["revisions"] == []
 
 
 def test_expirations_are_derived_from_the_generated_chains(envelopes) -> None:
     chains = generate_option_chain_envelopes(seed=SEED, base_time=BASE_TIME)
-    chain_pairs = {
-        (c.payload["underlying"], c.payload["expiration"]) for c in chains
-    }
+    chain_pairs = {(c.payload["underlying"], c.payload["expiration"]) for c in chains}
     event_pairs = {
         (e.payload["ticker"], e.payload["expiration"])
         for e in _by_category(envelopes, EVENT_CATEGORY_OPTION_EXPIRATION)
@@ -121,9 +108,7 @@ def test_expirations_are_derived_from_the_generated_chains(envelopes) -> None:
     assert event_pairs == chain_pairs
     for envelope in _by_category(envelopes, EVENT_CATEGORY_OPTION_EXPIRATION):
         assert envelope.payload["status"] == EVENT_STATUS_CONFIRMED
-        assert envelope.payload["event_time_utc"].startswith(
-            envelope.payload["expiration"][:4]
-        )
+        assert envelope.payload["event_time_utc"].startswith(envelope.payload["expiration"][:4])
 
 
 def test_macro_events_are_global(envelopes) -> None:
@@ -156,9 +141,10 @@ def test_timezone_fields_denote_the_same_instant(envelopes) -> None:
         assert local_instant.tzinfo is not None
         assert utc_instant == local_instant
         # The local field genuinely lives in the declared exchange timezone.
-        assert local_instant.utcoffset() == local_instant.astimezone(
-            ZoneInfo(SYNTHETIC_EXCHANGE_TIMEZONE)
-        ).utcoffset()
+        assert (
+            local_instant.utcoffset()
+            == local_instant.astimezone(ZoneInfo(SYNTHETIC_EXCHANGE_TIMEZONE)).utcoffset()
+        )
 
 
 def test_input_validation_fails_closed() -> None:
@@ -168,7 +154,8 @@ def test_input_validation_fails_closed() -> None:
         generate_calendar_event_envelopes(seed=1, base_time="2026-08-25")
     with pytest.raises(ValueError):
         generate_calendar_event_envelopes(
-            seed=1, base_time=datetime(2026, 8, 25, 12, 0, 0)  # noqa: DTZ001 (naïf délibéré : rejet vérifié)
+            seed=1,
+            base_time=datetime(2026, 8, 25, 12, 0, 0),  # noqa: DTZ001 (naïf délibéré : rejet vérifié)
         )
 
 
@@ -184,9 +171,7 @@ def test_scope_is_always_coherent_with_the_ticker_presence(envelopes) -> None:
     scope can never promote an event's importance by contradiction."""
     for envelope in envelopes:
         payload = envelope.payload
-        expected = (
-            EVENT_SCOPE_GLOBAL if payload["ticker"] is None else EVENT_SCOPE_TICKER
-        )
+        expected = EVENT_SCOPE_GLOBAL if payload["ticker"] is None else EVENT_SCOPE_TICKER
         assert payload["scope"] == expected
 
 

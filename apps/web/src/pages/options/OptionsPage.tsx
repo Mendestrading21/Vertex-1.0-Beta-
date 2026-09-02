@@ -107,7 +107,7 @@ function ChainFrame({
   }
 
   return (
-    <section className="vx-chartframe" aria-labelledby="vx-chain-title">
+    <section className="vx-chartframe" data-rank="dominant" aria-labelledby="vx-chain-title">
       <header className="vx-chartframe-head">
         <p className="vx-chartframe-question">
           Quels contrats sont réellement exploitables et quels risques portent-ils ?
@@ -314,7 +314,7 @@ export function OptionsPage() {
           <UnderlyingPicker current={null} />
           <DataStateBoundary
             state="empty"
-            detail="Aucun sous-jacent sélectionné — choisir un sous-jacent synthétique ci-dessus. Aucun instrument n'est ouvert par défaut."
+            detail="Aucun sous-jacent sélectionné — en choisir un ci-dessus. Aucun instrument n'est ouvert par défaut."
           />
         </>
       ) : (

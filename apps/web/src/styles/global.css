@@ -74,7 +74,17 @@ body {
 /* ------------------------------------------------------------------ */
 
 .vx-shell {
-  --vx-rail-width: 232px;
+  /* V2 — DENSITÉ CANONIQUE. « Navigation visuelle : environ 120 px »
+     (`canonical-visual.md`), et la dérive « rail gauche large » est
+     nommément interdite. Le rail valait 232 px : il mangeait 128 px de
+     largeur utile sur chacune des onze destinations.
+     POURQUOI 136 ET NON 120. Les libellés français de Vertex sont plus longs
+     que ceux de la capture : « Sources & Rapports » demande 192 px de largeur
+     intrinsèque, le cartouche 154 px, la tête 126 px. À 120 px stricts, les
+     trois sont TRONQUÉS — et un libellé de navigation coupé est un défaut
+     plus grave que 16 px de marge. 136 px tient « environ 120 px » sans rien
+     couper ; le test de densité mesure les deux à la fois. */
+  --vx-rail-width: 136px;
   position: relative;
   display: flex;
   min-height: 100vh;
@@ -110,7 +120,11 @@ body {
   flex-direction: column;
   overflow-y: auto;
   overflow-x: hidden;
-  scrollbar-gutter: stable;
+  /* `scrollbar-gutter: stable` réservait ~15 px EN PERMANENCE — plus de 10 %
+     d'un rail de 136 px, et c'est ce qui faisait casser « Aujourd'hui » au
+     milieu du mot. Le rail ne défile qu'en fenêtre très basse ; on préfère un
+     léger décalage dans ce cas rare à une amputation permanente des
+     libellés. */
   /* Point 2 de l'anatomie canonique : « rail gauche fin et INTÉGRÉ AU FOND,
      sans grande plaque flottante ». Le rail portait une surface, une bordure
      droite et une ombre interne : trois marqueurs de plaque. Il partage
@@ -124,11 +138,11 @@ body {
 
 .vx-rail-head {
   display: flex;
-  min-height: 72px;
+  min-height: 56px;
   align-items: center;
   justify-content: space-between;
-  gap: var(--vx-space-12);
-  padding: var(--vx-space-16);
+  gap: var(--vx-space-8);
+  padding: var(--vx-space-12) var(--vx-space-8);
   border-bottom: 1px solid var(--vx-border-soft);
 }
 
@@ -143,9 +157,9 @@ body {
 
 .vx-brand-mark {
   display: inline-flex;
-  width: var(--vx-space-40);
-  height: var(--vx-space-40);
-  flex: 0 0 var(--vx-space-40);
+  width: var(--vx-space-32);
+  height: var(--vx-space-32);
+  flex: 0 0 var(--vx-space-32);
   align-items: center;
   justify-content: center;
   border: 1px solid transparent;
@@ -159,8 +173,8 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: var(--vx-space-40);
-  min-height: var(--vx-space-40);
+  min-width: 28px;
+  min-height: 28px;
   padding: 0;
   border: 1px solid var(--vx-border-soft);
   border-radius: var(--vx-radius-10);
@@ -198,13 +212,13 @@ body {
 }
 
 .vx-rail-group {
-  padding: var(--vx-space-12) var(--vx-space-8) var(--vx-space-4);
+  padding: var(--vx-space-8) var(--vx-space-4) var(--vx-space-4);
 }
 
 .vx-rail-group + .vx-rail-group {
-  margin-top: var(--vx-space-8);
+  margin-top: var(--vx-space-4);
   border-top: 1px solid var(--vx-border-soft);
-  padding-top: var(--vx-space-12);
+  padding-top: var(--vx-space-8);
 }
 
 .vx-rail-group-label {
@@ -234,14 +248,26 @@ body {
 .vx-rail-link {
   display: flex;
   align-items: center;
-  gap: var(--vx-space-12);
-  min-height: 42px;
-  padding: var(--vx-space-8) var(--vx-space-12);
+  gap: var(--vx-space-8);
+  min-height: 32px;
+  padding: var(--vx-space-4);
   border: 1px solid transparent;
   border-radius: var(--vx-radius-10);
   color: var(--vx-text-secondary);
+  font-size: var(--vx-font-size-meta);
   text-decoration: none;
-  white-space: nowrap;
+  /* `nowrap` retiré : à 136 px, « Sources & Rapports » ne tient pas sur une
+     ligne, et le garder en `nowrap` le ferait DÉBORDER sous
+     `overflow-x: hidden` — c'est-à-dire le tronquer sans le dire.
+     MAIS LA COUPURE NE SE FAIT QU'AUX ESPACES. Une première version portait
+     `overflow-wrap: anywhere` : la capture a montré « Aujourd / 'hui »,
+     « Opportu / nités », « Portefeu / ille » — une amputation au milieu des
+     mots, pire que la troncature qu'elle évitait. Un libellé SANS espace doit
+     tenir sur une ligne, et le test de densité l'exige désormais. */
+  line-height: 1.2;
+  overflow-wrap: normal;
+  word-break: normal;
+  hyphens: none;
   transition:
     background-color var(--vx-motion-140) var(--vx-ease-standard),
     border-color var(--vx-motion-140) var(--vx-ease-standard),
@@ -312,13 +338,15 @@ body {
 
 .vx-edition-cartouche {
   display: inline-block;
-  padding: var(--vx-space-4) var(--vx-space-8);
+  padding: var(--vx-space-4);
   border: 1px solid var(--vx-signal-soft);
   border-radius: var(--vx-radius-6);
   color: var(--vx-signal);
   font-family: var(--vx-font-mono);
-  font-size: var(--vx-font-size-meta);
-  letter-spacing: 0.08em;
+  /* 154 px intrinsèques ne tiennent pas dans un rail de 136 px : la chasse et
+     l'interlettrage cèdent, jamais le texte. */
+  font-size: 10px;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
   white-space: nowrap;
 }
@@ -344,6 +372,81 @@ body {
 }
 
 /* ------------------------------------------------------------------ */
+/* Module absent — la place tenue, l'absence déclarée                  */
+/* ------------------------------------------------------------------ */
+
+/* La GÉOMÉTRIE est celle d'un module servi : même surface, même bordure,
+   même rayon. Ce qui change, c'est le contenu — et le motif de son absence.
+   Une boîte plus petite ou plus pâle laisserait croire à un module secondaire
+   alors qu'il s'agit d'un module PRINCIPAL non branché. */
+.vx-absent {
+  display: flex;
+  flex-direction: column;
+  gap: var(--vx-space-8);
+  padding: var(--vx-space-16);
+  border: 1px dashed var(--vx-border);
+  border-radius: var(--vx-radius-10);
+  background: var(--vx-surface-1);
+}
+
+/* Tiret plutôt que trait plein : à la première lecture, sans rien lire, la
+   carte se distingue d'un module servi. La couleur ne porte pas seule
+   l'information — le badge la nomme en toutes lettres. */
+
+.vx-absent-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--vx-space-12);
+}
+
+.vx-absent-head h3 {
+  margin: 0;
+  color: var(--vx-text-secondary);
+  font-size: var(--vx-font-size-title);
+  font-weight: 600;
+}
+
+.vx-absent-badge {
+  flex: 0 0 auto;
+  padding: var(--vx-space-4) var(--vx-space-8);
+  border: 1px solid var(--vx-warning);
+  border-radius: var(--vx-radius-pill);
+  color: var(--vx-warning);
+  font-size: var(--vx-font-size-meta);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.vx-absent-question {
+  margin: 0;
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+  font-style: italic;
+}
+
+.vx-absent-body {
+  margin: 0;
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-absent-body p {
+  margin: 0 0 var(--vx-space-8);
+}
+
+.vx-absent-body p:last-child {
+  margin-bottom: 0;
+}
+
+.vx-absent-note {
+  padding-left: var(--vx-space-12);
+  border-left: 2px solid var(--vx-border-strong);
+  color: var(--vx-text-secondary);
+}
+
+/* ------------------------------------------------------------------ */
 /* Ticker du shell — point 4 de l'anatomie canonique                   */
 /* ------------------------------------------------------------------ */
 
@@ -352,12 +455,29 @@ body {
    pas de bordure haute — les deux ne forment qu'un seul bandeau vitré. Il
    n'est PAS collant : seule la barre de contexte l'est, sinon deux hauteurs
    collantes mangeraient la zone de travail. */
+/* LOT-A1 — GRILLE À TROIS PISTES, et pas un `flex` réordonné.
+   La bande doit afficher, de gauche à droite : la dégradation, les cours,
+   puis l'identité de l'instantané. Mais l'ordre du DOM, lui, doit rester
+   celui de la LECTURE — dégradation, identité, cours — parce qu'un lecteur
+   d'écran suit le document et qu'« un cours lu avant son étiquette est un
+   cours lu sans elle » (LOT-14).
+   La grille est le seul mécanisme qui dissocie les deux par PLACEMENT
+   explicite. La propriété `flex` équivalente porte un nom que la porte
+   `no-raw-colors` interdit — c'est un terme d'ordre boursier — et cette
+   porte ne s'assouplit pas pour une préférence de mise en page.
+   `column-gap: 0` est délibéré : une piste vide garderait sa gouttière et
+   décalerait le premier symbole de 12 px par rapport à la barre de contexte
+   au-dessus. L'espacement est donc porté par les cellules elles-mêmes, qui
+   n'existent que lorsqu'elles ont un contenu. */
 .vx-ticker {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: var(--vx-space-12);
+  column-gap: 0;
   min-height: 34px;
-  padding: 0 var(--vx-space-32);
+  /* Aligné sur la gouttière de travail (20 px) : le bandeau et le premier
+     module de la page partagent la même verticale gauche. */
+  padding: 0 var(--vx-space-20);
   background: var(--vx-overlay);
   backdrop-filter: blur(var(--vx-space-16));
   -webkit-backdrop-filter: blur(var(--vx-space-16));
@@ -369,6 +489,69 @@ body {
   margin: 0;
   flex: 0 0 auto;
   font-size: var(--vx-font-size-meta);
+  white-space: nowrap;
+}
+
+/* Placement explicite dans les trois pistes. Aucun élément focalisable ne vit
+   dans la piste de droite : l'ordre de tabulation ne se dissocie donc jamais
+   de l'ordre visuel — la seule chose qu'un placement hors document pourrait
+   casser. Le message des huit états dégradés, lui, prend toute la largeur :
+   il REMPLACE la bande, il ne s'y ajoute pas. */
+/* `grid-row: 1` sur les TROIS : sans lui, le placement automatique avance et
+   ne revient jamais en arrière. L'ordre du DOM étant « dégradation, identité,
+   cours », il posait l'identité en colonne 3 de la rangée 1, puis ne pouvait
+   plus reculer pour les cours : la bande faisait DEUX lignes et les cours
+   étaient tronqués. Aucun test unitaire ni e2e ne l'a vu — la capture, oui.
+   D'où l'assertion « une seule rangée » ajoutée au point 5. */
+.vx-ticker-notice {
+  grid-column: 1 / -1;
+  grid-row: 1;
+}
+
+.vx-ticker-caveat {
+  grid-column: 1;
+  grid-row: 1;
+  margin-right: var(--vx-space-12);
+}
+
+.vx-ticker-list {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+/* Bloc d'identité de l'instantané, calé à l'extrémité droite de la bande.
+   Rien n'y est tronqué — une heure coupée serait une heure fausse, et une
+   nature coupée serait pire encore. Quand la place manque, le bloc RETOURNE
+   À LA LIGNE au lieu de rétrécir son contenu.
+   CE QUE CE `flex-wrap` RÉPARE, MESURÉ. Sans lui, la largeur minimale du bloc
+   (nature + fraîcheur + heure, toutes en `nowrap`) devient celle de la bande,
+   donc celle du shell : le plancher desktop déclaré à 1024 px passait à
+   1088 px, et 51 tests sur 450 le disaient — la campagne d'accessibilité
+   épingle ce plancher AU PIXEL précisément pour qu'un composant ne puisse pas
+   l'élargir en silence. Avec le retour à la ligne, la largeur minimale
+   redevient celle du plus large des trois éléments, et rien n'est perdu :
+   à 1024 px la bande fait deux lignes, ce qui est une dégradation VISIBLE et
+   non une donnée escamotée. */
+.vx-ticker-meta {
+  display: flex;
+  grid-column: 3;
+  grid-row: 1;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--vx-space-4) var(--vx-space-12);
+  min-width: 0;
+  margin-left: var(--vx-space-20);
+}
+
+/* L'heure SERVIE. Chiffres tabulaires : la largeur ne bouge pas d'une
+   republication à l'autre, donc rien ne « saute » à droite de la bande. */
+.vx-ticker-clock {
+  flex: 0 0 auto;
+  color: var(--vx-text-muted);
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-meta);
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
@@ -491,8 +674,10 @@ body {
   align-items: center;
   justify-content: space-between;
   gap: var(--vx-space-16);
-  min-height: 64px;
-  padding: 0 var(--vx-space-32);
+  /* V2 : 64 -> 52 px. « Ticker : hauteur compacte » vaut aussi pour la barre
+     qui le surmonte — les deux ne forment qu'un bandeau. */
+  min-height: 52px;
+  padding: 0 var(--vx-space-20);
   background: var(--vx-overlay);
   box-shadow: var(--vx-shadow-inset);
   backdrop-filter: blur(var(--vx-space-16));
@@ -577,7 +762,10 @@ body {
   width: 100%;
   max-width: 1600px; /* largeur utile bornée (docs/05-design/DESIGN_SYSTEM.md) */
   margin-inline: auto;
-  padding: var(--vx-space-32) var(--vx-space-32) var(--vx-space-48);
+  /* « Gouttières principales : 12–16 px ». La marge valait 40 / 32 / 48 px,
+     deux à trois fois le contrat. Le bas garde une réserve plus généreuse :
+     c'est une fin de page, pas une gouttière entre deux modules. */
+  padding: var(--vx-space-16) var(--vx-space-20) var(--vx-space-32);
 }
 
 .vx-page {
@@ -775,7 +963,7 @@ body {
 /* ------------------------------------------------------------------ */
 
 .vx-page-header {
-  margin-bottom: var(--vx-space-32);
+  margin-bottom: var(--vx-space-16);
   padding-left: var(--vx-space-4);
 }
 
@@ -833,15 +1021,22 @@ body {
 /* Bandeau population SYNTHETIC                                        */
 /* ------------------------------------------------------------------ */
 
+/* Le bandeau de population reste OBLIGATOIRE et impossible à manquer : la
+   bordure ambre pleine largeur et le libellé en capitales ne bougent pas.
+   `financial-safety.md` l'exige — « aucun mock, fixture, placeholder ou
+   résultat synthétique ne peut être montré comme réel ». Seule sa HAUTEUR
+   cède : il annonçait la nature de la page avec plus d'emphase que la page
+   elle-même. */
 .vx-synthetic-banner {
   display: flex;
   align-items: baseline;
   gap: var(--vx-space-12);
-  margin: 0 0 var(--vx-space-16);
-  padding: var(--vx-space-8) var(--vx-space-16);
+  margin: 0 0 var(--vx-space-12);
+  padding: var(--vx-space-4) var(--vx-space-12);
   border: 1px solid var(--vx-warning);
   border-radius: var(--vx-radius-6);
   color: var(--vx-text-secondary);
+  font-size: var(--vx-font-size-meta);
 }
 
 .vx-synthetic-banner strong {
@@ -1123,32 +1318,34 @@ body {
   display: grid;
   grid-template-columns: minmax(0, 2fr) minmax(280px, 0.72fr);
   align-items: start;
-  gap: var(--vx-space-20);
+  /* Gouttière canonique 12–16 px. Elle valait 20 px. */
+  gap: var(--vx-space-12);
 }
 
+/* V3 — `.vx-today-primary` ne porte PLUS de surface : la carte en porte une,
+   et une seule. Cette classe ne sert plus qu'à la composition (placement dans
+   la grille), jamais à l'apparence — c'est exactement le contrat de
+   `Card.className`. */
 .vx-today-primary {
   min-width: 0;
-  padding: var(--vx-space-24);
-  border: 1px solid var(--vx-border);
-  border-radius: var(--vx-radius-18);
-  background: var(--vx-surface-0);
-  box-shadow: var(--vx-shadow-panel), var(--vx-shadow-inset);
 }
 
+/* Même tête que `.vx-card-head` : espaces, filet, alignement. Deux têtes de
+   panneau qui ne respirent pas pareil, c'est deux styles. */
 .vx-panel-head {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
-  gap: var(--vx-space-24);
-  margin-bottom: var(--vx-space-20);
-  padding-bottom: var(--vx-space-16);
+  gap: var(--vx-space-16);
+  margin-bottom: var(--vx-space-12);
+  padding-bottom: var(--vx-space-12);
   border-bottom: 1px solid var(--vx-border-soft);
 }
 
 .vx-panel-head h2 {
   margin: 0;
-  font-size: var(--vx-font-size-display);
-  font-weight: 650;
+  font-size: var(--vx-font-size-title);
+  font-weight: 620;
   letter-spacing: -0.02em;
 }
 
@@ -1170,34 +1367,18 @@ body {
   text-transform: uppercase;
 }
 
+/* V3 — le rail n'est plus une surface : c'est une PILE de cartes `quiet`.
+   Il portait auparavant sa propre bordure, son fond et son ombre AUTOUR de
+   deux sections qui en avaient déjà : une surface dans une surface, que le
+   contrat canonique refuse (« les cartes ne doivent pas devenir des
+   bulles »). */
 .vx-snapshot-rail {
   position: sticky;
-  top: calc(var(--vx-space-48) + var(--vx-space-40));
+  top: var(--vx-space-16);
   display: flex;
   min-width: 0;
   flex-direction: column;
-  gap: var(--vx-space-16);
-  padding: var(--vx-space-20);
-  border: 1px solid var(--vx-border-soft);
-  border-radius: var(--vx-radius-18);
-  background: var(--vx-surface-1);
-  box-shadow: var(--vx-shadow-inset);
-}
-
-.vx-snapshot-rail h2,
-.vx-snapshot-rail h3 {
-  margin: 0;
-  font-size: var(--vx-font-size-title);
-  font-weight: 600;
-}
-
-.vx-snapshot-rail-section + .vx-snapshot-rail-section {
-  padding-top: var(--vx-space-16);
-  border-top: 1px solid var(--vx-border-soft);
-}
-
-.vx-snapshot-rail-section h2 {
-  margin-bottom: var(--vx-space-12);
+  gap: var(--vx-space-12);
 }
 
 .vx-snapshot-rail-facts {
@@ -1243,17 +1424,21 @@ body {
   padding: 0;
   overflow: hidden;
   border: 1px solid var(--vx-border-soft);
-  border-radius: var(--vx-radius-14);
+  border-radius: var(--vx-radius-10);
   background: var(--vx-surface-1);
   list-style: none;
 }
 
+/* V8 — la file d'attention est la DOMINANTE d'Aujourd'hui : c'est elle qui
+   doit se parcourir d'un regard. Chaque élément prenait ~100 px pour deux
+   lignes de texte, badges rejetés à la ligne. L'espace interne descend à la
+   bande canonique et les badges tiennent sur une seule rangée. */
 .vx-queue-item {
   display: flex;
   align-items: start;
   justify-content: space-between;
-  gap: var(--vx-space-16);
-  padding: var(--vx-space-16);
+  gap: var(--vx-space-12);
+  padding: var(--vx-space-8) var(--vx-space-12);
   background: transparent;
   border: 0;
   border-bottom: 1px solid var(--vx-border-soft);
@@ -1301,13 +1486,17 @@ body {
   font-size: var(--vx-font-size-meta);
 }
 
+/* Les badges sur UNE rangée : `nowrap` plutôt que `wrap`, et la largeur
+   maximale passe de 48 % à 58 % pour qu'ils y tiennent. Un badge relégué à la
+   ligne double la hauteur de l'élément sans rien ajouter à la lecture. */
 .vx-queue-item-meta {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  align-items: center;
   justify-content: end;
-  gap: var(--vx-space-8);
+  gap: var(--vx-space-4);
   flex-shrink: 0;
-  max-width: 48%;
+  max-width: 58%;
 }
 
 /* ------------------------------------------------------------------ */
@@ -1451,12 +1640,23 @@ body {
 /* Page Marchés — cadre graphique (ChartFrame), carte, table, breadth  */
 /* ------------------------------------------------------------------ */
 
+/* V3 — LE CADRE GRAPHIQUE REJOINT LA GÉOMÉTRIE DE LA CARTE.
+   Il est la deuxième surface la plus utilisée du produit — Marchés, Analyse,
+   Simulateur, Portefeuille — et il portait sa PROPRE géométrie : 24 px
+   d'espace interne quand la carte en a 16, un rayon de 18 px quand tout le
+   reste est à 10, une tête à 20 px de marge quand la carte est à 12. Trois
+   écarts invisibles un par un, qui suffisaient à ce que deux pages voisines ne
+   se ressemblent pas.
+   Il ne devient pas une `Card` en JSX — sa tête porte une question, une
+   légende et un filtre que la primitive n'a pas — mais il en adopte la
+   géométrie. C'est le même style, décliné selon la page, et non une seconde
+   apparence. */
 .vx-chartframe {
-  padding: var(--vx-space-24);
+  padding: var(--vx-space-16);
   overflow: hidden;
   background: var(--vx-surface-0);
   border: 1px solid var(--vx-border);
-  border-radius: var(--vx-radius-18);
+  border-radius: var(--vx-radius-10);
   box-shadow: var(--vx-shadow-panel), var(--vx-shadow-inset);
 }
 
@@ -1464,8 +1664,8 @@ body {
   display: flex;
   flex-direction: column;
   gap: var(--vx-space-4);
-  margin-bottom: var(--vx-space-20);
-  padding-bottom: var(--vx-space-16);
+  margin-bottom: var(--vx-space-12);
+  padding-bottom: var(--vx-space-12);
   border-bottom: 1px solid var(--vx-border-soft);
 }
 
@@ -1485,12 +1685,12 @@ body {
 .vx-chartframe-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--vx-space-8) var(--vx-space-24);
-  margin: 0 0 var(--vx-space-16);
-  padding: var(--vx-space-12) var(--vx-space-16);
+  gap: var(--vx-space-8) var(--vx-space-20);
+  margin: 0 0 var(--vx-space-12);
+  padding: var(--vx-space-8) var(--vx-space-12);
   background: var(--vx-surface-1);
   border: 1px solid var(--vx-border-soft);
-  border-radius: var(--vx-radius-14);
+  border-radius: var(--vx-radius-6);
   box-shadow: var(--vx-shadow-inset);
   font-size: var(--vx-font-size-meta);
 }
@@ -1574,7 +1774,10 @@ body {
 
 .vx-marketmap-canvas {
   width: 100%;
-  height: 420px;
+  /* La dominante de Marchés respire : le contrat canonique veut « une grande
+     dominante » et 22 instruments répartis en six secteurs ne se lisent pas
+     dans 420 px. Bornée haut et bas pour rester une carte, pas une page. */
+  height: clamp(420px, 42vh, 560px);
   border: 1px solid var(--vx-border-soft);
   border-radius: var(--vx-radius-10);
   background: var(--vx-surface-0);
@@ -1943,6 +2146,27 @@ body {
   width: 100%;
   border-collapse: collapse;
   font-size: var(--vx-font-size-meta);
+  /* Chasse fixe : les colonnes ne se redimensionnent plus au gré du contenu.
+     Sans elle, une IV à seize décimales élargissait sa colonne et décalait
+     toutes les autres d'une ligne à l'autre. */
+  table-layout: fixed;
+}
+
+/* V6 — L'ALIGNEMENT DES COLONNES PRIME SUR L'EXHAUSTIVITÉ DU RENDU.
+   Le worker publie IV et Greeks en flottants complets — mesuré à l'écran :
+   `0.1848147947607191`, `-0.0013551540767774428`. Rendus tels quels, ils font
+   dix-huit caractères, désalignent la grille et rendent la chaîne
+   incomparable d'un strike à l'autre — or comparer les strikes EST la
+   fonction de cette table.
+   La valeur n'est PAS arrondie : arrondir fabriquerait un nombre que le worker
+   n'a pas publié. Elle est bornée au RENDU, et reste entière au survol
+   (`title`) ainsi que dans l'inspecteur, qui est la surface d'exactitude. */
+.vx-chain-table .vx-num {
+  overflow: hidden;
+  max-width: 12ch;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
 }
 
 .vx-chain-table th,
@@ -2685,9 +2909,10 @@ body {
 
 .vx-pf-bar-row {
   display: grid;
-  grid-template-columns: 120px 1fr 160px;
+  grid-template-columns: 120px minmax(0, 1fr) 140px;
   align-items: center;
   gap: var(--vx-space-12);
+  min-width: 0;
   margin-bottom: var(--vx-space-4);
 }
 
@@ -3241,10 +3466,18 @@ body {
   overflow-wrap: anywhere;
 }
 
+/* V3 — le poids exact ne déborde plus de sa ligne, et n'écrase plus la barre.
+   Le rendu était `word-break: break-all` sur une colonne de 160 px : une
+   chaîne de 28 décimales s'y étalait sur trois lignes, la ligne de barre
+   faisait 60 px de haut, et l'œil ne comparait plus rien.
+   Le texte est désormais borné à une ligne, tronqué par `text-overflow`. La
+   troncature est un fait de RENDU, pas un arrondi : aucune valeur nouvelle
+   n'est fabriquée. La chaîne complète reste au survol (`title`), dans le nom
+   accessible de la ligne, et dans la table équivalente juste dessous. */
 .vx-pf-bar-value {
-  /* Poids serveur exact (long décimal insécable) : coupure autorisée pour ne
-     jamais déborder la colonne fixe de la barre ni créer un scroll de page. */
-  word-break: break-all;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 /* ------------------------------------------------------------------ */
@@ -3348,7 +3581,26 @@ body {
 .vx-cal-agenda {
   display: flex;
   flex-direction: column;
-  gap: var(--vx-space-24);
+  gap: var(--vx-space-12);
+  /* Bornée : voir le commentaire de `EventAgenda.tsx`. 6 928 px de page
+     mesurés avant, sur une capture 1600×1000. */
+  max-height: 640px;
+  overflow-y: auto;
+  padding-right: var(--vx-space-8);
+}
+
+.vx-cal-agenda:focus-visible {
+  outline: 2px solid var(--vx-signal);
+  outline-offset: 2px;
+}
+
+/* Le titre de groupe reste visible pendant le défilement : une date de groupe
+   perdue, et les événements en dessous ne se rattachent plus à rien. */
+.vx-cal-group-title {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--vx-surface-1);
 }
 
 .vx-cal-group-title {
@@ -3500,12 +3752,14 @@ body {
 /* Vague finale — Opportunités (/opportunities)                         */
 /* ------------------------------------------------------------------ */
 
+/* Gouttière canonique entre les deux groupes : elle valait 32 px, soit le
+   double de la bande 12–16 px, et séparait deux blocs qui se comparent. */
 .vx-opp-group {
-  margin-bottom: var(--vx-space-32);
+  margin-bottom: var(--vx-space-12);
   padding: var(--vx-space-16);
-  border: 1px solid var(--vx-border);
+  border: 1px solid var(--vx-border-soft);
   border-radius: var(--vx-radius-10);
-  background: var(--vx-surface-0);
+  background: var(--vx-surface-1);
 }
 
 .vx-opp-group[data-group='qualified'] {
@@ -3861,19 +4115,15 @@ body {
 @media (max-width: 1279px) {
   .vx-contextbar,
   .vx-ticker {
-    padding-inline: var(--vx-space-24);
+    padding-inline: var(--vx-space-16);
   }
 
   .vx-main {
-    padding: var(--vx-space-24) var(--vx-space-20) var(--vx-space-40);
+    padding: var(--vx-space-16) var(--vx-space-16) var(--vx-space-32);
   }
 
   .vx-today-layout {
     grid-template-columns: minmax(0, 1fr);
-  }
-
-  .vx-today-primary {
-    padding: var(--vx-space-20);
   }
 
   .vx-snapshot-rail {
@@ -3881,13 +4131,6 @@ body {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     align-items: start;
-  }
-
-  .vx-snapshot-rail-section + .vx-snapshot-rail-section {
-    padding-top: 0;
-    padding-left: var(--vx-space-16);
-    border-top: 0;
-    border-left: 1px solid var(--vx-border-soft);
   }
 
   .vx-panel-head {
@@ -3944,23 +4187,24 @@ body {
   background: transparent;
 }
 
-.vx-shell {
-  --vx-rail-width: 248px;
-}
+/* V2 — LA LARGEUR DU RAIL N'A PLUS QU'UN PROPRIÉTAIRE.
+   Elle était déclarée TROIS fois : 232 px en base, 248 px ici, 232 px dans la
+   dégradation laptop. La valeur effective était donc celle-ci, et changer la
+   base ne changeait rien — mesuré : le rail restait à 248 px après un passage
+   de la base à 136 px. C'est la même pathologie que décrit
+   `docs/05-design/REFONTE_TITANIUM_LEDGER.md` : la couche thématique
+   redéclare au lieu d'hériter. Les deux surcharges sont retirées ; la valeur
+   vit à `.vx-shell`, une fois.
 
-/* Le rail n'a ni surface ni bordure : point 2 de l'anatomie canonique. La
-   couche Titanium Ledger lui rendait un dégradé de surface et une bordure de
-   séparation — c'est-à-dire exactement la « grande plaque flottante » que le
-   contrat refuse. Seule la hauteur de tête est conservée. */
-.vx-rail-head {
-  min-height: 80px;
-}
+   Le rail n'a par ailleurs ni surface ni bordure (point 2 de l'anatomie) : la
+   couche lui rendait un dégradé et une bordure de séparation, c'est-à-dire la
+   « grande plaque flottante » que le contrat refuse. La hauteur de tête,
+   elle aussi, appartient désormais à la déclaration de base. */
 
 .vx-brand-mark {
   position: relative;
-  width: 42px;
-  height: 42px;
-  flex-basis: 42px;
+  /* 42 px annulait les 32 px de la base, comme la largeur du rail. La taille
+     appartient à la déclaration de base ; ce bloc ne garde que le matériau. */
   border-color: transparent;
   background: none;
   box-shadow: none;
@@ -4038,18 +4282,33 @@ body {
 .vx-main {
   position: relative;
   isolation: isolate;
-  padding-top: var(--vx-space-40);
+  /* V2 — cette surcharge portait 40 px et ANNULAIT la gouttière déclarée plus
+     haut : la marge mesurée valait donc 40 px, pas 16. Elle réservait de l'air
+     sous le bandeau pour le filigrane de registre — lequel est en
+     `position: fixed; z-index: -1`, donc DERRIÈRE le contenu : il n'a jamais
+     eu besoin qu'on lui pousse la page. */
+  padding-top: var(--vx-space-16);
 }
 
+/* V5 — LE FILIGRANE DE REGISTRE REDESCEND SOUS LE TEXTE.
+   « Arrière-plan : décor presque invisible, SOUS le niveau de contraste du
+   texte » (`canonical-visual.md`, matériau Black Glass). À 104 px et
+   `--vx-titanium-soft`, « TL / 03 » se lisait aussi bien que le titre de la
+   page et occupait le quart haut-droit de chaque écran : ce n'est plus un
+   décor, c'est un second titre qui ne dit rien.
+   Il garde son rôle — identifier l'espace, jamais une performance ni une
+   priorité — à une échelle et un contraste qui le rendent perceptible sans
+   qu'il dispute la lecture. Le haut suit la nouvelle hauteur du bandeau
+   (52 px de barre + 34 px de ticker) plutôt qu'un 92 px hérité. */
 .vx-main::before {
   position: fixed;
   z-index: -1;
-  top: 92px;
-  right: var(--vx-space-32);
-  color: var(--vx-titanium-soft);
+  top: 96px;
+  right: var(--vx-space-20);
+  color: var(--vx-titanium-ghost);
   content: attr(data-ledger-code);
   font-family: var(--vx-font-mono);
-  font-size: clamp(52px, 6vw, 104px);
+  font-size: clamp(40px, 4vw, 68px);
   font-weight: 700;
   letter-spacing: -0.08em;
   line-height: 1;
@@ -4057,53 +4316,72 @@ body {
   user-select: none;
 }
 
-/* Numérotation éditoriale des douze espaces. Elle identifie l'écran, jamais
-   une performance ni une priorité. */
+/* Numérotation éditoriale des douze espaces, dans l'ordre des planches
+   canoniques. Elle identifie l'écran, jamais une performance ni une
+   priorité.
+
+   CES LIBELLÉS DOIVENT SUIVRE `LEDGER_CODE_BY_PAGE` (shell/AppShell.tsx).
+   Ce sont deux sources pour le même numéro : le 2026-09-01 la table TSX a
+   été corrigée sans eux, et chaque page affichait `TL / 03` à côté de
+   `LEDGER 02`. Un test lit ce fichier et compare les deux — voir
+   shell.test.tsx. `08 charts` reste réservé ; `09 risks` est désormais
+   installé — sa route, ses données et ses tests existent, ce qui est
+   exactement la condition posée dans app/pages.ts. */
 .vx-main[data-page='today'] {
   --vx-page-ledger: 'LEDGER 01 · NOW';
 }
 
 .vx-main[data-page='opportunities'] {
-  --vx-page-ledger: 'LEDGER 02 · SCREEN';
+  --vx-page-ledger: 'LEDGER 03 · SCREEN';
 }
 
 .vx-main[data-page='analysis'] {
-  --vx-page-ledger: 'LEDGER 03 · EVIDENCE';
+  --vx-page-ledger: 'LEDGER 04 · EVIDENCE';
 }
 
 .vx-main[data-page='options'] {
-  --vx-page-ledger: 'LEDGER 04 · CHAIN';
+  --vx-page-ledger: 'LEDGER 05 · CHAIN';
 }
 
 .vx-main[data-page='simulator'] {
-  --vx-page-ledger: 'LEDGER 05 · MODEL';
+  --vx-page-ledger: 'LEDGER 06 · MODEL';
 }
 
 .vx-main[data-page='calendar'] {
-  --vx-page-ledger: 'LEDGER 06 · EVENTS';
+  --vx-page-ledger: 'LEDGER 11 · EVENTS';
 }
 
 .vx-main[data-page='markets'] {
-  --vx-page-ledger: 'LEDGER 07 · REGIME';
+  --vx-page-ledger: 'LEDGER 02 · REGIME';
 }
 
 .vx-main[data-page='portfolio'] {
-  --vx-page-ledger: 'LEDGER 08 · BOOK';
+  --vx-page-ledger: 'LEDGER 07 · BOOK';
+}
+
+.vx-main[data-page='risks'] {
+  --vx-page-ledger: 'LEDGER 09 · EXPOSURE';
 }
 
 .vx-main[data-page='catalysts'] {
-  --vx-page-ledger: 'LEDGER 09 · CATALYST';
+  --vx-page-ledger: 'LEDGER 10 · CATALYST';
 }
 
 .vx-main[data-page='sources-reports'] {
   --vx-page-ledger: 'LEDGER 12 · CONTROL';
 }
 
+/* V8 — L'EN-TÊTE REND SA PLACE AU TRAVAIL.
+   Il réservait 92 px de hauteur minimale, plus 20 px de fond et 24 px de
+   marge : 136 px avant le premier module, sur chacune des onze destinations.
+   Le contrat canonique veut « une zone de travail dense » et un titre de page
+   « clair, jamais spectaculaire ». Le titre, la question et le code d'espace
+   restent intacts ; seule l'enflure part. */
 .vx-page-header {
   position: relative;
-  min-height: 92px;
-  margin-bottom: var(--vx-space-24);
-  padding: 0 160px var(--vx-space-20) 0;
+  min-height: 64px;
+  margin-bottom: var(--vx-space-16);
+  padding: 0 160px var(--vx-space-12) 0;
   border-bottom: 1px solid var(--vx-border);
 }
 
@@ -4132,7 +4410,7 @@ body {
 
 .vx-page-header h1 {
   color: var(--vx-text);
-  font-size: 32px;
+  font-size: 26px;
   font-weight: 620;
   letter-spacing: -0.035em;
 }
@@ -4148,9 +4426,11 @@ body {
 
 /* Les surfaces principales ont une tranche métallique et un coin de registre.
    Les widgets secondaires restent plus calmes afin de préserver la hiérarchie. */
+/* `.vx-today-primary` et `.vx-snapshot-rail` ont QUITTÉ cette liste : leurs
+   surfaces viennent désormais de la primitive `.vx-card`. C'est le premier
+   retrait des 15 énumérations — chaque page migrée en retire d'autres, et le
+   lot V9 supprimera ce qu'il en restera. */
 .vx-chartframe,
-.vx-today-primary,
-.vx-snapshot-rail,
 .vx-health-item,
 .vx-perf-metric,
 .vx-pf-summary,
@@ -4173,11 +4453,28 @@ body {
   box-shadow: var(--vx-shadow-panel), var(--vx-shadow-inset);
 }
 
-.vx-chartframe::before,
-.vx-today-primary::before,
-.vx-snapshot-rail::before,
-.vx-pf-summary::before,
-.vx-sim-result::before {
+/* V5 — LA TRANCHE MÉTALLIQUE APPARTIENT AU RANG, plus à une liste de noms.
+
+   La liste énumérée (`.vx-chartframe`, `.vx-pf-summary`, `.vx-sim-result`)
+   fonctionnait ; ce qu'elle ne pouvait pas faire, c'est arbitrer PAR PAGE.
+   `.vx-chartframe` habille quatre destinations, et rien ne disait laquelle de
+   ses instances domine son écran : sur Portefeuille, la synthèse ET le cadre
+   du graphique de performance pouvaient briller ensemble. Deux dominantes sur
+   un écran, c'est zéro dominante — le regard n'a plus de point d'entrée.
+
+   Le sélecteur suit désormais l'attribut `data-rank`, quel que soit l'élément
+   qui le porte. Une page DÉCLARE ce qui domine ; elle ne l'hérite plus d'un
+   nom de classe qu'un renommage suffit à perdre, et la porte
+   `one-dominant-per-page.test.ts` compte les déclarations.
+
+   AVERTISSEMENT DE MÉTHODE, payé sur ce lot. Ma première mesure annonçait
+   « dix pages sur onze sans aucune dominante ». Elle était FAUSSE : la sonde
+   attendait `main` visible, ce qui arrive AVANT que les données n'arrivent,
+   et lisait donc le squelette de chargement (`.vx-dsb-skeleton`) sur chaque
+   route. Mesure refaite en attendant un témoin de contenu réel : exactement
+   une dominante sur chaque page chargée, zéro sur le Simulateur au repos —
+   ce qui est correct, le contrat dit « une lumière dominante MAXIMUM ». */
+[data-rank='dominant']::before {
   position: absolute;
   z-index: 1;
   top: 0;
@@ -4186,6 +4483,14 @@ body {
   height: 2px;
   background: linear-gradient(90deg, var(--vx-signal-bright), var(--vx-signal-deep));
   content: '';
+}
+
+/* Le matériau de la dominante, lui aussi porté par le rang. */
+[data-rank='dominant'] {
+  position: relative;
+  overflow: hidden;
+  border-color: var(--vx-border);
+  box-shadow: var(--vx-shadow-panel), var(--vx-shadow-inset);
 }
 
 .vx-chartframe-head,
@@ -4221,10 +4526,10 @@ body {
   border: 1px solid var(--vx-border-soft);
   border-radius: var(--vx-radius-10);
   background-color: var(--vx-surface-0);
-  background-image:
-    linear-gradient(var(--vx-grid-line) 1px, transparent 1px),
-    linear-gradient(90deg, var(--vx-grid-line) 1px, transparent 1px);
-  background-size: 36px 36px;
+  /* La grille de fond des canevas : elle DOUBLAIT celle que chaque moteur
+     dessine déjà, à un pas différent — deux quadrillages superposés qui ne
+     s'alignent jamais. Elle est retirée ; la grille du graphique est celle du
+     graphique, et lui seul sait où tombent ses graduations. */
   box-shadow: var(--vx-shadow-inset);
 }
 
@@ -4411,16 +4716,12 @@ textarea:hover {
 }
 
 @media (max-width: 1279px) {
-  .vx-shell {
-    --vx-rail-width: 232px;
-  }
-
   .vx-page-header {
     padding-right: 128px;
   }
 
   .vx-main::before {
-    font-size: 54px;
+    font-size: 40px;
   }
 }
 
@@ -4428,4 +4729,498 @@ textarea:hover {
   body {
     background-attachment: scroll;
   }
+}
+
+
+/* ==========================================================================
+   Page Risques (LEDGER 09) — matrice de correlation
+   ==========================================================================
+
+   POURQUOI PAS LE VERT ET LE ROUGE. Dans ce theme, `--vx-positive` veut dire
+   « le prix monte » et `--vx-negative` « le prix baisse ». Une correlation
+   n'est ni l'un ni l'autre : deux actifs a +0,93 ne sont pas « en hausse »,
+   ils sont LIES — et selon ce qu'on detient, c'est une concentration a
+   craindre ou une couverture a chercher. Peindre en vert une correlation
+   forte la ferait lire comme une bonne nouvelle ; ce serait une opinion
+   glissee dans une couleur.
+
+   L'echelle est donc divergente sur DEUX teintes qui ne signifient pas de
+   gain dans cette application :
+     - l'or du theme (`--vx-signal`) pour « ils bougent ensemble » ;
+     - le turquoise macro (`--vx-macro`) pour « ils bougent en sens
+       contraire ».
+   L'intensite dit la force, la teinte dit le sens. Ni l'une ni l'autre ne dit
+   si c'est bien.
+
+   La couleur ne porte JAMAIS l'information seule : chaque case affiche son
+   coefficient en clair, et son infobulle nomme la bande en francais. */
+
+/* V3 — LE PANNEAU GÉNÉRIQUE ADOPTE LA CARTE, ombre comprise.
+   Cette règle habille TOUS les panneaux de TOUTES les pages. Elle leur donnait
+   l'ombre de panneau et le fond profond réservés à la dominante : sur une page
+   à cinq panneaux, cinq surfaces revendiquaient le regard, donc aucune ne
+   l'obtenait. C'est la « dérive bento générique » que le contrat canonique
+   refuse nommément.
+   Les panneaux prennent donc l'apparence de `.vx-card` au rang par défaut —
+   verre graphite, bordure titane fine, aucune ombre — et la lumière reste à la
+   seule carte dominante de la page. */
+.vx-risk-page-section,
+.vx-page > .vx-panel {
+  min-width: 0;
+  margin-bottom: var(--vx-space-12);
+  padding: var(--vx-space-16);
+  border: 1px solid var(--vx-border-soft);
+  border-radius: var(--vx-radius-10);
+  background: var(--vx-surface-1);
+}
+
+.vx-riskmatrix-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--vx-border-soft);
+  border-radius: var(--vx-radius-10);
+}
+
+.vx-riskmatrix-scroll:focus-visible {
+  outline: 2px solid var(--vx-signal);
+  outline-offset: 2px;
+}
+
+.vx-riskmatrix-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-meta);
+  font-variant-numeric: tabular-nums;
+}
+
+.vx-riskmatrix-caption {
+  padding: var(--vx-space-12) var(--vx-space-16);
+  color: var(--vx-text-muted);
+  font-family: var(--vx-font-sans, inherit);
+  font-size: var(--vx-font-size-meta);
+  text-align: left;
+}
+
+.vx-riskmatrix-colhead,
+.vx-riskmatrix-rowhead {
+  padding: var(--vx-space-8) var(--vx-space-12);
+  color: var(--vx-text-secondary);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.vx-riskmatrix-colhead {
+  border-bottom: 1px solid var(--vx-border);
+}
+
+.vx-riskmatrix-rowhead {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  border-right: 1px solid var(--vx-border);
+  background: var(--vx-surface-0);
+  text-align: left;
+}
+
+.vx-riskmatrix-corner {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: var(--vx-surface-0);
+}
+
+.vx-riskmatrix-colhead abbr,
+.vx-riskmatrix-rowhead abbr {
+  border: 0;
+  text-decoration: none;
+}
+
+.vx-riskmatrix-cell {
+  padding: var(--vx-space-8) var(--vx-space-12);
+  border: 1px solid var(--vx-grid-line);
+  color: var(--vx-text);
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* Les cinq bandes PUBLIEES par le serveur. Aucune valeur par defaut : une
+   bande inconnue n'atteint jamais l'ecran, le relais API la refuse. */
+.vx-riskmatrix-cell[data-band='self'],
+.vx-riskmatrix-swatch[data-band='self'] {
+  background: var(--vx-titanium-soft);
+  color: var(--vx-text-muted);
+}
+
+.vx-riskmatrix-cell[data-band='strong_positive'],
+.vx-riskmatrix-swatch[data-band='strong_positive'] {
+  background: var(--vx-signal-soft);
+  box-shadow: inset 0 0 0 1px var(--vx-signal);
+  color: var(--vx-signal-bright);
+}
+
+.vx-riskmatrix-cell[data-band='moderate_positive'],
+.vx-riskmatrix-swatch[data-band='moderate_positive'] {
+  background: var(--vx-signal-faint);
+  color: var(--vx-signal);
+}
+
+.vx-riskmatrix-cell[data-band='weak'],
+.vx-riskmatrix-swatch[data-band='weak'] {
+  background: transparent;
+  color: var(--vx-text-muted);
+}
+
+.vx-riskmatrix-cell[data-band='moderate_negative'],
+.vx-riskmatrix-swatch[data-band='moderate_negative'] {
+  background: var(--vx-macro-soft);
+  color: var(--vx-macro);
+}
+
+.vx-riskmatrix-cell[data-band='strong_negative'],
+.vx-riskmatrix-swatch[data-band='strong_negative'] {
+  background: var(--vx-macro-soft);
+  box-shadow: inset 0 0 0 1px var(--vx-macro);
+  color: var(--vx-macro);
+}
+
+.vx-riskmatrix-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--vx-space-12) var(--vx-space-20);
+  margin: var(--vx-space-16) 0 0;
+  padding: 0;
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+  list-style: none;
+}
+
+.vx-riskmatrix-legend-item {
+  display: flex;
+  align-items: center;
+  gap: var(--vx-space-8);
+}
+
+.vx-riskmatrix-swatch {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 1px solid var(--vx-border);
+  border-radius: var(--vx-radius-6);
+}
+
+.vx-risk-extremes,
+.vx-risk-coverage {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--vx-space-16);
+  margin: var(--vx-space-20) 0 0;
+}
+
+.vx-risk-extremes dt,
+.vx-risk-coverage dt {
+  margin: 0 0 var(--vx-space-4);
+  color: var(--vx-text-muted);
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-meta);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.vx-risk-extremes dd,
+.vx-risk-coverage dd {
+  margin: 0;
+  color: var(--vx-text);
+  font-variant-numeric: tabular-nums;
+}
+
+.vx-risk-extremes strong {
+  color: var(--vx-signal-bright);
+  font-family: var(--vx-font-mono);
+}
+
+/* L'avertissement de synchronicite : visible, jamais range en note de bas de
+   page. Sans lui, SPX/N225 a +0,168 se lirait comme une decorrelation du
+   Japon au lieu d'un artefact de fuseau horaire. */
+.vx-risk-caveat {
+  margin: var(--vx-space-20) 0 0;
+  padding: var(--vx-space-12) var(--vx-space-16);
+  border-left: 2px solid var(--vx-warning);
+  border-radius: var(--vx-radius-6);
+  background: var(--vx-warning-soft);
+  color: var(--vx-text-secondary);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-risk-alignment,
+.vx-risk-discards {
+  margin-top: var(--vx-space-24);
+  padding-top: var(--vx-space-16);
+  border-top: 1px solid var(--vx-border-soft);
+}
+
+.vx-risk-alignment h3,
+.vx-risk-discards h3 {
+  margin: 0 0 var(--vx-space-8);
+  color: var(--vx-text-secondary);
+  font-size: var(--vx-font-size-body, inherit);
+  font-weight: 600;
+}
+
+.vx-risk-alignment > p {
+  max-width: 68ch;
+  margin: 0 0 var(--vx-space-12);
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-risk-alignment ul,
+.vx-risk-discards ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--vx-space-8) var(--vx-space-20);
+  margin: 0;
+  padding: 0;
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+  list-style: none;
+}
+
+.vx-risk-alignment li span,
+.vx-risk-discards li span {
+  color: var(--vx-text-secondary);
+  font-family: var(--vx-font-mono);
+  font-weight: 600;
+}
+
+@media (max-width: 900px) {
+  .vx-riskmatrix-table {
+    font-size: 11px;
+  }
+
+  .vx-riskmatrix-cell,
+  .vx-riskmatrix-colhead,
+  .vx-riskmatrix-rowhead {
+    padding: var(--vx-space-4) var(--vx-space-8);
+  }
+}
+
+/* ================================================================== */
+/* LA CARTE — primitive unique des douze destinations                  */
+/* ================================================================== */
+
+/* Une surface, une anatomie, un jeu d'espaces. Ce bloc REMPLACE, à mesure que
+   les pages migrent, les 15 listes de sélecteurs énumérées plus haut : c'est
+   la seule façon de garantir « le même style sur toutes les pages » plutôt que
+   de l'espérer. Les espaces suivent le contrat canonique — « gouttières
+   principales : 12–16 px ; espace interne courant : 14–18 px ». */
+
+.vx-card {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--vx-space-12);
+  padding: var(--vx-space-16);
+  border: 1px solid var(--vx-border-soft);
+  border-radius: var(--vx-radius-10);
+  background: var(--vx-surface-1);
+}
+
+/* La tête : kicker, titre, et ce que la page aligne à droite. `flex-end`
+   plutôt que `center` — les deux blocs n'ont pas la même hauteur, et une
+   ligne de base commune vaut mieux qu'un centrage optique. */
+.vx-card-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--vx-space-16);
+  padding-bottom: var(--vx-space-12);
+  border-bottom: 1px solid var(--vx-border-soft);
+}
+
+.vx-card-heading {
+  min-width: 0;
+}
+
+.vx-card-kicker {
+  margin: 0 0 var(--vx-space-4);
+  color: var(--vx-signal);
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-meta);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.vx-card-head h2 {
+  margin: 0;
+  font-size: var(--vx-font-size-title);
+  font-weight: 620;
+  letter-spacing: -0.02em;
+}
+
+.vx-card-aside {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--vx-space-8);
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+  text-align: right;
+}
+
+.vx-card-body {
+  min-width: 0;
+}
+
+/* Le pied de PROVENANCE. Il est près de la donnée qu'il qualifie, jamais
+   relégué en bas de page : c'est la règle « microcopie et provenance proches
+   de la donnée » du contrat canonique. */
+.vx-card-foot {
+  padding-top: var(--vx-space-12);
+  border-top: 1px solid var(--vx-border-soft);
+  color: var(--vx-text-muted);
+  font-family: var(--vx-font-mono);
+  font-size: 11px;
+  line-height: 1.5;
+}
+
+/* ---- Rangs ------------------------------------------------------- */
+
+/* DOMINANT : la seule carte de la page qui reçoit la tranche métallique et
+   l'ombre de panneau. « Une lumière dominante maximum par carte, deux par
+   écran hors rouge/vert » — et une porte compte les porteurs. */
+.vx-card[data-rank='dominant'] {
+  position: relative;
+  overflow: hidden;
+  border-color: var(--vx-border);
+  background:
+    linear-gradient(135deg, var(--vx-titanium-soft), transparent 22%),
+    var(--vx-surface-1);
+  box-shadow: var(--vx-shadow-panel), var(--vx-shadow-inset);
+}
+
+.vx-card[data-rank='dominant']::before {
+  position: absolute;
+  z-index: 1;
+  top: 0;
+  left: var(--vx-space-20);
+  width: 76px;
+  height: 2px;
+  background: linear-gradient(90deg, var(--vx-signal-bright), var(--vx-signal-deep));
+  content: '';
+}
+
+.vx-card[data-rank='dominant'] .vx-card-head h2 {
+  font-size: var(--vx-font-size-display);
+}
+
+/* QUIET : mesure, légende, pied. Il porte l'information sans la revendiquer —
+   c'est ce qui laisse la dominante être vue. */
+.vx-card[data-rank='quiet'] {
+  gap: var(--vx-space-8);
+  padding: var(--vx-space-12);
+  background: var(--vx-surface-0);
+}
+
+.vx-card[data-rank='quiet'] .vx-card-head {
+  padding-bottom: var(--vx-space-8);
+  border-bottom: 0;
+}
+
+.vx-card[data-rank='quiet'] .vx-card-head h2 {
+  font-size: var(--vx-font-size-body);
+  font-weight: 600;
+}
+
+/* ---- Compositions de page ---------------------------------------- */
+
+/* Une page = une dominante + ses modules. La dominante occupe « environ la
+   moitié de la largeur de travail » quand un inspecteur l'accompagne, la
+   majorité sinon. Les gouttières restent dans la bande canonique. */
+.vx-cards {
+  display: grid;
+  gap: var(--vx-space-12);
+}
+
+.vx-cards[data-layout='dominant-aside'] {
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.62fr);
+  align-items: start;
+}
+
+.vx-cards[data-layout='row-3'] {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.vx-cards[data-layout='row-4'] {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+@media (max-width: 1279px) {
+  .vx-cards[data-layout='dominant-aside'] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .vx-cards[data-layout='row-4'] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* La timeline des catalyseurs : bornée comme l'agenda du Calendrier, et pour
+   la même raison — 3 146 px de page mesurés, dont l'essentiel en événements
+   déroulés. `tabIndex` et `role` sont posés DANS LE MÊME commit que la borne :
+   une région défilante inatteignable au clavier est une violation axe
+   « serious » sur un seuil déclaré à zéro. */
+.vx-cat-list-scroll[tabindex] {
+  max-height: 560px;
+  overflow-y: auto;
+  padding-right: var(--vx-space-8);
+}
+
+.vx-cat-list-scroll[tabindex]:focus-visible {
+  outline: 2px solid var(--vx-signal);
+  outline-offset: 2px;
+}
+
+/* ================================================================== */
+/* TABLES LONGUES — bornées, avec en-tête collant                      */
+/* ================================================================== */
+
+/* POURQUOI. Mesuré sur les captures 1600×1000 : Analyse fait 4 280 px de
+   haut, Portefeuille 5 030 px. La cause n'est pas le contenu — c'est que
+   chaque table se déroule intégralement. Une table OHLCV de 60 séances et un
+   journal de 9 lignes occupent la page entière, et la « zone de travail dense »
+   du contrat canonique devient un long parchemin où plus rien n'est comparable
+   d'un coup d'œil.
+
+   CE QUI EST BORNÉ, ET CE QUI NE L'EST PAS. Uniquement les conteneurs qui
+   portent DÉJÀ `tabindex` — c'est-à-dire ceux que le clavier atteint. Rendre
+   défilant un conteneur inatteignable créerait la violation axe
+   `scrollable-region-focusable` (impact « serious », seuil zéro), exactement
+   celle qui a été trouvée sur l'inspecteur au LOT-A1. La borne suit donc la
+   joignabilité, elle ne la précède pas.
+
+   AUCUNE LIGNE N'EST MASQUÉE : le conteneur défile, il ne tronque pas. Le
+   nombre de lignes servies reste le nombre de lignes présentes. */
+
+.vx-ohlcv-scroll[tabindex],
+.vx-pf-table-scroll[tabindex],
+.vx-markets-table-scroll[tabindex],
+.vx-matrix-scroll[tabindex],
+.vx-cal-scroll[tabindex] {
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+/* En-tête collant : sans lui, une table bornée perd le nom de ses colonnes dès
+   la deuxième ligne, et un chiffre sans son en-tête n'est plus une donnée. */
+.vx-ohlcv-scroll[tabindex] thead th,
+.vx-pf-table-scroll[tabindex] thead th,
+.vx-markets-table-scroll[tabindex] thead th,
+.vx-matrix-scroll[tabindex] thead th,
+.vx-cal-scroll[tabindex] thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--vx-surface-2);
 }

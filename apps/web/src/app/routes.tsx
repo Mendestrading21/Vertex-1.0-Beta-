@@ -17,14 +17,14 @@ import type { PageDef } from './pages.ts';
  * installé » que lorsque ses routes, données, états et tests existent
  * (docs/07-delivery/FOLDER_BY_FOLDER_PROGRAM.md).
  *
- * Dix destinations du rail sont installées : Aujourd'hui, Opportunités,
- * Analyse, Options, Simulateur, Calendrier, Marchés, Portefeuille,
+ * Onze destinations du rail sont installées : Aujourd'hui, Opportunités,
+ * Analyse, Options, Simulateur, Calendrier, Marchés, Portefeuille, Risques,
  * Catalyseurs et Sources & Rapports. S'y ajoute /auth, hors rail : c'est une
  * route de session, pas une destination du blueprint.
  *
- * Graphiques et Risques, que la cible attend, n'existent pas encore. `NotInstalledPage` ne sert aujourd'hui
- * AUCUNE entrée du rail : les destinations manquantes sont absentes du rail
- * plutôt que présentes en façade.
+ * Graphiques, que la cible attend, n'existe pas encore. `NotInstalledPage` ne
+ * sert aujourd'hui AUCUNE entrée du rail : les destinations manquantes sont
+ * absentes du rail plutôt que présentes en façade.
  *
  * Toutes les pages sauf Aujourd'hui et Sources & Rapports sont chargées
  * PARESSEUSEMENT (React.lazy) : leurs chunks — et les chunks moteurs
@@ -67,6 +67,11 @@ const LazyCatalystsPage = lazy(async () => {
 const LazyCalendarPage = lazy(async () => {
   const module = await import('../pages/calendar/CalendarPage.tsx');
   return { default: module.CalendarPage };
+});
+
+const LazyRiskPage = lazy(async () => {
+  const module = await import('../pages/risk/RiskPage.tsx');
+  return { default: module.RiskPage };
 });
 
 const LazyOpportunitiesPage = lazy(async () => {
@@ -130,6 +135,14 @@ function CalendarRoute() {
   );
 }
 
+function RiskRoute() {
+  return (
+    <Suspense fallback={<DataStateBoundary state="loading" />}>
+      <LazyRiskPage />
+    </Suspense>
+  );
+}
+
 function OpportunitiesRoute() {
   return (
     <Suspense fallback={<DataStateBoundary state="loading" />}>
@@ -146,6 +159,7 @@ const INSTALLED_PAGES: Readonly<Record<string, () => React.JSX.Element>> = {
   analysis: AnalysisRoute,
   simulator: SimulatorRoute,
   portfolio: PortfolioRoute,
+  risks: RiskRoute,
   catalysts: CatalystsRoute,
   calendar: CalendarRoute,
   opportunities: OpportunitiesRoute,
