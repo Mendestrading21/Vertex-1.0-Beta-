@@ -1,237 +1,190 @@
-# Reprendre Vertex — passation du 2026-09-01
+# Reprendre ici — état au 2026-09-02
 
-Ce document est écrit pour une session qui n'a **aucun** contexte de ce qui
-précède. Tout ce qu'il affirme a été **mesuré** sur cette machine, pas supposé.
-Ce qui n'a pas été vérifié est signalé comme tel.
+Document de passation. La session suivante le lit **en entier** avant d'agir.
 
 ---
 
-## 1. Ce qu'est Vertex, et les règles qui ne se négocient pas
+## 1. Où en est le dépôt
 
-**Vertex 1.0 Beta** — terminal d'analyse de marché IBKR, **lecture seule**.
-Aucun ordre, aucune exécution, jamais.
+`main` porte la refonte visuelle Titanium Ledger complète (PR #14 fusionnée,
+CI 7/7 verte) plus les adaptateurs de sources officielles (PR #15, #16).
 
-### Interdits absolus
+**Branche de travail :** `claude/snapshots-confirmation-20260901`.
+**En attente de fusion :** PR #18 (V11–V12, uniquement du CSS).
 
-- Ne **jamais** désactiver `Read-Only API` dans TWS.
-- Ne **jamais** faire écouter un service sur `0.0.0.0`, ni remplacer
-  `127.0.0.1` par une adresse de réseau, ni créer de redirection de port.
-- Ne **jamais** écrire un secret dans un commit, un Markdown, un journal, une
-  capture d'écran ou un message de synthèse.
-- Ne **jamais** écrire `OPERATIONAL` pour un composant qui n'a pas été
-  réellement testé sur cette machine.
-- Ne **jamais** convertir un délai d'attente en `NOT_ENTITLED`, une donnée
-  retardée en donnée en direct, une **absence** en zéro, ni une erreur en
-  succès.
-- Ne désactiver ni assouplir **aucun** test.
+Preuves mesurées sur cette machine, codes de sortie relus :
 
-### Points d'arrêt — demander avant
-
-Modification Windows/WSL en administrateur · changement de `.wslconfig` ou
-redémarrage WSL · tout réglage TWS · toute requête IBKR avant confirmation
-Read-Only/Paper · `--persist` · `--allow-delayed-fallback` · sonde d'options
-complète · connexion IBKR **Live** · modification de compte · tout secret ·
-webhook public · déploiement Cloudflare · fusion dans `main`.
-
-### Dépendances
-
-Pas de `pip install` flottant, pas de `npm install`, pas de suppression de
-lockfile, pas de mise à jour automatique, pas de paquet global inutile, aucun
-script téléchargé exécuté sans inspection.
-
----
-
-## 2. Où sont les choses
-
-| Quoi | Où |
+| Contrôle | Résultat |
 |---|---|
-| Dépôt | `/home/elio/Vertex-1.0-Beta-` (WSL Ubuntu) — **pas** sur `/mnt/c` (bit d'exécution) |
-| Branche | `claude/snapshots-confirmation-20260901` |
-| Distant | `github.com/Mendestrading21/Vertex-1.0-Beta-` |
-| Configuration | `~/.vertex/env.live` — **contient le mot de passe PostgreSQL, ne jamais l'afficher** |
-| Base de travail | `vertex_live` (45 007 observations réelles, 161 instruments, 6 108 dépêches) |
-| Python | `.venv/bin/python` depuis la racine |
+| `python -m pytest -q` | 3 927+ tests, 0 échec |
+| `pnpm exec vitest run` | 486 tests, 0 échec |
+| `pnpm exec playwright test` | 459 déclarés, 459 passés |
+| `bash tools/run_checks.sh` | `== TOUT VERT ==`, code 0 |
 
-### Démarrer
+---
+
+## 2. Ce qui a changé visuellement, et pourquoi
+
+Le thème n'était **pas un système** : `global.css` déclarait 443 classes
+`.vx-*`, dont **89 seulement** étaient atteintes par la couche thématique, à
+travers **15 listes de sélecteurs énumérées à la main**. Un module ajouté à une
+page n'héritait de rien. « Le même style partout » n'était pas seulement
+absent — il était **impossible à garantir**, et aucune porte ne le détectait.
+
+Preuve la plus nette : la largeur du rail était déclarée **trois fois**
+(232 px en base, 248 px dans la couche thématique, 232 px en dégradation
+laptop). Passer la base à 136 px ne changeait **rien** à l'écran.
+
+Douze lots ont suivi. Ce qui existe maintenant :
+
+- **`src/components/Card.tsx`** — la primitive unique, trois rangs
+  (`dominant`, `default`, `quiet`). Une page choisit un RANG, jamais une
+  apparence.
+- **`src/design/one-dominant-per-page.test.ts`** — porte statique : au plus une
+  carte dominante par fichier de page.
+- **`shell-canonical.spec.ts`, test « une seule lumière dominante par écran »** —
+  porte e2e : compte ce qui est RÉELLEMENT rendu sur les onze destinations.
+- **`src/charts/theme.ts`** — le socle commun des quatre moteurs de graphique.
+- Densité canonique : rail 248 → 136 px, gouttières dans la bande 12–16 px,
+  tables et agendas bornés dans leur cadre.
+
+Hauteurs de page mesurées à 1600×1000, avant → après :
+
+| Page | avant | après |
+|---|---:|---:|
+| Calendrier | 6 928 | 1 577 |
+| Opportunités | 5 425 | 2 031 |
+| Analyse | 4 280 | 2 925 |
+| Catalyseurs | 3 146 | 2 370 |
+| Aujourd'hui | 2 096 | 1 696 |
+| **Portefeuille** | 5 030 | **4 912** |
+
+---
+
+## 3. Cinq défauts réels trouvés par les CAPTURES, pas par les tests
+
+Aucun des 486 tests unitaires ni des 459 e2e ne les voyait.
+
+1. **La carte des marchés débordait son cadre.** Les tuiles du bas étaient
+   coupées par `overflow: hidden`. Sur un treemap où la surface EST la donnée,
+   un instrument disparaissait sans le dire. Cause : `width/height: '100%'` sur
+   la série ECharts, remplacés par un ancrage aux quatre bords.
+2. **Deux quadrillages superposés** sur chaque canevas — une grille CSS de
+   36 px par-dessus celle du moteur, à un pas différent, qui ne s'alignaient
+   jamais.
+3. **Les poids de concentration s'affichaient sur 28 décimales**, la chaîne
+   d'options sur 16 : colonnes désalignées, comparaison impossible.
+4. **`#vx-inspector-slot` n'était atteignable au clavier que par ACCIDENT**,
+   parce que le panneau monté contient 22 liens de citation. Entre l'instant où
+   le nœud devient défilant et celui où ces liens existent, la région était
+   inatteignable — violation axe « serious » sur un seuil déclaré à zéro.
+5. **Une surcharge annulait un lot entier** : un bloc « signature de page »
+   redonnait le rayon 18 px à quatre pages, après son unification à 10 px.
+
+**Règle qui en découle : regarder la capture.** Elle voit ce que les tests ne
+peuvent pas voir.
+
+---
+
+## 4. Quatre pièges de méthode, payés dans cette session
+
+1. **Un « 377 passed » avec code de sortie 0 masquait 58 échecs.** Un total de
+   campagne ne vaut que confronté au total DÉCLARÉ (`playwright test --list`)
+   **et** à `e2e-artifacts/test-output/.last-run.json`.
+2. **Le code de sortie d'une commande composée ne dit rien de l'étape qui
+   compte.** `playwright test > log; echo; tail` rend le code du `tail`. Vu
+   **trois fois**. Lancer la commande seule, ou capturer et relire son code.
+3. **`tools/run_checks.sh` est la dernière porte avant tout push, sans
+   exception.** Il a attrapé deux fois ce qu'aucune autre mesure ne voyait :
+   une citation morte dans `manifests/traceability.yaml`, et un
+   `noExportsInTest`.
+4. **Une sonde doit attendre un témoin de CONTENU, jamais `main` visible.**
+   Sinon elle mesure le squelette de chargement (`.vx-dsb-skeleton`). Cette
+   erreur m'a fait annoncer « dix pages sur onze sans dominante » alors que la
+   règle fonctionnait.
+
+---
+
+## 5. Décisions qui reviennent à l'utilisateur — NE PAS TRANCHER SEUL
+
+1. **Portefeuille fait 4 912 px** et ce n'est **pas** un problème de style : la
+   page porte **douze modules** depuis l'absorption de Performance (LOT-08), là
+   où le contrat canonique en veut « trois à cinq ». Découper ou non est une
+   décision d'architecture d'information.
+2. **Largeur du rail.** Le contrat dit « environ 120 px ». Mesure des largeurs
+   intrinsèques : « Sources & Rapports » exige 192 px, le cartouche 154 px, la
+   tête 126 px. À 120 px stricts, les trois sont **tronqués**. Retenu : 136 px,
+   sans rien couper. À revoir si les libellés du rail sont raccourcis.
+3. **Les intitulés de groupes du rail** (`DÉCIDER`, `OBSERVER`, `PILOTER`,
+   `ASSISTANCE`). La capture canonique montre une **liste plate**. Les retirer
+   est une décision d'architecture d'information.
+4. **Chaîne d'options — contrat de tranche.** Le collecteur exige `style`,
+   `settlement`, `rate` et `dividend_yield`. FRED (PR #15) couvre le taux ;
+   **dividende, `style` et `settlement` restent à trancher.**
+
+---
+
+## 6. Ce qui reste à faire
+
+### Visuel
+- **V13** : la dernière grosse énumération — 14 sélecteurs pour le matériau
+  titane des surfaces. C'est la plus délicate : elle touche toutes les surfaces
+  à la fois.
+- Migration JSX des surfaces héritées vers la primitive `Card`.
+- **Graphiques** : la 12ᵉ destination n'existe pas. `market.rebased_series` est
+  publié côté serveur depuis `0c59afa`, donc la comparaison base 100 n'est plus
+  bloquée.
+
+### Branchements (« les connexions », explicitement remis à plus tard par
+l'utilisateur)
+- Inspecteur contextuel sur les 9 destinations qui ne le remplissent pas.
+- Comparaison base 100 sur Portefeuille et Graphiques.
+- Sessions de marché, largeur de marché, matrice de corrélation étendue.
+- **Fondamentaux via SEC EDGAR** — PR #15/#16 sont fusionnées : revenus, BPA et
+  actions en circulation viennent d'une source **publique et gratuite**. Ce
+  n'est plus « abonnement requis » mais un contrat de calcul à écrire.
+
+---
+
+## 7. Ce qui n'a JAMAIS été vu sur données réelles
+
+Le conteneur de développement **n'a pas de base `vertex_live`** (mesuré :
+`count = 0`). Toutes les captures de cette session portent de la donnée
+**synthétique** : elles prouvent la COMPOSITION, jamais le contenu.
+
+Le rendu sur les 161 instruments IBKR se valide **sur le poste de
+l'utilisateur**, et nulle part ailleurs.
+
+---
+
+## 8. Démarrer et regarder le logiciel
+
+> **Aucun mot de passe n'est écrit dans ce document.** La porte de détection de
+> secrets a refusé la première rédaction, à juste titre : un secret de
+> développement écrit dans Git reste un secret dans Git. La chaîne de connexion
+> vit dans le `.env` local, ignoré par Git ; `.env.example` n'en porte que des
+> valeurs fictives.
 
 ```bash
-cd ~/Vertex-1.0-Beta- && set -a && . ~/.vertex/env.live && set +a && bash tools/start_local.sh
+# 1. Base de données — premier démarrage ou après un redémarrage du conteneur
+service postgresql start
+python tools/bootstrap_local.py     # migrations Alembic réelles + semis du worker
+
+# 2. Contrôles complets — la dernière porte avant tout push
+bash tools/run_checks.sh            # attendu : == TOUT VERT ==, code 0
+
+# 3. Interface
+cd apps/web
+pnpm exec vitest run                # 486 tests
+# `VERTEX_TEST_DATABASE_URL` vient de l'environnement, jamais d'une commande
+# copiée dans un document. La campagne écrit ses captures pleine page des douze
+# destinations dans `e2e-artifacts/*-desktop-1600x1000.png`.
+pnpm exec playwright test           # 459 tests
 ```
 
-Interface sur `localhost:4173`, API sur `127.0.0.1:8000`. **Aucune passkey
-demandée** : `VERTEX_AUTH_OPEN_LOCAL=1` est posé dans `env.live` à la demande
-explicite du propriétaire du poste. Retirer cette ligne referme l'accès.
+`tools/bootstrap_local.py` est la voie officielle : il ne réimplémente rien, il
+appelle les mêmes migrations et le même semis que la campagne E2E, dont le
+propriétaire unique est `vertex_worker.demo_seed`.
 
-### Vérifier
-
-```bash
-cd ~/Vertex-1.0-Beta- && . .venv/bin/activate && set -a && . ~/.vertex/env.live && set +a && bash tools/run_checks.sh --integration; echo "CODE REEL : $?"
-```
-
-Le `; echo "CODE REEL : $?"` n'est pas décoratif : un `| tail` avale le code
-de retour et fait passer un échec pour un succès. C'est arrivé.
-
----
-
-## 3. Ce qui vient d'être fait (8 commits)
-
-```text
-6cd65d5  RISQUES — la page, de l'API à l'écran (LEDGER 09)
-9fe81a7  RELAIS — admettre le dollar des identifiants de presse (72 réponses en 500)
-d357e4c  ACCÈS — ouvrir Vertex sans passkey
-514ad2a  RISQUES — la route API, vérifiée contre l'instantané RÉEL
-eb9ee54  RISQUES — la matrice de corrélation, du worker au périmètre déclaré
-427f91f  RISQUES — risk.correlation, mesuré sur 8 indices réels
-0c79f78  PRESSE — conserver l'horodatage ambigu au lieu de le jeter
-6f918b2  FORCE RELATIVE — le troisième calcul approuvé qui n'avait jamais servi
-```
-
-État mesuré : **3 231 tests Python**, **458 frontaux**, ruff et mypy propres.
-Le rail porte **11 destinations** sur 12 (Graphiques manque).
-
-Les onze pages s'ouvrent et servent des données réelles. Vérifié navigateur
-neuf, sans cookie : `0/11` page demande un code, `0` réponse 401.
-
----
-
-## 4. Ce qui reste cassé — MESURÉ, avec les emplacements
-
-### 4.1 Huit étiquettes qui mentent sur la nature des données
-
-Le bandeau `population` est **juste** ; c'est le texte autour qui ment.
-
-| Emplacement | Texte | Pourquoi c'est faux |
-|---|---|---|
-| `apps/web/src/pages/markets/MarketsPage.tsx:99` | « Carte des marchés synthétiques » | `population='REAL'`, 0/161 ticker synthétique |
-| `MarketsPage.tsx:119` | « `synthetic-dev` via snapshot worker » | la source est `ibkr` |
-| `MarketsPage.tsx:83` | repli « Carte des marchés synthétiques » | faux, latent |
-| `MarketsPage.tsx:202` | « Poids = parts descriptives des clôtures (synthétiques) » | faux |
-| `MarketsPage.tsx:206` | « Limites : données SYNTHÉTIQUES de développement » | faux |
-| `apps/worker/src/vertex_worker/markets.py:362` | « Sur N instruments synthétiques attendus » | faux, **persisté** dans le contenu |
-| `apps/worker/src/vertex_worker/portfolio.py:117` et `:825` | `MARK_POPULATION_SYNTHETIC` écrit **inconditionnellement** | les marques viennent de `markets_overview` en `REAL` |
-| `apps/worker/src/vertex_worker/performance.py:136` et `:810` | `marks = "SYNTHETIC"` | même cause (`ledger: USER_DECLARED` est juste, lui) |
-
-Nuance : `markets.py:362` est figé dans les instantanés déjà publiés
-(append-only), mais `markets_overview` se republie en continu — ce littéral se
-corrige de lui-même à la publication suivante.
-
-### 4.2 `data_state='partial'` trompeur sur Marchés
-
-`apps/worker/src/vertex_worker/markets.py:581` déclenche `partial` sur
-`rejected_records`, alimenté par 3 cotations `GNL PRE` — des observations **en
-trop**, hors univers, **pas** un trou de couverture. L'écran affiche « Données
-partielles » puis, juste en dessous, « 161 couverts sur 161, 0 écartés » : un
-texte qui se réfute lui-même. Confusion entre `discarded` (attendu manquant) et
-`rejected_records` (non demandé). Même pollution sur `performance/1`.
-
-### 4.3 500 latent sur Risques
-
-`"value"` est dans `_DECIMAL_KEYS` (`apps/api/src/vertex_api/snapshot_views.py:890`,
-classe **non signée**) alors que `extremes.most_opposed.value` vaut `-0.803` —
-une corrélation « la plus opposée » est négative **par définition**.
-
-La route rend 200 aujourd'hui parce que `apps/api/src/vertex_api/risk.py:300`
-appelle son propre validateur `checked_risk_content`. Toute uniformisation qui
-la brancherait sur le garde commun la mettrait en 500 sur données réelles.
-
-**Correction** : déplacer `"value"` vers `_SIGNED_DECIMAL_KEYS` (`:896`).
-**Commit séparé** — `value` sert aussi à `breadth.value` (`:1649`), et
-desserrer une classe financière mérite son propre reproducteur.
-
-### 4.4 Trou E2E
-
-`apps/web/e2e/analysis.spec.ts` et `today.spec.ts` sont passés **au vert
-pendant que 72 réponses partaient en 500**. Cause : le semis
-(`apps/web/e2e/seed_synthetic.py`) ne produit **aucun** identifiant de
-fournisseur — tout est frappé par Vertex
-(`synthetic-dev:{seed}:{index:04d}`).
-
-Semer au moins un cluster de presse en forme réelle
-`ibkr:news:<provider>:<provider>$<hex>`.
-
-### 4.5 Un dossier définitivement refusé
-
-`analysis/GNL PRE` — le caractère fautif est l'**espace**, jamais adressé par
-le correctif du `$`. Inatteignable de toute façon : `UNDERLYING_PATTERN`
-(`apps/api/src/vertex_api/routes.py:150`) le refuse en **422** avant toute
-lecture de base. **Ne pas annoncer « zéro identifiant hors forme ».**
-
----
-
-## 5. Trois décisions qui appartiennent à l'utilisateur
-
-Aucune ne se déduit du code. Ne pas les trancher seul.
-
-1. **Barème de sévérité** de la page Risques. Le blueprint décrit « la matrice
-   des risques avec exposition, horizon, **sévérité** et preuve » ; seule la
-   matrice de corrélation est livrée.
-2. **Périmètre affiché** de la matrice — 8 indices mondiaux aujourd'hui
-   (`apps/worker/src/vertex_worker/profiles.py`, `RISK_PERIMETER`). Comparer
-   les 161 titres ferait tomber l'intersection des calendriers, et une grille
-   161×161 n'est pas un écran.
-3. **Fenêtre et date de base** de la page Graphiques, non installée.
-
----
-
-## 6. Ce qui n'a pas été vérifié
-
-- `calendar/global` et `option_chain/*` n'ont **aucun** instantané publié :
-  leurs relais n'ont jamais été exercés sur données réelles.
-- La collecte de chaînes d'options n'existe pas ; l'habilitation aux cotations
-  d'options reste **non concluante** (la sonde a tourné marché fermé).
-- FX (EUR/CHF) et taux : IBKR ne sert pas de `TRADES`, il faut un contrat
-  distinct avec une base déclarée.
-- Matières premières : la sonde ne gère pas `CONTFUT` — résultat **non
-  concluant**, pas un refus.
-- Aucune source pour secteurs, fondamentaux, révisions d'analystes,
-  catalyseurs (WSH est payant).
-- `ai_explain._INTRA_WORD_SEPARATOR` normalise `- . _ * + ~ / \ | : ; '` mais
-  ni `$` ni `@` : `a$c$h$e$t$e$z` échappe à `detect_forbidden_language`.
-  Défaut réel, antérieur, à ouvrir séparément.
-
----
-
-## 7. Pièges de cet environnement, appris à la dure
-
-**Les variables `$var` sont EFFACÉES** quand une commande passe par
-`wsl.exe -- bash -lc '...'`. Cela produit des mesures **fausses mais
-silencieuses** — un compteur vide lu comme un zéro. **Toujours** écrire les
-scripts dans un fichier et les exécuter par chemin.
-
-**Les backticks aussi** sont mangés dans un heredoc passé de cette façon : les
-identifiants entre backticks disparaissent des messages de commit.
-
-**Ne jamais deviner un nom de colonne SQL.** Lire `information_schema`. Trois
-fois dans la journée une supposition a échoué (`snapshot_heads.snapshot_id`,
-`outbox_messages`, `observations.source_id` — le vrai nom est `source`).
-
-**La batterie doit tourner avec le venv activé.** Sans lui, `run_checks.sh`
-appelle le python système, qui n'a pas pytest, et la suite ne tourne **pas du
-tout** — un vert invalide.
-
-**`ruff format` sur un dossier entier reformate des fichiers sans rapport.**
-Vérifier `git status` avant de commiter ; restaurer ce qui n'a pas été voulu.
-
-**Le défaut le plus fréquent de ce dépôt**, rencontré **trois fois** dans la
-journée : quelque chose **déclaré** à un endroit et **jamais branché** à un
-autre, avec les deux suites de tests au vert parce qu'elles construisent la
-charge *attendue* plutôt que la charge *produite*. La parade est un test qui
-appelle le producteur et passe sa sortie au validateur —
-`apps/api/tests/test_risk_contract_matches_worker.py` en est le modèle.
-
----
-
-## 8. Discipline attendue
-
-- `.claude/rules/testing.md` exige un **test reproducteur rouge AVANT** toute
-  correction. Le respecter : voir le test échouer, puis corriger.
-- `.claude/rules/frontend.md` interdit **tout calcul financier en
-  TypeScript** — le serveur publie les chaînes déjà rendues, y compris les
-  arrondis et les classements.
-- Tout calcul financier passe par le registre
-  `docs/03-domain/calculations/CALCULATION_REGISTRY.yaml`, avec ses 8 champs
-  d'exécution obligatoires, et la porte `tools/check_calculation_registry.py`.
-- Les tables `observations` et `snapshots` sont **append-only par déclencheur
-  SQL** : `UPDATE` et `DELETE` y sont refusés. Aucune migration de données
-  n'est possible dessus — en tenir compte AVANT de proposer une correction qui
-  supposerait de réécrire l'existant.
+Les captures pleine page des douze destinations sont écrites dans
+`apps/web/e2e-artifacts/*-desktop-1600x1000.png` à chaque campagne.
