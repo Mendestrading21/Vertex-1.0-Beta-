@@ -2582,10 +2582,17 @@ body {
   font-size: var(--vx-font-size-meta);
 }
 
+/* V11 — LA GRILLE DE SAISIE SE RANGE. `auto-fit, minmax(200px, 1fr)` étirait
+   chaque champ sur toute la largeur restante : à 1600 px, six champs
+   occupaient 240 px chacun pour contenir « 1 » ou « 0.25 ». Un champ dont la
+   largeur ne dit rien de ce qu'il attend est un champ qu'on lit deux fois.
+   Les colonnes sont désormais bornées : elles s'ajustent au contenu attendu,
+   pas à l'espace disponible. */
 .vx-leg-grid,
 .vx-sim-assumptions-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(190px, 220px));
+  justify-content: start;
   gap: var(--vx-space-12);
 }
 
@@ -4588,21 +4595,17 @@ body {
 
 .vx-matrix-table thead,
 .vx-markets-table thead,
-.vx-chain-table thead,
-.vx-pf-table thead,
-.vx-ohlcv-table thead,
-.vx-perf-months-table thead,
-.vx-perf-points-table thead {
+/* V11 — L'EN-TÊTE DE COLONNE EST LE MÊME PARTOUT, et pour la même raison que
+   le survol : la règle citait cinq à sept tables sur treize. Les autres
+   gardaient un en-tête en corps de texte, sans capitales ni chasse fixe — deux
+   tables voisines, deux en-têtes différents, sur des pages qui se comparent.
+   « Capitales limitées aux micro-libellés et statuts » : un nom de colonne EST
+   un micro-libellé. */
+.vx-main table thead {
   background: var(--vx-surface-2);
 }
 
-.vx-matrix-table thead th,
-.vx-markets-table thead th,
-.vx-chain-table thead th,
-.vx-pf-table thead th,
-.vx-ohlcv-table thead th,
-.vx-perf-months-table thead th,
-.vx-perf-points-table thead th {
+.vx-main table thead th {
   color: var(--vx-titanium);
   font-family: var(--vx-font-mono);
   font-size: 10px;
@@ -4611,19 +4614,23 @@ body {
   text-transform: uppercase;
 }
 
-.vx-matrix-table tbody tr,
-.vx-markets-table tbody tr,
-.vx-chain-table tbody tr,
-.vx-pf-table tbody tr,
-.vx-ohlcv-table tbody tr {
+/* V11 — LE SURVOL DE LIGNE APPARTIENT À TOUTES LES TABLES, pas à cinq d'entre
+   elles. La règle précédente énumérait `.vx-matrix-table`, `.vx-markets-table`,
+   `.vx-chain-table`, `.vx-pf-table` et `.vx-ohlcv-table`. Le produit en compte
+   TREIZE : `vx-fu-theses-table`, `vx-perf-months-table`, `vx-perf-points-table`,
+   `vx-pf-concentration-table`, `vx-pf-excluded-table`, `vx-pf-ledger-table`,
+   `vx-riskmatrix-table` et `vx-scenarios-table` n'avaient donc AUCUN survol —
+   sur des grilles denses où suivre une ligne des yeux est tout l'enjeu.
+   C'est la cinquième fois dans cette refonte qu'une énumération de noms laisse
+   la moitié du produit dehors. La règle porte désormais sur les tables de la
+   zone de travail, présentes et à venir.
+   « Survol : hausse très légère de surface ou de bordure, SANS déplacement »
+   (`canonical-visual.md`) — d'où une teinte, jamais une transformation. */
+.vx-main table tbody tr {
   transition: background-color var(--vx-motion-90) var(--vx-ease-standard);
 }
 
-.vx-matrix-table tbody tr:hover,
-.vx-markets-table tbody tr:hover,
-.vx-chain-table tbody tr:hover,
-.vx-pf-table tbody tr:hover,
-.vx-ohlcv-table tbody tr:hover {
+.vx-main table tbody tr:hover {
   background: var(--vx-signal-faint);
 }
 
@@ -4642,19 +4649,75 @@ textarea {
   font-family: inherit;
 }
 
+/* V11 — LES CONTRÔLES DE SAISIE, UNE FOIS POUR TOUTES.
+   Ils héritaient de la boîte du navigateur, avec pour seul habillage une
+   couleur de bordure et un fond. Résultat mesuré à l'écran : hauteurs
+   différentes d'une page à l'autre, rayons différents du reste du produit,
+   chiffres en proportionnelle dans des champs qui ne contiennent QUE des
+   nombres, et un focus laissé au navigateur.
+   Un formulaire fait partie de l'écran : sur Simulateur, Calendrier,
+   Portefeuille, Catalyseurs et Opportunités, il occupe autant de place que les
+   modules qu'il sert. */
 input,
 select,
 textarea {
-  border-color: var(--vx-border);
+  min-height: 32px;
+  padding: var(--vx-space-4) var(--vx-space-8);
+  border: 1px solid var(--vx-border-soft);
+  border-radius: var(--vx-radius-6);
   background: var(--vx-surface-0);
   color: var(--vx-text);
+  font-size: var(--vx-font-size-body);
   box-shadow: var(--vx-shadow-inset);
+  transition:
+    border-color var(--vx-motion-140) var(--vx-ease-standard),
+    background-color var(--vx-motion-140) var(--vx-ease-standard);
+}
+
+/* Un champ qui ne contient QUE des nombres les affiche en chasse fixe : c'est
+   la même règle que pour les axes et les tables — « mono/tabular pour prix,
+   dates, unités et codes ». */
+input[type='number'],
+input[type='date'],
+input[type='datetime-local'],
+input[type='time'] {
+  font-family: var(--vx-font-mono);
+  font-variant-numeric: tabular-nums;
 }
 
 input:hover,
 select:hover,
 textarea:hover {
-  border-color: var(--vx-border-strong);
+  border-color: var(--vx-border);
+  background: var(--vx-surface-1);
+}
+
+/* L'AMBRE EST RÉSERVÉE À L'INTENTION ET AU FOCUS DE NAVIGATION : c'est
+   exactement ce qu'est un champ actif. Le contour du navigateur ne connaît ni
+   la palette ni le rayon du produit. */
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--vx-signal);
+  outline-offset: 1px;
+  border-color: var(--vx-signal-soft);
+}
+
+/* Un champ désactivé le DIT, et ne se laisse pas confondre avec un champ vide
+   qu'on pourrait remplir. */
+input:disabled,
+select:disabled,
+textarea:disabled {
+  border-color: var(--vx-border-soft);
+  background: var(--vx-surface-1);
+  color: var(--vx-text-muted);
+  cursor: not-allowed;
+}
+
+/* Étiquette de champ : elle nomme l'unité attendue, elle ne crie pas. */
+label {
+  color: var(--vx-text-secondary);
+  font-size: var(--vx-font-size-meta);
 }
 
 .vx-primary-action {
