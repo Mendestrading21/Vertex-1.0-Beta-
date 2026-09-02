@@ -62,7 +62,11 @@ export function MonthlyHeatmap({ heatmap }: { readonly heatmap: HeatmapView }) {
             tooltip: {
               backgroundColor: cssToken('--vx-surface-2'),
               borderColor: cssToken('--vx-border'),
-              textStyle: { color: cssToken('--vx-text'), fontSize: 12 },
+              textStyle: {
+                color: cssToken('--vx-text'),
+                fontFamily: cssToken('--vx-font-mono'),
+                fontSize: 11,
+              },
               formatter: (params: unknown): string => {
                 const item = params as { value?: unknown } | undefined;
                 const value = Array.isArray(item?.value) ? item.value : [];
@@ -86,12 +90,20 @@ export function MonthlyHeatmap({ heatmap }: { readonly heatmap: HeatmapView }) {
             xAxis: {
               type: 'category',
               data: monthLabels,
-              axisLabel: { color: cssToken('--vx-text-muted'), fontSize: 11 },
+              axisLabel: {
+                  color: cssToken('--vx-text-muted'),
+                  fontFamily: cssToken('--vx-font-mono'),
+                  fontSize: 11,
+                },
             },
             yAxis: {
               type: 'category',
               data: years,
-              axisLabel: { color: cssToken('--vx-text-muted'), fontSize: 11 },
+              axisLabel: {
+                  color: cssToken('--vx-text-muted'),
+                  fontFamily: cssToken('--vx-font-mono'),
+                  fontSize: 11,
+                },
             },
             visualMap: {
               min: -maxAbs || -1,

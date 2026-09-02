@@ -98,10 +98,21 @@ export function MarketMap({ sectors, visibleGroups, description }: MarketMapProp
           {
             animation: false,
             aria: { enabled: true },
+            textStyle: {
+              fontFamily: cssToken('--vx-font-mono'),
+              fontSize: 11,
+              color: cssToken('--vx-text-muted'),
+            },
             tooltip: {
               backgroundColor: cssToken('--vx-surface-2'),
               borderColor: cssToken('--vx-border'),
-              textStyle: { color: cssToken('--vx-text'), fontSize: 12 },
+              borderWidth: 1,
+              padding: [6, 10],
+              textStyle: {
+                color: cssToken('--vx-text'),
+                fontFamily: cssToken('--vx-font-mono'),
+                fontSize: 11,
+              },
             },
             series: [
               {
@@ -132,8 +143,11 @@ export function MarketMap({ sectors, visibleGroups, description }: MarketMapProp
                 label: {
                   show: true,
                   color: cssToken('--vx-black'),
-                  fontSize: 12,
-                  lineHeight: 16,
+                  // Ticker et rendement : « mono/tabular pour prix, dates,
+                  // unités et codes ». Une tuile porte les deux.
+                  fontFamily: cssToken('--vx-font-mono'),
+                  fontSize: 11,
+                  lineHeight: 15,
                 },
                 upperLabel: {
                   show: true,

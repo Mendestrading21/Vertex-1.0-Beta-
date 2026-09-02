@@ -58,15 +58,29 @@ export function CandleChart({ bars, description }: CandleChartProps) {
           autoSize: true,
           layout: {
             background: { color: cssToken('--vx-surface-0') },
-            textColor: cssToken('--vx-text-secondary'),
+            textColor: cssToken('--vx-text-muted'),
+            // « Mono/tabular pour prix, dates, unités et codes »
+            // (`canonical-visual.md`). Les étiquettes d'axe SONT des prix et
+            // des dates : en sans-serif proportionnelle, leurs chiffres ne
+            // s'alignent pas d'une graduation à l'autre.
+            fontFamily: cssToken('--vx-font-mono'),
+            fontSize: 11,
             attributionLogo: true, // logo TradingView du moteur, jamais retiré
           },
           grid: {
-            vertLines: { color: cssToken('--vx-border') },
-            horzLines: { color: cssToken('--vx-border') },
+            // `--vx-grid-line` (0,045) et non `--vx-border` (0,12) : le contrat
+            // veut un décor « sous le niveau de contraste du texte ». À 0,12,
+            // la grille se lisait aussi bien que les chandeliers qu'elle est
+            // censée servir.
+            vertLines: { color: cssToken('--vx-grid-line') },
+            horzLines: { color: cssToken('--vx-grid-line') },
           },
-          timeScale: { borderColor: cssToken('--vx-border') },
-          rightPriceScale: { borderColor: cssToken('--vx-border') },
+          crosshair: {
+            vertLine: { color: cssToken('--vx-signal'), width: 1, style: 2, labelBackgroundColor: cssToken('--vx-surface-2') },
+            horzLine: { color: cssToken('--vx-signal'), width: 1, style: 2, labelBackgroundColor: cssToken('--vx-surface-2') },
+          },
+          timeScale: { borderColor: cssToken('--vx-border-soft') },
+          rightPriceScale: { borderColor: cssToken('--vx-border-soft') },
         });
         chartRef.current = chart;
 
@@ -91,10 +105,16 @@ export function CandleChart({ bars, description }: CandleChartProps) {
         const volume = chart.addSeries(HistogramSeries, {
           priceScaleId: 'volume',
           priceFormat: { type: 'volume' },
-          color: cssToken('--vx-text-muted'),
+          // Le volume ACCOMPAGNE le prix, il ne le concurrence pas : une teinte
+          // sourde unique, et surtout pas vert/rouge. Le contrat réserve ces
+          // deux couleurs au SENS FINANCIER, et un volume n'a pas de signe —
+          // le colorer par la direction de la séance lui en inventerait un.
+          color: cssToken('--vx-titanium-soft'),
         });
         chart.priceScale('volume').applyOptions({
-          scaleMargins: { top: 0.8, bottom: 0 },
+          // 0,84 plutôt que 0,80 : la bande de volume prenait un cinquième de
+          // la hauteur pour une information secondaire.
+          scaleMargins: { top: 0.84, bottom: 0 },
         });
         volume.setData(
           bars.map((bar) => ({

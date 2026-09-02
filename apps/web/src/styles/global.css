@@ -4526,10 +4526,10 @@ body {
   border: 1px solid var(--vx-border-soft);
   border-radius: var(--vx-radius-10);
   background-color: var(--vx-surface-0);
-  background-image:
-    linear-gradient(var(--vx-grid-line) 1px, transparent 1px),
-    linear-gradient(90deg, var(--vx-grid-line) 1px, transparent 1px);
-  background-size: 36px 36px;
+  /* La grille de fond des canevas : elle DOUBLAIT celle que chaque moteur
+     dessine déjà, à un pas différent — deux quadrillages superposés qui ne
+     s'alignent jamais. Elle est retirée ; la grille du graphique est celle du
+     graphique, et lui seul sait où tombent ses graduations. */
   box-shadow: var(--vx-shadow-inset);
 }
 
