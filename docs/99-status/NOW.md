@@ -786,6 +786,13 @@ brouillon, aucune fusion.
 3. Le module « Indices » manquait au DOM : le test de composition (douze
    témoins `data-module`) l'a dit avant la capture — c'est le test qui a
    rattrapé celui-là.
+4. CI rouge à la première tête (`7fc6289`, e2e 1440 seul) : le test du shell
+   « point 6 » visitait `/today` en supposant l'inspecteur masqué — vrai avant
+   ce lot, faux par conception depuis (la vérité du snapshot y est montée).
+   L'assertion ne tenait plus que par une course avec le chargement : verte
+   quand elle précédait les données, rouge quand elles arrivaient d'abord.
+   Témoin déplacé sur Sources & Rapports, qui ne monte aucun panneau ; la
+   propriété testée est la même, sans course. 6/6 aux trois viewports.
 
 ### Mesuré sur cette machine (codes relus)
 
