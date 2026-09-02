@@ -3,10 +3,11 @@
  * | Puts, IV absente rendue « — » avec sa raison, inspecteur avec lignée
  * CalculationRecord, transfert typé vers le Simulateur, états dégradés.
  */
-import { screen, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { queryKeyForResource } from '../../api/hooks.ts';
 import {
   makeEmptyOptionChain,
   makeMarketsOverview,
@@ -49,9 +50,10 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-async function renderOptions(path = '/options/SYN-TECH-01'): Promise<void> {
-  renderApp(path);
+async function renderOptions(path = '/options/SYN-TECH-01') {
+  const view = renderApp(path);
   await screen.findByRole('heading', { level: 1, name: 'Options' });
+  return view;
 }
 
 describe('Page Options — état nominal', () => {
@@ -77,6 +79,8 @@ describe('Page Options — état nominal', () => {
     await renderOptions();
     const table = await screen.findByRole('table', { name: /Chaîne d'options 2026-09-26 SYN-TECH-01$/ });
     expect(table).toBeDefined();
+    await user.click(within(table).getByRole('button', { name: /Inspecter CALL strike 100\.00/ }));
+    expect(await screen.findByTestId('option-inspector')).toBeDefined();
     const weekly = screen
       .getAllByTestId('chain-group')
       .find((group) => (group.textContent ?? '').includes('SYN-TECH-01W'));
@@ -84,6 +88,7 @@ describe('Page Options — état nominal', () => {
     expect(
       screen.getByRole('table', { name: "Chaîne d'options 2026-09-26 SYN-TECH-01W" }),
     ).toBeDefined();
+    expect(screen.queryByTestId('option-inspector')).toBeNull();
   });
 
   it('IV absente : cellule « — » avec la raison typée, jamais 0', async () => {
@@ -166,6 +171,65 @@ describe('Page Options — état nominal', () => {
       '102.50',
     );
   });
+
+  it('refetch SSE : un ancien contrat inspecté ne survit pas au nouveau snapshot', async () => {
+    const user = userEvent.setup();
+    const initial = makeOptionChain();
+    let current = initial;
+    fetchMock.mockImplementation((entree: unknown) => {
+      const url = typeof entree === 'string' ? entree : String((entree as Request).url);
+      return Promise.resolve(
+        jsonResponse(url.includes('/markets/overview') ? makeMarketsOverview() : current),
+      );
+    });
+
+    const { queryClient } = await renderOptions();
+    await screen.findByRole('table', { name: /Chaîne d'options 2026-09-26 SYN-TECH-01$/ });
+    await user.click(
+      screen.getAllByRole('button', { name: /Inspecter CALL strike 100\.00/ })[0]!,
+    );
+    expect(await screen.findByTestId('option-inspector')).toBeDefined();
+    expect(
+      (screen.getByRole('button', { name: 'Envoyer au Simulateur' }) as HTMLButtonElement).disabled,
+    ).toBe(false);
+
+    // Même groupe toujours VALID, mais la quote du contrat ouvert est
+    // remplacée : l'ancien ask ne doit jamais être réutilisé après le refetch.
+    current = makeOptionChain({
+      snapshot_version: 13,
+      as_of: '2026-08-25T12:05:00+00:00',
+      expirations: initial.expirations.map((group, groupIndex) =>
+        groupIndex === 0
+          ? {
+              ...group,
+              contracts: group.contracts.map((contract) =>
+                contract.con_id === 900000101
+                  ? {
+                      ...contract,
+                      quote: { ...contract.quote, status: 'CROSSED', ask: null },
+                      iv: { status: 'ABSENT', reason: 'crossed_quote' },
+                      greeks: { status: 'ABSENT', reason: 'iv_unresolved' },
+                    }
+                  : contract,
+              ),
+            }
+          : group,
+      ),
+    });
+    await queryClient.invalidateQueries({
+      queryKey: queryKeyForResource('option_chain/SYN-TECH-01'),
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('option-inspector')).toBeNull();
+    });
+    await user.click(
+      screen.getAllByRole('button', { name: /Inspecter CALL strike 100\.00/ })[0]!,
+    );
+    const transfer = await screen.findByRole('button', { name: 'Envoyer au Simulateur' });
+    expect((transfer as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByText(/Transfert bloqué : statut de quote CROSSED/)).toBeDefined();
+  });
 });
 
 describe('Page Options — états', () => {
@@ -190,7 +254,7 @@ describe('Page Options — états', () => {
     expect(screen.queryByRole('table')).toBeNull();
   });
 
-  it('partial : qualité de groupe dégradée publiée → bandeau + contenu conservé', async () => {
+  it('partial : seul le groupe sélectionné décide du transfert, sans masquer le cadre global', async () => {
     const user = userEvent.setup();
     const chain = makeOptionChain();
     const degraded = {
@@ -209,7 +273,25 @@ describe('Page Options — états', () => {
     );
     const transfer = await screen.findByRole('button', { name: 'Envoyer au Simulateur' });
     expect((transfer as HTMLButtonElement).disabled).toBe(true);
-    expect(screen.getByText(/Transfert bloqué : la chaîne est partielle/)).toBeDefined();
+    expect(
+      screen.getByText(/qualité publiée du groupe sélectionné est PARTIAL, pas VALID/),
+    ).toBeDefined();
+
+    // Le groupe hebdomadaire est explicitement VALID : l'autre groupe reste
+    // PARTIAL et le cadre global le signale toujours, mais ce contrat sain est
+    // transférable sans lui attribuer la dégradation d'un voisin.
+    await user.keyboard('{Escape}');
+    const weekly = screen
+      .getAllByTestId('chain-group')
+      .find((group) => (group.textContent ?? '').includes('SYN-TECH-01W'));
+    await user.click(weekly!);
+    expect(screen.getByText('Données partielles')).toBeDefined();
+    const weeklyTable = screen.getByRole('table', {
+      name: "Chaîne d'options 2026-09-26 SYN-TECH-01W",
+    });
+    await user.click(within(weeklyTable).getByRole('button', { name: /Inspecter CALL strike/ }));
+    const validTransfer = await screen.findByRole('button', { name: 'Envoyer au Simulateur' });
+    expect((validTransfer as HTMLButtonElement).disabled).toBe(false);
   });
 
   it('stale serveur : bandeau « Données périmées » + contenu daté conservé', async () => {

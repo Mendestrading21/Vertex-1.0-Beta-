@@ -316,22 +316,31 @@ export function chainStateOf(
  * Raison qui ferme le transfert Options → Simulateur v1.
  *
  * Le DTO de transfert ne porte ni l'état global, ni `as_of`, ni l'âge. Il
- * n'est donc sûr que pour un snapshot exactement `ready`, dont la population
- * est explicitement une des deux natures que le Simulateur sait conserver.
+ * n'est donc sûr que pour un snapshot courant, dont la population est une des
+ * deux natures que le Simulateur sait conserver et dont le groupe sélectionné
+ * est explicitement `VALID`.
+ *
+ * Une chaîne peut rester globalement `partial` parce qu'un AUTRE groupe est
+ * dégradé. Ce cadre n'interdit pas de transférer un contrat sain appartenant à
+ * un groupe `VALID` : la décision est bornée au groupe réellement inspecté.
+ * De même, une troncature de budget décrit les contrats non publiés ; elle ne
+ * dégrade pas rétroactivement un contrat publié dans un groupe `VALID`.
  */
 export function chainTransferBlockReasonOf(
   state: DataState,
   data: OptionChainResponse,
+  selectedGroupQuality: string | null,
+  queryRefreshing: boolean,
 ): string | null {
   const snapshotCoordinates = `(as_of ${data.as_of ?? 'non publié'}, âge publié ${
     data.age_seconds === null ? 'non publié' : `${data.age_seconds} s`
   })`;
 
-  if (state === 'refreshing') {
+  // `chainStateOf` conserve légitimement un cadre `partial` lorsqu'un groupe
+  // est dégradé, y compris pendant un rafraîchissement TanStack. L'état brut
+  // de la requête ferme donc séparément ce trou : aucun transfert en vol.
+  if (queryRefreshing || state === 'refreshing') {
     return `Transfert bloqué : l'actualisation est en cours ${snapshotCoordinates}. Attendez le prochain snapshot stable.`;
-  }
-  if (state === 'partial') {
-    return `Transfert bloqué : la chaîne est partielle ${snapshotCoordinates}. Le transfert ne porte pas cette dégradation.`;
   }
   if (state === 'stale') {
     return `Transfert bloqué : le snapshot d'options est périmé ${snapshotCoordinates}. Obtenez un snapshot courant avant de l'envoyer au Simulateur.`;
@@ -339,11 +348,17 @@ export function chainTransferBlockReasonOf(
   if (state === 'delayed') {
     return `Transfert bloqué : la population d'options est DELAYED ${snapshotCoordinates}. Le transfert ne porte pas encore l'état et l'horodatage complets ; aucun contexte n'est perdu silencieusement.`;
   }
-  if (state !== 'ready') {
-    return `Transfert bloqué : l'état global ${state} n'est pas ready ${snapshotCoordinates}.`;
+  if (state !== 'ready' && state !== 'partial') {
+    return `Transfert bloqué : l'état global ${state} n'est ni ready ni un cadre partiel avec groupe valide ${snapshotCoordinates}.`;
   }
   if (data.population !== 'REAL' && data.population !== 'SYNTHETIC') {
     return "Transfert bloqué : la population publiée n'est ni REAL ni SYNTHETIC. Le Simulateur v1 ne peut pas conserver honnêtement cette nature.";
+  }
+  if (selectedGroupQuality === null) {
+    return 'Transfert bloqué : aucun groupe publié et sélectionné ne permet de certifier la qualité du contrat.';
+  }
+  if (selectedGroupQuality !== 'VALID') {
+    return `Transfert bloqué : la qualité publiée du groupe sélectionné est ${selectedGroupQuality}, pas VALID.`;
   }
   return null;
 }

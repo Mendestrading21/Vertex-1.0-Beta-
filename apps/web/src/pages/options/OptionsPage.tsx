@@ -64,23 +64,43 @@ function UnderlyingPicker({ current }: { readonly current: string | null }) {
   );
 }
 
+interface InspectedContractSelection {
+  readonly contract: OptionChainContract;
+  readonly groupKey: string;
+  readonly snapshot: OptionChainResponse;
+}
+
 function ChainFrame({
   data,
   state,
+  queryRefreshing,
   underlying,
 }: {
   readonly data: OptionChainResponse;
   readonly state: DataState;
+  readonly queryRefreshing: boolean;
   readonly underlying: string;
 }) {
   const groups = data.expirations;
   const [selectedKey, setSelectedKey] = useState<string>(() =>
     groups.length > 0 && groups[0] !== undefined ? groupKeyOf(groups[0]) : '',
   );
-  const [inspected, setInspected] = useState<OptionChainContract | null>(null);
+  const [inspected, setInspected] = useState<InspectedContractSelection | null>(null);
   const triggerRef = useRef<HTMLElement | null>(null);
 
   const selected = groups.find((group) => groupKeyOf(group) === selectedKey) ?? groups[0] ?? null;
+  // Un contrat inspecté n'est valable que dans le snapshot et le groupe qui
+  // l'ont publié. Un refetch SSE peut remplacer sa quote ou retirer le groupe :
+  // l'ancien objet ne doit alors jamais redevenir transférable avec le nouvel
+  // état global. La comparaison de référence est immédiate au rendu (aucune
+  // fenêtre entre un rendu et un useEffect de nettoyage).
+  const currentInspected =
+    inspected !== null &&
+    inspected.snapshot === data &&
+    selected !== null &&
+    inspected.groupKey === groupKeyOf(selected)
+      ? inspected.contract
+      : null;
   const budget = rowBudgetOf(data);
   const spot = spotViewOf(data);
   const sourceEventIds = sourceEventIdsOf(data);
@@ -106,7 +126,12 @@ function ChainFrame({
         : state === 'delayed'
           ? 'La population publiée est DELAYED : ces observations ne décrivent pas le marché à cet instant.'
           : undefined;
-  const transferBlockReason = chainTransferBlockReasonOf(state, data);
+  const transferBlockReason = chainTransferBlockReasonOf(
+    state,
+    data,
+    selected?.quality ?? null,
+    queryRefreshing,
+  );
 
   function closeInspector(): void {
     setInspected(null);
@@ -211,6 +236,14 @@ function ChainFrame({
                   className="vx-chain-group"
                   data-testid="chain-group"
                   onClick={() => {
+                    // L'inspecteur porte un contrat du groupe courant. Le
+                    // conserver après une bascule ferait juger cet ancien
+                    // contrat avec la qualité du nouveau groupe sélectionné.
+                    // Fermer le panneau maintient cette identité fail-closed.
+                    if (key !== selectedKey) {
+                      setInspected(null);
+                      triggerRef.current = null;
+                    }
                     setSelectedKey(key);
                   }}
                 >
@@ -245,7 +278,16 @@ function ChainFrame({
                 }
               }}
             >
-              <OptionChainTable group={selected} onInspect={setInspected} />
+              <OptionChainTable
+                group={selected}
+                onInspect={(contract) => {
+                  setInspected({
+                    contract,
+                    groupKey: groupKeyOf(selected),
+                    snapshot: data,
+                  });
+                }}
+              />
             </div>
           </>
         ) : (
@@ -269,9 +311,9 @@ function ChainFrame({
         </p>
       </footer>
 
-      {inspected !== null ? (
+      {currentInspected !== null ? (
         <OptionInspector
-          contract={inspected}
+          contract={currentInspected}
           underlying={underlying}
           spot={spot}
           population={data.population}
@@ -311,7 +353,13 @@ function ChainRoute({ underlying }: { readonly underlying: string }) {
               : {})}
         />
       ) : data !== undefined ? (
-        <ChainFrame key={underlying} data={data} state={state} underlying={underlying} />
+        <ChainFrame
+          key={underlying}
+          data={data}
+          state={state}
+          queryRefreshing={queryState === 'refreshing'}
+          underlying={underlying}
+        />
       ) : null}
     </>
   );

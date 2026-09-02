@@ -12,11 +12,13 @@ interface ApiChain {
   expirations: {
     expiration: string;
     trading_class: string;
+    exchange: string;
+    quality: string;
     contracts: {
       strike: string | null;
       right: string | null;
       iv: { status: string };
-      quote: { ask: string | null };
+      quote: { ask: string | null; status: string };
     }[];
   }[];
   spot: { value: string } | null;
@@ -49,18 +51,52 @@ test.describe('Simulateur — parcours complet et refus honnêtes', () => {
     const response = await page.request.get(`/api/v1/options/${UNDERLYING}/chain`);
     expect(response.ok()).toBe(true);
     const chain = (await response.json()) as ApiChain;
-    const group = chain.expirations[0]!;
+    expect(chain.expirations.some((candidate) => candidate.quality !== 'VALID')).toBe(true);
+    const group = chain.expirations.find(
+      (candidate) =>
+        candidate.quality === 'VALID' &&
+        candidate.contracts.some(
+          (entry) =>
+            entry.right === 'CALL' &&
+            entry.strike !== null &&
+            entry.iv.status === 'OK' &&
+            entry.quote.status === 'OK' &&
+            entry.quote.ask !== null,
+        ),
+    );
+    expect(group, 'le seed doit publier un groupe Options VALID transférable').toBeDefined();
+    if (group === undefined) {
+      throw new Error('aucun groupe Options VALID transférable publié par le seed');
+    }
     const resolved = group.contracts.find(
-      (entry) => entry.iv.status === 'OK' && entry.right === 'CALL',
-    )!;
+      (entry) =>
+        entry.right === 'CALL' &&
+        entry.strike !== null &&
+        entry.iv.status === 'OK' &&
+        entry.quote.status === 'OK' &&
+        entry.quote.ask !== null,
+    );
+    expect(resolved, 'le groupe VALID doit contenir un CALL avec IV et ask saines').toBeDefined();
+    if (resolved === undefined) {
+      throw new Error('aucun CALL sain publié dans le groupe Options VALID');
+    }
 
     await page.goto(`/options/${UNDERLYING}`);
+    await expect(page.getByText('Données partielles', { exact: true })).toBeVisible();
+    const groupButton = page.getByTestId('chain-group').filter({
+      hasText: `${group.expiration} · ${group.trading_class} (${group.exchange})`,
+    });
+    await expect(groupButton).toHaveCount(1);
+    await groupButton.click();
+    await expect(groupButton).toHaveAttribute('aria-pressed', 'true');
     await page
       .getByRole('button', {
         name: `Inspecter CALL strike ${resolved.strike} ${group.expiration} ${group.trading_class}`,
       })
       .click();
-    await page.getByRole('button', { name: 'Envoyer au Simulateur' }).click();
+    const transfer = page.getByRole('button', { name: 'Envoyer au Simulateur' });
+    await expect(transfer).toBeEnabled();
+    await transfer.click();
 
     // 2. Simulateur : préremplissage typé visible et éditable.
     await expect(page).toHaveURL(/\/simulator$/);
