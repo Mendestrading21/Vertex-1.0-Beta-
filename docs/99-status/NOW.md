@@ -829,6 +829,23 @@ de la carte sectorielle de Marchés, santé et refus de front. Trois passes de
 capture ; 36/36 à chaque fois. Reste : à 1280, les puces sectorielles
 n'entrent qu'une par ligne dans une tuile de 340 px — lisible, pas élégant.
 
+### Troisième passe, sur demande : des widgets « instrument » (références de widgets financiers)
+
+Une rangée « Instruments suivis » sur Aujourd'hui et Marchés — prix en grand,
+variation 1 j en pastille signée, mini-courbe des clôtures et barres de
+volume, fraîcheur en haut à droite. TOUT est servi : clôture, devise et
+rendement du snapshot Marchés (chaînes verbatim) ; série et fraîcheur du
+dossier d'analyse (`GET /api/v1/analysis/{instrument}`). La liste vient des
+candidats du snapshot Opportunités dont `bars_status` est `OK` — un dossier
+existe pour eux — dans l'ordre publié, bornée à quatre ; sans dossier, la
+rangée le dit. Aucun calcul (géométrie des clôtures publiées, comme la
+treemap ; base pointillée = première clôture de la fenêtre, un repère ; sens
+= signe publié, jamais la pente). Ce que les références montrent et que
+Vertex ne fera pas : boutons d'achat, jauges circulaires, valeurs de
+maquette. Mesuré : `tsc` 0, Biome 0, vitest 44 fichiers / 560 tests / 0
+échec, e2e today + markets 36/36 (deux passes), captures relues aux trois
+viewports.
+
 ### Transmis, non corrigé ici
 
 - `NOW.md` et `docs/05-design/REFONTE_TITANIUM_LEDGER.md` sont modifiés en

@@ -6689,3 +6689,23 @@ label {
     background: var(--vx-surface-1);
   }
 }
+
+/* Vu sur capture : le ticker se coupait au trait d'union devant le badge de
+   fraîcheur. Le ticker ne se coupe jamais ; c'est la tête qui passe à la
+   ligne, et le secteur peut prendre deux lignes. */
+.vx-iw-head {
+  flex-wrap: wrap;
+}
+
+.vx-main .vx-iw-ticker {
+  white-space: nowrap;
+}
+
+.vx-iw-sector {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.vx-iw-fresh {
+  max-width: 100%;
+}
