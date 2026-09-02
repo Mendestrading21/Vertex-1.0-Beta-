@@ -251,19 +251,6 @@ def _naive_iso_or_none(value: Any) -> str | None:
     return value.isoformat()
 
 
-def _naive_or_none(value: Any) -> datetime | None:
-    """L'horodatage du fournisseur quand il arrive SANS fuseau.
-
-    Complement de `_aware_or_none` : celle-ci garde ce qui est certain,
-    celle-la garde ce qui est ambigu en le disant. Rien n'est converti — un
-    naif reste naif, et son interpretation appartient a qui declare le fuseau.
-    """
-    if not isinstance(value, datetime):
-        return None
-    if value.tzinfo is not None and value.tzinfo.utcoffset(value) is not None:
-        return None  # deja sans ambiguite : `_aware_or_none` s'en charge
-    return value
-
 
 def _aware_or_none(value: Any) -> datetime | None:
     if not isinstance(value, datetime):
