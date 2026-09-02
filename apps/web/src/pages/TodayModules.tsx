@@ -13,7 +13,7 @@ import { MODULE_STATE_LABELS, moduleShowsContent, moduleStateOf } from '../compo
 import type { ModuleState } from '../components/moduleState.ts';
 import { formatInTimeZone, statusLabelOf, statusMarkOf } from './calendar/calendarView.ts';
 import type { CalendarEventView } from './calendar/calendarView.ts';
-import { opportunitiesFrameStateOf } from './opportunities/OpportunitiesPage.tsx';
+import { opportunitiesFrameStateOf } from './opportunities/opportunitiesView.ts';
 import { valuationContentOf } from './portfolio/portfolioView.ts';
 import {
   capabilityStatusCensus,

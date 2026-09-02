@@ -5954,3 +5954,26 @@ label {
   flex-wrap: wrap;
   max-width: 50%;
 }
+
+/* Vu sur capture 1280×800 : « CONTRAT SERVEUR ABSENT » dépassait encore une
+   cellule de 170 px, et la table équivalente était coupée au bord droit du
+   cadre. Le badge peut passer sur deux lignes ; la table défile en largeur —
+   elle ne tronque jamais une colonne. */
+.vx-today-grid .vx-absent-badge,
+.vx-markets-grid .vx-absent-badge {
+  white-space: normal;
+  text-align: center;
+}
+
+.vx-markets-grid .vx-markets-table-scroll[tabindex] {
+  overflow-x: auto;
+}
+
+/* Le badge est un enfant flex en `flex: 0 0 auto` : autoriser le retour à la
+   ligne ne suffisait pas, sa largeur restait celle du contenu. Il doit aussi
+   pouvoir rétrécir. */
+.vx-today-grid .vx-absent-badge,
+.vx-markets-grid .vx-absent-badge {
+  min-width: 0;
+  max-width: 100%;
+}

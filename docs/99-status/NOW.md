@@ -738,3 +738,72 @@ Ce qu'il faut retenir pour la session suivante :
 Reste : Portefeuille a 4971 px porte douze modules pour « trois a cinq » au
 contrat — decision d'architecture d'information, pas de style ; V7-V8
 (migration JSX des surfaces restantes) ; V9 (retrait des 15 enumerations).
+
+---
+
+## SESSION 2026-09-02 — LOT-A3 : Aujourd'hui et Marchés composées sur leurs planches (§1, §2)
+
+Consigne utilisateur : « fait ça le plus beau possible et le mieux possible,
+que tous les graphiques s'affichent correctement, utilise des données
+fictives pour montrer le résultat final ». Données fictives = population
+`SYNTHETIC` du pipeline e2e, étiquetée à l'écran ; jamais présentée comme
+réelle.
+
+Branche `lot/a3-aujourdhui-marches-20260902` depuis `main@6e416d8`, PR
+brouillon, aucune fusion.
+
+### Ce qui est livré
+
+- **Aujourd'hui** : la planche §1 en entier — onze modules. Huit SERVIS par
+  des contrats existants, chacun lu par le hook de sa page propriétaire (file
+  d'attention en dominante ; marché global et carte sectorielle depuis
+  `markets_overview` ; catalyseur suivant et calendrier depuis `calendar` ;
+  santé des sources ; opportunités ; portefeuille manuel). Trois ABSENTS avec
+  motif mesuré (`AbsentModule`) : régime (le moteur publie lui-même « no
+  regime assessment exists for this population »), volatilité, risques
+  actifs. L'inspecteur est TOUJOURS occupé : l'item ouvert, sinon la vérité du
+  snapshot (l'ancien rail). La file est bornée (région défilante, `tabIndex`).
+- **Marchés** : la planche §2 en entier — douze modules. Cinq SERVIS par
+  `markets_overview` (carte en dominante, largeur de marché, santé de la
+  couverture, carte sectorielle, écartés et rejets), sept ABSENTS (sessions,
+  indices, volatilité, taux — `CONTRAT SERVEUR ABSENT` : l'adaptateur FRED
+  vit dans `apps/edge-official`, aucune route ni snapshot ne relaie une
+  courbe —, devises, corrélation, structure de volatilité). Sélection d'un
+  instrument depuis une tuile, une puce sectorielle ou une ligne de table →
+  inspecteur avec les chaînes publiées et la LIGNÉE du calcul.
+- Primitives réutilisables : `moduleStateOf()` (état d'un module depuis SON
+  snapshot), `Metric` (bloc de mesure), `SectorGrid` (partagée).
+
+### Ce qui a été vu SUR CAPTURE, pas par un test
+
+1. Cinq colonnes à 1440 donnaient des cellules de **135 px** : l'inspecteur
+   est monté en permanence sur ces pages, la zone de travail fait ~730 px.
+   Quatre colonnes ; cinq seulement à 1600.
+2. Badges d'absence tronqués (« AUCUNE SOURC ») dans une colonne étroite ;
+   bandeau santé et barres de breadth coupés ; horodatage en corps
+   d'affichage cassé caractère par caractère. Tous corrigés, captures
+   régénérées.
+3. Le module « Indices » manquait au DOM : le test de composition (douze
+   témoins `data-module`) l'a dit avant la capture — c'est le test qui a
+   rattrapé celui-là.
+
+### Mesuré sur cette machine (codes relus)
+
+- `tsc --noEmit` : 0 erreur ; `biome check` : 0 violation.
+- `vitest run` : **42 fichiers, 551 tests, 0 échec** (521 sur `main` + 30).
+- `audit_titanium_ledger.py` : `TARGET_GAPS` avec le seul écart `charts` —
+  attendu sur cette branche, issue de `main` où Graphiques n'est pas encore
+  fusionnée (PR #25) ; ce lot n'ajoute ni ne retire aucun écart.
+- Playwright (today, markets, shell-canonical, accessibility, tous viewports) :
+  voir la PR — résultat inscrit à réception.
+
+### Transmis, non corrigé ici
+
+- `NOW.md` et `docs/05-design/REFONTE_TITANIUM_LEDGER.md` sont modifiés en
+  fin de fichier par la PR #25 ET par ce lot : la seconde fusion demandera
+  une résolution triviale (garder les deux sections).
+- Le régime, la volatilité et les risques actifs n'auront une source que par
+  un lot SERVEUR (calcul au registre + snapshot) ; rien à faire côté interface.
+
+Prochaine commande recommandée : revue humaine de la PR LOT-A3, puis
+`EXÉCUTE A4` (Opportunités, Analyse — planches §3, §4).
