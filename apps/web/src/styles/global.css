@@ -5725,8 +5725,8 @@ label {
     'global vol catalyst health'
     'regime attention attention attention'
     'risks attention attention attention'
-    'opp sectors sectors portfolio'
-    'calendar calendar calendar calendar';
+    'opp sectors sectors calendar'
+    'portfolio sectors sectors calendar';
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: var(--vx-space-12);
   align-items: stretch;
@@ -5761,7 +5761,8 @@ label {
       'global global vol catalyst health'
       'regime attention attention attention attention'
       'risks attention attention attention attention'
-      'opp sectors sectors portfolio calendar';
+      'opp sectors sectors sectors calendar'
+      'portfolio sectors sectors sectors calendar';
     grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 }
@@ -5787,7 +5788,8 @@ label {
     'sessions vol indices breadth'
     'map map map map'
     'sectors sectors rates fx'
-    'correlation volstruct health discards';
+    'sectors sectors correlation volstruct'
+    'health health discards discards';
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: var(--vx-space-12);
   align-items: stretch;
@@ -6318,4 +6320,72 @@ label {
   margin-top: var(--vx-space-16);
   padding-top: var(--vx-space-12);
   border-top: 1px solid var(--vx-border-soft);
+}
+
+/* Vu sur capture (deuxième passe) : deux mesures dans une carte de 180 px
+   passent l'une SOUS l'autre, et le filet vertical devenait un retrait
+   incompréhensible. Les mesures s'empilent donc franchement, séparées par
+   un filet horizontal — le même cadre pour toutes les cartes des grilles. */
+.vx-today-grid .vx-metrics-row,
+.vx-markets-grid .vx-metrics-row {
+  flex-direction: column;
+  gap: 0;
+}
+
+.vx-today-grid .vx-metric,
+.vx-markets-grid .vx-metric {
+  flex: 0 0 auto;
+  padding: var(--vx-space-12) 0;
+}
+
+.vx-today-grid .vx-metric:first-child,
+.vx-markets-grid .vx-metric:first-child {
+  padding-top: 0;
+}
+
+.vx-today-grid .vx-metric + .vx-metric,
+.vx-markets-grid .vx-metric + .vx-metric {
+  padding-left: 0;
+  border-top: 1px solid var(--vx-border-soft);
+  border-left: 0;
+}
+
+.vx-today-grid .vx-metrics-row + .vx-metrics-row,
+.vx-markets-grid .vx-metrics-row + .vx-metrics-row {
+  margin-top: 0;
+  padding-top: var(--vx-space-12);
+  border-top: 1px solid var(--vx-border-soft);
+}
+
+/* Le portefeuille manuel : le badge des marques respire avant les mesures. */
+.vx-today-module .vx-badge-synthetic + .vx-metrics-row {
+  margin-top: var(--vx-space-16);
+}
+
+/* Santé des marchés occupe deux colonnes : ses trois mesures se lisent de
+   front, séparées par un filet vertical, au lieu d'une pile qui laissait la
+   moitié de la carte vide. */
+.vx-markets-grid [data-module='market-health'] .vx-metrics-row {
+  flex-direction: row;
+  gap: var(--vx-space-20);
+}
+
+.vx-markets-grid [data-module='market-health'] .vx-metric {
+  flex: 1 1 0;
+  padding: 0;
+}
+
+.vx-markets-grid [data-module='market-health'] .vx-metric + .vx-metric {
+  padding-left: var(--vx-space-20);
+  border-top: 0;
+  border-left: 1px solid var(--vx-border-soft);
+}
+
+/* Vu sur capture 1280 : dans une tuile de 348 px, deux puces manquaient de
+   quatre pixels pour tenir de front. Marges internes des puces resserrées
+   d'un cran ; le texte, lui, ne change pas. */
+.vx-sector-chip,
+.vx-main button.vx-sector-chip {
+  gap: var(--vx-space-4);
+  padding: var(--vx-space-4) 6px;
 }

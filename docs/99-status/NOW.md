@@ -815,6 +815,20 @@ brouillon, aucune fusion.
   raison. Rejouées seules, les deux sont vertes. Règle consignée : jamais deux
   builds web concurrents dans le même worktree.
 
+### Deuxième passe, sur demande : « plus aéré, mieux espacé, mieux cadré »
+
+Appliqué le haut de chaque bande canonique : 16 px entre modules, 20 px entre
+rangées, 20 px d'espace interne, arête haute plus claire sur chaque panneau
+(« titane froid, plus clair au bord supérieur »), têtes et pieds filetés,
+mesures empilées séparées d'un filet (de front quand la carte est large),
+inspecteur à faits filetés, dominante de Marchés recadrée. Rangées
+rééquilibrées d'après les captures : régime et risques empilés à gauche de la
+file (même hauteur), opportunités et portefeuille empilés à côté de la carte
+sectorielle, courbe des taux/corrélation et devises/structure empilées à côté
+de la carte sectorielle de Marchés, santé et refus de front. Trois passes de
+capture ; 36/36 à chaque fois. Reste : à 1280, les puces sectorielles
+n'entrent qu'une par ligne dans une tuile de 340 px — lisible, pas élégant.
+
 ### Transmis, non corrigé ici
 
 - `NOW.md` et `docs/05-design/REFONTE_TITANIUM_LEDGER.md` sont modifiés en
