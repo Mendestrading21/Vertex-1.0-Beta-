@@ -304,8 +304,9 @@ def test_aucun_runbook_n_envoie_le_navigateur_sur_l_adresse_ip() -> None:
     enregistrable de l'origine. Une origine en ADRESSE IP ne peut donc pas
     porter le RP ID `localhost`. Séquence réelle (`AuthPage.tsx:60,64,68`) :
     `/api/v1/auth/register/options` est appelé et répond, PUIS
-    `navigator.credentials.create` échoue dans le navigateur, avant
-    `/register/verify` ; un message générique d'échec apparaît.
+    `navigator.credentials.create` échoue dans le navigateur ; aucun appel à
+    `/api/v1/auth/register/verify` n'est alors envoyé et un message générique
+    d'échec apparaît.
 
     `tools/start_local.sh` imprime la bonne URL et l'explique. Les runbooks,
     eux, envoyaient tous sur `http://127.0.0.1:4173/...`. Cette garde interdit
@@ -385,7 +386,8 @@ def test_aucun_runbook_n_appelle_le_bootstrap_avec_le_python_systeme() -> None:
 #: `routes.py:192-216`) : depuis une origine en adresse IP,
 #: `POST /api/v1/auth/register/options` EST appelé et répond 200 avec
 #: `rp.id = "localhost"` ; c'est `navigator.credentials.create` qui échoue
-#: ensuite, dans le navigateur, avant `/register/verify`. Et un message
+#: ensuite, dans le navigateur ; `/api/v1/auth/register/verify` n'est pas
+#: envoyé. Et un message
 #: générique d'échec APPARAÎT (`AuthPage.tsx:88-93`), qui accuse à tort un
 #: 401 serveur. Dire « avant d'appeler l'API » ou « aucun message de Vertex »
 #: est donc faux, et l'a été dans quatre fichiers.
@@ -418,6 +420,32 @@ def test_aucun_runbook_ne_pretend_que_l_api_n_est_pas_appelee() -> None:
         "ces runbooks décrivent faussement la cérémonie WebAuthn : "
         f"{coupables}. Séquence réelle : `/api/v1/auth/register/options` est "
         "appelé et répond ; `navigator.credentials.create` échoue ensuite dans "
-        "le navigateur, avant `/register/verify` ; un message générique "
-        "d'échec apparaît (AuthPage.tsx)."
+        "le navigateur ; `/api/v1/auth/register/verify` n'est pas envoyé ; "
+        "un message générique d'échec apparaît (AuthPage.tsx)."
     )
+
+
+def test_les_trois_runbooks_ordonnent_la_ceremonie_webauthn() -> None:
+    """Les trois guides nomment les chemins HTTP réellement émis, dans l'ordre."""
+    runbooks = (
+        _REPO_ROOT / "docs" / "08-runbooks" / "FIRST_INSTALL.md",
+        _REPO_ROOT / "docs" / "08-runbooks" / "START_LOCAL.md",
+        _PASSATION,
+    )
+    options_path = "/api/v1/auth/register/options"
+    browser_step = "navigator.credentials.create"
+    verify_path = "/api/v1/auth/register/verify"
+
+    for runbook in runbooks:
+        texte = runbook.read_text(encoding="utf-8")
+        positions = tuple(
+            texte.find(marker) for marker in (options_path, browser_step, verify_path)
+        )
+        assert all(position >= 0 for position in positions), (
+            f"{runbook.name} ne nomme pas la séquence HTTP/WebAuthn complète : "
+            f"{positions}"
+        )
+        assert positions == tuple(sorted(positions)), (
+            f"{runbook.name} n'ordonne pas options → navigateur → verify : "
+            f"{positions}"
+        )

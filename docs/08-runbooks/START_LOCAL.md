@@ -99,11 +99,12 @@ Ce qui se passe réellement depuis `http://127.0.0.1:4173`, tracé dans le code
 `POST /api/v1/auth/register/options` **est appelé et répond** — cette route ne
 lit pas l'origine et renvoie `rp.id = "localhost"` ; puis
 `navigator.credentials.create` **échoue dans le navigateur**, parce que ce RP ID
-ne convient pas à une origine IP ; `/register/verify` n'est donc **jamais**
-appelé. L'API n'a rien refusé. Un message générique d'échec apparaît, qui n'en
-donne pas la cause. Le refus lui-même est une règle du navigateur : aucune ligne
-du dépôt ne le prouve ; ce que le dépôt prouve, c'est l'ordre des appels et que
-la campagne e2e, seule à créer réellement une passkey, passe par `localhost`.
+ne convient pas à une origine IP ; `POST /api/v1/auth/register/verify` n'est
+donc **jamais** envoyé. L'API n'a rien refusé. Un message générique d'échec
+apparaît, qui n'en donne pas la cause. Le refus lui-même est une règle du
+navigateur : aucune ligne du dépôt ne le prouve ; ce que le dépôt prouve, c'est
+l'ordre des appels et que la campagne e2e, seule à créer réellement une
+passkey, passe par `localhost`.
 
 `/system` dit ce que le système sait de lui-même : base, migrations, horloge,
 sauvegarde, et l'état RÉEL de chaque capacité. Une capacité jamais sondée y
@@ -158,7 +159,7 @@ effectivement sondées — et pour elles seules.
 | `PostgreSQL ne répond pas sur 127.0.0.1:5432` | serveur arrêté | le démarrer, puis relancer |
 | `la base contient déjà des données utilisateur` | semis demandé sur une base non vierge | ne rien forcer ; utiliser une autre base |
 | `ressemble à une base de test` | DSN pointant `vertex_test`/`vertex_e2e` | corriger le DSN, ou `VERTEX_ALLOW_TEST_DB=1` en connaissance de cause |
-| message générique d'échec juste après la demande de passkey, alors que `/register/options` a répondu | interface ouverte depuis `127.0.0.1` alors que le RP ID est `localhost` : `navigator.credentials.create` échoue dans le navigateur, avant `/register/verify` | réouvrir sur `http://localhost:4173` |
+| message générique d'échec juste après la demande de passkey, alors que `/api/v1/auth/register/options` a répondu | interface ouverte depuis `127.0.0.1` alors que le RP ID est `localhost` : `navigator.credentials.create` échoue et `/api/v1/auth/register/verify` n'est pas envoyé | réouvrir sur `http://localhost:4173` |
 
 `INCIDENT.md` couvre les pannes en cours de service.
 

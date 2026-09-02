@@ -190,9 +190,9 @@ un fichier du dépôt ; `.env.example` en montre la forme, avec `CHANGE_ME`.
 `localhost` et non `127.0.0.1` : le RP ID WebAuthn est `localhost`
 (`apps/api/src/vertex_api/auth/config.py`). Depuis une adresse IP,
 `/api/v1/auth/register/options` est appelé et répond, puis
-`navigator.credentials.create` échoue dans le navigateur, avant
-`/register/verify` — l'application peut rester liée à `127.0.0.1`. Le détail
-est dans `START_LOCAL.md` §5.
+`navigator.credentials.create` échoue dans le navigateur ; aucun
+`POST /api/v1/auth/register/verify` n'est alors envoyé. L'application peut
+rester liée à `127.0.0.1`. Le détail est dans `START_LOCAL.md` §5.
 
 Le reste — prérequis, création de la base, semis SYNTHETIC, tableau de
 dépannage, ingestion IBKR continue — est dans `START_LOCAL.md` et
