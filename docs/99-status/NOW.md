@@ -293,7 +293,11 @@ demarrage_local:
      AUTH_REQUIRED ; interface → 200 ; depuis l'adresse non-loopback de la
      machine, les deux ports REFUSENT la connexion"
   semis: "48 enveloppes, 46 quotes, 12 chaînes, 4 barres, 21 événements,
-     490 messages traités, 10 familles de snapshots publiées — tout SYNTHETIC"
+     402 messages traités, 11 familles de snapshots publiées — tout SYNTHETIC.
+     Mesuré le 2026-09-02 sur ba749c1, base neuve. Le `490 messages / 10
+     familles` précédent était juste sur un autre arbre : le compteur d'outbox
+     suit le nombre de snapshots publiés, qui a changé. Les six autres
+     compteurs sont identiques"
   refus_verifies: "aucun DSN → code 2 ; base contenant déjà un journal → refus
      nommant la table et le compte ; base au nom de test → refus"
 mesures_reelles:
@@ -302,12 +306,15 @@ mesures_reelles:
   accessibilite: "168 cas de test verts, 14 chemins × 3 viewports (Chromium)"
   navigateurs: "Chromium, Firefox et WebKit VERTS — 665 passed, 2 skipped"
 checks_locaux:
-  - "pytest 3763 passed, 4 skipped, 0 failed — mesuré par
-     `uv run --no-sync python -m pytest` sur bdf9f306. Les 4 sautés exigent
-     PostgreSQL réel (bootstrap local). Le 3559 précédent était le DIXIÈME
-     chiffre faux de ce registre : il avait été mesuré, mais sur l'arbre
-     d'AVANT la PR #8, qui a ajouté 204 tests. Un chiffre juste attaché au
-     mauvais SHA est faux quand même — d'où la commande et le SHA ci-dessus"
+  - "pytest 3953 passed, 4 skipped, 0 failed sur 3957 collectés — mesuré par
+     `bash tools/run_checks.sh` le 2026-09-02 sur ba749c1 + les gardes de
+     runbook. Les 4 sautés exigent PostgreSQL réel (bootstrap local). Le total
+     est RECOUPÉ : `pytest --collect-only -v` déclare 3957, et le comptage des
+     caractères de progression donne 3953 + 4. `addopts = -q` cumulé au `-q`
+     du script SUPPRIME la ligne de synthèse — un total lu dans ce journal
+     serait donc lu nulle part. Le 3763 précédent était juste sur bdf9f306, et
+     le 3559 avant lui sur l'arbre d'avant la PR #8 : un chiffre mesuré sans
+     son SHA redevient faux tout seul"
   - "intégration PostgreSQL : 96 (persistance) + 32 (worker, dont 15 chaos)
      + 65 (api) — exécution SÉRIELLE obligatoire, base partagée. TOUS VERTS"
   - "vitest 386 passed ; tsc 0 erreur ; biome 0 violation (125 fichiers).
