@@ -963,7 +963,7 @@ body {
 /* ------------------------------------------------------------------ */
 
 .vx-page-header {
-  margin-bottom: var(--vx-space-32);
+  margin-bottom: var(--vx-space-16);
   padding-left: var(--vx-space-4);
 }
 
@@ -1021,15 +1021,22 @@ body {
 /* Bandeau population SYNTHETIC                                        */
 /* ------------------------------------------------------------------ */
 
+/* Le bandeau de population reste OBLIGATOIRE et impossible à manquer : la
+   bordure ambre pleine largeur et le libellé en capitales ne bougent pas.
+   `financial-safety.md` l'exige — « aucun mock, fixture, placeholder ou
+   résultat synthétique ne peut être montré comme réel ». Seule sa HAUTEUR
+   cède : il annonçait la nature de la page avec plus d'emphase que la page
+   elle-même. */
 .vx-synthetic-banner {
   display: flex;
   align-items: baseline;
   gap: var(--vx-space-12);
-  margin: 0 0 var(--vx-space-16);
-  padding: var(--vx-space-8) var(--vx-space-16);
+  margin: 0 0 var(--vx-space-12);
+  padding: var(--vx-space-4) var(--vx-space-12);
   border: 1px solid var(--vx-warning);
   border-radius: var(--vx-radius-6);
   color: var(--vx-text-secondary);
+  font-size: var(--vx-font-size-meta);
 }
 
 .vx-synthetic-banner strong {
@@ -1417,17 +1424,21 @@ body {
   padding: 0;
   overflow: hidden;
   border: 1px solid var(--vx-border-soft);
-  border-radius: var(--vx-radius-14);
+  border-radius: var(--vx-radius-10);
   background: var(--vx-surface-1);
   list-style: none;
 }
 
+/* V8 — la file d'attention est la DOMINANTE d'Aujourd'hui : c'est elle qui
+   doit se parcourir d'un regard. Chaque élément prenait ~100 px pour deux
+   lignes de texte, badges rejetés à la ligne. L'espace interne descend à la
+   bande canonique et les badges tiennent sur une seule rangée. */
 .vx-queue-item {
   display: flex;
   align-items: start;
   justify-content: space-between;
-  gap: var(--vx-space-16);
-  padding: var(--vx-space-16);
+  gap: var(--vx-space-12);
+  padding: var(--vx-space-8) var(--vx-space-12);
   background: transparent;
   border: 0;
   border-bottom: 1px solid var(--vx-border-soft);
@@ -1475,13 +1486,17 @@ body {
   font-size: var(--vx-font-size-meta);
 }
 
+/* Les badges sur UNE rangée : `nowrap` plutôt que `wrap`, et la largeur
+   maximale passe de 48 % à 58 % pour qu'ils y tiennent. Un badge relégué à la
+   ligne double la hauteur de l'élément sans rien ajouter à la lecture. */
 .vx-queue-item-meta {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  align-items: center;
   justify-content: end;
-  gap: var(--vx-space-8);
+  gap: var(--vx-space-4);
   flex-shrink: 0;
-  max-width: 48%;
+  max-width: 58%;
 }
 
 /* ------------------------------------------------------------------ */
@@ -4356,11 +4371,17 @@ body {
   --vx-page-ledger: 'LEDGER 12 · CONTROL';
 }
 
+/* V8 — L'EN-TÊTE REND SA PLACE AU TRAVAIL.
+   Il réservait 92 px de hauteur minimale, plus 20 px de fond et 24 px de
+   marge : 136 px avant le premier module, sur chacune des onze destinations.
+   Le contrat canonique veut « une zone de travail dense » et un titre de page
+   « clair, jamais spectaculaire ». Le titre, la question et le code d'espace
+   restent intacts ; seule l'enflure part. */
 .vx-page-header {
   position: relative;
-  min-height: 92px;
-  margin-bottom: var(--vx-space-24);
-  padding: 0 160px var(--vx-space-20) 0;
+  min-height: 64px;
+  margin-bottom: var(--vx-space-16);
+  padding: 0 160px var(--vx-space-12) 0;
   border-bottom: 1px solid var(--vx-border);
 }
 
@@ -4389,7 +4410,7 @@ body {
 
 .vx-page-header h1 {
   color: var(--vx-text);
-  font-size: 32px;
+  font-size: 26px;
   font-weight: 620;
   letter-spacing: -0.035em;
 }
