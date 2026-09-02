@@ -69,8 +69,13 @@ export VERTEX_DATABASE_URL='postgresql+psycopg://vertex:<mot-de-passe>@127.0.0.1
 bash tools/start_local.sh
 ```
 
-Puis ouvrir `http://127.0.0.1:4173/system` — cette page d'abord. Le détail,
-les refus fail-closed et le tableau de dépannage sont dans `START_LOCAL.md`.
+Puis ouvrir `http://localhost:4173/system` — cette page d'abord, et
+`localhost` et non `127.0.0.1` : depuis une adresse IP,
+`POST /api/v1/auth/register/options` répond, puis
+`navigator.credentials.create` échoue dans le navigateur ; aucun
+`POST /api/v1/auth/register/verify` n'est alors envoyé. L'application peut
+rester liée à `127.0.0.1`. Le détail, les refus fail-closed et le tableau de
+dépannage sont dans `START_LOCAL.md`.
 
 Tout ce qui s'affiche alors porte `population = SYNTHETIC`. Brancher TWS et
 les droits IBKR réels appartient au LOT-24 et exige la machine cible.

@@ -6,20 +6,28 @@ Document de passation. La session suivante le lit **en entier** avant d'agir.
 
 ## 1. Où en est le dépôt
 
-`main` porte la refonte visuelle Titanium Ledger complète (PR #14 fusionnée,
-CI 7/7 verte) plus les adaptateurs de sources officielles (PR #15, #16).
+**Base R2 actuelle : `main@ecc50c1`** (squash humain de la PR #20, après
+#17). `main` porte la refonte visuelle Titanium Ledger (PR #14 et #18) et les
+adaptateurs de sources officielles (PR #15, #16).
 
-**Branche de travail :** `claude/snapshots-confirmation-20260901`.
-**En attente de fusion :** PR #18 (V11–V12, uniquement du CSS).
+**Branche de travail :** `lot/r2-pr19-demarrage-20260902`, base `main@ecc50c1`,
+PR #21 en brouillon. Son SHA initial audité avant la présente correction est
+`6d05603` ; la tête courante est celle que porte la PR, jamais un SHA écrit ici.
 
-Preuves mesurées sur cette machine, codes de sortie relus :
+Preuves **datées** — mesurées le 2026-09-02 sur la branche d'origine (#19,
+`e8ff5e6`/`ba749c1`), codes de sortie relus. Elles ne décrivent pas `main` :
 
 | Contrôle | Résultat |
 |---|---|
-| `python -m pytest -q` | 3 927+ tests, 0 échec |
-| `pnpm exec vitest run` | 486 tests, 0 échec |
-| `pnpm exec playwright test` | 459 déclarés, 459 passés |
 | `bash tools/run_checks.sh` | `== TOUT VERT ==`, code 0 |
+| suite Python | 3 953 passés, 4 sautés sur 3 957 collectés, 0 échec |
+| `mypy --strict` | 143 fichiers, 0 erreur |
+| `pnpm exec vitest run` | 486 tests, 0 échec — **non rejoué ici**, aucun fichier web modifié depuis |
+| `pnpm exec playwright test` | 459 déclarés, 459 passés — **non rejoué ici**, même raison |
+
+Le « 3 927+ » qui figurait ici était une approximation avec un `+` : une
+approximation n'est pas une mesure. Le chiffre ci-dessus est recoupé par deux
+méthodes indépendantes (voir `docs/99-status/NOW.md`).
 
 ---
 
@@ -159,32 +167,55 @@ l'utilisateur**, et nulle part ailleurs.
 
 ## 8. Démarrer et regarder le logiciel
 
-> **Aucun mot de passe n'est écrit dans ce document.** La porte de détection de
-> secrets a refusé la première rédaction, à juste titre : un secret de
-> développement écrit dans Git reste un secret dans Git. La chaîne de connexion
-> vit dans le `.env` local, ignoré par Git ; `.env.example` n'en porte que des
-> valeurs fictives.
+**L'autorité unique du démarrage est `docs/08-runbooks/START_LOCAL.md`.** Ce
+paragraphe ne la duplique pas : une version antérieure l'avait fait, en plus
+court et en faux — elle invoquait le Python système que `tools/start_local.sh`
+refuse, ne déclarait aucun DSN (donc sortait en code 2), ne nommait jamais le
+lanceur, et attribuait la chaîne de connexion à un fichier `.env` qui n'existe
+pas et qu'aucun code Python de ce dépôt ne lit. Un second chemin d'autorité,
+exactement ce que `.claude/rules/architecture.md` interdit.
+
+Trois lignes suffisent :
 
 ```bash
-# 1. Base de données — premier démarrage ou après un redémarrage du conteneur
-service postgresql start
-python tools/bootstrap_local.py     # migrations Alembic réelles + semis du worker
-
-# 2. Contrôles complets — la dernière porte avant tout push
-bash tools/run_checks.sh            # attendu : == TOUT VERT ==, code 0
-
-# 3. Interface
-cd apps/web
-pnpm exec vitest run                # 486 tests
-# `VERTEX_TEST_DATABASE_URL` vient de l'environnement, jamais d'une commande
-# copiée dans un document. La campagne écrit ses captures pleine page des douze
-# destinations dans `e2e-artifacts/*-desktop-1600x1000.png`.
-pnpm exec playwright test           # 459 tests
+export VERTEX_DATABASE_URL='postgresql+psycopg://vertex:<mot-de-passe>@127.0.0.1:5432/vertex'
+bash tools/start_local.sh          # migrations, API, worker, build, interface
+# puis ouvrir http://localhost:4173/system
 ```
 
-`tools/bootstrap_local.py` est la voie officielle : il ne réimplémente rien, il
-appelle les mêmes migrations et le même semis que la campagne E2E, dont le
-propriétaire unique est `vertex_worker.demo_seed`.
+`<mot-de-passe>` reste un placeholder. **Aucune valeur n'entre dans Git** —
+`.claude/rules/security.md`. Le DSN vit dans l'environnement du shell, pas dans
+un fichier du dépôt ; `.env.example` en montre la forme, avec `CHANGE_ME`.
+
+`localhost` et non `127.0.0.1` : le RP ID WebAuthn est `localhost`
+(`apps/api/src/vertex_api/auth/config.py`). Depuis une adresse IP,
+`/api/v1/auth/register/options` est appelé et répond, puis
+`navigator.credentials.create` échoue dans le navigateur ; aucun
+`POST /api/v1/auth/register/verify` n'est alors envoyé. L'application peut
+rester liée à `127.0.0.1`. Le détail est dans `START_LOCAL.md` §5.
+
+Le reste — prérequis, création de la base, semis SYNTHETIC, tableau de
+dépannage, ingestion IBKR continue — est dans `START_LOCAL.md` et
+`FIRST_INSTALL.md`.
+
+### Preuves relues sur cette machine le 2026-09-02, sur `ba749c1`
+
+| Étape | Attendu | Mesuré |
+|---|---|---|
+| `bootstrap_local.py` sur base vide | code 0 | code 0, `migrations: à jour` |
+| relance | code 0 (idempotent) | code 0 |
+| `--with-demo-data` | code 0, `SYNTHETIC` | code 0, 11 familles de snapshots |
+| relance du semis | refus code 2 | code 2, `ledger_transactions (5 ligne(s))` |
+| sans `VERTEX_DATABASE_URL` | refus code 2 | code 2 |
+| `pytest tools/tests/test_bootstrap_local.py` | aucun test sauté | 9 passés, 0 sauté |
+
+### Contrôles complets
+
+```bash
+bash tools/run_checks.sh            # dernière porte avant tout push
+cd apps/web && pnpm exec vitest run
+pnpm exec playwright test           # écrit e2e-artifacts/*-desktop-1600x1000.png
+```
 
 Les captures pleine page des douze destinations sont écrites dans
 `apps/web/e2e-artifacts/*-desktop-1600x1000.png` à chaque campagne.
