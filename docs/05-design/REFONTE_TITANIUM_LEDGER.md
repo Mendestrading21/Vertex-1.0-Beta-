@@ -121,6 +121,24 @@ viewports desktop.
 | **V4** pages bornées | **fait** (`82888cc`) | Analyse 4 280 → 2 966 px ; Calendrier 6 928 px borné ; Opportunités 5 425 → 2 073 px |
 | **V5** dominante par rang | **fait** (`dde9a52`) | exactement 1 dominante par page chargée, mesurée à l'écran |
 | **V6** filigrane de registre | **fait** (`3341922`) | 104 → 68 px, contraste 0,10 → 0,045 |
+| **V7** chaîne d'options | **fait** (`87bfec5`) | chasse fixe, colonnes alignées, IV/Delta bornés au rendu |
+| **V8** en-tête, bandeau, file | **fait** (`dab7add`) | Aujourd'hui 2 096 → 1 696 px |
+| **V9** Catalyseurs | **fait** (`57bac9d`) | 3 146 → 2 370 px, dominante déplacée sur la timeline |
+
+### Hauteurs de page mesurées, 1600×1000, après les neuf lots
+
+| Page | px | | Page | px |
+|---|---:|---|---|---:|
+| Sources & Rapports | 1 032 | | Catalyseurs | 2 370 |
+| Options | 1 452 | | Marchés | 2 555 |
+| Calendrier | 1 577 | | Analyse | 2 925 |
+| Aujourd'hui | 1 696 | | **Portefeuille** | **4 912** |
+| Simulateur | 1 997 | | | |
+| Opportunités | 2 031 | | | |
+
+Portefeuille est la seule exception, et ce n'est **pas** du style : douze
+modules pour « trois à cinq » au contrat, depuis l'absorption de Performance
+(LOT-08). Décision d'architecture d'information — §5.
 
 ### Ce que ces lots ont trouvé, et qu'aucun plan n'avait prévu
 
