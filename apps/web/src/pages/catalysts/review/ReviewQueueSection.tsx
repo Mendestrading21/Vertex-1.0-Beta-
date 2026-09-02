@@ -132,7 +132,7 @@ export function ReviewQueueSection() {
             {frame.view.asOf !== null ? <time dateTime={frame.view.asOf}>{frame.view.asOf}</time> : '—'}.
           </p>
 
-          <section className="vx-fu-queue" data-rank="dominant" aria-labelledby="vx-fu-queue-title">
+          <section className="vx-fu-queue" aria-labelledby="vx-fu-queue-title">
             <h3 id="vx-fu-queue-title">
               File de revues — {frame.view.due.length} thèse(s) à revoir
             </h3>

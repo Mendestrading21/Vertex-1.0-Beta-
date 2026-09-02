@@ -5166,6 +5166,22 @@ textarea:hover {
   }
 }
 
+/* La timeline des catalyseurs : bornée comme l'agenda du Calendrier, et pour
+   la même raison — 3 146 px de page mesurés, dont l'essentiel en événements
+   déroulés. `tabIndex` et `role` sont posés DANS LE MÊME commit que la borne :
+   une région défilante inatteignable au clavier est une violation axe
+   « serious » sur un seuil déclaré à zéro. */
+.vx-cat-list-scroll[tabindex] {
+  max-height: 560px;
+  overflow-y: auto;
+  padding-right: var(--vx-space-8);
+}
+
+.vx-cat-list-scroll[tabindex]:focus-visible {
+  outline: 2px solid var(--vx-signal);
+  outline-offset: 2px;
+}
+
 /* ================================================================== */
 /* TABLES LONGUES — bornées, avec en-tête collant                      */
 /* ================================================================== */
