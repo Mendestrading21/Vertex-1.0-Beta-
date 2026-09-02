@@ -188,3 +188,65 @@ propriétaire unique est `vertex_worker.demo_seed`.
 
 Les captures pleine page des douze destinations sont écrites dans
 `apps/web/e2e-artifacts/*-desktop-1600x1000.png` à chaque campagne.
+
+---
+
+## MISE EN DIRECT 2026-09-02 — ce qui tourne, et ce qui a été mesuré
+
+### Quatre collecteurs, quatre identifiants clients
+
+| Collecteur | Client | Univers | Rythme |
+|---|---|---|---|
+| `tools/run_edge_history.py` (barres quotidiennes) | 72 | `univers-large.json`, 161 | **~1 instrument/min**, pacing IBKR — compter ~2 h sur 161 |
+| `tools/run_edge_news.py` (dépêches) | 79 | idem | tous les fournisseurs habilités |
+| `tools/run_edge_discovery.py` (scanner) | 73 | `scans.json`, 4 scans | quelques secondes |
+| `tools/run_edge_ibkr.py` (temps réel, DÉMON) | 71 | **`univers-temps-reel.json`, 8 indices** | continu |
+
+Les quatre tournent **ensemble** ; un identifiant partagé les déconnecterait
+l'un l'autre.
+
+### Deux réglages ajoutés à `~/.vertex/env.live`
+
+- **`VERTEX_IBKR_PORT=7496`** — 7496 = Live, 7497 = Paper. Mesuré : 7496
+  ouvert, 7497 fermé. Le défaut des collecteurs est 7497 : sans cette ligne,
+  aucun ne se connecte. C'est un point d'arrêt de la spécification, levé
+  explicitement par l'utilisateur. Vertex ne passe **aucun** ordre.
+- **`VERTEX_AUTH_OPEN_LOCAL=1`** — voir plus haut.
+
+### L'univers temps réel : 8 indices, aucun choisi par le code
+
+Le collecteur temps réel borne son budget à **24 instruments**, volontairement
+(« le budget de messages IBKR est volontairement borné »). L'univers large en
+a 161 : refus. `univers-temps-reel.json` est la **réunion** de `indices.json`
+et `indices-monde.json`, deux fichiers écrits par l'utilisateur — aucun titre
+n'a été choisi par le code. Élargir ce périmètre est une décision
+d'utilisateur.
+
+### Habilitation temps réel, MESURÉE
+
+| Indice | Temps réel |
+|---|---|
+| SPX, RUT, VIX, SMI, DAX | **oui** |
+| NDX, ESTX50, N225 | **non** — `Error 354` / `10168`, différé disponible |
+
+Le collecteur ne bascule **pas** sur le différé de lui-même :
+`--allow-delayed-fallback` est un point d'arrêt. Ces trois indices restent
+donc alimentés par les barres quotidiennes, pas par le flux.
+
+### Deux défauts trouvés PAR la collecte, pas par les tests
+
+1. **`time_unzoned` en `datetime` naïf faisait planter toute la collecte de
+   dépêches** (`CanonicalizationError`, zéro dépêche depuis la modification
+   de la veille). Corrigé en chaîne ISO — commit `732f7e5`. Le canonicaliseur
+   n'a pas été assoupli : c'est le champ qui violait sa règle.
+2. **L'API redemandait un code.** Le processus avait été relancé à 08:25 par
+   une autre session **sans** `VERTEX_AUTH_OPEN_LOCAL` dans son environnement.
+   Le code était intact. **Règle : toujours `set -a && . ~/.vertex/env.live
+   && set +a` avant de lancer quoi que ce soit.** `tools/start_local.sh` ne
+   le fait pas à votre place.
+
+### Après un pull, TOUT relancer
+
+Un pull de 28 commits a laissé tourner une API, un worker et un build web
+d'avant le pull. Les pages tombaient à 450 caractères (squelette). Après un
+pull : `vite build`, puis relancer worker, API et interface.
