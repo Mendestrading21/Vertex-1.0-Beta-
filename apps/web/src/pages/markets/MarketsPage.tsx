@@ -49,6 +49,12 @@ export function frameStateOf(
   if (data.state === 'empty') {
     return 'empty';
   }
+  if (data.state === 'stale') {
+    return 'stale';
+  }
+  if (data.population === 'DELAYED') {
+    return 'delayed';
+  }
   if (data.data_state === 'partial') {
     return 'partial';
   }
@@ -92,7 +98,11 @@ function MarketsFrame({ data, state }: { readonly data: MarketsOverview; readonl
     state === 'partial'
       ? `Couverture incomplète publiée par le worker : ${coverage?.covered ?? '?'} instruments couverts sur ${coverage?.expected ?? '?'} attendus, ${coverage?.discarded ?? '?'} écartés.`
       : state === 'stale'
-        ? 'Toutes les observations couvertes sont périmées (statut serveur STALE).'
+        ? data.state === 'stale'
+          ? `Snapshot publié périmé par le relais : ${data.reason ?? 'raison non publiée'} ; âge publié ${data.age_seconds ?? '—'} s.`
+          : 'Toutes les observations couvertes sont périmées (data_state STALE publié par le worker).'
+        : state === 'delayed'
+          ? 'Population DELAYED publiée par le worker : les observations sont conservées, mais ne décrivent pas le marché à cet instant.'
         : undefined;
 
   return (
@@ -188,7 +198,7 @@ function MarketsFrame({ data, state }: { readonly data: MarketsOverview; readonl
         </p>
 
         {/* Table accessible équivalente (mêmes valeurs, tri clavier). */}
-        <MarketsTable entries={visibleEntries} />
+        <MarketsTable entries={visibleEntries} population={data.population} />
 
         {/* Module complémentaire : breadth en barres linéaires. */}
         {data.breadth !== null ? <BreadthPanel breadth={data.breadth} /> : null}

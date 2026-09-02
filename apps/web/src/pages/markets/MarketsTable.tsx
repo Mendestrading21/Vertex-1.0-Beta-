@@ -37,6 +37,54 @@ const COLUMNS: readonly Column[] = [
   { key: 'quality', label: 'Qualité', numeric: false },
 ];
 
+const CSV_HEADER = [
+  'ticker',
+  'sector',
+  'trading_day',
+  'last_close',
+  'currency',
+  'return_1d',
+  'return_1d_pct',
+  'weight_in_sector',
+  'weight_global',
+  'quality',
+  'synthetic',
+] as const;
+const CSV_FORMULA_PREFIXES: ReadonlySet<string> = new Set(['=', '+', '-', '@']);
+
+/**
+ * Cellule CSV au délimiteur `;` : neutralisation tableur identique à
+ * `vertex_api.portfolio.neutralize_csv_cell`, puis échappement des
+ * délimiteurs, guillemets et retours ligne.
+ */
+export function marketsCsvCell(value: string): string {
+  const safe = CSV_FORMULA_PREFIXES.has(value.charAt(0)) ? `'${value}` : value;
+  return /[;"\r\n]/u.test(safe) ? `"${safe.replaceAll('"', '""')}"` : safe;
+}
+
+function marketsCsvRow(cells: readonly string[]): string {
+  return cells.map(marketsCsvCell).join(';');
+}
+
+export function renderMarketsCsv(entries: readonly FlatTicker[]): string {
+  const lines = entries.map((entry) =>
+    marketsCsvRow([
+      entry.ticker.ticker,
+      entry.ticker.sector,
+      entry.ticker.trading_day,
+      entry.ticker.last_close,
+      entry.ticker.currency ?? '',
+      entry.ticker.return_1d,
+      entry.ticker.return_1d_pct,
+      entry.ticker.weight_in_sector,
+      entry.ticker.weight_global,
+      entry.ticker.quality,
+      entry.ticker.synthetic ? 'SYNTHETIC' : '',
+    ]),
+  );
+  return `${marketsCsvRow(CSV_HEADER)}\n${lines.join('\n')}\n`;
+}
+
 function rawValue(entry: FlatTicker, key: ColumnKey): string {
   switch (key) {
     case 'ticker':
@@ -62,9 +110,18 @@ function signSymbol(group: FlatTicker['group']): string {
 
 export interface MarketsTableProps {
   readonly entries: readonly FlatTicker[];
+  readonly population: string | null;
 }
 
-export function MarketsTable({ entries }: MarketsTableProps) {
+/**
+ * Nom d'export dérivé de la population publiée, sans présumer de la nature
+ * des cas absents, mixtes ou non synthétiques.
+ */
+function marketsCsvFilename(population: string | null): string {
+  return population === 'SYNTHETIC' ? 'marches-synthetiques.csv' : 'marches.csv';
+}
+
+export function MarketsTable({ entries, population }: MarketsTableProps) {
   const [sortKey, setSortKey] = useState<ColumnKey>('ticker');
   const [descending, setDescending] = useState(false);
 
@@ -92,37 +149,9 @@ export function MarketsTable({ entries }: MarketsTableProps) {
   }
 
   function exportCsv(): void {
-    const header = [
-      'ticker',
-      'sector',
-      'trading_day',
-      'last_close',
-      'currency',
-      'return_1d',
-      'return_1d_pct',
-      'weight_in_sector',
-      'weight_global',
-      'quality',
-      'synthetic',
-    ].join(';');
-    const lines = sorted.map((entry) =>
-      [
-        entry.ticker.ticker,
-        entry.ticker.sector,
-        entry.ticker.trading_day,
-        entry.ticker.last_close,
-        entry.ticker.currency ?? '',
-        entry.ticker.return_1d,
-        entry.ticker.return_1d_pct,
-        entry.ticker.weight_in_sector,
-        entry.ticker.weight_global,
-        entry.ticker.quality,
-        entry.ticker.synthetic ? 'SYNTHETIC' : '',
-      ].join(';'),
-    );
     saveTextAsFile(
-      `${header}\n${lines.join('\n')}\n`,
-      'marches-synthetiques.csv',
+      renderMarketsCsv(sorted),
+      marketsCsvFilename(population),
       'text/csv;charset=utf-8',
     );
   }

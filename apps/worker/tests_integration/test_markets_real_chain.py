@@ -138,14 +138,15 @@ def test_sous_le_profil_SYNTHETIQUE_la_meme_barre_n_affiche_rien(
 ) -> None:
     """La porte deny-by-default vaut aussi pour la page Marchés.
 
-    On mesure la COUVERTURE, pas l'étiquette : `population` est un aveu sur la
-    fenêtre d'entrée et dira `REAL` puisque l'entrée était bien réelle — même
-    si rien n'en est publié. Ce qui prouve la porte, c'est qu'aucune cotation
-    n'est reçue et que le refus est compté.
+    La population est dérivée des observations admises, jamais de la seule
+    présence d'une entrée : puisque cette barre IBKR est refusée, elle reste
+    `EMPTY`. La couverture prouve en plus qu'aucune cotation n'est reçue et
+    que le refus est compté.
     """
     snapshot = faire_tourner(session_factory, synthetic_profile())
 
     assert snapshot is not None
+    assert snapshot.content["population"] == "EMPTY"
     couverture = snapshot.content["coverage"]
     assert couverture["received"] == 0, "une source non déclarée a été reçue"
     assert couverture["covered"] == 0

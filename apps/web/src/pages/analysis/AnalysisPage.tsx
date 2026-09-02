@@ -316,6 +316,7 @@ function AnalysisFrame({
   const scenarios = scenariosViewOf(data);
   const asOf = data.as_of;
   const currency = bars?.currency ?? '—';
+  const population = data.population ?? 'NON_DÉCLARÉE';
 
   const detail =
     state === 'partial'
@@ -323,12 +324,16 @@ function AnalysisFrame({
         ? 'Dossier publié sans série de barres exploitable.'
         : `Série publiée avec dégradation : qualité ${bars.quality ?? '—'}, ${bars.discardedCount} barre(s) écartée(s) par le worker.`
       : state === 'stale'
-        ? 'Le worker a publié la série comme non fraîche (fresh = false).'
+        ? data.state === 'stale'
+          ? `Dossier publié périmé par le relais : ${data.reason ?? 'raison non publiée'} ; âge publié ${data.age_seconds ?? '—'} s.`
+          : `Le worker a publié la série comme non fraîche (fresh = false) ; âge publié ${data.age_seconds ?? '—'} s.`
+        : state === 'delayed'
+          ? 'Population DELAYED publiée par le worker : le dossier est conservé, mais ne décrit pas le marché à cet instant.'
         : undefined;
 
   const description =
     bars !== null && bars.status === 'OK'
-      ? `${bars.count ?? bars.bars.length} barres journalières synthétiques de ${bars.firstTradingDay ?? '?'} à ${bars.lastTradingDay ?? '?'}, dernière clôture ${bars.lastClose ?? '?'} ${currency}.`
+      ? `${bars.count ?? bars.bars.length} barres journalières publiées de ${bars.firstTradingDay ?? '?'} à ${bars.lastTradingDay ?? '?'}, dernière clôture ${bars.lastClose ?? '?'} ${currency}.`
       : 'Aucune série de barres exploitable publiée.';
 
   return (
@@ -351,13 +356,13 @@ function AnalysisFrame({
         </div>
         <div>
           <dt>Timezone</dt>
-          <dd>UTC (stockage) — jours de bourse synthétiques affichés tels que publiés</dd>
+          <dd>UTC (stockage) — jours de bourse affichés tels que publiés</dd>
         </div>
         <div>
-          <dt>Source</dt>
+          <dt>Référence d’observation publiée</dt>
           <dd>
-            <code>synthetic-dev</code> via snapshot worker v{data.snapshot_version ?? '—'} (moteur{' '}
-            <code>{data.engine_version ?? '—'}</code>)
+            <code>{bars?.sourceEventId ?? '—'}</code> via snapshot worker v
+            {data.snapshot_version ?? '—'} (moteur <code>{data.engine_version ?? '—'}</code>)
           </dd>
         </div>
         <div>
@@ -412,8 +417,9 @@ function AnalysisFrame({
           (Apache-2.0, version épinglée), chargé uniquement sur cette route.
         </p>
         <p>
-          Limites : population SYNTHÉTIQUE de développement ; les gates non évaluables restent
-          BLOCK <code>UNEVALUABLE</code> (fail-closed) et le statut publié est affiché tel quel.
+          Limites : population <code>{population}</code> déclarée par le worker ; les gates non
+          évaluables restent BLOCK <code>UNEVALUABLE</code> (fail-closed) et le statut publié est
+          affiché tel quel.
         </p>
       </footer>
     </section>
