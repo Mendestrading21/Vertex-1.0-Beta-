@@ -279,3 +279,173 @@ def test_le_semis_publie_une_population_synthetic(base_jetable: str) -> None:
         f"ces familles de snapshot ne sont pas publiées : {sorted(manquantes)} — "
         "les pages correspondantes seraient vides"
     )
+
+
+# ── 3. Les runbooks disent-ils ce que le démarreur fait RÉELLEMENT ? ─────────
+#
+# Ces trois gardes existent parce que la documentation et le démarreur avaient
+# DIVERGÉ sans qu'aucune mesure ne le voie. Le script avait raison ; les
+# runbooks avaient tort ; et c'est le runbook que l'utilisateur lit.
+
+_RUNBOOKS = sorted((_REPO_ROOT / "docs" / "08-runbooks").glob("*.md"))
+_PASSATION = _REPO_ROOT / "docs" / "08-runbooks" / "REPRENDRE_ICI.md"
+
+#: Une URL d'interface À OUVRIR : schéma, IP de boucle, port, puis un chemin de
+#: page. Le motif exige le chemin, ce qui distingue « ouvrir cette page » de
+#: « le service ÉCOUTE sur 127.0.0.1:4173 » — la seconde est correcte et doit
+#: rester telle quelle.
+_URL_A_OUVRIR = re.compile(r"http://127\.0\.0\.1:\d+/(?!api/)\S*")
+
+
+def test_aucun_runbook_n_envoie_le_navigateur_sur_l_adresse_ip() -> None:
+    """`auth/config.py` fixe le RP ID WebAuthn à `localhost`.
+
+    La spécification WebAuthn exige que le RP ID soit un suffixe de domaine
+    enregistrable de l'origine. Une origine en ADRESSE IP ne peut donc pas
+    porter le RP ID `localhost`. Séquence réelle (`AuthPage.tsx:60,64,68`) :
+    `/api/v1/auth/register/options` est appelé et répond, PUIS
+    `navigator.credentials.create` échoue dans le navigateur ; aucun appel à
+    `/api/v1/auth/register/verify` n'est alors envoyé et un message générique
+    d'échec apparaît.
+
+    `tools/start_local.sh` imprime la bonne URL et l'explique. Les runbooks,
+    eux, envoyaient tous sur `http://127.0.0.1:4173/...`. Cette garde interdit
+    la rechute, et l'ancre sur l'hôte que la campagne e2e — la seule qui crée
+    RÉELLEMENT une passkey, via CDP — utilise pour le navigateur.
+    """
+    assert _RUNBOOKS, "aucun runbook trouvé : le balayage est devenu aveugle"
+
+    # L'ancre : la campagne qui exerce la passkey vise `localhost` pour le
+    # navigateur et l'IP pour l'API. Les runbooks doivent dire la même chose.
+    config_e2e = (_REPO_ROOT / "apps" / "web" / "playwright.config.ts").read_text(
+        encoding="utf-8"
+    )
+    assert "WEB_BASE_URL = 'http://localhost:" in config_e2e, (
+        "la campagne e2e ne vise plus `localhost` pour le navigateur : cette "
+        "garde et les runbooks reposent sur cet ancrage, le revérifier"
+    )
+
+    coupables: list[str] = []
+    for runbook in _RUNBOOKS:
+        for ligne_no, ligne in enumerate(
+            runbook.read_text(encoding="utf-8").splitlines(), start=1
+        ):
+            for url in _URL_A_OUVRIR.findall(ligne):
+                coupables.append(f"{runbook.name}:{ligne_no} → {url}")
+    assert coupables == [], (
+        "ces runbooks envoient le navigateur sur l'adresse IP, où la création "
+        "de passkey est refusée par le navigateur lui-même (RP ID `localhost`, "
+        f"apps/api/src/vertex_api/auth/config.py) : {coupables}. "
+        "Utiliser `http://localhost:<port>/...`. L'adresse d'ÉCOUTE, elle, "
+        "reste 127.0.0.1 et n'est pas concernée."
+    )
+
+
+def test_la_passation_nomme_le_demarreur_au_lieu_de_le_reinventer() -> None:
+    """Une passation qui ne nomme pas le lanceur ne permet pas de REGARDER.
+
+    `REPRENDRE_ICI.md` avait décrit une séquence de démarrage à lui, plus
+    courte et fausse, sans jamais citer `tools/start_local.sh` — un second
+    chemin d'autorité, que `.claude/rules/architecture.md` interdit.
+    """
+    texte = _PASSATION.read_text(encoding="utf-8")
+    assert "tools/start_local.sh" in texte, (
+        "REPRENDRE_ICI.md ne nomme pas `tools/start_local.sh` : la session "
+        "suivante ne saurait pas comment lancer et regarder le logiciel"
+    )
+    assert "START_LOCAL.md" in texte, (
+        "REPRENDRE_ICI.md doit DÉLÉGUER le démarrage à START_LOCAL.md plutôt "
+        "que de le dupliquer"
+    )
+
+
+def test_aucun_runbook_n_appelle_le_bootstrap_avec_le_python_systeme() -> None:
+    """`start_local.sh` REFUSE le Python système ; les runbooks doivent suivre.
+
+    Un `python tools/bootstrap_local.py` documenté échoue ou, pire, réussit
+    sur un interpréteur non verrouillé — deux jeux de dépendances pour un
+    seul produit.
+    """
+    motif = re.compile(r"(?<![\w/])python3?\s+tools/(bootstrap_local\.py|start_local)")
+    coupables: list[str] = []
+    for runbook in _RUNBOOKS:
+        for ligne_no, ligne in enumerate(
+            runbook.read_text(encoding="utf-8").splitlines(), start=1
+        ):
+            if motif.search(ligne):
+                coupables.append(f"{runbook.name}:{ligne_no} → {ligne.strip()}")
+    assert coupables == [], (
+        "ces runbooks invoquent le bootstrap par un Python non verrouillé, que "
+        f"`tools/start_local.sh` refuse : {coupables}. Utiliser "
+        "`.venv/bin/python`."
+    )
+
+
+#: Formulations FAUSSES sur la cérémonie WebAuthn, interdites dans les runbooks.
+#: Tracé dans le code (`AuthPage.tsx:60,64,68`, `client.ts:287-298`,
+#: `routes.py:192-216`) : depuis une origine en adresse IP,
+#: `POST /api/v1/auth/register/options` EST appelé et répond 200 avec
+#: `rp.id = "localhost"` ; c'est `navigator.credentials.create` qui échoue
+#: ensuite, dans le navigateur ; `/api/v1/auth/register/verify` n'est pas
+#: envoyé. Et un message
+#: générique d'échec APPARAÎT (`AuthPage.tsx:88-93`), qui accuse à tort un
+#: 401 serveur. Dire « avant d'appeler l'API » ou « aucun message de Vertex »
+#: est donc faux, et l'a été dans quatre fichiers.
+_FORMULATIONS_FAUSSES_WEBAUTHN = (
+    re.compile(r"avant\s+(?:même\s+)?d['’]appeler\s+l['’]API", re.IGNORECASE),
+    re.compile(r"aucun\s+appel\s+(?:à\s+l['’])?API", re.IGNORECASE),
+    re.compile(r"aucun\s+message\s+(?:d['’]erreur\s+)?de\s+Vertex", re.IGNORECASE),
+)
+
+
+def test_aucun_runbook_ne_pretend_que_l_api_n_est_pas_appelee() -> None:
+    """La séquence réelle : `/register/options` répond, PUIS `create` échoue.
+
+    Une version antérieure de ces runbooks affirmait que le navigateur refusait
+    la passkey « avant d'appeler l'API » et qu'« aucun message de Vertex »
+    n'apparaissait. Les deux sont faux (voir `_FORMULATIONS_FAUSSES_WEBAUTHN`).
+    Test DOCUMENTAIRE : il lit des fichiers Markdown, il ne pilote aucun
+    navigateur et ne prétend pas reproduire le refus WebAuthn.
+    """
+    assert _RUNBOOKS, "aucun runbook trouvé : le balayage est devenu aveugle"
+    coupables: list[str] = []
+    for runbook in _RUNBOOKS:
+        for ligne_no, ligne in enumerate(
+            runbook.read_text(encoding="utf-8").splitlines(), start=1
+        ):
+            for motif in _FORMULATIONS_FAUSSES_WEBAUTHN:
+                for trouve in motif.findall(ligne):
+                    coupables.append(f"{runbook.name}:{ligne_no} → « {trouve} »")
+    assert coupables == [], (
+        "ces runbooks décrivent faussement la cérémonie WebAuthn : "
+        f"{coupables}. Séquence réelle : `/api/v1/auth/register/options` est "
+        "appelé et répond ; `navigator.credentials.create` échoue ensuite dans "
+        "le navigateur ; `/api/v1/auth/register/verify` n'est pas envoyé ; "
+        "un message générique d'échec apparaît (AuthPage.tsx)."
+    )
+
+
+def test_les_trois_runbooks_ordonnent_la_ceremonie_webauthn() -> None:
+    """Les trois guides nomment les chemins HTTP réellement émis, dans l'ordre."""
+    runbooks = (
+        _REPO_ROOT / "docs" / "08-runbooks" / "FIRST_INSTALL.md",
+        _REPO_ROOT / "docs" / "08-runbooks" / "START_LOCAL.md",
+        _PASSATION,
+    )
+    options_path = "/api/v1/auth/register/options"
+    browser_step = "navigator.credentials.create"
+    verify_path = "/api/v1/auth/register/verify"
+
+    for runbook in runbooks:
+        texte = runbook.read_text(encoding="utf-8")
+        positions = tuple(
+            texte.find(marker) for marker in (options_path, browser_step, verify_path)
+        )
+        assert all(position >= 0 for position in positions), (
+            f"{runbook.name} ne nomme pas la séquence HTTP/WebAuthn complète : "
+            f"{positions}"
+        )
+        assert positions == tuple(sorted(positions)), (
+            f"{runbook.name} n'ordonne pas options → navigateur → verify : "
+            f"{positions}"
+        )
