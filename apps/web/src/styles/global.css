@@ -5360,3 +5360,597 @@ label {
   z-index: 1;
   background: var(--vx-surface-2);
 }
+
+/* ================================================================== */
+/* LOT-A3 — COMPOSITION DES PLANCHES §1 (Aujourd'hui) ET §2 (Marchés)  */
+/* ================================================================== */
+
+/* POURQUOI. Les deux pages étaient un seul objet déroulé — une file de
+   1 800 px, une table de 3 000 px. Les planches composent onze et douze
+   modules autour d'une dominante, avec l'inspecteur à droite. La grille est
+   nommée par ZONES : le placement d'un module ne dépend ni de son ordre dans
+   le DOM (qui reste l'ordre de lecture) ni d'une liste de sélecteurs. */
+
+/* ---- Bloc de mesure ------------------------------------------------ */
+
+.vx-metric {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 120px;
+  flex-direction: column;
+  gap: var(--vx-space-4);
+}
+
+.vx-metric-label {
+  color: var(--vx-titanium);
+  font-family: var(--vx-font-mono);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.vx-metric-value {
+  color: var(--vx-silver);
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-metric);
+  font-variant-numeric: tabular-nums lining-nums;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+
+.vx-metric-value.vx-cell-absent {
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-body);
+  font-weight: 500;
+}
+
+.vx-metric-unit {
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+.vx-metric-note {
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+}
+
+/* Le sens financier : couleur ET signe dans la chaîne servie. */
+.vx-metric[data-sign='up'] .vx-metric-value {
+  color: var(--vx-positive);
+}
+
+.vx-metric[data-sign='down'] .vx-metric-value {
+  color: var(--vx-negative);
+}
+
+.vx-metrics-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--vx-space-12) var(--vx-space-16);
+}
+
+.vx-metrics-row + .vx-metrics-row {
+  margin-top: var(--vx-space-12);
+}
+
+.vx-module-sentence {
+  margin: var(--vx-space-8) 0 0;
+  color: var(--vx-text-secondary);
+  font-size: var(--vx-font-size-meta);
+  line-height: 1.45;
+}
+
+.vx-module-sentence:first-child {
+  margin-top: 0;
+}
+
+/* L'état d'un module, à sa place : libellé stable, code serveur en chasse
+   fixe. « Ne jamais convertir UNKNOWN en neutre rassurant. » */
+.vx-module-state {
+  margin: 0;
+  padding: var(--vx-space-8) var(--vx-space-12);
+  border: 1px dashed var(--vx-border);
+  border-radius: var(--vx-radius-6);
+  color: var(--vx-text-secondary);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-module-state[data-state='stale'],
+.vx-module-state[data-state='delayed'] {
+  border-color: var(--vx-warning);
+  color: var(--vx-warning);
+}
+
+.vx-module-state[data-state='error'],
+.vx-module-state[data-state='offline'],
+.vx-module-state[data-state='closed'] {
+  border-color: var(--vx-negative);
+  color: var(--vx-negative);
+}
+
+.vx-module-state + * {
+  margin-top: var(--vx-space-12);
+}
+
+/* ---- Recensement des capacités ------------------------------------- */
+
+.vx-status-census {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--vx-space-8);
+  margin: var(--vx-space-12) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.vx-status-census li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--vx-space-4);
+}
+
+.vx-status-census-count {
+  color: var(--vx-silver);
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-meta);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- Agenda compact ------------------------------------------------- */
+
+.vx-agenda-mini {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.vx-agenda-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--vx-space-4) var(--vx-space-12);
+  align-items: baseline;
+  padding: var(--vx-space-8) 0;
+  border-bottom: 1px solid var(--vx-border-soft);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-agenda-line:last-child {
+  border-bottom: 0;
+}
+
+.vx-agenda-time {
+  color: var(--vx-silver);
+  font-family: var(--vx-font-mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.vx-agenda-tz {
+  color: var(--vx-text-muted);
+}
+
+.vx-agenda-ticker code {
+  font-family: var(--vx-font-mono);
+}
+
+.vx-agenda-title {
+  flex: 1 1 100%;
+  min-width: 0;
+  color: var(--vx-text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.vx-agenda-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--vx-space-8);
+  color: var(--vx-text-muted);
+  white-space: nowrap;
+}
+
+.vx-mini-list {
+  margin: 0;
+  padding: 0 0 0 var(--vx-space-20);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-mini-list li + li {
+  margin-top: var(--vx-space-4);
+}
+
+.vx-mini-list-meta {
+  color: var(--vx-text-muted);
+}
+
+/* ---- Carte sectorielle ---------------------------------------------- */
+
+.vx-sector-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: var(--vx-space-8);
+}
+
+.vx-sector {
+  min-width: 0;
+  padding: var(--vx-space-8);
+  border: 1px solid var(--vx-border-soft);
+  border-radius: var(--vx-radius-6);
+  background: var(--vx-surface-0);
+  box-shadow: var(--vx-shadow-inset);
+}
+
+.vx-sector-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--vx-space-8);
+  margin-bottom: var(--vx-space-8);
+}
+
+.vx-sector-head h3 {
+  margin: 0;
+  overflow: hidden;
+  color: var(--vx-text-secondary);
+  font-size: var(--vx-font-size-meta);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vx-sector-count,
+.vx-sector-none,
+.vx-sector-empty {
+  margin: 0;
+  color: var(--vx-text-muted);
+  font-family: var(--vx-font-mono);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.vx-sector-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--vx-space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* La puce est la même en libellé et en bouton — et le bouton reprend ses
+   propriétés à la règle générique des boutons (V12, spécificité 0,2,1) par
+   un sélecteur d'un cran plus précis, jamais par `!important`. */
+.vx-sector-chip,
+.vx-main button.vx-sector-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--vx-space-4);
+  min-height: 0;
+  padding: 2px var(--vx-space-8);
+  border: 1px solid var(--vx-border-soft);
+  border-radius: var(--vx-radius-6);
+  background: var(--vx-surface-1);
+  color: var(--vx-text);
+  font-family: var(--vx-font-mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.5;
+}
+
+.vx-main button.vx-sector-chip:hover:not(:disabled) {
+  border-color: var(--vx-border);
+  background: var(--vx-surface-2);
+}
+
+/* Sélection : l'ambre, réservé à l'intention ; un glyphe le double. */
+.vx-main button.vx-sector-chip[aria-pressed='true'] {
+  border-color: var(--vx-signal);
+  background: var(--vx-signal-faint);
+  color: var(--vx-text);
+}
+
+.vx-main button.vx-sector-chip[aria-pressed='true']::before {
+  content: '▸ ';
+  color: var(--vx-signal);
+}
+
+.vx-sector-chip code {
+  font-family: inherit;
+}
+
+.vx-sector-chips li[data-sign='up'] .vx-sector-return {
+  color: var(--vx-positive);
+}
+
+.vx-sector-chips li[data-sign='down'] .vx-sector-return {
+  color: var(--vx-negative);
+}
+
+.vx-sector-chips li[data-sign='flat'] .vx-sector-return {
+  color: var(--vx-text-muted);
+}
+
+/* ---- Inspecteur par défaut d'Aujourd'hui ---------------------------- */
+
+.vx-snapshot-rail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--vx-space-16);
+}
+
+.vx-snapshot-block-title {
+  margin: 0 0 var(--vx-space-8);
+  color: var(--vx-titanium);
+  font-family: var(--vx-font-mono);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.vx-snapshot-rail-note {
+  margin: 0 0 var(--vx-space-8);
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+}
+
+/* ---- La file d'attention, bornée ----------------------------------- */
+
+.vx-queue-scroll[tabindex] {
+  max-height: 460px;
+  overflow-y: auto;
+}
+
+.vx-queue-scroll[tabindex]:focus-visible {
+  outline: 2px solid var(--vx-signal);
+  outline-offset: 2px;
+}
+
+/* ---- Grille d'Aujourd'hui (planche §1) ------------------------------ */
+
+/* L'inspecteur est TOUJOURS monté sur cette page : la zone de travail fait
+   ~730 px à 1440 et ~800 px à 1280. Quatre colonnes ; cinq seulement à 1600,
+   où elles font 200 px — mesuré, pas supposé (cinq colonnes à 1440 donnaient
+   des cellules de 135 px où plus rien ne tenait). Le régime tient la colonne
+   gauche à côté de la file, comme sur la planche. */
+.vx-today-grid {
+  display: grid;
+  grid-template-areas:
+    'global vol catalyst health'
+    'regime attention attention attention'
+    'opp sectors sectors portfolio'
+    'risks sectors sectors portfolio'
+    'calendar calendar calendar calendar';
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--vx-space-12);
+  align-items: stretch;
+  margin-top: var(--vx-space-12);
+}
+
+.vx-today-cell {
+  min-width: 0;
+}
+
+.vx-today-cell > .vx-card,
+.vx-today-cell > .vx-absent {
+  height: 100%;
+  box-sizing: border-box;
+}
+
+.vx-today-grid [data-module='regime'] { grid-area: regime; }
+.vx-today-grid [data-module='global-market'] { grid-area: global; }
+.vx-today-grid [data-module='volatility'] { grid-area: vol; }
+.vx-today-grid [data-module='next-catalyst'] { grid-area: catalyst; }
+.vx-today-grid [data-module='source-health'] { grid-area: health; }
+.vx-today-grid [data-module='attention'] { grid-area: attention; }
+.vx-today-grid [data-module='opportunities'] { grid-area: opp; }
+.vx-today-grid [data-module='active-risks'] { grid-area: risks; }
+.vx-today-grid [data-module='sectors'] { grid-area: sectors; }
+.vx-today-grid [data-module='manual-portfolio'] { grid-area: portfolio; }
+.vx-today-grid [data-module='calendar'] { grid-area: calendar; }
+
+@media (min-width: 1600px) {
+  .vx-today-grid {
+    grid-template-areas:
+      'regime global vol catalyst health'
+      'regime attention attention attention attention'
+      'opp sectors sectors portfolio calendar'
+      'risks sectors sectors portfolio calendar';
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+/* Le module absent, dans une grille : même respiration qu'une carte quiet. */
+.vx-today-grid .vx-absent,
+.vx-markets-grid .vx-absent {
+  gap: var(--vx-space-8);
+  padding: var(--vx-space-12);
+  background: var(--vx-surface-0);
+}
+
+.vx-today-grid .vx-absent-head h3,
+.vx-markets-grid .vx-absent-head h3 {
+  font-size: var(--vx-font-size-body);
+}
+
+/* ---- Grille de Marchés (planche §2) --------------------------------- */
+
+.vx-markets-grid {
+  display: grid;
+  grid-template-areas:
+    'sessions vol indices breadth'
+    'map map map map'
+    'sectors sectors rates fx'
+    'correlation volstruct health discards';
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--vx-space-12);
+  align-items: stretch;
+  margin-top: var(--vx-space-12);
+}
+
+.vx-markets-grid [data-module='sessions'] { grid-area: sessions; }
+.vx-markets-grid [data-module='volatility'] { grid-area: vol; }
+.vx-markets-grid [data-module='breadth'] { grid-area: breadth; }
+.vx-markets-grid [data-module='market-health'] { grid-area: health; }
+.vx-markets-grid [data-module='indices'] { grid-area: indices; }
+.vx-markets-grid [data-module='market-map'] { grid-area: map; }
+.vx-markets-grid [data-module='sectors'] { grid-area: sectors; }
+.vx-markets-grid [data-module='rates-curve'] { grid-area: rates; }
+.vx-markets-grid [data-module='fx'] { grid-area: fx; }
+.vx-markets-grid [data-module='correlation'] { grid-area: correlation; }
+.vx-markets-grid [data-module='vol-structure'] { grid-area: volstruct; }
+.vx-markets-grid [data-module='discards'] { grid-area: discards; }
+
+.vx-markets-grid > [data-module] {
+  min-width: 0;
+}
+
+.vx-markets-grid > [data-module] > .vx-card,
+.vx-markets-grid > [data-module] > .vx-absent {
+  height: 100%;
+  box-sizing: border-box;
+}
+
+/* La carte des marchés garde une hauteur FIXE de rendu : « préserver un
+   espace de rendu fixe pour éviter les décalages ». */
+.vx-markets-grid .vx-marketmap-canvas {
+  height: 360px;
+}
+
+/* La table équivalente reste sous la carte, bornée comme les autres tables
+   longues (règle commune plus haut) — elle défile, elle ne tronque pas. */
+.vx-markets-picked {
+  color: var(--vx-signal);
+}
+
+.vx-main button.vx-markets-pick {
+  min-height: 0;
+  padding: 0 var(--vx-space-4);
+  border-color: transparent;
+  background: transparent;
+  color: var(--vx-text);
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-meta);
+  text-align: left;
+}
+
+.vx-main button.vx-markets-pick:hover:not(:disabled) {
+  border-color: var(--vx-border-soft);
+  background: var(--vx-surface-2);
+}
+
+.vx-main button.vx-markets-pick[aria-pressed='true'] {
+  border-color: var(--vx-signal);
+  background: var(--vx-signal-faint);
+}
+
+.vx-main button.vx-markets-pick[aria-pressed='true']::before {
+  content: '▸ ';
+  color: var(--vx-signal);
+}
+
+/* Le rappel de calcul dans l'inspecteur : lignée, jamais un chiffre neuf. */
+.vx-inspector-lineage {
+  margin: var(--vx-space-12) 0 0;
+  color: var(--vx-text-muted);
+  font-family: var(--vx-font-mono);
+  font-size: 10px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+/* ---- Corrections vues SUR CAPTURE (1440×900), pas par un test ------- */
+
+/* Le badge d'absence débordait de sa tête dans une colonne de 200 px et
+   « AUCUNE SOURCE » était tronqué : il passe à la ligne. */
+.vx-today-grid .vx-absent-head,
+.vx-markets-grid .vx-absent-head {
+  flex-wrap: wrap;
+  gap: var(--vx-space-4) var(--vx-space-12);
+}
+
+/* Une valeur longue (horodatage) ne se lit pas en corps d'affichage. */
+.vx-metric[data-size='compact'] .vx-metric-value {
+  font-size: var(--vx-font-size-title);
+  letter-spacing: -0.01em;
+}
+
+/* Le bandeau santé, dans une carte de 200 px : une colonne, sans cadre
+   dans le cadre, et des valeurs qui passent à la ligne au lieu d'être
+   coupées. */
+.vx-today-module .vx-health-strip {
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--vx-space-8);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.vx-today-module .vx-health-strip-item {
+  flex-wrap: wrap;
+  gap: var(--vx-space-4) var(--vx-space-8);
+  padding: var(--vx-space-8);
+}
+
+.vx-today-module .vx-health-strip strong,
+.vx-today-module .vx-health-strip-label {
+  white-space: normal;
+}
+
+/* Les barres de breadth dans une carte de 200 px : libellé, barre et
+   chiffre s'empilent — le chiffre « 91,7 % (seuil 80,0 %) » était coupé. */
+.vx-markets-grid .vx-breadth {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.vx-markets-grid .vx-breadth-row {
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--vx-space-4);
+}
+
+.vx-markets-grid .vx-breadth-figure {
+  white-space: normal;
+}
+
+/* Sur Marchés la table équivalente vit SOUS une carte de 360 px : une borne
+   plus courte, elle défile toujours, ne tronque jamais. */
+.vx-markets-grid .vx-markets-table-scroll[tabindex] {
+  max-height: 320px;
+}
+
+/* La carte sectorielle occupe deux colonnes : deux tuiles de front. */
+.vx-today-grid .vx-sector-grid,
+.vx-markets-grid .vx-sector-grid {
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+}
+
+/* Vu sur capture, deuxième passe : le recensement des statuts empilait six
+   pilules dans une carte de 175 px, et le badge de fraîcheur du worker se
+   cassait en colonnes. Chips compactes, et retour à la ligne autorisé. */
+.vx-status-census .vx-status-badge {
+  padding: 0 var(--vx-space-8);
+  font-size: 10px;
+}
+
+.vx-today-module .vx-freshness {
+  flex-wrap: wrap;
+  padding: var(--vx-space-4) var(--vx-space-8);
+}
+
+/* La file, dans une dominante de ~560 px : ses badges passent à la ligne au
+   lieu de se compresser en colonnes de deux lettres. */
+.vx-today-primary .vx-queue-item-meta {
+  flex-wrap: wrap;
+  max-width: 50%;
+}

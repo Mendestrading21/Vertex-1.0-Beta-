@@ -3,7 +3,12 @@ import { useMemo, useState } from 'react';
 import { saveTextAsFile } from '../../app/downloadFile.ts';
 
 import type { FlatTicker } from '../../components/markets/marketsView.ts';
-import { GROUP_LABELS_FR, frDecimal, geometryNumber } from '../../components/markets/marketsView.ts';
+import {
+  GROUP_LABELS_FR,
+  frDecimal,
+  geometryNumber,
+  signSymbolOf,
+} from '../../components/markets/marketsView.ts';
 
 /**
  * Table accessible ÉQUIVALENTE de la MarketMap : mêmes valeurs exactes
@@ -104,13 +109,12 @@ function rawValue(entry: FlatTicker, key: ColumnKey): string {
   }
 }
 
-function signSymbol(group: FlatTicker['group']): string {
-  return group === 'up' ? '▲' : group === 'down' ? '▼' : '=';
-}
-
 export interface MarketsTableProps {
   readonly entries: readonly FlatTicker[];
   readonly population: string | null;
+  /** LOT-A3 : instrument ouvert dans l'inspecteur, et son sélecteur. */
+  readonly selected?: string | null;
+  readonly onSelect?: (ticker: string) => void;
 }
 
 /**
@@ -121,7 +125,7 @@ function marketsCsvFilename(population: string | null): string {
   return population === 'SYNTHETIC' ? 'marches-synthetiques.csv' : 'marches.csv';
 }
 
-export function MarketsTable({ entries, population }: MarketsTableProps) {
+export function MarketsTable({ entries, population, selected = null, onSelect }: MarketsTableProps) {
   const [sortKey, setSortKey] = useState<ColumnKey>('ticker');
   const [descending, setDescending] = useState(false);
 
@@ -163,7 +167,18 @@ export function MarketsTable({ entries, population }: MarketsTableProps) {
           Exporter (CSV)
         </button>
       </div>
-      <div className="vx-markets-table-scroll">
+      {/*
+        LOT-A3 — bornée comme les autres tables longues (règle commune de
+        `global.css`) : 22 lignes déroulées faisaient 1 100 px. `tabIndex` dans
+        le même geste que la borne : une région défilante doit être atteignable
+        au clavier (axe `scrollable-region-focusable`, seuil zéro).
+      */}
+      <div
+        className="vx-markets-table-scroll"
+        tabIndex={0}
+        role="region"
+        aria-label="Table équivalente, région défilante"
+      >
         <table className="vx-markets-table" aria-label="Table équivalente de la carte des marchés">
           <thead>
             <tr>
@@ -195,7 +210,21 @@ export function MarketsTable({ entries, population }: MarketsTableProps) {
             {sorted.map((entry) => (
               <tr key={entry.ticker.ticker} data-group={entry.group}>
                 <th scope="row">
-                  <code>{entry.ticker.ticker}</code>{' '}
+                  {onSelect === undefined ? (
+                    <code>{entry.ticker.ticker}</code>
+                  ) : (
+                    <button
+                      type="button"
+                      className="vx-markets-pick"
+                      aria-pressed={selected === entry.ticker.ticker}
+                      aria-label={`Inspecter ${entry.ticker.ticker}`}
+                      onClick={() => {
+                        onSelect(entry.ticker.ticker);
+                      }}
+                    >
+                      <code>{entry.ticker.ticker}</code>
+                    </button>
+                  )}{' '}
                   {entry.ticker.synthetic ? (
                     <span className="vx-badge vx-badge-synthetic">SYNTHÉTIQUE</span>
                   ) : null}
@@ -206,7 +235,7 @@ export function MarketsTable({ entries, population }: MarketsTableProps) {
                   {entry.ticker.currency !== null ? ` ${entry.ticker.currency}` : ''}
                 </td>
                 <td className="vx-num" data-sign={entry.group}>
-                  <span aria-hidden="true">{signSymbol(entry.group)}</span>{' '}
+                  <span aria-hidden="true">{signSymbolOf(entry.group)}</span>{' '}
                   {frDecimal(entry.ticker.return_1d_pct)} %{' '}
                   <span className="vx-visually-hidden">({GROUP_LABELS_FR[entry.group]})</span>
                 </td>

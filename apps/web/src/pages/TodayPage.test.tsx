@@ -1,15 +1,20 @@
 import { screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { ABSENCE_REASONS } from '../components/AbsentModule.tsx';
 import {
   makeAttentionItem,
   makeAttentionSnapshot,
+  makeCalendarResponse,
   makeCapabilities,
   makeEmptyAttentionSnapshot,
   makeMarketsOverview,
+  makeOpportunities,
+  makePortfolioResponse,
 } from '../test/fixtures.ts';
 import { renderApp } from '../test/render.tsx';
 import { attentionFrameStateOf } from './TodayPage.tsx';
+import { TODAY_MODULES, absentTodayModules } from './todayView.ts';
 
 const fetchMock = vi.fn<typeof fetch>();
 
@@ -28,6 +33,15 @@ function mockToday(attention: unknown): void {
     }
     if (url.includes('/system/capabilities')) {
       return Promise.resolve(jsonResponse(makeCapabilities()));
+    }
+    if (url.includes('/calendar')) {
+      return Promise.resolve(jsonResponse(makeCalendarResponse()));
+    }
+    if (url.includes('/opportunities')) {
+      return Promise.resolve(jsonResponse(makeOpportunities()));
+    }
+    if (url.includes('/portfolio')) {
+      return Promise.resolve(jsonResponse(makePortfolioResponse()));
     }
     return Promise.resolve(jsonResponse(makeMarketsOverview()));
   });
@@ -120,5 +134,109 @@ describe("Page Aujourd'hui — états dégradés du snapshot", () => {
     expect(boundary.textContent).toContain('DONNÉES RETARDÉES');
     expect(boundary.textContent).toContain('90 s');
     expect(within(boundary).getByText(delayedItem.title)).toBeDefined();
+  });
+});
+
+describe("Page Aujourd'hui — la planche §1 est complète, servie ou déclarée (LOT-A3)", () => {
+  it('rend les ONZE modules de la planche, chacun à sa place', async () => {
+    mockToday(makeAttentionSnapshot());
+    renderApp('/today');
+    await screen.findByRole('heading', { level: 2, name: "File d'attention" });
+    for (const module of TODAY_MODULES) {
+      expect(
+        document.querySelector(`[data-module="${module.id}"]`),
+        `module « ${module.title} » (${module.id}) absent du DOM`,
+      ).not.toBeNull();
+    }
+  });
+
+  it('une seule dominante : la file d’attention', async () => {
+    mockToday(makeAttentionSnapshot());
+    renderApp('/today');
+    await screen.findByRole('heading', { level: 2, name: "File d'attention" });
+    const dominantes = document.querySelectorAll('.vx-main [data-rank="dominant"]');
+    expect(dominantes).toHaveLength(1);
+    expect(dominantes[0]?.closest('[data-module]')?.getAttribute('data-module')).toBe('attention');
+  });
+
+  it('les trois modules absents portent leur motif fermé, sans chiffre dans le corps', async () => {
+    mockToday(makeAttentionSnapshot());
+    renderApp('/today');
+    await screen.findByRole('heading', { level: 2, name: "File d'attention" });
+    for (const module of absentTodayModules()) {
+      const zone = within(document.querySelector(`[data-module="${module.id}"]`) as HTMLElement);
+      expect(zone.getByRole('heading', { level: 3, name: module.title })).toBeDefined();
+      expect(zone.getByText(ABSENCE_REASONS[module.status.reason].label)).toBeDefined();
+      expect(zone.getByTestId('absent-body').textContent).not.toMatch(/\d/);
+    }
+  });
+
+  it('les modules servis relaient des chaînes serveur : breadth, catalyseur, capacités, opportunités, portefeuille, agenda', async () => {
+    mockToday(makeAttentionSnapshot());
+    renderApp('/today');
+    await screen.findByRole('heading', { level: 2, name: "File d'attention" });
+    const cellule = (id: string) => within(document.querySelector(`[data-module="${id}"]`) as HTMLElement);
+    // Marché global : breadth « 50.0 » servie → « 50,0 % », et la conclusion verbatim.
+    expect(await cellule('global-market').findByText('50,0')).toBeDefined();
+    expect(cellule('global-market').getByTestId('today-market-conclusion').textContent).toContain(
+      'breadth 50.0 %',
+    );
+    // Catalyseur suivant : le PREMIER de l'agenda publié, sans retri.
+    expect(await cellule('next-catalyst').findByText('SYN-ENER-01')).toBeDefined();
+    // Santé des sources : base, worker, et le recensement des statuts.
+    expect(await cellule('source-health').findByText('Disponible')).toBeDefined();
+    expect(cellule('source-health').getByText('AVAILABLE')).toBeDefined();
+    // Opportunités : comptes publiés, aucun candidat qualifié DIT, pas caché.
+    expect(await cellule('opportunities').findByText('24')).toBeDefined();
+    expect(cellule('opportunities').getByRole('status').textContent).toContain('Aucun candidat qualifié');
+    // Portefeuille manuel : valeur servie et marques synthétiques nommées.
+    expect(await cellule('manual-portfolio').findByText('555')).toBeDefined();
+    expect(cellule('manual-portfolio').getByText('MARQUES SYNTHÉTIQUES')).toBeDefined();
+    // Calendrier : les événements publiés, dans l'ordre.
+    expect((await cellule('calendar').findAllByRole('listitem')).length).toBe(2);
+    // Carte sectorielle : une puce par instrument servi.
+    expect((await cellule('sectors').findAllByRole('listitem')).length).toBe(4);
+  });
+
+  it('l’inspecteur par défaut porte la vérité du snapshot ; un item ouvert le remplace', async () => {
+    mockToday(makeAttentionSnapshot());
+    renderApp('/today');
+    await screen.findByRole('heading', { level: 2, name: "File d'attention" });
+    expect(await screen.findByTestId('snapshot-rail')).toBeDefined();
+    expect(screen.getByRole('heading', { level: 2, name: 'Inspecteur — Snapshot publié' })).toBeDefined();
+    const bouton = screen.getAllByRole('button', { expanded: false })[0] as HTMLButtonElement;
+    bouton.click();
+    await waitFor(() => {
+      expect(screen.queryByTestId('snapshot-rail')).toBeNull();
+    });
+    expect(screen.getByRole('heading', { level: 2, name: /Inspecteur — \[SYNTHETIC\]/ })).toBeDefined();
+  });
+
+  it('un module dont la source est hors ligne dit son état, sans valeur de remplacement', async () => {
+    fetchMock.mockImplementation((input) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+      if (url.includes('/today/attention')) {
+        return Promise.resolve(jsonResponse(makeAttentionSnapshot()));
+      }
+      if (url.includes('/portfolio')) {
+        return Promise.reject(new TypeError('Failed to fetch'));
+      }
+      if (url.includes('/system/capabilities')) {
+        return Promise.resolve(jsonResponse(makeCapabilities()));
+      }
+      if (url.includes('/calendar')) {
+        return Promise.resolve(jsonResponse(makeCalendarResponse()));
+      }
+      if (url.includes('/opportunities')) {
+        return Promise.resolve(jsonResponse(makeOpportunities()));
+      }
+      return Promise.resolve(jsonResponse(makeMarketsOverview()));
+    });
+    renderApp('/today');
+    await screen.findByRole('heading', { level: 2, name: "File d'attention" });
+    const cellule = within(document.querySelector('[data-module="manual-portfolio"]') as HTMLElement);
+    const etat = await cellule.findByRole('status');
+    expect(etat.getAttribute('data-state')).toBe('offline');
+    expect(cellule.queryByText('555')).toBeNull();
   });
 });

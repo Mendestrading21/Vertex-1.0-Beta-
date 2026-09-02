@@ -106,6 +106,63 @@ test.describe('Page Marchés — MarketMap + table équivalente + breadth', () =
     ).toContainText('▲');
   });
 
+  test('LOT-A3 : les DOUZE modules de la planche §2, une dominante, sept absences motivées', async ({
+    page,
+  }) => {
+    await page.goto('/markets');
+    await expect(page.locator('.vx-marketmap-canvas canvas')).toBeVisible({ timeout: 15_000 });
+    const MODULES = [
+      'sessions',
+      'volatility',
+      'indices',
+      'breadth',
+      'market-health',
+      'market-map',
+      'sectors',
+      'rates-curve',
+      'fx',
+      'correlation',
+      'vol-structure',
+      'discards',
+    ];
+    for (const module of MODULES) {
+      await expect(page.locator(`[data-module="${module}"]`).first(), module).toBeVisible();
+    }
+    await expect(page.locator('.vx-main [data-rank="dominant"]')).toHaveCount(1);
+    await expect(page.locator('.vx-absent-badge')).toHaveCount(7);
+    for (const corps of await page.locator('.vx-absent-body').allTextContents()) {
+      expect(corps).not.toMatch(/\d/);
+    }
+    await expect(page.locator('.vx-markets-table-scroll[tabindex="0"]')).toBeVisible();
+  });
+
+  test('sélection au clavier dans la table → inspecteur de l’instrument, chaînes API exactes', async ({
+    page,
+  }) => {
+    const overview = (await (await page.request.get('/api/v1/markets/overview')).json()) as ApiOverview;
+    const premier = overview.sectors.flatMap((sector) => sector.tickers)[0]!;
+    await page.goto('/markets');
+    await expect(page.locator('.vx-marketmap-canvas canvas')).toBeVisible({ timeout: 15_000 });
+    // Par défaut : la vérité du snapshot.
+    await expect(page.locator('.vx-inspector-heading')).toHaveText('Inspecteur — Carte des marchés');
+
+    const bouton = page.getByRole('button', { name: `Inspecter ${premier.ticker}` });
+    await bouton.focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('.vx-inspector-heading')).toHaveText(`Inspecteur — ${premier.ticker}`);
+    const faits = page.getByTestId('markets-instrument-facts');
+    await expect(faits).toContainText(fr(premier.last_close));
+    await expect(faits).toContainText(`${fr(premier.return_1d_pct)} %`);
+    await expect(faits).toContainText(`${fr(premier.weight_global_pct)} %`);
+    await expect(faits).toContainText(premier.quality);
+    await expect(page.getByTestId('markets-instrument-lineage')).toContainText('market.simple_return');
+    await expect(bouton).toHaveAttribute('aria-pressed', 'true');
+
+    // Fermer rend l'inspecteur par défaut.
+    await page.getByRole('button', { name: 'Fermer' }).click();
+    await expect(page.locator('.vx-inspector-heading')).toHaveText('Inspecteur — Carte des marchés');
+  });
+
   test('axe : zéro violation critique/sérieuse + capture', async ({ page }, testInfo) => {
     await page.goto('/markets');
     await expect(page.locator('.vx-marketmap-canvas canvas')).toBeVisible({ timeout: 15_000 });

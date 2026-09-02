@@ -1,19 +1,16 @@
 /**
- * Rail de vérité du snapshot pour la page Aujourd'hui.
+ * Vérité du snapshot de la page Aujourd'hui.
  *
  * Le composant est volontairement pur : il affiche uniquement les props
  * reçues. Il ne lit ni l'horloge, ni le réseau, ne complète aucun champ absent
  * et ne calcule aucun ratio à partir de la couverture.
  *
- * REFONTE V3 — il est passé sur la primitive `Card`. Il portait auparavant sa
- * propre surface (`.vx-snapshot-rail`) inscrite à la main dans les 15 listes
- * de sélecteurs de la couche thématique, ET la tranche métallique réservée à
- * la carte dominante : deux dominantes sur l'écran Aujourd'hui, c'est-à-dire
- * aucune. Ses deux blocs sont désormais deux cartes de rang `quiet` : elles
- * portent l'information sans la revendiquer, ce qui laisse la file d'attention
- * être vue.
+ * LOT-A3 — il ne vit plus dans la grille de la page : il est le contenu PAR
+ * DÉFAUT de l'inspecteur du shell (planche §1 : « inspecteur : thèse,
+ * catalyseurs vérifiés, risques, preuves et exclusions » — sans sélection,
+ * ce sont les preuves de la file elle-même). Il n'est donc plus une carte :
+ * deux blocs de faits, au format de l'inspecteur.
  */
-import { Card } from '../components/Card.tsx';
 
 export interface SnapshotRailProps {
   readonly snapshotVersion: number | null;
@@ -87,14 +84,12 @@ export function SnapshotRail({
   coverage,
 }: SnapshotRailProps) {
   return (
-    <aside className="vx-snapshot-rail" aria-label="Vérité du snapshot">
-      <Card
-        rank="quiet"
-        kicker="Instantané"
-        title="Snapshot publié"
-        titleId="vx-snapshot-rail-title"
-      >
-        <dl className="vx-snapshot-rail-facts">
+    <div className="vx-snapshot-rail" data-testid="snapshot-rail">
+      <section className="vx-snapshot-block" aria-labelledby="vx-snapshot-rail-title">
+        <h3 id="vx-snapshot-rail-title" className="vx-snapshot-block-title">
+          Snapshot publié
+        </h3>
+        <dl className="vx-inspector-facts vx-snapshot-rail-facts">
           <div data-vx-snapshot-field="version">
             <dt>Version</dt>
             <dd>{snapshotVersion === null ? 'Non publié' : <code>{snapshotVersion}</code>}</dd>
@@ -126,20 +121,18 @@ export function SnapshotRail({
             <dd>{rejectedCount === null ? 'Non publié' : <code>{rejectedCount}</code>}</dd>
           </div>
         </dl>
-      </Card>
+      </section>
 
-      <Card
-        rank="quiet"
-        kicker="Périmètre"
-        title="Couverture publiée"
-        titleId="vx-snapshot-coverage-title"
-      >
+      <section className="vx-snapshot-block" aria-labelledby="vx-snapshot-coverage-title">
+        <h3 id="vx-snapshot-coverage-title" className="vx-snapshot-block-title">
+          Couverture publiée
+        </h3>
         {coverage === null ? (
           <p className="vx-snapshot-rail-note">Couverture non publiée.</p>
         ) : (
           <p className="vx-snapshot-rail-note">Champs relayés sans agrégat local.</p>
         )}
-        <dl className="vx-snapshot-rail-facts">
+        <dl className="vx-inspector-facts vx-snapshot-rail-facts">
           {COVERAGE_FIELDS.map((field) => (
             <div key={field.key} data-vx-coverage-field={field.key}>
               <dt>{field.label}</dt>
@@ -147,7 +140,7 @@ export function SnapshotRail({
             </div>
           ))}
         </dl>
-      </Card>
-    </aside>
+      </section>
+    </div>
   );
 }

@@ -124,6 +124,7 @@ viewports desktop.
 | **V7** chaîne d'options | **fait** (`87bfec5`) | chasse fixe, colonnes alignées, IV/Delta bornés au rendu |
 | **V8** en-tête, bandeau, file | **fait** (`dab7add`) | Aujourd'hui 2 096 → 1 696 px |
 | **V9** Catalyseurs | **fait** (`57bac9d`) | 3 146 → 2 370 px, dominante déplacée sur la timeline |
+| **A3** Aujourd'hui + Marchés sur leurs planches (§1, §2) | **PR ouverte** (`lot/a3-aujourdhui-marches-20260902`) | onze et douze modules composés, servis ou déclarés absents ; inspecteur toujours occupé ; mesures dans `NOW.md` |
 
 ### Hauteurs de page mesurées, 1600×1000, après les neuf lots
 
@@ -167,6 +168,30 @@ l'arrivée des données — et lisait donc le squelette de chargement sur chaque
 route. La règle fonctionnait. Le commentaire CSS qui gravait cette conclusion a
 été réécrit, et la porte e2e attend désormais un témoin de contenu réel sur
 chaque route.
+
+### Phase A — composition page par page sur les planches (2026-09-02)
+
+Après le système commun (V1 → V9), chaque page est composée **module par
+module** contre sa planche du skill `vertex-titanium-ledger`. Un module servi
+lit le hook de sa page propriétaire ; un module sans source tient sa place
+avec `AbsentModule` et le motif mesuré de son absence (article 17). Ordre :
+A2 (Graphiques, créée), **A3 (Aujourd'hui, Marchés)**, puis A4 à A8 — deux
+pages par lot.
+
+Ce que A3 a établi et que les lots suivants réutilisent :
+
+- `moduleStateOf()` : l'état d'un module vient de SON snapshot (`empty`,
+  `stale`, `DELAYED`, état fermé), jamais du seul succès HTTP ; un module
+  hors de ces états ne montre aucune valeur.
+- `Metric` : bloc de mesure — libellé, chaîne serveur, unité, note ; une
+  absence est dite « non publié ».
+- `SectorGrid` : la carte sectorielle partagée par Aujourd'hui et Marchés,
+  sans rendement de secteur (le contrat n'en publie pas).
+- L'inspecteur est **toujours occupé** : la sélection, sinon la vérité du
+  snapshot de la dominante.
+- Les grilles sont nommées par ZONES (`grid-template-areas`) et dimensionnées
+  sur la largeur RÉELLE de la zone de travail, inspecteur monté : quatre
+  colonnes, cinq seulement à 1600.
 
 ### Ce qui reste
 

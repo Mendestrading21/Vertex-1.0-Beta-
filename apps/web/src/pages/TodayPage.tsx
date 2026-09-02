@@ -1,63 +1,52 @@
 import type { AttentionSnapshot } from '../api/client.ts';
-import { pageStateOf, useAttention, useCapabilities } from '../api/hooks.ts';
+import { pageStateOf, useAttention } from '../api/hooks.ts';
 import type { PageDataState } from '../api/hooks.ts';
+import { AbsentModule } from '../components/AbsentModule.tsx';
 import { AuthRequiredNotice } from '../components/AuthRequiredNotice.tsx';
 import { Card } from '../components/Card.tsx';
 import { DataStateBoundary } from '../components/DataStateBoundary.tsx';
 import type { DataState } from '../components/DataStateBoundary.tsx';
-import { FreshnessBadge } from '../components/FreshnessBadge.tsx';
 import { SyntheticBanner } from '../components/SyntheticBanner.tsx';
+import { InspectorPanel } from '../shell/inspector.tsx';
 import { AttentionQueue } from './AttentionQueue.tsx';
 import { SnapshotRail } from './SnapshotRail.tsx';
+import {
+  CalendarModule,
+  GlobalMarketModule,
+  ManualPortfolioModule,
+  NextCatalystModule,
+  OpportunitiesModule,
+  SectorsModule,
+  SourceHealthModule,
+} from './TodayModules.tsx';
+import { todayModule } from './todayView.ts';
 
 /**
- * Page Aujourd'hui — question : « Qu'est-ce qui mérite réellement mon
- * attention maintenant ? »
+ * Page Aujourd'hui (`TL / 01`) — question : « Qu'est-ce qui mérite réellement
+ * mon attention maintenant ? »
  *
- * Visuel dominant unique : la file d'attention (aucun moteur graphique sur
- * cette route). Bandeau de santé haut réutilisant la requête capacités
- * (minimal : base + fraîcheur worker), bandeau population SYNTHETIC et état
- * vide honnête « aucun snapshot publié ».
+ * LOT-A3 — LA PLANCHE §1 EN ENTIER. `pages-01-02-today-markets.png` (moitié
+ * gauche) compose onze modules autour d'une dominante. Huit sont SERVIS par
+ * des contrats existants, chacun lu par le hook de sa page propriétaire :
+ * la file d'attention (dominante), le marché global et la carte sectorielle
+ * (snapshot Marchés), le catalyseur suivant et le calendrier (snapshot
+ * Calendrier), la santé des sources (capacités), les opportunités (moteur
+ * fail-closed) et le portefeuille manuel (valorisation déclarée). Trois n'ont
+ * AUCUNE source — régime, volatilité, risques actifs — et tiennent leur
+ * place avec le motif mesuré de leur absence (`AbsentModule`, article 17).
  *
- * REFONTE V3 — PREMIÈRE PAGE SUR LA PRIMITIVE. La file portait
- * `.vx-today-primary`, le rail portait `.vx-snapshot-rail` : deux surfaces
- * inscrites à la main dans les 15 listes de sélecteurs de la couche
- * thématique, et TOUTES LES DEUX porteuses de la tranche métallique réservée à
- * la dominante. Deux dominantes sur un écran, c'est zéro dominante : le regard
- * n'a plus de point d'entrée.
+ * LA DOMINANTE RESTE LA FILE. La planche pose « régime + graphique global »
+ * en dominante ; aucun des deux n'a de source. La file est la seule donnée
+ * qui RÉPOND à la question de la page — elle garde la lumière, et le régime
+ * absent le dit à sa place, à sa géométrie.
  *
- * Désormais : la file est la seule carte `dominant` — c'est elle qui répond à
- * la question de la page — et les blocs de vérité du snapshot sont `quiet`.
- * La porte `one-dominant-per-page.test.ts` refuse la seconde.
+ * L'INSPECTEUR EST TOUJOURS OCCUPÉ : le détail de l'item ouvert, sinon la
+ * vérité du snapshot (version, horodatage, population, couverture) — la
+ * provenance de la file, jamais une colonne vide.
+ *
+ * Un seul propriétaire par donnée, aucun calcul ici : chaînes serveur,
+ * comptes publiés, ordre publié. Chaque module dit son propre état.
  */
-
-function HealthStrip() {
-  const capabilities = useCapabilities();
-  if (capabilities.data === undefined) {
-    return (
-      <p className="vx-health-strip" role="status">
-        Santé système non disponible pour l'instant (réponse capacités absente).
-      </p>
-    );
-  }
-  const health = capabilities.data.health;
-  return (
-    <p className="vx-health-strip" role="status">
-      <span className="vx-health-strip-item" data-health={health.db.status}>
-        <span className="vx-health-strip-label">Base locale</span>
-        <strong>{health.db.status === 'ok' ? 'Disponible' : 'Erreur'}</strong>
-      </span>
-      <span className="vx-health-strip-item">
-        <span className="vx-health-strip-label">Worker · {health.worker.method}</span>
-        {health.worker.last_snapshot_as_of === null ? (
-          <strong>Aucun snapshot observé</strong>
-        ) : (
-          <FreshnessBadge ageSeconds={health.worker.age_seconds} sourceLabel="dernier snapshot" />
-        )}
-      </span>
-    </p>
-  );
-}
 
 /**
  * État du cadre d'attention, dérivé des faits servis et jamais du seul succès
@@ -103,12 +92,120 @@ function degradedDetailOf(state: DataState | 'auth-required', data: AttentionSna
   return undefined;
 }
 
+function AbsentTodayModule({ id }: { readonly id: string }) {
+  const module = todayModule(id);
+  if (module.status.kind !== 'absent') {
+    throw new Error(`Module ${id} is served, not absent`);
+  }
+  return (
+    <div data-module={id} className="vx-today-cell">
+      <AbsentModule
+        title={module.title}
+        question={module.question}
+        reason={module.status.reason}
+        note={module.status.note}
+      />
+    </div>
+  );
+}
+
+/** Inspecteur par défaut : la vérité du snapshot qui alimente la file. */
+function SnapshotInspector({ data }: { readonly data: AttentionSnapshot }) {
+  return (
+    <InspectorPanel subject="Snapshot publié">
+      <SnapshotRail
+        snapshotVersion={data.snapshot_version}
+        asOf={data.as_of}
+        population={data.population}
+        itemCount={data.items.length}
+        rejectedCount={data.rejected_count}
+        coverage={data.coverage}
+      />
+    </InspectorPanel>
+  );
+}
+
+function TodayBoard({
+  data,
+  state,
+}: {
+  readonly data: AttentionSnapshot;
+  readonly state: DataState;
+}) {
+  const degradedDetail = degradedDetailOf(state, data);
+  return (
+    <div className="vx-today-grid" data-testid="today-grid">
+      <AbsentTodayModule id="regime" />
+
+      <div data-module="global-market" className="vx-today-cell">
+        <GlobalMarketModule />
+      </div>
+      <AbsentTodayModule id="volatility" />
+      <div data-module="next-catalyst" className="vx-today-cell">
+        <NextCatalystModule />
+      </div>
+      <div data-module="source-health" className="vx-today-cell">
+        <SourceHealthModule />
+      </div>
+
+      <div data-module="attention" className="vx-today-cell vx-today-primary">
+        <DataStateBoundary
+          state={state}
+          {...(degradedDetail !== undefined ? { detail: degradedDetail } : {})}
+          {...(data.as_of !== null ? { asOfLabel: `as_of ${data.as_of}` } : {})}
+        >
+          {/*
+            Le bandeau de population qualifie CE snapshot — celui de la file.
+            Les autres modules lisent d'autres snapshots et portent chacun
+            leur population dans leur pied : un bandeau de page les
+            confondrait.
+          */}
+          <SyntheticBanner population={data.population} />
+          <Card
+            rank="dominant"
+            kicker="Priorité publiée"
+            title="File d'attention"
+            titleId="vx-attention-title"
+            aside={<>{data.items.length} éléments</>}
+            footer={
+              <>
+                Ordre publié par le worker — aucun reclassement local. Population{' '}
+                {data.population ?? 'non publiée'}
+                {data.as_of === null ? '' : ` · as_of ${data.as_of}`}
+              </>
+            }
+          >
+            <AttentionQueue
+              items={data.items}
+              asOf={data.as_of}
+              fallbackInspector={<SnapshotInspector data={data} />}
+            />
+          </Card>
+        </DataStateBoundary>
+      </div>
+
+      <div data-module="opportunities" className="vx-today-cell">
+        <OpportunitiesModule />
+      </div>
+      <AbsentTodayModule id="active-risks" />
+      <div data-module="sectors" className="vx-today-cell">
+        <SectorsModule />
+      </div>
+      <div data-module="manual-portfolio" className="vx-today-cell">
+        <ManualPortfolioModule />
+      </div>
+      <div data-module="calendar" className="vx-today-cell">
+        <CalendarModule />
+      </div>
+    </div>
+  );
+}
+
 export function TodayPage() {
   const attention = useAttention();
   const queryState = pageStateOf(attention);
   const data = attention.data;
   const state = attentionFrameStateOf(queryState, data);
-  const degradedDetail = degradedDetailOf(state, data);
 
   return (
     <article className="vx-page" aria-labelledby="vx-page-title-today">
@@ -142,41 +239,7 @@ export function TodayPage() {
               : {})}
         />
       ) : data !== undefined ? (
-        <DataStateBoundary
-          state={state}
-          {...(degradedDetail !== undefined ? { detail: degradedDetail } : {})}
-          {...(data.as_of !== null ? { asOfLabel: `as_of ${data.as_of}` } : {})}
-        >
-          <HealthStrip />
-          <SyntheticBanner population={data.population} />
-          <div className="vx-today-layout">
-            <Card
-              className="vx-today-primary"
-              rank="dominant"
-              kicker="Priorité publiée"
-              title="File d'attention"
-              titleId="vx-attention-title"
-              aside={<>{data.items.length} éléments</>}
-              footer={
-                <>
-                  Ordre publié par le worker — aucun reclassement local. Population{' '}
-                  {data.population ?? 'non publiée'}
-                  {data.as_of === null ? '' : ` · as_of ${data.as_of}`}
-                </>
-              }
-            >
-              <AttentionQueue items={data.items} asOf={data.as_of} />
-            </Card>
-            <SnapshotRail
-              snapshotVersion={data.snapshot_version}
-              asOf={data.as_of}
-              population={data.population}
-              itemCount={data.items.length}
-              rejectedCount={data.rejected_count}
-              coverage={data.coverage}
-            />
-          </div>
-        </DataStateBoundary>
+        <TodayBoard data={data} state={state} />
       ) : (
         <DataStateBoundary
           state="error"
