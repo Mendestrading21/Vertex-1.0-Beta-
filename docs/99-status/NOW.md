@@ -1,12 +1,12 @@
 # État courant
 
 ```yaml
-phase: security_reconciliation_r0
-lot: VERTEX-RATTRAPAGE R1 (R0 actualisé)
-branch: lot/r0-github-security
-status: r1_documente_attente_revue_codex_aucune_fusion
+phase: post_merge_requalification_r2
+lot: VERTEX-RATTRAPAGE R2 (R1 actualisé)
+branch: lot/r2-requalification-20260902
+status: r2_matrice_documentee_trois_pr_brouillon_attente_revue_codex_aucune_fusion
 last_known_good_commit: "a5b7d205388e58f4e2716deeba5ecbea0ca9af21 (= état avant fusion #14, CI 7/7 verte)"
-main_head_observed: "beb249881015147de11e270f8e0e48d843716e6e (= squash #18 après #14, observé le 2026-09-02T07:04:21Z)"
+main_head_observed: "ecc50c1027314dd3ed594410430d41a3b1189ebf (= squash #20 après #17 c3f2400, base R2, observé le 2026-09-02 ; inchangé pendant tout R2)"
 security_state:
   - "ruleset main-required 22076309 actif ; main protégée ; squash seul ; sept checks et branche à jour obligatoires"
   - "dépôt maintenu public par décision humaine ; risque historique résiduel accepté, sans autorisation de réécriture"
@@ -14,6 +14,13 @@ security_state:
   - "HEAD fusionné de PR #14 ef47b11a : CI #159 verte ; conformité architecturale encore à requalifier"
   - "PR #18 fusionnée pendant la validation R0 : 2 fichiers, HEAD b8a0d4d6, CI #165 verte, squash beb24988 ; ajoutée au même audit"
   - "les 23 commits classés et les 13 commits post-gel deviennent une matrice d'audit du code déjà présent dans main"
+r2_state:
+  - "matrice de requalification : docs/99-status/R2_REQUALIFICATION.md — 8 vagues instruites, 5 contre-vérifiées (A, B, C, F, J) ; D, E, G KEEP sur rapport unique"
+  - "R2-A ADAPT (A1 performance marks, A2 conclusion Marchés, A3 export CSV) ; R2-B ADAPT (B2 porte de l'indice, B1 force relative) ; R2-C ADAPT (C1 collecte de presse inopérante sur main) ; R2-F ADAPT (F1, F2, F3) ; R2-J scindée (CSS KEEP, passation → R2-I)"
+  - "R2-D, R2-E, R2-G KEEP ; R2-H HOLD maintenu ; R2-I REWRITE/DROP maintenu"
+  - "PR 23 brouillon : lot/r2c-presse-hachage-20260902 @ b27d277 — C1 corrigé depuis main, reproducteur rouge sur ecc50c1 puis vert ; C2 retiré"
+  - "PR #21 brouillon : lot/r2-pr19-demarrage-20260902 @ 6d05603 — reprise bornée de #19, NOW.md écarté, CI 7/7 verte"
+  - "aucune fusion automatique ; aucune modification du chantier graphique (J3, F6 transmis au propriétaire de global.css) ; IBKR information-only"
 ci_state_r1:
   - "ci run 33601777661 sur main@beb24988 : succès, sept checks requis inclus"
   - "ci sur PR #17 @ 5f25dab : succès"
@@ -21,10 +28,10 @@ nightly_state_r1:
   - "nightly run 33605890223 sur main@beb24988 : ÉCHEC — 753 réussis, 2 échoués, 2 ignorés, projet firefox-1440x900 seul"
   - "options.spec.ts:187 et today.spec.ts:94 : même assertion expect(sorti).toBe(true) — le Tab ne sort pas de l'inspecteur sous Firefox"
   - "la nightly n'est pas un check requis du ruleset : dette qualité, pas blocage de fusion ; hors périmètre R1 (code applicatif)"
-pr_19_r1: "brouillon, claude/vertex-connection-kgkntr @ e8ff5e6, 5 fichiers dont NOW.md et REPRENDRE_ICI.md ; reprise APRÈS fusion humaine de #17"
+pr_19_r2: "reprise EXÉCUTÉE en PR #21 (brouillon) depuis ecc50c1 : 4 fichiers, hunk NOW.md écarté, 12 tests, six portes documentaires, CI 7/7 ; #19 à fermer après fusion humaine de #21"
 commits_claude_post_pr18_r1:
-  - "732f7e5 PRESSE time_unzoned : ADAPT — reprendre depuis main avec test de bout en bout"
-  - "f9af140 PASSATION locale : REWRITE / DROP — jamais fusionné tel quel"
+  - "732f7e5 PRESSE time_unzoned : ADAPT EXÉCUTÉ — PR 23, cherry-pick -x depuis main + test_news_hashing_chain.py (rouge sur ecc50c1 : CanonicalizationError) ; le test collecte → base (C3) reste à écrire"
+  - "f9af140 PASSATION locale : DROP confirmé — ses quatre faits utiles sont réécrits dans R2_REQUALIFICATION.md §5, sans chemin ni secret"
   - "HEAD Claude relevé f9af140, 50 commits en avance ; jamais absorbé en bloc"
 lots_de_cette_session:
   - "LOT-04 — la purge de session effaçait l'erreur 401 qu'elle devait laisser
@@ -586,37 +593,28 @@ rendements, du 2025-09-02 au 2026-08-31.
 `~/.vertex/env.live`) : Vertex ne demande plus de passkey. FERME PAR DEFAUT —
 sans la variable, 401 partout, verifie sur sept routes.
 
-### Reste casse — MESURE, a corriger
+### Reste casse — REQUALIFIE le 2026-09-02 sur main@ecc50c1
 
-**Huit etiquettes de population qui mentent.** Le bandeau `population` est
-juste ; c'est le texte autour qui ment.
+La table des « huit etiquettes qui mentent » (mesuree sur la branche Claude,
+entree dans main par le squash #14) est REQUALIFIEE par
+`docs/99-status/R2_REQUALIFICATION.md` (vague R2-A, contre-verifiee) :
 
-| Emplacement | Texte | Verdict |
-|---|---|---|
-| `apps/web/src/pages/markets/MarketsPage.tsx:99` | « Carte des marches synthetiques » | faux (`population='REAL'`, 0/161 synthetic) |
-| `MarketsPage.tsx:119` | « `synthetic-dev` via snapshot worker » | faux (source `ibkr`) |
-| `MarketsPage.tsx:83` | repli « Carte des marches synthetiques » | faux, latent |
-| `MarketsPage.tsx:202` | « Poids = parts descriptives des clotures (synthetiques) » | faux |
-| `MarketsPage.tsx:206` | « Limites : donnees SYNTHETIQUES de developpement » | faux |
-| `apps/worker/src/vertex_worker/markets.py:362` | « Sur N instruments synthetiques attendus » | faux, PERSISTE dans le contenu |
-| `apps/worker/src/vertex_worker/portfolio.py:117` et `:825` | `MARK_POPULATION_SYNTHETIC` ecrit inconditionnellement | faux (marques issues de `markets_overview` en `REAL`) |
-| `apps/worker/src/vertex_worker/performance.py:136` et `:810` | `marks = "SYNTHETIC"` | faux, meme cause (`ledger: USER_DECLARED` est juste) |
+| Emplacement | Verdict R2 sur `main` |
+|---|---|
+| `MarketsPage.tsx` (cinq libelles « synthetiques ») | CORRIGE — libelles par recensement de nature (`censusOfNature`/`provenanceSentence`) |
+| `portfolio.py` `MARK_POPULATION_SYNTHETIC` inconditionnel | CORRIGE — `MarksView.population` suit la source (`portfolio.py:293-307`) |
+| `markets.py:362` « Sur N instruments synthetiques attendus » | RESTE FAUX — ecart A2, persiste dans le contenu publie ; PR bornee a ouvrir |
+| `performance.py:136` et `:811` `marks = "SYNTHETIC"` | RESTE FAUX — ecart A1, persiste ; exige d'abord une decision de contrat (`POPULATION_LABELS`) |
 
-**`data_state='partial'` trompeur sur Marches.** `markets.py:581` declenche
-`partial` sur `rejected_records`, alimente par 3 cotations `GNL PRE` — des
-observations EN TROP, hors univers, pas un trou de couverture. L'ecran affiche
-« Donnees partielles » puis « 161 couverts sur 161, 0 ecartes » : un texte qui
-se refute lui-meme. Confusion entre `discarded` (attendu manquant) et
-`rejected_records` (non demande). Meme pollution sur `performance/1`.
+Nouveau, hors table d'origine : `MarketsTable.tsx:125` nomme l'export
+« marches-synthetiques.csv » quelle que soit la population (ecart A3).
 
-**500 latent sur Risques.** `value` est dans `_DECIMAL_KEYS`
-(`snapshot_views.py:890`, classe NON SIGNEE) alors que
-`extremes.most_opposed.value` vaut `-0.803` — une correlation « la plus
-opposee » est negative par definition. La route rend 200 aujourd'hui parce que
-`risk.py:300` appelle son propre validateur `checked_risk_content`. Toute
-uniformisation qui la brancherait sur le garde commun la mettrait en 500.
-Correction : deplacer `"value"` vers `_SIGNED_DECIMAL_KEYS` (`:896`). COMMIT
-SEPARE — `value` sert aussi a `breadth.value` (`:1649`).
+**`data_state='partial'` sur Marches** : CORRIGE dans main (`markets.py:595-598`,
+intention presente et testee — R2-A).
+
+**« 500 latent sur Risques »** : PERIME. A `ecc50c1`, `"value"` est sous
+`_SIGNED_DECIMAL_KEYS` (`snapshot_views.py:977`) ; `risk.py` passe par
+`checked_risk_content`. Aucune correction de code a faire (ecart F5, clos).
 
 **Trou E2E.** `apps/web/e2e/analysis.spec.ts` et `today.spec.ts` sont passes
 au vert pendant que les deux routes rendaient 500 : le semis
