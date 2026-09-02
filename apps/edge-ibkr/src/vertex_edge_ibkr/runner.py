@@ -14,7 +14,8 @@ permanent. Ce n'est pas un compromis de facilité : le port `IbkrInformationPort
 n'expose que `market_data_snapshot`, `LineBudget` interdit de tenir plus de 80 %
 des lignes de données ouvertes, et un droit « display only » ne justifie pas de
 mobiliser des lignes en continu. Chaque cycle acquiert une ligne, la relâche, et
-annule sa souscription dans un `finally`.
+ne persiste qu'après confirmation de l'annulation fournisseur. Une annulation
+incertaine met la ligne en quarantaine et force la fermeture de session.
 
 FRONTIÈRE FINANCIÈRE
 --------------------
@@ -37,10 +38,19 @@ from collections.abc import Awaitable, Callable, Sequence
 from dataclasses import dataclass
 from typing import Any, Protocol
 
-from vertex_core.contracts import DataEnvelope
+from vertex_core.contracts import DataEnvelope, EnvelopeQuality
 from vertex_edge_ibkr.pacing import LineBudget, MessagePacer, Priority, QueueRefusalError
-from vertex_edge_ibkr.port import ContractSpec, EdgeIbkrError, IbkrInformationPort, ProviderError
+from vertex_edge_ibkr.port import (
+    CancellationOutcome,
+    ContractSpec,
+    EdgeIbkrError,
+    IbkrInformationPort,
+    MarketDataSnapshotResult,
+    ProviderError,
+    ProviderStatusEvent,
+)
 from vertex_edge_ibkr.state import (
+    PROVIDER_STATUS_CODES,
     ConnectionState,
     ConnectionStateMachine,
     InvalidTransitionError,
@@ -67,6 +77,10 @@ _COUNTER_NAMES = (
     "provider_errors",
     "transport_errors",
     "reconnects",
+    "cancellation_retries",
+    "cancellation_unconfirmed",
+    "session_recycles",
+    "disconnect_failures",
 )
 
 
@@ -91,6 +105,10 @@ class RunnerStats:
     provider_errors: int = 0
     transport_errors: int = 0
     reconnects: int = 0
+    cancellation_retries: int = 0
+    cancellation_unconfirmed: int = 0
+    session_recycles: int = 0
+    disconnect_failures: int = 0
 
 
 class EdgeIbkrRunner:
@@ -134,6 +152,11 @@ class EdgeIbkrRunner:
         self._max_cycles = max_cycles
         self._stop_requested = False
         self._pending_backoff: float | None = None
+        self._needs_reconnect = True
+        self._recycle_required = False
+        self._provider_journal_id: str | None = None
+        self._last_provider_sequence = 0
+        self._provider_event_codes: dict[int, int] = {}
         self._c: dict[str, int] = dict.fromkeys(_COUNTER_NAMES, 0)
 
     # -- pilotage ----------------------------------------------------------
@@ -151,12 +174,33 @@ class EdgeIbkrRunner:
         """Connecte, sert, reconnecte — jusqu'à l'arrêt demandé ou la borne."""
         try:
             while not self._stop_requested and not self._cycle_limit_reached():
-                if self._pending_backoff is not None:
+                self._drain_provider_status_events()
+                if self._stop_requested:
+                    break
+                if (
+                    self._port.pending_subscription_count
+                    and not self._recycle_required
+                ):
+                    self._c["cancellation_unconfirmed"] += 1
+                    self._mark_transport_failure(
+                        "souscription déjà en quarantaine", None
+                    )
+                if self._recycle_required and not await self._recycle_session():
+                    break
+                if self._needs_reconnect and self._pending_backoff is not None:
                     delai, self._pending_backoff = self._pending_backoff, None
                     await self._sleep(delai)
                     if self._stop_requested:
                         break
-                if not await self._connect_once():
+                    self._drain_provider_status_events()
+                if self._needs_reconnect:
+                    if not await self._connect_once():
+                        continue
+                elif self._state.state is ConnectionState.DOWN:
+                    # 1100 concerne la liaison TWS <-> IBKR, pas le socket
+                    # local. Garder la session ouverte permet de recevoir
+                    # 1101/1102 sans boucle de reconnexion agressive.
+                    await self._sleep(self._poll_seconds)
                     continue
                 await self._serve_session()
         finally:
@@ -165,8 +209,30 @@ class EdgeIbkrRunner:
                 await self._port.disconnect()
             except (EdgeIbkrError, OSError):
                 # La déconnexion est au mieux : la session se ferme de toute façon.
+                self._c["disconnect_failures"] += 1
                 log.debug("déconnexion sans effet (session déjà fermée)")
         return self.stats()
+
+    async def _recycle_session(self) -> bool:
+        """Close a compromised session before any new provider request."""
+        try:
+            await self._port.disconnect()
+        except (EdgeIbkrError, OSError, TimeoutError) as erreur:
+            self._c["disconnect_failures"] += 1
+            self._stop_requested = True
+            log.error(
+                "recyclage IBKR refusé (%s) — aucune reconnexion sans fermeture prouvée",
+                type(erreur).__name__,
+            )
+            return False
+        if self._port.pending_subscription_count != 0:
+            self._c["disconnect_failures"] += 1
+            self._stop_requested = True
+            log.error("recyclage IBKR non prouvé — souscriptions encore en quarantaine")
+            return False
+        self._recycle_required = False
+        self._c["session_recycles"] += 1
+        return True
 
     async def _connect_once(self) -> bool:
         try:
@@ -186,7 +252,8 @@ class EdgeIbkrRunner:
         try:
             await self._port.connect()
         except (EdgeIbkrError, OSError, TimeoutError) as erreur:
-            delai = self._state.on_connect_failed()
+            self._drain_provider_status_events()
+            delai = self._state.on_transport_error()
             self._c["transport_errors"] += 1
             log.warning(
                 "connexion refusée (%s) — nouvelle tentative dans %.1f s",
@@ -194,18 +261,23 @@ class EdgeIbkrRunner:
                 delai,
             )
             self._pending_backoff = delai
+            self._needs_reconnect = True
+            self._recycle_required = True
             return False
         self._state.on_connected()
+        self._needs_reconnect = False
         self._c["reconnects"] += 1
+        self._drain_provider_status_events()
         log.info(
             "connecté à TWS sur la boucle locale — epoch %d, état %s",
             self._state.connection_epoch,
             self._state.state.value,
         )
-        return True
+        return not self._stop_requested
 
     async def _serve_session(self) -> None:
         while not self._stop_requested and not self._cycle_limit_reached():
+            self._drain_provider_status_events()
             if self._state.state in (ConnectionState.DOWN, ConnectionState.STOPPED):
                 return
             if self._state.resubscribe_required:
@@ -220,6 +292,7 @@ class EdgeIbkrRunner:
             self._c["cycles"] += 1
             if self._stop_requested or self._cycle_limit_reached():
                 return
+            self._drain_provider_status_events()
             if self._state.state in (ConnectionState.DOWN, ConnectionState.STOPPED):
                 return
             await self._sleep(self._poll_seconds)
@@ -241,12 +314,23 @@ class EdgeIbkrRunner:
         for item in self._pacer.drain():
             if self._stop_requested:
                 return
+            self._drain_provider_status_events()
+            if self._state.state in (ConnectionState.DOWN, ConnectionState.STOPPED):
+                return
             await self._request_and_ingest(item, epoch)
+            if self._needs_reconnect or self._state.state in (
+                ConnectionState.DOWN,
+                ConnectionState.STOPPED,
+            ):
+                return
         reste = self._pacer.pending()
         if reste:
             log.info("pacing : %d requêtes reportées au prochain cycle (jamais perdues)", reste)
 
     async def _request_and_ingest(self, spec: ContractSpec, epoch: int) -> None:
+        self._drain_provider_status_events()
+        if self._state.state in (ConnectionState.DOWN, ConnectionState.STOPPED):
+            return
         if not self._lines.try_acquire():
             self._c["line_refused"] += 1
             log.warning(
@@ -256,37 +340,136 @@ class EdgeIbkrRunner:
                 spec.con_id,
             )
             return
-        subscription_id: str | None = None
         try:
             self._c["requested"] += 1
             resultat = await self._port.market_data_snapshot(
                 spec, generic_ticks=self._generic_ticks, market_data_type=1
             )
-            if not resultat.cancelled:
-                subscription_id = resultat.subscription_id
+            drained = self._drain_provider_status_events()
+            acknowledged = {
+                (event.journal_id, event.sequence, event.code) for event in drained
+            }
+            status_during_operation = bool(drained)
             for info in resultat.provider_errors:
+                key = (info.status_journal_id, info.status_sequence, info.code)
+                if info.code in PROVIDER_STATUS_CODES:
+                    if key in acknowledged:
+                        continue
+                    # A request-local diagnostic never owns global connection
+                    # state. Without the exact journal receipt, the causal
+                    # record is incomplete or contradictory: stop fail-closed.
+                    self._c["provider_errors"] += 1
+                    self._mark_status_journal_failure(
+                        "statut fournisseur sans événement journalisé concordant"
+                    )
+                    status_during_operation = True
+                    break
                 self._apply_provider_code(info.code)
-            self._persist(resultat.envelopes, epoch)
-        except ProviderError as erreur:
-            self._apply_provider_code(erreur.code)
-        except (EdgeIbkrError, OSError, TimeoutError) as erreur:
-            self._c["transport_errors"] += 1
-            self._pending_backoff = self._state.on_transport_error()
-            log.warning(
-                "erreur de transport (%s) sur con_id %s — repli dans %.1f s",
-                type(erreur).__name__,
-                spec.con_id,
-                self._pending_backoff,
+
+            cancellation_confirmed = (
+                resultat.cancellation_outcome is CancellationOutcome.CANCELLED
+                and self._port.pending_subscription_count == 0
             )
+            if not cancellation_confirmed:
+                retry = resultat.cancellation_outcome
+                if retry is not CancellationOutcome.SESSION_CLOSED:
+                    self._c["cancellation_retries"] += 1
+                    retry = await self._port.cancel_subscription(
+                        resultat.subscription_id
+                    )
+                    retry_events = self._drain_provider_status_events()
+                    status_during_operation = (
+                        status_during_operation or bool(retry_events)
+                    )
+                cancellation_confirmed = (
+                    retry is CancellationOutcome.CANCELLED
+                    and self._port.pending_subscription_count == 0
+                )
+                if not cancellation_confirmed:
+                    self._c["cancellation_unconfirmed"] += 1
+                    if not self._stop_requested:
+                        self._mark_transport_failure(
+                            "annulation de souscription non confirmée", spec.con_id
+                        )
+                    return
+
+            self._persist(
+                resultat,
+                epoch,
+                status_during_operation=status_during_operation,
+            )
+        except ProviderError as erreur:
+            drained = self._drain_provider_status_events()
+            if erreur.code in PROVIDER_STATUS_CODES:
+                if not any(event.code == erreur.code for event in drained):
+                    self._c["provider_errors"] += 1
+                    self._mark_status_journal_failure(
+                        "exception de statut sans événement journalisé concordant"
+                    )
+            else:
+                self._apply_provider_code(erreur.code)
+            if self._port.pending_subscription_count:
+                self._c["cancellation_unconfirmed"] += 1
+                if not self._stop_requested:
+                    self._mark_transport_failure(
+                        "erreur fournisseur avec souscription en quarantaine", spec.con_id
+                    )
+        except (EdgeIbkrError, OSError, TimeoutError) as erreur:
+            self._drain_provider_status_events()
+            self._mark_transport_failure(type(erreur).__name__, spec.con_id)
         finally:
-            # Une ligne est TOUJOURS relâchée et une souscription de données
-            # TOUJOURS annulée, quoi qu'il arrive au-dessus.
+            # Le budget du runner est rendu, mais le registre de l'adaptateur
+            # garde tout slot distant incertain en quarantaine jusqu'au recycle.
             self._lines.release()
-            if subscription_id is not None:
-                try:
-                    await self._port.cancel_subscription(subscription_id)
-                except (EdgeIbkrError, OSError):
-                    log.debug("annulation sans effet pour %s", subscription_id)
+
+    def _mark_transport_failure(self, reason: str, con_id: int | None) -> None:
+        self._c["transport_errors"] += 1
+        self._pending_backoff = self._state.on_transport_error()
+        self._needs_reconnect = True
+        self._recycle_required = True
+        log.warning(
+            "session IBKR compromise (%s) sur con_id %s — repli dans %.1f s",
+            reason,
+            con_id,
+            self._pending_backoff,
+        )
+
+    def _drain_provider_status_events(self) -> tuple[ProviderStatusEvent, ...]:
+        accepted: list[ProviderStatusEvent] = []
+        for event in self._port.drain_provider_status_events():
+            if (
+                not event.journal_id
+                or event.sequence < 1
+                or event.code not in PROVIDER_STATUS_CODES
+            ):
+                self._mark_status_journal_failure("événement fournisseur mal formé")
+                continue
+            if self._provider_journal_id is None:
+                self._provider_journal_id = event.journal_id
+            if event.journal_id != self._provider_journal_id:
+                self._mark_status_journal_failure("journal fournisseur incohérent")
+                continue
+            if event.sequence <= self._last_provider_sequence:
+                if self._provider_event_codes.get(event.sequence) != event.code:
+                    self._mark_status_journal_failure("rejeu fournisseur contradictoire")
+                continue
+            if event.sequence != self._last_provider_sequence + 1:
+                self._mark_status_journal_failure("séquence fournisseur incomplète")
+                self._last_provider_sequence = event.sequence
+                self._provider_event_codes[event.sequence] = event.code
+                self._apply_provider_code(event.code)
+                accepted.append(event)
+                continue
+            self._last_provider_sequence = event.sequence
+            self._provider_event_codes[event.sequence] = event.code
+            self._apply_provider_code(event.code)
+            accepted.append(event)
+        return tuple(accepted)
+
+    def _mark_status_journal_failure(self, reason: str) -> None:
+        """Stop on journal corruption: reconnecting cannot recover a lost fact."""
+        self._mark_transport_failure(reason, None)
+        self._stop_requested = True
 
     def _apply_provider_code(self, code: int) -> None:
         self._c["provider_errors"] += 1
@@ -300,31 +483,72 @@ class EdgeIbkrRunner:
             )
         if delai is not None:
             self._pending_backoff = delai
+            self._needs_reconnect = True
+            self._recycle_required = True
+        if code == 1300:
+            self._stop_requested = True
 
-    def _persist(self, envelopes: Sequence[DataEnvelope[Any]], epoch: int) -> None:
-        """Écrit les observations de l'epoch COURANT ; rejette les autres.
+    def _persist(
+        self,
+        result: MarketDataSnapshotResult,
+        epoch: int,
+        *,
+        status_during_operation: bool,
+    ) -> None:
+        """Écrit les observations prouvées de l'epoch courant ; rejette les autres.
 
         Une enveloppe estampillée d'un epoch antérieur n'est jamais fraîche
         (`ConnectionStateMachine.observation_is_fresh`) : la persister
         reviendrait à publier un ancien verdict comme s'il était actuel.
+        Une session ``DOWN`` ou ``DEGRADED`` bloque aussi tout le résultat du
+        cycle, même si le fournisseur a livré une quote avant son code 1100.
         """
-        fraiches: list[DataEnvelope[Any]] = []
-        for enveloppe in envelopes:
-            if enveloppe.connection_epoch is not None and enveloppe.connection_epoch != epoch:
-                self._c["stale_epoch"] += 1
-                log.warning(
-                    "observation d'un epoch périmé (%s != %d) rejetée",
-                    enveloppe.connection_epoch,
-                    epoch,
-                )
-                continue
-            fraiches.append(enveloppe)
-        if not fraiches:
+        envelopes = result.envelopes
+        if not envelopes:
             return
-        inserees, doublons = self._sink(fraiches)
+        current_epoch = self._state.connection_epoch
+        operation = result.operation
+        if self._provider_journal_id is None:
+            self._provider_journal_id = operation.journal_id
+        epochs = {envelope.connection_epoch for envelope in envelopes}
+        causal_mismatch = (
+            operation.journal_id != self._provider_journal_id
+            or operation.connection_epoch_at_start != epoch
+            or operation.provider_sequence_at_start != self._last_provider_sequence
+            or epochs != {epoch}
+            or epoch != current_epoch
+        )
+        if status_during_operation or causal_mismatch:
+            self._c["stale_epoch"] += len(envelopes) if causal_mismatch else 0
+            log.warning(
+                "lot IBKR causalement incohérent rejeté — état %s, epoch cycle %d, "
+                "epoch courant %d, observations %d, transition=%s",
+                self._state.state.value,
+                epoch,
+                current_epoch,
+                len(envelopes),
+                status_during_operation,
+            )
+            return
+        if self._state.state is ConnectionState.RECOVERING:
+            valid = any(
+                envelope.quality_status is EnvelopeQuality.VALID for envelope in envelopes
+            )
+            updated = (
+                result.market_update_sequence_at_end
+                > operation.market_update_sequence_at_start
+            )
+            if not valid or not updated:
+                log.warning("reprise 1102 non prouvée par une mise à jour VALID ultérieure")
+                return
+            self._state.record_observation(epoch)
+        if not self._state.observation_is_fresh(epoch):
+            log.warning(
+                "lot IBKR rejeté avant persistance — état %s, epoch %d",
+                self._state.state.value,
+                epoch,
+            )
+            return
+        inserees, doublons = self._sink(envelopes)
         self._c["ingested"] += inserees
         self._c["duplicates"] += doublons
-        for _ in fraiches:
-            # Promeut RECOVERING -> HEALTHY à la première observation du
-            # nouvel epoch, après un 1102.
-            self._state.record_observation(epoch)

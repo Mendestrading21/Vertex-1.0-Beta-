@@ -166,7 +166,7 @@ if [[ "${1:-}" == "--integration" ]]; then
     echo "ERREUR: VERTEX_TEST_DATABASE_URL absent — les tests d'intégration exigent un PostgreSQL réel." >&2
     exit 2
   fi
-  # Les trois suites partagent la MÊME base PostgreSQL et recréent le schéma
+  # Les quatre suites partagent la MÊME base PostgreSQL et recréent le schéma
   # dans leur fixture de session : les exécuter en parallèle (ou en une seule
   # invocation multi-répertoires distribuée) fait tomber les schémas les uns
   # des autres. Exécution SÉRIELLE obligatoire, une invocation par suite.

@@ -61,7 +61,7 @@ def make_probe(port: FakeInformationPort) -> EntitlementProbe:
         gate=ProbeGate(),
         clock=fixed_clock(),
         monotonic=SteppingMonotonic(),
-        epoch_provider=lambda: 5,
+        epoch_provider=lambda: 1,
         probe_id_factory=lambda: "probe-notices-1",
     )
 

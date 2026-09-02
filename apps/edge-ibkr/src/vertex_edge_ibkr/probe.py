@@ -36,6 +36,7 @@ from vertex_edge_ibkr.pacing import LineBudget
 from vertex_edge_ibkr.port import (
     DELAYED_QUOTE_TICKS,
     LIVE_QUOTE_TICKS,
+    CancellationOutcome,
     ContractSpec,
     EdgeIbkrError,
     GreeksObservation,
@@ -44,6 +45,7 @@ from vertex_edge_ibkr.port import (
     ProviderError,
     QuoteObservation,
 )
+from vertex_edge_ibkr.state import PROVIDER_STATUS_CODES
 
 __all__ = [
     "INFORMATIONAL_CODE_RANGE",
@@ -53,6 +55,7 @@ __all__ = [
     "ProbeAlreadyActiveError",
     "ProbeConfig",
     "ProbeGate",
+    "ProbeSessionCompromisedError",
     "ProviderErrorMapping",
     "SourceCapabilitySnapshot",
     "is_informational_code",
@@ -186,6 +189,10 @@ class SourceCapabilitySnapshot(ContractModel):
 
 class ProbeAlreadyActiveError(RuntimeError):
     """A second concurrent probe was refused: one probe active at a time."""
+
+
+class ProbeSessionCompromisedError(EdgeIbkrError):
+    """A market-data line could not be proved closed after one retry."""
 
 
 class ProbeGate:
@@ -331,10 +338,10 @@ class EntitlementProbe:
         port: IbkrInformationPort,
         config: ProbeConfig,
         *,
+        epoch_provider: Callable[[], int],
         gate: ProbeGate | None = None,
         clock: Callable[[], datetime] | None = None,
         monotonic: Callable[[], float] = _time_monotonic,
-        epoch_provider: Callable[[], int] = lambda: 0,
         probe_id_factory: Callable[[], str] = lambda: uuid.uuid4().hex,
     ) -> None:
         if clock is None:
@@ -365,6 +372,8 @@ class EntitlementProbe:
     # -- internals ---------------------------------------------------------
 
     async def _execute(self, probe_id: str) -> SourceCapabilitySnapshot:
+        self._require_clean_session()
+        probe_epoch = self._require_probe_epoch()
         config = self._config
         deadline = self._monotonic() + config.total_deadline_seconds
         evidence: dict[tuple[str, str], CapabilityFieldEvidence] = {}
@@ -373,16 +382,19 @@ class EntitlementProbe:
             *_underlying_plan(),
             *_option_live_plan(),
         ]
-        pending_cancel: list[str] = []
 
         try:
             # Step 1 — preflight: connection and server clock must answer.
             try:
                 await self._bounded(self._port.server_time, deadline)
             except TimeoutError:
+                self._require_probe_epoch(probe_epoch)
                 self._fill_missing(evidence, planned, _STATUS.ERROR, "STEP_TIMEOUT")
-                return self._publish(probe_id, evidence)
+                return self._publish(probe_id, evidence, connection_epoch=probe_epoch)
             except ProviderError as exc:
+                if exc.code in PROVIDER_STATUS_CODES:
+                    raise
+                self._require_probe_epoch(probe_epoch)
                 mapping = map_provider_error(exc.code)
                 # Fields never probed are inconclusive: always ERROR here,
                 # never NOT_ENTITLED (nothing was requested for them).
@@ -392,10 +404,11 @@ class EntitlementProbe:
                     else "PREFLIGHT_FAILED"
                 )
                 self._fill_missing(evidence, planned, _STATUS.ERROR, reason, exc.code)
-                return self._publish(probe_id, evidence)
+                return self._publish(probe_id, evidence, connection_epoch=probe_epoch)
+            self._require_probe_epoch(probe_epoch)
 
             # Step 2 — chain definition (definition only, never quote proof).
-            await self._chain_step(evidence, deadline)
+            await self._chain_step(evidence, deadline, probe_epoch)
 
             # Step 3 — underlying live with the manifest generic ticks.
             await self._snapshot_step(
@@ -405,7 +418,7 @@ class EntitlementProbe:
                 generic_ticks=UNDERLYING_GENERIC_TICKS,
                 market_data_type=1,
                 deadline=deadline,
-                pending_cancel=pending_cancel,
+                expected_epoch=probe_epoch,
             )
 
             # Step 4 — option live and computations.
@@ -416,7 +429,7 @@ class EntitlementProbe:
                 generic_ticks=(),
                 market_data_type=1,
                 deadline=deadline,
-                pending_cancel=pending_cancel,
+                expected_epoch=probe_epoch,
             )
 
             # Step 5 — delayed fallback, only if live was refused AND the
@@ -431,22 +444,15 @@ class EntitlementProbe:
                     generic_ticks=(),
                     market_data_type=3,
                     deadline=deadline,
-                    pending_cancel=pending_cancel,
+                    expected_epoch=probe_epoch,
                 )
         except _DeadlineExhausted:
+            self._require_probe_epoch(probe_epoch)
             self._fill_missing(evidence, planned, _STATUS.ERROR, "PROBE_DEADLINE_EXCEEDED")
-        finally:
-            # Step 6 — cancellation: release every line whatever happened.
-            for subscription_id in pending_cancel:
-                try:
-                    await self._port.cancel_subscription(subscription_id)
-                except EdgeIbkrError:
-                    # Cancellation is best-effort during teardown; the line
-                    # count stays bounded because the session is closing.
-                    continue
 
+        self._require_probe_epoch(probe_epoch)
         self._fill_missing(evidence, planned, _STATUS.ERROR, "NO_OBSERVATION")
-        return self._publish(probe_id, evidence)
+        return self._publish(probe_id, evidence, connection_epoch=probe_epoch)
 
     async def _bounded(self, factory: Callable[[], Any], deadline: float) -> Any:
         """Run ``factory()`` with min(step timeout, remaining total budget).
@@ -465,21 +471,28 @@ class EntitlementProbe:
         self,
         evidence: dict[tuple[str, str], CapabilityFieldEvidence],
         deadline: float,
+        expected_epoch: int,
     ) -> None:
         key = (CHAIN_CAPABILITY, "definition")
+        self._require_probe_epoch(expected_epoch)
         try:
             chains = await self._bounded(
                 lambda: self._port.sec_def_opt_params(self._config.underlying), deadline
             )
         except TimeoutError:
+            self._require_probe_epoch(expected_epoch)
             evidence[key] = self._evidence(key, _STATUS.ERROR, "STEP_TIMEOUT")
             return
         except ProviderError as exc:
+            if exc.code in PROVIDER_STATUS_CODES:
+                raise
+            self._require_probe_epoch(expected_epoch)
             mapping = map_provider_error(exc.code)
             evidence[key] = self._evidence(
                 key, mapping.status, mapping.reason_code, provider_error_code=exc.code
             )
             return
+        self._require_probe_epoch(expected_epoch)
         if chains:
             evidence[key] = self._evidence(
                 key, _STATUS.AVAILABLE, None, observed_at=self._clock()
@@ -497,8 +510,10 @@ class EntitlementProbe:
         generic_ticks: tuple[int, ...],
         market_data_type: int,
         deadline: float,
-        pending_cancel: list[str],
+        expected_epoch: int,
     ) -> None:
+        self._require_probe_epoch(expected_epoch)
+        pending_before = self._require_clean_session()
         self._lines.acquire()  # structural <= max_concurrent_lines bound
         try:
             result = await self._bounded(
@@ -510,9 +525,24 @@ class EntitlementProbe:
                 deadline,
             )
         except TimeoutError:
+            self._require_probe_epoch(expected_epoch)
+            if self._port.pending_subscription_count > pending_before:
+                # The adapter preserved the task cancellation raised by
+                # asyncio.wait_for. Re-raise that primary timeout: a retained
+                # provider line makes the whole session unfit for another
+                # instrument and no capability snapshot may be published.
+                raise
             self._assign_step_failure(evidence, plan, _STATUS.ERROR, "STEP_TIMEOUT", None)
             return
         except ProviderError as exc:
+            if exc.code in PROVIDER_STATUS_CODES:
+                raise
+            self._require_probe_epoch(expected_epoch)
+            if self._port.pending_subscription_count > pending_before:
+                # The adapter retained both this primary provider error and
+                # the unconfirmed line. Never downgrade it into field evidence
+                # and then continue with another instrument.
+                raise
             mapping = map_provider_error(exc.code)
             self._assign_step_failure(
                 evidence, plan, mapping.status, mapping.reason_code, exc.code
@@ -520,9 +550,104 @@ class EntitlementProbe:
             return
         finally:
             self._lines.release()
-        if not result.cancelled:
-            pending_cancel.append(result.subscription_id)
+        await self._confirm_cancellation(
+            result,
+            pending_before=pending_before,
+            deadline=deadline,
+        )
+        self._validate_snapshot_epoch(result, expected_epoch)
         self._interpret_snapshot(evidence, plan, result)
+
+    async def _confirm_cancellation(
+        self,
+        result: MarketDataSnapshotResult,
+        *,
+        pending_before: int,
+        deadline: float,
+    ) -> None:
+        """Require a closed line before evidence or another request is allowed.
+
+        The adapter already attempted cancellation while producing ``result``.
+        A non-confirmed outcome gets exactly one immediate retry. Any remaining
+        ambiguity aborts the probe without a publishable snapshot; the adapter
+        keeps the line quarantined until its owning session is disconnected.
+        """
+        outcome = result.cancellation_outcome
+        if outcome is CancellationOutcome.SESSION_CLOSED:
+            raise ProbeSessionCompromisedError(
+                "provider session closed before the market-data observation "
+                "could be admitted"
+            )
+
+        registry_released = self._port.pending_subscription_count <= pending_before
+        if outcome is CancellationOutcome.CANCELLED and registry_released:
+            return
+
+        try:
+            outcome = await self._bounded(
+                lambda: self._port.cancel_subscription(result.subscription_id),
+                deadline,
+            )
+        except _DeadlineExhausted as exc:
+            raise ProbeSessionCompromisedError(
+                "market-data cancellation retry could not start before the probe deadline"
+            ) from exc
+        except TimeoutError as exc:
+            raise ProbeSessionCompromisedError(
+                "market-data cancellation retry timed out"
+            ) from exc
+        registry_released = self._port.pending_subscription_count <= pending_before
+        if outcome is CancellationOutcome.CANCELLED and registry_released:
+            return
+
+        raise ProbeSessionCompromisedError(
+            "market-data cancellation was not confirmed after one retry "
+            f"(outcome={outcome.value})"
+        )
+
+    def _require_clean_session(self) -> int:
+        pending = self._port.pending_subscription_count
+        if pending != 0:
+            raise ProbeSessionCompromisedError(
+                "provider session already has unresolved market-data lines"
+            )
+        return pending
+
+    def _require_probe_epoch(self, expected: int | None = None) -> int:
+        """Require one positive, unchanged connection epoch for the whole probe."""
+        current = self._epoch_provider()
+        if (
+            not isinstance(current, int)
+            or isinstance(current, bool)
+            or current <= 0
+        ):
+            raise ProbeSessionCompromisedError(
+                "probe requires a positive connected-session epoch"
+            )
+        if expected is not None and current != expected:
+            raise ProbeSessionCompromisedError(
+                "connection epoch changed during the capability probe"
+            )
+        return current
+
+    def _validate_snapshot_epoch(
+        self,
+        result: MarketDataSnapshotResult,
+        expected_epoch: int,
+    ) -> None:
+        """Reject mixed-session evidence before it can enter the matrix."""
+        self._require_probe_epoch(expected_epoch)
+        if result.operation.connection_epoch_at_start != expected_epoch:
+            raise ProbeSessionCompromisedError(
+                "snapshot operation belongs to another connection epoch"
+            )
+        if any(
+            envelope.connection_epoch != expected_epoch
+            for envelope in result.envelopes
+        ):
+            raise ProbeSessionCompromisedError(
+                "snapshot evidence mixes connection epochs"
+            )
 
     def _interpret_snapshot(
         self,
@@ -670,7 +795,10 @@ class EntitlementProbe:
         self,
         probe_id: str,
         evidence: dict[tuple[str, str], CapabilityFieldEvidence],
+        *,
+        connection_epoch: int,
     ) -> SourceCapabilitySnapshot:
+        self._require_probe_epoch(connection_epoch)
         tested_at = self._clock()
         expires_at = tested_at + timedelta(seconds=self._config.result_ttl_seconds)
         ordered = tuple(
@@ -679,7 +807,7 @@ class EntitlementProbe:
         return SourceCapabilitySnapshot(
             probe_id=probe_id,
             source="ibkr",
-            connection_epoch=self._epoch_provider(),
+            connection_epoch=connection_epoch,
             tested_at=tested_at,
             expires_at=expires_at,
             fields=ordered,

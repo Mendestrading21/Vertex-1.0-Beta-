@@ -33,7 +33,13 @@ from sqlalchemy.orm import Session
 from vertex_core.contracts import DataEnvelope, DelayStatus, EnvelopeQuality
 from vertex_core.contracts.hashing import canonical_json_hash
 from vertex_edge_ibkr.pacing import LineBudget, MessagePacer
-from vertex_edge_ibkr.port import ContractSpec, MarketDataSnapshotResult
+from vertex_edge_ibkr.port import (
+    CancellationOutcome,
+    ContractSpec,
+    MarketDataSnapshotResult,
+    OperationToken,
+    ProviderStatusEvent,
+)
 from vertex_edge_ibkr.runner import EdgeIbkrRunner
 from vertex_edge_ibkr.state import ConnectionStateMachine
 from vertex_persistence.models import Observation, OutboxMessage
@@ -83,8 +89,15 @@ def make_ibkr_envelope(event_id: str, *, epoch: int) -> DataEnvelope[Any]:
 class OneShotPort:
     """Port minimal : un instantané scripté, puis plus rien à faire."""
 
-    def __init__(self, envelopes: tuple[DataEnvelope[Any], ...]) -> None:
+    def __init__(
+        self,
+        envelopes: tuple[DataEnvelope[Any], ...],
+        *,
+        events_during_snapshot: tuple[ProviderStatusEvent, ...] = (),
+    ) -> None:
         self._envelopes = envelopes
+        self._events_during_snapshot = events_during_snapshot
+        self._status_events: list[ProviderStatusEvent] = []
         self.cancelled: list[str] = []
 
     async def connect(self) -> None:
@@ -101,6 +114,7 @@ class OneShotPort:
         market_data_type: int = 1,
         timeout_seconds: float | None = None,
     ) -> MarketDataSnapshotResult:
+        self._status_events.extend(self._events_during_snapshot)
         return MarketDataSnapshotResult(
             envelopes=self._envelopes,
             provider_errors=(),
@@ -108,23 +122,49 @@ class OneShotPort:
             reported_market_data_type=1,
             generic_ticks=(),
             subscription_id="sub-it",
-            cancelled=True,
+            operation=OperationToken(
+                journal_id="integration-journal",
+                connection_epoch_at_start=self._envelopes[0].connection_epoch,
+                provider_sequence_at_start=0,
+                market_update_sequence_at_start=0,
+            ),
+            market_update_sequence_at_end=1,
+            cancellation_outcome=CancellationOutcome.CANCELLED,
         )
 
-    async def cancel_subscription(self, subscription_id: str) -> bool:
+    async def cancel_subscription(
+        self, subscription_id: str
+    ) -> CancellationOutcome:
         self.cancelled.append(subscription_id)
-        return True
+        return CancellationOutcome.CANCELLED
+
+    def drain_provider_status_events(self) -> tuple[ProviderStatusEvent, ...]:
+        events = tuple(self._status_events)
+        self._status_events.clear()
+        return events
+
+    @property
+    def pending_subscription_count(self) -> int:
+        return 0
 
 
 async def _noop_sleep(_delay: float) -> None:
     return None
 
 
-def run_one_cycle(engine: Engine, envelopes: tuple[DataEnvelope[Any], ...]) -> Any:
+def run_one_cycle(
+    engine: Engine,
+    envelopes: tuple[DataEnvelope[Any], ...],
+    *,
+    events_during_snapshot: tuple[ProviderStatusEvent, ...] = (),
+) -> Any:
     """Un cycle complet du VRAI runner, à travers le VRAI puits PostgreSQL."""
     outil = _load_tool()
     runner = EdgeIbkrRunner(
-        port=OneShotPort(envelopes),
+        port=OneShotPort(
+            envelopes,
+            events_during_snapshot=events_during_snapshot,
+        ),
         universe=(SPEC,),
         state=ConnectionStateMachine(rng=random.Random(7)),
         sink=outil.PostgresObservationSink(engine),
@@ -215,6 +255,33 @@ def test_une_observation_d_un_epoch_perime_n_atteint_jamais_la_base(
     assert stats.stale_epoch == 1
     assert stats.ingested == 0
 
+    with Session(migrated_engine) as session:
+        assert session.scalar(select(func.count()).select_from(Observation)) == 0
+        assert session.scalar(select(func.count()).select_from(OutboxMessage)) == 0
+
+
+@pytest.mark.usefixtures("clean_database")
+def test_une_perte_de_session_en_vol_n_ecrit_ni_observation_ni_travail(
+    migrated_engine: Engine,
+) -> None:
+    """Une réponse apparemment VALID ne traverse jamais une coupure 1100."""
+    event = ProviderStatusEvent(
+        journal_id="integration-journal",
+        sequence=1,
+        code=1100,
+        req_id=None,
+        received_at=T0,
+        message="synthetic connectivity loss",
+    )
+
+    stats = run_one_cycle(
+        migrated_engine,
+        (make_ibkr_envelope("ibkr-evt-session-loss", epoch=1),),
+        events_during_snapshot=(event,),
+    )
+
+    assert stats.provider_errors == 1
+    assert stats.ingested == 0
     with Session(migrated_engine) as session:
         assert session.scalar(select(func.count()).select_from(Observation)) == 0
         assert session.scalar(select(func.count()).select_from(OutboxMessage)) == 0
