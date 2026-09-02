@@ -73,6 +73,7 @@ import math
 import re
 from collections.abc import Callable, Mapping, Sequence
 from datetime import UTC, date, datetime
+from decimal import Decimal, InvalidOperation
 from functools import lru_cache
 from typing import Any, cast
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -477,8 +478,51 @@ _CURRENCY_RE = re.compile(r"^[A-Z]{3}$")
 _TRADING_DAY_RE = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}$")
 """Strict ISO calendar day (the value must ALSO be a real date)."""
 
-_CODE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:@/+-]{0,127}$")
-"""Technical code: identity, version, hash, event id, resource path."""
+_CODE_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:@/+$-]{0,127}$")
+"""Technical code: identity, version, hash, event id, resource path.
+
+Le `$` est admis DANS la classe, jamais en premier caractère, parce qu'un
+``event_id`` de presse encastre l'``article_id`` frappé PAR LE FOURNISSEUR :
+IBKR News émet ``DJ-RT$1e0664c8``, d'où ``ibkr:news:DJ-RT:DJ-RT$1e0664c8``.
+
+MESURE DU 2026-09-01 sur ``vertex_live`` — l'ampleur était très supérieure aux
+deux routes d'abord constatées : 6108 observations concernées, toutes de
+schéma ``ibkr.news-headline/1`` ; 1207 valeurs refusées sur les 170 têtes
+publiées, soit **72 réponses HTTP en 500** (1 ``attention``, 71 des 162
+dossiers ``analysis``, soit 43,8 % d'entre eux).
+
+POURQUOI ÉLARGIR LE LECTEUR PLUTÔT QUE D'ASSAINIR À LA FRAPPE. ``event_id``
+est la CLÉ D'IDEMPOTENCE de ``ingest_envelope`` : changer sa dérivation
+ré-ingérerait les 6108 dépêches en doublons. Et la migration de rattrapage est
+IMPOSSIBLE — ``UPDATE``/``DELETE`` sur ``observations`` et ``snapshots`` sont
+refusés par le déclencheur ``vertex_forbid_mutation``. Élargir le lecteur est
+la seule voie non destructrice, et la seule qui rende servables des
+instantanés immuables sans les toucher.
+
+Mesuré aussi : ré-écrire l'identité ne corrigerait même pas les 500. Sur 40
+dépêches réelles, 40/40 des clusters mêlent ancienne et nouvelle identité, et
+40/40 élisent un représentant portant encore le `$`.
+
+L'AUTORITÉ DE CONTRAT N'IMPOSE AUCUNE FORME ICI :
+``vertex_core.contracts.envelope`` déclare ``event_id: NonEmptyStr``, soit
+``StringConstraints(min_length=1)``. Fermer plus étroitement que l'autorité
+qui PRODUIT la valeur est exactement ce que le docstring de ``_HASH_KEYS``
+interdit plus bas dans ce même fichier.
+
+ORDRE OBLIGATOIRE : le `$` est placé AVANT le `-` final. Écrit ``+-$``,
+Python lirait une plage de caractères au lieu de trois littéraux.
+
+CE QUE CELA NE RÈGLE PAS, et qu'il ne faut pas annoncer réglé : deux valeurs
+restent refusées après ce correctif, ``instrument`` et ``instrument_id`` de
+l'instantané ``analysis/GNL PRE``. Le caractère fautif y est l'ESPACE, jamais
+adressé par le `$`. Cet instantané est de toute façon inatteignable —
+``UNDERLYING_PATTERN`` le refuse en 422 avant toute lecture de base.
+
+LA VRAIE PARADE n'est pas dans ce motif. Ce caractère est calibré sur UN
+fournisseur observé UN jour ; Reuters ou un identifiant en UUID à accolades
+rouvriront la question. Ce qui ferme la classe, c'est le test structurel de
+``test_relay_value_contracts.py`` : ce que l'edge frappe, le relais doit le
+relayer."""
 
 _UPPER_CODE_RE = re.compile(r"^[A-Z][A-Z0-9_]{0,63}$")
 """Uppercase status/reason token."""
@@ -891,7 +935,6 @@ _DECIMAL_KEYS: tuple[str, ...] = (
     "spot_grid",
     "strike",
     "time_grid_years",
-    "value",
     "weight_global",
     "weight_in_sector",
 )
@@ -920,6 +963,18 @@ _SIGNED_DECIMAL_KEYS: tuple[str, ...] = (
     "theta",
     "theta_per_calendar_day",
     "total_return",
+    # Une correlation « la plus opposee » est NEGATIVE par definition — c'est
+    # ce que le mot veut dire. `value` vivait dans la classe non signee, ce qui
+    # rendait `extremes.most_opposed.value = -0.803` irrelayable : un 500
+    # latent sur la page Risques, invisible tant que la route garde son
+    # validateur propre (REPRENDRE_ICI.md §4.3).
+    #
+    # LE DESSERRAGE NE PERD RIEN, parce que les DEUX bornes semantiques que
+    # cette classe ne peut pas connaitre sont desormais tenues la ou elles ont
+    # un sens : `_checked_correlation` pour [-1, 1] cote Risques, et
+    # `_markets_breadth` pour [0, 1] cote Marches. La classe dit « c'est un
+    # decimal signe » ; la borne appartient a la page.
+    "value",
     "vega",
     "vega_per_point",
 )
@@ -1639,6 +1694,32 @@ def _markets_sector(raw: Any, *, index: int) -> MarketsSector:
     )
 
 
+def _bounded_ratio(raw: Any, *, field: str) -> str | None:
+    """Une PARTICIPATION vit dans [0, 1] — jamais negative, jamais au-dessus de 1.
+
+    `breadth.value` est le nombre d'instruments au-dessus de leur repere
+    rapporte aux couverts. Elle n'etait lue que par `_optional_str` : le garde
+    commun, via la classe NON SIGNEE, etait sa SEULE protection. Depuis que
+    `value` a rejoint la classe signee (une correlation opposee est negative),
+    cette borne doit vivre ICI, sinon le desserrage aurait troque un faux refus
+    sur Risques contre une vraie perte sur Marches.
+    """
+    value = _optional_str(raw, field=field)
+    if value is None:
+        return None
+    try:
+        ratio = Decimal(value)
+    except InvalidOperation as exc:
+        raise SnapshotContentError(
+            f"{field}: plain decimal string required", field=field
+        ) from exc
+    if not ratio.is_finite() or ratio < 0 or ratio > 1:
+        raise SnapshotContentError(
+            f"{field}: participation ratio within [0, 1] required", field=field
+        )
+    return value
+
+
 def _markets_breadth(raw: Any) -> MarketsBreadth:
     entry = _require_mapping(raw, field="breadth")
     status = entry.get("status")
@@ -1650,7 +1731,7 @@ def _markets_breadth(raw: Any) -> MarketsBreadth:
     return MarketsBreadth(
         status=status,
         reason=_optional_str(entry.get("reason"), field="breadth.reason"),
-        value=_optional_str(entry.get("value"), field="breadth.value"),
+        value=_bounded_ratio(entry.get("value"), field="breadth.value"),
         value_pct=_optional_str(entry.get("value_pct"), field="breadth.value_pct"),
         above_count=_require_non_negative_int(
             entry.get("above_count"), field="breadth.above_count"
@@ -1881,6 +1962,7 @@ def build_analysis_response(
             instrument=instrument,
             engine_version=None,
             bars=None,
+            indicators=None,
             evidence=None,
             scenarios=None,
             advice=None,
@@ -1925,6 +2007,14 @@ def build_analysis_response(
             content.get("engine_version"), field="engine_version"
         ),
         bars=bars,
+        # FACULTATIF : un dossier publié avant l'ajout des indicateurs n'en
+        # porte aucun. Exiger la clé transformerait cette absence légitime
+        # en 500 — une absence n'est jamais une erreur.
+        indicators=(
+            _wire_mapping(content["indicators"], field="indicators")
+            if content.get("indicators") is not None
+            else None
+        ),
         evidence=_wire_mapping(content.get("evidence"), field="evidence"),
         scenarios=scenarios,
         advice=dict(_checked_advice(content.get("advice"))),

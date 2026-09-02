@@ -93,9 +93,7 @@ def test_ten_thousand_observations_thirty_percent_duplicates_exact_counts():
 
     # Exact decision accounting per level; similarity never fired.
     action_counts = Counter(
-        decision.action
-        for cluster in result.clusters
-        for decision in cluster.decisions
+        decision.action for cluster in result.clusters for decision in cluster.decisions
     )
     assert action_counts == {
         FusionAction.LINKED_NATIVE_ID: 1000,

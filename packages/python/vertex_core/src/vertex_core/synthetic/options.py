@@ -69,13 +69,10 @@ SYNTHETIC_OPTION_UNDERLYINGS: tuple[str, ...] = SYNTHETIC_FOCUS_TICKERS
 tickers of the analysis page (single declaration, no drift), all members of
 the existing 24-ticker universe — verified below at import time."""
 
-_DECLARED_TICKERS = {
-    ticker for tickers in SYNTHETIC_SECTOR_TICKERS.values() for ticker in tickers
-}
+_DECLARED_TICKERS = {ticker for tickers in SYNTHETIC_SECTOR_TICKERS.values() for ticker in tickers}
 if not set(SYNTHETIC_OPTION_UNDERLYINGS) <= _DECLARED_TICKERS:  # pragma: no cover
     raise RuntimeError(
-        "SYNTHETIC_OPTION_UNDERLYINGS must be a subset of the declared "
-        "synthetic ticker universe"
+        "SYNTHETIC_OPTION_UNDERLYINGS must be a subset of the declared synthetic ticker universe"
     )
 
 SYNTHETIC_OPTION_EXCHANGE = "SYNTH"
@@ -130,9 +127,7 @@ def _validate_inputs(seed: int, base_time: datetime) -> datetime:
     if not isinstance(seed, int) or isinstance(seed, bool):
         raise TypeError(f"seed: expected int, got {type(seed).__name__}")
     if not isinstance(base_time, datetime):
-        raise TypeError(
-            f"base_time: expected datetime, got {type(base_time).__name__}"
-        )
+        raise TypeError(f"base_time: expected datetime, got {type(base_time).__name__}")
     return ensure_utc(base_time)
 
 
@@ -212,8 +207,7 @@ def generate_option_chain_envelopes(
         step_cents = max(100, (spot_cents // 20) // 100 * 100)
         center_cents = max(step_cents, round(spot_cents / step_cents) * step_cents)
         strikes_cents = [
-            center_cents + (i - _STRIKE_COUNT // 2 + 1) * step_cents
-            for i in range(_STRIKE_COUNT)
+            center_cents + (i - _STRIKE_COUNT // 2 + 1) * step_cents for i in range(_STRIKE_COUNT)
         ]
         if strikes_cents[0] <= 0:  # pragma: no cover - bands prevent this
             raise RuntimeError("synthetic strike grid produced a non-positive strike")
@@ -233,10 +227,7 @@ def generate_option_chain_envelopes(
             contract_index = 0
             for strike_cents in strikes_cents:
                 for right in ("CALL", "PUT"):
-                    volatility = (
-                        _smile_volatility(base_vol, spot_cents, strike_cents)
-                        + vol_shift
-                    )
+                    volatility = _smile_volatility(base_vol, spot_cents, strike_cents) + vol_shift
                     mid = _theoretical_mid(
                         spot_cents=spot_cents,
                         strike_cents=strike_cents,
@@ -244,9 +235,7 @@ def generate_option_chain_envelopes(
                         volatility=volatility,
                         right=right,
                     )
-                    half_spread = max(
-                        Decimal("0.02"), _quantize_cents(mid * Decimal("0.02"))
-                    )
+                    half_spread = max(Decimal("0.02"), _quantize_cents(mid * Decimal("0.02")))
                     bid = _quantize_cents(mid - half_spread)
                     ask = _quantize_cents(mid + half_spread)
                     if bid < _CENTS:
@@ -303,17 +292,13 @@ def generate_option_chain_envelopes(
                     "generated data, never real market information."
                 ),
             }
-            quality = (
-                EnvelopeQuality.PARTIAL if degraded_slice else EnvelopeQuality.VALID
-            )
+            quality = EnvelopeQuality.PARTIAL if degraded_slice else EnvelopeQuality.VALID
             envelopes.append(
                 DataEnvelope[dict[str, Any]](
                     event_id=f"{SYNTHETIC_SOURCE}:{seed}:oc{envelope_index:04d}",
                     schema_version=SYNTHETIC_SCHEMA_OPTION_CHAIN,
                     source=SYNTHETIC_SOURCE,
-                    source_event_id=(
-                        f"syn-oc-{underlying}-{expiry.isoformat()}-{trading_class}"
-                    ),
+                    source_event_id=(f"syn-oc-{underlying}-{expiry.isoformat()}-{trading_class}"),
                     entitlement_id=None,
                     instrument_id=underlying,
                     observed_at=fresh_observed,

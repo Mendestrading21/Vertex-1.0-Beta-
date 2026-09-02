@@ -84,6 +84,11 @@ def test_openapi_structure_is_explicit() -> None:
         # snapshot relays, bounded window for the agenda.
         "get_calendar",
         "get_opportunities",
+        # Risques : matrice de corrélation du périmètre DÉCLARÉ, relayée
+        # verbatim (la grille arrive déjà rendue en chaînes, l'API ne
+        # recalcule aucun coefficient). Clé `global` — elle décrit le
+        # périmètre, pas un portefeuille.
+        "get_risk_matrix",
         # Vertex AI (page 11): DETERMINISTIC template only while the AI
         # provider decision (B-05) is pending — no model is called.
         "post_ai_explain",

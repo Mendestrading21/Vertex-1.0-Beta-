@@ -106,9 +106,7 @@ regardless of the upstream ``rights_usable`` boolean (fail-closed)."""
 
 ATTENTION_BUDGETS: Mapping[str, Mapping[str, int | str]] = MappingProxyType(
     {
-        "today": MappingProxyType(
-            {"major_events": 3, "changes": 3, "blockers": UNLIMITED}
-        ),
+        "today": MappingProxyType({"major_events": 3, "changes": 3, "blockers": UNLIMITED}),
         "markets": MappingProxyType({"dominant_narratives": 1, "contradictions": 3}),
         "opportunities": MappingProxyType(
             {"qualified_candidates": 5, "rejection_reasons_per_candidate": 3}
@@ -171,9 +169,7 @@ class RelevanceInput(ContractModel):
         if unknown:
             raise ValueError(f"unknown penalty codes rejected: {unknown!r}")
         if len(set(self.penalties)) != len(self.penalties):
-            duplicated = sorted(
-                {code for code in self.penalties if self.penalties.count(code) > 1}
-            )
+            duplicated = sorted({code for code in self.penalties if self.penalties.count(code) > 1})
             raise ValueError(f"duplicate penalty codes rejected: {duplicated!r}")
         return self
 
@@ -289,9 +285,7 @@ def evaluate_gates(item: RelevanceInput, as_of: datetime) -> GateEvaluation:
             and (observation.published_at is None or observation.published_at <= as_of)
         ),
         source_ok=item.source_allowed,
-        quality_ok=(
-            observation.quality in _ACCEPTED_QUALITIES and not observation.is_deleted
-        ),
+        quality_ok=(observation.quality in _ACCEPTED_QUALITIES and not observation.is_deleted),
     )
 
 
@@ -346,17 +340,13 @@ def _priority_class(item: RelevanceInput) -> int:
 
 
 def _relevance_reasons(item: RelevanceInput) -> tuple[str, ...]:
-    reasons = [
-        reason for flag_name, reason in _REASON_BY_FLAG if getattr(item, flag_name)
-    ]
+    reasons = [reason for flag_name, reason in _REASON_BY_FLAG if getattr(item, flag_name)]
     if len(reasons) < MAX_RELEVANCE_REASONS:
         reasons.append(_REASON_FRESHNESS)
     return tuple(reasons[:MAX_RELEVANCE_REASONS])
 
 
-def rank_items(
-    items: Sequence[RelevanceInput], *, as_of: datetime
-) -> RelevanceRanking:
+def rank_items(items: Sequence[RelevanceInput], *, as_of: datetime) -> RelevanceRanking:
     """Gate then rank ``items`` deterministically for the instant ``as_of``.
 
     Every item failing any mandatory gate is excluded from the ranking and
@@ -432,9 +422,7 @@ def apply_attention_budget(
     try:
         page_budgets = ATTENTION_BUDGETS[page]
     except KeyError:
-        raise UnknownAttentionBudgetError(
-            f"unknown attention-budget page: {page!r}"
-        ) from None
+        raise UnknownAttentionBudgetError(f"unknown attention-budget page: {page!r}") from None
     try:
         budget = page_budgets[category]
     except KeyError:

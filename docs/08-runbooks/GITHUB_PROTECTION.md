@@ -1,6 +1,6 @@
 # Protection GitHub de Vertex
 
-## État de référence
+## État de référence initial — 1er septembre 2026
 
 Relevé le 1er septembre 2026 :
 
@@ -42,19 +42,27 @@ Checks requis, recopiés exactement depuis `.github/workflows/ci.yml` :
 - `e2e — Chromium, 3 viewports desktop, axe` ;
 - `supply-chain — audit des dépendances, SBOM`.
 
-## Geste administrateur restant
+## Activation vérifiée le 2 septembre 2026
 
-Dans GitHub : `Settings` → `Rules` → `Rulesets` → `New branch ruleset`.
+L'autorité serveur GitHub confirme :
 
-Nom recommandé : `main-required`. Cible : `Default branch`. État : `Active`.
-Dans `Settings` → `General` → `Pull Requests`, désactiver merge commits et
-rebase merge pour ne conserver que squash merge.
-Après sauvegarde, relire l'API `GET /repos/{owner}/{repo}/rulesets` et vérifier
-que `branches/main` annonce `protected: true`.
+- dépôt public et branche par défaut `main` ;
+- ruleset `main-required`, identifiant `22076309`, état `active`, cible
+  `~DEFAULT_BRANCH` et liste de contournement vide ;
+- `branches/main` annonce `protected: true` ;
+- suppression et mise à jour non fast-forward interdites ; historique linéaire
+  obligatoire ;
+- pull request et résolution des conversations obligatoires ; zéro approbation
+  serveur sur ce dépôt personnel ;
+- branche à jour et sept checks nommés ci-dessus obligatoires ;
+- squash merge seul autorisé ; merge commit, rebase merge et auto-merge
+  désactivés.
 
 ## Preuve et rollback
 
-La preuve est le JSON GitHub du ruleset actif et une PR synthétique dont un
-check volontairement rouge bloque réellement la fusion. Le rollback consiste
-à désactiver temporairement le ruleset, jamais à déplacer `main` ou forcer un
-push. Toute exception doit nommer son propriétaire, sa durée et sa raison.
+La preuve API du ruleset actif est acquise. La preuve comportementale négative
+par une PR synthétique volontairement rouge n'a pas été exécutée dans R0 ; elle
+reste distincte et ne doit jamais contaminer une PR applicative. Le rollback
+consiste à désactiver temporairement le ruleset, jamais à déplacer `main` ou
+forcer un push. Toute exception doit nommer son propriétaire, sa durée et sa
+raison.

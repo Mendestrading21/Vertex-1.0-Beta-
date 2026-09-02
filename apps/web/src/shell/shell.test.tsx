@@ -1,10 +1,12 @@
+import { readFileSync } from 'node:fs';
+
 import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
 
 import { ALL_PAGES, NAV_GROUPS } from '../app/pages.ts';
 import { renderApp } from '../test/render.tsx';
-import { RAIL_COLLAPSED_STORAGE_KEY } from './AppShell.tsx';
+import { LEDGER_CODE_BY_PAGE, RAIL_COLLAPSED_STORAGE_KEY } from './AppShell.tsx';
 
 describe('AppShell — landmarks et lien d’évitement', () => {
   it('expose nav, header (banner) et main', () => {
@@ -18,7 +20,77 @@ describe('AppShell — landmarks et lien d’évitement', () => {
     renderApp('/markets');
     const main = screen.getByRole('main');
     expect(main.getAttribute('data-page')).toBe('markets');
-    expect(main.getAttribute('data-ledger-code')).toBe('TL / 07');
+    // `02` et non `07` : ordre des planches canoniques.
+    expect(main.getAttribute('data-ledger-code')).toBe('TL / 02');
+  });
+
+  // L'ordre canonique lui-même, épinglé. Le garde-fou d'en dessous ne voyait
+  // qu'un code ABSENT ; un code FAUX lui était invisible, et huit destinations
+  // sur dix en portaient un. `08 charts` reste réservé : son absence de la
+  // table est intentionnelle et vérifiée ici. `09 risks` a été installé le
+  // 2026-09-01 — route, données et tests — donc il y figure désormais.
+  it('les signatures suivent l’ordre des planches canoniques', () => {
+    expect(LEDGER_CODE_BY_PAGE).toEqual({
+      today: 'TL / 01',
+      markets: 'TL / 02',
+      opportunities: 'TL / 03',
+      analysis: 'TL / 04',
+      options: 'TL / 05',
+      simulator: 'TL / 06',
+      portfolio: 'TL / 07',
+      risks: 'TL / 09',
+      catalysts: 'TL / 10',
+      calendar: 'TL / 11',
+      'sources-reports': 'TL / 12',
+      auth: 'TL / ACCESS',
+    });
+    // `08 charts` reste réservé ; `09 risks` est installé depuis le
+    // 2026-09-01 (route, données et tests), donc il DOIT figurer ci-dessus.
+    expect(Object.values(LEDGER_CODE_BY_PAGE)).not.toContain('TL / 08');
+  });
+
+  // DEUX sources portent le même numéro : `LEDGER_CODE_BY_PAGE` (ici) et les
+  // variables `--vx-page-ledger` de global.css. Le 2026-09-01 la première a été
+  // corrigée sans la seconde, et chaque page affichait `TL / 03` à côté de
+  // `LEDGER 02`. Ce test lie les deux ; il aurait rendu la régression
+  // impossible à livrer.
+  it('les libellés CSS portent le même numéro que la table du shell', () => {
+    // Chemin relatif au répertoire de vitest (apps/web) :
+    // `import.meta.url` n'est pas une URL file:// sous ce runner.
+    const css = readFileSync('src/styles/global.css', 'utf-8');
+    const motif = /\.vx-main\[data-page='([a-z-]+)'\]\s*\{\s*--vx-page-ledger:\s*'LEDGER (\d{2})/g;
+    const trouves = new Map<string, string>();
+    for (const [, page, numero] of css.matchAll(motif)) {
+      // Les groupes de `matchAll` sont optionnels pour TypeScript : un motif
+      // qui ne capture pas rendrait `undefined`, et l'ignorer masquerait une
+      // page absente du CSS.
+      if (page !== undefined && numero !== undefined) {
+        trouves.set(page, numero);
+      }
+    }
+    expect(trouves.size).toBeGreaterThan(0);
+
+    const divergences: string[] = [];
+    for (const [page, numero] of trouves) {
+      const code = LEDGER_CODE_BY_PAGE[page];
+      if (code === undefined || code !== `TL / ${numero}`) {
+        divergences.push(`${page}: CSS ${numero} vs shell ${code ?? 'absent'}`);
+      }
+    }
+    expect(divergences).toEqual([]);
+  });
+
+  it('chaque page du rail porte le code canonique de sa clé', () => {
+    const faux: string[] = [];
+    for (const page of ALL_PAGES) {
+      const { unmount } = renderApp(page.navPath);
+      const code = screen.getByRole('main').getAttribute('data-ledger-code');
+      if (code !== LEDGER_CODE_BY_PAGE[page.key]) {
+        faux.push(`${page.key}: ${code}`);
+      }
+      unmount();
+    }
+    expect(faux).toEqual([]);
   });
 
   // Garde-fou d'absorption : à chaque renommage de destination
@@ -91,9 +163,11 @@ describe('NavRail — groupes et liens', () => {
       const link = within(nav).getByRole('link', { name: page.title });
       expect(link.getAttribute('href')).toBe(page.navPath);
     }
-    // Dix destinations pendant les absorptions, douze en cible : le compte
-    // exact est asséré dans routes.test.tsx, avec la liste ordonnée.
-    expect(ALL_PAGES).toHaveLength(10);
+    // Onze destinations : douze en cible, moins Graphiques qui attend encore
+    // son contrat serveur. Risques a ete installe le 2026-09-01 avec sa route,
+    // ses donnees et ses tests — la condition posee dans app/pages.ts.
+    // Le compte exact est asséré dans routes.test.tsx, avec la liste ordonnée.
+    expect(ALL_PAGES).toHaveLength(11);
     // `/ai` a quitté le rail au LOT-12 : l'explication vit dans l'inspecteur.
     expect(ALL_PAGES.map((page) => page.navPath)).not.toContain('/ai');
     expect(ALL_PAGES.map((page) => page.navPath)).not.toContain('/vertex-ai');

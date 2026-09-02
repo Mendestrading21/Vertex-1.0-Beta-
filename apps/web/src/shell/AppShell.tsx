@@ -23,16 +23,34 @@ function isPageHandle(handle: unknown): handle is PageHandle {
   );
 }
 
-const LEDGER_CODE_BY_PAGE: Readonly<Record<string, string>> = {
+/**
+ * Signatures Titanium Ledger, dans l'ordre des planches canoniques.
+ *
+ * `08 charts` reste RÉSERVÉ : la destination attend un contrat serveur (voir
+ * `docs/05-design/PAGE_ARBITRATION.md`). Un code réservé n'est pas un code
+ * cassé — la table saute déjà des numéros sans que rien n'en souffre, et
+ * c'est précisément ce qui rend la réservation possible.
+ *
+ * `09 risks` ne l'est plus : son contrat serveur existe
+ * (`GET /api/v1/risk/matrix`), avec sa route, ses données et ses tests.
+ *
+ * CES CODES DOIVENT SUIVRE `--vx-page-ledger` (styles/global.css). Ce sont
+ * deux sources pour le même numéro : le 2026-09-01 cette table a été corrigée
+ * SANS le CSS, et chaque page affichait `TL / 03` à côté de `LEDGER 02`. Un
+ * test lit les deux fichiers et les compare — voir shell.test.tsx.
+ */
+export const LEDGER_CODE_BY_PAGE: Readonly<Record<string, string>> = {
   today: 'TL / 01',
-  opportunities: 'TL / 02',
-  analysis: 'TL / 03',
-  options: 'TL / 04',
-  simulator: 'TL / 05',
-  calendar: 'TL / 06',
-  markets: 'TL / 07',
-  portfolio: 'TL / 08',
-  catalysts: 'TL / 09',
+  markets: 'TL / 02',
+  opportunities: 'TL / 03',
+  analysis: 'TL / 04',
+  options: 'TL / 05',
+  simulator: 'TL / 06',
+  portfolio: 'TL / 07',
+  // 08 charts — réservé, destination absente
+  risks: 'TL / 09',
+  catalysts: 'TL / 10',
+  calendar: 'TL / 11',
   'sources-reports': 'TL / 12',
   auth: 'TL / ACCESS',
 };
@@ -126,11 +144,32 @@ export function AppShell() {
             un montage conditionnel — sinon la page ne pourrait jamais viser
             l'emplacement au premier rendu.
           */}
+          {/*
+            `tabIndex` : le nœud porte `max-height: 100vh; overflow-y: auto`,
+            donc c'est une RÉGION DÉFILANTE — mesurée à 6367 px de contenu pour
+            900 px visibles sur `/analysis/SYN-TECH-01`. Une région défilante
+            doit être atteignable au clavier (axe `scrollable-region-focusable`,
+            impact « serious », seuil déclaré à zéro), exactement comme la bande
+            de ticker au LOT-14.
+
+            CE QUE CETTE LIGNE RÉPARE, ET POURQUOI PERSONNE NE L'AVAIT VU. La
+            règle passait déjà — mais par ACCIDENT, parce que le panneau monté
+            contient des liens de citation. Entre l'instant où le nœud devient
+            défilant et celui où ces liens existent, la région était
+            inatteignable. La campagne d'accessibilité a fini par tomber dessus
+            une fois sur trois viewports ; une sonde l'a reproduite sur la
+            baseline comme sur le LOT-A1. Un `tabIndex` explicite retire la
+            joignabilité du domaine du hasard : elle ne dépend plus de ce que
+            la page a eu le temps de rendre.
+
+            Masqué, le nœud n'est pas focalisable : `hidden` s'en charge.
+          */}
           <aside
             id={INSPECTOR_SLOT_ID}
             className="vx-inspector"
             aria-label="Inspecteur contextuel"
             hidden={!occupied}
+            tabIndex={0}
           />
         </div>
       </div>

@@ -16,6 +16,8 @@
  * des valeurs de pixels : une recomposition ultérieure reste libre tant
  * qu'elle respecte ces propriétés.
  */
+import AxeBuilder from '@axe-core/playwright';
+
 import { expect, test } from './fixtures.ts';
 
 /**
@@ -122,6 +124,150 @@ test.describe('Shell — anatomie canonique', () => {
       (element) => getComputedStyle(element).fontWeight,
     );
     expect(Number(graisseActive)).toBeGreaterThan(Number(graisseInactive));
+  });
+
+  test('points 2 et 6 : la densité canonique, mesurée en pixels', async ({ page }) => {
+    /**
+     * V2 — LA DENSITÉ. `references/canonical-visual.md`, « Densité et
+     * géométrie », donne trois nombres et un interdit :
+     *
+     *   « Navigation visuelle : environ 120 px »
+     *   « Gouttières principales : 12–16 px »
+     *   « Inspecteur : 300–340 px selon viewport »
+     *   dérive interdite : « rail gauche large, flottant ou très arrondi »
+     *
+     * MESURE AVANT CORRECTIF, à 1600×1000 : rail **248 px** et marge de travail
+     * **40 / 32 / 48 px**. Le rail mangeait donc 128 px de largeur utile sur
+     * CHACUNE des onze destinations, et la marge valait deux à trois fois la
+     * gouttière canonique. Aucune porte ne mesurait ces trois nombres : le
+     * contrat les écrivait, le code s'en éloignait, et rien ne le disait.
+     *
+     * LA BANDE ACCEPTÉE, ET POURQUOI ELLE N'EST PAS « 120 » AU PIXEL. Les
+     * libellés français de Vertex sont plus longs que ceux de la capture :
+     * « Sources & Rapports » demande 192 px de largeur intrinsèque, le
+     * cartouche 154 px, la tête 126 px. Un rail de 120 px stricts les
+     * TRONQUERAIT — et un libellé de navigation tronqué est pire qu'un rail de
+     * 16 px trop large. La bande retenue est donc 120–140 px : « environ
+     * 120 px » au sens du contrat, sans rien couper.
+     */
+    for (const largeurFenetre of [1280, 1440, 1600]) {
+      await page.setViewportSize({ width: largeurFenetre, height: 900 });
+      await page.goto('/today');
+      await expect(page.getByRole('main')).toBeVisible();
+
+      const mesure = await page.evaluate(() => {
+        const rail = document.querySelector('.vx-rail') as HTMLElement;
+        const main = document.querySelector('.vx-main') as HTMLElement;
+        const style = getComputedStyle(main);
+        return {
+          rail: Math.round(rail.getBoundingClientRect().width),
+          hautMain: Number.parseFloat(style.paddingTop),
+          coteMain: Number.parseFloat(style.paddingLeft),
+          // Débordement horizontal d'un libellé : le seul vrai risque de la
+          // compression. `scrollWidth > clientWidth` sur le rail le dit.
+          railDeborde: rail.scrollWidth > rail.clientWidth + 1,
+        };
+      });
+
+      expect(
+        mesure.rail,
+        `rail ${mesure.rail} px à ${largeurFenetre} — le contrat dit « environ 120 px »`,
+      ).toBeGreaterThanOrEqual(120);
+      expect(mesure.rail).toBeLessThanOrEqual(140);
+
+      expect(
+        mesure.coteMain,
+        `marge latérale ${mesure.coteMain} px à ${largeurFenetre} — gouttière canonique 12–16 px`,
+      ).toBeLessThanOrEqual(20);
+      expect(mesure.hautMain).toBeLessThanOrEqual(20);
+
+      // Rien n'est coupé. C'est la contrepartie obligatoire de la compression :
+      // sans cette assertion, le test récompenserait un rail étroit qui
+      // tronque ses libellés.
+      expect(mesure.railDeborde, `le rail tronque son contenu à ${largeurFenetre}`).toBe(false);
+
+      // ET RIEN N'EST COUPÉ AU MILIEU D'UN MOT. La première version de ce lot
+      // autorisait `overflow-wrap: anywhere` : le rail ne débordait pas, le
+      // test passait, et la capture montrait « Aujourd / 'hui »,
+      // « Opportu / nités », « Portefeu / ille ». Un libellé sans espace n'a
+      // aucun point de coupure légitime : il doit tenir sur une ligne.
+      const coupesDansUnMot = await page.evaluate(() => {
+        const liens = Array.from(document.querySelectorAll('.vx-rail-link')) as HTMLElement[];
+        return liens
+          .map((lien) => {
+            const etiquette = lien.querySelector('span:not(.vx-rail-link-short)');
+            const texte = (etiquette?.textContent ?? '').trim();
+            if (texte === '' || texte.includes(' ')) {
+              return null;
+            }
+            const boite = (etiquette as HTMLElement).getBoundingClientRect();
+            const hauteurLigne = Number.parseFloat(
+              getComputedStyle(etiquette as HTMLElement).lineHeight,
+            );
+            // Plus d'une ligne pour un mot unique = coupure interne.
+            return boite.height > hauteurLigne * 1.5 ? texte : null;
+          })
+          .filter((valeur): valeur is string => valeur !== null);
+      });
+      expect(
+        coupesDansUnMot,
+        `libellés coupés au milieu d’un mot à ${largeurFenetre} : ${coupesDansUnMot.join(', ')}`,
+      ).toEqual([]);
+    }
+  });
+
+  test('une seule lumière dominante par écran, sur les onze destinations', async ({ page }) => {
+    /**
+     * « Une lumière dominante maximum par carte, deux par écran hors
+     * rouge/vert. » — `references/canonical-visual.md`.
+     *
+     * POURQUOI CE TEST EXISTE, ET POURQUOI IL ATTEND UN TÉMOIN DE CONTENU.
+     * La porte statique `one-dominant-per-page.test.ts` compte les
+     * déclarations dans le source ; elle ne peut pas voir ce qui est
+     * RÉELLEMENT rendu. Ce test-ci le voit — à une condition apprise à ses
+     * dépens : une sonde qui attend seulement `main` visible mesure le
+     * SQUELETTE DE CHARGEMENT (`.vx-dsb-skeleton`) et rapporte zéro dominante
+     * partout. C'est exactement l'erreur qui m'a fait annoncer « dix pages sur
+     * onze sans dominante » alors que la règle fonctionnait. Chaque route
+     * attend donc un témoin de son contenu réel.
+     *
+     * ZÉRO EST PERMIS, DEUX NE L'EST PAS. Le contrat dit « maximum », et le
+     * Simulateur au repos n'a rien à faire dominer : sa carte de résultat
+     * n'existe qu'après un calcul. Un formulaire sans dominante est honnête ;
+     * deux dominantes ne le sont jamais.
+     */
+    const ROUTES: ReadonlyArray<readonly [string, string]> = [
+      ['/today', '.vx-today-primary'],
+      ['/markets', '.vx-chartframe'],
+      ['/opportunities', '.vx-opp-group'],
+      ['/analysis/SYN-TECH-01', '.vx-chartframe'],
+      ['/options/SYN-TECH-01', '.vx-chartframe'],
+      ['/simulator', '.vx-sim-composer'],
+      ['/portfolio', '.vx-pf-summary'],
+      ['/risks', '.vx-riskmatrix'],
+      ['/catalysts', '.vx-fu-queue'],
+      ['/calendar', '.vx-cal-agenda'],
+      ['/sources-reports', '.vx-health'],
+    ];
+
+    for (const [route, temoin] of ROUTES) {
+      await page.goto(route);
+      await expect(page.locator(temoin).first()).toBeVisible({ timeout: 15000 });
+      const porteurs = await page.evaluate(() => {
+        const main = document.querySelector('.vx-main');
+        if (main === null) {
+          return null;
+        }
+        return Array.from(main.querySelectorAll('[data-rank="dominant"]')).map((element) =>
+          ((element as HTMLElement).className || element.tagName).toString(),
+        );
+      });
+      expect(porteurs, `${route} : aucun \`.vx-main\``).not.toBeNull();
+      expect(
+        porteurs?.length,
+        `${route} porte ${porteurs?.length} dominantes : ${porteurs?.join(', ')}`,
+      ).toBeLessThanOrEqual(1);
+    }
   });
 
   test('point 1 : la marque est un glyphe facetté argent, pas une tuile', async ({ page }) => {
@@ -242,6 +388,137 @@ test.describe('Shell — anatomie canonique', () => {
     // La région défilante est atteignable au clavier (axe
     // `scrollable-region-focusable`, impact « serious »).
     await expect(ticker.locator('.vx-ticker-list')).toHaveAttribute('tabindex', '0');
+  });
+
+  test('point 5 : l’identité de l’instantané est à DROITE, et son heure est celle servie', async ({
+    page,
+  }) => {
+    // LOT-A1. Les planches posent nature, fraîcheur et heure UTC à
+    // l'extrémité droite de la bande. Ce test mesure les DEUX moitiés de la
+    // promesse : la position réelle à l'écran, et le fait que l'heure vienne
+    // du serveur — les tests unitaires ne peuvent prouver ni l'une ni l'autre.
+    await page.goto('/today');
+    const ticker = page.locator('.vx-ticker');
+    await expect(ticker).toHaveAttribute('data-mode', 'values');
+
+    const meta = ticker.locator('.vx-ticker-meta');
+    const liste = ticker.locator('.vx-ticker-list');
+    await expect(meta).toBeVisible();
+
+    const boiteMeta = (await meta.boundingBox())!;
+    const boiteListe = (await liste.boundingBox())!;
+    const boiteBande = (await ticker.boundingBox())!;
+
+    // À DROITE des cours, et collé au bord droit de la bande : c'est la
+    // planche. Une tolérance de 40 px couvre la gouttière et le padding, pas
+    // un bloc qui aurait glissé au milieu.
+    expect(boiteMeta.x).toBeGreaterThan(boiteListe.x);
+
+    // UNE SEULE RANGÉE. « Ticker horizontal COMPACT » : les cours et le bloc
+    // d'identité partagent la même bande. Cette assertion manquait, et une
+    // première version du placement de grille a bel et bien produit DEUX
+    // lignes — les cours renvoyés sous le bloc de droite et tronqués — sans
+    // qu'aucun test ne bronche. C'est la capture qui l'a montré.
+    const centre = (boite: { y: number; height: number }) => boite.y + boite.height / 2;
+    expect(Math.abs(centre(boiteMeta) - centre(boiteListe))).toBeLessThan(6);
+    const bordDroitBande = boiteBande.x + boiteBande.width;
+    const bordDroitMeta = boiteMeta.x + boiteMeta.width;
+    expect(bordDroitBande - bordDroitMeta).toBeLessThan(40);
+
+    // L'ORDRE DU DOM, lui, n'a pas bougé : l'identité reste AVANT les cours
+    // dans le document, donc lue avant eux par un lecteur d'écran. C'est ce
+    // que le placement de grille permet et qu'un déplacement du DOM aurait
+    // détruit.
+    const precede = await ticker.evaluate((bande) => {
+      const bloc = bande.querySelector('.vx-ticker-meta');
+      const cours = bande.querySelector('.vx-ticker-list');
+      if (bloc === null || cours === null) {
+        return null;
+      }
+      // eslint-disable-next-line no-bitwise
+      return (bloc.compareDocumentPosition(cours) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0;
+    });
+    expect(precede).toBe(true);
+
+    // L'HEURE EST CELLE DE L'INSTANTANÉ. La preuve tient à la comparaison
+    // avec ce que l'API a réellement servi : une horloge murale dériverait de
+    // cette valeur dès la seconde suivante.
+    const horloge = ticker.locator('[data-testid="ticker-clock"]');
+    await expect(horloge).toBeVisible();
+    const servi = await horloge.getAttribute('datetime');
+    expect(servi).not.toBeNull();
+    const attendu = await page.evaluate(async () => {
+      const reponse = await fetch('/api/v1/markets/overview', { credentials: 'include' });
+      const corps = (await reponse.json()) as { as_of: string | null };
+      return corps.as_of;
+    });
+    expect(servi).toBe(attendu);
+
+    // Et le texte rendu est bien cet instant-là, converti en UTC.
+    const rendu = (await horloge.textContent())?.trim() ?? '';
+    expect(rendu).toMatch(/^\d{2}\/\d{2}\/\d{4} \d{2}:\d{2} UTC$/);
+    const instant = new Date(servi!);
+    const deux = (valeur: number) => String(valeur).padStart(2, '0');
+    expect(rendu).toBe(
+      `${deux(instant.getUTCDate())}/${deux(instant.getUTCMonth() + 1)}/` +
+        `${instant.getUTCFullYear()} ${deux(instant.getUTCHours())}:` +
+        `${deux(instant.getUTCMinutes())} UTC`,
+    );
+  });
+
+  test('point 6 : l’inspecteur défilant est atteignable au clavier PAR LUI-MÊME', async ({
+    page,
+  }) => {
+    /**
+     * DÉFAUT ANTÉRIEUR AU LOT-A1, trouvé par la campagne et confirmé identique
+     * sur la baseline. `.vx-inspector` porte `max-height: 100vh;
+     * overflow-y: auto` : dès que son contenu dépasse — mesuré à 6367 px pour
+     * 900 px visibles sur `/analysis/SYN-TECH-01` — c'est une RÉGION
+     * DÉFILANTE, et une région défilante inatteignable au clavier est la
+     * violation axe `scrollable-region-focusable`, impact « serious », sur un
+     * seuil déclaré à zéro. Même faute que `.vx-ticker-list` au LOT-14.
+     *
+     * CE QUE LA MESURE A MONTRÉ, ET QUI CHANGE LE DIAGNOSTIC. La règle passait
+     * déjà, mais par ACCIDENT : le panneau monté contient 22 éléments
+     * focalisables (les liens de citation), et axe s'en contente. Entre
+     * l'instant où le nœud devient défilant et celui où ces liens existent, la
+     * région était inatteignable. C'est une COURSE, pas un état stable — d'où
+     * une campagne verte pendant des sessions, puis rouge sur un seul des
+     * trois viewports.
+     *
+     * CE QUE CE TEST VÉRIFIE DONC, et c'est plus fort que la règle axe : la
+     * joignabilité ne dépend PAS de ce que la page a eu le temps de rendre.
+     * Le nœud est atteignable par son propre `tabindex`, contenu vide ou non.
+     * Un test qui n'aurait mesuré qu'axe serait resté vert avant le correctif
+     * — vérifié : il l'était.
+     */
+    await page.setViewportSize({ width: 1440, height: 420 });
+    await page.goto('/analysis/SYN-TECH-01');
+    await expect(page.getByRole('main')).toBeVisible();
+    const inspecteur = page.locator('#vx-inspector-slot');
+    await expect(inspecteur).toBeVisible();
+
+    // Le dépassement est bien réel : sans lui, le test ne prouverait rien.
+    const deborde = await inspecteur.evaluate(
+      (noeud) => noeud.scrollHeight > noeud.clientHeight + 1,
+    );
+    expect(deborde, 'la fenêtre courte devait faire déborder l’inspecteur').toBe(true);
+
+    // L'INVARIANT : le nœud lui-même est un point d'arrêt clavier. C'est ce
+    // qui retire la joignabilité du domaine du hasard.
+    await expect(inspecteur).toHaveAttribute('tabindex', '0');
+
+    // Et le clavier y arrive vraiment, pas seulement l'attribut.
+    await inspecteur.focus();
+    await expect(inspecteur).toBeFocused();
+
+    const resultats = await new AxeBuilder({ page })
+      .withRules(['scrollable-region-focusable'])
+      .analyze();
+    expect(
+      resultats.violations.flatMap((violation) => violation.nodes.map((n) => n.target)),
+      'une région défilante doit être atteignable au clavier',
+    ).toEqual([]);
   });
 
   test('point 6 : l’inspecteur n’occupe la grille que si une page le remplit', async ({

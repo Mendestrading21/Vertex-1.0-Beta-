@@ -103,9 +103,7 @@ def test_latest_moves_contain_both_signs_among_covered() -> None:
     closes: dict[str, dict[str, Decimal]] = {}
     for envelope in envelopes:
         payload = envelope.payload
-        closes.setdefault(payload["ticker"], {})[payload["trading_day"]] = Decimal(
-            payload["close"]
-        )
+        closes.setdefault(payload["ticker"], {})[payload["trading_day"]] = Decimal(payload["close"])
     signs = set()
     for days in closes.values():
         if len(days) != 2:
@@ -143,9 +141,7 @@ def test_input_validation_fails_closed() -> None:
     with pytest.raises(TypeError):
         generate_daily_quote_envelopes(seed=1, base_time="now")  # type: ignore[arg-type]
     with pytest.raises(ValueError):
-        generate_daily_quote_envelopes(
-            seed=1, base_time=BASE_TIME.replace(tzinfo=None)
-        )
+        generate_daily_quote_envelopes(seed=1, base_time=BASE_TIME.replace(tzinfo=None))
     with pytest.raises(ValueError):
         generate_daily_quote_envelopes(seed=1, base_time=BASE_TIME, missing_close_count=-1)
     with pytest.raises(ValueError):

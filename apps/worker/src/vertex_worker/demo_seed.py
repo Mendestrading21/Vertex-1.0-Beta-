@@ -48,6 +48,7 @@ from vertex_persistence.repository.outbox import enqueue_outbox
 from vertex_persistence.repository.theses import create_thesis
 from vertex_worker.handlers import DEV_SYNTHETIC_CONFIG, TOPIC_CAPABILITIES_REFRESH, build_registry
 from vertex_worker.ingest import ingest_envelope
+from vertex_worker.risk import DEV_SYNTHETIC_RISK_CONFIG, TOPIC_RISK_MATRIX_REFRESH
 from vertex_worker.runner import WorkerRunner
 
 __all__ = [
@@ -278,6 +279,11 @@ def seed_demo_population(
         enqueue_outbox(session, "portfolio.valuation.refresh", {"portfolio_id": portfolio_id})
         enqueue_outbox(session, "performance.refresh", {"portfolio_id": portfolio_id})
         enqueue_outbox(session, "review_queue.refresh", {"reason": reason})
+        # Risques (page 09) : la matrice se recalcule a partir des BARRES
+        # quotidiennes deja semees. Sans ce message, la page resterait vide
+        # sur une base pourtant complete — et rien ne dirait si c est le
+        # semis, le worker ou la page qui manque.
+        enqueue_outbox(session, TOPIC_RISK_MATRIX_REFRESH, {"reason": reason})
         session.commit()
 
     # 3. DEMO capability probe + refresh job. UNE seule observation par
@@ -339,7 +345,13 @@ def drain_published_snapshots(engine: Engine, *, max_batches: int = 50) -> int:
     def clock() -> datetime:
         return datetime.now(UTC)
 
-    registry = build_registry(clock=clock, fusion_config=DEV_SYNTHETIC_CONFIG)
+    registry = build_registry(
+        clock=clock,
+        fusion_config=DEV_SYNTHETIC_CONFIG,
+        # Sans ce registre, le handler de risque n'est pas enregistre
+        # et le message enfile ci-dessus mourrait sans reclamant.
+        risk_config=DEV_SYNTHETIC_RISK_CONFIG,
+    )
     runner = WorkerRunner(
         session_factory=lambda: Session(engine),
         registry=registry,

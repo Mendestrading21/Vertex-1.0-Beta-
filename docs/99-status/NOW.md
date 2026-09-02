@@ -1,24 +1,19 @@
 # État courant
 
 ```yaml
-phase: security_hold_r0
-lot: LOT-04 (CI verte), LOT-05 (marque canonique), LOT-06 (arbitrage des pages),
-     LOT-07 (/system → /sources-reports), LOT-08 (/performance → Portefeuille),
-     LOT-09 (conformité du shell), LOT-10 (création de Catalyseurs),
-     LOT-11 (inspecteur contextuel du shell), LOT-12 (/ai → inspecteur),
-     LOT-13 et LOT-13b (motif d'inspecteur unifié : plus aucun dialogue modal),
-     LOT-14 (ticker du shell, point 4 de l'anatomie canonique),
-     LOT-25 (bord lecture seule des sources officielles),
-     LOT-26 (SEC EDGAR point-in-time jusqu'au snapshot et à l'API)
+phase: security_reconciliation_r0
+lot: VERTEX-RATTRAPAGE R0
 branch: lot/r0-github-security
-status: r0_non_destructif_prepare_ruleset_et_recuperation_claude
-last_good_commit: a5b7d205388e58f4e2716deeba5ecbea0ca9af21 (= main, CI 7/7 verte)
-security_hold:
-  - "main non protégée et aucun ruleset au relevé GitHub du 2026-09-01"
+status: github_protege_requalification_post_fusion_requise
+last_known_good_commit: "a5b7d205388e58f4e2716deeba5ecbea0ca9af21 (= état avant fusion #14, CI 7/7 verte)"
+main_head_observed: "beb249881015147de11e270f8e0e48d843716e6e (= squash #18 après #14, observé le 2026-09-02T07:04:21Z)"
+security_state:
+  - "ruleset main-required 22076309 actif ; main protégée ; squash seul ; sept checks et branche à jour obligatoires"
   - "dépôt maintenu public par décision humaine ; risque historique résiduel accepté, sans autorisation de réécriture"
-  - "PR #14 Claude figée pour R0 à 6226b8d ; aucune fusion globale autorisée"
-  - "23 commits post-socle classés dans docs/99-status/CLAUDE_RECOVERY_PLAN.md"
-  - "R0 local : verify_blueprint OK, audit canonique exécuté, run_checks.sh TOUT VERT"
+  - "PR #14 fusionnée après le gel R0 : 44 commits source, 123 fichiers, squash 505d4654 ; aucun rollback destructif"
+  - "HEAD fusionné de PR #14 ef47b11a : CI #159 verte ; conformité architecturale encore à requalifier"
+  - "PR #18 fusionnée pendant la validation R0 : 2 fichiers, HEAD b8a0d4d6, CI #165 verte, squash beb24988 ; ajoutée au même audit"
+  - "les 23 commits classés et les 13 commits post-gel deviennent une matrice d'audit du code déjà présent dans main"
 lots_de_cette_session:
   - "LOT-04 — la purge de session effaçait l'erreur 401 qu'elle devait laisser
      voir. CI ROUGE à l'arrivée sur b09b3785 : 3 échecs e2e/auth.spec.ts sur les
@@ -170,7 +165,7 @@ mesures_de_cette_session:
   - "pytest : 3766 passed, 4 skipped — mesuré sur 35d48cb"
   - "run_checks.sh : TOUT VERT"
   - "audit_titanium_ledger.py après LOT-10 : empreinte canonique vérifiée,
-     écart unique = 'charts, risks' à créer. AUCUNE route historique ne
+     écart unique = 'charts' à créer (Risques installée le 2026-09-01). AUCUNE route historique ne
      reste à arbitrer : les quatre lignes de la table sont exécutées"
   - "falsification LOT-07 : `Navigate` sans `replace` fait rougir
      routes.test.tsx avec `expected 'PUSH' to be 'REPLACE'`"
@@ -320,16 +315,26 @@ checks_locaux:
   - "worker Cloudflare : 53 tests de contrat"
   - "run_checks.sh TOUT VERT"
 pages_reelles: [/today, /opportunities, /analysis, /options, /simulator,
-                /calendar, /markets, /portfolio, /catalysts,
+                /calendar, /markets, /portfolio, /risks, /catalysts,
                 /sources-reports, plus /auth hors rail]
 pages_non_implementees: []
-destinations_cibles_manquantes: [charts, risks]
-# Bloquées par un CONTRAT SERVEUR absent, pas par une décision d'interface.
-# Vérifié le 2026-09-01 contre les 30 routes du contrat OpenAPI : ni `charts`
-# ni `risks`, et ni la comparaison de séries (Graphiques) ni la sévérité par
-# risque (Risques) ne sont dérivables sans calculer un rendement ou un score
-# dans le navigateur — tous deux interdits. Raisonnement complet dans
-# docs/05-design/PAGE_ARBITRATION.md.
+destinations_cibles_manquantes: [charts]
+# Graphiques reste bloquée par un CONTRAT SERVEUR absent : la comparaison de
+# séries rebasées n'est pas dérivable sans calculer un rendement dans le
+# navigateur, ce qui est interdit. Raisonnement dans PAGE_ARBITRATION.md.
+#
+# RISQUES A ÉTÉ INSTALLÉE le 2026-09-01, et son contrat a été CRÉÉ plutôt
+# qu'attendu : `risk.correlation` déclaré au registre des calculs, publié par
+# `vertex_worker.risk` dans `risk_matrix/global`, relayé par
+# `GET /api/v1/risk/matrix`. La matrice arrive RENDUE EN CHAÎNES et les
+# bandes de couleur arrivent sous forme de NOMS — le navigateur ne calcule ni
+# n'arrondit ni ne reclasse rien.
+#
+# ELLE N'EST PAS FINIE POUR AUTANT. Le blueprint décrit « la matrice des
+# risques avec exposition, horizon, SÉVÉRITÉ et preuve » ; ce qui est livré
+# est la matrice de CORRÉLATION. La sévérité par risque suppose un barème,
+# c'est-à-dire une décision d'utilisateur — comme le périmètre et l'indice de
+# référence, elle sera DÉCLARÉE, jamais devinée par le code.
 redirections_permanentes: ["/system -> /sources-reports", "/performance -> /portfolio",
                            "/follow-up -> /catalysts", "/ai -> /analysis"]
 ecarts_declares:
@@ -348,8 +353,17 @@ ecarts_declares:
      réel toujours INCONNU"
   - "6 interdictions absolues sur 30 ne sont pas prouvées par un test (24/30 prouvées) —
      détail dans manifests/traceability.yaml, imprimé à chaque exécution"
-  - "AUCUNE donnée réelle n'a jamais été observée — IBKR jamais contacté,
-     Cloudflare non déployé, Compose jamais exécuté (pas de démon Docker)"
+  - "Cloudflare non déployé, Compose jamais exécuté (pas de démon Docker)"
+  - "IBKR A ÉTÉ CONTACTÉ le 2026-08-31 depuis la machine de bureau, en API
+     lecture seule sur loopback : sonde de droits, découverte scanner puis
+     remplissage historique. 36 864 observations réelles, 153 instruments.
+     Détail mesuré dans `affichage_reel_mesure` plus bas. La ligne qui
+     précédait affirmait le contraire et n'avait pas été relue : ce dépôt
+     refuse qu'un écran affirme ce qu'il n'a pas mesuré, son propre
+     document d'état se doit la même règle."
+  - "RIEN de ces données réelles n'existe en intégration continue : la
+     collecte dépend de TWS, qui tourne sur la machine de l'utilisateur.
+     Toute population observée en CI reste SYNTHETIC."
 blocages_humains:
   - "B-02 : revue de l'inventaire du dépôt donneur"
   - "B-03 : projet Cloudflare"
@@ -482,6 +496,17 @@ outillage_cloudflare:
      le verrou du Worker n'est PAS couvert par la porte release/notices.
      Ecart ecrit dans THIRD_PARTY_NOTICES.md plutot que laisse silencieux."
   deploiement: "AUCUN — B-03 en attente"
+ancienne_prochaine_commande_lot_14: "PR #11 (brouillon) porte LOT-07 a LOT-13b et attend une
+   VALIDATION HUMAINE : aucune fusion automatique. Risques est installee depuis
+   le 2026-09-01 avec la matrice de correlation, son contrat serveur ayant ete
+   CREE plutot qu'attendu. Deux choses restent, et ce sont des DECISIONS
+   d'utilisateur, pas du code : le bareme de SEVERITE que le blueprint attend
+   pour Risques, et le perimetre affiche (huit indices mondiaux aujourd'hui,
+   declares dans profiles.RISK_PERIMETER). Graphiques reste bloquee par un
+   contrat serveur absent : une serie rebasee exigerait un rendement calcule
+   dans le navigateur. Le travail non bloque qui reste est la refonte Titanium
+   Ledger des onze destinations contre la capture canonique, aux viewports
+   1280, 1440 et 1600"
 lot_25_validation_locale:
   pr: "https://github.com/Mendestrading21/Vertex-1.0-Beta-/pull/12"
   commit_distant_avant_correctif_ci: "90685bae172187995dec63b0e97a6db4dd1e636d"
@@ -509,7 +534,192 @@ lot_25_validation_locale:
      proxy SOCKS injecté par l'environnement sur un test HTTP localhost ; le test
      isolé repasse vert avec les variables proxy retirées. Le job unitaire CI #98,
      sans cette particularité, était déjà vert."
-prochaine_commande: "VALIDE PR #13 — relire humainement LOT-26 puis décider de sa
+ancienne_prochaine_commande_lot_26: "VALIDE PR #13 — relire humainement LOT-26 puis décider de sa
    fusion. Après validation seulement, ouvrir LOT-27 pour FRED/ALFRED PIT. Les
    clés, identifiants et droits fournisseurs restent exclusivement locaux."
+prochaine_commande: "AUDITE MAIN POST-FUSION #14 ET #18 — requalifier beb24988
+   contre a5b7d205 et le plan R0, sans rollback ni réécriture destructive."
 ```
+
+## REPRISE 2026-09-01 — etat mesure en fin de session
+
+### Corrige et pousse
+
+**`_CODE_RE` admet le `$`** (`apps/api/src/vertex_api/snapshot_views.py`).
+IBKR News encastre l'`article_id` du fournisseur dans l'`event_id`, et cet
+article_id porte un `$` (`DJ-RT$1e0664c8`). Mesure : 6108 observations
+concernees, 1207 valeurs refusees sur 170 tetes publiees, soit **72 reponses
+HTTP en 500** (1 `attention`, 71 des 162 dossiers `analysis`).
+
+Verification : tetes servies **91/163 avant, 162/163 apres**. La seule encore
+refusee est `analysis/GNL PRE`, dont le caractere fautif est l'ESPACE — et
+elle est inatteignable de toute facon (`UNDERLYING_PATTERN` la refuse en 422).
+NE PAS annoncer « zero identifiant hors forme ».
+
+Test reproducteur ecrit AVANT le correctif (`.claude/rules/testing.md`) :
+17 rouges, puis verts. Il porte des identifiants RELEVES en base. Le defaut de
+fond etait que tout le corpus de test est frappe par Vertex
+(`synthetic-dev:{seed}:{index:04d}`) : aucune identite de fournisseur reelle
+n'avait jamais traverse le relais.
+
+**Page Risques installee** (`LEDGER 09`), avec `risk.correlation` declare au
+registre des calculs, publie par `vertex_worker.risk` et relaye par
+`GET /api/v1/risk/matrix`. Mesure sur donnees reelles : 8 indices, 242
+rendements, du 2025-09-02 au 2026-08-31.
+
+**Acces local ouvert** (`VERTEX_AUTH_OPEN_LOCAL=1`, pose dans
+`~/.vertex/env.live`) : Vertex ne demande plus de passkey. FERME PAR DEFAUT —
+sans la variable, 401 partout, verifie sur sept routes.
+
+### Reste casse — MESURE, a corriger
+
+**Huit etiquettes de population qui mentent.** Le bandeau `population` est
+juste ; c'est le texte autour qui ment.
+
+| Emplacement | Texte | Verdict |
+|---|---|---|
+| `apps/web/src/pages/markets/MarketsPage.tsx:99` | « Carte des marches synthetiques » | faux (`population='REAL'`, 0/161 synthetic) |
+| `MarketsPage.tsx:119` | « `synthetic-dev` via snapshot worker » | faux (source `ibkr`) |
+| `MarketsPage.tsx:83` | repli « Carte des marches synthetiques » | faux, latent |
+| `MarketsPage.tsx:202` | « Poids = parts descriptives des clotures (synthetiques) » | faux |
+| `MarketsPage.tsx:206` | « Limites : donnees SYNTHETIQUES de developpement » | faux |
+| `apps/worker/src/vertex_worker/markets.py:362` | « Sur N instruments synthetiques attendus » | faux, PERSISTE dans le contenu |
+| `apps/worker/src/vertex_worker/portfolio.py:117` et `:825` | `MARK_POPULATION_SYNTHETIC` ecrit inconditionnellement | faux (marques issues de `markets_overview` en `REAL`) |
+| `apps/worker/src/vertex_worker/performance.py:136` et `:810` | `marks = "SYNTHETIC"` | faux, meme cause (`ledger: USER_DECLARED` est juste) |
+
+**`data_state='partial'` trompeur sur Marches.** `markets.py:581` declenche
+`partial` sur `rejected_records`, alimente par 3 cotations `GNL PRE` — des
+observations EN TROP, hors univers, pas un trou de couverture. L'ecran affiche
+« Donnees partielles » puis « 161 couverts sur 161, 0 ecartes » : un texte qui
+se refute lui-meme. Confusion entre `discarded` (attendu manquant) et
+`rejected_records` (non demande). Meme pollution sur `performance/1`.
+
+**500 latent sur Risques.** `value` est dans `_DECIMAL_KEYS`
+(`snapshot_views.py:890`, classe NON SIGNEE) alors que
+`extremes.most_opposed.value` vaut `-0.803` — une correlation « la plus
+opposee » est negative par definition. La route rend 200 aujourd'hui parce que
+`risk.py:300` appelle son propre validateur `checked_risk_content`. Toute
+uniformisation qui la brancherait sur le garde commun la mettrait en 500.
+Correction : deplacer `"value"` vers `_SIGNED_DECIMAL_KEYS` (`:896`). COMMIT
+SEPARE — `value` sert aussi a `breadth.value` (`:1649`).
+
+**Trou E2E.** `apps/web/e2e/analysis.spec.ts` et `today.spec.ts` sont passes
+au vert pendant que les deux routes rendaient 500 : le semis
+(`e2e/seed_synthetic.py`) ne produit aucun identifiant de fournisseur. Semer
+au moins un cluster de presse en forme reelle
+`ibkr:news:<provider>:<provider>$<hex>`.
+
+### Decisions d'UTILISATEUR qui bloquent la suite
+
+Aucune ne se deduit du code :
+
+1. **Bareme de severite** de la page Risques. Le blueprint decrit « la matrice
+   des risques avec exposition, horizon, SEVERITE et preuve » ; seule la
+   matrice de correlation est livree.
+2. **Perimetre affiche** : huit indices mondiaux aujourd'hui
+   (`profiles.RISK_PERIMETER`). Comparer les 161 titres ferait tomber
+   l'intersection des calendriers, et une grille 161x161 n'est pas un ecran.
+3. **Fenetre et date de base** de la page Graphiques, non installee.
+
+### Non verifie
+
+- `calendar/global` et `option_chain/*` n'ont aucun instantane publie : leurs
+  relais n'ont JAMAIS ete exerces sur donnees reelles.
+- `ai_explain._INTRA_WORD_SEPARATOR` normalise `- . _ * + ~ / \ | : ; '` mais
+  ni `$` ni `@` : `a$c$h$e$t$e$z` echappe a `detect_forbidden_language`.
+  Defaut reel, anterieur, a ouvrir separement.
+
+
+---
+
+## SESSION 2026-09-01 (suite) — phase « affichage d'abord »
+
+### Ce qui a ete decide avec l'utilisateur
+
+Quatre planches canoniques fixent DOUZE pages. Consigne explicite : livrer la
+COMPOSITION d'abord, les branchements ensuite, avec une capture a chaque lot.
+
+Cet ordre n'est legitime qu'a une condition, et c'est ce que LOT-A0 installe :
+un module non branche montre sa GEOMETRIE reelle et NOMME son absence ; il
+n'affiche jamais un chiffre de maquette, jamais un rectangle gris muet.
+Article 17 de la Constitution.
+
+### LOT-A0 — le socle (commit `812320d`)
+
+- `apps/web/src/components/AbsentModule.tsx` : vocabulaire FERME de quatre
+  motifs (`AUCUNE SOURCE`, `ABONNEMENT REQUIS`, `CONTRAT SERVEUR ABSENT`,
+  `DECISION EN ATTENTE`). Le corps du module ne porte AUCUN chiffre, et un
+  test le refuse.
+- `apps/web/src/design/no-fabricated-values.test.ts` : balayage AST de
+  `src/pages/**` refusant tout litteral en forme de valeur financiere.
+  Quatre exemptions NOMMEES une par une, motif ecrit.
+
+### LOT-A1 — points 4 et 5 de l'anatomie du shell
+
+Les planches posent nature, fraicheur et heure UTC a l'extremite DROITE de la
+bande de ticker. Livre :
+
+- `servedClockOf()` : l'heure affichee est l'`as_of` SERVI, jamais
+  `Date.now()`. Une horloge murale qui avance a cote d'un instantane fige
+  fabrique une impression de courant. Sans `as_of`, AUCUNE heure n'est rendue.
+- Le deplacement a droite est VISUEL, par placement de grille CSS. L'ordre du
+  DOM reste l'ordre de lecture, et il place la DEGRADATION (`PERIME`,
+  `COUVERTURE PARTIELLE`) AVANT les cours qu'elle qualifie.
+
+**Defaut trouve par la campagne, pas par la revue.** La premiere version
+laissait le bloc de droite imposer sa largeur maximale au shell : le plancher
+desktop declare a 1024 px passait a 1088 px, et **51 tests sur 450** l'ont dit.
+La campagne d'accessibilite epingle ce plancher AU PIXEL exactement pour cela.
+Corrige par un retour a la ligne du bloc (`flex-wrap`) : a 1024 px la bande
+fait deux lignes — une degradation VISIBLE, jamais une donnee escamotee.
+
+**Piege de lecture, deuxieme occurrence.** Le premier lancement a ete rapporte
+« exit 0 » par l'outillage alors que Playwright sortait en **1** : le 0 etait
+celui du `tail` final de la commande composee. Le code reel se lit dans la
+sortie (`CODE REEL : 1`), le total se confronte a `--list` (450) et a
+`.last-run.json` (`status: failed`, 51 identifiants). Regle deja consignee a
+`DEBT.md`, re-verifiee ici.
+
+### Ce qui reste
+
+Phase 1 : LOT-A2 (creation de `Graphiques`, 12e destination), puis A3 a A8
+(composition page par page), puis A9 (refonte Titanium Ledger).
+Phase 2 : branchements, dans l'ordre de valeur.
+
+**Correction d'une affirmation fausse de cette session.** J'ai ecrit que les
+fondamentaux exigeaient un abonnement IBKR payant. C'est FAUX : la PR #12
+livre des adaptateurs SEC EDGAR / FRED / OpenFIGI / BCE / BNS, et la PR #13 la
+normalisation point-in-time de SEC Company Facts. Les fondamentaux passent de
+« abonnement requis » a « contrat de calcul manquant ». FRED debloque aussi le
+taux sans risque de la chaine d'options ; dividende, `style` et `settlement`
+restent a trancher.
+
+---
+
+## SESSION 2026-09-02 — refonte visuelle Titanium Ledger (V2 → V6)
+
+Consigne utilisateur : refonte visuelle uniquement. Aucune API, aucun contrat
+Python, aucune integration IBKR/TradingView, aucune fusion dans `main`.
+
+Six lots pousses sur `claude/snapshots-confirmation-20260901`. Le plan complet
+et l'avancement mesure vivent dans
+`docs/05-design/REFONTE_TITANIUM_LEDGER.md`.
+
+Ce qu'il faut retenir pour la session suivante :
+
+1. **Le theme n'etait pas un systeme.** 443 classes `.vx-*` declarees,
+   89 atteintes par la couche thematique, via 15 listes de selecteurs
+   enumerees a la main. Un module ajoute n'heritait de RIEN. La primitive
+   `Card` et deux portes remplacent la discipline par une garantie.
+2. **Une valeur redeclaree trois fois** (largeur du rail) est le symptome a
+   chercher en premier quand un changement de CSS « ne fait rien ».
+3. **Regarder la capture** : deux defauts reels — treemap rogne, poids a
+   28 decimales — n'ont ete vus par AUCUN des 486 tests unitaires ni des
+   459 tests e2e. L'image, oui.
+4. **Attendre un temoin de CONTENU dans une sonde**, jamais `main` visible :
+   sinon on mesure le squelette de chargement et on conclut faux. Erreur
+   commise et corrigee dans cette session.
+
+Reste : Portefeuille a 4971 px porte douze modules pour « trois a cinq » au
+contrat — decision d'architecture d'information, pas de style ; V7-V8
+(migration JSX des surfaces restantes) ; V9 (retrait des 15 enumerations).

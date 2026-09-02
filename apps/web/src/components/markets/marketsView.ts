@@ -57,3 +57,63 @@ export const GROUP_LABELS_FR: Readonly<Record<SignGroup, string>> = {
   down: 'En baisse',
   flat: 'Stables',
 };
+
+/**
+ * Recensement de la nature DÉCLARÉE des instruments servis.
+ *
+ * POURQUOI CE RECENSEMENT EXISTE. `docs/08-runbooks/REPRENDRE_ICI.md` §4.1 :
+ * la page Marchés écrivait « Carte des marchés synthétiques », source
+ * `synthetic-dev`, « poids … (synthétiques) » et « données SYNTHÉTIQUES de
+ * développement » — le tout EN DUR, au-dessus de 161 instruments IBKR réels.
+ *
+ * La correction n'est pas de remplacer « synthétique » par « réel » : ce
+ * serait déplacer le mensonge. Sur une machine de développement la donnée EST
+ * synthétique. Le texte doit DÉCOULER de ce que le serveur déclare.
+ *
+ * Deux champs le déclarent, et ils sont distincts :
+ *   - `population`, la nature de l'INSTANTANÉ, propriété du bandeau
+ *     (`SyntheticBanner`), seul propriétaire de ce vocabulaire ;
+ *   - `synthetic`, un drapeau PAR INSTRUMENT, que seule cette page peut
+ *     recenser.
+ *
+ * Compter des drapeaux booléens n'est pas un calcul financier : aucun prix,
+ * rendement, score ni classement n'en sort. C'est un dénombrement de ce qui a
+ * été servi.
+ */
+export interface NatureCensus {
+  readonly total: number;
+  readonly synthetic: number;
+  /** `true` seulement si TOUS les instruments servis se déclarent synthétiques. */
+  readonly allSynthetic: boolean;
+  /** `true` seulement si AUCUN ne se déclare synthétique. */
+  readonly noneSynthetic: boolean;
+}
+
+export function censusOfNature(sectors: readonly MarketsSector[]): NatureCensus {
+  const entries = flattenTickers(sectors);
+  const synthetic = entries.filter((entry) => entry.ticker.synthetic).length;
+  return {
+    total: entries.length,
+    synthetic,
+    // Un univers VIDE n'est ni « tout synthétique » ni « rien de synthétique » :
+    // il n'a rien déclaré. Les deux drapeaux sont donc faux, et la phrase
+    // affichée le dit au lieu de choisir.
+    allSynthetic: entries.length > 0 && synthetic === entries.length,
+    noneSynthetic: entries.length > 0 && synthetic === 0,
+  };
+}
+
+/** Phrase de provenance, DÉRIVÉE du recensement — jamais écrite en dur. */
+export function provenanceSentence(census: NatureCensus): string {
+  if (census.total === 0) {
+    return 'Aucun instrument servi : la nature des données n’est pas déclarée.';
+  }
+  if (census.allSynthetic) {
+    return `${census.total} instruments servis, tous déclarés synthétiques par le worker.`;
+  }
+  if (census.noneSynthetic) {
+    return `${census.total} instruments servis, aucun déclaré synthétique.`;
+  }
+  // Le cas MIXTE ne se fond pas dans l'un des deux : il se nomme.
+  return `${census.total} instruments servis, dont ${census.synthetic} déclarés synthétiques — deux natures, jamais confondues.`;
+}

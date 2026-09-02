@@ -99,9 +99,7 @@ class TestGates:
         assert gates.quality_ok
 
     def test_filtered_reason_is_first_failed_gate_in_canonical_order(self):
-        item = make_input(
-            "a", rights_usable=False, quality=EnvelopeQuality.INVALID
-        )
+        item = make_input("a", rights_usable=False, quality=EnvelopeQuality.INVALID)
         ranking = rank_items([item], as_of=AS_OF)
         assert ranking.rejected[0].filtered_reason == "RIGHTS_OK_FAILED"
         assert ranking.rejected[0].failed_gates == ("RIGHTS_OK", "QUALITY_OK")
@@ -314,9 +312,7 @@ class TestPenaltiesApplied:
         # Cross-invariant: an upstream expressing a rights problem through the
         # penalty vocabulary instead of the gate boolean must NOT obtain a
         # rankable item (fail-closed).
-        item = make_input(
-            "rights_conflict", rights_usable=True, penalties=("missing_rights",)
-        )
+        item = make_input("rights_conflict", rights_usable=True, penalties=("missing_rights",))
         ranking = rank_items([item], as_of=AS_OF)
         assert ranking.ranked == ()
         assert len(ranking.rejected) == 1
@@ -373,10 +369,7 @@ class TestAttentionBudgets:
         assert len(apply_attention_budget(self._ranked(10), "today", "major_events")) == 3
 
     def test_markets_dominant_narratives_budget_is_one(self):
-        assert (
-            len(apply_attention_budget(self._ranked(4), "markets", "dominant_narratives"))
-            == 1
-        )
+        assert len(apply_attention_budget(self._ranked(4), "markets", "dominant_narratives")) == 1
 
     def test_unlimited_blockers_budget_returns_everything(self):
         ranked = self._ranked(50)
@@ -418,9 +411,7 @@ class TestPolicyManifestSync:
         assert list(PENALTY_CODES) == manifest["penalties"]
 
     def test_attention_budgets_match_exactly(self, manifest):
-        encoded = {
-            page: dict(categories) for page, categories in ATTENTION_BUDGETS.items()
-        }
+        encoded = {page: dict(categories) for page, categories in ATTENTION_BUDGETS.items()}
         assert encoded == manifest["attention_budgets"]
 
     def test_manifest_declares_deterministic_and_replayable(self, manifest):
@@ -441,9 +432,7 @@ class TestDeterminism:
                     ),
                     rights_usable=rng.random() < 0.8,
                     source_allowed=rng.random() < 0.9,
-                    identity_status=rng.choice(
-                        (IdentityStatus.RESOLVED, IdentityStatus.AMBIGUOUS)
-                    ),
+                    identity_status=rng.choice((IdentityStatus.RESOLVED, IdentityStatus.AMBIGUOUS)),
                     security_or_quality_incident=rng.random() < 0.1,
                     manual_position=rng.random() < 0.2,
                     active_thesis_or_alert=rng.random() < 0.2,
@@ -463,9 +452,7 @@ class TestDeterminism:
         permutation_seed=st.integers(min_value=0, max_value=2**31 - 1),
         count=st.integers(min_value=1, max_value=30),
     )
-    def test_seeded_permutation_never_changes_the_ranking(
-        self, data_seed, permutation_seed, count
-    ):
+    def test_seeded_permutation_never_changes_the_ranking(self, data_seed, permutation_seed, count):
         items = self._random_items(random.Random(data_seed), count)
         shuffled = list(items)
         random.Random(permutation_seed).shuffle(shuffled)

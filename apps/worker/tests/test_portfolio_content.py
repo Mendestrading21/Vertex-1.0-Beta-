@@ -3,8 +3,9 @@
 Pure-function tests over deterministic in-memory views — no database, no
 network, no real clock. They pin the fail-closed valuation contract: a lot
 without a usable mark is EXCLUDED with its reason (never valued at zero),
-every valuation carries ``mark_population = "SYNTHETIC"``, compensation pairs
-net out of the lots, and every financial figure keeps its vertex_core
+every valuation carries the ``mark_population`` DECLARED BY ITS SOURCE (and
+``EMPTY`` when the source declares none), compensation pairs net out of the
+lots, and every financial figure keeps its vertex_core
 ``CalculationRecord`` lineage.
 """
 
@@ -18,6 +19,7 @@ import pytest
 from vertex_worker.portfolio import (
     LOT_METHOD_VERSION,
     MARK_POPULATION_SYNTHETIC,
+    MARK_POPULATION_UNQUALIFIED,
     PORTFOLIO_VALUATION_SCHEMA_VERSION,
     REASON_INVALID_MARK,
     REASON_MARK_CURRENCY_MISMATCH,
@@ -67,8 +69,16 @@ def make_event(
     )
 
 
-def make_marks(**closes: str) -> MarksView:
+def make_marks(population: str = "SYNTHETIC", **closes: str) -> MarksView:
+    """Marques de test. La nature est DECLAREE, jamais laissee au hasard.
+
+    Depuis que `mark_population` est relayee depuis la source, une fixture qui
+    ne declare rien vaut « nature inconnue » et ne valorise plus rien — ce qui
+    est le comportement fail-closed voulu, mais pas ce que ces tests veulent
+    eprouver.
+    """
     return MarksView(
+        population=population,
         snapshot_version=7,
         as_of_text=NOW.isoformat(),
         closes={
@@ -131,16 +141,34 @@ def test_no_markets_snapshot_yields_absent_totals_never_zero() -> None:
     ]
 
 
-def test_mark_population_is_always_synthetic() -> None:
+def test_mark_population_follows_its_source_and_fails_closed() -> None:
+    """REECRIT. Son nom et son assertion GRAVAIENT le defaut du §4.1.
+
+    L'ancien test s'appelait `test_mark_population_is_always_synthetic` et
+    exigeait `SYNTHETIC` MEME SANS AUCUNE MARQUE. Il ne testait donc pas une
+    propriete du produit : il figeait une constante ecrite en dur, et rendait
+    la correction impossible sans le toucher.
+
+    Ce n'est PAS un affaiblissement : la nouvelle version verifie une
+    propriete plus forte — la nature SUIT sa source, et l'absence de source
+    ferme au lieu de choisir une etiquette par defaut.
+    """
     events = [
         make_event(1, "BUY_RECORDED", ticker="SYN-A", quantity="1", price="10", amount="-10"),
     ]
-    with_marks = build(events, make_marks(**{"SYN-A": "12"}))
-    without_marks = build(events, None)
-    assert with_marks["mark_population"] == MARK_POPULATION_SYNTHETIC
-    assert without_marks["mark_population"] == MARK_POPULATION_SYNTHETIC
-    assert with_marks["schema_version"] == PORTFOLIO_VALUATION_SCHEMA_VERSION
-    assert with_marks["lot_method"] == LOT_METHOD_VERSION
+    synthetiques = build(events, make_marks(**{"SYN-A": "12"}))
+    assert synthetiques["mark_population"] == MARK_POPULATION_SYNTHETIC
+
+    # Une source REELLE donne des marques reelles — le cas du poste de travail.
+    reelles = build(events, make_marks(population="REAL", **{"SYN-A": "12"}))
+    assert reelles["mark_population"] == "REAL"
+
+    # AUCUNE source : rien n'est qualifiable, donc rien n'est affirme.
+    sans_marques = build(events, None)
+    assert sans_marques["mark_population"] == MARK_POPULATION_UNQUALIFIED
+
+    assert synthetiques["schema_version"] == PORTFOLIO_VALUATION_SCHEMA_VERSION
+    assert synthetiques["lot_method"] == LOT_METHOD_VERSION
 
 
 def test_compensated_pair_nets_out_of_the_lots() -> None:
@@ -324,6 +352,7 @@ def test_naive_now_is_rejected() -> None:
 def test_extract_marks_rejects_invalid_closes_fail_closed() -> None:
     content = {
         "as_of": NOW.isoformat(),
+        "population": "SYNTHETIC",
         "sectors": [
             {
                 "sector": "SYN-TECH",

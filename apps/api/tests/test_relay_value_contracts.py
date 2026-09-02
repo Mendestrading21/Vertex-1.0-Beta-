@@ -238,6 +238,73 @@ def test_a_technical_code_must_match_its_declared_shape(
     assert excinfo.value.field == key
 
 
+#: Identites RELEVEES dans `vertex_live` le 2026-09-01, jamais forgees.
+#:
+#: IBKR News encastre l'`article_id` DU FOURNISSEUR dans l'`event_id`, et cet
+#: article_id porte un `$` : 6108 observations, schema `ibkr.news-headline/1`.
+#: La derniere valeur est une identite que VERTEX frappe lui-meme, gardee ici
+#: pour que le test couvre les DEUX provenances — sans elle, un correctif qui
+#: casserait les identites maison passerait inapercu.
+IDENTITES_REELLES = (
+    "ibkr:news:DJ-RT:DJ-RT$1e0664c8",
+    "ibkr:news:BRFG:BRFG$1ef5b1e1",
+    "ibkr:news:DJ-N:DJ-N$1f22e12b",
+    "ibkr:news:BRFUPDN:BRFUPDN$1c8d506f",
+    "ibkr:daily-quote:653585087:2026-08-26",
+)
+
+
+@pytest.mark.parametrize(
+    "key", ["event_id", "member_event_ids", "item_id", "source_event_id"]
+)
+@pytest.mark.parametrize("identite", IDENTITES_REELLES)
+def test_un_identifiant_frappe_par_le_fournisseur_est_relaye(
+    key: str, identite: str
+) -> None:
+    """72 des 170 tetes publiees rendaient 500 sur donnees reelles.
+
+    `_CODE_RE` n'admettait pas le `$` que IBKR met dans ses `article_id`. Le
+    corpus de test etant ENTIEREMENT frappe par Vertex
+    (`synthetic-dev:{seed}:{index:04d}`), aucune identite REELLE de
+    fournisseur n'avait jamais traverse le relais — et la CI restait verte
+    pendant que 43,8 % des dossiers d'analyse partaient en 500.
+
+    Les valeurs ci-dessus sont copiees de `observations.event_id`.
+    """
+    assert checked_relayed_content({key: identite})
+
+
+def test_un_dossier_de_presse_reel_traverse_le_relais_dans_sa_forme_publiee() -> None:
+    """La forme EXACTE qui rendait 500 : `evidence.clusters[].member_event_ids[]`.
+
+    Un identifiant isole ne suffit pas : c'est la profondeur du chemin qui
+    faisait echouer le parcours recursif de `checked_relayed_content`.
+    """
+    assert checked_relayed_content(
+        {
+            "evidence": {
+                "clusters": [
+                    {
+                        "cluster_id": "sha256:" + "a" * 64,
+                        "member_event_ids": list(IDENTITES_REELLES[:2]),
+                    }
+                ]
+            }
+        }
+    )
+
+
+def test_le_dollar_reste_interdit_en_PREMIER_caractere() -> None:
+    """Elargir la classe n'ouvre pas la premiere position.
+
+    `_CODE_RE` impose un alphanumerique en tete. Un identifiant commencant
+    par `$` reste refuse : le `$` est admis PARCE QU'il est encastre dans un
+    identifiant, pas parce qu'il serait devenu anodin.
+    """
+    with pytest.raises(SnapshotContentError):
+        checked_relayed_content({"event_id": "$evasion"})
+
+
 def test_a_content_hash_follows_the_contract_type_of_vertex_core() -> None:
     """Exactly ``vertex_core.contracts.types.Sha256Ref``."""
     assert checked_relayed_content({"input_hash": "sha256:" + "a" * 64})

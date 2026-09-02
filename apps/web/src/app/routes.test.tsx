@@ -13,6 +13,7 @@ const INSTALLED_KEYS = new Set([
   'analysis',
   'simulator',
   'portfolio',
+  'risks',
   'catalysts',
   'calendar',
   'opportunities',
@@ -29,12 +30,12 @@ describe('routes — couverture du blueprint', () => {
   });
 
   // Le COMPTE, lui, dit la vérité du moment. La cible est douze
-  // (`references/pages.md`) ; le rail en porte dix pendant les absorptions,
+  // (`references/pages.md`) ; le rail en porte onze pendant les absorptions,
   // et l'écart est journalisé dans docs/05-design/PAGE_ARBITRATION.md.
   // Ce test échoue si une destination apparaît ou disparaît sans que
   // l'arbitrage soit mis à jour — il n'est pas relâché, il est déplacé de
   // « combien » vers « lesquelles ».
-  it('le rail porte exactement les dix destinations réelles, dans l’ordre', () => {
+  it('le rail porte exactement les onze destinations réelles, dans l’ordre', () => {
     expect(ALL_PAGES.map((entry) => entry.key)).toEqual([
       'today',
       'opportunities',
@@ -44,16 +45,22 @@ describe('routes — couverture du blueprint', () => {
       'calendar',
       'markets',
       'portfolio',
+      'risks',
       'catalysts',
-          'sources-reports',
+      'sources-reports',
     ]);
   });
 
-  it('les deux destinations cibles restantes ne sont PAS présentes en façade', () => {
+  // Risques est sorti de cette liste le 2026-09-01 : sa route, ses données et
+  // ses tests existent, ce qui est EXACTEMENT la condition posée dans
+  // app/pages.ts. Sa clé est `risks` au pluriel — celle du blueprint, que
+  // `audit_titanium_ledger.py` cherche pour mesurer l'écart à la cible ;
+  // un `risk` singulier aurait laissé l'audit annoncer la page manquante.
+  // Graphiques y reste — il attend encore son contrat serveur, et une
+  // entrée de rail sans données serait une façade.
+  it('la destination cible restante n’est PAS présente en façade', () => {
     const keys = new Set(ALL_PAGES.map((entry) => entry.key));
-    for (const attendue of ['charts', 'risks']) {
-      expect(keys.has(attendue)).toBe(false);
-    }
+    expect(keys.has('charts')).toBe(false);
   });
 });
 

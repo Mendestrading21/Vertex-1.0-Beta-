@@ -112,6 +112,7 @@ def faire_tourner(session_factory: Any, profil: Any) -> Any:
             analysis_config=profil.analysis,
             calendar_config=profil.calendar,
             opportunities_config=profil.opportunities,
+            risk_config=profil.risk,
         ),
         poll_interval_seconds=0.01,
         clock=horloge,

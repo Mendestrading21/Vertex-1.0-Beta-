@@ -1,5 +1,6 @@
 import { pageStateOf, useAttention, useCapabilities } from '../api/hooks.ts';
 import { AuthRequiredNotice } from '../components/AuthRequiredNotice.tsx';
+import { Card } from '../components/Card.tsx';
 import { DataStateBoundary } from '../components/DataStateBoundary.tsx';
 import { FreshnessBadge } from '../components/FreshnessBadge.tsx';
 import { SyntheticBanner } from '../components/SyntheticBanner.tsx';
@@ -14,6 +15,17 @@ import { SnapshotRail } from './SnapshotRail.tsx';
  * cette route). Bandeau de santé haut réutilisant la requête capacités
  * (minimal : base + fraîcheur worker), bandeau population SYNTHETIC et état
  * vide honnête « aucun snapshot publié ».
+ *
+ * REFONTE V3 — PREMIÈRE PAGE SUR LA PRIMITIVE. La file portait
+ * `.vx-today-primary`, le rail portait `.vx-snapshot-rail` : deux surfaces
+ * inscrites à la main dans les 15 listes de sélecteurs de la couche
+ * thématique, et TOUTES LES DEUX porteuses de la tranche métallique réservée à
+ * la dominante. Deux dominantes sur un écran, c'est zéro dominante : le regard
+ * n'a plus de point d'entrée.
+ *
+ * Désormais : la file est la seule carte `dominant` — c'est elle qui répond à
+ * la question de la page — et les blocs de vérité du snapshot sont `quiet`.
+ * La porte `one-dominant-per-page.test.ts` refuse la seconde.
  */
 
 function HealthStrip() {
@@ -79,16 +91,23 @@ export function TodayPage() {
                 <HealthStrip />
                 <SyntheticBanner population={data.population} />
                 <div className="vx-today-layout">
-                  <section className="vx-today-primary" aria-labelledby="vx-attention-title">
-                    <header className="vx-panel-head">
-                      <div>
-                        <p className="vx-panel-kicker">Priorité publiée</p>
-                        <h2 id="vx-attention-title">File d'attention</h2>
-                      </div>
-                      <p>Ordre publié par le worker — aucun reclassement local.</p>
-                    </header>
+                  <Card
+                    className="vx-today-primary"
+                    rank="dominant"
+                    kicker="Priorité publiée"
+                    title="File d'attention"
+                    titleId="vx-attention-title"
+                    aside={<>{data.items.length} éléments</>}
+                    footer={
+                      <>
+                        Ordre publié par le worker — aucun reclassement local. Population{' '}
+                        {data.population ?? 'non publiée'}
+                        {data.as_of === null ? '' : ` · as_of ${data.as_of}`}
+                      </>
+                    }
+                  >
                     <AttentionQueue items={data.items} asOf={data.as_of} />
-                  </section>
+                  </Card>
                   <SnapshotRail
                     snapshotVersion={data.snapshot_version}
                     asOf={data.as_of}

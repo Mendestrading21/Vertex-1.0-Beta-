@@ -197,9 +197,14 @@ class TestScannerDetectsDrift:
         ],
     )
     def test_missing_runtime_field_detected(self, tmp_path, field):
-        body = "\n".join(
-            line for line in MINIMAL_ENTRY.splitlines() if not line.strip().startswith(f"{field}:")
-        ) + "\n"
+        body = (
+            "\n".join(
+                line
+                for line in MINIMAL_ENTRY.splitlines()
+                if not line.strip().startswith(f"{field}:")
+            )
+            + "\n"
+        )
         root = build_repo(tmp_path, body, APPROVED_USAGE)
         report = checker.check(root)
         assert report["ok"] is False

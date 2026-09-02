@@ -225,6 +225,20 @@ def _halted(value: Any) -> bool | None:
     return numeric >= 1.0
 
 
+def _naive_or_none(value: Any) -> datetime | None:
+    """L'horodatage du fournisseur quand il arrive SANS fuseau.
+
+    Complement de `_aware_or_none` : celle-ci garde ce qui est certain,
+    celle-la garde ce qui est ambigu en le disant. Rien n'est converti — un
+    naif reste naif, et son interpretation appartient a qui declare le fuseau.
+    """
+    if not isinstance(value, datetime):
+        return None
+    if value.tzinfo is not None and value.tzinfo.utcoffset(value) is not None:
+        return None  # deja sans ambiguite : `_aware_or_none` s'en charge
+    return value
+
+
 def _aware_or_none(value: Any) -> datetime | None:
     if not isinstance(value, datetime):
         return None
@@ -578,6 +592,10 @@ class IbAsyncInformationAdapter:
                 article_id=row.articleId,
                 headline=row.headline,
                 time=_aware_or_none(getattr(row, "time", None)),
+                # IBKR date ses depeches SANS fuseau : `_aware_or_none` les
+                # refuse a juste titre, mais l'information reste utile si son
+                # ambiguite est declaree.
+                time_unzoned=_naive_or_none(getattr(row, "time", None)),
             )
             for row in rows
         )

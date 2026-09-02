@@ -73,7 +73,11 @@ export function PerformanceChart({
               trigger: 'axis',
               backgroundColor: cssToken('--vx-surface-2'),
               borderColor: cssToken('--vx-border'),
-              textStyle: { color: cssToken('--vx-text'), fontSize: 12 },
+              textStyle: {
+                color: cssToken('--vx-text'),
+                fontFamily: cssToken('--vx-font-mono'),
+                fontSize: 11,
+              },
               // Les valeurs affichées sont les CHAÎNES SERVEUR exactes.
               formatter: (params: unknown): string => {
                 const list = Array.isArray(params) ? params : [params];
@@ -103,14 +107,18 @@ export function PerformanceChart({
                 gridIndex: 0,
                 data: [...days],
                 axisLabel: { show: false },
-                axisLine: { lineStyle: { color: cssToken('--vx-border-strong') } },
+                axisLine: { lineStyle: { color: cssToken('--vx-border-soft') } },
               },
               {
                 type: 'category',
                 gridIndex: 1,
                 data: [...days],
-                axisLabel: { color: cssToken('--vx-text-muted'), fontSize: 11 },
-                axisLine: { lineStyle: { color: cssToken('--vx-border-strong') } },
+                axisLabel: {
+                  color: cssToken('--vx-text-muted'),
+                  fontFamily: cssToken('--vx-font-mono'),
+                  fontSize: 11,
+                },
+                axisLine: { lineStyle: { color: cssToken('--vx-border-soft') } },
               },
             ],
             yAxis: [
@@ -120,7 +128,11 @@ export function PerformanceChart({
                 scale: true,
                 name: currency !== null ? `Valeur (${currency})` : 'Valeur',
                 nameTextStyle: { color: cssToken('--vx-text-muted') },
-                axisLabel: { color: cssToken('--vx-text-muted'), fontSize: 11 },
+                axisLabel: {
+                  color: cssToken('--vx-text-muted'),
+                  fontFamily: cssToken('--vx-font-mono'),
+                  fontSize: 11,
+                },
                 splitLine: { lineStyle: { color: cssToken('--vx-border-soft') } },
               },
               {
@@ -128,7 +140,11 @@ export function PerformanceChart({
                 gridIndex: 1,
                 name: 'Drawdown',
                 nameTextStyle: { color: cssToken('--vx-text-muted') },
-                axisLabel: { color: cssToken('--vx-text-muted'), fontSize: 11 },
+                axisLabel: {
+                  color: cssToken('--vx-text-muted'),
+                  fontFamily: cssToken('--vx-font-mono'),
+                  fontSize: 11,
+                },
                 splitLine: { lineStyle: { color: cssToken('--vx-border-soft') } },
               },
             ],

@@ -375,9 +375,7 @@ class AdviceEngine:
         """
         if inputs.probability_evidence is None:
             return None
-        probability_gate = next(
-            g for g in gates if g.gate_id == PROBABILITY_CALIBRATED_GATE_ID
-        )
+        probability_gate = next(g for g in gates if g.gate_id == PROBABILITY_CALIBRATED_GATE_ID)
         if (
             probability_gate.status is GateStatus.PASS
             and probability_gate.reason_code == _PROPAGATE_PROBABILITY_REASON

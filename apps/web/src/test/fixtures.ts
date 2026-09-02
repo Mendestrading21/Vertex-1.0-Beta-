@@ -580,6 +580,29 @@ export function makeAnalysis(overrides: Partial<AnalysisResponse> = {}): Analysi
     instrument: 'SYN-TECH-01',
     engine_version: 'vertex_core@0.1.0',
     bars: makeAnalysisBars(),
+    indicators: {
+      realized_volatility: {
+        status: 'OK',
+        window: 20,
+        unit: 'annualized_ratio',
+        value: '0.2795203803922421',
+        value_pct: '27.95',
+        calculation: {
+          calculation_id: 'market.realized_volatility',
+          method: 'unbiased sample stdev of daily simple returns, annualized',
+          engine_version: 'vertex_core@0.1.0',
+          input_hash: 'sha256:0000000000000000000000000000000000000000000000000000000000000001',
+          result_hash: 'sha256:0000000000000000000000000000000000000000000000000000000000000002',
+          status: 'OK',
+        },
+      },
+      atr: {
+        status: 'INSUFFICIENT_SAMPLE',
+        lookback: 14,
+        available_bars: 3,
+        detail: '15 barres requises ; 3 disponibles',
+      },
+    },
     evidence: {
       source: 'fusion',
       ruleset_version: '1.0.0',
@@ -605,6 +628,7 @@ export function makeEmptyAnalysis(): AnalysisResponse {
     instrument: 'SYN-TECH-01',
     engine_version: null,
     bars: null,
+    indicators: null,
     evidence: null,
     scenarios: null,
     advice: null,

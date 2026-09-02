@@ -31,6 +31,11 @@ export const color = {
   'silver': '#d8d3c7',
   'titanium': '#aaa497',
   'titanium-soft': 'rgba(216, 211, 199, 0.1)',
+  // Filigrane de registre : DÉLIBÉRÉMENT sous le niveau de contraste du texte.
+  // « Arrière-plan : décor presque invisible » (`canonical-visual.md`). À
+  // `titanium-soft`, le code d'espace se lisait aussi bien que le titre de la
+  // page : un second titre qui ne dit rien.
+  'titanium-ghost': 'rgba(216, 211, 199, 0.045)',
   'signal': '#d7a94a',
   'signal-bright': '#f2c76b',
   'signal-deep': '#765319',
