@@ -117,6 +117,7 @@ test.describe('Page Marchés — MarketMap + table équivalente + breadth', () =
       'indices',
       'breadth',
       'market-health',
+      'focus',
       'market-map',
       'sectors',
       'rates-curve',

@@ -108,6 +108,7 @@ test.describe("Page Aujourd'hui — AttentionQueue", () => {
       'volatility',
       'next-catalyst',
       'source-health',
+      'focus',
       'attention',
       'opportunities',
       'active-risks',
@@ -138,6 +139,17 @@ test.describe("Page Aujourd'hui — AttentionQueue", () => {
     await expect(page.getByTestId('snapshot-rail')).toBeVisible();
     // La file est bornée : région défilante atteignable au clavier.
     await expect(page.locator('.vx-queue-scroll[tabindex="0"]')).toBeVisible();
+    // Instruments suivis : un widget par dossier publié, une série TRACÉE
+    // (polyline SVG), et le prix affiché est la chaîne du snapshot Marchés.
+    const widgets = page.locator('[data-testid="instrument-widget"]');
+    expect(await widgets.count()).toBeGreaterThanOrEqual(1);
+    await expect(widgets.first().getByTestId('spark-line')).toBeVisible({ timeout: 15_000 });
+    const premierTicker = (await widgets.first().locator('.vx-iw-ticker').textContent()) ?? '';
+    const cote = overview.sectors
+      .flatMap((s: { tickers: { ticker: string; last_close: string }[] }) => s.tickers)
+      .find((t: { ticker: string }) => t.ticker === premierTicker);
+    expect(cote).toBeDefined();
+    await expect(widgets.first()).toContainText(cote.last_close.replace('.', ','));
   });
 
   test('axe : zéro violation critique/sérieuse + capture', async ({ page }, testInfo) => {

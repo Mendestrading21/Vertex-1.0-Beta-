@@ -3,10 +3,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ABSENCE_REASONS } from '../components/AbsentModule.tsx';
 import {
+  makeAnalysis,
   makeAttentionItem,
   makeAttentionSnapshot,
   makeCalendarResponse,
   makeCapabilities,
+  makeEmptyAnalysis,
   makeEmptyAttentionSnapshot,
   makeMarketsOverview,
   makeOpportunities,
@@ -42,6 +44,9 @@ function mockToday(attention: unknown): void {
     }
     if (url.includes('/portfolio')) {
       return Promise.resolve(jsonResponse(makePortfolioResponse()));
+    }
+    if (url.includes('/analysis/')) {
+      return Promise.resolve(jsonResponse(makeAnalysis()));
     }
     return Promise.resolve(jsonResponse(makeMarketsOverview()));
   });
@@ -238,5 +243,57 @@ describe("Page Aujourd'hui — la planche §1 est complète, servie ou déclaré
     const etat = await cellule.findByRole('status');
     expect(etat.getAttribute('data-state')).toBe('offline');
     expect(cellule.queryByText('555')).toBeNull();
+  });
+});
+
+describe("Page Aujourd'hui — instruments suivis (widgets servis)", () => {
+  it('un widget par dossier publié : prix et variation du snapshot Marchés, série du dossier, fraîcheur servie', async () => {
+    mockToday(makeAttentionSnapshot());
+    renderApp('/today');
+    await screen.findByRole('heading', { level: 2, name: "File d'attention" });
+    const rangee = within(await screen.findByTestId('focus-row'));
+    const widgets = await rangee.findAllByTestId('instrument-widget');
+    // Le fixture Opportunités ne publie qu'un candidat avec barres : SYN-ENER-01.
+    expect(widgets).toHaveLength(1);
+    const widget = within(widgets[0] as HTMLElement);
+    expect(widget.getByRole('link', { name: 'SYN-ENER-01' })).toBeDefined();
+    // Chaînes serveur du snapshot Marchés, virgule française.
+    const cotation = makeMarketsOverview().sectors[0]!.tickers[0]!;
+    expect(widget.getByText(cotation.last_close.replace('.', ','))).toBeDefined();
+    expect(widget.getByText(`${cotation.return_1d_pct.replace('.', ',')} %`)).toBeDefined();
+    // La série vient du dossier : un tracé, une description, une fraîcheur servie.
+    expect(await widget.findByTestId('spark-line')).toBeDefined();
+    expect(widget.getByRole('img', { name: /clôtures publiées/ })).toBeDefined();
+    expect(widget.getByText(/dossier/)).toBeDefined();
+  });
+
+  it('dossier absent : le cadre de la courbe le DIT, aucune courbe plate à la place', async () => {
+    fetchMock.mockImplementation((input) => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+      if (url.includes('/today/attention')) {
+        return Promise.resolve(jsonResponse(makeAttentionSnapshot()));
+      }
+      if (url.includes('/analysis/')) {
+        return Promise.resolve(jsonResponse(makeEmptyAnalysis()));
+      }
+      if (url.includes('/system/capabilities')) {
+        return Promise.resolve(jsonResponse(makeCapabilities()));
+      }
+      if (url.includes('/calendar')) {
+        return Promise.resolve(jsonResponse(makeCalendarResponse()));
+      }
+      if (url.includes('/opportunities')) {
+        return Promise.resolve(jsonResponse(makeOpportunities()));
+      }
+      if (url.includes('/portfolio')) {
+        return Promise.resolve(jsonResponse(makePortfolioResponse()));
+      }
+      return Promise.resolve(jsonResponse(makeMarketsOverview()));
+    });
+    renderApp('/today');
+    await screen.findByRole('heading', { level: 2, name: "File d'attention" });
+    const widget = within((await screen.findAllByTestId('instrument-widget'))[0] as HTMLElement);
+    expect((await widget.findByRole('status')).textContent).toContain('Aucun dossier d’analyse publié');
+    expect(widget.queryByTestId('spark-line')).toBeNull();
   });
 });

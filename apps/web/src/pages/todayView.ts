@@ -24,7 +24,8 @@ export interface TodayModule {
 
 /**
  * Les onze modules de la planche `pages-01-02-today-markets.png` (moitié
- * gauche), dans l'ordre de lecture. Un module « servi » nomme son contrat ;
+ * gauche), dans l'ordre de lecture — plus « Instruments suivis », demandé
+ * explicitement au-delà de la planche et servi par les dossiers d'analyse. Un module « servi » nomme son contrat ;
  * un module « absent » porte le motif MESURÉ de son absence.
  */
 export const TODAY_MODULES: readonly TodayModule[] = [
@@ -61,6 +62,12 @@ export const TODAY_MODULES: readonly TodayModule[] = [
     title: 'Catalyseur suivant',
     question: 'Quel est le prochain événement publié à l’agenda ?',
     status: { kind: 'served', contract: 'GET /api/v1/calendar' },
+  },
+  {
+    id: 'focus',
+    title: 'Instruments suivis',
+    question: 'Que font les instruments dont un dossier est publié : prix, variation, série ?',
+    status: { kind: 'served', contract: 'GET /api/v1/analysis/{instrument} (candidats publiés par GET /api/v1/opportunities)' },
   },
   {
     id: 'source-health',

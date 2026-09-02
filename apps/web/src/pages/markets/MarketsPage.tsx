@@ -14,6 +14,7 @@ import { BreadthPanel } from './BreadthPanel.tsx';
 import { MarketMap } from './MarketMap.tsx';
 import { InstrumentInspector, SnapshotInspector } from './MarketsInspector.tsx';
 import { MarketsTable } from './MarketsTable.tsx';
+import { FocusRowModule } from '../InstrumentWidget.tsx';
 import type { SignGroup } from '../../components/markets/marketsView.ts';
 import {
   GROUP_LABELS_FR,
@@ -387,6 +388,10 @@ function MarketsBoard({ data, state }: { readonly data: MarketsOverview; readonl
 
         <div data-module="market-health">
           <MarketHealthModule data={data} />
+        </div>
+
+        <div data-module="focus">
+          <FocusRowModule />
         </div>
 
         <MarketsFrame data={data} state={state} selected={selected} onSelect={setSelected} />

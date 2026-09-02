@@ -9,6 +9,7 @@ import type { DataState } from '../components/DataStateBoundary.tsx';
 import { SyntheticBanner } from '../components/SyntheticBanner.tsx';
 import { InspectorPanel } from '../shell/inspector.tsx';
 import { AttentionQueue } from './AttentionQueue.tsx';
+import { FocusRowModule } from './InstrumentWidget.tsx';
 import { SnapshotRail } from './SnapshotRail.tsx';
 import {
   CalendarModule,
@@ -146,6 +147,15 @@ function TodayBoard({
       </div>
       <div data-module="source-health" className="vx-today-cell">
         <SourceHealthModule />
+      </div>
+
+      {/*
+        Les instruments suivis — prix, variation, mini-courbe, volume — sur
+        les dossiers d'analyse publiés. Un module de plus que la planche §1 :
+        demandé explicitement, servi entièrement, borné à quatre dossiers.
+      */}
+      <div data-module="focus" className="vx-today-cell">
+        <FocusRowModule />
       </div>
 
       <div data-module="attention" className="vx-today-cell vx-today-primary">

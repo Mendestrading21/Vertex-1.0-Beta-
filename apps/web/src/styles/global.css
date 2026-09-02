@@ -5723,6 +5723,7 @@ label {
   display: grid;
   grid-template-areas:
     'global vol catalyst health'
+    'focus focus focus focus'
     'regime attention attention attention'
     'risks attention attention attention'
     'opp sectors sectors calendar'
@@ -5749,6 +5750,7 @@ label {
 .vx-today-grid [data-module='next-catalyst'] { grid-area: catalyst; }
 .vx-today-grid [data-module='source-health'] { grid-area: health; }
 .vx-today-grid [data-module='attention'] { grid-area: attention; }
+.vx-today-grid [data-module='focus'] { grid-area: focus; }
 .vx-today-grid [data-module='opportunities'] { grid-area: opp; }
 .vx-today-grid [data-module='active-risks'] { grid-area: risks; }
 .vx-today-grid [data-module='sectors'] { grid-area: sectors; }
@@ -5759,6 +5761,7 @@ label {
   .vx-today-grid {
     grid-template-areas:
       'global global vol catalyst health'
+      'focus focus focus focus focus'
       'regime attention attention attention attention'
       'risks attention attention attention attention'
       'opp sectors sectors sectors calendar'
@@ -5786,6 +5789,7 @@ label {
   display: grid;
   grid-template-areas:
     'sessions vol indices breadth'
+    'focus focus focus focus'
     'map map map map'
     'sectors sectors rates fx'
     'sectors sectors correlation volstruct'
@@ -5801,6 +5805,7 @@ label {
 .vx-markets-grid [data-module='breadth'] { grid-area: breadth; }
 .vx-markets-grid [data-module='market-health'] { grid-area: health; }
 .vx-markets-grid [data-module='indices'] { grid-area: indices; }
+.vx-markets-grid [data-module='focus'] { grid-area: focus; }
 .vx-markets-grid [data-module='market-map'] { grid-area: map; }
 .vx-markets-grid [data-module='sectors'] { grid-area: sectors; }
 .vx-markets-grid [data-module='rates-curve'] { grid-area: rates; }
@@ -6388,4 +6393,299 @@ label {
 .vx-main button.vx-sector-chip {
   gap: var(--vx-space-4);
   padding: var(--vx-space-4) 6px;
+}
+
+/* ================================================================== */
+/* LOT-A3 — WIDGETS INSTRUMENT (rangée des instruments suivis)          */
+/* ================================================================== */
+
+/* Prix en grand, variation en pastille, mini-courbe et barres de volume,
+   fraîcheur en haut à droite. Chaque widget est un panneau du même matériau
+   que les cartes : arête haute plus claire, rayon constant, aucun halo. Le
+   vert et le rouge ne portent que le SIGNE publié, doublé du glyphe et du
+   texte ; la courbe reprend cette teinte pour ne pas en inventer une. */
+
+.vx-focus {
+  display: flex;
+  flex-direction: column;
+  gap: var(--vx-space-12);
+}
+
+.vx-focus-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--vx-space-4) var(--vx-space-16);
+  padding: 0 var(--vx-space-4);
+}
+
+.vx-focus-kicker {
+  margin: 0;
+  color: var(--vx-titanium);
+  font-family: var(--vx-font-mono);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.vx-focus-note {
+  margin: 0;
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-focus-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: var(--vx-space-16);
+}
+
+.vx-iw {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--vx-space-12);
+  padding: var(--vx-space-16) var(--vx-space-20);
+  border: 1px solid var(--vx-border-soft);
+  border-top-color: var(--vx-border-strong);
+  border-radius: var(--vx-radius-18);
+  background:
+    linear-gradient(180deg, var(--vx-titanium-ghost), transparent 38%),
+    var(--vx-surface-1);
+  box-shadow: var(--vx-shadow-inset);
+}
+
+.vx-iw-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--vx-space-12);
+}
+
+.vx-iw-identity {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.vx-main .vx-iw-ticker {
+  color: var(--vx-text);
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-body);
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  text-decoration: none;
+}
+
+.vx-main .vx-iw-ticker:hover {
+  color: var(--vx-signal-bright);
+  text-decoration: underline;
+}
+
+.vx-iw-ticker code {
+  font-family: inherit;
+}
+
+.vx-iw-sector {
+  overflow: hidden;
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vx-iw-fresh {
+  flex: 0 0 auto;
+  max-width: 55%;
+  text-align: right;
+}
+
+.vx-iw-fresh .vx-freshness {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  padding: 2px var(--vx-space-8);
+  font-size: 11px;
+}
+
+.vx-iw-state {
+  color: var(--vx-text-muted);
+  font-family: var(--vx-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.vx-iw-state[data-state='stale'],
+.vx-iw-state[data-state='delayed'] {
+  color: var(--vx-warning);
+}
+
+.vx-iw-state[data-state='error'],
+.vx-iw-state[data-state='offline'] {
+  color: var(--vx-negative);
+}
+
+.vx-iw-price-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--vx-space-8) var(--vx-space-12);
+}
+
+.vx-iw-price {
+  color: var(--vx-silver);
+  font-family: var(--vx-font-mono);
+  font-size: 28px;
+  font-variant-numeric: tabular-nums lining-nums;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+.vx-iw-currency {
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+/* La pastille : fond doux, texte plein, glyphe — jamais la couleur seule. */
+.vx-iw-delta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--vx-space-4);
+  padding: 2px var(--vx-space-8);
+  border: 1px solid var(--vx-border-soft);
+  border-radius: var(--vx-radius-pill);
+  background: var(--vx-surface-2);
+  color: var(--vx-text-secondary);
+  font-family: var(--vx-font-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.vx-iw-delta[data-sign='up'] {
+  background: var(--vx-positive-soft);
+  color: var(--vx-positive);
+}
+
+.vx-iw-delta[data-sign='down'] {
+  background: var(--vx-negative-soft);
+  color: var(--vx-negative);
+}
+
+.vx-iw-chart {
+  display: flex;
+  min-height: 64px;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.vx-iw-absent {
+  margin: 0;
+  padding: var(--vx-space-8) var(--vx-space-12);
+  border: 1px dashed var(--vx-border);
+  border-radius: var(--vx-radius-6);
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+  line-height: 1.45;
+}
+
+.vx-iw-foot {
+  color: var(--vx-text-muted);
+  font-family: var(--vx-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.02em;
+}
+
+/* ---- La mini-série ------------------------------------------------- */
+
+.vx-spark {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+}
+
+.vx-spark-line-svg {
+  display: block;
+  width: 100%;
+  height: 44px;
+  overflow: visible;
+}
+
+.vx-spark-vol-svg {
+  display: block;
+  width: 100%;
+  height: 18px;
+}
+
+.vx-spark-base {
+  stroke: var(--vx-titanium);
+  stroke-opacity: 0.55;
+  stroke-width: 0.6;
+  vector-effect: non-scaling-stroke;
+}
+
+.vx-spark-line {
+  fill: none;
+  stroke: var(--vx-silver);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.6;
+  vector-effect: non-scaling-stroke;
+}
+
+.vx-spark-area {
+  fill: var(--vx-titanium-ghost);
+}
+
+.vx-spark-dot {
+  fill: var(--vx-silver);
+}
+
+.vx-spark-vol {
+  fill: var(--vx-titanium);
+  fill-opacity: 0.35;
+}
+
+.vx-spark-vol[data-last='true'] {
+  fill-opacity: 0.9;
+}
+
+.vx-spark[data-sign='up'] .vx-spark-line,
+.vx-spark[data-sign='up'] .vx-spark-dot {
+  stroke: var(--vx-positive);
+  fill: none;
+}
+
+.vx-spark[data-sign='up'] .vx-spark-dot {
+  fill: var(--vx-positive);
+}
+
+.vx-spark[data-sign='up'] .vx-spark-area {
+  fill: var(--vx-positive-soft);
+}
+
+.vx-spark[data-sign='down'] .vx-spark-line {
+  stroke: var(--vx-negative);
+}
+
+.vx-spark[data-sign='down'] .vx-spark-dot {
+  fill: var(--vx-negative);
+}
+
+.vx-spark[data-sign='down'] .vx-spark-area {
+  fill: var(--vx-negative-soft);
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .vx-iw {
+    background: var(--vx-surface-1);
+  }
 }

@@ -15,9 +15,9 @@ import {
 } from './todayView.ts';
 
 describe('catalogue de la planche §1 — Aujourd’hui', () => {
-  it('porte les onze modules de la planche, identifiants uniques', () => {
-    expect(TODAY_MODULES).toHaveLength(11);
-    expect(new Set(TODAY_MODULES.map((module) => module.id)).size).toBe(11);
+  it('porte les onze modules de la planche plus les instruments suivis, identifiants uniques', () => {
+    expect(TODAY_MODULES).toHaveLength(12);
+    expect(new Set(TODAY_MODULES.map((module) => module.id)).size).toBe(12);
   });
 
   it('trois modules sont absents, avec un motif du vocabulaire fermé et une note sans chiffre', () => {
@@ -30,9 +30,9 @@ describe('catalogue de la planche §1 — Aujourd’hui', () => {
     }
   });
 
-  it('les huit autres nomment leur contrat serveur', () => {
+  it('les neuf autres nomment leur contrat serveur', () => {
     const served = TODAY_MODULES.filter((module) => module.status.kind === 'served');
-    expect(served).toHaveLength(8);
+    expect(served).toHaveLength(9);
     for (const module of served) {
       expect(module.status.kind === 'served' ? module.status.contract : '').toMatch(/^GET \/api\/v1\//);
     }

@@ -4,23 +4,24 @@ import { ABSENCE_REASONS } from '../../components/AbsentModule.tsx';
 import { MARKETS_MODULES, absentMarketsModules, marketsModule } from './marketsModules.ts';
 
 describe('catalogue de la planche §2 — Marchés', () => {
-  it('porte les douze modules de la planche, identifiants uniques', () => {
-    expect(MARKETS_MODULES).toHaveLength(12);
-    expect(new Set(MARKETS_MODULES.map((module) => module.id)).size).toBe(12);
+  it('porte les douze modules de la planche plus les instruments suivis, identifiants uniques', () => {
+    expect(MARKETS_MODULES).toHaveLength(13);
+    expect(new Set(MARKETS_MODULES.map((module) => module.id)).size).toBe(13);
   });
 
-  it('cinq modules sont servis par le seul snapshot markets_overview', () => {
+  it('cinq modules sont servis par le seul snapshot markets_overview, un sixième par les dossiers d’analyse', () => {
     const served = MARKETS_MODULES.filter((module) => module.status.kind === 'served');
     expect(served.map((module) => module.id)).toEqual([
       'breadth',
       'market-health',
+      'focus',
       'market-map',
       'sectors',
       'discards',
     ]);
     for (const module of served) {
-      expect(module.status.kind === 'served' ? module.status.contract : '').toContain(
-        'GET /api/v1/markets/overview',
+      expect(module.status.kind === 'served' ? module.status.contract : '').toMatch(
+        /GET \/api\/v1\/(markets\/overview|analysis)/,
       );
     }
   });

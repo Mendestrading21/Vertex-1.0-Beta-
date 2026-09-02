@@ -50,6 +50,12 @@ export const MARKETS_MODULES: readonly MarketsModule[] = [
     status: { kind: 'served', contract: 'GET /api/v1/markets/overview — coverage' },
   },
   {
+    id: 'focus',
+    title: 'Instruments suivis',
+    question: 'Que font les instruments dont un dossier est publié : prix, variation, série ?',
+    status: { kind: 'served', contract: 'GET /api/v1/analysis/{instrument} (candidats publiés par GET /api/v1/opportunities)' },
+  },
+  {
     id: 'market-map',
     title: 'Carte des marchés',
     question: 'Comment les secteurs et instruments suivis ont-ils évolué sur la dernière séance ?',
