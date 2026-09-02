@@ -2,9 +2,9 @@
 
 ```yaml
 phase: security_reconciliation_r0
-lot: VERTEX-RATTRAPAGE R0
+lot: VERTEX-RATTRAPAGE R1 (R0 actualisé)
 branch: lot/r0-github-security
-status: github_protege_requalification_post_fusion_requise
+status: r1_documente_attente_revue_codex_aucune_fusion
 last_known_good_commit: "a5b7d205388e58f4e2716deeba5ecbea0ca9af21 (= état avant fusion #14, CI 7/7 verte)"
 main_head_observed: "beb249881015147de11e270f8e0e48d843716e6e (= squash #18 après #14, observé le 2026-09-02T07:04:21Z)"
 security_state:
@@ -14,6 +14,18 @@ security_state:
   - "HEAD fusionné de PR #14 ef47b11a : CI #159 verte ; conformité architecturale encore à requalifier"
   - "PR #18 fusionnée pendant la validation R0 : 2 fichiers, HEAD b8a0d4d6, CI #165 verte, squash beb24988 ; ajoutée au même audit"
   - "les 23 commits classés et les 13 commits post-gel deviennent une matrice d'audit du code déjà présent dans main"
+ci_state_r1:
+  - "ci run 33601777661 sur main@beb24988 : succès, sept checks requis inclus"
+  - "ci sur PR #17 @ 5f25dab : succès"
+nightly_state_r1:
+  - "nightly run 33605890223 sur main@beb24988 : ÉCHEC — 753 réussis, 2 échoués, 2 ignorés, projet firefox-1440x900 seul"
+  - "options.spec.ts:187 et today.spec.ts:94 : même assertion expect(sorti).toBe(true) — le Tab ne sort pas de l'inspecteur sous Firefox"
+  - "la nightly n'est pas un check requis du ruleset : dette qualité, pas blocage de fusion ; hors périmètre R1 (code applicatif)"
+pr_19_r1: "brouillon, claude/vertex-connection-kgkntr @ e8ff5e6, 5 fichiers dont NOW.md et REPRENDRE_ICI.md ; reprise APRÈS fusion humaine de #17"
+commits_claude_post_pr18_r1:
+  - "732f7e5 PRESSE time_unzoned : ADAPT — reprendre depuis main avec test de bout en bout"
+  - "f9af140 PASSATION locale : REWRITE / DROP — jamais fusionné tel quel"
+  - "HEAD Claude relevé f9af140, 50 commits en avance ; jamais absorbé en bloc"
 lots_de_cette_session:
   - "LOT-04 — la purge de session effaçait l'erreur 401 qu'elle devait laisser
      voir. CI ROUGE à l'arrivée sur b09b3785 : 3 échecs e2e/auth.spec.ts sur les
@@ -537,8 +549,11 @@ lot_25_validation_locale:
 ancienne_prochaine_commande_lot_26: "VALIDE PR #13 — relire humainement LOT-26 puis décider de sa
    fusion. Après validation seulement, ouvrir LOT-27 pour FRED/ALFRED PIT. Les
    clés, identifiants et droits fournisseurs restent exclusivement locaux."
-prochaine_commande: "AUDITE MAIN POST-FUSION #14 ET #18 — requalifier beb24988
+ancienne_prochaine_commande_r0: "AUDITE MAIN POST-FUSION #14 ET #18 — requalifier beb24988
    contre a5b7d205 et le plan R0, sans rollback ni réécriture destructive."
+prochaine_commande: "ATTENDRE LA REVUE CODEX DE R1 (PR #17). Aucune fusion, aucun
+   démarrage de R2. Après validation humaine de #17 seulement : PR #19 reprise
+   par nouvelle PR bornée, puis R2 selon la matrice de récupération."
 ```
 
 ## REPRISE 2026-09-01 — etat mesure en fin de session

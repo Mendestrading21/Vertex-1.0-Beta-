@@ -66,3 +66,11 @@ reste distincte et ne doit jamais contaminer une PR applicative. Le rollback
 consiste à désactiver temporairement le ruleset, jamais à déplacer `main` ou
 forcer un push. Toute exception doit nommer son propriétaire, sa durée et sa
 raison.
+
+## Ce que le ruleset ne couvre pas — relevé R1
+
+Le workflow `nightly` (e2e Firefox et WebKit, licences strictes) **n'est pas**
+l'un des sept checks requis. Une nightly rouge sur `main` — c'est le cas du
+run `33605890223` du 2 septembre 2026, deux échecs Firefox — ne bloque donc
+aucune fusion. Elle doit être lue et traitée comme une dette de qualité
+explicite, jamais ignorée parce que la CI standard est verte.

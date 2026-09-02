@@ -30,7 +30,9 @@ Pendant la validation R0, PR #18 a ensuite été fusionnée par squash le
 (`+329/-240`), sa CI #165 est verte et `main` est devenu
 `beb249881015147de11e270f8e0e48d843716e6e`. Le HEAD de la branche Claude reste
 mouvant ; ces empreintes désignent uniquement les arbres effectivement
-fusionnés.
+fusionnés. Relevé R1 du 2 septembre 2026 : HEAD `f9af140`, 50 commits en
+avance sur `main`, dont deux postérieurs au squash de PR #18 (`732f7e5`,
+`f9af140`) — classés dans la matrice ci-dessous.
 
 Cette fusion a contredit le verrou de récupération sélective. Elle n'autorise
 ni reset, ni revert implicite, ni force-push : l'état publié est requalifié en
@@ -60,6 +62,9 @@ checks et ouvre sa propre PR brouillon.
 | R2-H accès local | `d357e4c` | HOLD | changement d'autorité d'authentification ; décision sécurité séparée |
 | R2-I documentation | `d8031cb`, `7e21e5b` | REWRITE / DROP | réécrire l'état depuis les preuves actuelles ; ne pas rejouer la passation |
 | R2-J surfaces post-fusion | PR #18, `b8a0d4d6` | AUDIT / ADAPT | règles CSS de formulaires, tables et boutons ; passation documentaire à revalider |
+| R2-C (ajout R1) presse, hachage | `732f7e5` | ADAPT | `time_unzoned` en chaîne ISO — la collecte de presse échouait au hachage canonique ; reprendre depuis `main` avec un test de bout en bout collecte → hachage → ingestion |
+| R2-I (ajout R1) passation locale | `f9af140` | REWRITE / DROP | état d'un poste (ports, univers temps réel, habilitation) ; faits utiles à réécrire depuis les preuves, jamais fusionné tel quel |
+| PR #19 démarrage | `claude/vertex-connection-kgkntr` @ `e8ff5e6` | APRÈS #17 | cinq fichiers dont `NOW.md` et `REPRENDRE_ICI.md` ; reprise par nouvelle PR bornée après fusion humaine de #17 |
 
 ## Verrous de fichiers Claude / Codex
 
