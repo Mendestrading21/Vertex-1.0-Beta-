@@ -17,6 +17,7 @@ const INSTALLED_KEYS = new Set([
   'catalysts',
   'calendar',
   'opportunities',
+  'charts',
 ]);
 
 describe('routes — couverture du blueprint', () => {
@@ -30,12 +31,12 @@ describe('routes — couverture du blueprint', () => {
   });
 
   // Le COMPTE, lui, dit la vérité du moment. La cible est douze
-  // (`references/pages.md`) ; le rail en porte onze pendant les absorptions,
-  // et l'écart est journalisé dans docs/05-design/PAGE_ARBITRATION.md.
-  // Ce test échoue si une destination apparaît ou disparaît sans que
-  // l'arbitrage soit mis à jour — il n'est pas relâché, il est déplacé de
-  // « combien » vers « lesquelles ».
-  it('le rail porte exactement les onze destinations réelles, dans l’ordre', () => {
+  // (`references/pages.md`) et le rail en porte douze depuis le LOT-A2
+  // (2026-09-02) ; l'arbitrage est journalisé dans
+  // docs/05-design/PAGE_ARBITRATION.md. Ce test échoue si une destination
+  // apparaît ou disparaît sans que l'arbitrage soit mis à jour — il n'est pas
+  // relâché, il est déplacé de « combien » vers « lesquelles ».
+  it('le rail porte exactement les douze destinations réelles, dans l’ordre', () => {
     expect(ALL_PAGES.map((entry) => entry.key)).toEqual([
       'today',
       'opportunities',
@@ -44,6 +45,7 @@ describe('routes — couverture du blueprint', () => {
       'simulator',
       'calendar',
       'markets',
+      'charts',
       'portfolio',
       'risks',
       'catalysts',
@@ -56,11 +58,13 @@ describe('routes — couverture du blueprint', () => {
   // app/pages.ts. Sa clé est `risks` au pluriel — celle du blueprint, que
   // `audit_titanium_ledger.py` cherche pour mesurer l'écart à la cible ;
   // un `risk` singulier aurait laissé l'audit annoncer la page manquante.
-  // Graphiques y reste — il attend encore son contrat serveur, et une
-  // entrée de rail sans données serait une façade.
-  it('la destination cible restante n’est PAS présente en façade', () => {
+  // Graphiques a rejoint le rail le 2026-09-02 (LOT-A2) — pas en façade :
+  // sa dominante est servie par le contrat Analyse et chaque module sans
+  // source est DÉCLARÉ absent avec son motif (`AbsentModule`). La clé est
+  // `charts`, celle que `audit_titanium_ledger.py` cherche pour la cible.
+  it('la douzième destination, Graphiques, est présente sous sa clé cible', () => {
     const keys = new Set(ALL_PAGES.map((entry) => entry.key));
-    expect(keys.has('charts')).toBe(false);
+    expect(keys.has('charts')).toBe(true);
   });
 });
 
