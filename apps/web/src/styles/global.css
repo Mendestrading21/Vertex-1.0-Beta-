@@ -5724,8 +5724,8 @@ label {
   grid-template-areas:
     'global vol catalyst health'
     'regime attention attention attention'
+    'risks attention attention attention'
     'opp sectors sectors portfolio'
-    'risks sectors sectors portfolio'
     'calendar calendar calendar calendar';
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: var(--vx-space-12);
@@ -5758,10 +5758,10 @@ label {
 @media (min-width: 1600px) {
   .vx-today-grid {
     grid-template-areas:
-      'regime global vol catalyst health'
+      'global global vol catalyst health'
       'regime attention attention attention attention'
-      'opp sectors sectors portfolio calendar'
-      'risks sectors sectors portfolio calendar';
+      'risks attention attention attention attention'
+      'opp sectors sectors portfolio calendar';
     grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 }
@@ -5976,4 +5976,346 @@ label {
 .vx-markets-grid .vx-absent-badge {
   min-width: 0;
   max-width: 100%;
+}
+
+/* ================================================================== */
+/* LOT-A3 — RESPIRATION ET CADRAGE (deuxième passe, sur demande)       */
+/* ================================================================== */
+
+/* « La densité vient de la précision des alignements et non de
+   l'accumulation d'effets » ; « gouttières principales 12–16 px ; espace
+   interne courant 14–18 px » ; « bordures : titane froid d'un pixel, PLUS
+   CLAIR AU BORD SUPÉRIEUR ». Cette passe applique le haut de chaque bande :
+   16 px entre modules, 20 px entre rangées, 18 px d'espace interne, une
+   arête haute plus claire sur chaque panneau, et des mesures séparées par un
+   filet — un registre, pas un bento. */
+
+.vx-today-grid,
+.vx-markets-grid {
+  gap: var(--vx-space-20) var(--vx-space-16);
+  margin-top: var(--vx-space-20);
+}
+
+.vx-page-header {
+  margin-bottom: var(--vx-space-20);
+}
+
+/* Le panneau : même matériau partout, arête haute plus claire, coins
+   constants. Le rang décide de la lumière, pas la page. */
+.vx-today-cell > .vx-card,
+.vx-markets-grid > [data-module] > .vx-card,
+.vx-today-cell > .vx-absent,
+.vx-markets-grid > [data-module] > .vx-absent {
+  gap: var(--vx-space-12);
+  padding: var(--vx-space-20) var(--vx-space-20) var(--vx-space-16);
+  border-color: var(--vx-border-soft);
+  border-top-color: var(--vx-border);
+  border-radius: var(--vx-radius-14);
+  background: var(--vx-surface-1);
+  box-shadow: var(--vx-shadow-inset);
+}
+
+.vx-today-cell > .vx-card[data-rank='dominant'] {
+  padding: var(--vx-space-20) var(--vx-space-24) var(--vx-space-16);
+  border-top-color: var(--vx-border-strong);
+}
+
+.vx-today-cell > .vx-card .vx-card-head,
+.vx-markets-grid > [data-module] > .vx-card .vx-card-head {
+  padding-bottom: var(--vx-space-12);
+  border-bottom: 1px solid var(--vx-border-soft);
+}
+
+.vx-today-cell > .vx-card .vx-card-kicker,
+.vx-markets-grid > [data-module] > .vx-card .vx-card-kicker {
+  margin-bottom: var(--vx-space-8);
+  color: var(--vx-titanium);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+}
+
+.vx-today-cell > .vx-card[data-rank='dominant'] .vx-card-kicker {
+  color: var(--vx-signal);
+}
+
+.vx-today-cell > .vx-card .vx-card-head h2,
+.vx-markets-grid > [data-module] > .vx-card .vx-card-head h2 {
+  font-size: var(--vx-font-size-title);
+  font-weight: 620;
+  letter-spacing: -0.015em;
+}
+
+.vx-today-cell > .vx-card .vx-card-body,
+.vx-markets-grid > [data-module] > .vx-card .vx-card-body {
+  flex: 1 1 auto;
+}
+
+.vx-today-cell > .vx-card .vx-card-foot,
+.vx-markets-grid > [data-module] > .vx-card .vx-card-foot {
+  padding-top: var(--vx-space-12);
+  border-top: 1px solid var(--vx-border-soft);
+  color: var(--vx-text-muted);
+  font-size: 10.5px;
+  letter-spacing: 0.01em;
+  line-height: 1.55;
+}
+
+/* Le module absent : même panneau, filet pointillé plus discret, titre en
+   titane — il tient sa place sans réclamer la lumière. */
+.vx-today-cell > .vx-absent,
+.vx-markets-grid > [data-module] > .vx-absent {
+  border-style: dashed;
+  border-top-style: solid;
+  background: var(--vx-surface-0);
+}
+
+.vx-today-grid .vx-absent-head,
+.vx-markets-grid .vx-absent-head {
+  padding-bottom: var(--vx-space-12);
+  border-bottom: 1px solid var(--vx-border-soft);
+}
+
+.vx-today-grid .vx-absent-head h3,
+.vx-markets-grid .vx-absent-head h3 {
+  color: var(--vx-text-secondary);
+  font-size: var(--vx-font-size-title);
+  font-weight: 620;
+  letter-spacing: -0.015em;
+}
+
+.vx-today-grid .vx-absent-question,
+.vx-markets-grid .vx-absent-question {
+  margin-top: var(--vx-space-4);
+  line-height: 1.5;
+}
+
+.vx-today-grid .vx-absent-body,
+.vx-markets-grid .vx-absent-body {
+  line-height: 1.55;
+}
+
+.vx-today-grid .vx-absent-note,
+.vx-markets-grid .vx-absent-note {
+  padding-left: var(--vx-space-12);
+  border-left: 2px solid var(--vx-border);
+  color: var(--vx-text-secondary);
+}
+
+/* Les mesures : alignées sur une même ligne de base, séparées par un filet
+   vertical — chaque chiffre a son cadre, sans boîte supplémentaire. */
+.vx-metrics-row {
+  gap: var(--vx-space-16) var(--vx-space-20);
+}
+
+.vx-metric + .vx-metric {
+  padding-left: var(--vx-space-20);
+  border-left: 1px solid var(--vx-border-soft);
+}
+
+.vx-metric {
+  gap: var(--vx-space-8);
+}
+
+.vx-metric-label {
+  letter-spacing: 0.12em;
+}
+
+.vx-metric-value {
+  font-size: 30px;
+  line-height: 1.05;
+}
+
+.vx-metric-note {
+  line-height: 1.45;
+}
+
+.vx-module-sentence {
+  margin-top: var(--vx-space-12);
+  line-height: 1.55;
+}
+
+.vx-module-state {
+  padding: var(--vx-space-12) var(--vx-space-16);
+  line-height: 1.5;
+}
+
+/* Recensement des capacités : chips alignées, compte en chasse fixe. */
+.vx-status-census {
+  gap: var(--vx-space-8) var(--vx-space-12);
+  margin-top: var(--vx-space-16);
+}
+
+.vx-today-module .vx-health-strip {
+  gap: var(--vx-space-12);
+}
+
+.vx-today-module .vx-health-strip-item {
+  padding: var(--vx-space-8) var(--vx-space-12);
+  border-radius: var(--vx-radius-10);
+}
+
+/* Agenda et listes : une ligne respire, le titre a sa propre ligne. */
+.vx-agenda-line {
+  gap: var(--vx-space-4) var(--vx-space-12);
+  padding: var(--vx-space-12) 0;
+}
+
+.vx-agenda-line:first-child {
+  padding-top: 0;
+}
+
+.vx-mini-list li + li {
+  margin-top: var(--vx-space-8);
+}
+
+/* Carte sectorielle : tuiles plus aérées, puces espacées. */
+.vx-today-grid .vx-sector-grid,
+.vx-markets-grid .vx-sector-grid {
+  gap: var(--vx-space-12);
+}
+
+.vx-sector {
+  padding: var(--vx-space-12);
+  border-radius: var(--vx-radius-10);
+}
+
+.vx-sector-head {
+  margin-bottom: var(--vx-space-12);
+  padding-bottom: var(--vx-space-8);
+  border-bottom: 1px solid var(--vx-border-soft);
+}
+
+.vx-sector-chips {
+  gap: var(--vx-space-8) var(--vx-space-8);
+}
+
+.vx-sector-chip,
+.vx-main button.vx-sector-chip {
+  gap: var(--vx-space-8);
+  padding: var(--vx-space-4) var(--vx-space-8);
+}
+
+/* La file d'attention : chaque ligne a de l'air, et la file monte à la
+   hauteur des deux modules de gauche. */
+.vx-today-primary .vx-queue-item {
+  padding: var(--vx-space-12) var(--vx-space-16);
+}
+
+.vx-today-primary .vx-queue-item-meta {
+  gap: var(--vx-space-8);
+}
+
+.vx-queue-scroll[tabindex] {
+  max-height: 620px;
+}
+
+/* La dominante de Marchés : même respiration que les cartes. */
+.vx-markets-grid > .vx-chartframe {
+  padding: var(--vx-space-20) var(--vx-space-24) var(--vx-space-16);
+  border-top-color: var(--vx-border-strong);
+  border-radius: var(--vx-radius-14);
+}
+
+.vx-markets-grid .vx-chartframe-head {
+  margin-bottom: var(--vx-space-16);
+  padding-bottom: var(--vx-space-16);
+}
+
+.vx-markets-grid .vx-chartframe-meta {
+  gap: var(--vx-space-8) var(--vx-space-24);
+  margin-bottom: var(--vx-space-16);
+  padding: var(--vx-space-12) var(--vx-space-16);
+  border-radius: var(--vx-radius-10);
+}
+
+.vx-markets-grid .vx-chartframe-legend {
+  margin: var(--vx-space-16) 0;
+}
+
+.vx-markets-grid .vx-marketmap-caption {
+  margin-top: var(--vx-space-12);
+}
+
+.vx-markets-grid .vx-chartframe-conclusion {
+  margin: var(--vx-space-16) 0;
+}
+
+.vx-markets-grid .vx-markets-table-actions {
+  margin-bottom: var(--vx-space-12);
+}
+
+.vx-markets-grid .vx-chartframe-foot {
+  margin-top: var(--vx-space-16);
+  padding-top: var(--vx-space-16);
+  line-height: 1.55;
+}
+
+.vx-markets-grid .vx-breadth-row {
+  margin-bottom: var(--vx-space-12);
+}
+
+.vx-markets-grid .vx-breadth h3 {
+  margin-bottom: var(--vx-space-12);
+  padding-bottom: var(--vx-space-8);
+  border-bottom: 1px solid var(--vx-border-soft);
+}
+
+.vx-markets-discards h3 {
+  margin: var(--vx-space-12) 0 var(--vx-space-8);
+  font-size: var(--vx-font-size-body);
+}
+
+.vx-markets-discards h3:first-child {
+  margin-top: 0;
+}
+
+.vx-markets-discards ul {
+  margin: 0 0 var(--vx-space-8);
+  padding-left: var(--vx-space-20);
+  line-height: 1.6;
+}
+
+/* L'inspecteur : faits séparés par un filet, valeurs en argent, respiration. */
+.vx-inspector-panel {
+  padding: var(--vx-space-20);
+  border-top-color: var(--vx-border);
+  border-radius: var(--vx-radius-14);
+  box-shadow: var(--vx-shadow-inset);
+}
+
+.vx-inspector-heading {
+  margin-bottom: var(--vx-space-16);
+  padding-bottom: var(--vx-space-12);
+  border-bottom: 1px solid var(--vx-border-soft);
+}
+
+.vx-inspector-facts {
+  gap: 0;
+}
+
+.vx-inspector-facts > div {
+  padding: var(--vx-space-8) 0;
+  border-bottom: 1px solid var(--vx-border-soft);
+}
+
+.vx-inspector-facts > div:last-child {
+  border-bottom: 0;
+}
+
+.vx-inspector-facts dt {
+  letter-spacing: 0.02em;
+}
+
+.vx-snapshot-rail {
+  gap: var(--vx-space-20);
+}
+
+.vx-snapshot-block-title {
+  margin-bottom: var(--vx-space-8);
+}
+
+.vx-inspector-lineage {
+  margin-top: var(--vx-space-16);
+  padding-top: var(--vx-space-12);
+  border-top: 1px solid var(--vx-border-soft);
 }
