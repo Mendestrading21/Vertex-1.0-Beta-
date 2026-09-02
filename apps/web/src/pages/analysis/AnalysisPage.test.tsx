@@ -104,7 +104,14 @@ describe('analysisStateOf — dérivation depuis les statuts publiés', () => {
     expect(analysisStateOf('ready', makeAnalysis())).toBe('ready');
   });
 
-  it('fresh=false publié → stale ; barres dégradées → partial', () => {
+  it('state=stale du relais prime ; fresh=false publié → stale ; barres dégradées → partial', () => {
+    const relayStale = makeAnalysis({
+      state: 'stale',
+      age_seconds: 300_000,
+      reason: 'snapshot older than its freshness budget',
+    });
+    expect(analysisStateOf('ready', relayStale)).toBe('stale');
+    expect(analysisStateOf('ready', makeAnalysis({ population: 'DELAYED' }))).toBe('delayed');
     const stale = makeAnalysis({ bars: { ...makeAnalysisBars(), fresh: false } });
     expect(analysisStateOf('ready', stale)).toBe('stale');
     const partial = makeAnalysis({
@@ -121,7 +128,7 @@ describe('Page Analyse — état nominal', () => {
     await screen.findByRole('heading', { level: 2, name: 'Analyse — SYN-TECH-01' });
     expect(screen.getByText(/prix OHLC en SYN/)).toBeDefined();
     expect(screen.getByText(/UTC \(stockage\)/)).toBeDefined();
-    expect(screen.getByText('synthetic-dev')).toBeDefined();
+    expect(screen.getByText('synthetic-dev:1234:db0002')).toBeDefined();
     // as_of du cadre (il réapparaît aussi dans la validité de l'AdviceCard).
     expect(screen.getAllByText('2026-08-25T12:00:00+00:00').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText(/3 barre\(s\) valides/)).toBeDefined();
@@ -129,6 +136,37 @@ describe('Page Analyse — état nominal', () => {
     // étiquette de population. Chercher dans tout le document trouverait les
     // deux — et surtout ne prouverait plus que la PAGE porte la sienne.
     expect(within(screen.getByRole('main')).getByText('DONNÉES SYNTHÉTIQUES')).toBeDefined();
+  });
+
+  it('population REAL : affiche la nature et la référence publiées, sans libellé synthétique local', async () => {
+    repondre(
+      jsonResponse(
+        makeAnalysis({
+          population: 'REAL',
+          instrument: 'AAPL',
+          bars: {
+            ...makeAnalysisBars(),
+            currency: 'USD',
+            adjustment_basis: 'unadjusted',
+            source_event_id: 'ibkr-bars-265598',
+          },
+          advice: null,
+        }),
+      ),
+    );
+    await renderAnalysis('/analysis/AAPL');
+
+    const heading = await screen.findByRole('heading', { level: 2, name: 'Analyse — AAPL' });
+    const frame = heading.closest('.vx-chartframe');
+    expect(frame).not.toBeNull();
+    const scoped = within(frame as HTMLElement);
+
+    expect(scoped.getByText('DONNÉES RÉELLES')).toBeDefined();
+    expect(scoped.getByText('ibkr-bars-265598')).toBeDefined();
+    expect(frame?.textContent).toContain('population REAL déclarée par le worker');
+    expect(frame?.textContent).not.toContain('jours de bourse synthétiques');
+    expect(frame?.textContent).not.toContain('population SYNTHÉTIQUE de développement');
+    expect(frame?.textContent).not.toContain('synthetic-dev');
   });
 
   it('dominante : moteur substitué monté avec les 60 barres (ici 3) + attribution TradingView', async () => {
@@ -220,6 +258,48 @@ describe('Page Analyse — états', () => {
     await renderAnalysis();
     await screen.findByText('Données périmées');
     expect(screen.getByText(/fresh = false/)).toBeDefined();
+    expect(screen.getByRole('table', { name: /OHLCV/ })).toBeDefined();
+  });
+
+  it('state=stale du relais : conserve le dossier et affiche son âge et sa raison publiés', async () => {
+    repondre(
+      jsonResponse(
+        makeAnalysis({
+          state: 'stale',
+          age_seconds: 300_000,
+          reason: 'snapshot older than its freshness budget: age 300000 s',
+        }),
+      ),
+    );
+    await renderAnalysis();
+
+    await screen.findByText('Données périmées');
+    expect(screen.getByText(/snapshot older than its freshness budget: age 300000 s/)).toBeDefined();
+    expect(screen.getByText(/âge publié 300000 s/)).toBeDefined();
+    expect(screen.getByRole('table', { name: /OHLCV/ })).toBeDefined();
+  });
+
+  it('population DELAYED : état différé explicite et contenu conservé', async () => {
+    repondre(
+      jsonResponse(
+        makeAnalysis({
+          population: 'DELAYED',
+          instrument: 'AAPL',
+          bars: {
+            ...makeAnalysisBars(),
+            currency: 'USD',
+            adjustment_basis: 'unadjusted',
+            source_event_id: 'ibkr-bars-delayed-265598',
+          },
+          advice: null,
+        }),
+      ),
+    );
+    await renderAnalysis('/analysis/AAPL');
+
+    await screen.findByText('Données différées');
+    expect(screen.getByText('DONNÉES RETARDÉES')).toBeDefined();
+    expect(screen.getByText(/Population DELAYED publiée par le worker/)).toBeDefined();
     expect(screen.getByRole('table', { name: /OHLCV/ })).toBeDefined();
   });
 

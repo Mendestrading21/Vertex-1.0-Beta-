@@ -289,12 +289,84 @@ export function chainStateOf(
   if (data.state === 'empty') {
     return 'empty';
   }
+  // Le relais publie explicitement `stale` quand le snapshot a dépassé
+  // le budget option_surface. Ce statut porte sur la chaîne entière et
+  // prime donc sur une troncature ou une qualité de groupe partielle : le
+  // contenu reste consultable, mais ne doit jamais redevenir `ready` par le
+  // seul état de TanStack Query.
+  if (data.state === 'stale') {
+    return 'stale';
+  }
+  // Le contrat de chaîne n'ajoute pas `delayed` à son champ `state`, mais
+  // publie cette nature dans `population`. C'est donc ce statut exact — et
+  // lui seul — qui autorise le cadre différé ; aucun préfixe de source ou
+  // contenu de quote n'est interprété localement.
+  if (data.population === 'DELAYED') {
+    return 'delayed';
+  }
   const truncated = data.row_budget !== null ? blockInt(data.row_budget, 'truncated_rows') : null;
   const degradedGroup = data.expirations.some((group) => group.quality !== 'VALID');
   if ((truncated !== null && truncated > 0) || degradedGroup) {
     return 'partial';
   }
   return queryState;
+}
+
+/**
+ * Raison qui ferme le transfert Options → Simulateur v1.
+ *
+ * Le DTO de transfert ne porte ni l'état global, ni `as_of`, ni l'âge. Il
+ * n'est donc sûr que pour un snapshot exactement `ready`, dont la population
+ * est explicitement une des deux natures que le Simulateur sait conserver.
+ */
+export function chainTransferBlockReasonOf(
+  state: DataState,
+  data: OptionChainResponse,
+): string | null {
+  const snapshotCoordinates = `(as_of ${data.as_of ?? 'non publié'}, âge publié ${
+    data.age_seconds === null ? 'non publié' : `${data.age_seconds} s`
+  })`;
+
+  if (state === 'refreshing') {
+    return `Transfert bloqué : l'actualisation est en cours ${snapshotCoordinates}. Attendez le prochain snapshot stable.`;
+  }
+  if (state === 'partial') {
+    return `Transfert bloqué : la chaîne est partielle ${snapshotCoordinates}. Le transfert ne porte pas cette dégradation.`;
+  }
+  if (state === 'stale') {
+    return `Transfert bloqué : le snapshot d'options est périmé ${snapshotCoordinates}. Obtenez un snapshot courant avant de l'envoyer au Simulateur.`;
+  }
+  if (state === 'delayed') {
+    return `Transfert bloqué : la population d'options est DELAYED ${snapshotCoordinates}. Le transfert ne porte pas encore l'état et l'horodatage complets ; aucun contexte n'est perdu silencieusement.`;
+  }
+  if (state !== 'ready') {
+    return `Transfert bloqué : l'état global ${state} n'est pas ready ${snapshotCoordinates}.`;
+  }
+  if (data.population !== 'REAL' && data.population !== 'SYNTHETIC') {
+    return "Transfert bloqué : la population publiée n'est ni REAL ni SYNTHETIC. Le Simulateur v1 ne peut pas conserver honnêtement cette nature.";
+  }
+  return null;
+}
+
+/**
+ * Références de source réellement publiées dans le snapshot.
+ *
+ * Aucun fournisseur n'est déduit du préfixe : l'interface relaie uniquement
+ * les `source_event_id` du spot et des groupes, dans leur ordre de publication,
+ * en supprimant seulement les doublons exacts de présentation.
+ */
+export function sourceEventIdsOf(data: OptionChainResponse): readonly string[] {
+  const sourceEventIds = new Set<string>();
+  if (data.spot !== null) {
+    const spotSourceEventId = blockString(data.spot, 'source_event_id');
+    if (spotSourceEventId !== null) {
+      sourceEventIds.add(spotSourceEventId);
+    }
+  }
+  for (const group of data.expirations) {
+    sourceEventIds.add(group.source_event_id);
+  }
+  return [...sourceEventIds];
 }
 
 /** Budget de lignes publié (relayé verbatim depuis `row_budget`). */

@@ -18,6 +18,11 @@ import {
 } from '../../test/fixtures.ts';
 import { renderApp } from '../../test/render.tsx';
 import { frameStateOf } from './MarketsPage.tsx';
+import { marketsCsvCell } from './MarketsTable.tsx';
+
+const downloadMocks = vi.hoisted(() => ({ saveTextAsFile: vi.fn() }));
+
+vi.mock('../../app/downloadFile.ts', () => downloadMocks);
 
 const setOption = vi.fn();
 const dispose = vi.fn();
@@ -44,10 +49,48 @@ function jsonResponse(body: unknown, status = 200): Response {
   });
 }
 
+function makeObservedMarketsOverview(population: 'REAL' | 'DELAYED' = 'REAL') {
+  const base = makeMarketsOverview();
+  const original = base.sectors[0]!.tickers[0]!;
+  return makeMarketsOverview({
+    population,
+    sectors: [
+      {
+        sector: 'TECH',
+        label: 'Technologie',
+        declared_count: 1,
+        covered_count: 1,
+        tickers: [
+          {
+            ...original,
+            ticker: 'AAPL',
+            sector: 'TECH',
+            currency: 'USD',
+            synthetic: false,
+          },
+        ],
+      },
+    ],
+    breadth: null,
+    coverage: {
+      expected: 1,
+      received: 1,
+      covered: 1,
+      discarded: 0,
+      discarded_tickers: [],
+      rejected_records: [],
+      observations_considered: 2,
+      lookback_seconds: 259200,
+    },
+    conclusion: 'Un instrument couvert.',
+  });
+}
+
 beforeEach(() => {
   vi.stubGlobal('fetch', fetchMock);
   vi.stubGlobal('ResizeObserver', FakeResizeObserver);
   fetchMock.mockReset();
+  downloadMocks.saveTextAsFile.mockClear();
   setOption.mockClear();
   dispose.mockClear();
 });
@@ -61,6 +104,22 @@ async function renderMarkets(): Promise<void> {
   await screen.findByRole('heading', { level: 1, name: 'Marchés' });
 }
 
+describe('export Marchés — sérialisation CSV pure', () => {
+  it.each([
+    ['texte', 'texte'],
+    ['TECH;NORD', '"TECH;NORD"'],
+    ['dit "oui"', '"dit ""oui"""'],
+    ['ligne 1\nligne 2', '"ligne 1\nligne 2"'],
+    ['ligne 1\rligne 2', '"ligne 1\rligne 2"'],
+    ['=2+3', "'=2+3"],
+    ['+5.00', "'+5.00"],
+    ['-5.00', "'-5.00"],
+    ['@QUALITY', "'@QUALITY"],
+  ])('encode %j sans perdre la valeur', (raw, expected) => {
+    expect(marketsCsvCell(raw)).toBe(expected);
+  });
+});
+
 describe('frameStateOf — l’état canonique du snapshot prime en succès', () => {
   it('relais des états requête hors succès', () => {
     expect(frameStateOf('loading', undefined)).toBe('loading');
@@ -72,8 +131,20 @@ describe('frameStateOf — l’état canonique du snapshot prime en succès', ()
     expect(frameStateOf('ready', undefined)).toBe('error');
   });
 
-  it('empty/partial/stale viennent du serveur, jamais déduits localement', () => {
+  it('empty/stale/delayed/partial viennent du serveur avec leur priorité canonique', () => {
     expect(frameStateOf('ready', makeEmptyMarketsOverview())).toBe('empty');
+    expect(
+      frameStateOf('ready', makeMarketsOverview({ state: 'stale', data_state: 'ok' })),
+    ).toBe('stale');
+    expect(
+      frameStateOf(
+        'ready',
+        makeMarketsOverview({ state: 'stale', population: 'DELAYED', data_state: 'partial' }),
+      ),
+    ).toBe('stale');
+    expect(
+      frameStateOf('ready', makeMarketsOverview({ population: 'DELAYED', data_state: 'partial' })),
+    ).toBe('delayed');
     expect(frameStateOf('ready', makeMarketsOverview({ data_state: 'partial' }))).toBe('partial');
     expect(frameStateOf('ready', makeMarketsOverview({ data_state: 'stale' }))).toBe('stale');
     expect(frameStateOf('ready', makeMarketsOverview())).toBe('ready');
@@ -173,6 +244,89 @@ describe('Page Marchés — état nominal', () => {
     expect(rows[0]?.textContent).toContain('SYN-TECH-01'); // +10,00 % en premier
   });
 
+  it('export REAL : nom générique et contenu servi, jamais « marches-synthetiques.csv »', async () => {
+    const user = userEvent.setup();
+    fetchMock.mockResolvedValue(jsonResponse(makeObservedMarketsOverview()));
+    await renderMarkets();
+
+    await user.click(await screen.findByRole('button', { name: 'Exporter (CSV)' }));
+
+    const conclusion = screen.getByTestId('markets-conclusion').textContent;
+    expect(conclusion).toBe('Un instrument couvert.');
+    expect(conclusion).not.toContain('synthétique');
+    expect(downloadMocks.saveTextAsFile).toHaveBeenCalledTimes(1);
+    expect(downloadMocks.saveTextAsFile).toHaveBeenCalledWith(
+      expect.stringContaining('AAPL'),
+      'marches.csv',
+      'text/csv;charset=utf-8',
+    );
+  });
+
+  it('export SYNTHETIC : conserve le nom explicitement synthétique', async () => {
+    const user = userEvent.setup();
+    fetchMock.mockResolvedValue(jsonResponse(makeMarketsOverview()));
+    await renderMarkets();
+
+    await user.click(await screen.findByRole('button', { name: 'Exporter (CSV)' }));
+
+    expect(downloadMocks.saveTextAsFile).toHaveBeenCalledWith(
+      expect.any(String),
+      'marches-synthetiques.csv',
+      'text/csv;charset=utf-8',
+    );
+  });
+
+  it('export hostile : échappe le CSV et neutralise chaque préfixe de formule', async () => {
+    const user = userEvent.setup();
+    const base = makeObservedMarketsOverview();
+    const original = base.sectors[0]!.tickers[0]!;
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        ...base,
+        sectors: [
+          {
+            ...base.sectors[0]!,
+            sector: 'TECH;"Nord"',
+            tickers: [
+              {
+                ...original,
+                ticker: '=2+3',
+                sector: 'TECH;"Nord"',
+                trading_day: '2026-09-02\nsuite',
+                last_close: '-100.00',
+                currency: '@USD',
+                return_1d: '"quoted"',
+                return_1d_pct: '+5.00',
+                weight_in_sector: '0;5',
+                weight_global: '\r\nnext',
+                quality: '@QUALITY',
+              },
+            ],
+          },
+        ],
+      }),
+    );
+    await renderMarkets();
+
+    await user.click(await screen.findByRole('button', { name: 'Exporter (CSV)' }));
+
+    const csv: unknown = downloadMocks.saveTextAsFile.mock.calls[0]?.[0];
+    expect(typeof csv).toBe('string');
+    if (typeof csv !== 'string') {
+      throw new TypeError('CSV non produit');
+    }
+    expect(csv).toContain(`\n'=2+3;"TECH;""Nord""";"2026-09-02\nsuite";`);
+    expect(csv).toContain(
+      `;'-100.00;'@USD;"""quoted""";'+5.00;"0;5";"\r\nnext";'@QUALITY;`,
+    );
+    expect(csv).not.toContain('\n=2+3;');
+    expect(downloadMocks.saveTextAsFile).toHaveBeenCalledWith(
+      csv,
+      'marches.csv',
+      'text/csv;charset=utf-8',
+    );
+  });
+
   it('légende interactive : filtre local qui retire un groupe de la vue', async () => {
     const user = userEvent.setup();
     fetchMock.mockResolvedValue(jsonResponse(makeMarketsOverview()));
@@ -235,6 +389,35 @@ describe('Page Marchés — états dégradés et vides', () => {
     await renderMarkets();
     await screen.findByText('Données périmées');
     expect(screen.getByText(/as_of 2026-08-25T12:00:00\+00:00/)).toBeDefined();
+    expect(screen.getByRole('table', { name: /Table équivalente/ })).toBeDefined();
+  });
+
+  it('state=stale du relais : conserve la carte et affiche âge et raison publiés', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(
+        makeMarketsOverview({
+          state: 'stale',
+          data_state: 'ok',
+          age_seconds: 300_000,
+          reason: 'snapshot older than its freshness budget: age 300000 s',
+        }),
+      ),
+    );
+    await renderMarkets();
+
+    await screen.findByText('Données périmées');
+    expect(screen.getByText(/snapshot older than its freshness budget: age 300000 s/)).toBeDefined();
+    expect(screen.getByText(/âge publié 300000 s/)).toBeDefined();
+    expect(screen.getByRole('table', { name: /Table équivalente/ })).toBeDefined();
+  });
+
+  it('population DELAYED : état différé explicite et contenu conservé', async () => {
+    fetchMock.mockResolvedValue(jsonResponse(makeObservedMarketsOverview('DELAYED')));
+    await renderMarkets();
+
+    await screen.findByText('Données différées');
+    expect(within(screen.getByRole('main')).getByText('DONNÉES RETARDÉES')).toBeDefined();
+    expect(screen.getByText(/Population DELAYED publiée par le worker/)).toBeDefined();
     expect(screen.getByRole('table', { name: /Table équivalente/ })).toBeDefined();
   });
 

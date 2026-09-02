@@ -380,6 +380,12 @@ export function analysisStateOf(
   if (data.state === 'empty') {
     return 'empty';
   }
+  if (data.state === 'stale') {
+    return 'stale'; // statut de fraîcheur du relais, propriétaire de l'âge servi
+  }
+  if (data.population === 'DELAYED') {
+    return 'delayed'; // nature publiée par le relais, jamais ramenée à ready
+  }
   const bars = barsViewOf(data);
   if (bars === null || bars.status !== 'OK') {
     return 'partial'; // dossier publié sans série de barres exploitable

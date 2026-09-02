@@ -16,6 +16,7 @@ import pytest
 
 from vertex_core.calculations.options import european_price
 from vertex_core.synthetic import SYNTHETIC_RIGHTS, SYNTHETIC_SOURCE
+from vertex_worker import options as options_module
 from vertex_worker.handlers import DEV_SYNTHETIC_CONFIG, build_registry
 from vertex_worker.options import (
     DEV_SYNTHETIC_OPTIONS_CONFIG,
@@ -215,6 +216,43 @@ def test_sane_quote_resolves_iv_and_greeks_with_lineage() -> None:
     }
 
 
+def test_iv_assumptions_relay_the_admitted_observation_without_population_claim(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict] = []
+    original = options_module.make_calculation_record
+
+    def capture_calculation_record(**kwargs):
+        calls.append(kwargs)
+        return original(**kwargs)
+
+    monkeypatch.setattr(
+        options_module,
+        "make_calculation_record",
+        capture_calculation_record,
+    )
+    record = slice_record(
+        contracts=[contract(1, "100.00", "CALL")],
+        event_id="admitted-option-slice",
+    )
+
+    build_option_chain_content(
+        [record], underlying="SYN-TECH-01", now=NOW, config=CONFIG
+    )
+
+    iv_call = next(
+        call
+        for call in calls
+        if call["calculation_id"] == "options.implied_volatility"
+    )
+    assert iv_call["source_event_ids"] == ("admitted-option-slice",)
+    assert iv_call["assumptions"] == (
+        "rate and dividend yield relayed from the admitted option-chain observation",
+        "ACT/365F maturity from the expiration date",
+    )
+    assert all("synthetic" not in text.lower() for text in iv_call["assumptions"])
+
+
 @pytest.mark.parametrize(
     ("kwargs", "status", "reason"),
     [
@@ -411,6 +449,30 @@ def test_no_records_for_underlying_is_empty_population() -> None:
     content = build_option_chain_content(
         [], underlying="SYN-TECH-01", now=NOW, config=CONFIG
     )
+    assert content["population"] == "EMPTY"
+    assert content["expirations"] == []
+    assert content["spot"] is None
+
+
+def test_records_present_but_all_rejected_yield_empty_population() -> None:
+    content = build_option_chain_content(
+        [
+            slice_record(
+                contracts=[contract(1, "100.00", "CALL")],
+                event_id="rejected-only",
+                source="not-declared",
+            )
+        ],
+        underlying="SYN-TECH-01",
+        now=NOW,
+        config=CONFIG,
+    )
+
+    assert content["coverage"]["observations_considered"] == 1
+    assert content["coverage"]["groups_published"] == 0
+    assert content["coverage"]["rejected_records"] == [
+        {"event_id": "rejected-only", "reason": REASON_SOURCE_NOT_ALLOWED}
+    ]
     assert content["population"] == "EMPTY"
     assert content["expirations"] == []
     assert content["spot"] is None

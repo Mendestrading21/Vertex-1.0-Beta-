@@ -15,6 +15,7 @@ import {
 import {
   buildStrikeRows,
   chainStateOf,
+  chainTransferBlockReasonOf,
   groupKeyOf,
   groupLabelOf,
   ivAbsentLabel,
@@ -110,6 +111,30 @@ describe('chainStateOf — dérivation depuis les statuts publiés', () => {
     expect(chainStateOf('refreshing', makeOptionChain())).toBe('refreshing');
   });
 
+  it('state=stale serveur reste stale, même pendant un refresh ou avec un contenu partiel', () => {
+    const stale = makeOptionChain({ state: 'stale' });
+    expect(chainStateOf('ready', stale)).toBe('stale');
+    expect(chainStateOf('refreshing', stale)).toBe('stale');
+
+    const staleAndDegraded = makeOptionChain({
+      state: 'stale',
+      expirations: [makeChainGroup({ quality: 'PARTIAL' })],
+    });
+    expect(chainStateOf('ready', staleAndDegraded)).toBe('stale');
+  });
+
+  it('population=DELAYED publiée reste delayed et prime sur refresh/partial', () => {
+    const delayed = makeOptionChain({ population: 'DELAYED' });
+    expect(chainStateOf('ready', delayed)).toBe('delayed');
+    expect(chainStateOf('refreshing', delayed)).toBe('delayed');
+
+    const delayedAndDegraded = makeOptionChain({
+      population: 'DELAYED',
+      expirations: [makeChainGroup({ quality: 'PARTIAL' })],
+    });
+    expect(chainStateOf('ready', delayedAndDegraded)).toBe('delayed');
+  });
+
   it('qualité de groupe dégradée OU troncature publiée → partial', () => {
     const degraded = makeOptionChain({
       expirations: [makeChainGroup({ quality: 'PARTIAL' })],
@@ -119,6 +144,27 @@ describe('chainStateOf — dérivation depuis les statuts publiés', () => {
       row_budget: { max_rows: 240, total_rows: 250, published_rows: 240, truncated_rows: 10 },
     });
     expect(chainStateOf('ready', truncated)).toBe('partial');
+  });
+});
+
+describe('chainTransferBlockReasonOf — transfert fail-closed', () => {
+  it('autorise uniquement ready avec population REAL ou SYNTHETIC', () => {
+    expect(chainTransferBlockReasonOf('ready', makeOptionChain())).toBeNull();
+    expect(
+      chainTransferBlockReasonOf('ready', makeOptionChain({ population: 'REAL' })),
+    ).toBeNull();
+    expect(
+      chainTransferBlockReasonOf('ready', makeOptionChain({ population: 'UNKNOWN_SOURCE' })),
+    ).toContain("n'est ni REAL ni SYNTHETIC");
+  });
+
+  it('bloque refreshing et partial même avec une population autorisée', () => {
+    expect(chainTransferBlockReasonOf('refreshing', makeOptionChain())).toContain(
+      'actualisation est en cours',
+    );
+    expect(chainTransferBlockReasonOf('partial', makeOptionChain({ population: 'REAL' }))).toContain(
+      'chaîne est partielle',
+    );
   });
 });
 

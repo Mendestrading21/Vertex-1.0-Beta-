@@ -12,10 +12,12 @@ import { OptionChainTable } from './OptionChainTable.tsx';
 import { OptionInspector } from './OptionInspector.tsx';
 import {
   chainStateOf,
+  chainTransferBlockReasonOf,
   groupCoverageOf,
   groupKeyOf,
   groupLabelOf,
   rowBudgetOf,
+  sourceEventIdsOf,
   spotViewOf,
 } from './optionsView.ts';
 
@@ -81,6 +83,7 @@ function ChainFrame({
   const selected = groups.find((group) => groupKeyOf(group) === selectedKey) ?? groups[0] ?? null;
   const budget = rowBudgetOf(data);
   const spot = spotViewOf(data);
+  const sourceEventIds = sourceEventIdsOf(data);
   const asOf = data.as_of;
 
   const degradedGroups = groups.filter((group) => group.quality !== 'VALID');
@@ -98,7 +101,12 @@ function ChainFrame({
         ]
           .filter((part): part is string => part !== null)
           .join(' ')
-      : undefined;
+      : state === 'stale'
+        ? (data.reason ?? 'Le relais a publié ce snapshot comme périmé.')
+        : state === 'delayed'
+          ? 'La population publiée est DELAYED : ces observations ne décrivent pas le marché à cet instant.'
+          : undefined;
+  const transferBlockReason = chainTransferBlockReasonOf(state, data);
 
   function closeInspector(): void {
     setInspected(null);
@@ -117,10 +125,20 @@ function ChainFrame({
 
       <dl className="vx-chartframe-meta">
         <div>
-          <dt>Source</dt>
+          <dt>Références d’observation publiées</dt>
+          <dd data-testid="chain-source-references">
+            {sourceEventIds.length === 0 ? (
+              '—'
+            ) : (
+              <code>{sourceEventIds.join(' · ')}</code>
+            )}
+          </dd>
+        </div>
+        <div>
+          <dt>Snapshot</dt>
           <dd>
-            <code>synthetic-dev</code> via snapshot worker v{data.snapshot_version ?? '—'} (moteur{' '}
-            <code>{data.engine_version ?? '—'}</code>)
+            version {data.snapshot_version ?? '—'} · moteur{' '}
+            <code>{data.engine_version ?? '—'}</code>
           </dd>
         </div>
         <div>
@@ -244,9 +262,10 @@ function ChainFrame({
           conservée, nature THÉORIQUE). Rendu direct de la table (~24 contrats par groupe, budget
           serveur 240 lignes) — décision documentée, aucune virtualisation externe.
         </p>
-        <p>
-          Limites : données SYNTHÉTIQUES de développement ; une quote croisée, périmée ou absente
-          n'a jamais d'IV ; l'open interest est publié différé (<code>OI_DELAYED</code>).
+        <p data-testid="chain-population-limit">
+          Limites : population publiée <code>{data.population ?? 'NON_PUBLIÉE'}</code> ; une quote
+          croisée, périmée ou absente n'a jamais d'IV ; le statut d'open interest est relayé
+          contrat par contrat lorsqu'il est publié.
         </p>
       </footer>
 
@@ -256,6 +275,7 @@ function ChainFrame({
           underlying={underlying}
           spot={spot}
           population={data.population}
+          transferBlockReason={transferBlockReason}
           onClose={closeInspector}
         />
       ) : null}

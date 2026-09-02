@@ -1,7 +1,10 @@
+import type { AttentionSnapshot } from '../api/client.ts';
 import { pageStateOf, useAttention, useCapabilities } from '../api/hooks.ts';
+import type { PageDataState } from '../api/hooks.ts';
 import { AuthRequiredNotice } from '../components/AuthRequiredNotice.tsx';
 import { Card } from '../components/Card.tsx';
 import { DataStateBoundary } from '../components/DataStateBoundary.tsx';
+import type { DataState } from '../components/DataStateBoundary.tsx';
 import { FreshnessBadge } from '../components/FreshnessBadge.tsx';
 import { SyntheticBanner } from '../components/SyntheticBanner.tsx';
 import { AttentionQueue } from './AttentionQueue.tsx';
@@ -56,10 +59,56 @@ function HealthStrip() {
   );
 }
 
+/**
+ * État du cadre d'attention, dérivé des faits servis et jamais du seul succès
+ * HTTP. L'absence explicite de snapshot prime sur les états qui supposent un
+ * contenu ; un snapshot périmé prime ensuite sur sa population, puis une
+ * population retardée sur un rafraîchissement de transport.
+ */
+export function attentionFrameStateOf(
+  queryState: PageDataState,
+  data: AttentionSnapshot | undefined,
+): DataState | 'auth-required' {
+  if (queryState !== 'ready' && queryState !== 'refreshing') {
+    return queryState;
+  }
+  if (data === undefined) {
+    return 'error';
+  }
+  if (data.state === 'empty') {
+    return 'empty';
+  }
+  if (data.state === 'stale') {
+    return 'stale';
+  }
+  if (data.population === 'DELAYED') {
+    return 'delayed';
+  }
+  return queryState;
+}
+
+function degradedDetailOf(state: DataState | 'auth-required', data: AttentionSnapshot | undefined) {
+  if (data === undefined) {
+    return undefined;
+  }
+  const age = data.age_seconds === null ? 'âge non publié' : `âge publié ${data.age_seconds} s`;
+  if (state === 'stale') {
+    return `Snapshot publié périmé par le relais : ${
+      data.reason ?? 'raison non publiée'
+    } ; ${age}.`;
+  }
+  if (state === 'delayed') {
+    return `Population DELAYED publiée par le worker : ces observations ne décrivent pas le marché à cet instant ; ${age}.`;
+  }
+  return undefined;
+}
+
 export function TodayPage() {
   const attention = useAttention();
-  const state = pageStateOf(attention);
+  const queryState = pageStateOf(attention);
   const data = attention.data;
+  const state = attentionFrameStateOf(queryState, data);
+  const degradedDetail = degradedDetailOf(state, data);
 
   return (
     <article className="vx-page" aria-labelledby="vx-page-title-today">
@@ -73,55 +122,14 @@ export function TodayPage() {
 
       {state === 'auth-required' ? (
         <AuthRequiredNotice />
-      ) : state === 'ready' || state === 'refreshing' ? (
-        data !== undefined && data.state === 'empty' ? (
-          <DataStateBoundary
-            state="empty"
-            detail={`Aucun snapshot publié — le worker n'a encore rien produit (raison serveur : ${
-              data.reason ?? 'non fournie'
-            }). Rien n'est inventé à la place.`}
-          />
-        ) : (
-          <DataStateBoundary
-            state={state}
-            {...(data !== undefined && data.as_of !== null ? { asOfLabel: `as_of ${data.as_of}` } : {})}
-          >
-            {data !== undefined ? (
-              <>
-                <HealthStrip />
-                <SyntheticBanner population={data.population} />
-                <div className="vx-today-layout">
-                  <Card
-                    className="vx-today-primary"
-                    rank="dominant"
-                    kicker="Priorité publiée"
-                    title="File d'attention"
-                    titleId="vx-attention-title"
-                    aside={<>{data.items.length} éléments</>}
-                    footer={
-                      <>
-                        Ordre publié par le worker — aucun reclassement local. Population{' '}
-                        {data.population ?? 'non publiée'}
-                        {data.as_of === null ? '' : ` · as_of ${data.as_of}`}
-                      </>
-                    }
-                  >
-                    <AttentionQueue items={data.items} asOf={data.as_of} />
-                  </Card>
-                  <SnapshotRail
-                    snapshotVersion={data.snapshot_version}
-                    asOf={data.as_of}
-                    population={data.population}
-                    itemCount={data.items.length}
-                    rejectedCount={data.rejected_count}
-                    coverage={data.coverage}
-                  />
-                </div>
-              </>
-            ) : null}
-          </DataStateBoundary>
-        )
-      ) : (
+      ) : state === 'empty' ? (
+        <DataStateBoundary
+          state="empty"
+          detail={`Aucun snapshot publié — le worker n'a encore rien produit (raison serveur : ${
+            data?.reason ?? 'non fournie'
+          }). Rien n'est inventé à la place.`}
+        />
+      ) : state === 'loading' || state === 'offline' || state === 'error' ? (
         <DataStateBoundary
           state={state}
           {...(state === 'offline'
@@ -132,6 +140,47 @@ export function TodayPage() {
             : state === 'error'
               ? { detail: "Réponse invalide ou inattendue de l'API — aucune file affichée." }
               : {})}
+        />
+      ) : data !== undefined ? (
+        <DataStateBoundary
+          state={state}
+          {...(degradedDetail !== undefined ? { detail: degradedDetail } : {})}
+          {...(data.as_of !== null ? { asOfLabel: `as_of ${data.as_of}` } : {})}
+        >
+          <HealthStrip />
+          <SyntheticBanner population={data.population} />
+          <div className="vx-today-layout">
+            <Card
+              className="vx-today-primary"
+              rank="dominant"
+              kicker="Priorité publiée"
+              title="File d'attention"
+              titleId="vx-attention-title"
+              aside={<>{data.items.length} éléments</>}
+              footer={
+                <>
+                  Ordre publié par le worker — aucun reclassement local. Population{' '}
+                  {data.population ?? 'non publiée'}
+                  {data.as_of === null ? '' : ` · as_of ${data.as_of}`}
+                </>
+              }
+            >
+              <AttentionQueue items={data.items} asOf={data.as_of} />
+            </Card>
+            <SnapshotRail
+              snapshotVersion={data.snapshot_version}
+              asOf={data.as_of}
+              population={data.population}
+              itemCount={data.items.length}
+              rejectedCount={data.rejected_count}
+              coverage={data.coverage}
+            />
+          </div>
+        </DataStateBoundary>
+      ) : (
+        <DataStateBoundary
+          state="error"
+          detail="Réponse absente — aucune file affichée à la place."
         />
       )}
     </article>
