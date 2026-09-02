@@ -4254,15 +4254,25 @@ body {
   padding-top: var(--vx-space-16);
 }
 
+/* V5 — LE FILIGRANE DE REGISTRE REDESCEND SOUS LE TEXTE.
+   « Arrière-plan : décor presque invisible, SOUS le niveau de contraste du
+   texte » (`canonical-visual.md`, matériau Black Glass). À 104 px et
+   `--vx-titanium-soft`, « TL / 03 » se lisait aussi bien que le titre de la
+   page et occupait le quart haut-droit de chaque écran : ce n'est plus un
+   décor, c'est un second titre qui ne dit rien.
+   Il garde son rôle — identifier l'espace, jamais une performance ni une
+   priorité — à une échelle et un contraste qui le rendent perceptible sans
+   qu'il dispute la lecture. Le haut suit la nouvelle hauteur du bandeau
+   (52 px de barre + 34 px de ticker) plutôt qu'un 92 px hérité. */
 .vx-main::before {
   position: fixed;
   z-index: -1;
-  top: 92px;
-  right: var(--vx-space-32);
-  color: var(--vx-titanium-soft);
+  top: 96px;
+  right: var(--vx-space-20);
+  color: var(--vx-titanium-ghost);
   content: attr(data-ledger-code);
   font-family: var(--vx-font-mono);
-  font-size: clamp(52px, 6vw, 104px);
+  font-size: clamp(40px, 4vw, 68px);
   font-weight: 700;
   letter-spacing: -0.08em;
   line-height: 1;
@@ -4669,7 +4679,7 @@ textarea:hover {
   }
 
   .vx-main::before {
-    font-size: 54px;
+    font-size: 40px;
   }
 }
 
