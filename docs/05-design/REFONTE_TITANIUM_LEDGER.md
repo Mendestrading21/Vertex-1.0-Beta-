@@ -107,6 +107,61 @@ page**.
 
 ---
 
+## 2bis. Avancement mesuré (2026-09-02)
+
+Six lots livrés et poussés sur `claude/snapshots-confirmation-20260901`.
+Chacun : `run_checks.sh` vert, codes de sortie vérifiés, captures aux
+viewports desktop.
+
+| Lot | État | Preuve mesurée |
+|---|---|---|
+| **V2** densité du shell | **fait** (`f039425`) | rail 248 → 136 px, marge 40/32/48 → 16/20/32, barre 64 → 52 px |
+| **V1** primitive + portes | **fait** (`14214cb`) | `Card.tsx`, `one-dominant-per-page.test.ts` |
+| **V3** Aujourd'hui + convergence | **fait** (`14214cb`) | 2 dominantes → 1 ; cadre graphique aligné sur la carte |
+| **V4** pages bornées | **fait** (`82888cc`) | Analyse 4 280 → 2 966 px ; Calendrier 6 928 px borné ; Opportunités 5 425 → 2 073 px |
+| **V5** dominante par rang | **fait** (`dde9a52`) | exactement 1 dominante par page chargée, mesurée à l'écran |
+| **V6** filigrane de registre | **fait** (`3341922`) | 104 → 68 px, contraste 0,10 → 0,045 |
+
+### Ce que ces lots ont trouvé, et qu'aucun plan n'avait prévu
+
+1. **La largeur du rail était déclarée trois fois.** 232 px en base, 248 px
+   dans la couche thématique, 232 px en dégradation laptop. Changer la base ne
+   changeait rien à l'écran. Même chose pour la taille de la marque et la
+   hauteur de tête. C'est la preuve la plus nette de la pathologie décrite au
+   §1 : la couche thématique **redéclare au lieu d'hériter**.
+2. **La carte des marchés débordait son canevas.** Les tuiles du bas étaient
+   coupées par `overflow: hidden`. Sur un treemap où la surface *est* la
+   donnée, une tuile rognée fait disparaître un instrument sans le dire.
+   Aucune porte automatique ne couvre ce défaut — il n'est visible qu'à l'œil
+   sur une capture.
+3. **`#vx-inspector-slot` était atteignable au clavier par accident**, parce
+   que le panneau monté contient 22 liens. Entre l'instant où le nœud devient
+   défilant et celui où ces liens existent, la région était inatteignable.
+4. **Les poids de concentration s'affichaient sur 28 décimales.** Bornés au
+   rendu, jamais arrondis : la chaîne exacte reste au survol, dans le nom
+   accessible et dans la table équivalente.
+
+### Une mesure fausse, corrigée
+
+Ma première sonde a annoncé « dix pages sur onze sans aucune dominante ».
+**C'était faux** : elle attendait `main` visible — ce qui arrive *avant*
+l'arrivée des données — et lisait donc le squelette de chargement sur chaque
+route. La règle fonctionnait. Le commentaire CSS qui gravait cette conclusion a
+été réécrit, et la porte e2e attend désormais un témoin de contenu réel sur
+chaque route.
+
+### Ce qui reste
+
+- **Portefeuille fait encore 4 971 px** et ce n'est **pas** un problème de
+  style : la page porte douze modules depuis l'absorption de Performance
+  (LOT-08), là où le contrat en veut « trois à cinq ». C'est une décision
+  d'architecture d'information — elle rejoint le §5.
+- **V7 → V8** : migration JSX des surfaces restantes vers la primitive.
+- **V9** : retrait des 15 listes énumérées, une fois toutes les pages migrées.
+  Tant qu'elles existent, la cohérence repose encore sur la discipline.
+
+---
+
 ## 3. Les lots, dans l'ordre des dépendances
 
 Chaque lot : reproducteur d'abord, `run_checks.sh` vert avant push, captures

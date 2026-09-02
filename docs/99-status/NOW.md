@@ -636,3 +636,33 @@ normalisation point-in-time de SEC Company Facts. Les fondamentaux passent de
 « abonnement requis » a « contrat de calcul manquant ». FRED debloque aussi le
 taux sans risque de la chaine d'options ; dividende, `style` et `settlement`
 restent a trancher.
+
+---
+
+## SESSION 2026-09-02 — refonte visuelle Titanium Ledger (V2 → V6)
+
+Consigne utilisateur : refonte visuelle uniquement. Aucune API, aucun contrat
+Python, aucune integration IBKR/TradingView, aucune fusion dans `main`.
+
+Six lots pousses sur `claude/snapshots-confirmation-20260901`. Le plan complet
+et l'avancement mesure vivent dans
+`docs/05-design/REFONTE_TITANIUM_LEDGER.md`.
+
+Ce qu'il faut retenir pour la session suivante :
+
+1. **Le theme n'etait pas un systeme.** 443 classes `.vx-*` declarees,
+   89 atteintes par la couche thematique, via 15 listes de selecteurs
+   enumerees a la main. Un module ajoute n'heritait de RIEN. La primitive
+   `Card` et deux portes remplacent la discipline par une garantie.
+2. **Une valeur redeclaree trois fois** (largeur du rail) est le symptome a
+   chercher en premier quand un changement de CSS « ne fait rien ».
+3. **Regarder la capture** : deux defauts reels — treemap rogne, poids a
+   28 decimales — n'ont ete vus par AUCUN des 486 tests unitaires ni des
+   459 tests e2e. L'image, oui.
+4. **Attendre un temoin de CONTENU dans une sonde**, jamais `main` visible :
+   sinon on mesure le squelette de chargement et on conclut faux. Erreur
+   commise et corrigee dans cette session.
+
+Reste : Portefeuille a 4971 px porte douze modules pour « trois a cinq » au
+contrat — decision d'architecture d'information, pas de style ; V7-V8
+(migration JSX des surfaces restantes) ; V9 (retrait des 15 enumerations).
