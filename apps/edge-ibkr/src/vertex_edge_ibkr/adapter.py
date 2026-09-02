@@ -19,7 +19,8 @@ Safety invariants enforced here (ADR-004, docs/04-integrations/IBKR.md):
   ``PARTIAL`` so the snapshot gate can see it;
 - an empty provider answer (zero rows, zero providers) is a real answer;
   a MISSING answer (``None``) is ``INSUFFICIENT_DATA`` — the two never merge;
-- every subscription opened by a snapshot is cancelled in ``finally``.
+- every subscription opened by a snapshot is cancelled before return; an
+  unconfirmed cancellation remains registered until a verified disconnect.
 
 This module is the only one importing ``ib_async``; domain code never does.
 """
@@ -29,6 +30,7 @@ from __future__ import annotations
 import asyncio
 import math
 import uuid
+from collections import deque
 from collections.abc import Awaitable, Callable
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -51,6 +53,7 @@ from vertex_edge_ibkr.port import (
     LIVE_GREEK_TICKS,
     BarObservation,
     BarsPayload,
+    CancellationOutcome,
     ContractQualificationError,
     ContractSpec,
     EdgeIbkrError,
@@ -61,8 +64,11 @@ from vertex_edge_ibkr.port import (
     NewsHeadlinesPayload,
     NewsProviderInfo,
     NewsProvidersPayload,
+    OperationToken,
     OptionChainDefinition,
     ProviderErrorInfo,
+    ProviderSessionStateError,
+    ProviderStatusEvent,
     QuoteObservation,
     ScannerDefinition,
     ScannerPayload,
@@ -70,7 +76,11 @@ from vertex_edge_ibkr.port import (
     WshEventRequest,
     WshEventsPayload,
 )
-from vertex_edge_ibkr.state import ConnectionStateMachine
+from vertex_edge_ibkr.state import (
+    PROVIDER_STATUS_CODES,
+    ConnectionState,
+    ConnectionStateMachine,
+)
 
 __all__ = [
     "CONTEXT_GREEK_FIELDS",
@@ -252,7 +262,10 @@ class IbAsyncInformationAdapter:
 
     ``ib`` is injectable so protocol fakes drive every test; no network is
     ever required. ``state`` (the connection state machine) provides the
-    connection epoch stamped on every envelope.
+    connection epoch stamped on every envelope. With
+    ``manage_connection_state=False``, asynchronous provider status events are
+    journaled for the outer runner, which is their sole state owner. In
+    standalone mode the adapter owns both the journal fence and the state.
     """
 
     def __init__(
@@ -262,7 +275,7 @@ class IbAsyncInformationAdapter:
         host: str = LOOPBACK_HOST,
         port: int = 7497,
         client_id: int = DEFAULT_CLIENT_ID,
-        state: ConnectionStateMachine | None = None,
+        state: ConnectionStateMachine,
         manage_connection_state: bool = True,
         clock: Callable[[], datetime] = _utc_now,
         sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
@@ -275,6 +288,7 @@ class IbAsyncInformationAdapter:
         rights: str = "IBKR_MARKET_DATA_DISPLAY_ONLY",
         line_budget: LineBudget | None = None,
         event_id_factory: Callable[[], str] = lambda: uuid.uuid4().hex,
+        journal_id_factory: Callable[[], str] = lambda: uuid.uuid4().hex,
     ) -> None:
         if host != LOOPBACK_HOST:
             raise ValueError(
@@ -301,17 +315,31 @@ class IbAsyncInformationAdapter:
         self._rights = rights
         self._line_budget = line_budget
         self._event_id_factory = event_id_factory
+        self._journal_id = journal_id_factory()
+        if not self._journal_id:
+            raise ValueError("journal_id_factory must return a non-empty identifier")
+        self._provider_status_sequence = 0
+        self._market_update_sequence = 0
+        self._ticker_update_sequences: dict[int, int] = {}
+        self._provider_status_events: deque[ProviderStatusEvent] = deque()
+        self._managed_connect_events: list[ProviderStatusEvent] = []
+        self._managed_connect_in_progress = False
         self._subscriptions: dict[str, tuple[Contract, list[ProviderErrorInfo]]] = {}
         error_event = getattr(self._ib, "errorEvent", None)
         if error_event is not None:
             error_event += self._on_error_event
+        pending_tickers_event = getattr(self._ib, "pendingTickersEvent", None)
+        if pending_tickers_event is not None:
+            pending_tickers_event += self._on_pending_tickers
 
     # -- connection --------------------------------------------------------
 
     async def connect(self) -> None:
         """Open the session: loopback, read-only, empty startup fetch mask."""
-        if self._state is not None and self._manage_connection_state:
+        if self._manage_connection_state:
             self._state.begin_connect()
+            self._managed_connect_in_progress = True
+            self._managed_connect_events.clear()
         try:
             await self._ib.connectAsync(
                 host=self._host,
@@ -321,28 +349,60 @@ class IbAsyncInformationAdapter:
                 readonly=True,
                 fetchFields=_NO_STARTUP_FETCH,
             )
-        except Exception:
-            if self._state is not None and self._manage_connection_state:
-                self._state.on_connect_failed()
+        except BaseException:
+            if self._manage_connection_state:
+                self._managed_connect_in_progress = False
+                self._apply_managed_connect_events()
+                # Idempotent when a queued 502 already registered this exact
+                # transport incident; otherwise this is the connect failure.
+                self._state.on_transport_error()
             raise
-        if self._state is not None and self._manage_connection_state:
+        if self._manage_connection_state:
             self._state.on_connected()
+            self._managed_connect_in_progress = False
+            self._apply_managed_connect_events()
+            if self._state.resubscribe_required and not self._subscriptions:
+                # A standalone request adapter has no durable subscriptions to
+                # rebuild. The next request is itself the complete resubscribe.
+                self._state.mark_resubscribed()
+            if self._state.state is ConnectionState.DOWN:
+                raise ProviderSessionStateError(
+                    "provider status made the completed connection unusable"
+                )
 
     async def disconnect(self) -> None:
         self._ib.disconnect()
-        if self._state is not None and self._manage_connection_state:
+        is_connected = getattr(self._ib, "isConnected", None)
+        if not callable(is_connected) or bool(is_connected()):
+            raise ProviderSessionStateError("provider session closure was not confirmed")
+        self._close_registered_subscriptions()
+        if self._manage_connection_state:
             self._state.stop()
 
+    @property
+    def pending_subscription_count(self) -> int:
+        """Active plus quarantined lines; zero only after provider confirmation."""
+        return len(self._subscriptions)
+
+    def drain_provider_status_events(self) -> tuple[ProviderStatusEvent, ...]:
+        """Consume the external-owner journal in provider sequence order."""
+        events = tuple(self._provider_status_events)
+        self._provider_status_events.clear()
+        return events
+
     async def server_time(self) -> datetime:
+        operation = self._operation_token()
         value = await self._ib.reqCurrentTimeAsync()
         aware = _aware_or_none(value)
         if aware is None:
             raise EdgeIbkrError("provider returned a naive server time; refusing ambiguity")
+        self._validate_managed_reference(operation)
         return aware
 
     # -- identities --------------------------------------------------------
 
     async def qualify_contracts(self, *specs: ContractSpec) -> tuple[ContractSpec, ...]:
+        operation = self._operation_token()
         contracts = [self._to_contract(spec) for spec in specs]
         qualified = await self._ib.qualifyContractsAsync(*contracts)
         results: list[ContractSpec] = []
@@ -356,6 +416,7 @@ class IbAsyncInformationAdapter:
             raise ContractQualificationError(
                 f"unqualified contract indexes: {failures or 'count mismatch'}"
             )
+        self._validate_managed_reference(operation)
         return tuple(results)
 
     async def sec_def_opt_params(
@@ -363,6 +424,7 @@ class IbAsyncInformationAdapter:
     ) -> tuple[OptionChainDefinition, ...]:
         if underlying.con_id is None:
             raise ValueError("sec_def_opt_params requires an exact underlying con_id")
+        operation = self._operation_token()
         chains = await self._ib.reqSecDefOptParamsAsync(
             underlying.symbol or "",
             "",
@@ -381,6 +443,7 @@ class IbAsyncInformationAdapter:
                     strikes=tuple(Decimal(str(strike)) for strike in sorted(chain.strikes)),
                 )
             )
+        self._validate_managed_reference(operation)
         return tuple(definitions)
 
     # -- market data snapshot ---------------------------------------------
@@ -395,13 +458,13 @@ class IbAsyncInformationAdapter:
     ) -> MarketDataSnapshotResult:
         if market_data_type not in (1, 2, 3, 4):
             raise ValueError("market_data_type must be 1, 2, 3 or 4")
-        if self._line_budget is not None:
-            self._line_budget.acquire()  # explicit refusal beyond the 80% cap
+        operation = self._operation_token()
         contract = self._to_contract(spec)
         subscription_id = self._event_id_factory()
+        if self._line_budget is not None:
+            self._line_budget.acquire()  # explicit refusal beyond the 80% cap
         errors: list[ProviderErrorInfo] = []
         self._subscriptions[subscription_id] = (contract, errors)
-        cancelled = False
         try:
             self._ib.reqMarketDataType(int(market_data_type))
             ticker = self._ib.reqMktData(
@@ -415,13 +478,32 @@ class IbAsyncInformationAdapter:
             while not self._quote_ready(ticker) and waited < timeout and not errors:
                 await self._sleep(self._snapshot_poll)
                 waited += self._snapshot_poll
-        finally:
-            self._ib.cancelMktData(contract)
-            cancelled = True
-            self._subscriptions.pop(subscription_id, None)
-            if self._line_budget is not None:
-                self._line_budget.release()
-        envelopes = self._build_snapshot_envelopes(spec, ticker, market_data_type)
+        except BaseException as primary_error:
+            try:
+                outcome = self._attempt_registered_cancellation(subscription_id)
+            except BaseException as cleanup_error:
+                primary_error.add_note(
+                    "market-data cleanup also failed; subscription remains quarantined"
+                )
+                raise primary_error from cleanup_error
+            if outcome is not CancellationOutcome.CANCELLED:
+                primary_error.add_note(
+                    "market-data cancellation was not confirmed; subscription remains quarantined"
+                )
+            raise
+        outcome = self._attempt_registered_cancellation(subscription_id)
+        ticker_update_sequence = self._ticker_update_sequences.get(id(ticker), 0)
+        envelopes = self._build_snapshot_envelopes(
+            spec,
+            ticker,
+            market_data_type,
+            connection_epoch=operation.connection_epoch_at_start,
+        )
+        self._validate_managed_observations(
+            operation,
+            envelopes,
+            ticker_update_sequence=ticker_update_sequence,
+        )
         return MarketDataSnapshotResult(
             envelopes=envelopes,
             provider_errors=tuple(errors),
@@ -429,16 +511,29 @@ class IbAsyncInformationAdapter:
             reported_market_data_type=self._reported_type(ticker),
             generic_ticks=tuple(generic_ticks),
             subscription_id=subscription_id,
-            cancelled=cancelled,
+            operation=operation,
+            market_update_sequence_at_end=ticker_update_sequence,
+            cancellation_outcome=outcome,
         )
 
-    async def cancel_subscription(self, subscription_id: str) -> bool:
-        entry = self._subscriptions.pop(subscription_id, None)
+    async def cancel_subscription(self, subscription_id: str) -> CancellationOutcome:
+        return self._attempt_registered_cancellation(subscription_id)
+
+    def _attempt_registered_cancellation(
+        self, subscription_id: str
+    ) -> CancellationOutcome:
+        entry = self._subscriptions.get(subscription_id)
         if entry is None:
-            return False
+            return CancellationOutcome.NOT_FOUND
         contract, _errors = entry
-        self._ib.cancelMktData(contract)
-        return True
+        try:
+            confirmed = bool(self._ib.cancelMktData(contract))
+        except Exception:
+            return CancellationOutcome.FAILED
+        if not confirmed:
+            return CancellationOutcome.NOT_FOUND
+        self._release_registered_subscription(subscription_id)
+        return CancellationOutcome.CANCELLED
 
     # -- historical bars ---------------------------------------------------
 
@@ -454,6 +549,7 @@ class IbAsyncInformationAdapter:
     ) -> DataEnvelope[Any]:
         if end is not None and _aware_or_none(end) is None:
             raise ValueError("end must be timezone-aware when present")
+        operation = self._operation_token()
         bars = await self._ib.reqHistoricalDataAsync(
             self._to_contract(spec),
             endDateTime=end or "",
@@ -494,18 +590,22 @@ class IbAsyncInformationAdapter:
             bars=tuple(observations),
         )
         quality = EnvelopeQuality.VALID if observations else EnvelopeQuality.INSUFFICIENT_DATA
-        return self._envelope(
+        envelope = self._envelope(
             payload,
             con_id=spec.con_id,
             observed_at=observations[-1].time if observations else None,
             delay_status=DelayStatus.UNKNOWN,
             quality=quality,
             stale_seconds=self._bars_stale,
+            connection_epoch=operation.connection_epoch_at_start,
         )
+        self._validate_managed_observations(operation, (envelope,))
+        return envelope
 
     # -- scanner -----------------------------------------------------------
 
     async def scanner_run(self, definition: ScannerDefinition) -> DataEnvelope[Any]:
+        operation = self._operation_token()
         subscription = ScannerSubscription(
             numberOfRows=definition.number_of_rows,
             instrument=definition.instrument,
@@ -533,18 +633,22 @@ class IbAsyncInformationAdapter:
             location_code=definition.location_code,
             rows=tuple(entries),
         )
-        return self._envelope(
+        envelope = self._envelope(
             payload,
             con_id=None,
             observed_at=None,
             delay_status=DelayStatus.UNKNOWN,
             quality=EnvelopeQuality.VALID if answered else EnvelopeQuality.INSUFFICIENT_DATA,
             stale_seconds=self._quote_stale,
+            connection_epoch=operation.connection_epoch_at_start,
         )
+        self._validate_managed_observations(operation, (envelope,))
+        return envelope
 
     # -- news --------------------------------------------------------------
 
     async def news_providers(self) -> DataEnvelope[Any]:
+        operation = self._operation_token()
         providers = await self._ib.reqNewsProvidersAsync()
         # Same rule as the scanner: no answer at all is INSUFFICIENT_DATA, an
         # empty provider list is a real (VALID) answer.
@@ -555,14 +659,17 @@ class IbAsyncInformationAdapter:
                 for item in providers or ()
             )
         )
-        return self._envelope(
+        envelope = self._envelope(
             payload,
             con_id=None,
             observed_at=None,
             delay_status=DelayStatus.UNKNOWN,
             quality=EnvelopeQuality.VALID if answered else EnvelopeQuality.INSUFFICIENT_DATA,
             stale_seconds=self._reference_stale,
+            connection_epoch=operation.connection_epoch_at_start,
         )
+        self._validate_managed_observations(operation, (envelope,))
+        return envelope
 
     async def news_headlines(
         self,
@@ -577,6 +684,7 @@ class IbAsyncInformationAdapter:
             raise ValueError("con_id must be strictly positive")
         if not (1 <= max_results <= 300):
             raise ValueError("max_results must be between 1 and 300")
+        operation = self._operation_token()
         raw = await self._ib.reqHistoricalNewsAsync(
             con_id, ",".join(provider_codes), start, end, max_results
         )
@@ -601,18 +709,22 @@ class IbAsyncInformationAdapter:
         )
         payload = NewsHeadlinesPayload(con_id=con_id, headlines=headlines)
         quality = EnvelopeQuality.VALID if headlines else EnvelopeQuality.INSUFFICIENT_DATA
-        return self._envelope(
+        envelope = self._envelope(
             payload,
             con_id=con_id,
             observed_at=None,
             delay_status=DelayStatus.UNKNOWN,
             quality=quality,
             stale_seconds=self._reference_stale,
+            connection_epoch=operation.connection_epoch_at_start,
         )
+        self._validate_managed_observations(operation, (envelope,))
+        return envelope
 
     async def news_article(self, provider_code: str, article_id: str) -> DataEnvelope[Any]:
         if not provider_code or not article_id:
             raise ValueError("provider_code and article_id are required")
+        operation = self._operation_token()
         article = await self._ib.reqNewsArticleAsync(provider_code, article_id)
         article_type = getattr(article, "articleType", None)
         payload = NewsArticlePayload(
@@ -625,7 +737,7 @@ class IbAsyncInformationAdapter:
             ),
             text=getattr(article, "articleText", None) or "",
         )
-        return self._envelope(
+        envelope = self._envelope(
             payload,
             con_id=None,
             observed_at=None,
@@ -634,11 +746,15 @@ class IbAsyncInformationAdapter:
             if article is not None
             else EnvelopeQuality.INSUFFICIENT_DATA,
             stale_seconds=self._reference_stale,
+            connection_epoch=operation.connection_epoch_at_start,
         )
+        self._validate_managed_observations(operation, (envelope,))
+        return envelope
 
     # -- WSH events --------------------------------------------------------
 
     async def wsh_events(self, request: WshEventRequest) -> DataEnvelope[Any]:
+        operation = self._operation_token()
         kwargs: dict[str, Any] = {
             "filter": "",
             # Market-event data only: every account-adjacent fill flag is
@@ -655,16 +771,104 @@ class IbAsyncInformationAdapter:
             kwargs["totalLimit"] = request.total_limit
         raw = await self._ib.getWshEventDataAsync(WshEventData(**kwargs))
         payload = WshEventsPayload(con_id=request.con_id, raw=raw or "")
-        return self._envelope(
+        envelope = self._envelope(
             payload,
             con_id=request.con_id,
             observed_at=None,
             delay_status=DelayStatus.UNKNOWN,
             quality=EnvelopeQuality.VALID if raw else EnvelopeQuality.INSUFFICIENT_DATA,
             stale_seconds=self._reference_stale,
+            connection_epoch=operation.connection_epoch_at_start,
         )
+        self._validate_managed_observations(operation, (envelope,))
+        return envelope
 
     # -- internals ---------------------------------------------------------
+
+    def _operation_token(self) -> OperationToken:
+        if self._manage_connection_state:
+            if self._state.resubscribe_required and not self._subscriptions:
+                self._state.mark_resubscribed()
+            if self._state.state not in (
+                ConnectionState.HEALTHY,
+                ConnectionState.RECOVERING,
+            ):
+                raise ProviderSessionStateError(
+                    f"provider session is not admissible ({self._state.state.value})"
+                )
+        return OperationToken(
+            journal_id=self._journal_id,
+            connection_epoch_at_start=self._state.connection_epoch,
+            provider_sequence_at_start=self._provider_status_sequence,
+            market_update_sequence_at_start=self._market_update_sequence,
+        )
+
+    def _validate_managed_reference(self, operation: OperationToken) -> None:
+        """Reject a raw response when its provider session changed in flight."""
+        if not self._manage_connection_state:
+            return
+        if operation.journal_id != self._journal_id:
+            raise ProviderSessionStateError("operation token belongs to another journal")
+        if self._provider_status_sequence != operation.provider_sequence_at_start:
+            raise ProviderSessionStateError("provider status changed during the operation")
+        if self._state.state is not ConnectionState.HEALTHY:
+            raise ProviderSessionStateError(
+                f"provider session is not admissible ({self._state.state.value})"
+            )
+
+    def _validate_managed_observations(
+        self,
+        operation: OperationToken,
+        envelopes: tuple[DataEnvelope[Any], ...],
+        *,
+        ticker_update_sequence: int = 0,
+    ) -> None:
+        """Fence every standalone observation against status and recovery races."""
+        if not self._manage_connection_state:
+            return
+        if operation.journal_id != self._journal_id:
+            raise ProviderSessionStateError("operation token belongs to another journal")
+        if self._provider_status_sequence != operation.provider_sequence_at_start:
+            raise ProviderSessionStateError("provider status changed during the operation")
+        epoch = operation.connection_epoch_at_start
+        if epoch is None or any(envelope.connection_epoch != epoch for envelope in envelopes):
+            raise ProviderSessionStateError("observation epoch does not match its operation")
+        if self._state.state is ConnectionState.RECOVERING:
+            has_valid = any(
+                envelope.quality_status is EnvelopeQuality.VALID for envelope in envelopes
+            )
+            updated_after_start = (
+                ticker_update_sequence > operation.market_update_sequence_at_start
+            )
+            if not has_valid or not updated_after_start:
+                raise ProviderSessionStateError(
+                    "recovery requires a later VALID market update"
+                )
+            self._state.record_observation(epoch)
+        if self._state.state is not ConnectionState.HEALTHY:
+            raise ProviderSessionStateError(
+                f"provider session is not admissible ({self._state.state.value})"
+            )
+
+    def _apply_managed_connect_events(self) -> None:
+        events, self._managed_connect_events = self._managed_connect_events, []
+        for event in events:
+            self._state.on_error_code(event.code)
+
+    def _release_registered_subscription(self, subscription_id: str) -> None:
+        entry = self._subscriptions.pop(subscription_id, None)
+        if entry is not None and self._line_budget is not None:
+            self._line_budget.release()
+
+    def _close_registered_subscriptions(self) -> None:
+        pending = tuple(self._subscriptions)
+        for subscription_id in pending:
+            self._release_registered_subscription(subscription_id)
+
+    def _on_pending_tickers(self, tickers: Any) -> None:
+        for ticker in tickers or ():
+            self._market_update_sequence += 1
+            self._ticker_update_sequences[id(ticker)] = self._market_update_sequence
 
     def _on_error_event(
         self, req_id: Any, code: Any, message: Any = "", contract: Any = None, *extra: Any
@@ -673,12 +877,30 @@ class IbAsyncInformationAdapter:
             numeric_code = int(code)
         except (TypeError, ValueError):
             return
-        if self._state is not None and numeric_code in (1100, 1101, 1102, 1300, 502):
-            self._state.on_error_code(numeric_code)
+        status_event: ProviderStatusEvent | None = None
+        if numeric_code in PROVIDER_STATUS_CODES:
+            self._provider_status_sequence += 1
+            status_event = ProviderStatusEvent(
+                journal_id=self._journal_id,
+                sequence=self._provider_status_sequence,
+                code=numeric_code,
+                req_id=int(req_id) if isinstance(req_id, int) else None,
+                received_at=self._clock(),
+                message=str(message)[:200],
+            )
+            if self._manage_connection_state:
+                if self._managed_connect_in_progress:
+                    self._managed_connect_events.append(status_event)
+                else:
+                    self._state.on_error_code(numeric_code)
+            else:
+                self._provider_status_events.append(status_event)
         info = ProviderErrorInfo(
             code=numeric_code,
             message=str(message)[:200],
             req_id=int(req_id) if isinstance(req_id, int) else None,
+            status_journal_id=status_event.journal_id if status_event is not None else None,
+            status_sequence=status_event.sequence if status_event is not None else None,
         )
         for sub_contract, errors in self._subscriptions.values():
             contract_con_id = getattr(contract, "conId", 0)
@@ -711,7 +933,12 @@ class IbAsyncInformationAdapter:
         return DelayStatus.UNKNOWN
 
     def _build_snapshot_envelopes(
-        self, spec: ContractSpec, ticker: Any, requested_type: int
+        self,
+        spec: ContractSpec,
+        ticker: Any,
+        requested_type: int,
+        *,
+        connection_epoch: int | None,
     ) -> tuple[DataEnvelope[Any], ...]:
         reported = self._reported_type(ticker)
         delay = self._delay_status(requested_type, reported)
@@ -749,6 +976,7 @@ class IbAsyncInformationAdapter:
                 delay_status=delay,
                 quality=quality,
                 stale_seconds=self._quote_stale,
+                connection_epoch=connection_epoch,
             )
         ]
 
@@ -794,6 +1022,7 @@ class IbAsyncInformationAdapter:
                         tuple(getattr(observation, name) for name in REQUIRED_GREEK_FIELDS)
                     ),
                     stale_seconds=self._quote_stale,
+                    connection_epoch=connection_epoch,
                 )
             )
         return tuple(envelopes)
@@ -807,6 +1036,7 @@ class IbAsyncInformationAdapter:
         delay_status: DelayStatus,
         quality: EnvelopeQuality,
         stale_seconds: float,
+        connection_epoch: int | None,
     ) -> DataEnvelope[Any]:
         received_at = self._clock()
         if observed_at is not None and observed_at > received_at:
@@ -822,7 +1052,7 @@ class IbAsyncInformationAdapter:
             stale_after=received_at + timedelta(seconds=stale_seconds),
             quality_status=quality,
             delay_status=delay_status,
-            connection_epoch=self._state.connection_epoch if self._state is not None else None,
+            connection_epoch=connection_epoch,
             rights=self._rights,
             payload_hash=canonical_json_hash(payload),
             payload=payload,
