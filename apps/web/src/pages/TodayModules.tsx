@@ -9,10 +9,11 @@ import { Metric } from '../components/Metric.tsx';
 import { SectorGrid } from '../components/markets/SectorGrid.tsx';
 import { frDecimal } from '../components/markets/marketsView.ts';
 import { StatusBadge } from '../components/StatusBadge.tsx';
-import { MODULE_STATE_LABELS, moduleShowsContent, moduleStateOf } from '../components/moduleState.ts';
+import { AgendaLine, readableEventTime } from '../components/calendar/AgendaLine.tsx';
+import { ModuleStatus } from '../components/ModuleStatus.tsx';
+import { moduleShowsContent, moduleStateOf } from '../components/moduleState.ts';
 import type { ModuleState } from '../components/moduleState.ts';
-import { formatInTimeZone, statusLabelOf, statusMarkOf } from './calendar/calendarView.ts';
-import type { CalendarEventView } from './calendar/calendarView.ts';
+import { statusLabelOf } from './calendar/calendarView.ts';
 import { opportunitiesFrameStateOf } from './opportunities/opportunitiesView.ts';
 import { valuationContentOf } from './portfolio/portfolioView.ts';
 import {
@@ -30,46 +31,8 @@ import {
  * Aucun calcul : chaînes serveur, comptes publiés, ordre publié.
  */
 
-function ModuleStatus({
-  state,
-  raw,
-}: {
-  readonly state: ModuleState;
-  readonly raw?: string | null | undefined;
-}) {
-  if (state === 'ready' || state === 'refreshing') {
-    return null;
-  }
-  return (
-    <p className="vx-module-state" role="status" data-state={state}>
-      {MODULE_STATE_LABELS[state]}
-      {raw !== undefined && raw !== null && raw !== '' ? (
-        <>
-          {' '}
-          — <code>{raw}</code>
-        </>
-      ) : null}
-    </p>
-  );
-}
-
 function publie(value: string | number | null | undefined): string {
   return value === null || value === undefined || value === '' ? 'non publié' : String(value);
-}
-
-/**
- * Heure d'un événement dans le fuseau de SA place, lisible. La chaîne brute
- * reste dans `dateTime` ; sans fuseau publié, la chaîne locale serveur est
- * montrée telle quelle — jamais convertie dans un fuseau deviné.
- */
-function readableEventTime(event: CalendarEventView): string {
-  if (event.exchangeTimezone !== null) {
-    const rendu = formatInTimeZone(event.eventTimeUtc, event.exchangeTimezone);
-    if (rendu !== null) {
-      return rendu;
-    }
-  }
-  return event.eventTimeLocal ?? event.eventTimeUtc;
 }
 
 function signOf(value: string | null): 'up' | 'down' | 'flat' | null {
@@ -138,27 +101,6 @@ export function GlobalMarketModule() {
 }
 
 // ---------------------------------------------------------------------------
-
-function AgendaLine({ event }: { readonly event: CalendarEventView }) {
-  return (
-    <li className="vx-agenda-line" data-status={event.status}>
-      <span className="vx-agenda-time">
-        <time dateTime={event.eventTimeUtc}>{readableEventTime(event)}</time>
-        {event.exchangeTimezone === null ? null : (
-          <span className="vx-agenda-tz"> {event.exchangeTimezone}</span>
-        )}
-      </span>
-      <span className="vx-agenda-ticker">
-        {event.ticker === null ? <span className="vx-cell-absent">sans instrument</span> : <code>{event.ticker}</code>}
-      </span>
-      <span className="vx-agenda-title">{event.title ?? 'titre non publié'}</span>
-      <span className="vx-agenda-status">
-        <span aria-hidden="true">{statusMarkOf(event.status)}</span> {statusLabelOf(event.status)}
-        {event.synthetic ? <span className="vx-badge vx-badge-synthetic">SYNTHÉTIQUE</span> : null}
-      </span>
-    </li>
-  );
-}
 
 export function NextCatalystModule() {
   const query = useCalendar(null);

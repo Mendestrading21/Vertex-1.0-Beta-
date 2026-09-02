@@ -16,6 +16,7 @@ import {
   getCapabilities,
   getMarketsOverview,
   getOptionChain,
+  getSecFundamentals,
   isApiError,
 } from './client.ts';
 import type {
@@ -23,6 +24,7 @@ import type {
   AttentionSnapshot,
   MarketsOverview,
   OptionChainResponse,
+  SecFundamentalsResponse,
   SystemCapabilities,
 } from './client.ts';
 
@@ -48,6 +50,9 @@ export const SSE_RESOURCE_PREFIXES = [
   'analysis/',
   'portfolio_valuation/',
   'performance/',
+  // LOT-A4 : la route SEC est relayée par Analyse ; le serveur signale
+  // `sec_fundamentals/<instrument>` (`WATCHED_SNAPSHOT_KINDS`).
+  'sec_fundamentals/',
 ] as const;
 
 export type SseResource = string;
@@ -111,6 +116,15 @@ export function useAnalysis(instrument: string): UseQueryResult<AnalysisResponse
   return useQuery({
     queryKey: queryKeyForResource(`analysis/${instrument}`),
     queryFn: () => getAnalysis(instrument),
+    retry: false,
+    staleTime: Infinity,
+  });
+}
+
+export function useSecFundamentals(instrument: string): UseQueryResult<SecFundamentalsResponse> {
+  return useQuery({
+    queryKey: queryKeyForResource(`sec_fundamentals/${instrument}`),
+    queryFn: () => getSecFundamentals(instrument),
     retry: false,
     staleTime: Infinity,
   });
