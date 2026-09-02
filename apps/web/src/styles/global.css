@@ -1208,28 +1208,50 @@ body {
   font-weight: 600;
 }
 
+/* V12 — LES CARTES DE SANTÉ DEVIENNENT DES MESURES, pas des paragraphes.
+   Elles rendaient un libellé et une phrase de la même taille, dans des boîtes
+   de 260 px de large et d'à peine 80 px de haut : cinq rectangles où l'œil ne
+   trouvait aucune valeur à saisir. Le contrat canonique veut « une hiérarchie
+   stable » et « l'alignement des chiffres prioritaire sur la symétrie ».
+   L'anatomie devient donc celle d'une mesure : micro-libellé au-dessus, VALEUR
+   en dessous, à la taille qui la rend lisible d'un regard. */
 .vx-health-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  gap: var(--vx-space-16);
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--vx-space-12);
   margin: 0;
 }
 
 .vx-health-item {
-  padding: var(--vx-space-16);
+  display: flex;
+  min-height: 84px;
+  flex-direction: column;
+  gap: var(--vx-space-4);
+  padding: var(--vx-space-12);
   background: var(--vx-surface-1);
   border: 1px solid var(--vx-border-soft);
   border-radius: var(--vx-radius-10);
 }
 
 .vx-health-item dt {
-  margin-bottom: var(--vx-space-4);
-  color: var(--vx-text-secondary);
-  font-size: var(--vx-font-size-label);
+  margin-bottom: 0;
+  color: var(--vx-text-muted);
+  font-family: var(--vx-font-mono);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .vx-health-item dd {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--vx-space-8);
   margin: 0;
+  color: var(--vx-text);
+  font-size: var(--vx-font-size-title);
+  line-height: 1.25;
 }
 
 .vx-health-item dd[data-health='error'] {
@@ -4748,6 +4770,55 @@ label {
   border-radius: var(--vx-radius-6);
 }
 
+/* V12 — LES BOUTONS, UNE FOIS POUR TOUTES.
+   Il n'existait AUCUNE règle de base : chaque bouton dépendait de la classe de
+   son conteneur, et la règle secondaire la plus fournie en énumérait quatre
+   (`.vx-thesis-action-buttons`, `.vx-pf-import-actions`,
+   `.vx-pf-compensate-actions`, `.vx-thesis-action-send`). Tous les autres —
+   export CSV, filtres, ouverture d'inspecteur, retrait d'une jambe, fermeture
+   de panneau — héritaient du bouton du navigateur.
+   Le repos est en métal neutre ; l'ambre reste réservée à l'action principale
+   (`.vx-primary-action`) et au focus, comme l'exige le contrat. */
+.vx-main button:not(.vx-primary-action),
+.vx-inspector button:not(.vx-primary-action) {
+  min-height: 28px;
+  padding: var(--vx-space-4) var(--vx-space-12);
+  border: 1px solid var(--vx-border-soft);
+  border-radius: var(--vx-radius-6);
+  background: var(--vx-surface-1);
+  color: var(--vx-text-secondary);
+  font-family: inherit;
+  font-size: var(--vx-font-size-meta);
+  cursor: pointer;
+  transition:
+    background-color var(--vx-motion-140) var(--vx-ease-standard),
+    border-color var(--vx-motion-140) var(--vx-ease-standard),
+    color var(--vx-motion-140) var(--vx-ease-standard);
+}
+
+/* « Survol : hausse très légère de surface ou de bordure, sans déplacement. » */
+.vx-main button:not(.vx-primary-action):hover:not(:disabled),
+.vx-inspector button:not(.vx-primary-action):hover:not(:disabled) {
+  border-color: var(--vx-border);
+  background: var(--vx-surface-2);
+  color: var(--vx-text);
+}
+
+.vx-main button:focus-visible,
+.vx-inspector button:focus-visible {
+  outline: 2px solid var(--vx-signal);
+  outline-offset: 2px;
+}
+
+/* Un bouton indisponible le DIT : il ne se laisse pas confondre avec un bouton
+   qu'on aurait pu presser. */
+.vx-main button:disabled,
+.vx-inspector button:disabled {
+  color: var(--vx-text-muted);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
 /* Signature particulière de chaque famille de page. */
 .vx-main[data-page='today'] .vx-today-layout,
 .vx-main[data-page='portfolio'] .vx-pf-summary,
@@ -4755,12 +4826,14 @@ label {
   position: relative;
 }
 
-.vx-main[data-page='markets'] .vx-chartframe,
-.vx-main[data-page='analysis'] .vx-chartframe,
-.vx-main[data-page='simulator'] .vx-sim-result,
-.vx-main[data-page='portfolio'] .vx-perf-chart {
-  border-radius: var(--vx-radius-18);
-}
+/* V12 — LE RAYON 18 px EST RETIRÉ ICI, et c'est important : ce bloc de
+   « signature de page » REDONNAIT aux cadres graphiques de Marchés, Analyse,
+   Simulateur et Portefeuille le rayon que le lot V3 venait d'unifier à 10 px.
+   Quatre pages rendaient donc des cartes plus arrondies que les huit autres,
+   et personne ne pouvait le voir sans comparer deux captures côte à côte.
+   « Rayon moyen et CONSTANT ; les cartes ne doivent pas devenir des bulles. »
+   Une signature de page se porte par la dominante et par le contenu, jamais
+   par une géométrie qui contredit le système. */
 
 .vx-main[data-page='options'] .vx-chain-group[aria-current='true'],
 .vx-main[data-page='catalysts'] .vx-fu-due-item:hover,
