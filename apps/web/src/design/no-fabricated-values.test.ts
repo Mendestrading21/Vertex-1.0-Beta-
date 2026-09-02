@@ -88,7 +88,8 @@ const ALLOWLIST: ReadonlyArray<{
     reason: 'légende d’unité : explique la convention, ne rapporte aucune mesure',
   },
   {
-    path: 'src/pages/simulator/SimulatorPage.tsx',
+    // LOT-A5 : le composeur vit dans son propre fichier ; même libellé, même motif.
+    path: 'src/pages/simulator/SimComposer.tsx',
     text: 'Volatilité annualisée (décimal, 0.25 = 25 %/an)',
     reason: 'libellé de champ de saisie : explique l’unité attendue, ne rapporte rien',
   },
