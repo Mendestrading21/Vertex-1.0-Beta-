@@ -6,13 +6,16 @@ Document de passation. La session suivante le lit **en entier** avant d'agir.
 
 ## 1. Où en est le dépôt
 
-`main` (`beb2498`) porte la refonte visuelle Titanium Ledger complète
-(PR #14 et #18 fusionnées, CI 7/7 verte) plus les adaptateurs de sources
-officielles (PR #15, #16). Rien n'attend de fusion côté visuel.
+**Base R2 actuelle : `main@ecc50c1`** (squash humain de la PR #20, après
+#17). `main` porte la refonte visuelle Titanium Ledger (PR #14 et #18) et les
+adaptateurs de sources officielles (PR #15, #16).
 
-**Branche de travail :** `claude/vertex-connection-kgkntr`, partie de `main`.
+**Branche de travail :** `lot/r2-pr19-demarrage-20260902`, base `main@ecc50c1`,
+PR #21 en brouillon. Son SHA initial audité avant la présente correction est
+`6d05603` ; la tête courante est celle que porte la PR, jamais un SHA écrit ici.
 
-Preuves mesurées sur cette machine, codes de sortie relus :
+Preuves **datées** — mesurées le 2026-09-02 sur la branche d'origine (#19,
+`e8ff5e6`/`ba749c1`), codes de sortie relus. Elles ne décrivent pas `main` :
 
 | Contrôle | Résultat |
 |---|---|
@@ -185,9 +188,11 @@ bash tools/start_local.sh          # migrations, API, worker, build, interface
 un fichier du dépôt ; `.env.example` en montre la forme, avec `CHANGE_ME`.
 
 `localhost` et non `127.0.0.1` : le RP ID WebAuthn est `localhost`
-(`apps/api/src/vertex_api/auth/config.py`), et depuis une adresse IP le
-navigateur refuse la création de passkey avant d'appeler l'API. L'adresse
-d'écoute, elle, reste `127.0.0.1`.
+(`apps/api/src/vertex_api/auth/config.py`). Depuis une adresse IP,
+`/api/v1/auth/register/options` est appelé et répond, puis
+`navigator.credentials.create` échoue dans le navigateur, avant
+`/register/verify` — l'application peut rester liée à `127.0.0.1`. Le détail
+est dans `START_LOCAL.md` §5.
 
 Le reste — prérequis, création de la base, semis SYNTHETIC, tableau de
 dépannage, ingestion IBKR continue — est dans `START_LOCAL.md` et

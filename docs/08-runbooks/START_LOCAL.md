@@ -91,9 +91,19 @@ http://localhost:4173/today
 fixe l'identifiant de la partie de confiance WebAuthn à `localhost` (ADR-002),
 et la spécification exige que cet identifiant soit un suffixe de domaine
 enregistrable de l'origine. Une origine en **adresse IP** ne peut donc pas le
-porter : depuis `http://127.0.0.1:4173`, le navigateur refuse la création de
-passkey **avant même d'appeler l'API**, et aucun message de Vertex n'apparaît.
-L'adresse d'**écoute** reste `127.0.0.1` — c'est l'URL tapée qui change.
+porter. L'application, elle, peut rester liée à `127.0.0.1` : c'est l'URL
+tapée qui change, pas l'adresse d'écoute.
+
+Ce qui se passe réellement depuis `http://127.0.0.1:4173`, tracé dans le code
+(`apps/web/src/pages/AuthPage.tsx`, `apps/api/src/vertex_api/auth/routes.py`) :
+`POST /api/v1/auth/register/options` **est appelé et répond** — cette route ne
+lit pas l'origine et renvoie `rp.id = "localhost"` ; puis
+`navigator.credentials.create` **échoue dans le navigateur**, parce que ce RP ID
+ne convient pas à une origine IP ; `/register/verify` n'est donc **jamais**
+appelé. L'API n'a rien refusé. Un message générique d'échec apparaît, qui n'en
+donne pas la cause. Le refus lui-même est une règle du navigateur : aucune ligne
+du dépôt ne le prouve ; ce que le dépôt prouve, c'est l'ordre des appels et que
+la campagne e2e, seule à créer réellement une passkey, passe par `localhost`.
 
 `/system` dit ce que le système sait de lui-même : base, migrations, horloge,
 sauvegarde, et l'état RÉEL de chaque capacité. Une capacité jamais sondée y
@@ -148,7 +158,7 @@ effectivement sondées — et pour elles seules.
 | `PostgreSQL ne répond pas sur 127.0.0.1:5432` | serveur arrêté | le démarrer, puis relancer |
 | `la base contient déjà des données utilisateur` | semis demandé sur une base non vierge | ne rien forcer ; utiliser une autre base |
 | `ressemble à une base de test` | DSN pointant `vertex_test`/`vertex_e2e` | corriger le DSN, ou `VERTEX_ALLOW_TEST_DB=1` en connaissance de cause |
-| création de passkey refusée par le navigateur, sans erreur Vertex | interface ouverte depuis `127.0.0.1` alors que le RP ID est `localhost` | réouvrir sur `http://localhost:4173` |
+| message générique d'échec juste après la demande de passkey, alors que `/register/options` a répondu | interface ouverte depuis `127.0.0.1` alors que le RP ID est `localhost` : `navigator.credentials.create` échoue dans le navigateur, avant `/register/verify` | réouvrir sur `http://localhost:4173` |
 
 `INCIDENT.md` couvre les pannes en cours de service.
 

@@ -302,8 +302,10 @@ def test_aucun_runbook_n_envoie_le_navigateur_sur_l_adresse_ip() -> None:
 
     La spécification WebAuthn exige que le RP ID soit un suffixe de domaine
     enregistrable de l'origine. Une origine en ADRESSE IP ne peut donc pas
-    porter le RP ID `localhost` : le navigateur refuse la création de passkey
-    AVANT d'appeler l'API, et aucun message d'erreur de Vertex n'apparaît.
+    porter le RP ID `localhost`. Séquence réelle (`AuthPage.tsx:60,64,68`) :
+    `/api/v1/auth/register/options` est appelé et répond, PUIS
+    `navigator.credentials.create` échoue dans le navigateur, avant
+    `/register/verify` ; un message générique d'échec apparaît.
 
     `tools/start_local.sh` imprime la bonne URL et l'explique. Les runbooks,
     eux, envoyaient tous sur `http://127.0.0.1:4173/...`. Cette garde interdit
@@ -375,4 +377,47 @@ def test_aucun_runbook_n_appelle_le_bootstrap_avec_le_python_systeme() -> None:
         "ces runbooks invoquent le bootstrap par un Python non verrouillé, que "
         f"`tools/start_local.sh` refuse : {coupables}. Utiliser "
         "`.venv/bin/python`."
+    )
+
+
+#: Formulations FAUSSES sur la cérémonie WebAuthn, interdites dans les runbooks.
+#: Tracé dans le code (`AuthPage.tsx:60,64,68`, `client.ts:287-298`,
+#: `routes.py:192-216`) : depuis une origine en adresse IP,
+#: `POST /api/v1/auth/register/options` EST appelé et répond 200 avec
+#: `rp.id = "localhost"` ; c'est `navigator.credentials.create` qui échoue
+#: ensuite, dans le navigateur, avant `/register/verify`. Et un message
+#: générique d'échec APPARAÎT (`AuthPage.tsx:88-93`), qui accuse à tort un
+#: 401 serveur. Dire « avant d'appeler l'API » ou « aucun message de Vertex »
+#: est donc faux, et l'a été dans quatre fichiers.
+_FORMULATIONS_FAUSSES_WEBAUTHN = (
+    re.compile(r"avant\s+(?:même\s+)?d['’]appeler\s+l['’]API", re.IGNORECASE),
+    re.compile(r"aucun\s+appel\s+(?:à\s+l['’])?API", re.IGNORECASE),
+    re.compile(r"aucun\s+message\s+(?:d['’]erreur\s+)?de\s+Vertex", re.IGNORECASE),
+)
+
+
+def test_aucun_runbook_ne_pretend_que_l_api_n_est_pas_appelee() -> None:
+    """La séquence réelle : `/register/options` répond, PUIS `create` échoue.
+
+    Une version antérieure de ces runbooks affirmait que le navigateur refusait
+    la passkey « avant d'appeler l'API » et qu'« aucun message de Vertex »
+    n'apparaissait. Les deux sont faux (voir `_FORMULATIONS_FAUSSES_WEBAUTHN`).
+    Test DOCUMENTAIRE : il lit des fichiers Markdown, il ne pilote aucun
+    navigateur et ne prétend pas reproduire le refus WebAuthn.
+    """
+    assert _RUNBOOKS, "aucun runbook trouvé : le balayage est devenu aveugle"
+    coupables: list[str] = []
+    for runbook in _RUNBOOKS:
+        for ligne_no, ligne in enumerate(
+            runbook.read_text(encoding="utf-8").splitlines(), start=1
+        ):
+            for motif in _FORMULATIONS_FAUSSES_WEBAUTHN:
+                for trouve in motif.findall(ligne):
+                    coupables.append(f"{runbook.name}:{ligne_no} → « {trouve} »")
+    assert coupables == [], (
+        "ces runbooks décrivent faussement la cérémonie WebAuthn : "
+        f"{coupables}. Séquence réelle : `/api/v1/auth/register/options` est "
+        "appelé et répond ; `navigator.credentials.create` échoue ensuite dans "
+        "le navigateur, avant `/register/verify` ; un message générique "
+        "d'échec apparaît (AuthPage.tsx)."
     )
