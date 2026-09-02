@@ -794,8 +794,19 @@ brouillon, aucune fusion.
 - `audit_titanium_ledger.py` : `TARGET_GAPS` avec le seul écart `charts` —
   attendu sur cette branche, issue de `main` où Graphiques n'est pas encore
   fusionnée (PR #25) ; ce lot n'ajoute ni ne retire aucun écart.
-- Playwright (today, markets, shell-canonical, accessibility, tous viewports) :
-  voir la PR — résultat inscrit à réception.
+- Playwright (today, markets, shell-canonical, accessibility, 1280/1440/1600) :
+  **228 passés / 228 déclarés**, `.last-run.json` passed, code 0 ; passe finale
+  today + markets après les derniers correctifs : **36 / 36**, code 0.
+- `tools/run_checks.sh` (racine, seul) : toutes les portes vertes dont la
+  performance (après correction d'un `INEFFECTIVE_DYNAMIC_IMPORT` : la
+  fonction d'état d'Opportunités vit désormais dans sa vue pure), ruff et
+  mypy ; puis le seul rouge déjà connu, `test_denylist.py::
+  test_adapter_satisfies_the_port_protocol` sur Python 3.11 — pas ce lot,
+  aucun fichier Python touché, établi dans la PR #25.
+- Deux passes lancées EN PARALLÈLE (e2e et porte performance) ont reconstruit
+  `dist/` en même temps : un test e2e a échoué une fois pour cette seule
+  raison. Rejouées seules, les deux sont vertes. Règle consignée : jamais deux
+  builds web concurrents dans le même worktree.
 
 ### Transmis, non corrigé ici
 
