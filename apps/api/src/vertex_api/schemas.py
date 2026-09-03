@@ -310,10 +310,15 @@ class AnalysisResponse(ContractModel):
       with its per-bar discard account; its observation may belong to a
       ``REAL`` or ``SYNTHETIC`` population, relayed separately;
     - ``indicators`` carries the technical indicators computed by the
-      approved engine (``market.realized_volatility``, ``market.atr``), each
+      approved engine (``market.realized_volatility``, ``market.atr``,
+      ``market.relative_strength`` against the declared benchmark), each
       with its ``CalculationRecord`` lineage — or a NAMED absence
       (``INSUFFICIENT_SAMPLE``) when the declared window exceeds the
-      available history. No interpretation is published: a value, never a
+      available history. Each block also carries its rolling ``series``
+      (LOT S3): one rendered value per served session with a complete
+      window (decimal strings, same status vocabulary, same method, own
+      lineage), relayed verbatim — the interface plots what it receives and
+      computes nothing. No interpretation is published: a value, never a
       level, a regime or a signal;
     - ``evidence`` is the fusion-cluster rail of the instrument;
     - ``scenarios`` is either the ``THEORETICAL`` scenario grid with its

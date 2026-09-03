@@ -206,6 +206,24 @@ calculations:
     criticality: high
     tests:
       - packages/python/vertex_core/tests/calculations/test_market.py
+    consumers:
+      worker: >-
+        apps/worker/src/vertex_worker/analysis.py::_build_indicators — valeur
+        ponctuelle `indicators.realized_volatility` (fenêtre VOLATILITY_WINDOW
+        = 20 rendements, 252 séances par an) ET sa série glissante
+        `indicators.realized_volatility.series` (LOT S3 : une valeur rendue par
+        séance servie disposant d'une fenêtre complète, même méthode, même
+        statut, lignée propre ; `value_pct` produit côté serveur).
+      api: >-
+        GET /api/v1/analysis/{instrument} — bloc `indicators` relayé VERBATIM
+        par apps/api/src/vertex_api/snapshot_views.py::build_analysis_response,
+        jamais recalculé ni tronqué.
+      pages: >-
+        Analyse et Graphiques (apps/web/src/pages/analysis/IndicatorsPanel.tsx,
+        module `served-indicators`) — affichage des chaînes rendues, aucun
+        calcul dans le navigateur.
+      report: aucun consommateur déclaré à ce jour
+      ai: aucun consommateur déclaré à ce jour
   - id: market.atr
     owner: indicators
     inputs: [bars, lookback]
@@ -242,6 +260,24 @@ calculations:
     criticality: high
     tests:
       - packages/python/vertex_core/tests/calculations/test_market.py
+    consumers:
+      worker: >-
+        apps/worker/src/vertex_worker/analysis.py::_build_indicators — valeur
+        ponctuelle `indicators.atr` (ATR_LOOKBACK = 14 barres) ET sa série
+        glissante `indicators.atr.series` (LOT S3 : une valeur rendue par
+        séance servie disposant de 14 barres précédentes, même méthode, même
+        statut, lignée propre ; une fenêtre désordonnée refuse la série
+        entière avec la séance en défaut, jamais un trou).
+      api: >-
+        GET /api/v1/analysis/{instrument} — bloc `indicators` relayé VERBATIM
+        par apps/api/src/vertex_api/snapshot_views.py::build_analysis_response,
+        jamais recalculé ni tronqué.
+      pages: >-
+        Analyse et Graphiques (apps/web/src/pages/analysis/IndicatorsPanel.tsx,
+        module `served-indicators`) — affichage des chaînes rendues dans la
+        devise des barres, aucun calcul dans le navigateur.
+      report: aucun consommateur déclaré à ce jour
+      ai: aucun consommateur déclaré à ce jour
   - id: market.relative_strength
     owner: indicators
     inputs: [asset_returns, benchmark_returns, horizon]
@@ -277,6 +313,27 @@ calculations:
     criticality: high
     tests:
       - packages/python/vertex_core/tests/calculations/test_market.py
+    consumers:
+      worker: >-
+        apps/worker/src/vertex_worker/analysis.py::_relative_strength_block —
+        valeur ponctuelle `indicators.relative_strength` contre l'indice
+        DÉCLARÉ par AnalysisConfig.benchmark (RELATIVE_STRENGTH_HORIZON = 60
+        séances communes, calendriers intersectés) ET sa série glissante
+        `indicators.relative_strength.series` (LOT S3 : une valeur rendue par
+        séance commune après l'horizon, même méthode, même statut ; une
+        absence nommée du point — indice non déclaré, non observé, instrument
+        comparé à lui-même, trop peu de séances communes — est celle de la
+        série).
+      api: >-
+        GET /api/v1/analysis/{instrument} — bloc `indicators` relayé VERBATIM
+        par apps/api/src/vertex_api/snapshot_views.py::build_analysis_response,
+        jamais recalculé ni tronqué.
+      pages: >-
+        Analyse et Graphiques (apps/web/src/pages/analysis/IndicatorsPanel.tsx,
+        module `served-indicators`) — affichage du ratio rendu et du nom de
+        l'indice, aucun calcul dans le navigateur.
+      report: aucun consommateur déclaré à ce jour
+      ai: aucun consommateur déclaré à ce jour
   - id: market.breadth
     owner: market_statistics
     inputs: [point_in_time_universe, returns]
