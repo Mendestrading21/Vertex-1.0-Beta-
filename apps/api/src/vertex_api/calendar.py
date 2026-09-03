@@ -50,9 +50,13 @@ Four honesty rules govern the relayed state:
   result of its OWN selection instead of relaying ``ok`` with an empty list,
   and never overwrites a non-ok worker verdict.
 
-No response FIELD is added by any of this (the served ``reason`` carries the
-age in seconds beside its budget), so the published contract — and the
-committed ``apps/api/openapi.json`` rendered from it — is unchanged.
+Ce que le relais MESURE, il le SERT : ``age_seconds`` et les coordonnées de
+sa jauge (``freshness_policy = {budget_seconds, kind, version}``) sont publiés
+dans CHAQUE état daté. L'âge n'était nommé que dans la raison ``stale``, donc
+invisible tant que le budget tenait : un agenda de vingt heures arrivait à
+l'écran exactement comme un agenda d'une minute. Le budget est une propriété
+de la ROUTE — il est servi même sans instantané publié, où l'âge vaut alors
+``null`` : une absence n'est jamais convertie en zéro.
 """
 
 from __future__ import annotations
@@ -65,9 +69,12 @@ from fastapi import HTTPException
 
 from vertex_api.freshness import (
     REASON_SNAPSHOT_STALE,
+    RelayFreshness,
     closed_session_budget,
     evaluate_relay_freshness,
+    published_budget,
 )
+from vertex_api.schemas import FreshnessPolicyView
 from vertex_api.snapshot_views import (
     SnapshotContentError,
     _parse_utc,
@@ -182,6 +189,10 @@ CALENDAR_MAX_AGE = closed_session_budget(_FRESHNESS_POLICY)
 ``stale``: an agenda published days ago is not a current one, whatever the
 frozen ``agenda_state`` says."""
 
+#: Coordonnées publiées de la jauge âge / budget — propriété de la route,
+#: servies dans tous les états (`vertex_api.freshness.published_budget`).
+_PUBLISHED_BUDGET = published_budget(_FRESHNESS_POLICY)
+
 
 REASON_EVERY_SERVED_EVENT_STALE = (
     "every served event is past its published stale_after ({count}/{count} "
@@ -238,11 +249,20 @@ class CalendarResponse(ContractModel):
     non-ok state carries its ``reason``: an empty agenda never passes for a
     success, and a relayed ``fresh`` flag is recomputed against the server
     clock — never a frozen boolean.
+
+    ``age_seconds`` est publié dans TOUS les états datés et
+    ``freshness_policy`` porte l'échelle qui le juge : le relais mesurait déjà
+    cet âge — il nommait même son budget dans la raison ``stale`` — sans le
+    servir, donc un agenda de vingt heures était indiscernable d'un agenda
+    d'une minute tant que le budget tenait. Sans instantané publié l'âge est
+    ``null`` (il n'existe pas) ; le budget, propriété de la route, reste servi.
     """
 
     state: CalendarState
     snapshot_version: PositiveInt | None
     as_of: UtcDatetime | None
+    age_seconds: int | None
+    freshness_policy: FreshnessPolicyView | None
     population: NonEmptyStr | None
     importance_rule: FrozenStrMapping | None
     agenda: tuple[FrozenStrMapping, ...]
@@ -337,7 +357,9 @@ def _utc_now() -> datetime:
     return datetime.now(UTC)
 
 
-def _snapshot_age(snapshot: CurrentSnapshot, *, now: datetime) -> timedelta:
+def _snapshot_freshness(
+    snapshot: CurrentSnapshot, *, now: datetime
+) -> RelayFreshness:
     """Age measured on SERVER timestamps only (never on stored content).
 
     The agenda relay declares NO drift tolerance: unlike ``opportunities``,
@@ -345,6 +367,10 @@ def _snapshot_age(snapshot: CurrentSnapshot, *, now: datetime) -> timedelta:
     even one second would make those flags say something the clock cannot
     support. A snapshot dated ahead is therefore refused outright — the
     historical behaviour, unchanged by the move to the shared owner.
+
+    La mesure ENTIÈRE est renvoyée, pas seulement sa durée : l'``age_seconds``
+    publié vient ainsi du propriétaire qui décide aussi de la bascule
+    ``stale``, au lieu d'être recalculé une seconde fois ici.
     """
     freshness = evaluate_relay_freshness(
         require_snapshot_as_of(snapshot), now=now, policy=_FRESHNESS_POLICY
@@ -354,7 +380,7 @@ def _snapshot_age(snapshot: CurrentSnapshot, *, now: datetime) -> timedelta:
             "snapshot.as_of: a snapshot dated in the future cannot be served",
             field="snapshot.as_of",
         )
-    return freshness.age
+    return freshness
 
 
 def build_calendar_response(
@@ -386,6 +412,8 @@ def build_calendar_response(
             state="empty",
             snapshot_version=None,
             as_of=None,
+            age_seconds=None,
+            freshness_policy=_PUBLISHED_BUDGET,
             population=None,
             importance_rule=None,
             agenda=(),
@@ -401,7 +429,8 @@ def build_calendar_response(
         # A naive clock would be read as local time and silently shift every
         # age and every recomputed ``fresh`` flag.
         raise ValueError("now must be a timezone-aware datetime")
-    age = _snapshot_age(snapshot, now=relay_clock)
+    freshness = _snapshot_freshness(snapshot, now=relay_clock)
+    age = freshness.age
 
     content = checked_relayed_content(snapshot.content)
     agenda_raw = _require_list(content.get("agenda"), field="agenda")
@@ -565,6 +594,8 @@ def build_calendar_response(
         state=state,
         snapshot_version=snapshot.version,
         as_of=_parse_utc(content.get("as_of"), field="as_of"),
+        age_seconds=freshness.age_seconds,
+        freshness_policy=_PUBLISHED_BUDGET,
         population=_require_str(content.get("population"), field="population"),
         importance_rule=dict(importance_rule),
         agenda=tuple(dict(event) for event in selected),

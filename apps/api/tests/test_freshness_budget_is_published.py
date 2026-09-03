@@ -23,6 +23,11 @@ Trois affirmations, pour chaque route datable :
 3. la matrice de capacités, SEULE famille sans budget au registre, publie une
    absence déclarée (``null``), jamais un zéro ni un TTL inventé.
 
+L'agenda (`calendar`) entre dans la table par le correctif du LOT-S5 : ce
+relais MESURAIT son âge — il basculait sur ``stale`` et nommait le budget dans
+sa raison — sans le SERVIR. Il publie désormais ``age_seconds`` et sa jauge
+dans chaque état daté, comme les autres.
+
 Les contenus valides sont importés des tests qui les possèdent : une copie
 divergerait du vrai et prouverait autre chose.
 """
@@ -41,6 +46,8 @@ from pydantic import ValidationError
 from snapshot_fakes import FakeSnapshotReader, synthetic_session
 from test_analysis import AS_OF as ANALYSIS_AS_OF
 from test_analysis import analysis_content
+from test_calendar_route import event as calendar_event
+from test_calendar_route import snapshot as calendar_snapshot
 from test_markets_overview import markets_content
 from test_opportunities_route import opportunities_content
 from test_option_chain import chain_content
@@ -54,8 +61,10 @@ from test_snapshot_content_errors import (
 from test_system_capabilities import capabilities_snapshot
 from test_today_attention import attention_content
 
+from vertex_api import calendar as calendar_module
 from vertex_api import opportunities as opportunities_module
 from vertex_api.auth import require_session
+from vertex_api.calendar import build_calendar_response
 from vertex_api.capability_manifest import load_capability_manifest
 from vertex_api.follow_up import build_follow_up_queue_response
 from vertex_api.freshness import closed_session_budget, published_budget
@@ -102,6 +111,14 @@ def _sec_snapshot() -> CurrentSnapshot:
     content = sec_content()
     content["as_of"] = AS_OF.isoformat()
     return _snapshot("sec_fundamentals", SEC_INSTRUMENT, content)
+
+
+def _calendar_snapshot() -> CurrentSnapshot:
+    """Un agenda dont l'événement reste dans son propre ``stale_after`` bien
+    au-delà du budget de l'agenda : seule la bascule du BUDGET est mesurée."""
+    entry = calendar_event("syn-ev-1")
+    entry["stale_after"] = (AS_OF + timedelta(days=30)).isoformat()
+    return calendar_snapshot([entry], version=7)
 
 
 def _expected_view(policy_name: str) -> dict[str, Any]:
@@ -190,6 +207,11 @@ RELAIS: tuple[Any, ...] = (
         ),
         id="opportunities",
     ),
+    pytest.param(
+        "corporate_event",
+        lambda now: build_calendar_response(_calendar_snapshot(), window=None, now=now),
+        id="calendar",
+    ),
 )
 
 
@@ -268,6 +290,7 @@ def reader() -> FakeSnapshotReader:
                 "opportunities", "global", opportunities_content([], [])
             ),
             ("capabilities", "global"): capabilities_snapshot([]),
+            ("calendar", "global"): _calendar_snapshot(),
         }
     )
 
@@ -285,6 +308,7 @@ def api(
     # couture propre du relais des opportunités.
     app.dependency_overrides[get_clock] = lambda: lambda: NOW
     monkeypatch.setattr(opportunities_module, "_utc_now", lambda: NOW)
+    monkeypatch.setattr(calendar_module, "_utc_now", lambda: NOW)
     with TestClient(app) as client:
         yield client
     app.dependency_overrides.clear()
@@ -304,6 +328,7 @@ ROUTES: tuple[Any, ...] = (
     pytest.param("/api/v1/performance/1", "daily_bar", id="performance"),
     pytest.param("/api/v1/risk/matrix", "daily_bar", id="risk_matrix"),
     pytest.param("/api/v1/opportunities", "daily_bar", id="opportunities"),
+    pytest.param("/api/v1/calendar", "corporate_event", id="calendar"),
 )
 
 
@@ -329,6 +354,7 @@ def test_l_etat_vide_declare_encore_le_budget_de_la_route(
     app.dependency_overrides[get_snapshot_reader] = lambda: FakeSnapshotReader()
     app.dependency_overrides[get_clock] = lambda: lambda: NOW
     monkeypatch.setattr(opportunities_module, "_utc_now", lambda: NOW)
+    monkeypatch.setattr(calendar_module, "_utc_now", lambda: NOW)
     with TestClient(app) as client:
         body = client.get(path).json()
     app.dependency_overrides.clear()
@@ -374,6 +400,79 @@ def test_la_matrice_de_capacites_declare_une_absence_de_budget(api: TestClient) 
         now=NOW,
     )
     assert response.freshness_policy is None
+
+
+# ---------------------------------------------------------------------------
+# L'agenda : l'âge et la jauge sont publiés dans CHAQUE état daté
+# ---------------------------------------------------------------------------
+
+VINGT_MINUTES = timedelta(minutes=20)
+
+ETATS_PUBLIES_PAR_LE_WORKER: tuple[Any, ...] = (
+    pytest.param("OK", None, "ok", id="ok"),
+    pytest.param("EMPTY", "nothing observed", "empty", id="empty_publie"),
+    pytest.param("NOT_ENTITLED", "rights not usable (2/2)", "not_entitled", id="not_entitled"),
+    pytest.param("REJECTED", "every record invalid (2/2)", "rejected", id="rejected"),
+    pytest.param("STALE", "every displayed event is stale (1/1)", "stale", id="stale_publie"),
+)
+
+
+@pytest.mark.parametrize(
+    ("agenda_state", "agenda_reason", "served"), ETATS_PUBLIES_PAR_LE_WORKER
+)
+def test_l_agenda_publie_son_age_et_sa_jauge_dans_chaque_verdict_du_worker(
+    agenda_state: str, agenda_reason: str | None, served: str
+) -> None:
+    """Le relais de l'agenda MESURAIT son âge — il nommait le budget dans sa
+    raison ``stale`` — sans le SERVIR : un agenda de vingt heures arrivait
+    comme un agenda d'une minute. Chaque verdict daté du worker est servi
+    avec ``age_seconds`` et les coordonnées de sa jauge (``corporate_event``)."""
+    events = [calendar_event("syn-ev-1")] if agenda_state in ("OK", "STALE") else []
+    published = calendar_snapshot(
+        events, version=7, agenda_state=agenda_state, agenda_state_reason=agenda_reason
+    )
+    response = build_calendar_response(published, window=None, now=AS_OF + VINGT_MINUTES)
+    assert response.state == served
+    assert response.age_seconds == int(VINGT_MINUTES.total_seconds())
+    assert response.freshness_policy is not None
+    assert response.freshness_policy.model_dump() == _expected_view("corporate_event")
+
+
+def test_l_agenda_degrade_ou_hors_fenetre_reste_date() -> None:
+    """Les deux états que le relais DÉRIVE lui-même (contrat antérieur, fenêtre
+    qui ne sélectionne rien) sont datés comme les autres : l'âge ne dépend pas
+    du verdict, il dépend de l'instantané."""
+    now = AS_OF + VINGT_MINUTES
+
+    legacy = calendar_snapshot([calendar_event("syn-ev-1")], version=7)
+    legacy.content.pop("agenda_state")
+    legacy.content.pop("agenda_state_reason")
+    degrade = build_calendar_response(legacy, window=None, now=now)
+    assert degrade.state == "degraded"
+    assert degrade.age_seconds == int(VINGT_MINUTES.total_seconds())
+    assert degrade.freshness_policy is not None
+    assert degrade.freshness_policy.model_dump() == _expected_view("corporate_event")
+
+    # L'événement de test est daté du 1er septembre : une fenêtre d'octobre
+    # ne sélectionne rien.
+    fenetre = (AS_OF + timedelta(days=60), AS_OF + timedelta(days=61))
+    hors_fenetre = build_calendar_response(
+        calendar_snapshot([calendar_event("syn-ev-1")], version=7), window=fenetre, now=now
+    )
+    assert hors_fenetre.state == "empty_window"
+    assert hors_fenetre.age_seconds == int(VINGT_MINUTES.total_seconds())
+    assert hors_fenetre.freshness_policy is not None
+    assert hors_fenetre.freshness_policy.model_dump() == _expected_view("corporate_event")
+
+
+def test_sans_agenda_publie_l_age_est_absent_mais_l_echelle_est_connue() -> None:
+    """Jamais publié : l'âge n'existe pas (``null``, jamais zéro) ; le budget
+    est une propriété de la route et reste servi."""
+    response = build_calendar_response(None, window=None)
+    assert response.state == "empty"
+    assert response.age_seconds is None
+    assert response.freshness_policy is not None
+    assert response.freshness_policy.model_dump() == _expected_view("corporate_event")
 
 
 # ---------------------------------------------------------------------------
