@@ -13,6 +13,7 @@
  * refuse tout score global dérivé de mesures partielles.
  */
 import type { AbsenceReason } from '../../components/AbsentModule.tsx';
+import type { WidgetSize, WidgetVariant } from '../../components/widgets/Widget.tsx';
 
 export type RiskModuleStatus =
   | { readonly kind: 'served'; readonly contract: string }
@@ -20,6 +21,10 @@ export type RiskModuleStatus =
 
 export interface RiskModule {
   readonly id: string;
+  /** Span de composition sur la planche — jamais une apparence (ADR-017). */
+  readonly size: WidgetSize;
+  /** Variante visuelle du vocabulaire fermé de WIDGET_LIBRARY.md. */
+  readonly variant: WidgetVariant;
   readonly title: string;
   readonly question: string;
   readonly status: RiskModuleStatus;
@@ -32,6 +37,8 @@ const PERFORMANCE = 'GET /api/v1/performance/{portfolio_id} — content';
 export const RISK_MODULES: readonly RiskModule[] = [
   {
     id: 'risk-score',
+    size: 'S',
+    variant: 'support',
     title: 'Score de risque',
     question: 'Quel niveau de risque global le portefeuille porte-t-il ?',
     status: {
@@ -42,6 +49,8 @@ export const RISK_MODULES: readonly RiskModule[] = [
   },
   {
     id: 'var-cvar',
+    size: 'S',
+    variant: 'support',
     title: 'VaR et CVaR',
     question: 'Quelle perte le registre peut-il subir à un horizon et un niveau donnés ?',
     status: {
@@ -52,12 +61,16 @@ export const RISK_MODULES: readonly RiskModule[] = [
   },
   {
     id: 'max-drawdown',
+    size: 'S',
+    variant: 'support',
     title: 'Drawdown maximal',
     question: 'Quelle baisse maximale la série valorisée a-t-elle subie depuis son sommet ?',
     status: { kind: 'served', contract: `${PERFORMANCE}.metrics.drawdown_gross / drawdown_net` },
   },
   {
     id: 'benchmark-relative',
+    size: 'S',
+    variant: 'support',
     title: 'Risque relatif au benchmark',
     question: 'Comment le risque se compare-t-il à celui d’un indice ?',
     status: {
@@ -68,6 +81,8 @@ export const RISK_MODULES: readonly RiskModule[] = [
   },
   {
     id: 'volatility',
+    size: 'S',
+    variant: 'support',
     title: 'Volatilité du registre',
     question: 'Quelle dispersion des rendements quotidiens le registre montre-t-il ?',
     status: {
@@ -78,12 +93,16 @@ export const RISK_MODULES: readonly RiskModule[] = [
   },
   {
     id: 'concentration',
+    size: 'S',
+    variant: 'support',
     title: 'Concentration du registre',
     question: 'Quels poids par ticker et quel indice de Herfindahl la valorisation publie-t-elle ?',
     status: { kind: 'served', contract: `${VALUATION}.positions_by_currency[].concentration` },
   },
   {
     id: 'liquidity',
+    size: 'S',
+    variant: 'support',
     title: 'Liquidité',
     question: 'En combien de séances chaque ligne se réduirait-elle sans peser sur le prix ?',
     status: {
@@ -94,12 +113,16 @@ export const RISK_MODULES: readonly RiskModule[] = [
   },
   {
     id: 'correlations',
+    size: 'XL',
+    variant: 'dominant',
     title: 'Corrélations',
     question: 'Qu’est-ce qui bouge ensemble dans mon périmètre, et qu’est-ce qui protège de quoi ?',
     status: { kind: 'served', contract: `${MATRIX}.matrix / matrix_bands / instruments` },
   },
   {
     id: 'turnover',
+    size: 'S',
+    variant: 'support',
     title: 'Rotation',
     question: 'À quel rythme le registre se renouvelle-t-il ?',
     status: {
@@ -110,12 +133,16 @@ export const RISK_MODULES: readonly RiskModule[] = [
   },
   {
     id: 'extremes',
+    size: 'S',
+    variant: 'support',
     title: 'Paires extrêmes',
     question: 'Quelle paire est la plus liée, laquelle la plus opposée ?',
     status: { kind: 'served', contract: `${MATRIX}.extremes / synchronicity_warning` },
   },
   {
     id: 'stress-loss',
+    size: 'S',
+    variant: 'support',
     title: 'Chocs',
     question: 'Que perdrait le registre sous un choc de marché déclaré ?',
     status: {
@@ -126,6 +153,8 @@ export const RISK_MODULES: readonly RiskModule[] = [
   },
   {
     id: 'factor-exposures',
+    size: 'S',
+    variant: 'support',
     title: 'Expositions aux facteurs',
     question: 'À quels facteurs le registre est-il exposé ?',
     status: {
@@ -136,6 +165,8 @@ export const RISK_MODULES: readonly RiskModule[] = [
   },
   {
     id: 'risk-budget',
+    size: 'S',
+    variant: 'support',
     title: 'Budget de risque',
     question: 'Quelle part du risque total chaque ligne consomme-t-elle ?',
     status: {
@@ -146,6 +177,8 @@ export const RISK_MODULES: readonly RiskModule[] = [
   },
   {
     id: 'radar',
+    size: 'S',
+    variant: 'support',
     title: 'Radar des risques',
     question: 'Comment les familles de risque se comparent-elles d’un coup d’œil ?',
     status: {
@@ -156,24 +189,32 @@ export const RISK_MODULES: readonly RiskModule[] = [
   },
   {
     id: 'coverage',
+    size: 'M',
+    variant: 'support',
     title: 'Couverture de la matrice',
     question: 'Sur quoi cette matrice est-elle bâtie ?',
     status: { kind: 'served', contract: `${MATRIX}.coverage` },
   },
   {
     id: 'alignment',
+    size: 'S',
+    variant: 'support',
     title: "Ce que l'alignement a coûté",
     question: 'Combien de séances chaque instrument a-t-il perdues à l’alignement ?',
     status: { kind: 'served', contract: `${MATRIX}.coverage.trading_days_lost_to_alignment / trading_days_per_instrument` },
   },
   {
     id: 'discards',
+    size: 'M',
+    variant: 'support',
     title: 'Instruments écartés',
     question: 'Quels instruments du périmètre n’ont pas pu entrer dans la matrice ?',
     status: { kind: 'served', contract: `${MATRIX}.coverage.discarded / rejected_records` },
   },
   {
     id: 'risk-register',
+    size: 'M',
+    variant: 'support',
     title: 'Registre des risques',
     question: 'Quels risques sont actifs, mesurés, inconnus ou bloquants, avec quelle sévérité ?',
     status: {
@@ -184,6 +225,8 @@ export const RISK_MODULES: readonly RiskModule[] = [
   },
   {
     id: 'alert-log',
+    size: 'S',
+    variant: 'support',
     title: 'Journal des alertes de risque',
     question: 'Quelles alertes de risque ont été émises, et quand ?',
     status: {

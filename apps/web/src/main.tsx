@@ -6,6 +6,7 @@ import { RouterProvider, createBrowserRouter } from 'react-router-dom';
 import './styles/fonts.css';
 import './design/tokens.css';
 import './styles/global.css';
+import './styles/widgets.css';
 
 import { installSnapshotEvents } from './api/events.ts';
 import { installSessionIsolation } from './api/sessionIsolation.ts';

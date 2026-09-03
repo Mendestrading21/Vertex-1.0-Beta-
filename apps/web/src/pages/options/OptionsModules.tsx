@@ -10,7 +10,7 @@ import { Sparkline } from '../../components/markets/Sparkline.tsx';
 import { flattenTickers, frDecimal } from '../../components/markets/marketsView.ts';
 import { moduleShowsContent, moduleStateOf } from '../../components/moduleState.ts';
 import { IvSmile } from '../../components/options/IvSmile.tsx';
-import { InstrumentWidget } from '../InstrumentWidget.tsx';
+import { InstrumentTile } from '../../components/widgets/InstrumentTile.tsx';
 import { analysisStateOf, barsViewOf } from '../analysis/analysisView.ts';
 import { optionsModule } from './optionsModules.ts';
 import { groupLabelOf, rowBudgetOf, sourceEventIdsOf, spotViewOf } from './optionsView.ts';
@@ -48,7 +48,7 @@ export function UnderlyingModule({ underlying }: { readonly underlying: string }
   const state = moduleStateOf(pageStateOf(overview), overview.data);
   const entry = flattenTickers(overview.data?.sectors ?? []).find((candidate) => candidate.ticker.ticker === underlying) ?? null;
   if (moduleShowsContent(state) && entry !== null) {
-    return <InstrumentWidget entry={entry} />;
+    return <InstrumentTile entry={entry} />;
   }
   return (
     <Card rank="quiet" kicker="Snapshot Marchés" title={module.title} titleId="vx-options-underlying-title">
