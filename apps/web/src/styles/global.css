@@ -8093,10 +8093,10 @@ label {
   grid-template-areas:
     'controls controls controls tz'
     'agenda agenda agenda next'
-    'agenda agenda agenda counters'
-    'exposure exposure density density'
-    'reminders changes revisions conflicts'
-    'rule rule provenance provenance';
+    'agenda agenda agenda conflicts'
+    'exposure density counters counters'
+    'revisions reminders changes provenance'
+    'rule rule rule provenance';
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
@@ -8118,10 +8118,10 @@ label {
   .vx-cal-grid {
     grid-template-areas:
       'controls controls controls tz next'
-      'agenda agenda agenda counters counters'
+      'agenda agenda agenda conflicts revisions'
       'agenda agenda agenda exposure density'
-      'reminders changes revisions conflicts conflicts'
-      'rule rule provenance provenance provenance';
+      'counters counters counters reminders changes'
+      'rule rule rule provenance provenance';
     grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 }
@@ -8151,6 +8151,31 @@ label {
 
 .vx-cal-grid .vx-cal-provenance {
   margin: var(--vx-space-12) 0 0;
+}
+
+/* Dans une cellule de planche, les tables des compteurs et de la règle
+   d'importance tiennent la largeur de leur carte : une ligne qui replie vaut
+   mieux qu'une colonne coupée derrière un défilement horizontal. */
+.vx-cal-grid .vx-cal-counters .vx-matrix-table,
+.vx-cal-grid .vx-cal-rule .vx-matrix-table {
+  min-width: 100%;
+  width: 100%;
+}
+
+/* Dix lignes tiennent dans la carte : aucune borne de hauteur qui laisserait
+   un vide sous un défilement. */
+.vx-cal-grid .vx-cal-counters .vx-cal-scroll[tabindex] {
+  max-height: none;
+}
+
+.vx-cal-grid .vx-cal-counters .vx-matrix-table caption,
+.vx-cal-grid .vx-cal-counters .vx-matrix-table th,
+.vx-cal-grid .vx-cal-counters .vx-matrix-table td,
+.vx-cal-grid .vx-cal-rule .vx-matrix-table caption,
+.vx-cal-grid .vx-cal-rule .vx-matrix-table th,
+.vx-cal-grid .vx-cal-rule .vx-matrix-table td {
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .vx-cal-grid .vx-cal-blocked {
