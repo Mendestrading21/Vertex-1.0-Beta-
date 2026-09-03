@@ -104,6 +104,18 @@ describe('abonnement SSE signal-only', () => {
     handle.stop();
   });
 
+  it('lot S4 : un signal risk_matrix/global invalide la clé de la page Risques', () => {
+    const handle = start();
+    const source = FakeEventSource.instances[0]!;
+    source.emitOpen();
+    source.emitSnapshot(JSON.stringify({ resource: 'risk_matrix/global', version: 3 }));
+    expect(invalidateSpy).toHaveBeenCalledTimes(1);
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: ['snapshot', 'risk_matrix/global'],
+    });
+    handle.stop();
+  });
+
   it('reconnexion avec backoff exponentiel et état exposé', () => {
     const handle = start();
     const states: string[] = [];

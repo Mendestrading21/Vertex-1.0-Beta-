@@ -287,4 +287,78 @@ def test_watched_snapshots_are_the_expected_resources() -> None:
         ("capabilities", "global"),
         ("markets_overview", "global"),
         ("opportunities", "global"),
+        ("risk_matrix", "global"),
     )
+
+
+def test_risk_matrix_head_change_is_signalled() -> None:
+    """LOT S4: a move of the ``risk_matrix/global`` head is signalled.
+
+    The worker publishes the risk matrix under the FIXED head
+    ``risk_matrix/global`` (``vertex_worker.risk``). Without a signal the
+    Risques page only refetched on a manual reload. Bounded read: the loop
+    stops on the first ``snapshot`` frame or after a few keepalive pings, so
+    an unsignalled head fails fast instead of timing out.
+    """
+    reader = ScriptedHeadReader()
+
+    async def run() -> list[tuple[str, dict]]:
+        frames: list[tuple[str, dict]] = []
+        bumped = False
+        pings_after_bump = 0
+        stream = snapshot_event_stream(reader, FAST)
+        async for frame in stream:
+            frames.extend(parse_frames(frame))
+            event = frames[-1][0]
+            if event == "ping":
+                if bumped:
+                    pings_after_bump += 1
+                else:
+                    # Baseline observed: the worker publishes a new matrix.
+                    reader.versions[("risk_matrix", "global")] = 4
+                    bumped = True
+            if event == "snapshot" or pings_after_bump >= 3:
+                break
+        await stream.aclose()
+        return frames
+
+    frames = asyncio.run(asyncio.wait_for(run(), timeout=5.0))
+    snapshot_frames = [data for event, data in frames if event == "snapshot"]
+    assert snapshot_frames == [{"resource": "risk_matrix/global", "version": 4}]
+
+
+def test_every_snapshot_kind_served_by_the_api_is_signalled() -> None:
+    """Every snapshot kind the REST API relays has a signal on the stream.
+
+    Each REST module names the persisted kind it serves — the very kinds the
+    worker publishes. A kind served but never signalled means a page that
+    only refreshes on reload (the LOT S4 defect for ``risk_matrix``). Either
+    watch list counts: fixed head or by kind prefix.
+    """
+    from vertex_api import (
+        calendar,
+        follow_up,
+        opportunities,
+        performance,
+        portfolio,
+        risk,
+        routes,
+    )
+    from vertex_api.events import WATCHED_SNAPSHOT_KINDS
+
+    served_kinds = {
+        routes.SNAPSHOT_KIND_ATTENTION,
+        routes.SNAPSHOT_KIND_CAPABILITIES,
+        routes.SNAPSHOT_KIND_MARKETS,
+        routes.SNAPSHOT_KIND_OPTION_CHAIN,
+        routes.SNAPSHOT_KIND_ANALYSIS,
+        routes.SNAPSHOT_KIND_SEC_FUNDAMENTALS,
+        calendar.SNAPSHOT_KIND_CALENDAR,
+        follow_up.SNAPSHOT_KIND_REVIEW_QUEUE,
+        opportunities.SNAPSHOT_KIND_OPPORTUNITIES,
+        performance.SNAPSHOT_KIND_PERFORMANCE,
+        portfolio.SNAPSHOT_KIND_PORTFOLIO_VALUATION,
+        risk.SNAPSHOT_KIND_RISK,
+    }
+    signalled_kinds = {kind for kind, _ in WATCHED_SNAPSHOTS} | set(WATCHED_SNAPSHOT_KINDS)
+    assert served_kinds <= signalled_kinds, sorted(served_kinds - signalled_kinds)

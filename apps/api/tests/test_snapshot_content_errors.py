@@ -131,6 +131,8 @@ def _markets_content() -> dict[str, Any]:
             "value": None,
             "value_pct": None,
             "above_count": 0,
+            "down_count": 0,
+            "flat_count": 0,
             "covered_count": 0,
             "universe_size": 1,
             "coverage_pct": "0",
