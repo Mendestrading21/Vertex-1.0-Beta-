@@ -134,7 +134,7 @@ test.describe('Simulateur — parcours complet et refus honnêtes', () => {
   }) => {
     await page.goto('/simulator');
     // Déclarer une jambe COURTE CALL sans couverture (perte non bornée).
-    await page.getByLabel('Sens').selectOption('SHORT');
+    await page.getByRole('combobox', { name: 'Sens', exact: true }).selectOption('SHORT');
     await page.getByLabel('Strike (décimal)').fill('300');
     await page.getByLabel('Prime unitaire déclarée (décimal)').fill('10');
     await fillRemainingAssumptions(page);
