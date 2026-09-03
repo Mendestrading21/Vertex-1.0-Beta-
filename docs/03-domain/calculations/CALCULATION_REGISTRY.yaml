@@ -313,6 +313,48 @@ calculations:
       - packages/python/vertex_core/tests/calculations/test_market.py
       - apps/worker/tests/test_markets_content.py
       - apps/api/tests/test_markets_overview.py
+  - id: market.sma
+    owner: indicators
+    inputs: [prices, window]
+    output_unit: price
+    gates: [valid_window, minimum_sample, positive_prices]
+    invariants: [finite, within_window_range, one_point_per_complete_window]
+    runtime_status: APPROVED
+    spec_version: "1.0.0"
+    implementation: packages/python/vertex_core/src/vertex_core/calculations/market.py::simple_moving_average
+    method: trailing_arithmetic_mean_fsum_over_complete_windows
+    assumptions:
+      - "SMA_t = (1 / window) * sum(p_{t-window+1..t}): one value per COMPLETE window, aligned on the last price of the window, so len(result) == len(prices) - window + 1. No leading fill and no partial window: a series shorter than the window is INVALID (minimum_sample), never averaged on what is available."
+      - "Each window is summed with math.fsum (exactly rounded) then divided once; int/float/Decimal inputs are converted explicitly to float64 and bool is rejected at the boundary."
+      - "Every price must be finite and strictly positive (same boundary as market.rebased_series); a non-positive price is rejected, never skipped."
+      - "Output is expressed in the price unit of the inputs. Adjustment basis, currency and calendar alignment stay with the caller, who must pass a single-basis series (the function only receives numbers)."
+    parameter_schema:
+      prices: {type: "list | tuple of (int | float | Decimal)", unit: price, constraint: "length >= window, each finite and > 0"}
+      window: {type: int, unit: bars, constraint: ">= 1, bool rejected"}
+      returns: {type: "tuple[float, ...]", unit: price, note: "length == len(prices) - window + 1"}
+    tolerances:
+      float64_rel_tol: 1.0e-9
+      window_range_rel_tol: 1.0e-12
+      note: >-
+        The numpy.convolve oracle is asserted with rtol=FLOAT64_REL_TOL and
+        atol=0 for windows 1, 2, 5, 13 and 40. The property "each point lies
+        within [min, max] of its window" is asserted with a 1e-12 relative
+        margin (one rounding of the exact fsum divided by the window).
+        window == 1 returns the prices themselves EXACTLY, asserted without
+        tolerance.
+    oracle: numpy_convolve_independent_implementation_in_test
+    oracle_evidence: >-
+      TestOracleNumpy.test_oracle_numpy_convolve recomputes the trailing mean
+      as numpy.convolve(series, ones(window) / window, mode="valid") — a
+      different arithmetic (float64 convolution product) written in the test
+      — on a 40-point synthetic series; TestSimpleMovingAverage asserts the
+      hand-derived vector 1..5 with window 3 -> (2, 3, 4).
+    oracle_limitation: >-
+      numpy is a third-party numerical library, not a technical-analysis
+      library; the vectors are not registered under the pytest golden marker.
+    criticality: high
+    tests:
+      - packages/python/vertex_core/tests/calculations/test_market_sma.py
   - id: portfolio.fx_conversion
     owner: portfolio
     inputs: [money, fx_quote, quote_as_of]

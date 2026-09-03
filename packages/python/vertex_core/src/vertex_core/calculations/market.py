@@ -10,6 +10,7 @@ Pure, deterministic functions implementing the ``market.*`` entries of
 - ``market.rebased_series``      -> :func:`rebase_series`
 - ``market.relative_strength``   -> :func:`relative_strength`
 - ``market.breadth``             -> :func:`breadth`
+- ``market.sma``                 -> :func:`simple_moving_average`
 
 Numeric policy (UNITS_TIME_AND_PRECISION):
 
@@ -52,6 +53,7 @@ __all__ = [
     "realized_volatility",
     "rebase_series",
     "relative_strength",
+    "simple_moving_average",
     "simple_return",
 ]
 
@@ -589,3 +591,80 @@ def breadth(
         )
     # threshold > 0 and coverage >= threshold imply covered >= 1 here.
     return _finite_result(above / covered, "market.breadth")
+
+
+# ---------------------------------------------------------------------------
+# Overlays et oscillateurs — market.sma, market.ema, market.bollinger_bands,
+# market.rsi, market.macd
+#
+# Convention commune, déclarée une fois : une série rend UNE valeur par
+# fenêtre COMPLÈTE, alignée sur le dernier prix de la fenêtre. Aucun
+# remplissage en tête, aucune fenêtre partielle : une série plus courte que
+# la fenêtre est INVALIDE (``minimum_sample``), jamais moyennée « sur ce
+# qu'on a ». Les prix passent la même frontière que :func:`rebase_series` :
+# finis, strictement positifs, et sur UNE seule base d'ajustement — ces
+# fonctions ne reçoivent que des nombres, l'appelant garantit la base.
+# ---------------------------------------------------------------------------
+
+
+def _require_window(value: object, name: str, *, minimum: int = 1) -> int:
+    window = _require_int(value, name)
+    if window < minimum:
+        raise CalculationInputError("invalid_window", f"{name} must be >= {minimum}, got {window}")
+    return window
+
+
+def _require_price_series(prices: object, *, minimum: int, calculation_id: str) -> list[float]:
+    seq = _require_sequence(prices, "prices")
+    if len(seq) < minimum:
+        raise CalculationInputError(
+            "minimum_sample",
+            f"{calculation_id} requires at least {minimum} prices, got {len(seq)}",
+        )
+    return [_require_positive_price(price, f"prices[{index}]") for index, price in enumerate(seq)]
+
+
+def _mean(values: Sequence[float], calculation_id: str) -> float:
+    """Moyenne arithmétique : somme exactement arrondie puis UNE division."""
+    try:
+        total = math.fsum(values)
+    except OverflowError:
+        raise CalculationInputError(
+            "non_finite_result", f"{calculation_id} sum overflowed float64"
+        ) from None
+    return _finite_result(total / len(values), calculation_id)
+
+
+def _sma_core(values: Sequence[float], window: int, calculation_id: str) -> tuple[float, ...]:
+    return tuple(
+        _mean(values[start : start + window], calculation_id)
+        for start in range(len(values) - window + 1)
+    )
+
+
+def simple_moving_average(prices: Sequence[NumberLike], window: int) -> tuple[float, ...]:
+    """``market.sma`` — moyenne mobile simple sur fenêtres complètes.
+
+    Méthode : ``SMA_t = (1 / window) * sum(p_{t-window+1..t})`` — somme
+    exactement arrondie (``math.fsum``) puis une division. Un point par
+    fenêtre COMPLÈTE, aligné sur le dernier prix de la fenêtre :
+    ``len(résultat) == len(prices) - window + 1``.
+
+    Portes (chaque violation lève :class:`CalculationInputError`) :
+
+    - ``prices`` est une liste ou un tuple (``invalid_type``) ;
+    - ``window`` est un entier ``>= 1`` (``invalid_type`` / ``invalid_window``) ;
+    - ``len(prices) >= window`` (``minimum_sample``) — une série plus courte
+      n'est jamais moyennée sur ce qu'on a ;
+    - chaque prix fini et strictement positif (``non_finite_input`` /
+      ``non_positive_price`` / ``invalid_type``).
+
+    Invariants : chaque point est fini et compris entre le minimum et le
+    maximum de sa fenêtre (à un arrondi float64 près) ; ``window == 1`` rend
+    les prix eux-mêmes, exactement. Unité : celle des prix.
+    """
+    _require_sequence(prices, "prices")
+    w = _require_window(window, "window")
+    values = _require_price_series(prices, minimum=w, calculation_id="market.sma")
+    return _sma_core(values, w, "market.sma")
+
