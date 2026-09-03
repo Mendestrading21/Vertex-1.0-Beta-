@@ -1,4 +1,4 @@
-import { geometryValue, servedWidth } from './geometry.ts';
+import { geometryValue, ratioWidth, servedWidth } from './geometry.ts';
 
 /**
  * Bande de parts SERVIES — largeur = chaîne servie, verbatim.
@@ -18,12 +18,40 @@ export type ShareTone = (typeof SHARE_TONES)[number];
 
 const PATTERNS = ['a', 'b', 'c', 'd', 'e', 'f'] as const;
 
-export interface SharePart {
+/**
+ * Une part est servie SOIT en pourcentage (`pct`), SOIT en ratio 0–1
+ * (`ratio`) — jamais les deux. L'identifiant DIT l'unité de la chaîne servie,
+ * pour que la géométrie ne se trompe pas d'échelle et que la légende affiche
+ * la chaîne verbatim, dans l'unité que l'appelant déclare.
+ */
+export type SharePart = {
   readonly key: string;
   readonly label: string;
-  /** Pourcentage SERVI. `null` = non publié. */
-  readonly pct: string | null;
   readonly tone?: ShareTone;
+} & (
+  | {
+      /** Pourcentage SERVI. `null` = non publié. */
+      readonly pct: string | null;
+      readonly ratio?: undefined;
+    }
+  | {
+      /** Ratio SERVI (0–1). `null` = non publié. */
+      readonly ratio: string | null;
+      readonly pct?: undefined;
+    }
+);
+
+/** Chaîne servie de la part, quelle que soit son unité déclarée. */
+function servedText(part: SharePart): string | null {
+  return part.ratio === undefined ? part.pct : part.ratio;
+}
+
+/** Largeur de la part, ou `null` si rien n'est dessinable. */
+function partWidth(part: SharePart): string | null {
+  if (part.ratio !== undefined) {
+    return part.ratio === null ? null : ratioWidth(part.ratio);
+  }
+  return part.pct === null || geometryValue(part.pct) === null ? null : servedWidth(part.pct);
 }
 
 export interface SharesBandProps {
@@ -44,7 +72,7 @@ export function SharesBand({
   totalText,
   emptyLabel,
 }: SharesBandProps) {
-  const drawn = parts.filter((part) => geometryValue(part.pct) !== null);
+  const drawn = parts.filter((part) => partWidth(part) !== null);
 
   if (drawn.length === 0) {
     return (
@@ -63,7 +91,7 @@ export function SharesBand({
             className="vx-w2-share"
             data-tone={part.tone ?? DEFAULT_TONES[index % DEFAULT_TONES.length]}
             data-pattern={PATTERNS[index % PATTERNS.length]}
-            style={{ width: servedWidth(part.pct as string) }}
+            style={{ width: partWidth(part) as string }}
           />
         ))}
       </div>
@@ -71,7 +99,7 @@ export function SharesBand({
         {parts.map((part) => (
           <li key={part.key}>
             <span>{part.label}</span>{' '}
-            <span>{part.pct === null ? 'non publié' : `${part.pct} ${unit}`}</span>
+            <span>{servedText(part) === null ? 'non publié' : `${servedText(part) as string} ${unit}`}</span>
           </li>
         ))}
       </ul>

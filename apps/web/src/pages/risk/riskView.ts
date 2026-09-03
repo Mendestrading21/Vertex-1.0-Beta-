@@ -52,11 +52,15 @@ export interface RiskView {
   readonly refusalReason: string | null;
   readonly synchronicityWarning: string | null;
   readonly instruments: ReadonlyArray<{ readonly ticker: string; readonly label: string }>;
-  readonly matrix: ReadonlyArray<readonly string[]>;
-  readonly bands: ReadonlyArray<readonly string[]>;
+  /** Cellule NON servie ou illisible = `null`, jamais `''` : une chaîne vide
+   *  se lit comme une absence là où la donnée est cassée. */
+  readonly matrix: ReadonlyArray<ReadonlyArray<string | null>>;
+  readonly bands: ReadonlyArray<ReadonlyArray<string | null>>;
+  /** `null` = aucun bloc `extremes` publié. Une paire servie SEULE est
+   *  conservée : l'absence de l'autre ne l'efface pas. */
   readonly extremes: {
-    readonly mostCorrelated: RiskExtremePair;
-    readonly mostOpposed: RiskExtremePair;
+    readonly mostCorrelated: RiskExtremePair | null;
+    readonly mostOpposed: RiskExtremePair | null;
   } | null;
   readonly coverage: {
     readonly perimeter: readonly string[];
@@ -65,18 +69,27 @@ export interface RiskView {
     readonly retained: number;
     readonly commonDays: number;
     readonly minimumDays: number;
-    readonly moderateThreshold: string;
-    readonly strongThreshold: string;
+    /** Seuils PUBLIÉS. `null` = non publié — la page le dit, aucun tiret. */
+    readonly moderateThreshold: string | null;
+    readonly strongThreshold: string | null;
     readonly window: string | null;
     readonly observationsConsidered: number | null;
     readonly lookbackSeconds: number | null;
-    readonly tradingDaysPerInstrument: ReadonlyArray<{ readonly ticker: string; readonly days: number }>;
-    readonly alignmentLoss: ReadonlyArray<{ readonly ticker: string; readonly lost: number }>;
+    /** `days`/`lost` à `null` = compte NON publié pour cet instrument. Ces
+     *  deux mappings ne sont PAS validés par le relais (`vertex_api/risk.py`) :
+     *  un repli à 0 y transformerait un contrat rompu en fait mesuré. */
+    readonly tradingDaysPerInstrument: ReadonlyArray<{ readonly ticker: string; readonly days: number | null }>;
+    /** TOUTES les entrées servies, y compris une perte NULLE : « n'a rien
+     *  perdu » est un fait publié, distinct de « n'est pas dans la matrice ». */
+    readonly alignmentLoss: ReadonlyArray<{ readonly ticker: string; readonly lost: number | null }>;
     readonly discarded: ReadonlyArray<{
       readonly instrument: string;
       readonly reason: string;
     }>;
+    /** Entrées RENDABLES. Le compte servi vit à côté : rendre moins que ce
+     *  que le serveur a rejeté sous-déclarerait ses refus. */
     readonly rejectedRecords: readonly string[];
+    readonly rejectedServedCount: number;
   };
 }
 
@@ -96,13 +109,17 @@ function stringListOf(value: unknown): readonly string[] {
   return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string') : [];
 }
 
-function stringGridOf(value: unknown): ReadonlyArray<readonly string[]> {
+/**
+ * Grille de chaînes SERVIES. Une cellule qui n'est pas une chaîne non vide —
+ * absente, nulle, ou publiée dans une autre forme — devient `null` et non
+ * `''` : la page rend alors « non publié » au lieu d'une case vide que l'œil
+ * lit comme une absence normale.
+ */
+function stringGridOf(value: unknown): ReadonlyArray<ReadonlyArray<string | null>> {
   if (!Array.isArray(value)) {
     return [];
   }
-  return value.map((row) =>
-    Array.isArray(row) ? row.map((cell) => (typeof cell === 'string' ? cell : '')) : [],
-  );
+  return value.map((row) => (Array.isArray(row) ? row.map((cell) => stringOf(cell)) : []));
 }
 
 function pairOf(value: unknown): RiskExtremePair | null {
@@ -179,8 +196,10 @@ export function riskViewOf(response: RiskMatrixResponse): RiskView {
       : [],
     matrix: stringGridOf(content.matrix),
     bands: stringGridOf(content.matrix_bands),
-    extremes:
-      mostCorrelated !== null && mostOpposed !== null ? { mostCorrelated, mostOpposed } : null,
+    // Le bloc existe dès que le serveur le publie ; chaque paire y vaut
+    // `null` si elle n'est pas servie. Exiger les DEUX effaçait une paire
+    // pourtant publiée (`_checked_pair` accepte une paire nulle).
+    extremes: extremes === null ? null : { mostCorrelated, mostOpposed },
     coverage: {
       perimeter: stringListOf(coverage.perimeter),
       retainedTickers: stringListOf(coverage.retained),
@@ -188,22 +207,23 @@ export function riskViewOf(response: RiskMatrixResponse): RiskView {
       retained: numberOf(coverage.retained_count),
       commonDays: numberOf(coverage.common_trading_days),
       minimumDays: numberOf(coverage.minimum_common_days),
-      moderateThreshold: stringOf(coverage.moderate_threshold) ?? '—',
-      strongThreshold: stringOf(coverage.strong_threshold) ?? '—',
+      moderateThreshold: stringOf(coverage.moderate_threshold),
+      strongThreshold: stringOf(coverage.strong_threshold),
       window: windowStart !== null && windowEnd !== null ? `${windowStart} → ${windowEnd}` : null,
       observationsConsidered: optionalNumberOf(coverage.observations_considered),
       lookbackSeconds: optionalNumberOf(coverage.lookback_seconds),
       // Ordre alphabétique : un compte par instrument, stable d'un rendu à l'autre.
       tradingDaysPerInstrument: Object.entries(perInstrument)
-        .map(([ticker, value]) => ({ ticker, days: numberOf(value) }))
+        .map(([ticker, value]) => ({ ticker, days: optionalNumberOf(value) }))
         .sort((a, b) => a.ticker.localeCompare(b.ticker)),
       // Trié par perte DÉCROISSANTE : ce qui coûte le plus se lit d'abord.
       // À perte égale, l'ordre alphabétique garde l'affichage stable d'un
       // rendu à l'autre.
       alignmentLoss: Object.entries(lost)
-        .map(([ticker, value]) => ({ ticker, lost: numberOf(value) }))
-        .filter((entry) => entry.lost > 0)
-        .sort((a, b) => b.lost - a.lost || a.ticker.localeCompare(b.ticker)),
+        .map(([ticker, value]) => ({ ticker, lost: optionalNumberOf(value) }))
+        // Aucune entrée n'est filtrée : une perte nulle SERVIE est un fait.
+        // Les comptes non publiés passent en fin, après les pertes connues.
+        .sort((a, b) => (b.lost ?? -1) - (a.lost ?? -1) || a.ticker.localeCompare(b.ticker)),
       discarded: discarded.map((entry) => {
         const record = (entry ?? {}) as Record<string, unknown>;
         const reason = stringOf(record.reason) ?? '';
@@ -213,6 +233,45 @@ export function riskViewOf(response: RiskMatrixResponse): RiskView {
         };
       }),
       rejectedRecords: rejected.map(rejectedRecordOf).filter((entry): entry is string => entry !== null),
+      rejectedServedCount: rejected.length,
     },
   };
+}
+
+/**
+ * Libellés français des bandes SERVIES (`matrix_bands`), pour la légende et
+ * les infobulles. Les clés sont les noms publiés par le worker, avec leurs
+ * soulignés : aucune traduction de clé, aucune normalisation.
+ */
+export const BAND_LABELS: Readonly<Record<string, string>> = {
+  self: 'Le même actif',
+  strong_positive: 'Fortement liés, même sens',
+  moderate_positive: 'Modérément liés, même sens',
+  weak: 'Peu liés',
+  moderate_negative: 'Modérément liés, sens contraire',
+  strong_negative: 'Fortement liés, sens contraire',
+  unknown: 'Bande non publiée par le serveur',
+};
+
+/**
+ * Lignes de la matrice, pour l'inspecteur d'un instrument.
+ *
+ * LOT P4 : une bande absente vaut `null` et NON `'weak'`. Le repli précédent
+ * affirmait « peu liés » sur une case dont le serveur n'avait rien publié —
+ * un faux rassurant, exactement ce que l'article « absence ≠ valeur »
+ * interdit. Le coefficient suit la même règle.
+ */
+export function correlationRowsOf(view: RiskView): ReadonlyArray<{
+  readonly ticker: string;
+  readonly label: string;
+  readonly cells: ReadonlyArray<{ readonly value: string | null; readonly band: string | null }>;
+}> {
+  return view.instruments.map((instrument, index) => ({
+    ticker: instrument.ticker,
+    label: instrument.label,
+    cells: view.instruments.map((_, column) => ({
+      value: view.matrix[index]?.[column] ?? null,
+      band: view.bands[index]?.[column] ?? null,
+    })),
+  }));
 }

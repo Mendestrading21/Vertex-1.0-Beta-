@@ -196,4 +196,22 @@ describe('Widget — surbrillance d’une valeur mise à jour', () => {
     expect(spy).not.toHaveBeenCalled();
     spy.mockRestore();
   });
+
+  it('sans provenance passée, AUCUNE ligne de méta n’est écrite', () => {
+    /**
+     * Un module de soutien partage la source de la dominante, déjà datée au
+     * même écran. Rendre sa méta y écrivait « âge non publié · instantané non
+     * daté · version non publiée · NATURE NON DÉCLARÉE » — quatre absences
+     * pour une provenance que personne n'avait demandée, et le bruit
+     * l'emportait sur la donnée dans une carte d'une colonne.
+     */
+    const { container } = render(
+      <Widget id="m" size="S" title="Sans provenance" state="ready">
+        <p>contenu servi</p>
+      </Widget>,
+    );
+    expect(container.querySelector('.vx-w2-meta')).toBeNull();
+    expect(container.textContent).not.toContain('non publié');
+    expect(container.textContent).toContain('contenu servi');
+  });
 });

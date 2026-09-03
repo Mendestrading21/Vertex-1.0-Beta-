@@ -7968,48 +7968,6 @@ label {
 
 /* La matrice tient sur UNE rangée avec les paires extrêmes à sa droite :
    sur deux rangées, la dominante se vidait sous sa légende (capture 1280). */
-.vx-risk-grid {
-  grid-template-areas:
-    'score var drawdown benchrel'
-    'vol concentration liquidity turnover'
-    'correlations correlations correlations extremes'
-    'stress factors budget radar'
-    'coverage alignment discards register'
-    'coverage alerts discards register';
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
-.vx-risk-grid > [data-module='risk-score'] { grid-area: score; }
-.vx-risk-grid > [data-module='var-cvar'] { grid-area: var; }
-.vx-risk-grid > [data-module='max-drawdown'] { grid-area: drawdown; }
-.vx-risk-grid > [data-module='benchmark-relative'] { grid-area: benchrel; }
-.vx-risk-grid > [data-module='volatility'] { grid-area: vol; }
-.vx-risk-grid > [data-module='concentration'] { grid-area: concentration; }
-.vx-risk-grid > [data-module='liquidity'] { grid-area: liquidity; }
-.vx-risk-grid > [data-module='correlations'] { grid-area: correlations; }
-.vx-risk-grid > [data-module='turnover'] { grid-area: turnover; }
-.vx-risk-grid > [data-module='extremes'] { grid-area: extremes; }
-.vx-risk-grid > [data-module='stress-loss'] { grid-area: stress; }
-.vx-risk-grid > [data-module='factor-exposures'] { grid-area: factors; }
-.vx-risk-grid > [data-module='risk-budget'] { grid-area: budget; }
-.vx-risk-grid > [data-module='radar'] { grid-area: radar; }
-.vx-risk-grid > [data-module='coverage'] { grid-area: coverage; }
-.vx-risk-grid > [data-module='alignment'] { grid-area: alignment; }
-.vx-risk-grid > [data-module='discards'] { grid-area: discards; }
-.vx-risk-grid > [data-module='risk-register'] { grid-area: register; }
-.vx-risk-grid > [data-module='alert-log'] { grid-area: alerts; }
-
-@media (min-width: 1600px) {
-  .vx-risk-grid {
-    grid-template-areas:
-      'score var drawdown benchrel vol'
-      'concentration liquidity turnover stress factors'
-      'correlations correlations correlations correlations extremes'
-      'budget radar alerts alignment discards'
-      'coverage coverage register register register';
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-  }
-}
 
 .vx-risk-grid .vx-risk-extremes,
 .vx-risk-grid .vx-risk-coverage {

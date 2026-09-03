@@ -480,8 +480,11 @@
    -------------------------------------------------------------------------- */
 .vx-w2-shares {
   display: flex;
+  gap: 1px;
   width: 100%;
-  height: var(--vx-space-12);
+  /* Une bande de 12 px ne laissait ni voir ses parts ni distinguer ses
+     motifs : la comparaison, qui est tout l'objet de la forme, se perdait. */
+  height: var(--vx-space-20);
   border-radius: var(--vx-radius-6);
   overflow: hidden;
   background-color: var(--vx-titanium-soft);
@@ -514,7 +517,8 @@
 
 .vx-w2-shares-legend {
   display: grid;
-  gap: var(--vx-space-4);
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--vx-space-4) var(--vx-space-12);
   margin: var(--vx-space-8) 0 0;
   padding: 0;
   list-style: none;
@@ -536,10 +540,41 @@
 .vx-w2-daybar {
   display: flex;
   flex: 1 1 0;
-  align-items: flex-end;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--vx-space-4);
+  min-width: 0;
   height: 100%;
+}
+
+/* Le rail garde la hauteur : la barre se lit par comparaison, pas seule. */
+.vx-w2-daybar-track {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: flex-end;
+  min-height: 24px;
   border-radius: var(--vx-radius-6);
   background-color: var(--vx-titanium-soft);
+}
+
+.vx-w2-daybar-value,
+.vx-w2-daybar-label {
+  overflow: hidden;
+  color: var(--vx-text-secondary);
+  font-size: var(--vx-font-size-meta);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vx-w2-daybar-label {
+  color: var(--vx-text-muted);
+}
+
+.vx-w2-daybar[data-absent='true'] .vx-w2-daybar-value {
+  color: var(--vx-text-muted);
+  font-style: italic;
 }
 
 .vx-w2-daybar-fill {
@@ -906,4 +941,80 @@
   margin: 0;
   color: var(--vx-text-muted);
   font-size: var(--vx-font-size-meta);
+}
+
+/* ===========================================================================
+   LOT P4 — PLACEMENT DES PLANCHES SUR AIRES NOMMÉES
+   ---------------------------------------------------------------------------
+   POURQUOI CE BLOC VIT ICI ET NON DANS `global.css`. Le socle pose un span par
+   taille (`.vx-w2[data-size='M'] { grid-column: span 2 }`) : c'est la
+   composition PAR DÉFAUT, quand une planche n'a pas d'aires nommées. Une page
+   qui déclare ses aires les place elle-même, et ses règles doivent donc
+   arriver APRÈS les spans — à spécificité égale, le dernier déclaré gagne.
+   Déclarées dans `global.css` (importé avant cette feuille), les aires étaient
+   silencieusement écrasées : chaque module retombait sur son span, la planche
+   Risques s'empilait sur 7 723 px de haut à 1280 et les modules d'une seule
+   colonne devenaient invisibles. Une seule vérité, au bon endroit.
+   =========================================================================== */
+
+.vx-risk-grid {
+  /* LOT P4 — hiérarchie de lecture : les mesures SERVIES d'abord, la
+     dominante haute et centrale avec ses deux compagnons de droite, les
+     absences déclarées regroupées en bas. Le drawdown occupe deux colonnes
+     pour porter sa courbe ; la concentration en porte sa bande de parts. */
+  grid-template-areas:
+    'drawdown drawdown concentration concentration'
+    'correlations correlations correlations extremes'
+    'coverage coverage alignment alignment'
+    'discards discards register alerts'
+    'score var benchrel vol'
+    'liquidity turnover stress factors'
+    'budget budget radar radar';
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.vx-risk-grid > [data-module='risk-score'] { grid-area: score; }
+.vx-risk-grid > [data-module='var-cvar'] { grid-area: var; }
+.vx-risk-grid > [data-module='max-drawdown'] { grid-area: drawdown; }
+.vx-risk-grid > [data-module='benchmark-relative'] { grid-area: benchrel; }
+.vx-risk-grid > [data-module='volatility'] { grid-area: vol; }
+.vx-risk-grid > [data-module='concentration'] { grid-area: concentration; }
+.vx-risk-grid > [data-module='liquidity'] { grid-area: liquidity; }
+.vx-risk-grid > [data-module='correlations'] { grid-area: correlations; }
+.vx-risk-grid > [data-module='turnover'] { grid-area: turnover; }
+.vx-risk-grid > [data-module='extremes'] { grid-area: extremes; }
+.vx-risk-grid > [data-module='stress-loss'] { grid-area: stress; }
+.vx-risk-grid > [data-module='factor-exposures'] { grid-area: factors; }
+.vx-risk-grid > [data-module='risk-budget'] { grid-area: budget; }
+.vx-risk-grid > [data-module='radar'] { grid-area: radar; }
+.vx-risk-grid > [data-module='coverage'] { grid-area: coverage; }
+.vx-risk-grid > [data-module='alignment'] { grid-area: alignment; }
+.vx-risk-grid > [data-module='discards'] { grid-area: discards; }
+.vx-risk-grid > [data-module='risk-register'] { grid-area: register; }
+.vx-risk-grid > [data-module='alert-log'] { grid-area: alerts; }
+
+@media (min-width: 1600px) {
+  .vx-risk-grid {
+    grid-template-areas:
+      'drawdown drawdown concentration concentration extremes'
+      'correlations correlations correlations coverage coverage'
+      'alignment alignment discards register alerts'
+      'score var benchrel vol liquidity'
+      'turnover stress factors budget radar';
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+/* La chaîne du Herfindahl fait jusqu'à 28 décimales : affichée au corps des
+   métriques, elle occupait deux lignes en très grand et écrasait la bande de
+   parts, qui est la comparaison cherchée. Rien n'est tronqué ni arrondi — la
+   valeur entière reste lisible, à la taille du texte courant. */
+.vx-risk-concentration-block .vx-metric-value {
+  font-size: var(--vx-font-size-body);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.vx-risk-concentration-block + .vx-risk-concentration-block {
+  margin-top: var(--vx-space-16);
 }

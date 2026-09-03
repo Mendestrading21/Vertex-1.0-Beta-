@@ -90,3 +90,50 @@ describe('SharesBand — parts servies en bande', () => {
     expect(container.textContent).toContain('Herfindahl servi : 0.3140');
   });
 });
+
+describe('SharesBand — parts servies en RATIO (lot P4)', () => {
+  /**
+   * POURQUOI CETTE FORME EXISTE. `portfolio.concentration.weights` publie des
+   * RATIOS rendus (`0.4295692665890570437233410943`), pas des pourcentages.
+   * Passés dans `pct`, ils dessineraient une bande de 0,43 % de large : cent
+   * fois trop fine, donc fausse. Le plan directeur laissait le choix entre
+   * publier un `weight_pct` côté serveur et poser la géométrie sur le ratio
+   * servi avec un identifiant qui le DIT ; ce lot tranche pour la seconde,
+   * sans rien demander au serveur et sans jamais écrire un nombre dérivé.
+   */
+  it('la largeur vient du ratio servi, la légende garde la chaîne verbatim', () => {
+    const { container } = render(
+      <SharesBand
+        parts={[
+          { key: 'AAA', label: 'AAA', ratio: '0.4295692665890570437233410943' },
+          { key: 'BBB', label: 'BBB', ratio: '0.25' },
+        ]}
+        unit="du registre"
+        ariaLabel="Poids servis"
+      />,
+    );
+    const parts = container.querySelectorAll('.vx-w2-share');
+    expect(parts).toHaveLength(2);
+    // Géométrie : le ratio devient une largeur. Aucune valeur n'est écrite.
+    expect((parts[0] as HTMLElement).style.width.startsWith('42.95')).toBe(true);
+    expect((parts[1] as HTMLElement).style.width).toBe('25%');
+    // Légende : la chaîne SERVIE, entière, jamais arrondie ni convertie.
+    expect(container.textContent).toContain('0.4295692665890570437233410943');
+    expect(container.textContent).not.toContain('42.95 du registre');
+  });
+
+  it('un ratio non publié sort de la bande et se lit « non publié »', () => {
+    const { container } = render(
+      <SharesBand
+        parts={[
+          { key: 'AAA', label: 'AAA', ratio: '0.60' },
+          { key: 'BBB', label: 'BBB', ratio: null },
+        ]}
+        unit="du registre"
+        ariaLabel="Poids servis"
+      />,
+    );
+    expect(container.querySelectorAll('.vx-w2-share')).toHaveLength(1);
+    expect(container.textContent).toContain('non publié');
+  });
+});
