@@ -26,9 +26,15 @@ focus instrument present in the recent bars window:
   ``CalculationRecord`` lineage AND, under ``series`` (LOT S3), its rolling
   series — one rendered value per served session with a complete window,
   same engine, same method, same status vocabulary, own lineage. A window
-  the engine refuses refuses the whole series with its reason: never a hole,
-  never an invented point; too little history is a NAMED absence
-  (``INSUFFICIENT_SAMPLE``) with the real bar count;
+  the engine refuses refuses the whole series with its reason: never a
+  hole, never an invented point. A session served twice (or out of order)
+  is refused by the builder's own strict-order gate (``unordered_bars``,
+  the same code as the ATR engine's gate) wherever the engine only sees
+  returns: the series crossing it, the volatility point whose window
+  crosses it, and the whole relative-strength block, whose calendar
+  alignment consumes every bar of both sides — a source error is never a
+  value; too little history is a NAMED absence (``INSUFFICIENT_SAMPLE``)
+  with the real bar count;
 - a short evidence rail: the ticker's content clusters from the single
   deterministic fusion engine (``vertex_core.fusion.fuse``) — dedup only,
   no invented relevance;
@@ -271,6 +277,12 @@ REASON_IS_BENCHMARK = "INSTRUMENT_IS_BENCHMARK"
 #: valeur rendue par seance servie disposant d'une fenetre COMPLETE, meme
 #: statut, meme methode et meme forme de lignee que la valeur ponctuelle.
 INDICATOR_SERIES_KEY = "series"
+
+#: Raison publiee quand une seance servie ne suit pas STRICTEMENT la
+#: precedente (seance servie deux fois ou hors ordre). Meme code que la porte
+#: `ordered_complete_bars` du moteur `market.atr` : une porte, une verite,
+#: quel que soit l'indicateur qui la franchit.
+REASON_UNORDERED_BARS = "unordered_bars"
 
 #: Empreinte de code des calculs `market.*`, commune a la valeur ponctuelle
 #: et a la serie glissante d'un meme indicateur.
@@ -530,15 +542,43 @@ def _rendements_simples(clotures: Sequence[Decimal]) -> list[float]:
 def _seance_hors_ordre(bars: Sequence[Mapping[str, Any]]) -> str | None:
     """Premiere seance qui ne suit pas STRICTEMENT la precedente, ou `None`.
 
-    Ne decide rien : c'est le moteur (`market.atr`, porte
-    `ordered_complete_bars`) qui refuse une fenetre desordonnee. Ce releve
-    sert uniquement a NOMMER la seance en defaut dans le refus publie, la ou
-    le moteur ne connait que la position dans la fenetre qu'il a recue.
+    Une seance servie deux fois n'est pas une seance de plus : entre ses deux
+    barres, un « rendement quotidien » n'existe pas. Le moteur `market.atr`
+    porte cette porte lui-meme (`ordered_complete_bars`) et ce releve ne sert
+    qu'a NOMMER la seance en defaut dans son refus, la ou le moteur ne
+    connait que la position dans la fenetre recue. Les moteurs
+    `market.realized_volatility` et `market.relative_strength` ne voient que
+    des rendements et ne connaissent pas les seances : la porte est alors
+    celle du constructeur, par `_refus_ordre_strict`, et refuse exactement
+    ce que la porte de l'ATR refuserait.
     """
     for precedente, courante in pairwise(bars):
         if courante["trading_day"] <= precedente["trading_day"]:
             return str(courante["trading_day"])
     return None
+
+
+def _refus_ordre_strict(bars: Sequence[Mapping[str, Any]]) -> dict[str, str] | None:
+    """Champs du refus `unordered_bars` — raison, detail, seance en defaut —
+    ou `None` quand chaque seance suit strictement la precedente.
+
+    UNE seule fonction pour la volatilite (valeur ponctuelle et serie) et la
+    force relative (bloc entier) : la meme charge produit le meme refus,
+    jamais deux vocabulaires. Ce qui traverse la seance en defaut est refuse
+    en entier, jamais troue : sauter la seance choisirait en silence laquelle
+    des deux barres est la vraie, et choisir serait inventer.
+    """
+    en_defaut = _seance_hors_ordre(bars)
+    if en_defaut is None:
+        return None
+    return {
+        "reason": REASON_UNORDERED_BARS,
+        "detail": (
+            f"la séance {en_defaut} ne suit pas strictement la précédente "
+            "(séance servie deux fois ou hors ordre)"
+        ),
+        "trading_day": en_defaut,
+    }
 
 
 def _serie_volatilite(
@@ -556,6 +596,14 @@ def _serie_volatilite(
     la valeur ponctuelle. Une fenetre refusee par le moteur refuse la serie
     ENTIERE avec sa raison et la seance concernee : jamais un trou, jamais
     une valeur inventee a cet endroit.
+
+    Le moteur ne voit que des rendements : entre les deux barres d'une seance
+    servie deux fois, il calculerait un « rendement quotidien » qui n'existe
+    pas et le publierait sous la methode des rendements quotidiens. La porte
+    d'ordre strict est donc celle du constructeur (`_refus_ordre_strict`),
+    sur TOUTES les barres servies, et refuse la serie entiere avec la seance
+    en defaut — la meme porte que celle que le moteur de l'ATR applique a
+    `_serie_atr`.
     """
     clotures = [Decimal(bar["close"]) for bar in valid_bars]
     if len(clotures) < VOLATILITY_WINDOW + 1:
@@ -567,6 +615,14 @@ def _serie_volatilite(
                 f"{VOLATILITY_WINDOW + 1} clôtures requises pour la première fenêtre ; "
                 f"{len(clotures)} disponibles"
             ),
+        }
+    refus_ordre = _refus_ordre_strict(valid_bars)
+    if refus_ordre is not None:
+        return {
+            "status": "REFUSED",
+            "window": VOLATILITY_WINDOW,
+            "available_bars": len(clotures),
+            **refus_ordre,
         }
     rendements = _rendements_simples(clotures)
     debut = now
@@ -729,12 +785,20 @@ def _build_indicators(
     INDEPENDAMMENT de la valeur ponctuelle par le meme moteur : chacune dit
     son propre statut, et le dernier point d'une serie OK est la valeur
     ponctuelle.
+
+    Une seance servie deux fois refuse ce qui la traverse, et seulement cela :
+    la valeur ponctuelle de volatilite si elle tombe dans ses
+    `VOLATILITY_WINDOW + 1` dernieres barres (porte du constructeur, le
+    moteur ne voyant que des rendements), la valeur ponctuelle d'ATR si elle
+    tombe dans ses `ATR_LOOKBACK + 1` dernieres (porte du moteur), et chaque
+    serie, qui traverse tout l'historique servi.
     """
     indicateurs: dict[str, Any] = {}
     evenements = (source_event_id,) if source_event_id else ()
 
     # -- volatilite realisee annualisee -------------------------------------
     cloture_series = [Decimal(bar["close"]) for bar in valid_bars]
+    refus_ordre = _refus_ordre_strict(list(valid_bars)[-(VOLATILITY_WINDOW + 1) :])
     if len(cloture_series) < VOLATILITY_WINDOW + 1:
         indicateurs["realized_volatility"] = {
             "status": REASON_INSUFFICIENT_SAMPLE,
@@ -744,6 +808,14 @@ def _build_indicators(
                 f"{VOLATILITY_WINDOW + 1} clotures requises pour "
                 f"{VOLATILITY_WINDOW} rendements ; {len(cloture_series)} disponibles"
             ),
+        }
+    elif refus_ordre is not None:
+        # Les barres que cette valeur consomme contiennent une seance servie
+        # deux fois : le moteur y verrait un rendement qui n'existe pas.
+        indicateurs["realized_volatility"] = {
+            "status": "REFUSED",
+            "window": VOLATILITY_WINDOW,
+            **refus_ordre,
         }
     else:
         rendements = _rendements_simples(cloture_series[-(VOLATILITY_WINDOW + 1) :])
@@ -880,6 +952,13 @@ def _relative_strength_block(
     sur le calendrier intersecte. Une absence nommee du point (pas d'indice
     declare, indice non observe, instrument compare a lui-meme, trop peu de
     seances communes) est CELLE de la serie : meme statut, aucun point.
+
+    Porte d'ordre strict AVANT l'alignement : `{trading_day: close}`
+    dedoublonnerait en silence une seance servie deux fois (derniere barre
+    gagne, dans l'ordre de la charge). L'intersection consomme TOUTES les
+    barres des deux cotes, donc une seance en defaut d'un cote ou de l'autre
+    refuse le bloc ENTIER — point et serie — avec `unordered_bars`, la
+    seance et le ticker en defaut. Choisir une barre serait inventer.
     """
     if benchmark is None:
         return _avec_serie_absente(
@@ -901,6 +980,21 @@ def _relative_strength_block(
                 "detail": f"aucune barre observée pour {benchmark}",
             }
         )
+
+    # Porte d'ordre strict des deux cotes, AVANT que `{trading_day: close}`
+    # ne puisse dedoublonner quoi que ce soit.
+    for ticker, barres_du_cote in ((instrument, valid_bars), (benchmark, benchmark_bars)):
+        refus_ordre = _refus_ordre_strict(barres_du_cote)
+        if refus_ordre is not None:
+            return _avec_serie_absente(
+                {
+                    "status": "REFUSED",
+                    "benchmark": benchmark,
+                    "horizon": RELATIVE_STRENGTH_HORIZON,
+                    "ticker": ticker,
+                    **refus_ordre,
+                }
+            )
 
     # Intersection des jours de bourse : alignement, jamais troncature.
     par_jour_actif = {bar["trading_day"]: Decimal(bar["close"]) for bar in valid_bars}
@@ -976,9 +1070,10 @@ def _relative_strength_block(
 
 
 def _avec_serie_absente(bloc: dict[str, Any]) -> dict[str, Any]:
-    """Une absence nommee du point est celle de sa serie : meme statut, meme
-    raison, meme compte — et aucun point. Publier `points: []` dirait « zero
-    seance » la ou la verite est « rien n'a ete calcule »."""
+    """Une absence nommee — ou un refus — du point est celle de sa serie :
+    meme statut, meme raison, meme compte — et aucun point. Publier
+    `points: []` dirait « zero seance » la ou la verite est « rien n'a ete
+    calcule »."""
     return {**bloc, INDICATOR_SERIES_KEY: dict(bloc)}
 
 
