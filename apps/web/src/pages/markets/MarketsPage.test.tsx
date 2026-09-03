@@ -227,7 +227,11 @@ describe('Page Marchés — état nominal', () => {
     expect(meters).toHaveLength(2);
     expect(screen.getByText('50,0 %')).toBeDefined();
     expect(screen.getByText('100,0 % (seuil 80,0 %)')).toBeDefined();
-    expect(screen.getByText('2 en hausse sur 4 couverts (univers 4)')).toBeDefined();
+    // Les trois comptes servis (hausses, baisses, inchangés) sont relayés
+    // avec le total couvert : aucun compte n'est déduit des deux autres.
+    expect(
+      screen.getByText('2 en hausse, 1 en baisse, 1 stables sur 4 couverts (univers 4)'),
+    ).toBeDefined();
 
     // Pied : méthode, version moteur et limites — dans la PAGE (l'inspecteur
     // du shell relaie aussi la version du moteur depuis le LOT-A3).
@@ -459,6 +463,10 @@ describe('Page Marchés — états dégradés et vides', () => {
     await screen.findByText('Breadth non calculable');
     expect(screen.getByText(/coverage_below_threshold/)).toBeDefined();
     expect(screen.queryByRole('meter')).toBeNull();
+    // Les comptes restent des faits publiés, même sans ratio.
+    expect(
+      screen.getByText('2 en hausse, 1 en baisse, 1 stables sur 4 couverts (univers 4)'),
+    ).toBeDefined();
   });
 
   it('loading au premier chargement (aucun résultat affiché)', async () => {
