@@ -1,0 +1,124 @@
+import { geometryShare, geometryValue, round2 } from './geometry.ts';
+
+/**
+ * Barres par jour, SUR RAIL — comptes ou valeurs SERVIS.
+ *
+ * LE RAIL (référence 25, admis par ADR-017) est la piste neutre qui rend la
+ * proportion lisible ; il ne porte aucune valeur. La barre remplie est la part
+ * du plus grand compte SERVI — la même géométrie que `CensusBars`, et comme
+ * elle, AUCUN pourcentage n'est écrit : il n'est pas publié, et l'écrire
+ * serait le calculer.
+ *
+ * ABSENCE ≠ ZÉRO. Une entrée sans valeur servie n'a PAS de barre : elle porte
+ * `data-absent` et sa cellule de table dit « non publié ». Une barre de
+ * hauteur zéro affirmerait un compte nul qui n'a pas été publié.
+ *
+ * BANDES. Le mapping bande → teinte est DÉCLARÉ par le widget appelant
+ * (`bands`). Vert et rouge ne sont admis que si la bande EST un signe
+ * financier (revue adverse du canon, point B4) ; sinon l'échelle reste
+ * titane / macro / signal. Une bande hors mapping devient `unknown`, VISIBLE.
+ */
+export interface DayBarEntry {
+  readonly key: string;
+  readonly label: string;
+  /** Valeur SERVIE (compte ou chaîne décimale). `null` = non publiée. */
+  readonly value: string | null;
+  /** Nom de bande SERVI. */
+  readonly band?: string;
+}
+
+export interface DayBarsProps {
+  readonly entries: readonly DayBarEntry[];
+  readonly unit: string;
+  readonly ariaLabel: string;
+  /** Jour courant SERVI (jamais l'horloge du navigateur). */
+  readonly currentKey?: string;
+  /** Mapping DÉCLARÉ bande servie → teinte du widget. */
+  readonly bands?: Readonly<Record<string, string>>;
+  readonly emptyLabel?: string;
+}
+
+export function DayBars({
+  entries,
+  unit,
+  ariaLabel,
+  currentKey,
+  bands,
+  emptyLabel,
+}: DayBarsProps) {
+  // Les valeurs NULLES sont écartées AVANT la géométrie : sans ce filtre, une
+  // absence entrerait dans le maximum et deviendrait une barre nulle.
+  const values = entries
+    .map((entry) => geometryValue(entry.value))
+    .filter((value): value is number => value !== null);
+  const max = values.length === 0 ? 0 : Math.max(...values);
+
+  if (entries.length === 0 || values.length === 0) {
+    return (
+      <p className="vx-w2-absent" role="status">
+        {emptyLabel ?? `Aucune valeur publiée (${unit}) : aucune barre tracée.`}
+      </p>
+    );
+  }
+
+  function bandOf(entry: DayBarEntry): string {
+    const served = entry.band;
+    if (served === undefined || served === '') {
+      return 'unknown';
+    }
+    if (bands === undefined) {
+      return served;
+    }
+    return bands[served] ?? 'unknown';
+  }
+
+  return (
+    <div className="vx-w2-daybars-block">
+      <div className="vx-w2-daybars" aria-label={ariaLabel} role="img">
+        {entries.map((entry) => {
+          const value = geometryValue(entry.value);
+          const band = bandOf(entry);
+          return (
+            <span
+              key={entry.key}
+              className="vx-w2-daybar"
+              data-band={band}
+              {...(value === null ? { 'data-absent': 'true' } : {})}
+              {...(currentKey !== undefined && entry.key === currentKey
+                ? { 'aria-current': 'true' }
+                : {})}
+            >
+              {value === null ? null : (
+                <span
+                  className="vx-w2-daybar-fill"
+                  style={{ height: `${round2(geometryShare(value, max) * 100)}%` }}
+                />
+              )}
+            </span>
+          );
+        })}
+      </div>
+      <details>
+        <summary>Table équivalente</summary>
+        <table className="vx-w2-figure-table">
+          <thead>
+            <tr>
+              <th scope="col">Jour servi</th>
+              <th scope="col">Valeur servie ({unit})</th>
+              <th scope="col">Bande servie</th>
+            </tr>
+          </thead>
+          <tbody>
+            {entries.map((entry) => (
+              <tr key={entry.key}>
+                <th scope="row">{entry.label}</th>
+                <td>{entry.value === null ? 'non publié' : entry.value}</td>
+                <td>{entry.band === undefined || entry.band === '' ? 'non publié' : entry.band}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </details>
+    </div>
+  );
+}
