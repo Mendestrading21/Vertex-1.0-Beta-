@@ -355,6 +355,49 @@ calculations:
     criticality: high
     tests:
       - packages/python/vertex_core/tests/calculations/test_market_sma.py
+  - id: market.ema
+    owner: indicators
+    inputs: [prices, window]
+    output_unit: price
+    gates: [valid_window, minimum_sample, positive_prices]
+    invariants: [finite, convex_combination_of_seen_prices, one_point_per_complete_window]
+    runtime_status: APPROVED
+    spec_version: "1.0.0"
+    implementation: packages/python/vertex_core/src/vertex_core/calculations/market.py::exponential_moving_average
+    method: exponential_smoothing_alpha_2_over_window_plus_1_seeded_by_arithmetic_mean
+    assumptions:
+      - "Seed EMA_window = arithmetic mean (math.fsum) of the first window prices; then EMA_t = alpha * p_t + (1 - alpha) * EMA_{t-1} with alpha = 2 / (window + 1). The seed convention is DECLARED here: a library seeding on the first price alone publishes different values for the same window."
+      - "One value per complete window aligned on the last price: len(result) == len(prices) - window + 1; a shorter series is INVALID (minimum_sample), never seeded on what is available."
+      - "int/float/Decimal inputs converted explicitly to float64, bool rejected; every price finite and strictly positive."
+      - "Output in the price unit of the inputs; adjustment basis, currency and calendar alignment stay with the caller."
+    parameter_schema:
+      prices: {type: "list | tuple of (int | float | Decimal)", unit: price, constraint: "length >= window, each finite and > 0"}
+      window: {type: int, unit: bars, constraint: ">= 1, bool rejected"}
+      returns: {type: "tuple[float, ...]", unit: price, note: "length == len(prices) - window + 1"}
+    tolerances:
+      float64_rel_tol: 1.0e-9
+      window_range_rel_tol: 1.0e-12
+      note: >-
+        The scipy.signal.lfilter oracle is asserted with rtol=FLOAT64_REL_TOL
+        and atol=0 for windows 1, 2, 5, 12, 26 and 39. The convex-combination
+        property (each point within [min, max] of the prices seen so far) is
+        asserted with a 1e-12 relative margin. window == 1 (alpha == 1)
+        returns the prices themselves EXACTLY, asserted without tolerance.
+    oracle: scipy_lfilter_independent_implementation_in_test
+    oracle_evidence: >-
+      TestOracleScipy.test_oracle_lfilter solves the same first-order IIR
+      recurrence with scipy.signal.lfilter (b = [alpha], a = [1, -(1 - alpha)])
+      whose initial state is set by scipy.signal.lfiltic from the arithmetic
+      seed — an independent solver written in the test; TestExponentialMovingAverage
+      asserts the hand-derived vector 1..5 with window 3 -> (2, 3, 4)
+      (seed 2, alpha 0.5).
+    oracle_limitation: >-
+      scipy is a signal-processing library, not a technical-analysis one; the
+      seed convention is Vertex's declared choice and the oracle shares it.
+      The vectors are not registered under the pytest golden marker.
+    criticality: high
+    tests:
+      - packages/python/vertex_core/tests/calculations/test_market_ema.py
   - id: portfolio.fx_conversion
     owner: portfolio
     inputs: [money, fx_quote, quote_as_of]

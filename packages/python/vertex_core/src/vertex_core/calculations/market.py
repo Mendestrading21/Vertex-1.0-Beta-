@@ -11,6 +11,7 @@ Pure, deterministic functions implementing the ``market.*`` entries of
 - ``market.relative_strength``   -> :func:`relative_strength`
 - ``market.breadth``             -> :func:`breadth`
 - ``market.sma``                 -> :func:`simple_moving_average`
+- ``market.ema``                 -> :func:`exponential_moving_average`
 
 Numeric policy (UNITS_TIME_AND_PRECISION):
 
@@ -49,6 +50,7 @@ __all__ = [
     "OhlcBar",
     "atr",
     "breadth",
+    "exponential_moving_average",
     "log_return",
     "realized_volatility",
     "rebase_series",
@@ -667,4 +669,42 @@ def simple_moving_average(prices: Sequence[NumberLike], window: int) -> tuple[fl
     w = _require_window(window, "window")
     values = _require_price_series(prices, minimum=w, calculation_id="market.sma")
     return _sma_core(values, w, "market.sma")
+
+
+def _ema_core(values: Sequence[float], window: int, calculation_id: str) -> tuple[float, ...]:
+    """Amorce = moyenne arithmétique des ``window`` premières valeurs, puis
+    ``y_t = alpha * x_t + (1 - alpha) * y_{t-1}`` avec ``alpha = 2 / (window + 1)``.
+    Aucune contrainte de signe : la ligne de signal du MACD passe ici aussi."""
+    alpha = 2.0 / (window + 1.0)
+    decay = 1.0 - alpha
+    current = _mean(values[:window], calculation_id)
+    points = [current]
+    for value in values[window:]:
+        current = _finite_result(alpha * value + decay * current, calculation_id)
+        points.append(current)
+    return tuple(points)
+
+
+def exponential_moving_average(prices: Sequence[NumberLike], window: int) -> tuple[float, ...]:
+    """``market.ema`` — moyenne mobile exponentielle amorcée par la moyenne.
+
+    Méthode : amorce ``EMA_window = moyenne arithmétique des window premiers
+    prix``, puis ``EMA_t = alpha * p_t + (1 - alpha) * EMA_{t-1}`` avec
+    ``alpha = 2 / (window + 1)``. La convention d'amorce est DÉCLARÉE : une
+    bibliothèque qui amorce sur le premier prix seul publierait d'autres
+    valeurs pour la même fenêtre. Un point par fenêtre complète :
+    ``len(résultat) == len(prices) - window + 1``.
+
+    Portes : identiques à :func:`simple_moving_average` (``invalid_type``,
+    ``invalid_window``, ``minimum_sample``, ``non_finite_input``,
+    ``non_positive_price``).
+
+    Invariants : chaque point est une combinaison convexe des prix vus
+    jusque-là, donc compris dans leur intervalle (à un arrondi float64 près) ;
+    ``window == 1`` (``alpha == 1``) rend les prix eux-mêmes, exactement.
+    """
+    _require_sequence(prices, "prices")
+    w = _require_window(window, "window")
+    values = _require_price_series(prices, minimum=w, calculation_id="market.ema")
+    return _ema_core(values, w, "market.ema")
 
