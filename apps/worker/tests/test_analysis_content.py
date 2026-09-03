@@ -10,6 +10,7 @@ AdviceResult must agree with the retained REAL or SYNTHETIC inputs.
 from __future__ import annotations
 
 from datetime import UTC, date, datetime, timedelta
+from decimal import Decimal
 
 import pytest
 
@@ -996,10 +997,13 @@ class TestSeriesGlissantes:
             for point in serie.get("points", ()):
                 assert not (interdits & set(point))
 
-    def test_une_seance_dupliquee_REFUSE_la_serie_atr_sans_la_trouer(self):
-        """Une séance dupliquée loin du présent laisse la valeur ponctuelle
-        intacte ; la série qui la traverse est REFUSÉE avec sa raison — jamais
-        publiée avec un trou, ni avec une valeur inventée à cet endroit."""
+    def test_une_seance_dupliquee_REFUSE_les_series_atr_et_volatilite_sans_les_trouer(self):
+        """Une séance dupliquée loin du présent laisse les valeurs ponctuelles
+        intactes ; chaque série qui la traverse est REFUSÉE avec sa raison —
+        jamais publiée avec un trou, ni avec une valeur inventée à cet endroit.
+        Une porte, une vérité : le moteur de volatilité ne voit que des
+        rendements et ne connaît pas l'ordre des séances ; la porte est donc
+        celle du constructeur, et elle refuse ce que la porte de l'ATR refuse."""
         from vertex_worker.analysis import _build_indicators
 
         barres = _barres_croissantes(60)
@@ -1011,6 +1015,56 @@ class TestSeriesGlissantes:
         assert amplitude["series"]["reason"] == "unordered_bars"
         assert amplitude["series"]["trading_day"] == barres[2]["trading_day"]
         assert "points" not in amplitude["series"]
+        vol = indicateurs["realized_volatility"]
+        assert vol["status"] == "OK"
+        assert vol["series"]["status"] == "REFUSED"
+        assert vol["series"]["reason"] == "unordered_bars"
+        assert vol["series"]["trading_day"] == barres[2]["trading_day"]
+        assert "points" not in vol["series"]
+        assert "sessions" not in vol["series"]
+
+    def test_une_seance_reemise_loin_du_present_REFUSE_la_serie_de_volatilite(self):
+        """Revue adverse du lot : une séance servie deux fois donnait, entre
+        ses deux barres, un « rendement quotidien » publié OK dans la série de
+        volatilité. Une erreur de source n'est jamais un succès : la série est
+        REFUSÉE entière, avec la séance en défaut, et la valeur ponctuelle —
+        dont la fenêtre ne traverse pas le doublon — garde son propre statut."""
+        from vertex_worker.analysis import _build_indicators
+
+        barres = _barres_croissantes(60)
+        barres[30] = dict(barres[30], trading_day=barres[29]["trading_day"])
+        indicateurs = _build_indicators(barres, now=NOW, source_event_id=None)
+        vol = indicateurs["realized_volatility"]
+        assert vol["status"] == "OK"
+        serie = vol["series"]
+        assert serie["status"] == "REFUSED"
+        assert serie["reason"] == "unordered_bars"
+        assert serie["trading_day"] == barres[29]["trading_day"]
+        assert serie["available_bars"] == 60
+        assert "points" not in serie
+        assert "sessions" not in serie
+        assert "calculation" not in serie
+
+    def test_une_seance_dupliquee_dans_la_fenetre_REFUSE_la_valeur_ponctuelle(self):
+        """Le doublon tombe dans les 21 dernières barres : la valeur ponctuelle
+        de volatilité est REFUSÉE comme celle de l'ATR (dont le moteur porte la
+        porte), avec la séance nommée — jamais un nombre calculé sur un
+        rendement intra-journée qui n'existe pas."""
+        from vertex_worker.analysis import _build_indicators
+
+        barres = _barres_croissantes(60)
+        barres[58] = dict(barres[58], trading_day=barres[57]["trading_day"])
+        indicateurs = _build_indicators(barres, now=NOW, source_event_id=None)
+        vol = indicateurs["realized_volatility"]
+        assert vol["status"] == "REFUSED"
+        assert vol["reason"] == "unordered_bars"
+        assert vol["trading_day"] == barres[57]["trading_day"]
+        assert "value" not in vol and "value_pct" not in vol
+        assert "calculation" not in vol
+        assert vol["series"]["status"] == "REFUSED"
+        amplitude = indicateurs["atr"]
+        assert amplitude["status"] == "REFUSED"
+        assert amplitude["reason"] == "unordered_bars"
 
 
 class TestSerieForceRelative:
@@ -1086,6 +1140,32 @@ class TestSerieForceRelative:
             assert "points" not in bloc["series"]
             assert "value" not in bloc["series"]
 
+    @pytest.mark.parametrize("cote", ["instrument", "benchmark"])
+    def test_une_seance_dupliquee_REFUSE_la_force_relative_point_et_serie(self, cote):
+        """L'alignement des calendriers consomme TOUTES les barres des deux
+        côtés : une séance servie deux fois, d'un côté ou de l'autre, ne peut
+        pas être intersectée honnêtement (« la dernière barre gagne » serait un
+        choix fait en silence). Le bloc est REFUSÉ — point et série — avec la
+        raison de la porte d'ordre, la séance et le ticker en défaut."""
+        from vertex_worker.analysis import _relative_strength_block
+
+        actif = _serie_geometrique(80, 0.002)
+        indice = _serie_geometrique(80, 0.001)
+        en_defaut = actif if cote == "instrument" else indice
+        en_defaut[30] = dict(en_defaut[30], trading_day=en_defaut[29]["trading_day"])
+        bloc = _relative_strength_block(actif, indice, instrument="AAA", benchmark="SPX", now=NOW)
+        attendu = "AAA" if cote == "instrument" else "SPX"
+        for partie in (bloc, bloc["series"]):
+            assert partie["status"] == "REFUSED"
+            assert partie["reason"] == "unordered_bars"
+            assert partie["trading_day"] == en_defaut[29]["trading_day"]
+            assert partie["ticker"] == attendu
+            assert partie["benchmark"] == "SPX"
+            assert "value" not in partie
+            assert "points" not in partie
+            assert "common_sessions" not in partie
+            assert "calculation" not in partie
+
 
 def test_le_dossier_publie_les_trois_series() -> None:
     """De bout en bout : le constructeur du dossier publie les trois séries
@@ -1119,3 +1199,67 @@ def test_le_dossier_publie_les_trois_series() -> None:
     assert indicateurs["realized_volatility"]["series"]["sessions"] == 80 - 20
     assert indicateurs["atr"]["series"]["sessions"] == 80 - 14
     assert indicateurs["relative_strength"]["series"]["sessions"] == 80 - 60
+
+
+def _barre_reemise(barre: dict, facteur: str) -> dict:
+    """La même séance servie une seconde fois par la source, avec une clôture
+    différente (charge de la revue adverse) : une barre en forme ADMISE, que
+    `_validate_bar` ne peut pas distinguer d'une séance légitime."""
+    precedente = Decimal(barre["close"])
+    cloture = (precedente * Decimal(facteur)).quantize(Decimal("0.0001"))
+    return {
+        **barre,
+        "open": barre["close"],
+        "high": format((cloture * Decimal("1.01")).quantize(Decimal("0.0001")), "f"),
+        "low": format((precedente * Decimal("0.99")).quantize(Decimal("0.0001")), "f"),
+        "close": format(cloture, "f"),
+    }
+
+
+def test_une_seance_reemise_par_la_source_REFUSE_les_trois_series() -> None:
+    """De bout en bout, charge de la revue adverse : la source ré-émet une
+    séance avec une clôture différente. L'admission ne peut pas la distinguer
+    (forme admise, `discarded` vide) et le tri la place à côté de l'originale ;
+    aucune série ne publie un point sur ce calendrier : les trois sont
+    REFUSÉES avec la même raison et la séance en défaut."""
+    config = AnalysisConfig(
+        instruments=("SYN-TECH-01", "SYN-TECH-02"),
+        allowed_sources=frozenset({SYNTHETIC_SOURCE}),
+        usable_rights=frozenset({SYNTHETIC_RIGHTS}),
+        benchmark="SYN-TECH-02",
+    )
+    barres = _serie_geometrique(80, 0.002)
+    barres.append(_barre_reemise(barres[30], "1.05"))
+    content = build_analysis_content(
+        [
+            bars_record(bars=barres),
+            bars_record(
+                ticker="SYN-TECH-02",
+                bars=_serie_geometrique(80, 0.001),
+                event_id="synthetic-dev:t:db0002",
+            ),
+        ],
+        instrument=INSTRUMENT,
+        evidence_records=(),
+        option_chain_content=None,
+        option_chain_version=None,
+        now=NOW,
+        config=config,
+    )
+    assert content["bars"]["discarded"] == []
+    assert content["bars"]["count"] == 81
+    en_defaut = barres[30]["trading_day"]
+    indicateurs = content["indicators"]
+    for nom in ("realized_volatility", "atr", "relative_strength"):
+        serie = indicateurs[nom]["series"]
+        assert serie["status"] == "REFUSED", nom
+        assert serie["reason"] == "unordered_bars", nom
+        assert serie["trading_day"] == en_defaut, nom
+        assert "points" not in serie, nom
+    # Chaque valeur ponctuelle dit ce qu'elle a consommé : les 21 et 15
+    # dernières barres ne traversent pas le doublon ; l'alignement de la force
+    # relative, lui, consomme tout le calendrier des deux côtés.
+    assert indicateurs["realized_volatility"]["status"] == "OK"
+    assert indicateurs["atr"]["status"] == "OK"
+    assert indicateurs["relative_strength"]["status"] == "REFUSED"
+    assert indicateurs["relative_strength"]["ticker"] == INSTRUMENT

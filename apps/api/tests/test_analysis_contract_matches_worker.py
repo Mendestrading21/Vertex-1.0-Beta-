@@ -72,7 +72,7 @@ def _barres(nombre: int, pas: float, depart: float = 100.0) -> list[dict]:
     return barres
 
 
-def _enregistrement(ticker: str, pas: float) -> BarRecord:
+def _enregistrement(ticker: str, pas: float, *, barres: list[dict] | None = None) -> BarRecord:
     return BarRecord(
         event_id=f"{SYNTHETIC_SOURCE}:bars:{ticker}",
         source=SYNTHETIC_SOURCE,
@@ -87,15 +87,17 @@ def _enregistrement(ticker: str, pas: float) -> BarRecord:
             "ticker": ticker,
             "currency": "SYN",
             "adjustment_basis": "synthetic-unadjusted",
-            "bars": _barres(SEANCES, pas),
+            "bars": barres if barres is not None else _barres(SEANCES, pas),
         },
     )
 
 
-def _contenu() -> dict:
+def _contenu(enregistrements: list[BarRecord] | None = None) -> dict:
     """La sortie RÉELLE du worker, jamais une copie écrite à la main."""
     return build_analysis_content(
-        [_enregistrement(INSTRUMENT, 0.002), _enregistrement(BENCHMARK, 0.001)],
+        enregistrements
+        if enregistrements is not None
+        else [_enregistrement(INSTRUMENT, 0.002), _enregistrement(BENCHMARK, 0.001)],
         instrument=INSTRUMENT,
         evidence_records=(),
         option_chain_content=None,
@@ -190,3 +192,30 @@ def test_les_series_sortent_sur_le_fil_http_verbatim(
         assert serie["points"][-1]["value"] == body["indicators"][nom]["value"]
         # Des chaînes, jamais des nombres flottants : l'interface n'arrondit rien.
         assert all(isinstance(point["value"], str) for point in serie["points"])
+
+
+def test_un_refus_de_serie_traverse_le_relais_verbatim(
+    analysis_client: TestClient, reader: FakeSnapshotReader
+) -> None:
+    """Une séance servie deux fois refuse les trois séries chez le worker
+    (porte d'ordre strict, revue adverse du lot S3) ; le refus — statut,
+    raison, séance en défaut — arrive tel quel sur le fil, sans point, jamais
+    « arrangé » en OK par le relais."""
+    barres = _barres(SEANCES, 0.002)
+    barres.append(dict(barres[30]))
+    contenu = _contenu(
+        [_enregistrement(INSTRUMENT, 0.002, barres=barres), _enregistrement(BENCHMARK, 0.001)]
+    )
+    reader.snapshots[("analysis", INSTRUMENT)] = _instantane(contenu)
+
+    response = analysis_client.get(f"/api/v1/analysis/{INSTRUMENT}")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["state"] == "ok"
+    assert body["indicators"] == contenu["indicators"]
+    for nom in INDICATEURS:
+        serie = body["indicators"][nom]["series"]
+        assert serie["status"] == "REFUSED", nom
+        assert serie["reason"] == "unordered_bars", nom
+        assert serie["trading_day"] == barres[30]["trading_day"], nom
+        assert "points" not in serie, nom
