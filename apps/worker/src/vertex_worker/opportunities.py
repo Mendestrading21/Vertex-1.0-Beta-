@@ -598,7 +598,7 @@ def _check_profile_is_applicable(
 
 def build_opportunities_content(
     bar_records: Sequence[Any],
-    evidence_records: Sequence[Any],
+    evidence_records: Sequence[Any] | Mapping[str, Sequence[Any]],
     *,
     chain_by_instrument: Mapping[str, tuple[Mapping[str, Any], int]],
     calendar_content: Mapping[str, Any] | None,
@@ -618,6 +618,12 @@ def build_opportunities_content(
     evidence presence, publishes exclusion reasons and orders — and it
     REFUSES to publish a snapshot whose candidates contradict the
     ``AdviceResult`` contract (see the module docstring).
+
+    ``evidence_records`` est soit UNE fenêtre PAR INSTRUMENT (clé = ticker,
+    cadrée avant la borne comme sur la page Analyse — un ticker absent de la
+    table n'a aucune preuve, jamais celles d'un autre), soit une seule fenêtre
+    globale partagée par tous les candidats (le comportement d'origine, que
+    les fixtures unitaires exercent).
     """
     now = _require_aware_utc(now)
     _check_profile_is_applicable(profile=profile, config=config)
@@ -636,10 +642,15 @@ def build_opportunities_content(
 
     for ticker in config.instruments:
         chain = chain_by_instrument.get(ticker)
+        evidence = (
+            evidence_records.get(ticker, ())
+            if isinstance(evidence_records, Mapping)
+            else evidence_records
+        )
         dossier = build_analysis_content(
             bar_records,
             instrument=ticker,
-            evidence_records=evidence_records,
+            evidence_records=evidence,
             option_chain_content=None if chain is None else chain[0],
             option_chain_version=None if chain is None else chain[1],
             now=now,
@@ -877,7 +888,7 @@ class OpportunitiesHandler:
     def __call__(self, session: Session, message: ClaimedOutboxMessage) -> None:
         # Local imports avoid module cycles (handlers -> ingest -> here).
         from vertex_persistence.repository.snapshots import get_current_snapshot
-        from vertex_worker.analysis import load_daily_bar_records
+        from vertex_worker.analysis import instrument_ref_de, load_daily_bar_records
         from vertex_worker.calendar import (
             SNAPSHOT_KEY_GLOBAL as CALENDAR_KEY,
         )
@@ -885,6 +896,7 @@ class OpportunitiesHandler:
             SNAPSHOT_KIND_CALENDAR,
         )
         from vertex_worker.handlers import (
+            CONTENT_SCHEMA_PREFIXES,
             load_recent_observation_records,
             publish_if_changed,
         )
@@ -897,12 +909,36 @@ class OpportunitiesHandler:
             lookback=self._config.lookback,
             limit=self._config.max_observations,
         )
-        evidence_records = load_recent_observation_records(
-            session,
-            now=now,
-            lookback=self._config.lookback,
-            limit=self._config.max_observations,
-        )
+        # Preuves cadrées PAR INSTRUMENT, comme la page Analyse : une fenêtre
+        # globale de 500 puis un filtre par ticker perdait les preuves d'un
+        # candidat dès qu'un autre instrument était collecté après lui.
+        # Mesuré le 2026-09-03 : 3 dépêches de GOOG, 520 de MSFT plus
+        # récentes — la page Analyse voyait 3 grappes, Opportunités aucune.
+        # Sans barre pour un instrument, sa référence est inconnue : il garde
+        # la fenêtre globale, chargée UNE fois — jamais pire qu'avant.
+        evidence_by_instrument: dict[str, Sequence[Any]] = {}
+        global_evidence: Sequence[Any] | None = None
+        for instrument in self._config.instruments:
+            ref = instrument_ref_de(bar_records, instrument)
+            if ref is None:
+                if global_evidence is None:
+                    global_evidence = load_recent_observation_records(
+                        session,
+                        now=now,
+                        lookback=self._config.lookback,
+                        limit=self._config.max_observations,
+                        schema_prefixes=CONTENT_SCHEMA_PREFIXES,
+                    )
+                evidence_by_instrument[instrument] = global_evidence
+                continue
+            evidence_by_instrument[instrument] = load_recent_observation_records(
+                session,
+                now=now,
+                lookback=self._config.lookback,
+                limit=self._config.max_observations,
+                schema_prefixes=CONTENT_SCHEMA_PREFIXES,
+                instrument_ref=ref,
+            )
         chain_by_instrument: dict[str, tuple[Mapping[str, Any], int]] = {}
         for instrument in self._config.instruments:
             chain = get_current_snapshot(
@@ -944,7 +980,7 @@ class OpportunitiesHandler:
 
         content = build_opportunities_content(
             bar_records,
-            evidence_records,
+            evidence_by_instrument,
             chain_by_instrument=chain_by_instrument,
             calendar_content=None if calendar is None else calendar.content,
             calendar_ref=calendar_ref,

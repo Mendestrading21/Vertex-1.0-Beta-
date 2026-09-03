@@ -375,6 +375,7 @@ def build_review_queue_content(
             "content_observations": content_count,
             "clusters": cluster_count,
             "lookback_seconds": int(config.lookback.total_seconds()),
+            "content_schema_prefixes": list(config.content_schema_prefixes),
         },
     }
 
@@ -411,6 +412,7 @@ class ReviewQueueHandler:
             now=now,
             lookback=self._config.lookback,
             limit=self._config.max_observations,
+            schema_prefixes=self._config.content_schema_prefixes,
         )
         content = build_review_queue_content(
             projected, due, records, now=now, config=self._config

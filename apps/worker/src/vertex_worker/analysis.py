@@ -118,6 +118,7 @@ __all__ = [
     "AnalysisHandler",
     "BarRecord",
     "build_analysis_content",
+    "instrument_ref_de",
     "is_daily_bars_schema",
     "load_daily_bar_records",
     "register_analysis_handler",
@@ -440,7 +441,7 @@ def _validate_bar(raw: Any) -> tuple[dict[str, Any] | None, str | None]:
     }, None
 
 
-def _instrument_ref_de(
+def instrument_ref_de(
     bar_records: Sequence[Any], instrument: str
 ) -> str | None:
     """`instrument_ref` de l'instrument, releve sur ses propres barres.
@@ -1214,6 +1215,7 @@ class AnalysisHandler:
         # Local imports avoid a module cycle (handlers imports ingest,
         # ingest imports this module).
         from vertex_worker.handlers import (
+            CONTENT_SCHEMA_PREFIXES,
             load_recent_observation_records,
             publish_if_changed,
         )
@@ -1243,13 +1245,16 @@ class AnalysisHandler:
             # puis filtrer affamait chaque dossier dès que d'autres
             # instruments étaient collectés après lui. Mesuré le 2026-09-01 :
             # 0 dépêche GOOG dans les 500 plus récentes, alors que 140
-            # existaient en base.
+            # existaient en base. Et cadrées sur les familles de CONTENU :
+            # l'instrument porte aussi ses propres cotations instantanées
+            # (une par minute), qui chassaient ses dépêches de la même façon.
             evidence_records = load_recent_observation_records(
                 session,
                 now=now,
                 lookback=self._config.lookback,
                 limit=self._config.max_observations,
-                instrument_ref=_instrument_ref_de(bar_records, instrument),
+                schema_prefixes=CONTENT_SCHEMA_PREFIXES,
+                instrument_ref=instrument_ref_de(bar_records, instrument),
             )
             content = build_analysis_content(
                 bar_records,

@@ -10,11 +10,13 @@ from __future__ import annotations
 
 import random
 from datetime import UTC, datetime, timedelta
+from typing import cast
 
 import pytest
 
 from vertex_core.synthetic import SYNTHETIC_RIGHTS, SYNTHETIC_SOURCE, generate_envelopes
 from vertex_worker.handlers import (
+    CONTENT_SCHEMA_PREFIXES,
     DEV_SYNTHETIC_CONFIG,
     MAX_ATTENTION_ITEMS,
     POPULATION_EMPTY,
@@ -317,3 +319,45 @@ class TestPolarityConflictIsNeverResolvedByElection:
         first = build_attention_content(records, now=NOW, config=DEMO_ONLY_CONFIG)
         second = build_attention_content(shuffled, now=NOW, config=DEMO_ONLY_CONFIG)
         assert first == second
+
+
+class TestDeclaredContentFamilies:
+    """La fenêtre est cadrée par les familles que le consommateur DÉCLARE.
+
+    Mesuré le 2026-09-03 : les 500 observations les plus récentes étaient
+    toutes des cotations instantanées, et la file d'attention servait 0 item
+    sur données réelles. Le registre déclare donc les familles de contenu, et
+    la couverture publiée les répète.
+    """
+
+    def test_default_families_are_the_worker_content_families(self) -> None:
+        assert DEV_SYNTHETIC_CONFIG.content_schema_prefixes == CONTENT_SCHEMA_PREFIXES
+        assert "synthetic-news/" in CONTENT_SCHEMA_PREFIXES
+        assert "ibkr.news-headline/" in CONTENT_SCHEMA_PREFIXES
+
+    @pytest.mark.parametrize(
+        "instantanee",
+        ["ibkr.quote/1", "ibkr.daily-quote/1", "synthetic-daily-quote/1.0", "ibkr.bars/1"],
+    )
+    def test_market_families_are_never_declared_as_content(self, instantanee: str) -> None:
+        assert not instantanee.startswith(CONTENT_SCHEMA_PREFIXES)
+
+    @pytest.mark.parametrize("prefixes", [(), ("",), ("  ",), ("synthetic-news/", 3), "x/"])
+    def test_config_refuses_an_empty_or_malformed_declaration(self, prefixes: object) -> None:
+        with pytest.raises(ValueError, match="content_schema_prefixes"):
+            FusionConfig(
+                allowed_sources=frozenset({DEMO_SOURCE}),
+                usable_rights=frozenset({DEMO_RIGHTS}),
+                content_schema_prefixes=cast("tuple[str, ...]", prefixes),
+            )
+
+    def test_coverage_publishes_the_declared_families(self) -> None:
+        by_default = build_attention_content([demo_record(1)], now=NOW, config=DEMO_ONLY_CONFIG)
+        assert by_default["coverage"]["content_schema_prefixes"] == list(CONTENT_SCHEMA_PREFIXES)
+        declared = FusionConfig(
+            allowed_sources=frozenset({DEMO_SOURCE}),
+            usable_rights=frozenset({DEMO_RIGHTS}),
+            content_schema_prefixes=("demo-news/",),
+        )
+        explicit = build_attention_content([demo_record(1)], now=NOW, config=declared)
+        assert explicit["coverage"]["content_schema_prefixes"] == ["demo-news/"]

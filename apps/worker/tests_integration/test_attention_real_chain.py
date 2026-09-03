@@ -41,6 +41,7 @@ from vertex_worker.follow_up import (
     TOPIC_REVIEW_QUEUE_REFRESH,
 )
 from vertex_worker.handlers import (
+    CONTENT_SCHEMA_PREFIXES,
     MAX_ATTENTION_ITEMS,
     POPULATION_REAL,
     SNAPSHOT_KEY_GLOBAL,
@@ -242,6 +243,9 @@ def test_la_file_d_ATTENTION_n_est_pas_affamee_par_les_cotations_instantanees(
         f"dépêches dans la fenêtre : {couverture['content_observations']} "
         f"sur {NB_DEPECHES} ; couverture = {couverture}"
     )
+    # La fenêtre ne regarde QUE les familles déclarées, et le dit.
+    assert couverture["observations_considered"] == NB_DEPECHES, couverture
+    assert couverture["content_schema_prefixes"] == list(CONTENT_SCHEMA_PREFIXES)
     items = contenu["items"]
     assert items, f"file vide ; refus = {contenu['rejected']} ; couverture = {couverture}"
     assert len(items) <= MAX_ATTENTION_ITEMS
@@ -268,4 +272,6 @@ def test_la_file_de_REVUE_lit_la_meme_fenetre_de_contenu(
     assert revue is not None, "aucun snapshot de file de revue publié"
     couverture = revue.content["coverage"]
     assert couverture["content_observations"] == NB_DEPECHES, couverture
+    assert couverture["observations_considered"] == NB_DEPECHES, couverture
+    assert couverture["content_schema_prefixes"] == list(CONTENT_SCHEMA_PREFIXES)
     assert revue.content["populations"]["information_context"] == POPULATION_REAL
