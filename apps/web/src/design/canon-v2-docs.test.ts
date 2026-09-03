@@ -48,6 +48,7 @@ const CANON_DOCS = [
   'docs/05-design/VERTEX_ONE_VISUAL_DIRECTION.md',
   'docs/05-design/DASHBOARD_COMPOSITION.md',
   'docs/05-design/MOTION_AND_MICROINTERACTIONS.md',
+  'docs/05-design/ICON_SYSTEM.md',
   'docs/05-design/WIDGETS_V2_PLAN.md',
   '.claude/skills/vertex-titanium-ledger/references/canonical-visual.md',
   '.claude/skills/vertex-titanium-ledger/references/visual-identity.md',
@@ -146,6 +147,8 @@ const KEPT_INVARIANTS: ReadonlyArray<{ file: string; text: string }> = [
   { file: 'docs/05-design/WIDGET_LIBRARY.md', text: 'aucune jauge hors contrat factuel' },
   { file: 'docs/05-design/WIDGET_LIBRARY.md', text: 'Le navigateur ne calcule ni pourcentage, ni seuil, ni position du marqueur' },
   { file: 'docs/05-design/MOTION_AND_MICROINTERACTIONS.md', text: 'aucune pulsation' },
+  { file: 'docs/05-design/ICON_SYSTEM.md', text: "`--vx-option` uniquement pour identifier la classe d'actif" },
+  { file: 'docs/05-design/ICON_SYSTEM.md', text: '`--vx-macro` uniquement pour catégoriser la source' },
   { file: 'docs/05-design/TITANIUM_LEDGER_VISUAL_SYSTEM.md', text: 'ambre utilisé pour signifier une performance positive' },
   { file: '.claude/skills/vertex-titanium-ledger/references/canonical-visual.md', text: 'aucun halo néon permanent' },
   { file: '.claude/skills/vertex-titanium-ledger/references/canonical-visual.md', text: 'noir pur uniforme' },
@@ -200,6 +203,15 @@ describe('ADR-017 — Titanium Ledger v2', () => {
     for (const item of STILL_FORBIDDEN) {
       expect(forbiddenSection, item).toContain(item);
     }
+  });
+
+  it('consigne les réserves de la revue C0 comme contraintes du lot L0', () => {
+    const adr = read(ADR_PATH);
+    // warning ≈ signal-bright : distinguabilité mesurée ou retrait, avant toute page.
+    expect(adr).toContain('Aucune page ne déclare `warning` comme teinte secondaire avant cette décision');
+    // Sans déclaration de page, `--vx-page-accent` est invalide : fill SVG noir, silencieux.
+    expect(adr).toContain('sa valeur initiale, le noir');
+    expect(adr).toContain('`catalog.test.ts`');
   });
 
   it("ne change pas l'empreinte de la capture canonique", () => {

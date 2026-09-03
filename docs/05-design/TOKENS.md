@@ -31,7 +31,11 @@ une teinte de page ne bascule pas selon le signe). Le CSS généré expose, par 
 `[data-page-accent="<famille>"]` → `--vx-page-accent`, `--vx-page-accent-soft`,
 `--vx-page-accent-gradient-start`, `--vx-page-accent-gradient-end`, sans valeur
 par défaut dans `:root`. La page déclare sa famille dans son catalogue ; les
-widgets consomment `--vx-page-accent*` sans jamais nommer la famille.
+widgets consomment `--vx-page-accent*` sans jamais nommer la famille. Sans
+déclaration, `var(--vx-page-accent)` est invalide à la valeur calculée et un
+`fill` SVG retomberait sans erreur sur sa valeur initiale, le noir (interdit
+par ADR-017) : la porte `catalog.test.ts` du lot L0 (chaque page qui consomme
+`--vx-page-accent*` déclare sa famille) précède tout consommateur.
 
 Les tokens `<famille>-gradient-start` (teinte à faible alpha) et
 `<famille>-gradient-end` (même teinte à alpha 0) ne servent qu'à l'aire sous une

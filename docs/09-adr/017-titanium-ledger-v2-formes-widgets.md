@@ -73,6 +73,7 @@ Règles qui accompagnent ces formes :
 - Le socle L0 doit livrer `RingShares`, `ArcGauge`, `LinearGauge`, `SparkFigure`, `DayBars`, `CellGrid`, `ActivityFeed`, `MultiSeriesArea` avec tous leurs états nommés et leurs tests ; aucune page ne dessine une forme v2 sans passer par ces primitives.
 - Les documents du canon citent cette ADR à chaque interdiction levée ; un test de design (`apps/web/src/design/canon-v2-docs.test.ts`) refuse le retour des anciennes formulations et vérifie que les interdits maintenus sont toujours écrits.
 - Plusieurs formes attendent une donnée serveur (lots S1–S6, D0) : comptes avancées/déclins, budget de fraîcheur avec position servie, séries rebasées, séries glissantes. En attendant, l'état honnête s'affiche.
+- Réserve consignée par la revue adverse du lot C0, à trancher au lot L0 avant toute page P : `warning` (`#f0c36a`) et `signal-bright` (`#f2c76b`) diffèrent d'au plus 4/255 par canal (`apps/web/src/design/tokens.ts`). Éligible comme teinte de page et comme famille d'aire, `warning` produirait des arcs, des anneaux et des aires (`warning-gradient-start`, alpha 0,22) que l'œil ne distingue pas de l'ambre vif de la tranche, du kicker et de l'action principale — « l'ambre reste la seule lumière de la dominante » deviendrait invérifiable à l'œil. L'adjacence des deux valeurs est antérieure à cette décision ; la v2 l'étend à des surfaces pleines. Le lot L0 tranche par l'une des deux voies et le consigne dans `docs/99-status/NOW.md` : soit une distinguabilité mesurée sur capture (écart de teinte et de contraste relevés entre `warning` sur ses surfaces pleines et `signal-bright` sur les siennes), soit le retrait de `warning` de `pageAccent` et des familles d'aire. Aucune page ne déclare `warning` comme teinte secondaire avant cette décision. Propriétaire : `apps/web/src/design/tokens.ts`.
 
 ## Options rejetées
 
@@ -93,6 +94,7 @@ Règles qui accompagnent ces formes :
 - Portes inchangées : `no-raw-colors.test.ts`, `no-authoritative-calculation.test.ts`, `no-fabricated-values.test.ts`, `one-dominant-per-page.test.ts`, `no-uncalibrated-probability.test.ts`.
 - `.claude/skills/vertex-titanium-ledger/scripts/audit_titanium_ledger.py` : empreinte de la capture canonique inchangée ; tokens de dégradé ajoutés aux tokens requis.
 - Lot L0 : un fichier de test par primitive (`RingShares.test.tsx`, `ArcGauge.test.tsx`, …) couvrant les onze valeurs de `ModuleState`, la branche « non publié », l'absence de `<linearGradient>` hors aire de série servie, et l'absence de tout nombre dérivé écrit.
+- Lot L0, avant le premier consommateur de `--vx-page-accent*` : `catalog.test.ts` exige que chaque page qui pose `data-page-accent` déclare une famille de `pageAccent`. Sans déclaration, `var(--vx-page-accent)` est invalide à la valeur calculée (aucun défaut dans `:root`, par construction) et un `fill` SVG retomberait sans erreur sur sa valeur initiale, le noir — interdit ci-dessus. La porte précède donc toute primitive qui consomme la teinte de page.
 - Plan directeur : `docs/05-design/WIDGETS_V2_PLAN.md`.
 
 ## Critères de réexamen
