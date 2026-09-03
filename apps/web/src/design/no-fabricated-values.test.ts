@@ -40,6 +40,16 @@ import { describe, expect, it } from 'vitest';
 
 const APP_ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const PAGES_ROOT = join(APP_ROOT, 'src', 'pages');
+/**
+ * LOT L0 — EXTENSION DU PÉRIMÈTRE. Les primitives du socle v2 vivent dans
+ * `src/components/widgets` et certaines viennent de `src/pages`
+ * (`InstrumentTile`, déplacée depuis `pages/InstrumentWidget.tsx`). Un
+ * déplacement ne doit JAMAIS sortir un fichier du périmètre d'une porte : le
+ * balayage couvre les deux racines, et un test ci-dessous refuse qu'une racine
+ * devienne vide.
+ */
+const WIDGETS_ROOT = join(APP_ROOT, 'src', 'components', 'widgets');
+const SCANNED_ROOTS: readonly string[] = [PAGES_ROOT, WIDGETS_ROOT];
 
 /**
  * Formes REFUSÉES. Chacune est celle d'une valeur qu'un lecteur lirait comme
@@ -175,13 +185,24 @@ function scan(path: string): Finding[] {
 
 describe('Aucune valeur de planche recopiée dans une page', () => {
   it('aucun littéral n’a la forme d’une donnée financière servie', () => {
-    const findings = collectPageFiles(PAGES_ROOT, []).flatMap(scan);
+    const findings = SCANNED_ROOTS.flatMap((root) => collectPageFiles(root, [])).flatMap(scan);
     expect(
       findings,
       `Valeurs fabriquées trouvées :\n${findings
         .map((f) => `  ${f.path}:${f.line} — ${f.shape} — « ${f.text} »`)
         .join('\n')}`,
     ).toEqual([]);
+  });
+
+  it('les deux racines sont réellement balayées (aucune ne devient vide)', () => {
+    for (const root of SCANNED_ROOTS) {
+      expect(collectPageFiles(root, []).length, `racine vide : ${root}`).toBeGreaterThan(0);
+    }
+    const balayes = SCANNED_ROOTS.flatMap((root) => collectPageFiles(root, [])).map((file) =>
+      relative(APP_ROOT, file),
+    );
+    // La primitive déplacée au lot L0 reste couverte, à sa nouvelle place.
+    expect(balayes).toContain(join('src', 'components', 'widgets', 'InstrumentTile.tsx'));
   });
 
   it('la garde voit réellement les formes qu’elle annonce', () => {

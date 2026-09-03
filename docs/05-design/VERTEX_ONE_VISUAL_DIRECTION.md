@@ -16,6 +16,13 @@ Cette direction est une synthèse des références fournies, pas une copie d'un
 écran Dribbble. Les effets spectaculaires restent subordonnés à la lisibilité,
 à la provenance et à l'autorité des données publiées.
 
+> Mise à jour du 2026-09-03 — ADR-017 (`docs/09-adr/017-titanium-ledger-v2-formes-widgets.md`) :
+> le canon passe en v2. Sur des données servies uniquement, sont admis les
+> anneaux à chiffre central, les jauges en arc graduées, les aires à dégradé
+> sous une série, les rails derrière les barres, les matrices de bandes et une
+> teinte sémantique secondaire par page (`macro`, `option` ou `warning` ;
+> jamais `positive` ni `negative`). Les interdits ci-dessous restent en vigueur.
+
 ## Comparaison des trois propositions
 
 | Proposition | Identité | Accent de marque | Logo proposé | Forces | Vigilance |
@@ -82,6 +89,7 @@ réservé à une barre sticky ou un `SideSheet`.
 - `--vx-positive` et `--vx-negative` restent exclusivement financiers ;
 - `--vx-warning` signale prudence, retard ou population synthétique ;
 - `--vx-option` reste attaché aux options et à leurs sélections ;
+- une page peut déclarer une teinte sémantique secondaire parmi `--vx-macro`, `--vx-option` et `--vx-warning` (ADR-017) — jamais `--vx-positive` ni `--vx-negative`, ni `--vx-signal` ; elle garde le sens de sa famille ;
 - aucune couleur n'est le seul porteur d'une information.
 
 ### Typographie et nombres
@@ -147,7 +155,7 @@ serveur n'est ni recalculé, ni renommé score ou priorité par le navigateur.
 - ordre d'achat, vente ou swap ;
 - prix, KPI, score, P&L, sparkline ou tendance inventés ;
 - rouge/vert comme couleurs de marque ;
-- carte entière colorée pour une simple variation ;
+- carte entière colorée pour une simple variation, dégradé de fond plein sur une carte ;
 - halo ou blur sur toutes les surfaces ;
 - graphique sans source, période, unité et fraîcheur ;
 - interface téléphone dans la Beta desktop ;

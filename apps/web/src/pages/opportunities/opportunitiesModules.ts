@@ -11,6 +11,7 @@
  * aucune espérance de rendement ; l'interface ne peut pas en fabriquer un.
  */
 import type { AbsenceReason } from '../../components/AbsentModule.tsx';
+import type { WidgetSize, WidgetVariant } from '../../components/widgets/Widget.tsx';
 
 export type OpportunitiesModuleStatus =
   | { readonly kind: 'served'; readonly contract: string }
@@ -18,6 +19,10 @@ export type OpportunitiesModuleStatus =
 
 export interface OpportunitiesModule {
   readonly id: string;
+  /** Span de composition sur la planche — jamais une apparence (ADR-017). */
+  readonly size: WidgetSize;
+  /** Variante visuelle du vocabulaire fermé de WIDGET_LIBRARY.md. */
+  readonly variant: WidgetVariant;
   readonly title: string;
   readonly question: string;
   readonly status: OpportunitiesModuleStatus;
@@ -28,12 +33,16 @@ const SNAPSHOT = 'GET /api/v1/opportunities — content';
 export const OPPORTUNITIES_MODULES: readonly OpportunitiesModule[] = [
   {
     id: 'active-ideas',
+    size: 'S',
+    variant: 'support',
     title: 'Candidats évalués',
     question: 'Combien de candidats le moteur a-t-il admis, exclus, considérés ?',
     status: { kind: 'served', contract: `${SNAPSHOT}.coverage` },
   },
   {
     id: 'mean-score',
+    size: 'S',
+    variant: 'support',
     title: 'Score moyen',
     question: 'Quel est le score moyen des candidats retenus ?',
     status: {
@@ -44,6 +53,8 @@ export const OPPORTUNITIES_MODULES: readonly OpportunitiesModule[] = [
   },
   {
     id: 'global-bias',
+    size: 'S',
+    variant: 'support',
     title: 'Biais global',
     question: 'La sélection penche-t-elle dans un sens ?',
     status: {
@@ -54,6 +65,8 @@ export const OPPORTUNITIES_MODULES: readonly OpportunitiesModule[] = [
   },
   {
     id: 'expected-return',
+    size: 'S',
+    variant: 'support',
     title: 'Rendement attendu',
     question: 'Quel rendement les candidats laissent-ils espérer ?',
     status: {
@@ -64,18 +77,24 @@ export const OPPORTUNITIES_MODULES: readonly OpportunitiesModule[] = [
   },
   {
     id: 'ranking',
+    size: 'XL',
+    variant: 'dominant',
     title: 'Classement publié',
     question: 'Quels candidats admissibles méritent une analyse approfondie ?',
     status: { kind: 'served', contract: `${SNAPSHOT}.qualified / excluded / ordering` },
   },
   {
     id: 'bias-split',
+    size: 'S',
+    variant: 'support',
     title: 'Répartition des directions',
     question: 'Quelles directions le moteur a-t-il publiées, candidat par candidat ?',
     status: { kind: 'served', contract: `${SNAPSHOT}.qualified[].advice.direction / excluded[].advice.direction` },
   },
   {
     id: 'score-return-scatter',
+    size: 'S',
+    variant: 'support',
     title: 'Score contre rendement',
     question: 'Les meilleurs scores portent-ils les meilleurs rendements ?',
     status: {
@@ -86,6 +105,8 @@ export const OPPORTUNITIES_MODULES: readonly OpportunitiesModule[] = [
   },
   {
     id: 'factor-contribution',
+    size: 'S',
+    variant: 'support',
     title: 'Contribution des facteurs',
     question: 'Quels facteurs expliquent la sélection ?',
     status: {
@@ -96,6 +117,8 @@ export const OPPORTUNITIES_MODULES: readonly OpportunitiesModule[] = [
   },
   {
     id: 'recent-activity',
+    size: 'S',
+    variant: 'support',
     title: 'Activité récente',
     question: 'Qu’est-ce qui a changé depuis le snapshot précédent ?',
     status: {
@@ -106,30 +129,40 @@ export const OPPORTUNITIES_MODULES: readonly OpportunitiesModule[] = [
   },
   {
     id: 'opportunity-health',
+    size: 'S',
+    variant: 'support',
     title: 'Statuts sur l’univers',
     question: 'Quel statut fail-closed porte chaque candidat de l’univers ?',
     status: { kind: 'served', contract: `${SNAPSHOT}.coverage.status_counts` },
   },
   {
     id: 'profile',
+    size: 'M',
+    variant: 'support',
     title: 'Profil de stratégie référencé',
     question: 'Quel profil a été appliqué, et quelles parts ne l’ont pas été ?',
     status: { kind: 'served', contract: `${SNAPSHOT}.profile_ref` },
   },
   {
     id: 'exclusions',
+    size: 'M',
+    variant: 'support',
     title: 'Raisons d’exclusion',
     question: 'Pourquoi les candidats exclus le sont-ils ?',
     status: { kind: 'served', contract: `${SNAPSHOT}.exclusion_reasons` },
   },
   {
     id: 'catalysts-provenance',
+    size: 'M',
+    variant: 'support',
     title: 'Provenance des catalyseurs',
     question: 'Sur quel snapshot calendrier les catalyseurs ont-ils été comptés ?',
     status: { kind: 'served', contract: `${SNAPSHOT}.calendar_ref` },
   },
   {
     id: 'quality',
+    size: 'S',
+    variant: 'support',
     title: 'Limites publiées',
     question: 'Quelles limites le moteur déclare-t-il sur ce snapshot ?',
     status: { kind: 'served', contract: `${SNAPSHOT}.limitations` },
