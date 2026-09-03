@@ -2050,6 +2050,85 @@ body {
 }
 
 /* ------------------------------------------------------------------ */
+/* LOT-S2 — COMPARAISON BASE 100 (module servi de la planche §8).       */
+/* Même géométrie de carte que les autres modules secondaires. Aucune   */
+/* couleur brute : uniquement des tokens (garde no-raw-colors).         */
+/* ------------------------------------------------------------------ */
+.vx-comparison {
+  margin-top: var(--vx-space-12);
+  padding: var(--vx-space-16);
+  border: 1px solid var(--vx-border-soft);
+  border-top-color: var(--vx-border);
+  border-radius: var(--vx-radius-10);
+  background: var(--vx-surface-1);
+  box-shadow: var(--vx-shadow-inset);
+}
+
+.vx-comparison h3 {
+  margin: 0 0 var(--vx-space-4);
+  font-size: var(--vx-font-size-title);
+  font-weight: 620;
+  letter-spacing: -0.015em;
+}
+
+.vx-comparison-question {
+  margin: 0 0 var(--vx-space-12);
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-comparison-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--vx-space-8) var(--vx-space-20);
+  margin: 0 0 var(--vx-space-12);
+  padding: var(--vx-space-8) var(--vx-space-12);
+  border: 1px solid var(--vx-border-soft);
+  border-radius: var(--vx-radius-6);
+  background: var(--vx-surface-0);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-comparison-meta > div {
+  display: flex;
+  gap: var(--vx-space-8);
+  align-items: baseline;
+}
+
+.vx-comparison-meta dt {
+  color: var(--vx-text-muted);
+  letter-spacing: 0.04em;
+}
+
+.vx-comparison-meta dd {
+  margin: 0;
+  color: var(--vx-text-secondary);
+  font-family: var(--vx-font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.vx-comparison-rejected {
+  margin: var(--vx-space-8) 0 0;
+  padding-left: var(--vx-space-20);
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-comparison-rejected code {
+  font-family: var(--vx-font-mono);
+}
+
+.vx-comparison-method {
+  margin: var(--vx-space-12) 0 0;
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-comparison-method code {
+  font-family: var(--vx-font-mono);
+}
+
+/* ------------------------------------------------------------------ */
 /* V3 — sélecteur de sous-jacent/instrument (Options, Analyse)         */
 /* ------------------------------------------------------------------ */
 

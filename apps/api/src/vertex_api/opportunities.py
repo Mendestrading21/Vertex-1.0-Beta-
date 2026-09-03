@@ -83,7 +83,9 @@ from vertex_api.freshness import (
     REASON_SNAPSHOT_STALE,
     closed_session_budget,
     evaluate_relay_freshness,
+    published_budget,
 )
+from vertex_api.schemas import FreshnessPolicyView
 from vertex_api.snapshot_views import (
     SnapshotContentError,
     _parse_utc,
@@ -183,6 +185,10 @@ registry's own versioned value — not a number invented here.
 """
 
 _FRESHNESS_POLICY = get_freshness_policy(OPPORTUNITIES_FRESHNESS_POLICY)
+
+#: Coordonnées publiées de la jauge âge / budget — propriété de la route,
+#: servies dans tous les états (`vertex_api.freshness.published_budget`).
+_PUBLISHED_BUDGET = published_budget(_FRESHNESS_POLICY)
 
 OPPORTUNITIES_MAX_AGE = closed_session_budget(_FRESHNESS_POLICY)
 """Freshness budget of the relayed snapshot (CLOSED-session TTL of the
@@ -372,6 +378,7 @@ class OpportunitiesResponse(ContractModel):
     snapshot_version: PositiveInt | None
     as_of: UtcDatetime | None
     age_seconds: Annotated[int, Field(ge=0)] | None
+    freshness_policy: FreshnessPolicyView | None
     content: FrozenStrMapping | None
     reason: NonEmptyStr | None
 
@@ -665,6 +672,7 @@ def build_opportunities_response(
             snapshot_version=None,
             as_of=None,
             age_seconds=None,
+            freshness_policy=_PUBLISHED_BUDGET,
             content=None,
             reason=REASON_NO_SNAPSHOT_PUBLISHED,
         )
@@ -709,6 +717,7 @@ def build_opportunities_response(
             snapshot_version=snapshot.version,
             as_of=None,
             age_seconds=None,
+            freshness_policy=_PUBLISHED_BUDGET,
             content=None,
             reason=freshness.clock_reason,
         )
@@ -717,6 +726,7 @@ def build_opportunities_response(
         snapshot_version=snapshot.version,
         as_of=_parse_utc(content.get("as_of"), field="as_of"),
         age_seconds=freshness.age_seconds,
+        freshness_policy=_PUBLISHED_BUDGET,
         content=content,
         reason=freshness.stale_reason,
     )

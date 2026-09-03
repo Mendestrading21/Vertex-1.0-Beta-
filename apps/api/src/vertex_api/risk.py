@@ -28,7 +28,12 @@ from datetime import datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any, Literal
 
-from vertex_api.freshness import closed_session_budget, evaluate_relay_freshness
+from vertex_api.freshness import (
+    closed_session_budget,
+    evaluate_relay_freshness,
+    published_budget,
+)
+from vertex_api.schemas import FreshnessPolicyView
 from vertex_api.snapshot_views import (
     SnapshotContentError,
     _optional_str,
@@ -83,6 +88,10 @@ RISK_FRESHNESS_POLICY = "daily_bar"
 _FRESHNESS_POLICY = get_freshness_policy(RISK_FRESHNESS_POLICY)
 
 RISK_MAX_AGE = closed_session_budget(_FRESHNESS_POLICY)
+
+#: Coordonnées publiées de la jauge âge / budget — propriété de la route,
+#: servies dans tous les états (`vertex_api.freshness.published_budget`).
+_PUBLISHED_BUDGET = published_budget(_FRESHNESS_POLICY)
 
 _POPULATIONS = frozenset({"REAL", "SYNTHETIC", "EMPTY"})
 """Aveux admis sur la fenêtre d'entrée. Deny-by-default : toute autre étiquette
@@ -311,6 +320,7 @@ class RiskMatrixResponse(ContractModel):
     snapshot_version: PositiveInt | None
     as_of: UtcDatetime | None
     age_seconds: int | None
+    freshness_policy: FreshnessPolicyView | None
     content: FrozenStrMapping | None
     reason: NonEmptyStr | None
 
@@ -325,6 +335,7 @@ def build_risk_response(
             snapshot_version=None,
             as_of=None,
             age_seconds=None,
+            freshness_policy=_PUBLISHED_BUDGET,
             content=None,
             reason=REASON_NO_SNAPSHOT_PUBLISHED,
         )
@@ -336,6 +347,7 @@ def build_risk_response(
         snapshot_version=snapshot.version,
         as_of=snapshot.as_of,
         age_seconds=freshness.age_seconds,
+        freshness_policy=_PUBLISHED_BUDGET,
         content=dict(checked_risk_content(snapshot.content)),
         reason=freshness.stale_reason,
     )

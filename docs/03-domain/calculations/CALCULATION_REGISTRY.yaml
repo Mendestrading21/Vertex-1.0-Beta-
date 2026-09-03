@@ -133,6 +133,9 @@ calculations:
     criticality: high
     tests:
       - packages/python/vertex_core/tests/calculations/test_market.py
+      - apps/worker/tests/test_analysis_content.py
+      - apps/api/tests/test_analysis.py
+      - apps/api/tests/test_risk_contract_matches_worker.py
   - id: market.log_return
     owner: market_statistics
     inputs: [price_t0, price_t1]

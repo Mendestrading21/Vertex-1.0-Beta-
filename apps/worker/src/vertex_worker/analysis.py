@@ -41,6 +41,14 @@ focus instrument present in the recent bars window:
   methods, named bands and lines, the same NAMED absence or the engine's
   typed refusal — never an interpretation, never a value approximated on a
   partial window;
+- une comparaison base 100 SERVIE contre l'indice de reference DECLARE
+  (``market.rebased_series``) : les deux series sont ramenees a la meme base
+  sur les SEULES seances communes, intersectees ICI. La page ne recoit rien a
+  aligner et ne rebase rien — un rebasage dans le navigateur serait un calcul
+  financier en TypeScript, interdit par ``.claude/rules/frontend.md``. L'indice
+  passe la MEME porte d'admission que l'instrument ; un refus est NOMME
+  (``BENCHMARK_NOT_OBSERVED``, ``INSUFFICIENT_SAMPLE``, devise ou base
+  d'ajustement divergente), jamais une serie tronquee en silence;
 - a short evidence rail: the ticker's content clusters from the single
   deterministic fusion engine (``vertex_core.fusion.fuse``) — dedup only,
   no invented relevance;
@@ -148,6 +156,7 @@ __all__ = [
     "AnalysisHandler",
     "BarRecord",
     "build_analysis_content",
+    "instrument_ref_de",
     "is_daily_bars_schema",
     "load_daily_bar_records",
     "register_analysis_handler",
@@ -279,6 +288,24 @@ REASON_NO_BENCHMARK = "NO_BENCHMARK_DECLARED"
 REASON_BENCHMARK_ABSENT = "BENCHMARK_NOT_OBSERVED"
 REASON_IS_BENCHMARK = "INSTRUMENT_IS_BENCHMARK"
 
+#: Base commune de la comparaison servie (`market.rebased_series`). DECLAREE
+#: ici et PUBLIEE dans le bloc : une page qui choisirait sa propre base
+#: afficherait deux courbes que rien ne rend comparables.
+REBASE_BASE_VALUE = Decimal("100")
+
+#: Minimum de seances communes pour publier une comparaison. DEUX : avec une
+#: seule seance commune les deux series valent EXACTEMENT la base et la
+#: comparaison ne compare rien. Exiger davantage inventerait un seuil que
+#: personne n'a declare.
+REBASED_COMPARISON_MIN_SESSIONS = 2
+
+#: Refus NOMMES de la comparaison base 100. Rebaser deux series qui ne
+#: partagent ni la devise ni la base d'ajustement affiche un ecart FAUX --
+#: derive de change ou detachement de dividende lu comme une performance --
+#: que rien a l'ecran ne signalerait.
+REASON_BENCHMARK_CURRENCY_MISMATCH = "BENCHMARK_CURRENCY_MISMATCH"
+REASON_BENCHMARK_BASIS_MISMATCH = "BENCHMARK_ADJUSTMENT_BASIS_MISMATCH"
+
 #: Fenetres des overlays et oscillateurs de la page Graphiques (lot S6).
 #: DECLAREES ici, comme VOLATILITY_WINDOW : une fenetre deduite de
 #: l'historique disponible publierait une courbe dont personne ne
@@ -338,6 +365,22 @@ class BarRecord:
     rights: str
     schema_version: str
     payload: Mapping[str, Any]
+
+
+@dataclass(frozen=True)
+class SerieAdmise:
+    """Serie quotidienne d'un ticker ADMISE par la porte du dossier.
+
+    Elle transporte ses UNITES (devise, base d'ajustement) avec ses barres :
+    comparer deux series exige de savoir dans quoi chacune est libellee, et
+    aller rechercher cette information ailleurs reviendrait a la deviner.
+    """
+
+    ticker: str
+    bars: tuple[Mapping[str, Any], ...]
+    currency: str
+    adjustment_basis: str
+    event_id: str
 
 
 def _is_synthetic_bar(record: BarRecord) -> bool:
@@ -511,7 +554,7 @@ def _validate_bar(raw: Any) -> tuple[dict[str, Any] | None, str | None]:
     }, None
 
 
-def _instrument_ref_de(
+def instrument_ref_de(
     bar_records: Sequence[Any], instrument: str
 ) -> str | None:
     """`instrument_ref` de l'instrument, releve sur ses propres barres.
@@ -1152,29 +1195,80 @@ def _build_overlays_and_oscillators(
 
 
 def _barres_de(
-    bar_records: Sequence[Any], ticker: str
-) -> list[Mapping[str, Any]]:
-    """Barres VALIDES d'un ticker, prises dans les enregistrements deja charges.
+    bar_records: Sequence[Any], ticker: str, *, config: AnalysisConfig
+) -> tuple[SerieAdmise | None, tuple[dict[str, str], ...]]:
+    """Serie d'un ticker, ADMISE par la MEME porte que l'instrument.
 
     Le constructeur possede deja toutes les barres de la fenetre : selectionner
     celles de l'indice de reference ne coute aucune requete supplementaire.
+
+    ECART B2 (matrice R2), corrige ici : cette fonction relevait les barres
+    SANS aucun controle, alors que l'instrument, lui, passe cinq portes. Un
+    indice provenant d'une source non autorisee, porte par un droit
+    inutilisable, ou dont la devise / la base d'ajustement n'a pas la FORME
+    declaree entrait donc dans une comparaison servie. Le filtre applique ici
+    est LITTERALEMENT celui de `build_analysis_content`, dans le meme ordre :
+    ce qui est refuse a l'instrument est refuse a l'indice.
+
+    L'enregistrement retenu est le DERNIER admis (ordre croissant), exactement
+    comme pour l'instrument. Un enregistrement admis dont aucune barre ne
+    survit a `_validate_bar` ne fournit pas de serie : il est rendu avec son
+    motif plutot que remplace en silence par un enregistrement plus ancien.
+
+    Rend `(serie, rejets)`. Les rejets nomment CHAQUE enregistrement ecarte :
+    « pas encore collecte » et « collecte mais refuse » sont deux faits
+    differents, et le dossier doit dire lequel.
     """
-    for record in sorted(bar_records, key=lambda r: (r.as_of, r.event_id), reverse=True):
+    rejets: list[dict[str, str]] = []
+    retenu: tuple[Any, str, str] | None = None
+    for record in sorted(bar_records, key=lambda r: (r.as_of, r.event_id)):
         charge = record.payload if isinstance(record.payload, Mapping) else {}
         if charge.get("ticker") != ticker:
             continue
-        brutes = charge.get("bars")
-        if not isinstance(brutes, list):
+        if record.source not in config.allowed_sources:
+            rejets.append({"event_id": record.event_id, "reason": REASON_SOURCE_NOT_ALLOWED})
             continue
-        retenues: list[Mapping[str, Any]] = []
-        for brute in brutes:
-            barre, _ = _validate_bar(brute)
-            if barre is not None:
-                retenues.append(barre)
-        if retenues:
-            retenues.sort(key=lambda b: b["trading_day"])
-            return retenues
-    return []
+        if record.rights not in config.usable_rights:
+            rejets.append({"event_id": record.event_id, "reason": REASON_RIGHTS_NOT_USABLE})
+            continue
+        if not isinstance(charge.get("bars"), list):
+            rejets.append({"event_id": record.event_id, "reason": REASON_INVALID_PAYLOAD})
+            continue
+        devise = _currency_or_none(charge.get("currency"))
+        if devise is None:
+            rejets.append({"event_id": record.event_id, "reason": REASON_INVALID_CURRENCY})
+            continue
+        base = _basis_code_or_none(charge.get("adjustment_basis"))
+        if base is None:
+            rejets.append(
+                {"event_id": record.event_id, "reason": REASON_INVALID_ADJUSTMENT_BASIS}
+            )
+            continue
+        retenu = (record, devise, base)  # ordre croissant : le dernier admis gagne
+
+    if retenu is None:
+        return None, tuple(rejets)
+
+    record, devise, base = retenu
+    retenues: list[Mapping[str, Any]] = []
+    for brute in record.payload["bars"]:
+        barre, _ = _validate_bar(brute)
+        if barre is not None:
+            retenues.append(barre)
+    if not retenues:
+        rejets.append({"event_id": record.event_id, "reason": REASON_INVALID_BAR})
+        return None, tuple(rejets)
+    retenues.sort(key=lambda b: b["trading_day"])
+    return (
+        SerieAdmise(
+            ticker=ticker,
+            bars=tuple(retenues),
+            currency=devise,
+            adjustment_basis=base,
+            event_id=record.event_id,
+        ),
+        tuple(rejets),
+    )
 
 
 def _relative_strength_block(
@@ -1385,6 +1479,202 @@ def _serie_force_relative(
         "last_trading_day": points[-1]["trading_day"],
         "points": points,
         "calculation": _calculation_meta(enregistrement),
+    }
+
+
+def _rebased_comparison_block(
+    valid_bars: Sequence[Mapping[str, Any]],
+    benchmark_series: SerieAdmise | None,
+    *,
+    instrument: str,
+    benchmark: str | None,
+    currency: str | None,
+    adjustment_basis: str | None,
+    now: datetime,
+    benchmark_rejected: Sequence[Mapping[str, str]] = (),
+) -> dict[str, Any]:
+    """Comparaison base 100 SERVIE contre l'indice DECLARE.
+
+    `market.rebased_series` etait APPROUVE au registre et n'avait aucun
+    appelant : la page Graphiques ne pouvait comparer deux series qu'en les
+    rebasant dans le navigateur, c'est-a-dire en calculant une performance en
+    TypeScript — ce que `.claude/rules/frontend.md` interdit. Le rebasage ET
+    l'alignement des calendriers se font donc ICI.
+
+    Alignement, jamais troncature : deux places n'ont pas les memes feries, on
+    intersecte les jours de bourse et on publie leur compte. Chaque point rendu
+    porte SON jour et les DEUX valeurs de ce jour — la page ne peut donc pas
+    apparier deux listes de longueurs differentes, la structure l'interdit.
+
+    Refus NOMMES, jamais une serie tronquee en silence : aucun indice declare,
+    instrument egal a l'indice, indice non observe (avec le motif de rejet
+    quand il a ete collecte puis refuse), seances communes insuffisantes,
+    devise ou base d'ajustement divergente.
+    """
+    from vertex_core.calculations.market import CalculationInputError, rebase_series
+
+    if benchmark is None:
+        return {"status": REASON_NO_BENCHMARK, "detail": "aucun indice de référence déclaré"}
+    if benchmark == instrument:
+        return {
+            "status": REASON_IS_BENCHMARK,
+            "benchmark": benchmark,
+            "detail": "un instrument ne se compare pas à lui-même",
+        }
+    if benchmark_series is None:
+        bloc_absent: dict[str, Any] = {
+            "status": REASON_BENCHMARK_ABSENT,
+            "benchmark": benchmark,
+            "detail": f"aucune série exploitable admise pour {benchmark}",
+        }
+        if benchmark_rejected:
+            bloc_absent["rejected_records"] = [dict(rejet) for rejet in benchmark_rejected]
+        return bloc_absent
+
+    if currency is None or adjustment_basis is None:
+        # Aucun enregistrement de barres n'a ete ADMIS pour l'instrument : il
+        # n'a ni devise ni base d'ajustement publiees, donc aucune seance a
+        # partager. Emprunter celles de l'indice fabriquerait exactement
+        # l'etiquette que la porte ci-dessous protege.
+        return {
+            "status": REASON_INSUFFICIENT_SAMPLE,
+            "benchmark": benchmark,
+            "minimum_sessions": REBASED_COMPARISON_MIN_SESSIONS,
+            "common_sessions": 0,
+            "detail": (
+                f"aucune série admise pour {instrument} : 0 séance partagée "
+                f"avec {benchmark}"
+            ),
+        }
+
+    # Unites : deux series ne se superposent que si elles sont libellees dans
+    # la meme monnaie et sur la meme base d'ajustement. Sinon la base 100
+    # afficherait une derive de change ou un detachement de dividende comme
+    # une surperformance, et rien a l'ecran ne le dirait.
+    if currency != benchmark_series.currency:
+        return {
+            "status": REASON_BENCHMARK_CURRENCY_MISMATCH,
+            "benchmark": benchmark,
+            "currency": currency,
+            "benchmark_currency": benchmark_series.currency,
+            "detail": (
+                f"{instrument} est libellé en {currency} et {benchmark} en "
+                f"{benchmark_series.currency} : une base 100 muette sur la devise "
+                "afficherait la dérive de change comme une performance"
+            ),
+        }
+    if adjustment_basis != benchmark_series.adjustment_basis:
+        return {
+            "status": REASON_BENCHMARK_BASIS_MISMATCH,
+            "benchmark": benchmark,
+            "adjustment_basis": adjustment_basis,
+            "benchmark_adjustment_basis": benchmark_series.adjustment_basis,
+            "detail": (
+                f"{instrument} est sur la base {adjustment_basis} et {benchmark} sur "
+                f"{benchmark_series.adjustment_basis} : l'écart affiché serait FAUX"
+            ),
+        }
+
+    par_jour_actif = {bar["trading_day"]: bar["close"] for bar in valid_bars}
+    par_jour_indice = {bar["trading_day"]: bar["close"] for bar in benchmark_series.bars}
+    jours = sorted(set(par_jour_actif) & set(par_jour_indice))
+    if len(jours) < REBASED_COMPARISON_MIN_SESSIONS:
+        return {
+            "status": REASON_INSUFFICIENT_SAMPLE,
+            "benchmark": benchmark,
+            "minimum_sessions": REBASED_COMPARISON_MIN_SESSIONS,
+            "common_sessions": len(jours),
+            "detail": (
+                f"{REBASED_COMPARISON_MIN_SESSIONS} séances communes requises ; "
+                f"{len(jours)} partagée(s) avec {benchmark}"
+            ),
+        }
+
+    prix_actif = [par_jour_actif[jour] for jour in jours]
+    prix_indice = [par_jour_indice[jour] for jour in jours]
+    bases_actif = [adjustment_basis] * len(jours)
+    bases_indice = [benchmark_series.adjustment_basis] * len(jours)
+
+    debut = now
+    try:
+        rebase_actif = rebase_series(
+            [Decimal(prix) for prix in prix_actif],
+            adjustment_bases=bases_actif,
+            base_value=REBASE_BASE_VALUE,
+        )
+        rebase_indice = rebase_series(
+            [Decimal(prix) for prix in prix_indice],
+            adjustment_bases=bases_indice,
+            base_value=REBASE_BASE_VALUE,
+        )
+    except CalculationInputError as erreur:
+        return {
+            "status": "REFUSED",
+            "benchmark": benchmark,
+            "common_sessions": len(jours),
+            "reason": erreur.reason,
+            "detail": erreur.detail,
+        }
+
+    base_publiee = format(REBASE_BASE_VALUE, "f")
+    methode = "base_value * p_i / p_0 sur les seules séances communes aux deux séries"
+    code_sha = f"module:vertex_core.calculations.market@{ENGINE_VERSION}"
+    valeurs_actif = [_num_string(valeur) for valeur in rebase_actif]
+    valeurs_indice = [_num_string(valeur) for valeur in rebase_indice]
+
+    enregistrement_actif = make_calculation_record(
+        calculation_id="market.rebased_series",
+        calculation_type="market_statistic",
+        code_sha=code_sha,
+        method=methode,
+        inputs={
+            "sessions": jours,
+            "prices": prix_actif,
+            "adjustment_bases": bases_actif,
+            "base_value": base_publiee,
+        },
+        result={"series": valeurs_actif},
+        started_at=debut,
+        completed_at=now,
+    )
+    enregistrement_indice = make_calculation_record(
+        calculation_id="market.rebased_series",
+        calculation_type="market_statistic",
+        code_sha=code_sha,
+        method=methode,
+        inputs={
+            "sessions": jours,
+            "prices": prix_indice,
+            "adjustment_bases": bases_indice,
+            "base_value": base_publiee,
+        },
+        result={"series": valeurs_indice},
+        started_at=debut,
+        completed_at=now,
+    )
+
+    return {
+        "status": "OK",
+        "benchmark": benchmark,
+        "unit": "index",
+        "base_value": base_publiee,
+        "currency": currency,
+        "adjustment_basis": adjustment_basis,
+        "common_sessions": len(jours),
+        "first_trading_day": jours[0],
+        "last_trading_day": jours[-1],
+        # Un point = un jour ET ses deux valeurs. Publier deux listes
+        # paralleles laisserait la page les apparier, donc les desaligner.
+        "series": [
+            {
+                "trading_day": jour,
+                "instrument": valeurs_actif[index],
+                "benchmark": valeurs_indice[index],
+            }
+            for index, jour in enumerate(jours)
+        ],
+        "calculation": _calculation_meta(enregistrement_actif),
+        "benchmark_calculation": _calculation_meta(enregistrement_indice),
     }
 
 
@@ -1733,13 +2023,30 @@ def build_analysis_content(
         now=now,
         source_event_id=chosen.event_id if chosen is not None else None,
     )
-    # Force relative contre l'indice DECLARE par la configuration. Ses barres
-    # sortent du meme chargement : aucune requete supplementaire.
+    # Force relative et comparaison base 100 contre l'indice DECLARE par la
+    # configuration. Ses barres sortent du meme chargement, et passent la MEME
+    # porte d'admission que l'instrument : aucune requete supplementaire,
+    # aucune serie que l'instrument n'aurait pas eu le droit d'utiliser.
+    serie_indice, indice_rejets = (
+        _barres_de(bar_records, config.benchmark, config=config)
+        if config.benchmark
+        else (None, ())
+    )
     indicators["relative_strength"] = _relative_strength_block(
         valid_bars,
-        _barres_de(bar_records, config.benchmark) if config.benchmark else None,
+        None if serie_indice is None else list(serie_indice.bars),
         instrument=instrument,
         benchmark=config.benchmark,
+        now=now,
+    )
+    indicators["rebased_comparison"] = _rebased_comparison_block(
+        valid_bars,
+        serie_indice,
+        instrument=instrument,
+        benchmark=config.benchmark,
+        currency=bars_block["currency"],
+        adjustment_basis=bars_block["adjustment_basis"],
+        benchmark_rejected=indice_rejets,
         now=now,
     )
 
@@ -1880,6 +2187,7 @@ class AnalysisHandler:
         # Local imports avoid a module cycle (handlers imports ingest,
         # ingest imports this module).
         from vertex_worker.handlers import (
+            EVIDENCE_SCHEMA_PREFIXES,
             load_recent_observation_records,
             publish_if_changed,
         )
@@ -1909,13 +2217,21 @@ class AnalysisHandler:
             # puis filtrer affamait chaque dossier dès que d'autres
             # instruments étaient collectés après lui. Mesuré le 2026-09-01 :
             # 0 dépêche GOOG dans les 500 plus récentes, alors que 140
-            # existaient en base.
+            # existaient en base. Et cadrées sur les familles TITRÉES :
+            # l'instrument porte aussi ses propres cotations instantanées
+            # (une par minute), qui chassaient ses preuves de la même façon.
+            # Les familles du RAIL, pas celles de la file : un événement de
+            # calendrier est une preuve titrée de CET instrument, alors qu'il
+            # n'est pas une dépêche (régression CI 33750177958 — le rail cadré
+            # sur les seules dépêches rendait 0 grappe sur la population de
+            # démonstration, dont les dépêches parlent de SYN1..SYN9).
             evidence_records = load_recent_observation_records(
                 session,
                 now=now,
                 lookback=self._config.lookback,
                 limit=self._config.max_observations,
-                instrument_ref=_instrument_ref_de(bar_records, instrument),
+                schema_prefixes=EVIDENCE_SCHEMA_PREFIXES,
+                instrument_ref=instrument_ref_de(bar_records, instrument),
             )
             content = build_analysis_content(
                 bar_records,

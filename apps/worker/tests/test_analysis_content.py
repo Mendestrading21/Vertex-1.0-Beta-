@@ -1306,6 +1306,335 @@ def test_une_seance_reemise_par_la_source_REFUSE_les_trois_series() -> None:
     assert indicateurs["relative_strength"]["ticker"] == INSTRUMENT
 
 
+# --------------------------------------------------------------------------
+# LOT-S2 — comparaison base 100 SERVIE (`market.rebased_series`)
+# --------------------------------------------------------------------------
+
+
+def _serie_jours(closes: list[str], *, premier: date = date(2026, 8, 21)) -> list[dict]:
+    """Barres OHLC coherentes derivees d'une liste de clotures."""
+    barres = []
+    for index, cloture in enumerate(closes):
+        valeur = Decimal(cloture)
+        barres.append(
+            bar(
+                (premier + timedelta(days=index)).isoformat(),
+                format(valeur, "f"),
+                format(valeur * Decimal("1.01"), "f"),
+                format(valeur * Decimal("0.99"), "f"),
+                format(valeur, "f"),
+            )
+        )
+    return barres
+
+
+class TestSerieAdmiseDeLIndice:
+    """ECART B2 de la matrice R2 : l'indice de reference passait par
+    `_barres_de` SANS la porte que l'instrument subit. Une serie interdite
+    (source non autorisee, droit non utilisable, devise ou base hors forme)
+    entrait donc dans une comparaison servie, et rien a l'ecran ne l'aurait
+    signale."""
+
+    def test_une_source_NON_AUTORISEE_n_admet_aucune_serie(self):
+        from vertex_worker.analysis import REASON_SOURCE_NOT_ALLOWED, _barres_de
+
+        serie, rejets = _barres_de(
+            [bars_record(ticker="SPX", source="source-interdite", event_id="evt-src")],
+            "SPX",
+            config=CONFIG,
+        )
+        assert serie is None, "une source non autorisee ne fournit pas de serie"
+        assert rejets == ({"event_id": "evt-src", "reason": REASON_SOURCE_NOT_ALLOWED},)
+
+    def test_un_droit_NON_UTILISABLE_n_admet_aucune_serie(self):
+        from vertex_worker.analysis import REASON_RIGHTS_NOT_USABLE, _barres_de
+
+        serie, rejets = _barres_de(
+            [bars_record(ticker="SPX", rights="DROIT-INTERDIT", event_id="evt-rgt")],
+            "SPX",
+            config=CONFIG,
+        )
+        assert serie is None
+        assert rejets == ({"event_id": "evt-rgt", "reason": REASON_RIGHTS_NOT_USABLE},)
+
+    def test_une_devise_HORS_FORME_n_admet_aucune_serie(self):
+        from vertex_worker.analysis import REASON_INVALID_CURRENCY, _barres_de
+
+        serie, rejets = _barres_de(
+            [bars_record(ticker="SPX", currency=HOSTILE_CURRENCY, event_id="evt-cur")],
+            "SPX",
+            config=CONFIG,
+        )
+        assert serie is None
+        assert rejets == ({"event_id": "evt-cur", "reason": REASON_INVALID_CURRENCY},)
+
+    def test_une_base_d_ajustement_HORS_FORME_n_admet_aucune_serie(self):
+        from vertex_worker.analysis import REASON_INVALID_ADJUSTMENT_BASIS, _barres_de
+
+        serie, rejets = _barres_de(
+            [bars_record(ticker="SPX", adjustment_basis="ajuste; DROP", event_id="evt-bas")],
+            "SPX",
+            config=CONFIG,
+        )
+        assert serie is None
+        assert rejets == ({"event_id": "evt-bas", "reason": REASON_INVALID_ADJUSTMENT_BASIS},)
+
+    def test_la_serie_admise_porte_sa_devise_et_sa_base(self):
+        """Comparer deux series exige de connaitre leurs unites : elles
+        voyagent AVEC la serie, jamais devinees plus loin."""
+        from vertex_worker.analysis import _barres_de
+
+        serie, rejets = _barres_de(
+            [bars_record(ticker="SPX", bars=_serie_jours(["50.00", "60.00"]))],
+            "SPX",
+            config=CONFIG,
+        )
+        assert rejets == ()
+        assert serie is not None
+        assert serie.ticker == "SPX"
+        assert serie.currency == "SYN"
+        assert serie.adjustment_basis == "synthetic-unadjusted"
+        assert [b["close"] for b in serie.bars] == ["50.00", "60.00"]
+
+
+class TestComparaisonBase100:
+    """`market.rebased_series` etait APPROUVE au registre et n'avait AUCUN
+    appelant. Ces tests couvrent son branchement SERVI : deux series ramenees
+    a la meme base, sur les SEULES seances communes, alignees cote serveur."""
+
+    def _indice(
+        self,
+        closes: list[str],
+        *,
+        premier: date = date(2026, 8, 21),
+        currency: str = "SYN",
+        adjustment_basis: str = "synthetic-unadjusted",
+    ):
+        from vertex_worker.analysis import SerieAdmise
+
+        return SerieAdmise(
+            ticker="SPX",
+            bars=tuple(_serie_jours(closes, premier=premier)),
+            currency=currency,
+            adjustment_basis=adjustment_basis,
+            event_id="evt-spx",
+        )
+
+    def _bloc(self, actif_closes, indice, **kwargs):
+        from vertex_worker.analysis import _rebased_comparison_block
+
+        parametres = {
+            "instrument": INSTRUMENT,
+            "benchmark": "SPX",
+            "currency": "SYN",
+            "adjustment_basis": "synthetic-unadjusted",
+            "now": NOW,
+        }
+        parametres.update(kwargs)
+        return _rebased_comparison_block(
+            _serie_jours(actif_closes) if actif_closes else [],
+            indice,
+            **parametres,
+        )
+
+    def test_les_deux_series_partent_EXACTEMENT_de_la_base(self):
+        """Le premier point n'est jamais approche : il EST la base."""
+        bloc = self._bloc(["100.00", "110.00"], self._indice(["50.00", "60.00"]))
+        assert bloc["status"] == "OK"
+        assert bloc["base_value"] == "100"
+        assert bloc["series"][0]["instrument"] == "100.0"
+        assert bloc["series"][0]["benchmark"] == "100.0"
+
+    def test_la_comparaison_est_servie_en_chaines_sur_les_seances_communes(self):
+        bloc = self._bloc(["100.00", "110.00"], self._indice(["50.00", "60.00"]))
+        assert bloc["series"] == [
+            {"trading_day": "2026-08-21", "instrument": "100.0", "benchmark": "100.0"},
+            {"trading_day": "2026-08-22", "instrument": "110.0", "benchmark": "120.0"},
+        ]
+        assert bloc["unit"] == "index"
+        assert bloc["common_sessions"] == 2
+
+    def test_l_alignement_est_fait_COTE_SERVEUR_jamais_dans_le_navigateur(self):
+        """L'indice ne cote pas le premier jour de l'actif : seules les
+        seances PARTAGEES sont publiees, et la page ne recoit rien a aligner."""
+        bloc = self._bloc(
+            ["100.00", "110.00", "90.00"],
+            self._indice(["50.00", "60.00"], premier=date(2026, 8, 22)),
+        )
+        assert bloc["status"] == "OK"
+        assert [point["trading_day"] for point in bloc["series"]] == [
+            "2026-08-22",
+            "2026-08-23",
+        ]
+        assert bloc["first_trading_day"] == "2026-08-22"
+        assert bloc["last_trading_day"] == "2026-08-23"
+
+    def test_sans_indice_DECLARE_le_bloc_est_nomme(self):
+        from vertex_worker.analysis import REASON_NO_BENCHMARK
+
+        bloc = self._bloc(["100.00", "110.00"], None, benchmark=None)
+        assert bloc["status"] == REASON_NO_BENCHMARK
+        assert "series" not in bloc
+
+    def test_un_instrument_ne_se_compare_pas_a_lui_meme(self):
+        from vertex_worker.analysis import REASON_IS_BENCHMARK
+
+        bloc = self._bloc(
+            ["100.00", "110.00"], self._indice(["50.00", "60.00"]), benchmark=INSTRUMENT
+        )
+        assert bloc["status"] == REASON_IS_BENCHMARK
+        assert "series" not in bloc
+
+    def test_un_indice_NON_OBSERVE_est_nomme_BENCHMARK_NOT_OBSERVED(self):
+        from vertex_worker.analysis import REASON_BENCHMARK_ABSENT
+
+        bloc = self._bloc(["100.00", "110.00"], None)
+        assert bloc["status"] == REASON_BENCHMARK_ABSENT
+        assert bloc["benchmark"] == "SPX"
+        assert "series" not in bloc
+
+    def test_un_indice_ECARTE_PAR_LA_PORTE_publie_le_motif_du_rejet(self):
+        """Un indice refuse pour ses droits n'est pas « pas encore collecte » :
+        le dossier dit lequel des deux."""
+        from vertex_worker.analysis import REASON_BENCHMARK_ABSENT, REASON_RIGHTS_NOT_USABLE
+
+        bloc = self._bloc(
+            ["100.00", "110.00"],
+            None,
+            benchmark_rejected=({"event_id": "evt-rgt", "reason": REASON_RIGHTS_NOT_USABLE},),
+        )
+        assert bloc["status"] == REASON_BENCHMARK_ABSENT
+        assert bloc["rejected_records"] == [
+            {"event_id": "evt-rgt", "reason": REASON_RIGHTS_NOT_USABLE}
+        ]
+
+    def test_trop_peu_de_seances_communes_est_NOMME_jamais_tronque(self):
+        from vertex_worker.analysis import REASON_INSUFFICIENT_SAMPLE
+
+        bloc = self._bloc(
+            ["100.00", "110.00", "90.00"],
+            self._indice(["50.00"], premier=date(2026, 8, 23)),
+        )
+        assert bloc["status"] == REASON_INSUFFICIENT_SAMPLE
+        assert bloc["common_sessions"] == 1
+        assert "series" not in bloc, "une serie tronquee silencieuse est interdite"
+
+    def test_un_instrument_sans_barre_ne_publie_aucune_comparaison(self):
+        from vertex_worker.analysis import REASON_INSUFFICIENT_SAMPLE
+
+        bloc = self._bloc(
+            [], self._indice(["50.00", "60.00"]), currency=None, adjustment_basis=None
+        )
+        assert bloc["status"] == REASON_INSUFFICIENT_SAMPLE
+        assert bloc["common_sessions"] == 0
+        assert "series" not in bloc
+
+    def test_deux_DEVISES_differentes_sont_REFUSEES(self):
+        """Une base 100 muette sur la devise afficherait la derive de change
+        comme une surperformance."""
+        from vertex_worker.analysis import REASON_BENCHMARK_CURRENCY_MISMATCH
+
+        bloc = self._bloc(
+            ["100.00", "110.00"], self._indice(["50.00", "60.00"], currency="USD")
+        )
+        assert bloc["status"] == REASON_BENCHMARK_CURRENCY_MISMATCH
+        assert bloc["currency"] == "SYN"
+        assert bloc["benchmark_currency"] == "USD"
+        assert "series" not in bloc
+
+    def test_deux_BASES_D_AJUSTEMENT_differentes_sont_REFUSEES(self):
+        from vertex_worker.analysis import REASON_BENCHMARK_BASIS_MISMATCH
+
+        bloc = self._bloc(
+            ["100.00", "110.00"],
+            self._indice(["50.00", "60.00"], adjustment_basis="split_adjusted"),
+        )
+        assert bloc["status"] == REASON_BENCHMARK_BASIS_MISMATCH
+        assert bloc["adjustment_basis"] == "synthetic-unadjusted"
+        assert bloc["benchmark_adjustment_basis"] == "split_adjusted"
+        assert "series" not in bloc
+
+    def test_chaque_serie_rebasee_porte_sa_LIGNEE(self):
+        """Une valeur financiere sans lignee n'est pas publiable."""
+        bloc = self._bloc(["100.00", "110.00"], self._indice(["50.00", "60.00"]))
+        for cle in ("calculation", "benchmark_calculation"):
+            calcul = bloc[cle]
+            assert calcul["calculation_id"] == "market.rebased_series"
+            assert calcul["method"]
+            assert calcul["input_hash"].startswith("sha256:")
+            assert calcul["result_hash"].startswith("sha256:")
+            assert calcul["status"] == "OK"
+
+    def test_aucune_interpretation_n_est_publiee(self):
+        bloc = self._bloc(["100.00", "110.00"], self._indice(["50.00", "60.00"]))
+        interdits = {"level", "severity", "regime", "signal", "verdict", "score", "winner"}
+        assert not (interdits & set(bloc))
+
+
+class TestComparaisonDansLeDossier:
+    """Branchement dans `build_analysis_content` : l'indice sort du MEME
+    chargement, sans requete supplementaire."""
+
+    def _config(self, benchmark: str | None = "SPX") -> AnalysisConfig:
+        return AnalysisConfig(
+            instruments=(INSTRUMENT,),
+            allowed_sources=frozenset({SYNTHETIC_SOURCE}),
+            usable_rights=frozenset({SYNTHETIC_RIGHTS}),
+            benchmark=benchmark,
+        )
+
+    def test_le_dossier_publie_la_comparaison_servie(self):
+        content = build(
+            [
+                bars_record(bars=_serie_jours(["100.00", "110.00"])),
+                bars_record(
+                    ticker="SPX",
+                    event_id="synthetic-dev:t:spx0001",
+                    bars=_serie_jours(["50.00", "60.00"]),
+                ),
+            ],
+            config=self._config(),
+        )
+        bloc = content["indicators"]["rebased_comparison"]
+        assert bloc["status"] == "OK"
+        assert bloc["benchmark"] == "SPX"
+        assert bloc["series"][-1] == {
+            "trading_day": "2026-08-22",
+            "instrument": "110.0",
+            "benchmark": "120.0",
+        }
+
+    def test_sans_indice_declare_le_dossier_nomme_l_absence(self):
+        from vertex_worker.analysis import REASON_NO_BENCHMARK
+
+        content = build([bars_record(bars=_serie_jours(["100.00", "110.00"]))])
+        assert content["indicators"]["rebased_comparison"]["status"] == REASON_NO_BENCHMARK
+
+    def test_un_indice_ECARTE_PAR_LA_PORTE_n_entre_pas_dans_la_comparaison(self):
+        """ECART B2 : avant correction, l'indice non autorise etait rebase."""
+        from vertex_worker.analysis import REASON_BENCHMARK_ABSENT, REASON_SOURCE_NOT_ALLOWED
+
+        content = build(
+            [
+                bars_record(bars=_serie_jours(["100.00", "110.00"])),
+                bars_record(
+                    ticker="SPX",
+                    event_id="evt-spx-interdit",
+                    source="source-interdite",
+                    bars=_serie_jours(["50.00", "60.00"]),
+                ),
+            ],
+            config=self._config(),
+        )
+        bloc = content["indicators"]["rebased_comparison"]
+        assert bloc["status"] == REASON_BENCHMARK_ABSENT
+        assert bloc["rejected_records"] == [
+            {"event_id": "evt-spx-interdit", "reason": REASON_SOURCE_NOT_ALLOWED}
+        ]
+        force = content["indicators"]["relative_strength"]
+        assert force["status"] == REASON_BENCHMARK_ABSENT
+
+
 class TestOverlaysEtOscillateurs:
     """Lot S6 : ``market.sma``, ``market.ema``, ``market.bollinger_bands``,
     ``market.rsi`` et ``market.macd`` publies dans ``indicators`` sous

@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   makeEmptyPortfolioResponse,
+  makeFreshnessPolicy,
   makePortfolioResponse,
   makeValuationContent,
 } from '../../test/fixtures.ts';
@@ -105,6 +106,7 @@ describe('valuationFrameStateOf — états dérivés de faits serveur uniquement
         snapshot_version: 3,
         as_of: '2026-08-25T12:00:00+00:00',
         age_seconds: 60,
+        freshness_policy: makeFreshnessPolicy({ kind: 'portfolio_mark', budget_seconds: 86400 }),
         reason: null,
         content: makeValuationContent({
           excluded_lots: [],
@@ -132,6 +134,7 @@ describe('valuationFrameStateOf — états dérivés de faits serveur uniquement
         snapshot_version: 3,
         as_of: null,
         age_seconds: null,
+        freshness_policy: makeFreshnessPolicy({ kind: 'portfolio_mark', budget_seconds: 86400 }),
         reason: null,
         content: { schema_version: 'autre/9.9' },
       },
@@ -147,6 +150,7 @@ describe('portfolioView — lecture verbatim, jamais un calcul', () => {
       snapshot_version: 3,
       as_of: '2026-08-25T12:00:00+00:00',
       age_seconds: 60,
+      freshness_policy: makeFreshnessPolicy({ kind: 'portfolio_mark', budget_seconds: 86400 }),
       reason: null,
       content: makeValuationContent(),
     });

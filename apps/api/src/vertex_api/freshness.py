@@ -34,6 +34,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
+from vertex_api.schemas import FreshnessPolicyView
 from vertex_core.data.freshness import FreshnessPolicy
 
 __all__ = [
@@ -43,6 +44,7 @@ __all__ = [
     "RelayFreshness",
     "closed_session_budget",
     "evaluate_relay_freshness",
+    "published_budget",
 ]
 
 _ZERO = timedelta(0)
@@ -102,6 +104,30 @@ def closed_session_budget(policy: FreshnessPolicy) -> timedelta:
     périmée à tort. C'est la borne conservatrice, choisie explicitement.
     """
     return timedelta(seconds=policy.ttl_closed_seconds)
+
+
+def published_budget(policy: FreshnessPolicy | None) -> FreshnessPolicyView | None:
+    """Le budget tel qu'il est PUBLIÉ : les coordonnées de la jauge âge / TTL.
+
+    Le relais servait l'âge sans son échelle : « 71 h » ne dit pas si c'est la
+    moitié ou le double de ce que la donnée tolère, et le client n'a pas le
+    droit de recopier le registre pour le savoir. Ce projecteur publie donc
+    la MÊME valeur que `closed_session_budget` — même propriétaire, même
+    règle, même nombre que celui nommé dans ``REASON_SNAPSHOT_STALE`` — avec
+    le nom et la version de la politique qui la justifient.
+
+    ``policy=None`` reste ``None`` : une famille sans budget au registre
+    (matrice de capacités) publie une absence DÉCLARÉE, jamais
+    ``budget_seconds = 0`` — un zéro serait lu comme « déjà périmé », ce
+    qu'aucun registre n'a décidé.
+    """
+    if policy is None:
+        return None
+    return FreshnessPolicyView(
+        budget_seconds=int(closed_session_budget(policy).total_seconds()),
+        kind=policy.name,
+        version=policy.version,
+    )
 
 
 def evaluate_relay_freshness(

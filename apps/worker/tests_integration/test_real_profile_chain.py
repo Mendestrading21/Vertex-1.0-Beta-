@@ -52,7 +52,13 @@ def horloge() -> datetime:
 
 
 def enveloppe_actualite_ibkr(event_id: str) -> DataEnvelope[Any]:
-    """Actualité IBKR : porteuse d'un titre, donc du contenu pour l'attention."""
+    """Actualité IBKR : porteuse d'un titre, donc du contenu pour l'attention.
+
+    Sous le schéma de la dépêche DÉRIVÉE (`ibkr.news-headline/1`, une ligne
+    par titre) : c'est la famille que la file d'attention déclare lire
+    (`CONTENT_SCHEMA_PREFIXES`). Le lot brut `ibkr.news-headlines/1` ne porte
+    pas de titre et n'est pas du contenu.
+    """
     payload = {
         "title": "Résultats trimestriels publiés",
         "provider_code": "BRFG",
@@ -60,7 +66,7 @@ def enveloppe_actualite_ibkr(event_id: str) -> DataEnvelope[Any]:
     }
     return DataEnvelope(
         event_id=event_id,
-        schema_version="ibkr.news-headlines/1",
+        schema_version="ibkr.news-headline/1",
         source=IBKR_SOURCE,
         instrument_id=CON_ID,
         observed_at=NOW - timedelta(minutes=1),

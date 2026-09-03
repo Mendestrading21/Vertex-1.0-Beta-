@@ -20,7 +20,11 @@ from vertex_worker.follow_up import (
     build_review_queue_content,
     due_sort_key,
 )
-from vertex_worker.handlers import DEV_SYNTHETIC_CONFIG, ObservationRecord
+from vertex_worker.handlers import (
+    CONTENT_SCHEMA_PREFIXES,
+    DEV_SYNTHETIC_CONFIG,
+    ObservationRecord,
+)
 
 NOW = datetime(2026, 8, 25, 12, 0, 0, tzinfo=UTC)
 TICKER = "SYN-TECH-01"
@@ -288,3 +292,10 @@ def test_builder_is_deterministic_and_counts_coverage() -> None:
     assert coverage["theses_with_instrument"] == 1
     assert coverage["observations_considered"] == 2
     assert coverage["content_observations"] == 2
+
+
+def test_coverage_publishes_the_declared_content_families() -> None:
+    """La couverture dit quelles familles la fenêtre a regardées (S0)."""
+    content = build_review_queue_content([], [], [], now=NOW, config=DEV_SYNTHETIC_CONFIG)
+    assert content["coverage"]["content_schema_prefixes"] == list(CONTENT_SCHEMA_PREFIXES)
+    assert content["coverage"]["observations_considered"] == 0

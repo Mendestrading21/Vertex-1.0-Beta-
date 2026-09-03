@@ -79,7 +79,7 @@ from typing import Any, cast
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from vertex_api.capability_manifest import CapabilityDeclaration, CapabilityManifest
-from vertex_api.freshness import RelayFreshness, evaluate_relay_freshness
+from vertex_api.freshness import RelayFreshness, evaluate_relay_freshness, published_budget
 from vertex_api.schemas import (
     AnalysisResponse,
     AttentionItem,
@@ -183,6 +183,18 @@ _SEC_FUNDAMENTALS_POLICY = get_freshness_policy(SEC_FUNDAMENTALS_FRESHNESS_POLIC
 #: de la sonde qui l'a établie. Inventer un TTL ici serait la valeur non
 #: justifiée que ce dépôt refuse ailleurs. L'âge, lui, est publié.
 CAPABILITIES_FRESHNESS_POLICY: FreshnessPolicy | None = None
+
+#: Les coordonnées PUBLIÉES de la jauge âge / budget de chaque relais : la
+#: projection de la politique ci-dessus (`vertex_api.freshness.published_budget`),
+#: servie dans TOUS les états — le budget est une propriété de la route, pas
+#: de l'instantané. La matrice de capacités publie ``None`` : son absence de
+#: budget est déclarée, jamais convertie en zéro.
+_ATTENTION_BUDGET = published_budget(_ATTENTION_POLICY)
+_MARKETS_BUDGET = published_budget(_MARKETS_POLICY)
+_ANALYSIS_BUDGET = published_budget(_ANALYSIS_POLICY)
+_OPTION_CHAIN_BUDGET = published_budget(_OPTION_CHAIN_POLICY)
+_SEC_FUNDAMENTALS_BUDGET = published_budget(_SEC_FUNDAMENTALS_POLICY)
+_CAPABILITIES_BUDGET = published_budget(CAPABILITIES_FRESHNESS_POLICY)
 
 
 def _relay_freshness(
@@ -1554,6 +1566,7 @@ def build_attention_response(
             snapshot_version=None,
             as_of=None,
             age_seconds=None,
+            freshness_policy=_ATTENTION_BUDGET,
             population=None,
             coverage=None,
             items=(),
@@ -1573,6 +1586,7 @@ def build_attention_response(
         snapshot_version=snapshot.version,
         as_of=_parse_utc(content.get("as_of"), field="as_of"),
         age_seconds=freshness.age_seconds,
+        freshness_policy=_ATTENTION_BUDGET,
         population=population,
         coverage=coverage,
         items=tuple(
@@ -1861,6 +1875,7 @@ def build_markets_overview_response(
             snapshot_version=None,
             as_of=None,
             age_seconds=None,
+            freshness_policy=_MARKETS_BUDGET,
             population=None,
             data_state=None,
             unit=None,
@@ -1896,6 +1911,7 @@ def build_markets_overview_response(
         snapshot_version=snapshot.version,
         as_of=_parse_utc(content.get("as_of"), field="as_of"),
         age_seconds=freshness.age_seconds,
+        freshness_policy=_MARKETS_BUDGET,
         population=_require_str(content.get("population"), field="population"),
         data_state=data_state,
         unit=_require_str(content.get("unit"), field="unit"),
@@ -1953,6 +1969,44 @@ def _checked_advice(value: Any) -> Mapping[str, Any]:
     return advice
 
 
+def _checked_rebased_comparison(indicators: Mapping[str, Any]) -> None:
+    """La comparaison base 100 est relayée VERBATIM, mais jamais muette.
+
+    Le bloc est FACULTATIF : un dossier publié avant son ajout n'en porte
+    aucun, et exiger la clé transformerait cette absence légitime en 500.
+
+    Quand il est là, deux exigences fail-closed :
+
+    - une comparaison SERVIE (``status = "OK"``) doit dire sur quelle base
+      elle repose (``base_value``, ``unit``), porter la série alignée par le
+      worker et la lignée des DEUX rebasages. Une série d'index sans sa base
+      afficherait deux courbes dont personne ne pourrait dire de quoi elles
+      partent, et sans lignée personne ne pourrait dire d'où elles viennent ;
+    - une comparaison ABSENTE doit être NOMMÉE. Une absence muette est pire
+      qu'une absence : l'écran ne saurait pas quoi afficher à sa place.
+
+    Le relais ne rebase rien, ne réaligne rien et ne complète rien : il
+    vérifie que ce qu'il transporte est lisible, ou il refuse.
+    """
+    bloc = indicators.get("rebased_comparison")
+    if bloc is None:
+        return
+    champ = "indicators.rebased_comparison"
+    comparaison = _require_mapping(bloc, field=champ)
+    statut = _require_str(comparaison.get("status"), field=f"{champ}.status")
+    if statut != "OK":
+        return
+    _require_str(comparaison.get("unit"), field=f"{champ}.unit")
+    _require_str(comparaison.get("base_value"), field=f"{champ}.base_value")
+    _require_str(comparaison.get("benchmark"), field=f"{champ}.benchmark")
+    _require_list(comparaison.get("series"), field=f"{champ}.series")
+    _require_mapping(comparaison.get("calculation"), field=f"{champ}.calculation")
+    _require_mapping(
+        comparaison.get("benchmark_calculation"),
+        field=f"{champ}.benchmark_calculation",
+    )
+
+
 def build_analysis_response(
     snapshot: CurrentSnapshot | None, *, instrument: str, now: datetime
 ) -> AnalysisResponse:
@@ -1979,6 +2033,7 @@ def build_analysis_response(
             snapshot_version=None,
             as_of=None,
             age_seconds=None,
+            freshness_policy=_ANALYSIS_BUDGET,
             population=None,
             instrument=instrument,
             engine_version=None,
@@ -2017,25 +2072,29 @@ def build_analysis_response(
     if scenario_status == "ABSENT":
         _require_str(scenarios.get("reason"), field="scenarios.reason")
     freshness = _relay_freshness(snapshot, now=now, policy=_ANALYSIS_POLICY)
+    # FACULTATIF : un dossier publié avant l'ajout des indicateurs n'en porte
+    # aucun. Exiger la clé transformerait cette absence légitime en 500 — une
+    # absence n'est jamais une erreur.
+    indicators = (
+        _wire_mapping(content["indicators"], field="indicators")
+        if content.get("indicators") is not None
+        else None
+    )
+    if indicators is not None:
+        _checked_rebased_comparison(indicators)
     return AnalysisResponse(
         state="stale" if freshness.stale else "ok",
         snapshot_version=snapshot.version,
         as_of=_parse_utc(content.get("as_of"), field="as_of"),
         age_seconds=freshness.age_seconds,
+        freshness_policy=_ANALYSIS_BUDGET,
         population=_require_str(content.get("population"), field="population"),
         instrument=published_instrument,
         engine_version=_require_str(
             content.get("engine_version"), field="engine_version"
         ),
         bars=bars,
-        # FACULTATIF : un dossier publié avant l'ajout des indicateurs n'en
-        # porte aucun. Exiger la clé transformerait cette absence légitime
-        # en 500 — une absence n'est jamais une erreur.
-        indicators=(
-            _wire_mapping(content["indicators"], field="indicators")
-            if content.get("indicators") is not None
-            else None
-        ),
+        indicators=indicators,
         evidence=_wire_mapping(content.get("evidence"), field="evidence"),
         scenarios=scenarios,
         advice=dict(_checked_advice(content.get("advice"))),
@@ -2054,6 +2113,7 @@ def build_sec_fundamentals_response(
             snapshot_version=None,
             as_of=None,
             age_seconds=None,
+            freshness_policy=_SEC_FUNDAMENTALS_BUDGET,
             population=None,
             instrument=instrument,
             source=None,
@@ -2119,6 +2179,7 @@ def build_sec_fundamentals_response(
         snapshot_version=snapshot.version,
         as_of=_parse_utc(content.get("as_of"), field="as_of"),
         age_seconds=freshness.age_seconds,
+        freshness_policy=_SEC_FUNDAMENTALS_BUDGET,
         population=_require_str(content.get("population"), field="population"),
         instrument=published_instrument,
         source="sec_edgar",
@@ -2245,6 +2306,7 @@ def build_option_chain_response(
             snapshot_version=None,
             as_of=None,
             age_seconds=None,
+            freshness_policy=_OPTION_CHAIN_BUDGET,
             population=None,
             underlying=underlying,
             engine_version=None,
@@ -2278,6 +2340,7 @@ def build_option_chain_response(
         snapshot_version=snapshot.version,
         as_of=_parse_utc(content.get("as_of"), field="as_of"),
         age_seconds=freshness.age_seconds,
+        freshness_policy=_OPTION_CHAIN_BUDGET,
         population=_require_str(content.get("population"), field="population"),
         underlying=published_underlying,
         engine_version=_require_str(
@@ -2480,6 +2543,9 @@ def build_capabilities_response(
         snapshot_version=None if snapshot is None else snapshot.version,
         as_of=snapshot_as_of,
         age_seconds=snapshot_age,
+        # Absence DÉCLARÉE de budget (voir CAPABILITIES_FRESHNESS_POLICY) :
+        # servie ``null``, jamais convertie en ``budget_seconds = 0``.
+        freshness_policy=_CAPABILITIES_BUDGET,
         total=len(entries),
         capabilities=entries,
         unknown_probed_capability_ids=unknown,

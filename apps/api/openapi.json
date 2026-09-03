@@ -610,7 +610,7 @@
       },
       "AnalysisResponse": {
         "additionalProperties": false,
-        "description": "The last ``analysis/{instrument}`` snapshot — or an honest empty state.\n\n``state = \"empty\"`` means NO dossier was ever published for this\ninstrument: every snapshot-derived field is ``None`` (never invented)\nand ``reason`` says why. ``state = \"ok\"`` relays the persisted content\nverbatim:\n\n- ``advice`` is the canonical ``AdviceResult`` produced by THE single\n  ``AdviceEngine`` — status, direction, the ten gates with their reason\n  codes, limitations — exactly as published; the API neither recomputes\n  nor softens it;\n- ``bars`` carries the admitted, validated OHLCV series (decimal strings)\n  with its per-bar discard account; its observation may belong to a\n  ``REAL`` or ``SYNTHETIC`` population, relayed separately;\n- ``indicators`` carries the technical indicators computed by the\n  approved engine (``market.realized_volatility``, ``market.atr``,\n  ``market.relative_strength`` against the declared benchmark), each\n  with its ``CalculationRecord`` lineage — or a NAMED absence\n  (``INSUFFICIENT_SAMPLE``) when the declared window exceeds the\n  available history. Each block also carries its rolling ``series``\n  (LOT S3): one rendered value per served session with a complete\n  window (decimal strings, same status vocabulary, same method, own\n  lineage), relayed verbatim — the interface plots what it receives and\n  computes nothing. No interpretation is published: a value, never a\n  level, a regime or a signal;\n- ``evidence`` is the fusion-cluster rail of the instrument;\n- ``scenarios`` is either the ``THEORETICAL`` scenario grid with its\n  ``CalculationRecord`` lineage or an honest ``ABSENT`` block with its\n  typed reason.\n\n``state = \"stale\"`` relaie le MÊME contenu, mais dit que l'instantané\na dépassé son budget de fraîcheur (daily_bar) : le worker n'a rien\npublié de plus récent. ``age_seconds`` est publié dans TOUS les états\ndatables — son absence faisait passer un instantané de trois jours\npour un instantané d'une minute.",
+        "description": "The last ``analysis/{instrument}`` snapshot — or an honest empty state.\n\n``state = \"empty\"`` means NO dossier was ever published for this\ninstrument: every snapshot-derived field is ``None`` (never invented)\nand ``reason`` says why. ``state = \"ok\"`` relays the persisted content\nverbatim:\n\n- ``advice`` is the canonical ``AdviceResult`` produced by THE single\n  ``AdviceEngine`` — status, direction, the ten gates with their reason\n  codes, limitations — exactly as published; the API neither recomputes\n  nor softens it;\n- ``bars`` carries the admitted, validated OHLCV series (decimal strings)\n  with its per-bar discard account; its observation may belong to a\n  ``REAL`` or ``SYNTHETIC`` population, relayed separately;\n- ``indicators`` carries the technical indicators computed by the\n  approved engine (``market.realized_volatility``, ``market.atr``,\n  ``market.relative_strength`` against the declared benchmark), each\n  with its ``CalculationRecord`` lineage — or a NAMED absence\n  (``INSUFFICIENT_SAMPLE``) when the declared window exceeds the\n  available history. Each block also carries its rolling ``series``\n  (LOT S3): one rendered value per served session with a complete\n  window (decimal strings, same status vocabulary, same method, own\n  lineage), relayed verbatim — the interface plots what it receives and\n  computes nothing. No interpretation is published: a value, never a\n  level, a regime or a signal;\n- ``evidence`` is the fusion-cluster rail of the instrument;\n- ``scenarios`` is either the ``THEORETICAL`` scenario grid with its\n  ``CalculationRecord`` lineage or an honest ``ABSENT`` block with its\n  typed reason.\n\n``state = \"stale\"`` relaie le MÊME contenu, mais dit que l'instantané\na dépassé son budget de fraîcheur (daily_bar) : le worker n'a rien\npublié de plus récent. ``age_seconds`` est publié dans TOUS les états\ndatables — son absence faisait passer un instantané de trois jours\npour un instantané d'une minute. ``freshness_policy`` publie le budget\ncontre lequel cet âge est jugé (``FreshnessPolicyView``).",
         "properties": {
           "advice": {
             "anyOf": [
@@ -695,6 +695,16 @@
             ],
             "title": "Evidence"
           },
+          "freshness_policy": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FreshnessPolicyView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "indicators": {
             "anyOf": [
               {
@@ -775,6 +785,7 @@
           "snapshot_version",
           "as_of",
           "age_seconds",
+          "freshness_policy",
           "population",
           "instrument",
           "engine_version",
@@ -863,7 +874,7 @@
       },
       "AttentionSnapshotResponse": {
         "additionalProperties": false,
-        "description": "The last ``attention/global`` snapshot — or an honest empty state.\n\n``state = \"empty\"`` means NO snapshot was ever published: every\nsnapshot-derived field is ``None`` (never zero, never invented) and\n``reason`` says why. ``state = \"ok\"`` carries the persisted snapshot\nversion, ``as_of``, ``population`` (``SYNTHETIC`` shown as-is),\nthe full coverage block and the published items.\n\n``state = \"stale\"`` relaie le MÊME contenu, mais dit que l'instantané\na dépassé son budget de fraîcheur (news_attention) : le worker n'a rien\npublié de plus récent. ``age_seconds`` est publié dans TOUS les états\ndatables — son absence faisait passer un instantané de trois jours\npour un instantané d'une minute.",
+        "description": "The last ``attention/global`` snapshot — or an honest empty state.\n\n``state = \"empty\"`` means NO snapshot was ever published: every\nsnapshot-derived field is ``None`` (never zero, never invented) and\n``reason`` says why. ``state = \"ok\"`` carries the persisted snapshot\nversion, ``as_of``, ``population`` (``SYNTHETIC`` shown as-is),\nthe full coverage block and the published items.\n\n``state = \"stale\"`` relaie le MÊME contenu, mais dit que l'instantané\na dépassé son budget de fraîcheur (news_attention) : le worker n'a rien\npublié de plus récent. ``age_seconds`` est publié dans TOUS les états\ndatables — son absence faisait passer un instantané de trois jours\npour un instantané d'une minute. ``freshness_policy`` publie le budget\ncontre lequel cet âge est jugé (``FreshnessPolicyView``).",
         "properties": {
           "age_seconds": {
             "anyOf": [
@@ -899,6 +910,16 @@
               }
             ],
             "title": "Coverage"
+          },
+          "freshness_policy": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FreshnessPolicyView"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "items": {
             "items": {
@@ -970,6 +991,7 @@
           "snapshot_version",
           "as_of",
           "age_seconds",
+          "freshness_policy",
           "population",
           "coverage",
           "items",
@@ -1014,8 +1036,19 @@
       },
       "CalendarResponse": {
         "additionalProperties": false,
-        "description": "The last published calendar snapshot — or an honest empty state.\n\n``state = \"ok\"`` relays the persisted agenda VERBATIM (importance from\nthe versioned rule, distinct ESTIMATED/CONFIRMED labels, revisions and\nprevious values, freshness, exchange timezones); the API invents no event\nand recomputes no importance. ``state = \"empty\"`` means nothing to show\n(never published, or nothing observed), ``state = \"not_entitled\"`` that\nthe considered records were rejected for missing rights,\n``state = \"rejected\"`` that they were all invalid, ``state = \"stale\"``\nthat the agenda is no longer current — the worker published ``STALE``,\nthe snapshot is past :data:`CALENDAR_MAX_AGE`, or every served event has\npassed its published ``stale_after`` at the relay clock —,\n``state = \"empty_window\"`` that the REQUESTED window selects none of the\npublished events, and ``state = \"degraded\"`` that the snapshot predates\na field of the current contract and is therefore incomplete. Every\nnon-ok state carries its ``reason``: an empty agenda never passes for a\nsuccess, and a relayed ``fresh`` flag is recomputed against the server\nclock — never a frozen boolean.",
+        "description": "The last published calendar snapshot — or an honest empty state.\n\n``state = \"ok\"`` relays the persisted agenda VERBATIM (importance from\nthe versioned rule, distinct ESTIMATED/CONFIRMED labels, revisions and\nprevious values, freshness, exchange timezones); the API invents no event\nand recomputes no importance. ``state = \"empty\"`` means nothing to show\n(never published, or nothing observed), ``state = \"not_entitled\"`` that\nthe considered records were rejected for missing rights,\n``state = \"rejected\"`` that they were all invalid, ``state = \"stale\"``\nthat the agenda is no longer current — the worker published ``STALE``,\nthe snapshot is past :data:`CALENDAR_MAX_AGE`, or every served event has\npassed its published ``stale_after`` at the relay clock —,\n``state = \"empty_window\"`` that the REQUESTED window selects none of the\npublished events, and ``state = \"degraded\"`` that the snapshot predates\na field of the current contract and is therefore incomplete. Every\nnon-ok state carries its ``reason``: an empty agenda never passes for a\nsuccess, and a relayed ``fresh`` flag is recomputed against the server\nclock — never a frozen boolean.\n\n``age_seconds`` est publié dans TOUS les états datés et\n``freshness_policy`` porte l'échelle qui le juge : le relais mesurait déjà\ncet âge — il nommait même son budget dans la raison ``stale`` — sans le\nservir, donc un agenda de vingt heures était indiscernable d'un agenda\nd'une minute tant que le budget tenait. Sans instantané publié l'âge est\n``null`` (il n'existe pas) ; le budget, propriété de la route, reste servi.",
         "properties": {
+          "age_seconds": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Age Seconds"
+          },
           "agenda": {
             "items": {
               "additionalProperties": true,
@@ -1059,6 +1092,16 @@
               }
             ],
             "title": "Coverage"
+          },
+          "freshness_policy": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FreshnessPolicyView"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "importance_rule": {
             "anyOf": [
@@ -1141,6 +1184,8 @@
           "state",
           "snapshot_version",
           "as_of",
+          "age_seconds",
+          "freshness_policy",
           "population",
           "importance_rule",
           "agenda",
@@ -1690,6 +1735,16 @@
             ],
             "title": "Content"
           },
+          "freshness_policy": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FreshnessPolicyView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "reason": {
             "anyOf": [
               {
@@ -1729,10 +1784,39 @@
           "snapshot_version",
           "as_of",
           "age_seconds",
+          "freshness_policy",
           "content",
           "reason"
         ],
         "title": "FollowUpQueueResponse",
+        "type": "object"
+      },
+      "FreshnessPolicyView": {
+        "additionalProperties": false,
+        "description": "Coordonnées SERVEUR de la jauge âge / budget d'une réponse datable.\n\n``budget_seconds`` est le TTL de SÉANCE FERMÉE de la politique du registre\n(`vertex_core.data.freshness`) qui borne le relais — la même valeur, du\nmême propriétaire (`vertex_api.freshness.closed_session_budget`), que\ncelle nommée dans la raison ``stale``. ``kind`` est le NOM de cette\npolitique, c'est-à-dire la famille d'observation la plus fraîche dont\nl'instantané peut être issu (``daily_bar``, ``news_attention``,\n``option_surface``…) — à ne pas confondre avec le ``kind`` d'un\ninstantané. ``version`` est la version de la politique : tout changement\nde TTL exige une montée de version, la jauge la porte donc avec elle.\n\nLe client pose ``age_seconds`` sur cette échelle et n'invente ni TTL ni\nratio : publier le budget évite un second registre recopié côté\ninterface. Le budget est une propriété de la ROUTE, pas de l'instantané :\nil est servi dans tous les états, ``empty`` compris — sans instantané\nl'âge est ``null`` (il n'existe pas), l'échelle reste connue. Un budget\nnul est refusé à la frontière : c'est la forme qu'une absence prendrait\nsi elle était convertie en zéro. Une famille sans budget au registre\npublie ``null`` (matrice de capacités), jamais un TTL inventé.",
+        "properties": {
+          "budget_seconds": {
+            "exclusiveMinimum": 0.0,
+            "title": "Budget Seconds",
+            "type": "integer"
+          },
+          "kind": {
+            "minLength": 1,
+            "title": "Kind",
+            "type": "string"
+          },
+          "version": {
+            "minLength": 1,
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "budget_seconds",
+          "kind",
+          "version"
+        ],
+        "title": "FreshnessPolicyView",
         "type": "object"
       },
       "GateResult": {
@@ -2602,7 +2686,7 @@
       },
       "MarketsOverviewResponse": {
         "additionalProperties": false,
-        "description": "The last ``markets_overview/global`` snapshot — or an honest empty state.\n\n``state = \"empty\"`` means NO snapshot was ever published: every\nsnapshot-derived field is ``None`` (never zero, never invented) and\n``reason`` says why. ``state = \"ok\"`` relays the persisted content\nverbatim: population (``SYNTHETIC`` shown as-is), the worker's own\n``data_state`` (``ok``/``partial``/``stale``), the deterministic French\nconclusion sentence, sectors/tickers, breadth and the coverage account.\n\n``state = \"stale\"`` relaie le MÊME contenu, mais dit que l'instantané\na dépassé son budget de fraîcheur (daily_bar) : le worker n'a rien\npublié de plus récent. ``age_seconds`` est publié dans TOUS les états\ndatables — son absence faisait passer un instantané de trois jours\npour un instantané d'une minute.",
+        "description": "The last ``markets_overview/global`` snapshot — or an honest empty state.\n\n``state = \"empty\"`` means NO snapshot was ever published: every\nsnapshot-derived field is ``None`` (never zero, never invented) and\n``reason`` says why. ``state = \"ok\"`` relays the persisted content\nverbatim: population (``SYNTHETIC`` shown as-is), the worker's own\n``data_state`` (``ok``/``partial``/``stale``), the deterministic French\nconclusion sentence, sectors/tickers, breadth and the coverage account.\n\n``state = \"stale\"`` relaie le MÊME contenu, mais dit que l'instantané\na dépassé son budget de fraîcheur (daily_bar) : le worker n'a rien\npublié de plus récent. ``age_seconds`` est publié dans TOUS les états\ndatables — son absence faisait passer un instantané de trois jours\npour un instantané d'une minute. ``freshness_policy`` publie le budget\ncontre lequel cet âge est jugé (``FreshnessPolicyView``).",
         "properties": {
           "age_seconds": {
             "anyOf": [
@@ -2699,6 +2783,16 @@
             ],
             "title": "Engine Version"
           },
+          "freshness_policy": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FreshnessPolicyView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "population": {
             "anyOf": [
               {
@@ -2769,6 +2863,7 @@
           "snapshot_version",
           "as_of",
           "age_seconds",
+          "freshness_policy",
           "population",
           "data_state",
           "unit",
@@ -2999,6 +3094,16 @@
             ],
             "title": "Content"
           },
+          "freshness_policy": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FreshnessPolicyView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "reason": {
             "anyOf": [
               {
@@ -3039,6 +3144,7 @@
           "snapshot_version",
           "as_of",
           "age_seconds",
+          "freshness_policy",
           "content",
           "reason"
         ],
@@ -3287,7 +3393,7 @@
       },
       "OptionChainResponse": {
         "additionalProperties": false,
-        "description": "The last ``option_chain/{underlying}`` snapshot — or an honest empty.\n\n``state = \"empty\"`` means NO snapshot was ever published for this\nunderlying: every snapshot-derived field is ``None`` (never invented) and\n``reason`` says why. ``state = \"ok\"`` relays the persisted content\nverbatim: population (``REAL``/``SYNTHETIC`` shown as-is), the published\nspot, the pricing assumptions, the per-(expiration, trading_class) groups\nand the displayed row budget.\n\n``state = \"stale\"`` relaie le MÊME contenu, mais dit que l'instantané\na dépassé son budget de fraîcheur (option_surface) : le worker n'a rien\npublié de plus récent. ``age_seconds`` est publié dans TOUS les états\ndatables — son absence faisait passer un instantané de trois jours\npour un instantané d'une minute.",
+        "description": "The last ``option_chain/{underlying}`` snapshot — or an honest empty.\n\n``state = \"empty\"`` means NO snapshot was ever published for this\nunderlying: every snapshot-derived field is ``None`` (never invented) and\n``reason`` says why. ``state = \"ok\"`` relays the persisted content\nverbatim: population (``REAL``/``SYNTHETIC`` shown as-is), the published\nspot, the pricing assumptions, the per-(expiration, trading_class) groups\nand the displayed row budget.\n\n``state = \"stale\"`` relaie le MÊME contenu, mais dit que l'instantané\na dépassé son budget de fraîcheur (option_surface) : le worker n'a rien\npublié de plus récent. ``age_seconds`` est publié dans TOUS les états\ndatables — son absence faisait passer un instantané de trois jours\npour un instantané d'une minute. ``freshness_policy`` publie le budget\ncontre lequel cet âge est jugé (``FreshnessPolicyView``).",
         "properties": {
           "age_seconds": {
             "anyOf": [
@@ -3354,6 +3460,16 @@
             },
             "title": "Expirations",
             "type": "array"
+          },
+          "freshness_policy": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FreshnessPolicyView"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "population": {
             "anyOf": [
@@ -3447,6 +3563,7 @@
           "snapshot_version",
           "as_of",
           "age_seconds",
+          "freshness_policy",
           "population",
           "underlying",
           "engine_version",
@@ -3606,6 +3723,16 @@
             ],
             "title": "Content"
           },
+          "freshness_policy": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FreshnessPolicyView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "portfolio_id": {
             "exclusiveMinimum": 0.0,
             "title": "Portfolio Id",
@@ -3651,6 +3778,7 @@
           "snapshot_version",
           "as_of",
           "age_seconds",
+          "freshness_policy",
           "content",
           "reason"
         ],
@@ -3867,6 +3995,16 @@
             ],
             "title": "Content"
           },
+          "freshness_policy": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FreshnessPolicyView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "reason": {
             "anyOf": [
               {
@@ -3906,6 +4044,7 @@
           "snapshot_version",
           "as_of",
           "age_seconds",
+          "freshness_policy",
           "content",
           "reason"
         ],
@@ -4188,6 +4327,16 @@
             ],
             "title": "Content"
           },
+          "freshness_policy": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FreshnessPolicyView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "reason": {
             "anyOf": [
               {
@@ -4227,6 +4376,7 @@
           "snapshot_version",
           "as_of",
           "age_seconds",
+          "freshness_policy",
           "content",
           "reason"
         ],
@@ -4235,7 +4385,7 @@
       },
       "SecFundamentalsResponse": {
         "additionalProperties": false,
-        "description": "Official SEC filings and XBRL facts, relayed without financial logic.",
+        "description": "Official SEC filings and XBRL facts, relayed without financial logic.\n\n``age_seconds`` est publié dans tous les états datables et\n``freshness_policy`` publie le budget (``fundamental_filing``) contre\nlequel il est jugé (``FreshnessPolicyView``).",
         "properties": {
           "age_seconds": {
             "anyOf": [
@@ -4331,6 +4481,16 @@
             },
             "title": "Filings",
             "type": "array"
+          },
+          "freshness_policy": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FreshnessPolicyView"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "identity_state": {
             "anyOf": [
@@ -4428,6 +4588,7 @@
           "snapshot_version",
           "as_of",
           "age_seconds",
+          "freshness_policy",
           "population",
           "instrument",
           "source",
@@ -4900,7 +5061,7 @@
       },
       "SystemCapabilitiesResponse": {
         "additionalProperties": false,
-        "description": "Every declared capability with its really-tested status, plus health.\n\n``total`` equals the exact number of manifest entries; ``as_of`` and\n``snapshot_version`` describe the persisted capabilities snapshot\n(``None`` when never published). ``unknown_probed_capability_ids`` lists\nprobed ids absent from the manifest — never silently dropped, never\nmerged into the declared set. ``checked_at`` is the response instant.\n\n``age_seconds`` dit depuis combien de temps cette matrice a été publiée.\nAucun état ``stale`` n'est ajouté ici et ce n'est PAS un oubli : la\npéremption d'une capacité est portée champ par champ par le\n``expires_at`` de la sonde qui l'a établie. Déclarer un budget de relais\npour cette famille inventerait un TTL que le registre ne contient pas.",
+        "description": "Every declared capability with its really-tested status, plus health.\n\n``total`` equals the exact number of manifest entries; ``as_of`` and\n``snapshot_version`` describe the persisted capabilities snapshot\n(``None`` when never published). ``unknown_probed_capability_ids`` lists\nprobed ids absent from the manifest — never silently dropped, never\nmerged into the declared set. ``checked_at`` is the response instant.\n\n``age_seconds`` dit depuis combien de temps cette matrice a été publiée.\nAucun état ``stale`` n'est ajouté ici et ce n'est PAS un oubli : la\npéremption d'une capacité est portée champ par champ par le\n``expires_at`` de la sonde qui l'a établie. Déclarer un budget de relais\npour cette famille inventerait un TTL que le registre ne contient pas.\n``freshness_policy`` est donc TOUJOURS ``null`` ici : l'absence de budget\nest déclarée telle quelle, jamais convertie en ``budget_seconds = 0``.",
         "properties": {
           "age_seconds": {
             "anyOf": [
@@ -4937,6 +5098,16 @@
             "title": "Checked At",
             "type": "string"
           },
+          "freshness_policy": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FreshnessPolicyView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "health": {
             "$ref": "#/components/schemas/SystemHealth"
           },
@@ -4971,6 +5142,7 @@
           "snapshot_version",
           "as_of",
           "age_seconds",
+          "freshness_policy",
           "total",
           "capabilities",
           "unknown_probed_capability_ids",
