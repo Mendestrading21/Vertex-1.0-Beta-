@@ -10,6 +10,7 @@ import type { CalendarEventView } from './calendar/calendarView.ts';
 import { calendarEventsOf } from './calendar/calendarView.ts';
 import type { CandidateView, OpportunitiesContentView } from './opportunities/opportunitiesView.ts';
 import type { CurrencyBlockView, ValuationContentView } from './portfolio/portfolioView.ts';
+import type { WidgetSize, WidgetVariant } from '../components/widgets/Widget.tsx';
 
 export type TodayModuleStatus =
   | { readonly kind: 'served'; readonly contract: string }
@@ -17,6 +18,10 @@ export type TodayModuleStatus =
 
 export interface TodayModule {
   readonly id: string;
+  /** Span de composition sur la planche — jamais une apparence (ADR-017). */
+  readonly size: WidgetSize;
+  /** Variante visuelle du vocabulaire fermé de WIDGET_LIBRARY.md. */
+  readonly variant: WidgetVariant;
   readonly title: string;
   readonly question: string;
   readonly status: TodayModuleStatus;
@@ -31,6 +36,8 @@ export interface TodayModule {
 export const TODAY_MODULES: readonly TodayModule[] = [
   {
     id: 'regime',
+    size: 'S',
+    variant: 'support',
     title: 'Régime de marché',
     question: 'Dans quel régime le marché évolue-t-il, et avec quelle participation ?',
     status: {
@@ -42,12 +49,16 @@ export const TODAY_MODULES: readonly TodayModule[] = [
   },
   {
     id: 'global-market',
+    size: 'S',
+    variant: 'support',
     title: 'Marché global',
     question: 'Le marché suivi progresse-t-il, et sur quelle largeur ?',
     status: { kind: 'served', contract: 'GET /api/v1/markets/overview' },
   },
   {
     id: 'volatility',
+    size: 'S',
+    variant: 'support',
     title: 'Volatilité',
     question: 'La volatilité réalisée et implicite sont-elles élevées ?',
     status: {
@@ -59,36 +70,48 @@ export const TODAY_MODULES: readonly TodayModule[] = [
   },
   {
     id: 'next-catalyst',
+    size: 'S',
+    variant: 'support',
     title: 'Catalyseur suivant',
     question: 'Quel est le prochain événement publié à l’agenda ?',
     status: { kind: 'served', contract: 'GET /api/v1/calendar' },
   },
   {
     id: 'focus',
+    size: 'M',
+    variant: 'rail',
     title: 'Instruments suivis',
     question: 'Que font les instruments dont un dossier est publié : prix, variation, série ?',
     status: { kind: 'served', contract: 'GET /api/v1/analysis/{instrument} (candidats publiés par GET /api/v1/opportunities)' },
   },
   {
     id: 'source-health',
+    size: 'S',
+    variant: 'support',
     title: 'Santé des sources',
     question: 'Les sources sont-elles disponibles, fraîches et autorisées ?',
     status: { kind: 'served', contract: 'GET /api/v1/system/capabilities' },
   },
   {
     id: 'attention',
+    size: 'XL',
+    variant: 'dominant',
     title: 'File d’attention',
     question: 'Qu’est-ce qui mérite réellement mon attention maintenant ?',
     status: { kind: 'served', contract: 'GET /api/v1/today/attention' },
   },
   {
     id: 'opportunities',
+    size: 'S',
+    variant: 'support',
     title: 'Opportunités',
     question: 'Combien de candidats passent les gates, et lesquels ?',
     status: { kind: 'served', contract: 'GET /api/v1/opportunities' },
   },
   {
     id: 'active-risks',
+    size: 'S',
+    variant: 'support',
     title: 'Risques actifs',
     question: 'Quels risques nommés pèsent sur le contexte, et à quelle intensité ?',
     status: {
@@ -100,18 +123,24 @@ export const TODAY_MODULES: readonly TodayModule[] = [
   },
   {
     id: 'sectors',
+    size: 'L',
+    variant: 'support',
     title: 'Carte sectorielle',
     question: 'Quels secteurs portent la séance, instrument par instrument ?',
     status: { kind: 'served', contract: 'GET /api/v1/markets/overview' },
   },
   {
     id: 'manual-portfolio',
+    size: 'S',
+    variant: 'support',
     title: 'Portefeuille manuel',
     question: 'Que vaut le portefeuille déclaré, aux marques publiées ?',
     status: { kind: 'served', contract: 'GET /api/v1/portfolio' },
   },
   {
     id: 'calendar',
+    size: 'M',
+    variant: 'support',
     title: 'Calendrier',
     question: 'Quels événements publiés arrivent ensuite ?',
     status: { kind: 'served', contract: 'GET /api/v1/calendar' },

@@ -14,6 +14,7 @@ import {
   fontSize,
   motionDuration,
   motionEase,
+  pageAccent,
   radius,
   shadow,
   space,
@@ -27,6 +28,26 @@ function block(indent: string, prefix: string, entries: Record<string | number, 
   return Object.entries(entries)
     .map(([key, value]) => `${indent}--${prefix}${key}: ${value};`)
     .join('\n');
+}
+
+/**
+ * Blocs `[data-page-accent="<famille>"]` (ADR-017) : la teinte secondaire d'une
+ * page est une famille EXISTANTE, résolue par variables — aucune couleur ici,
+ * et aucune valeur par défaut dans `:root`.
+ */
+function pageAccentBlocks(): string {
+  return Object.entries(pageAccent)
+    .map(([page, family]) =>
+      [
+        `[data-page-accent="${page}"] {`,
+        `  --vx-page-accent: var(--vx-${family});`,
+        `  --vx-page-accent-soft: var(--vx-${family}-soft);`,
+        `  --vx-page-accent-gradient-start: var(--vx-${family}-gradient-start);`,
+        `  --vx-page-accent-gradient-end: var(--vx-${family}-gradient-end);`,
+        '}',
+      ].join('\n'),
+    )
+    .join('\n\n');
 }
 
 export function renderTokensCss(): string {
@@ -60,6 +81,10 @@ ${block('  ', 'vx-z-', zIndex)}
 ${block('  ', 'vx-font-', fontFamily)}
 ${block('  ', 'vx-font-size-', fontSize)}
 }
+
+/* Teinte sémantique secondaire par page (ADR-017) : une famille existante,
+   déclarée par le catalogue de la page ; aucune valeur par défaut. */
+${pageAccentBlocks()}
 
 /* Reduced motion : toutes les durées tombent à 0 ms. */
 @media (prefers-reduced-motion: reduce) {

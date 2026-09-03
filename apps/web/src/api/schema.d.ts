@@ -1105,10 +1105,15 @@ export interface components {
          *       with its per-bar discard account; its observation may belong to a
          *       ``REAL`` or ``SYNTHETIC`` population, relayed separately;
          *     - ``indicators`` carries the technical indicators computed by the
-         *       approved engine (``market.realized_volatility``, ``market.atr``), each
+         *       approved engine (``market.realized_volatility``, ``market.atr``,
+         *       ``market.relative_strength`` against the declared benchmark), each
          *       with its ``CalculationRecord`` lineage — or a NAMED absence
          *       (``INSUFFICIENT_SAMPLE``) when the declared window exceeds the
-         *       available history. No interpretation is published: a value, never a
+         *       available history. Each block also carries its rolling ``series``
+         *       (LOT S3): one rendered value per served session with a complete
+         *       window (decimal strings, same status vocabulary, same method, own
+         *       lineage), relayed verbatim — the interface plots what it receives and
+         *       computes nothing. No interpretation is published: a value, never a
          *       level, a regime or a signal;
          *     - ``evidence`` is the fusion-cluster rail of the instrument;
          *     - ``scenarios`` is either the ``THEORETICAL`` scenario grid with its
@@ -1884,6 +1889,13 @@ export interface components {
          *     ``status = "INVALID"`` (coverage below the threshold gate) carries the
          *     typed reason and NO value — a breadth computed on a sliver of the
          *     universe is never presented. All percentages are server-rendered strings.
+         *
+         *     ``above_count`` (advancers), ``down_count`` (decliners) and
+         *     ``flat_count`` (unchanged) are the worker's exact counts over the covered
+         *     instruments and PARTITION ``covered_count`` (up + down + flat = covered);
+         *     they are published in both states, since an INVALID block refuses the
+         *     ratio, not the counted facts. The API relays them verbatim and never
+         *     derives one from the others.
          */
         MarketsBreadth: {
             /** Above Count */
@@ -1900,6 +1912,10 @@ export interface components {
             coverage_threshold_pct: string;
             /** Covered Count */
             covered_count: number;
+            /** Down Count */
+            down_count: number;
+            /** Flat Count */
+            flat_count: number;
             /** Reason */
             reason: string | null;
             /**

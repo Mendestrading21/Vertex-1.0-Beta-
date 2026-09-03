@@ -12,9 +12,13 @@ import { frDecimal } from '../../components/markets/marketsView.ts';
  *
  * `status = "INVALID"` (couverture sous le seuil) : aucune valeur de
  * remplacement — le panneau nomme la raison et n'affiche pas de barre.
+ *
+ * Les comptes (hausses, baisses, inchangés, couverts) sont ceux PUBLIÉS par
+ * le worker, relayés tels quels : aucun n'est déduit des autres ici, et ils
+ * restent affichés dans l'état INVALID — le ratio est refusé, pas les faits.
  */
 export function BreadthPanel({ breadth }: { readonly breadth: MarketsBreadth }) {
-  const counts = `${breadth.above_count} en hausse sur ${breadth.covered_count} couverts (univers ${breadth.universe_size})`;
+  const counts = `${breadth.above_count} en hausse, ${breadth.down_count} en baisse, ${breadth.flat_count} stables sur ${breadth.covered_count} couverts (univers ${breadth.universe_size})`;
 
   if (breadth.status === 'INVALID' || breadth.value_pct === null) {
     return (

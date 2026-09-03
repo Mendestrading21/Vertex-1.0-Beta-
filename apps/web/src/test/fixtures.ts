@@ -235,6 +235,8 @@ export function makeMarketsBreadth(overrides: Partial<MarketsBreadth> = {}): Mar
     value: '0.5',
     value_pct: '50.0',
     above_count: 2,
+    down_count: 1,
+    flat_count: 1,
     covered_count: 4,
     universe_size: 4,
     coverage_pct: '100.0',

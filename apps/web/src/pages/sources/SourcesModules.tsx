@@ -23,6 +23,10 @@ const SSE_LABELS: Readonly<Record<SseConnectionState, string>> = {
   connecting: 'connexion en cours',
   open: 'connecté',
   retrying: 'reconnexion (backoff)',
+  // LOT L0 : le lien peut être OUVERT et pourtant muet. Trois pings manqués
+  // (45 s sans aucune trame) valent silence, et le client bascule en repli par
+  // sondage — l'écran le dit plutôt que d'afficher « connecté ».
+  silent: 'silence (aucune trame depuis 45 s, repli par sondage)',
   stopped: 'arrêté (aucune session active)',
 };
 

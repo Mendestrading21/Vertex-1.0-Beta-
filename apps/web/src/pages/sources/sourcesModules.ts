@@ -14,6 +14,7 @@
  * une santé rassurante sans couverture complète est interdite par le contrat.
  */
 import type { AbsenceReason } from '../../components/AbsentModule.tsx';
+import type { WidgetSize, WidgetVariant } from '../../components/widgets/Widget.tsx';
 
 export type SourcesModuleStatus =
   | { readonly kind: 'served'; readonly contract: string }
@@ -21,6 +22,10 @@ export type SourcesModuleStatus =
 
 export interface SourcesModule {
   readonly id: string;
+  /** Span de composition sur la planche — jamais une apparence (ADR-017). */
+  readonly size: WidgetSize;
+  /** Variante visuelle du vocabulaire fermé de WIDGET_LIBRARY.md. */
+  readonly variant: WidgetVariant;
   readonly title: string;
   readonly question: string;
   readonly status: SourcesModuleStatus;
@@ -31,6 +36,8 @@ const CAPABILITIES = 'GET /api/v1/system/capabilities';
 export const SOURCES_MODULES: readonly SourcesModule[] = [
   {
     id: 'global-health',
+    size: 'S',
+    variant: 'support',
     title: 'Santé globale',
     question: 'Quel pourcentage de sources est en bonne santé ?',
     status: {
@@ -41,18 +48,24 @@ export const SOURCES_MODULES: readonly SourcesModule[] = [
   },
   {
     id: 'status-census',
+    size: 'S',
+    variant: 'support',
     title: 'Statuts testés',
     question: 'Combien de capacités portent chaque statut réellement sondé ?',
     status: { kind: 'served', contract: `${CAPABILITIES} — capabilities[].tested_status (dénombrement)` },
   },
   {
     id: 'freshness',
+    size: 'S',
+    variant: 'support',
     title: 'Fraîcheur',
     question: 'Quel âge ont les snapshots publiés et la dernière observation du worker ?',
     status: { kind: 'served', contract: `${CAPABILITIES} — health.attention_snapshot / capabilities_snapshot / worker` },
   },
   {
     id: 'field-coverage',
+    size: 'S',
+    variant: 'support',
     title: 'Couverture des champs',
     question: 'Quelle part des champs attendus est réellement servie ?',
     status: {
@@ -63,6 +76,8 @@ export const SOURCES_MODULES: readonly SourcesModule[] = [
   },
   {
     id: 'error-rate',
+    size: 'S',
+    variant: 'support',
     title: 'Taux d’erreur',
     question: 'Quelle part des appels aux sources échoue ?',
     status: {
@@ -73,6 +88,8 @@ export const SOURCES_MODULES: readonly SourcesModule[] = [
   },
   {
     id: 'incidents',
+    size: 'S',
+    variant: 'support',
     title: 'Incidents',
     question: 'Quels incidents sont ouverts ou récemment clos ?',
     status: {
@@ -83,24 +100,32 @@ export const SOURCES_MODULES: readonly SourcesModule[] = [
   },
   {
     id: 'last-sync',
+    size: 'S',
+    variant: 'support',
     title: 'Dernière vérification',
     question: 'Quand l’état des capacités a-t-il été vérifié et publié ?',
     status: { kind: 'served', contract: `${CAPABILITIES} — checked_at / as_of / age_seconds / snapshot_version` },
   },
   {
     id: 'versions',
+    size: 'M',
+    variant: 'support',
     title: 'Versions publiées',
     question: 'Quelles versions de snapshots et quel état de flux la page lit-elle ?',
     status: { kind: 'served', contract: `${CAPABILITIES} — health.*.version ; flux SSE du client` },
   },
   {
     id: 'registry',
+    size: 'XL',
+    variant: 'dominant',
     title: 'Registre des sources',
     question: 'Puis-je faire confiance aux sources, traitements et sauvegardes maintenant ?',
     status: { kind: 'served', contract: `${CAPABILITIES} — capabilities[] × sondes persistées` },
   },
   {
     id: 'lineage',
+    size: 'S',
+    variant: 'support',
     title: 'Lignée de données',
     question: 'Par quels traitements une valeur affichée est-elle passée ?',
     status: {
@@ -111,6 +136,8 @@ export const SOURCES_MODULES: readonly SourcesModule[] = [
   },
   {
     id: 'field-quality',
+    size: 'S',
+    variant: 'support',
     title: 'Qualité des champs',
     question: 'Quels champs sont excellents, bons, dégradés ou mauvais ?',
     status: {
@@ -121,6 +148,8 @@ export const SOURCES_MODULES: readonly SourcesModule[] = [
   },
   {
     id: 'audit-log',
+    size: 'S',
+    variant: 'support',
     title: 'Journal d’audit',
     question: 'Qui a modifié quoi, et quand ?',
     status: {
@@ -131,6 +160,8 @@ export const SOURCES_MODULES: readonly SourcesModule[] = [
   },
   {
     id: 'reports',
+    size: 'S',
+    variant: 'support',
     title: 'Rapports',
     question: 'Quels rapports ont été générés, et lesquels sont planifiés ?',
     status: {
@@ -141,12 +172,16 @@ export const SOURCES_MODULES: readonly SourcesModule[] = [
   },
   {
     id: 'exports',
+    size: 'S',
+    variant: 'support',
     title: 'Exports servis',
     question: 'Quels exports l’API sert-elle réellement, avec leur provenance ?',
     status: { kind: 'served', contract: 'GET /api/v1/portfolio/export ; GET /api/v1/performance/{portfolio_id}/export' },
   },
   {
     id: 'backups',
+    size: 'S',
+    variant: 'support',
     title: 'Sauvegardes',
     question: 'Quand la dernière sauvegarde a-t-elle été faite et restaurée ?',
     status: {
@@ -157,12 +192,16 @@ export const SOURCES_MODULES: readonly SourcesModule[] = [
   },
   {
     id: 'components-health',
+    size: 'M',
+    variant: 'support',
     title: 'Santé des composants',
     question: 'La base, les snapshots, le worker et le flux répondent-ils ?',
     status: { kind: 'served', contract: `${CAPABILITIES} — health.db / attention_snapshot / capabilities_snapshot / worker` },
   },
   {
     id: 'unknown-probes',
+    size: 'S',
+    variant: 'support',
     title: 'Sondes hors manifeste',
     question: 'Quelles sondes persistées ne correspondent à aucune capacité déclarée ?',
     status: { kind: 'served', contract: `${CAPABILITIES} — unknown_probed_capability_ids[]` },

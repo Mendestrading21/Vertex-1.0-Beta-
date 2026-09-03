@@ -1,12 +1,12 @@
 # État courant
 
 ```yaml
-phase: security_reconciliation_r0
-lot: VERTEX-RATTRAPAGE R1 (R0 actualisé)
-branch: lot/r0-github-security
-status: r1_documente_attente_revue_codex_aucune_fusion
+phase: post_merge_requalification_r2
+lot: VERTEX-RATTRAPAGE R2 (R1 actualisé)
+branch: lot/r2-requalification-20260902
+status: r2_matrice_documentee_trois_pr_brouillon_attente_revue_codex_aucune_fusion
 last_known_good_commit: "a5b7d205388e58f4e2716deeba5ecbea0ca9af21 (= état avant fusion #14, CI 7/7 verte)"
-main_head_observed: "beb249881015147de11e270f8e0e48d843716e6e (= squash #18 après #14, observé le 2026-09-02T07:04:21Z)"
+main_head_observed: "ecc50c1027314dd3ed594410430d41a3b1189ebf (= squash #20 après #17 c3f2400, base R2, observé le 2026-09-02 ; inchangé pendant tout R2)"
 security_state:
   - "ruleset main-required 22076309 actif ; main protégée ; squash seul ; sept checks et branche à jour obligatoires"
   - "dépôt maintenu public par décision humaine ; risque historique résiduel accepté, sans autorisation de réécriture"
@@ -14,6 +14,13 @@ security_state:
   - "HEAD fusionné de PR #14 ef47b11a : CI #159 verte ; conformité architecturale encore à requalifier"
   - "PR #18 fusionnée pendant la validation R0 : 2 fichiers, HEAD b8a0d4d6, CI #165 verte, squash beb24988 ; ajoutée au même audit"
   - "les 23 commits classés et les 13 commits post-gel deviennent une matrice d'audit du code déjà présent dans main"
+r2_state:
+  - "matrice de requalification : docs/99-status/R2_REQUALIFICATION.md — 8 vagues instruites, 5 contre-vérifiées (A, B, C, F, J) ; D, E, G KEEP sur rapport unique"
+  - "R2-A ADAPT (A1 performance marks, A2 conclusion Marchés, A3 export CSV) ; R2-B ADAPT (B2 porte de l'indice, B1 force relative) ; R2-C ADAPT (C1 collecte de presse inopérante sur main) ; R2-F ADAPT (F1, F2, F3) ; R2-J scindée (CSS KEEP, passation → R2-I)"
+  - "R2-D, R2-E, R2-G KEEP ; R2-H HOLD maintenu ; R2-I REWRITE/DROP maintenu"
+  - "PR 23 brouillon : lot/r2c-presse-hachage-20260902 @ b27d277 — C1 corrigé depuis main, reproducteur rouge sur ecc50c1 puis vert ; C2 retiré"
+  - "PR #21 brouillon : lot/r2-pr19-demarrage-20260902 @ 6d05603 — reprise bornée de #19, NOW.md écarté, CI 7/7 verte"
+  - "aucune fusion automatique ; aucune modification du chantier graphique (J3, F6 transmis au propriétaire de global.css) ; IBKR information-only"
 ci_state_r1:
   - "ci run 33601777661 sur main@beb24988 : succès, sept checks requis inclus"
   - "ci sur PR #17 @ 5f25dab : succès"
@@ -21,10 +28,10 @@ nightly_state_r1:
   - "nightly run 33605890223 sur main@beb24988 : ÉCHEC — 753 réussis, 2 échoués, 2 ignorés, projet firefox-1440x900 seul"
   - "options.spec.ts:187 et today.spec.ts:94 : même assertion expect(sorti).toBe(true) — le Tab ne sort pas de l'inspecteur sous Firefox"
   - "la nightly n'est pas un check requis du ruleset : dette qualité, pas blocage de fusion ; hors périmètre R1 (code applicatif)"
-pr_19_r1: "brouillon, claude/vertex-connection-kgkntr @ e8ff5e6, 5 fichiers dont NOW.md et REPRENDRE_ICI.md ; reprise APRÈS fusion humaine de #17"
+pr_19_r2: "reprise EXÉCUTÉE en PR #21 (brouillon) depuis ecc50c1 : 4 fichiers, hunk NOW.md écarté, 12 tests, six portes documentaires, CI 7/7 ; #19 à fermer après fusion humaine de #21"
 commits_claude_post_pr18_r1:
-  - "732f7e5 PRESSE time_unzoned : ADAPT — reprendre depuis main avec test de bout en bout"
-  - "f9af140 PASSATION locale : REWRITE / DROP — jamais fusionné tel quel"
+  - "732f7e5 PRESSE time_unzoned : ADAPT EXÉCUTÉ — PR 23, cherry-pick -x depuis main + test_news_hashing_chain.py (rouge sur ecc50c1 : CanonicalizationError) ; le test collecte → base (C3) reste à écrire"
+  - "f9af140 PASSATION locale : DROP confirmé — ses quatre faits utiles sont réécrits dans R2_REQUALIFICATION.md §5, sans chemin ni secret"
   - "HEAD Claude relevé f9af140, 50 commits en avance ; jamais absorbé en bloc"
 lots_de_cette_session:
   - "LOT-04 — la purge de session effaçait l'erreur 401 qu'elle devait laisser
@@ -590,37 +597,28 @@ rendements, du 2025-09-02 au 2026-08-31.
 `~/.vertex/env.live`) : Vertex ne demande plus de passkey. FERME PAR DEFAUT —
 sans la variable, 401 partout, verifie sur sept routes.
 
-### Reste casse — MESURE, a corriger
+### Reste casse — REQUALIFIE le 2026-09-02 sur main@ecc50c1
 
-**Huit etiquettes de population qui mentent.** Le bandeau `population` est
-juste ; c'est le texte autour qui ment.
+La table des « huit etiquettes qui mentent » (mesuree sur la branche Claude,
+entree dans main par le squash #14) est REQUALIFIEE par
+`docs/99-status/R2_REQUALIFICATION.md` (vague R2-A, contre-verifiee) :
 
-| Emplacement | Texte | Verdict |
-|---|---|---|
-| `apps/web/src/pages/markets/MarketsPage.tsx:99` | « Carte des marches synthetiques » | faux (`population='REAL'`, 0/161 synthetic) |
-| `MarketsPage.tsx:119` | « `synthetic-dev` via snapshot worker » | faux (source `ibkr`) |
-| `MarketsPage.tsx:83` | repli « Carte des marches synthetiques » | faux, latent |
-| `MarketsPage.tsx:202` | « Poids = parts descriptives des clotures (synthetiques) » | faux |
-| `MarketsPage.tsx:206` | « Limites : donnees SYNTHETIQUES de developpement » | faux |
-| `apps/worker/src/vertex_worker/markets.py:362` | « Sur N instruments synthetiques attendus » | faux, PERSISTE dans le contenu |
-| `apps/worker/src/vertex_worker/portfolio.py:117` et `:825` | `MARK_POPULATION_SYNTHETIC` ecrit inconditionnellement | faux (marques issues de `markets_overview` en `REAL`) |
-| `apps/worker/src/vertex_worker/performance.py:136` et `:810` | `marks = "SYNTHETIC"` | faux, meme cause (`ledger: USER_DECLARED` est juste) |
+| Emplacement | Verdict R2 sur `main` |
+|---|---|
+| `MarketsPage.tsx` (cinq libelles « synthetiques ») | CORRIGE — libelles par recensement de nature (`censusOfNature`/`provenanceSentence`) |
+| `portfolio.py` `MARK_POPULATION_SYNTHETIC` inconditionnel | CORRIGE — `MarksView.population` suit la source (`portfolio.py:293-307`) |
+| `markets.py:362` « Sur N instruments synthetiques attendus » | RESTE FAUX — ecart A2, persiste dans le contenu publie ; PR bornee a ouvrir |
+| `performance.py:136` et `:811` `marks = "SYNTHETIC"` | RESTE FAUX — ecart A1, persiste ; exige d'abord une decision de contrat (`POPULATION_LABELS`) |
 
-**`data_state='partial'` trompeur sur Marches.** `markets.py:581` declenche
-`partial` sur `rejected_records`, alimente par 3 cotations `GNL PRE` — des
-observations EN TROP, hors univers, pas un trou de couverture. L'ecran affiche
-« Donnees partielles » puis « 161 couverts sur 161, 0 ecartes » : un texte qui
-se refute lui-meme. Confusion entre `discarded` (attendu manquant) et
-`rejected_records` (non demande). Meme pollution sur `performance/1`.
+Nouveau, hors table d'origine : `MarketsTable.tsx:125` nomme l'export
+« marches-synthetiques.csv » quelle que soit la population (ecart A3).
 
-**500 latent sur Risques.** `value` est dans `_DECIMAL_KEYS`
-(`snapshot_views.py:890`, classe NON SIGNEE) alors que
-`extremes.most_opposed.value` vaut `-0.803` — une correlation « la plus
-opposee » est negative par definition. La route rend 200 aujourd'hui parce que
-`risk.py:300` appelle son propre validateur `checked_risk_content`. Toute
-uniformisation qui la brancherait sur le garde commun la mettrait en 500.
-Correction : deplacer `"value"` vers `_SIGNED_DECIMAL_KEYS` (`:896`). COMMIT
-SEPARE — `value` sert aussi a `breadth.value` (`:1649`).
+**`data_state='partial'` sur Marches** : CORRIGE dans main (`markets.py:595-598`,
+intention presente et testee — R2-A).
+
+**« 500 latent sur Risques »** : PERIME. A `ecc50c1`, `"value"` est sous
+`_SIGNED_DECIMAL_KEYS` (`snapshot_views.py:977`) ; `risk.py` passe par
+`checked_risk_content`. Aucune correction de code a faire (ecart F5, clos).
 
 **Trou E2E.** `apps/web/e2e/analysis.spec.ts` et `today.spec.ts` sont passes
 au vert pendant que les deux routes rendaient 500 : le semis
@@ -1485,6 +1483,152 @@ Dernier lot de la vague A (« Continue tout »). Branche
 
 Prochaine commande recommandée : fusion de la chaîne #29 → #30 → #31, puis
 `STATUT`.
+
+## LOT C0 — canon Titanium Ledger v2 (2026-09-03)
+
+Branche `lot/w2-c0-canon-v2-20260903`, base `main@4fc901a`, worktree
+`/home/elio/vertex-c0`. Décision de l'utilisateur du 2026-09-03 (« pour chaque
+widget trouve toujours le meilleur, crée tes propres visuels au max, que ça
+affiche au max ») consignée en
+`docs/09-adr/017-titanium-ledger-v2-formes-widgets.md`.
+
+### Ce qui change
+
+- ADR-017 : formes admises **uniquement sur des données servies** — anneaux à
+  chiffre central, quatuor d'anneaux, jauges en arc graduées (position
+  servie), aires à dégradé sous une série, sparklines en aire, rails derrière
+  les barres, matrices de bandes, listes groupées par jour, teinte sémantique
+  secondaire par page (`macro`, `option`, `warning` ; `positive` retiré après
+  la revue adverse, voir « Corrections » ci-dessous). Interdits
+  maintenus écrits (halo, noir pur, carte floue, couleur seule, compte à
+  rebours ou horloge client, radar sans dimension servie, dégradé de fond
+  plein, pulsation, valeur abrégée, toute forme sur une valeur non servie).
+  Empreinte de la capture canonique inchangée.
+- Documents mis en cohérence, chacun citant ADR-017 : DESIGN_SYSTEM,
+  CHART_STANDARD, WIDGET_LIBRARY, TOKENS, TITANIUM_LEDGER_VISUAL_SYSTEM,
+  VERTEX_ONE_VISUAL_DIRECTION, DASHBOARD_COMPOSITION,
+  MOTION_AND_MICROINTERACTIONS ; références du skill canonical-visual,
+  visual-identity, component-system, charts ; `manifests/widget-catalog.yaml`
+  (arc gradué admis, `v2_forms`, interdits).
+- Tokens (`tokens.ts`, `tokens.css` régénéré) : `motionDuration[600]`, douze
+  `<famille>-gradient-start/-end` (fin à alpha 0), `pageAccent` et blocs
+  `[data-page-accent]` émis par `generate-css.ts` sans valeur par défaut.
+  Script d'audit : tokens de dégradé ajoutés aux tokens requis.
+- Tests : `tokens-css.test.ts` étendu (rien retiré), `canon-v2-docs.test.ts`
+  nouveau (formulations levées absentes, invariants non levés présents,
+  citation d'ADR-017 par chaque document, catalogue cohérent).
+- Plan directeur : `docs/05-design/WIDGETS_V2_PLAN.md` (lots, ordre, formes
+  par famille de donnée, socle L0, plan des douze pages).
+
+### Mesuré sur cette machine (codes relus)
+
+- `pnpm tokens:css` puis `git diff --exit-code -- src/design/tokens.css`
+  après le commit des tokens : aucune dérive.
+- `pnpm lint` : 0 erreur (1 info préexistante, `OptionsModules.tsx:204`,
+  fragment redondant, hors lot).
+- `pnpm typecheck` : 0 erreur.
+- `pnpm exec vitest run src/design` : 7 fichiers, 71 tests, 0 échec.
+- `pnpm exec vitest run --no-file-parallelism` : **68 fichiers, 705 tests,
+  0 échec** (88,6 s). Avec le parallélisme par défaut (28 workers) sur ce
+  poste chargé (load average 18,7 ; pile live et autres lots en marche),
+  29 puis 49 échecs par dépassement de délai jsdom ; le `main` intact
+  (4fc901a) en produit 9 dans les mêmes fichiers → contention
+  d'environnement, pas le lot.
+- `pnpm exec vite build --manifest` : ✓ built in 550ms, manifeste présent.
+- `audit_titanium_ledger.py --strict-target` : `PASS`, 0 erreur, 0 écart,
+  empreinte `eb2eb0fc…c7ace`, aucun token requis manquant.
+- `tools/verify_blueprint.py` : ok (fences Markdown, YAML, lots).
+- `tools/run_checks.sh` (venv du worktree créé par
+  `uv sync --locked --all-extras --python 3.13`, sans `env.live`, aucun
+  `VERTEX_*` exporté) : toutes les portes vertes (rôle, blueprint, frontière, registre,
+  secrets, policy, traçabilité — entrée `NOT_YET_PROVEN` connue, hors lot —,
+  notices, uv.lock, compilation, Worker, Biome, performance, ruff, mypy) ;
+  pytest : 4075 marqueurs de résultat comptés dans la sortie `-q` (4071 réussis,
+  4 ignorés, 0 échec ; la configuration n'imprime pas de résumé chiffré) ;
+  « TOUT VERT », code de sortie 0.
+
+### Transmis, non corrigé ici
+
+- `apps/web/src/components/CensusBars.tsx:1-7` : l'en-tête cite encore
+  « pas d'anneau » de `charts.md` ; à réécrire au lot L0 avec `RingShares`.
+- `apps/web/src/pages/markets/BreadthPanel.tsx:5` (« jamais circulaire ») et
+  `apps/web/src/styles/global.css:6935` (« remplacent les donuts ») : même
+  catégorie de commentaires périmés, relevés par la revue adverse ; code non
+  touché, à réécrire au lot L0.
+- `docs/05-design/DASHBOARD_COMPOSITION.md:78` (« gradient argent→violet »),
+  kicker 10 px vs plancher 13 px, « 3–5 modules » vs 11–19 composés : tensions
+  du canon non tranchées par ADR-017.
+- Teintes secondaires proposées par page (`WIDGETS_V2_PLAN.md` §2) : à
+  confirmer dans chaque catalogue au lot P.
+- Aucune capture d'écran : ce lot ne touche aucun rendu de page (tokens et
+  blocs `[data-page-accent]` sans consommateur avant L0).
+
+### Corrections après revue adverse (2026-09-03)
+
+Verdict de la revue : changements requis (deux corrections de texte/tokens),
+le reste approuvé. Commits `bce6762`, `9fa1f72`, `b39c98d`, empilés sur
+`203462f` (aucun amend, aucun push).
+
+- Requis 1 — `bce6762` : ADR-017 :43 contredisait `DESIGN_SYSTEM.md:73`
+  (« gradients : sélection/action principale ») et le shell en vigueur
+  (`global.css` : tranche `signal-bright → signal-deep` :4538/:5271, action
+  principale `signal-bright → signal` :4772, liseré `signal-bright →
+  transparent` :4448). L'ADR nomme désormais trois familles de dégradé
+  (matériau ; sélection/action principale et tranche ambre, famille `signal`,
+  précédents cités ; aire sous une série servie) ; « jamais entre deux
+  teintes » ne porte plus que sur l'aire de série ; « jamais un fond plein de
+  carte, jamais décoratif » vaut pour les trois.
+- Requis 2 — `9fa1f72` : `positive` retiré de `pageAccent` (`tokens.ts`),
+  `tokens.css` régénéré (bloc `[data-page-accent="positive"]` disparu) ;
+  `tokens-css.test.ts` resserré à `['macro', 'option', 'warning']` et refuse
+  `positive`/`negative` explicitement ; `canon-v2-docs.test.ts` : catalogue à
+  trois familles, `excluded` étendu, nouveau test « aucune teinte de page ne
+  porte un signe financier » (ADR + documents du canon), deux invariants
+  gardés de plus (VERTEX_ONE « exclusivement financiers », plan « Vert/rouge
+  … servi »). Textes mis à jour : ADR :38/:42, DESIGN_SYSTEM,
+  TITANIUM_LEDGER_VISUAL_SYSTEM, WIDGET_LIBRARY, VERTEX_ONE :23/:92, TOKENS,
+  WIDGETS_V2_PLAN, canonical-visual, charts, visual-identity,
+  widget-catalog.yaml (`excluded_reason`), commentaire de `tokens.ts`.
+- Réserves 3–5 — `b39c98d` : consignées comme contraintes du lot L0 dans
+  ADR-017 (Coûts : `warning` #f0c36a ≈ `signal-bright` #f2c76b, ≤ 4/255 par
+  canal → distinguabilité mesurée sur capture ou retrait de `warning`, aucune
+  page ne le déclare avant ; Preuves : `catalog.test.ts` avant tout
+  consommateur — sans déclaration `--vx-page-accent` est invalide et un `fill`
+  SVG tombe au noir, sans erreur). `ICON_SYSTEM.md` gagne une ligne citant
+  ADR-017 (ses règles régissent les icônes ; la teinte de page colore les
+  formes, jamais un statut d'icône) et entre dans `CANON_DOCS` et
+  `KEPT_INVARIANTS` ; `TOKENS.md`, plan §2 (les trois propositions `warning`
+  suspendues à la réserve) et §3.6. Nouveau test « consigne les réserves de
+  la revue C0 comme contraintes du lot L0 ».
+- Réserve 6 : commentaires périmés ajoutés à « Transmis » ci-dessus.
+
+Mesuré après les trois commits (codes relus) :
+
+- `pnpm tokens:css` puis `git diff --exit-code -- src/design/tokens.css` :
+  aucune dérive, code 0.
+- `pnpm lint` : `Checked 237 files in 81ms. No fixes applied. Found 1 info.`,
+  code 0 (info préexistante `OptionsModules.tsx:204`).
+- `pnpm typecheck` : code 0.
+- `pnpm exec vitest run src/design` : 7 fichiers, **73 tests, 0 échec**
+  (71 → 73 : deux tests ajoutés).
+- `pnpm exec vitest run --no-file-parallelism` : **68 fichiers, 707 tests,
+  0 échec**, 78,37 s (load average 0,32 au lancement).
+- `pnpm exec vite build --manifest` : ✓ built in 465ms, manifeste 7033 o.
+- `audit_titanium_ledger.py --strict-target` : `PASS`, `errors []`,
+  `target_gaps []`, `missing_color_tokens []`, empreinte `eb2eb0fc…c7ace`
+  inchangée.
+- `tools/verify_blueprint.py` : `ok true`, `errors []`.
+- `tools/run_checks.sh` (venv `.venv` Python 3.13.15 activé par
+  `source .venv/bin/activate`, sans `env.live`, 0 variable `VERTEX_*`) :
+  `== TOUT VERT ==`, code 0 en 67 s ; ruff `All checks passed!`, `OK mypy` ;
+  pytest `-q` : 4075 marqueurs (4071 réussis, 4 ignorés, 0 échec). Sans le
+  venv activé, le script s'arrête sur `/usr/bin/python3: No module named
+  pytest` (code 1) : activer le venv avant l'appel.
+- Aucune capture : aucun rendu modifié ; e2e non lancés (règle du poste).
+
+Prochaine commande recommandée : relecture des commits de correction
+(`bce6762`, `9fa1f72`, `b39c98d` et le commit NOW.md qui suit), puis lot L0
+(`lot/w2-l0-socle-20260903`, empilé sur C0).
 
 ## SESSION 2026-09-03 — LOT SRV-S0 : la file d'attention affamée par les cotations instantanées
 
