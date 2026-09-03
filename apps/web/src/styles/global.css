@@ -8236,3 +8236,115 @@ label {
 .vx-cal-event[data-selected='true'] {
   border-color: var(--vx-signal);
 }
+
+/* ================================================================== */
+/* LOT-A8 — COMPOSITION DE LA PLANCHE §12 (Sources & Rapports) */
+/* ================================================================== */
+
+/* POURQUOI. La page était une matrice suivie d'une liste de santé. La planche
+   compose dix-sept modules autour du registre des sources ; la santé des
+   composants garde son corps, la grille lui donne le matériau des cartes. */
+
+.vx-sources-grid {
+  grid-template-areas:
+    'health census freshness fields'
+    'errors incidents lastsync versions'
+    'registry registry registry registry'
+    'lineage quality audit reports'
+    'exports backups probes probes'
+    'components components components components';
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.vx-sources-grid > [data-module='global-health'] { grid-area: health; }
+.vx-sources-grid > [data-module='status-census'] { grid-area: census; }
+.vx-sources-grid > [data-module='freshness'] { grid-area: freshness; }
+.vx-sources-grid > [data-module='field-coverage'] { grid-area: fields; }
+.vx-sources-grid > [data-module='error-rate'] { grid-area: errors; }
+.vx-sources-grid > [data-module='incidents'] { grid-area: incidents; }
+.vx-sources-grid > [data-module='last-sync'] { grid-area: lastsync; }
+.vx-sources-grid > [data-module='versions'] { grid-area: versions; }
+.vx-sources-grid > [data-module='registry'] { grid-area: registry; }
+.vx-sources-grid > [data-module='lineage'] { grid-area: lineage; }
+.vx-sources-grid > [data-module='field-quality'] { grid-area: quality; }
+.vx-sources-grid > [data-module='audit-log'] { grid-area: audit; }
+.vx-sources-grid > [data-module='reports'] { grid-area: reports; }
+.vx-sources-grid > [data-module='exports'] { grid-area: exports; }
+.vx-sources-grid > [data-module='backups'] { grid-area: backups; }
+.vx-sources-grid > [data-module='components-health'] { grid-area: components; }
+.vx-sources-grid > [data-module='unknown-probes'] { grid-area: probes; }
+
+@media (min-width: 1600px) {
+  .vx-sources-grid {
+    grid-template-areas:
+      'health census freshness fields errors'
+      'incidents lastsync versions lineage quality'
+      'registry registry registry registry registry'
+      'audit reports exports backups probes'
+      'components components components components components';
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+/* La santé des composants garde son corps mais reçoit le matériau des cartes. */
+.vx-sources-grid > [data-module] > .vx-health {
+  height: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  padding: var(--vx-space-20) var(--vx-space-20) var(--vx-space-16);
+  border: 1px solid var(--vx-border-soft);
+  border-top-color: var(--vx-border);
+  border-radius: var(--vx-radius-14);
+  background: var(--vx-surface-1);
+  box-shadow: var(--vx-shadow-inset);
+}
+
+.vx-sources-grid > [data-module] > .vx-health > h2 {
+  margin: 0 0 var(--vx-space-12);
+  padding-bottom: var(--vx-space-12);
+  border-bottom: 1px solid var(--vx-border-soft);
+  font-size: var(--vx-font-size-title);
+}
+
+.vx-sources-grid .vx-matrix {
+  margin: 0;
+}
+
+.vx-sources-grid .vx-matrix-filters {
+  margin: 0 0 var(--vx-space-12);
+}
+
+.vx-matrix-table th[scope='row'] .vx-opp-inspect {
+  display: block;
+  margin-top: var(--vx-space-4);
+}
+
+.vx-matrix-table tr[data-selected='true'] > * {
+  background: var(--vx-surface-2);
+}
+
+/* Dans la planche, le registre prend une rangée entière : ses six colonnes
+   restent visibles sans défilement ni cellule repliée (une raison coupée
+   lettre à lettre ne se lit plus). La liste des exports replie ses routes. */
+.vx-sources-grid .vx-matrix-card .vx-matrix-table {
+  min-width: 100%;
+  width: 100%;
+}
+
+/* Seule la colonne « Raison » (codes serveur longs) replie : l'identifiant,
+   le statut et l'instant restent d'un tenant. */
+.vx-sources-grid .vx-matrix-card .vx-matrix-table th,
+.vx-sources-grid .vx-matrix-card .vx-matrix-table td {
+  padding-inline: var(--vx-space-12);
+}
+
+.vx-sources-grid .vx-matrix-card .vx-matrix-table td:nth-child(5) {
+  min-width: 18ch;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.vx-sources-grid [data-module='exports'] code {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
