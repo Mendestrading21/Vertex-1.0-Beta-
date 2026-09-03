@@ -160,3 +160,87 @@ def test_seuils_croises_refuses_a_la_construction() -> None:
             moderate_threshold=0.8,
             strong_threshold=0.5,
         )
+
+
+# ---------------------------------------------------------------------------
+# LOT-S2 — le dossier d'analyse REELLEMENT produit passe le relais
+# ---------------------------------------------------------------------------
+
+
+def _barres_analyse(ticker: str, closes: list[str]) -> BarRecord:
+    from decimal import Decimal
+
+    barres = []
+    for index, cloture in enumerate(closes):
+        valeur = Decimal(cloture)
+        barres.append(
+            {
+                "trading_day": f"2026-07-{index + 1:02d}",
+                "open": format(valeur, "f"),
+                "high": format(valeur * Decimal("1.01"), "f"),
+                "low": format(valeur * Decimal("0.99"), "f"),
+                "close": format(valeur, "f"),
+                "volume": 1000,
+            }
+        )
+    return BarRecord(
+        event_id=f"{SYNTHETIC_SOURCE}:analysis-bars:{ticker}",
+        source=SYNTHETIC_SOURCE,
+        instrument_ref=ticker,
+        as_of=NOW - timedelta(hours=1),
+        quality_status="VALID",
+        rights=SYNTHETIC_RIGHTS,
+        schema_version="synthetic-daily-bars/1",
+        payload={
+            "type": "daily_bars",
+            "ticker": ticker,
+            "currency": "USD",
+            "adjustment_basis": "split_adjusted",
+            "bars": barres,
+        },
+    )
+
+
+def test_la_comparaison_base_100_produite_par_le_worker_passe_le_relais() -> None:
+    """Aucune charge fabriquée : le VRAI constructeur alimente le VRAI relais."""
+    from vertex_api.snapshot_views import build_analysis_response
+    from vertex_persistence.repository.snapshots import CurrentSnapshot
+    from vertex_worker.analysis import AnalysisConfig, build_analysis_content
+
+    config = AnalysisConfig(
+        instruments=("SYN-A",),
+        allowed_sources=frozenset({SYNTHETIC_SOURCE}),
+        usable_rights=frozenset({SYNTHETIC_RIGHTS}),
+        benchmark="SYN-B",
+    )
+    content = build_analysis_content(
+        [
+            _barres_analyse("SYN-A", ["100.00", "110.00", "121.00"]),
+            _barres_analyse("SYN-B", ["50.00", "52.00", "54.00"]),
+        ],
+        instrument="SYN-A",
+        evidence_records=(),
+        option_chain_content=None,
+        option_chain_version=None,
+        now=NOW,
+        config=config,
+    )
+    comparaison = content["indicators"]["rebased_comparison"]
+    assert comparaison["status"] == "OK"
+    assert comparaison["common_sessions"] == 3
+
+    reponse = build_analysis_response(
+        CurrentSnapshot(
+            kind="analysis",
+            key="SYN-A",
+            version=1,
+            content=content,
+            content_hash="sha256:" + "f" * 64,
+            as_of=NOW,
+        ),
+        instrument="SYN-A",
+        now=NOW,
+    )
+    assert reponse.state == "ok"
+    assert reponse.indicators is not None
+    assert reponse.indicators["rebased_comparison"] == comparaison

@@ -12,8 +12,9 @@ import { IndicatorsPanel, OhlcvTable } from '../analysis/AnalysisPage.tsx';
 import { CandleChart } from '../analysis/CandleChart.tsx';
 import type { BarsView } from '../analysis/analysisView.ts';
 import { analysisStateOf, barsViewOf } from '../analysis/analysisView.ts';
+import { RebasedComparison } from './RebasedComparison.tsx';
 import { useDeclaredInstruments } from '../devUniverse.ts';
-import { absentModules } from './chartsView.ts';
+import { absentModules, comparisonViewOf } from './chartsView.ts';
 
 /**
  * Page Graphiques (`TL / 08`) — question : « Quelles relations puis-je
@@ -31,7 +32,10 @@ import { absentModules } from './chartsView.ts';
  * client, et le rend par le MÊME composant (`CandleChart`) que `/analysis`.
  * Le propriétaire est le contrat ; la page ne recalcule rien : aucun overlay,
  * aucun indicateur, aucun rebasage, aucune comparaison côté navigateur
- * (`.claude/rules/frontend.md`). Ce que `/analysis` porte en propre — verdict,
+ * (`.claude/rules/frontend.md`). LOT-S2 : la comparaison base 100 est
+ * désormais SERVIE — le worker rebase les deux séries et intersecte leurs
+ * calendriers, la page affiche ce qu'il publie. Ce que `/analysis` porte en
+ * propre — verdict,
  * gates, preuves, scénarios, explication — n'est PAS repris ici : ce n'est pas
  * la question de cette page.
  */
@@ -298,6 +302,13 @@ function ChartsRoute({ instrument }: { readonly instrument: string }) {
             state={state}
             instrument={instrument}
           />
+
+          <div data-module="comparison">
+            <RebasedComparison
+              comparison={comparisonViewOf(data.indicators)}
+              instrument={instrument}
+            />
+          </div>
 
           <div data-module="served-indicators">
             {data.indicators === null || data.indicators === undefined ? (

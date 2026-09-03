@@ -78,6 +78,53 @@ def analysis_content() -> dict:
                 },
             ],
         },
+        "indicators": {
+            "rebased_comparison": {
+                "status": "OK",
+                "benchmark": "SPX",
+                "unit": "index",
+                "base_value": "100",
+                "currency": "SYN",
+                "adjustment_basis": "synthetic-unadjusted",
+                "common_sessions": 2,
+                "first_trading_day": "2026-08-23",
+                "last_trading_day": "2026-08-24",
+                "series": [
+                    {
+                        "trading_day": "2026-08-23",
+                        "instrument": "100.0",
+                        "benchmark": "100.0",
+                    },
+                    {
+                        "trading_day": "2026-08-24",
+                        "instrument": "102.45098039215686",
+                        "benchmark": "101.0",
+                    },
+                ],
+                "calculation": {
+                    "calculation_id": "market.rebased_series",
+                    "engine_version": "vertex_core@0.1.0",
+                    "method": (
+                        "base_value * p_i / p_0 sur les seules séances "
+                        "communes aux deux séries"
+                    ),
+                    "input_hash": "sha256:" + "1" * 64,
+                    "result_hash": "sha256:" + "2" * 64,
+                    "status": "OK",
+                },
+                "benchmark_calculation": {
+                    "calculation_id": "market.rebased_series",
+                    "engine_version": "vertex_core@0.1.0",
+                    "method": (
+                        "base_value * p_i / p_0 sur les seules séances "
+                        "communes aux deux séries"
+                    ),
+                    "input_hash": "sha256:" + "3" * 64,
+                    "result_hash": "sha256:" + "4" * 64,
+                    "status": "OK",
+                },
+            }
+        },
         "evidence": {
             "source": "fusion",
             "ruleset_version": "fusion/1.0",
@@ -222,3 +269,69 @@ def test_computed_scenarios_must_be_theoretical() -> None:
     content["scenarios"] = {"status": "OK", "grid": []}  # missing value_nature
     with pytest.raises(SnapshotContentError):
         build_analysis_response(snapshot(content), instrument=INSTRUMENT, now=_NOW)
+
+
+# ---------------------------------------------------------------------------
+# LOT-S2 — la comparaison base 100 SERVIE traverse le relais telle quelle
+# ---------------------------------------------------------------------------
+
+
+def test_la_comparaison_base_100_est_relayee_verbatim(
+    analysis_client: TestClient, reader: FakeSnapshotReader
+) -> None:
+    """Le relais ne rebase rien et ne réaligne rien : il transporte."""
+    content = analysis_content()
+    reader.snapshots[("analysis", INSTRUMENT)] = snapshot(content)
+
+    body = analysis_client.get(f"/api/v1/analysis/{INSTRUMENT}").json()
+
+    assert body["indicators"] == content["indicators"]
+    comparaison = body["indicators"]["rebased_comparison"]
+    assert comparaison["base_value"] == "100"
+    assert comparaison["series"][0] == {
+        "trading_day": "2026-08-23",
+        "instrument": "100.0",
+        "benchmark": "100.0",
+    }
+
+
+def test_une_comparaison_servie_sans_base_declaree_est_refusee() -> None:
+    """Une série d'index sans sa base n'est pas relayable : deux courbes dont
+    personne ne pourrait dire de quoi elles partent."""
+    content = analysis_content()
+    del content["indicators"]["rebased_comparison"]["base_value"]
+    with pytest.raises(SnapshotContentError):
+        build_analysis_response(snapshot(content), instrument=INSTRUMENT, now=_NOW)
+
+
+def test_une_comparaison_servie_sans_lignee_est_refusee() -> None:
+    content = analysis_content()
+    del content["indicators"]["rebased_comparison"]["benchmark_calculation"]
+    with pytest.raises(SnapshotContentError):
+        build_analysis_response(snapshot(content), instrument=INSTRUMENT, now=_NOW)
+
+
+def test_une_comparaison_servie_sans_serie_est_refusee() -> None:
+    content = analysis_content()
+    del content["indicators"]["rebased_comparison"]["series"]
+    with pytest.raises(SnapshotContentError):
+        build_analysis_response(snapshot(content), instrument=INSTRUMENT, now=_NOW)
+
+
+def test_une_comparaison_absente_SANS_MOTIF_est_refusee() -> None:
+    """Une absence muette est pire qu'une absence : l'écran ne saurait pas
+    quoi dire à la place."""
+    content = analysis_content()
+    content["indicators"]["rebased_comparison"] = {"benchmark": "SPX"}
+    with pytest.raises(SnapshotContentError):
+        build_analysis_response(snapshot(content), instrument=INSTRUMENT, now=_NOW)
+
+
+def test_un_dossier_publie_AVANT_la_comparaison_reste_relayable() -> None:
+    """Une absence légitime n'est jamais une erreur : un dossier plus ancien
+    ne porte pas ce bloc, et doit continuer d'être servi."""
+    content = analysis_content()
+    del content["indicators"]["rebased_comparison"]
+    reponse = build_analysis_response(snapshot(content), instrument=INSTRUMENT, now=_NOW)
+    assert reponse.state == "ok"
+    assert reponse.indicators == {}

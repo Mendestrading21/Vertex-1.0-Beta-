@@ -111,13 +111,50 @@ describe('Graphiques — la planche §8 est complète, servie ou déclarée', ()
     }
   });
 
-  it('la comparaison base 100 dit « CONTRAT SERVEUR ABSENT », pas « aucune source »', async () => {
+  it('la comparaison base 100 est SERVIE : valeurs, base et séances du serveur', async () => {
     repondre(jsonResponse(makeAnalysis()));
     await renderCharts();
     await screen.findByRole('heading', { level: 2, name: /Graphiques — SYN-TECH-01/ });
     const zone = within(document.querySelector('[data-module="comparison"]') as HTMLElement);
-    expect(zone.getByText(ABSENCE_REASONS.SERVER_CONTRACT_MISSING.label)).toBeDefined();
-    expect(zone.queryByText(ABSENCE_REASONS.NO_SOURCE.label)).toBeNull();
+    expect(zone.getByRole('heading', { level: 3, name: /Comparaison base 100/ })).toBeDefined();
+    // Les valeurs sont celles du serveur, rendues telles quelles.
+    const table = zone.getByTestId('charts-comparison-table');
+    expect(within(table).getByText('96.07843137254902')).toBeDefined();
+    expect(within(table).getByText('103.0')).toBeDefined();
+    // La base et l'indice sont DITS : deux courbes sans base ne se comparent pas.
+    expect(zone.getByTestId('charts-comparison-meta').textContent).toContain('100');
+    expect(zone.getAllByText(/SYN-IDX-01/).length).toBeGreaterThan(0);
+  });
+
+  it('un refus serveur affiche son motif NOMMÉ et aucune valeur', async () => {
+    repondre(
+      jsonResponse(
+        makeAnalysis({
+          indicators: {
+            rebased_comparison: {
+              status: 'BENCHMARK_NOT_OBSERVED',
+              benchmark: 'SYN-IDX-01',
+              detail: 'aucune série exploitable admise pour SYN-IDX-01',
+            },
+          },
+        }),
+      ),
+    );
+    await renderCharts();
+    await screen.findByRole('heading', { level: 2, name: /Graphiques — SYN-TECH-01/ });
+    const zone = within(document.querySelector('[data-module="comparison"]') as HTMLElement);
+    const absence = zone.getByTestId('charts-comparison-absent');
+    expect(absence.textContent).toContain('BENCHMARK_NOT_OBSERVED');
+    expect(absence.textContent).toContain('aucune série exploitable admise pour SYN-IDX-01');
+    expect(zone.queryByTestId('charts-comparison-table')).toBeNull();
+  });
+
+  it('la page ne rebase rien elle-même : elle le DIT au lecteur', async () => {
+    repondre(jsonResponse(makeAnalysis()));
+    await renderCharts();
+    await screen.findByRole('heading', { level: 2, name: /Graphiques — SYN-TECH-01/ });
+    const zone = within(document.querySelector('[data-module="comparison"]') as HTMLElement);
+    expect(zone.getByText(/alignées et ramenées à la base par le serveur/i)).toBeDefined();
   });
 
   it('l’inspecteur porte la DÉFINITION de la série : devise, base, fraîcheur, référence, exclusions', async () => {
