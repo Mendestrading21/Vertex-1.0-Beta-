@@ -1119,7 +1119,8 @@ export interface components {
          *     a dépassé son budget de fraîcheur (daily_bar) : le worker n'a rien
          *     publié de plus récent. ``age_seconds`` est publié dans TOUS les états
          *     datables — son absence faisait passer un instantané de trois jours
-         *     pour un instantané d'une minute.
+         *     pour un instantané d'une minute. ``freshness_policy`` publie le budget
+         *     contre lequel cet âge est jugé (``FreshnessPolicyView``).
          */
         AnalysisResponse: {
             /** Advice */
@@ -1144,6 +1145,7 @@ export interface components {
             evidence: {
                 [key: string]: unknown;
             } | null;
+            freshness_policy: components["schemas"]["FreshnessPolicyView"] | null;
             /** Indicators */
             indicators: {
                 [key: string]: unknown;
@@ -1214,7 +1216,8 @@ export interface components {
          *     a dépassé son budget de fraîcheur (news_attention) : le worker n'a rien
          *     publié de plus récent. ``age_seconds`` est publié dans TOUS les états
          *     datables — son absence faisait passer un instantané de trois jours
-         *     pour un instantané d'une minute.
+         *     pour un instantané d'une minute. ``freshness_policy`` publie le budget
+         *     contre lequel cet âge est jugé (``FreshnessPolicyView``).
          */
         AttentionSnapshotResponse: {
             /** Age Seconds */
@@ -1225,6 +1228,7 @@ export interface components {
             coverage: {
                 [key: string]: unknown;
             } | null;
+            freshness_policy: components["schemas"]["FreshnessPolicyView"] | null;
             /** Items */
             items: components["schemas"]["AttentionItem"][];
             /** Population */
@@ -1572,6 +1576,7 @@ export interface components {
             content: {
                 [key: string]: unknown;
             } | null;
+            freshness_policy: components["schemas"]["FreshnessPolicyView"] | null;
             /** Reason */
             reason: string | null;
             /** Snapshot Version */
@@ -1581,6 +1586,37 @@ export interface components {
              * @enum {string}
              */
             state: "ok" | "stale" | "empty";
+        };
+        /**
+         * FreshnessPolicyView
+         * @description Coordonnées SERVEUR de la jauge âge / budget d'une réponse datable.
+         *
+         *     ``budget_seconds`` est le TTL de SÉANCE FERMÉE de la politique du registre
+         *     (`vertex_core.data.freshness`) qui borne le relais — la même valeur, du
+         *     même propriétaire (`vertex_api.freshness.closed_session_budget`), que
+         *     celle nommée dans la raison ``stale``. ``kind`` est le NOM de cette
+         *     politique, c'est-à-dire la famille d'observation la plus fraîche dont
+         *     l'instantané peut être issu (``daily_bar``, ``news_attention``,
+         *     ``option_surface``…) — à ne pas confondre avec le ``kind`` d'un
+         *     instantané. ``version`` est la version de la politique : tout changement
+         *     de TTL exige une montée de version, la jauge la porte donc avec elle.
+         *
+         *     Le client pose ``age_seconds`` sur cette échelle et n'invente ni TTL ni
+         *     ratio : publier le budget évite un second registre recopié côté
+         *     interface. Le budget est une propriété de la ROUTE, pas de l'instantané :
+         *     il est servi dans tous les états, ``empty`` compris — sans instantané
+         *     l'âge est ``null`` (il n'existe pas), l'échelle reste connue. Un budget
+         *     nul est refusé à la frontière : c'est la forme qu'une absence prendrait
+         *     si elle était convertie en zéro. Une famille sans budget au registre
+         *     publie ``null`` (matrice de capacités), jamais un TTL inventé.
+         */
+        FreshnessPolicyView: {
+            /** Budget Seconds */
+            budget_seconds: number;
+            /** Kind */
+            kind: string;
+            /** Version */
+            version: string;
         };
         /**
          * GateResult
@@ -1975,7 +2011,8 @@ export interface components {
          *     a dépassé son budget de fraîcheur (daily_bar) : le worker n'a rien
          *     publié de plus récent. ``age_seconds`` est publié dans TOUS les états
          *     datables — son absence faisait passer un instantané de trois jours
-         *     pour un instantané d'une minute.
+         *     pour un instantané d'une minute. ``freshness_policy`` publie le budget
+         *     contre lequel cet âge est jugé (``FreshnessPolicyView``).
          */
         MarketsOverviewResponse: {
             /** Age Seconds */
@@ -1992,6 +2029,7 @@ export interface components {
             display_unit: string | null;
             /** Engine Version */
             engine_version: string | null;
+            freshness_policy: components["schemas"]["FreshnessPolicyView"] | null;
             /** Population */
             population: string | null;
             /** Reason */
@@ -2112,6 +2150,7 @@ export interface components {
             content: {
                 [key: string]: unknown;
             } | null;
+            freshness_policy: components["schemas"]["FreshnessPolicyView"] | null;
             /** Reason */
             reason: string | null;
             /** Snapshot Version */
@@ -2229,7 +2268,8 @@ export interface components {
          *     a dépassé son budget de fraîcheur (option_surface) : le worker n'a rien
          *     publié de plus récent. ``age_seconds`` est publié dans TOUS les états
          *     datables — son absence faisait passer un instantané de trois jours
-         *     pour un instantané d'une minute.
+         *     pour un instantané d'une minute. ``freshness_policy`` publie le budget
+         *     contre lequel cet âge est jugé (``FreshnessPolicyView``).
          */
         OptionChainResponse: {
             /** Age Seconds */
@@ -2248,6 +2288,7 @@ export interface components {
             engine_version: string | null;
             /** Expirations */
             expirations: components["schemas"]["OptionChainExpiration"][];
+            freshness_policy: components["schemas"]["FreshnessPolicyView"] | null;
             /** Population */
             population: string | null;
             /** Reason */
@@ -2367,6 +2408,7 @@ export interface components {
             content: {
                 [key: string]: unknown;
             } | null;
+            freshness_policy: components["schemas"]["FreshnessPolicyView"] | null;
             /** Portfolio Id */
             portfolio_id: number;
             /** Reason */
@@ -2475,6 +2517,7 @@ export interface components {
             content: {
                 [key: string]: unknown;
             } | null;
+            freshness_policy: components["schemas"]["FreshnessPolicyView"] | null;
             /** Reason */
             reason: string | null;
             /** Snapshot Version */
@@ -2622,6 +2665,7 @@ export interface components {
             content: {
                 [key: string]: unknown;
             } | null;
+            freshness_policy: components["schemas"]["FreshnessPolicyView"] | null;
             /** Reason */
             reason: string | null;
             /** Snapshot Version */
@@ -2635,6 +2679,10 @@ export interface components {
         /**
          * SecFundamentalsResponse
          * @description Official SEC filings and XBRL facts, relayed without financial logic.
+         *
+         *     ``age_seconds`` est publié dans tous les états datables et
+         *     ``freshness_policy`` publie le budget (``fundamental_filing``) contre
+         *     lequel il est jugé (``FreshnessPolicyView``).
          */
         SecFundamentalsResponse: {
             /** Age Seconds */
@@ -2663,6 +2711,7 @@ export interface components {
             filings: {
                 [key: string]: unknown;
             }[];
+            freshness_policy: components["schemas"]["FreshnessPolicyView"] | null;
             /** Identity State */
             identity_state: ("RESOLVED" | "CONFLICTING_IDENTITY" | "ABSENT") | null;
             /** Instrument */
@@ -2876,6 +2925,8 @@ export interface components {
          *     péremption d'une capacité est portée champ par champ par le
          *     ``expires_at`` de la sonde qui l'a établie. Déclarer un budget de relais
          *     pour cette famille inventerait un TTL que le registre ne contient pas.
+         *     ``freshness_policy`` est donc TOUJOURS ``null`` ici : l'absence de budget
+         *     est déclarée telle quelle, jamais convertie en ``budget_seconds = 0``.
          */
         SystemCapabilitiesResponse: {
             /** Age Seconds */
@@ -2889,6 +2940,7 @@ export interface components {
              * Format: date-time
              */
             checked_at: string;
+            freshness_policy: components["schemas"]["FreshnessPolicyView"] | null;
             health: components["schemas"]["SystemHealth"];
             /** Snapshot Version */
             snapshot_version: number | null;

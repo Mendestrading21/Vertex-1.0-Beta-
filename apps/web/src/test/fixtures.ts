@@ -9,6 +9,7 @@ import type {
   AttentionItem,
   AttentionSnapshot,
   CapabilityEntry,
+  FreshnessPolicyView,
   MarketsBreadth,
   MarketsOverview,
   MarketsSector,
@@ -25,6 +26,17 @@ import type {
 } from '../api/client.ts';
 
 export const SYNTHETIC_AS_OF = '2026-08-25T12:00:00+00:00';
+
+/**
+ * Budget de fraîcheur PUBLIÉ par le serveur — coordonnées de la jauge
+ * âge / TTL (`freshness_policy`). Valeurs SYNTHÉTIQUES de test : le client
+ * ne recopie aucun registre et ne calcule rien à partir d'elles.
+ */
+export function makeFreshnessPolicy(
+  overrides: Partial<FreshnessPolicyView> = {},
+): FreshnessPolicyView {
+  return { budget_seconds: 259200, kind: 'daily_bar', version: '1.0.0', ...overrides };
+}
 
 export function makeCapabilityEntry(overrides: Partial<CapabilityEntry> = {}): CapabilityEntry {
   return {
@@ -81,6 +93,8 @@ export function makeCapabilities(
     snapshot_version: 2,
     as_of: SYNTHETIC_AS_OF,
     age_seconds: 60,
+    // Aucun budget de relais pour cette famille : absence DÉCLARÉE (null).
+    freshness_policy: null,
     total: capabilities.length,
     capabilities,
     unknown_probed_capability_ids: [],
@@ -120,6 +134,7 @@ export function makeAttentionSnapshot(
     snapshot_version: 3,
     as_of: SYNTHETIC_AS_OF,
     age_seconds: 60,
+    freshness_policy: makeFreshnessPolicy({ kind: 'news_attention', budget_seconds: 3600 }),
     population: 'SYNTHETIC',
     coverage: { published_items: items.length },
     items,
@@ -135,6 +150,7 @@ export function makeEmptyAttentionSnapshot(): AttentionSnapshot {
     snapshot_version: null,
     as_of: null,
     age_seconds: null,
+    freshness_policy: makeFreshnessPolicy({ kind: 'news_attention', budget_seconds: 3600 }),
     population: null,
     coverage: null,
     items: [],
@@ -260,6 +276,7 @@ export function makeMarketsOverview(overrides: Partial<MarketsOverview> = {}): M
     snapshot_version: 5,
     as_of: SYNTHETIC_AS_OF,
     age_seconds: 60,
+    freshness_policy: makeFreshnessPolicy(),
     population: 'SYNTHETIC',
     data_state: 'ok',
     unit: 'return_ratio',
@@ -291,6 +308,7 @@ export function makeEmptyMarketsOverview(): MarketsOverview {
     snapshot_version: null,
     as_of: null,
     age_seconds: null,
+    freshness_policy: makeFreshnessPolicy(),
     population: null,
     data_state: null,
     unit: null,
@@ -449,6 +467,7 @@ export function makeOptionChain(
     snapshot_version: 12,
     as_of: SYNTHETIC_AS_OF,
     age_seconds: 60,
+    freshness_policy: makeFreshnessPolicy({ kind: 'option_surface', budget_seconds: 3600 }),
     population: 'SYNTHETIC',
     underlying: 'SYN-TECH-01',
     engine_version: 'vertex_core@0.1.0',
@@ -484,6 +503,7 @@ export function makeEmptyOptionChain(): OptionChainResponse {
     snapshot_version: null,
     as_of: null,
     age_seconds: null,
+    freshness_policy: makeFreshnessPolicy({ kind: 'option_surface', budget_seconds: 3600 }),
     population: null,
     underlying: 'SYN-TECH-01',
     engine_version: null,
@@ -579,6 +599,7 @@ export function makeAnalysis(overrides: Partial<AnalysisResponse> = {}): Analysi
     snapshot_version: 16,
     as_of: SYNTHETIC_AS_OF,
     age_seconds: 60,
+    freshness_policy: makeFreshnessPolicy(),
     population: 'SYNTHETIC',
     instrument: 'SYN-TECH-01',
     engine_version: 'vertex_core@0.1.0',
@@ -627,6 +648,7 @@ export function makeEmptyAnalysis(): AnalysisResponse {
     snapshot_version: null,
     as_of: null,
     age_seconds: null,
+    freshness_policy: makeFreshnessPolicy(),
     population: null,
     instrument: 'SYN-TECH-01',
     engine_version: null,
@@ -656,6 +678,7 @@ export function makeSecFundamentals(
     snapshot_version: 3,
     as_of: SYNTHETIC_AS_OF,
     age_seconds: 120,
+    freshness_policy: makeFreshnessPolicy({ kind: 'fundamental_filing', budget_seconds: 604800 }),
     population: 'SYNTHETIC',
     instrument: 'SYN-TECH-01',
     source: 'sec_edgar',
@@ -712,6 +735,7 @@ export function makeEmptySecFundamentals(): SecFundamentalsResponse {
     snapshot_version: null,
     as_of: null,
     age_seconds: null,
+    freshness_policy: makeFreshnessPolicy({ kind: 'fundamental_filing', budget_seconds: 604800 }),
     population: null,
     instrument: 'SYN-TECH-01',
     source: null,
@@ -932,6 +956,7 @@ export function makePortfolioResponse(
       snapshot_version: 3,
       as_of: SYNTHETIC_AS_OF,
       age_seconds: 60,
+      freshness_policy: makeFreshnessPolicy({ kind: 'portfolio_mark', budget_seconds: 86400 }),
       reason: null,
       content: makeValuationContent(),
     },
@@ -947,6 +972,7 @@ export function makeEmptyPortfolioResponse(): PortfolioResponse {
       snapshot_version: null,
       as_of: null,
       age_seconds: null,
+      freshness_policy: makeFreshnessPolicy({ kind: 'portfolio_mark', budget_seconds: 86400 }),
       reason: 'never_published',
       content: null,
     },
@@ -1078,6 +1104,7 @@ export function makeFollowUpQueue(
     snapshot_version: 4,
     as_of: SYNTHETIC_AS_OF,
     age_seconds: 60,
+    freshness_policy: makeFreshnessPolicy({ kind: 'news_attention', budget_seconds: 3600 }),
     reason: null,
     content: makeQueueContent(),
     ...overrides,
@@ -1246,6 +1273,7 @@ export function makePerformanceSnapshot(
     snapshot_version: 2,
     as_of: SYNTHETIC_AS_OF,
     age_seconds: 60,
+    freshness_policy: makeFreshnessPolicy(),
     reason: null,
     content: makePerformanceContent(),
     ...overrides,
@@ -1525,6 +1553,7 @@ export function makeOpportunities(
     snapshot_version: 37,
     as_of: SYNTHETIC_AS_OF,
     age_seconds: 60,
+    freshness_policy: makeFreshnessPolicy(),
     content: makeOpportunitiesContent(),
     reason: null,
     ...overrides,

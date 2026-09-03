@@ -15,6 +15,7 @@ import type { components } from './schema.d.ts';
 
 export type AttentionSnapshot = components['schemas']['AttentionSnapshotResponse'];
 export type AttentionItem = components['schemas']['AttentionItem'];
+export type FreshnessPolicyView = components['schemas']['FreshnessPolicyView'];
 export type MarketsOverview = components['schemas']['MarketsOverviewResponse'];
 export type MarketsSector = components['schemas']['MarketsSector'];
 export type MarketsTicker = components['schemas']['MarketsTicker'];
