@@ -1,6 +1,6 @@
 /**
- * Modèle de navigation — 4 groupes. Onze destinations réelles aujourd'hui,
- * douze en cible (voir ALL_PAGES).
+ * Modèle de navigation — 4 groupes. Douze destinations réelles, douze en
+ * cible (voir ALL_PAGES).
  * Sources : docs/01-product/NAVIGATION.md, docs/01-product/ROUTES.md et les
  * fiches docs/01-product/pages/NN-*.md (questions métier reprises mot à mot).
  *
@@ -103,6 +103,15 @@ const markets: PageDef = {
   lot: 'LOT-17',
 };
 
+const charts: PageDef = {
+  key: 'charts',
+  title: 'Graphiques',
+  navPath: '/charts',
+  routePath: '/charts/:instrument?',
+  question: 'Quelles relations puis-je explorer sans perdre méthode et contexte ?',
+  lot: 'LOT-A2',
+};
+
 const portfolio: PageDef = {
   key: 'portfolio',
   title: 'Portefeuille',
@@ -142,7 +151,7 @@ const system: PageDef = {
 /** Les 4 groupes exacts du rail, dans l'ordre canonique. */
 export const NAV_GROUPS: readonly NavGroup[] = [
   { label: 'Décider', pages: [today, opportunities, analysis, options, simulator] },
-  { label: 'Observer', pages: [calendar, markets] },
+  { label: 'Observer', pages: [calendar, markets, charts] },
   { label: 'Piloter', pages: [portfolio, risk, catalysts] },
   { label: 'Assistance', pages: [system] },
 ];
@@ -150,10 +159,13 @@ export const NAV_GROUPS: readonly NavGroup[] = [
 /**
  * Les destinations RÉELLES du rail, à plat, dans l'ordre.
  *
- * La cible du blueprint est douze (`references/pages.md`). Le rail en porte
- * onze : `performance` a rejoint Portefeuille (LOT-08), `follow-up` a rejoint
- * la destination Catalyseurs créée au LOT-10, `ai` a rejoint l'inspecteur
- * d'Analyse et de Portefeuille (LOT-12). Graphiques n'existe pas encore.
+ * La cible du blueprint est douze (`references/pages.md`), et le rail en
+ * porte douze : `performance` a rejoint Portefeuille (LOT-08), `follow-up` a
+ * rejoint la destination Catalyseurs créée au LOT-10, `ai` a rejoint
+ * l'inspecteur d'Analyse et de Portefeuille (LOT-12), et Graphiques a été
+ * installée au LOT-A2 (2026-09-02) — composition complète de sa planche,
+ * dominante servie par le contrat Analyse, chaque module sans source déclaré
+ * absent avec son motif (`AbsentModule`), jamais simulé.
  *
  * Risques a été installé le 2026-09-01 : sa route (`GET /api/v1/risk/matrix`),
  * ses données (snapshot `risk_matrix/global`) et ses tests existent — c'est
