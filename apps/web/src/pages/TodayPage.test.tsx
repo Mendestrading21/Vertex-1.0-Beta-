@@ -186,6 +186,10 @@ describe("Page Aujourd'hui — la planche §1 est complète, servie ou déclaré
     expect(cellule('global-market').getByTestId('today-market-conclusion').textContent).toContain(
       'breadth 50.0 %',
     );
+    // Les trois comptes servis accompagnent la breadth, avec le total couvert.
+    expect(
+      cellule('global-market').getByText('2 en hausse, 1 en baisse, 1 stables sur 4 couverts'),
+    ).toBeDefined();
     // Catalyseur suivant : le PREMIER de l'agenda publié, sans retri.
     expect(await cellule('next-catalyst').findByText('SYN-ENER-01')).toBeDefined();
     // Santé des sources : base, worker, et le recensement des statuts.

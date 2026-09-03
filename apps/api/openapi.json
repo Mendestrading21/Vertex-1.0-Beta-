@@ -2399,7 +2399,7 @@
       },
       "MarketsBreadth": {
         "additionalProperties": false,
-        "description": "Global breadth block — ``market.breadth`` result or an honest INVALID.\n\n``status = \"INVALID\"`` (coverage below the threshold gate) carries the\ntyped reason and NO value — a breadth computed on a sliver of the\nuniverse is never presented. All percentages are server-rendered strings.",
+        "description": "Global breadth block — ``market.breadth`` result or an honest INVALID.\n\n``status = \"INVALID\"`` (coverage below the threshold gate) carries the\ntyped reason and NO value — a breadth computed on a sliver of the\nuniverse is never presented. All percentages are server-rendered strings.\n\n``above_count`` (advancers), ``down_count`` (decliners) and\n``flat_count`` (unchanged) are the worker's exact counts over the covered\ninstruments and PARTITION ``covered_count`` (up + down + flat = covered);\nthey are published in both states, since an INVALID block refuses the\nratio, not the counted facts. The API relays them verbatim and never\nderives one from the others.",
         "properties": {
           "above_count": {
             "minimum": 0.0,
@@ -2436,6 +2436,16 @@
           "covered_count": {
             "minimum": 0.0,
             "title": "Covered Count",
+            "type": "integer"
+          },
+          "down_count": {
+            "minimum": 0.0,
+            "title": "Down Count",
+            "type": "integer"
+          },
+          "flat_count": {
+            "minimum": 0.0,
+            "title": "Flat Count",
             "type": "integer"
           },
           "reason": {
@@ -2494,6 +2504,8 @@
           "value",
           "value_pct",
           "above_count",
+          "down_count",
+          "flat_count",
           "covered_count",
           "universe_size",
           "coverage_pct",

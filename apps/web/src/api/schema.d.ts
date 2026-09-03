@@ -1884,6 +1884,13 @@ export interface components {
          *     ``status = "INVALID"`` (coverage below the threshold gate) carries the
          *     typed reason and NO value — a breadth computed on a sliver of the
          *     universe is never presented. All percentages are server-rendered strings.
+         *
+         *     ``above_count`` (advancers), ``down_count`` (decliners) and
+         *     ``flat_count`` (unchanged) are the worker's exact counts over the covered
+         *     instruments and PARTITION ``covered_count`` (up + down + flat = covered);
+         *     they are published in both states, since an INVALID block refuses the
+         *     ratio, not the counted facts. The API relays them verbatim and never
+         *     derives one from the others.
          */
         MarketsBreadth: {
             /** Above Count */
@@ -1900,6 +1907,10 @@ export interface components {
             coverage_threshold_pct: string;
             /** Covered Count */
             covered_count: number;
+            /** Down Count */
+            down_count: number;
+            /** Flat Count */
+            flat_count: number;
             /** Reason */
             reason: string | null;
             /**

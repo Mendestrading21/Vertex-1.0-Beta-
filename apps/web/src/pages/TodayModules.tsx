@@ -82,7 +82,9 @@ export function GlobalMarketModule() {
                   : `Breadth non calculable : ${breadth.reason ?? 'raison non publiée'}`
               }
               {...(breadth !== null
-                ? { note: `${breadth.above_count} en hausse sur ${breadth.covered_count} couverts` }
+                ? {
+                    note: `${breadth.above_count} en hausse, ${breadth.down_count} en baisse, ${breadth.flat_count} stables sur ${breadth.covered_count} couverts`,
+                  }
                 : {})}
             />
             <Metric

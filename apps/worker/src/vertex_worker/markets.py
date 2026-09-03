@@ -508,6 +508,14 @@ def build_markets_overview_content(
         )
 
     # -- breadth (single authority; INVALID below the coverage gate) --------
+    # Les trois comptes (hausses, baisses, inchangés) partitionnent EXACTEMENT
+    # `covered_count` : chaque instrument couvert a incrémenté un seul d'entre
+    # eux ci-dessus, un ticker écarté n'en incrémente aucun. Ils sont publiés
+    # dans les DEUX états du bloc — un bloc INVALID refuse le RATIO, pas les
+    # faits comptés. Seul `above_count` est une ENTRÉE du calcul
+    # `market.breadth` (registre) ; `down_count` et `flat_count` sont des
+    # comptes descriptifs que la conclusion française énonçait déjà sans les
+    # publier en champs — l'interface devait les déduire, ou les taire.
     covered_count = len(covered)
     universe_size = len(universe_set)
     threshold_pct = _pct_string(config.coverage_threshold * 100, _PCT_ONE_DP)
@@ -530,6 +538,8 @@ def build_markets_overview_content(
             "value": None,
             "value_pct": None,
             "above_count": up,
+            "down_count": down,
+            "flat_count": flat,
             "covered_count": covered_count,
             "universe_size": universe_size,
             "coverage_pct": coverage_pct,
@@ -561,6 +571,8 @@ def build_markets_overview_content(
             "value": format(breadth_decimal, "f"),
             "value_pct": breadth_pct,
             "above_count": up,
+            "down_count": down,
+            "flat_count": flat,
             "covered_count": covered_count,
             "universe_size": universe_size,
             "coverage_pct": coverage_pct,
