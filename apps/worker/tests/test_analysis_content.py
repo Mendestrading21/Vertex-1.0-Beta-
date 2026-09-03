@@ -1,9 +1,10 @@
-"""Unit tests of the pure analysis dossier builder (SYNTHETIC only).
+"""Unit tests of the pure analysis dossier builder.
 
-The verdict assertions verify HONESTY, not success: with the synthetic
-population the entitlement/session/liquidity/contradiction/constraint facts
-do not exist, so the single AdviceEngine must return INSUFFICIENT_DATA with
-every blocking gate at UNEVALUABLE — the builder never forces a status.
+The verdict assertions verify HONESTY, not success: absent certified
+entitlement/session/liquidity/contradiction/constraint facts, the single
+AdviceEngine must return INSUFFICIENT_DATA with every blocking gate at
+UNEVALUABLE — the builder never forces a status.  Population labels inside
+AdviceResult must agree with the retained REAL or SYNTHETIC inputs.
 """
 
 from __future__ import annotations
@@ -38,6 +39,15 @@ CONFIG = AnalysisConfig(
     instruments=("SYN-TECH-01", "SYN-TECH-02"),
     allowed_sources=frozenset({SYNTHETIC_SOURCE}),
     usable_rights=frozenset({SYNTHETIC_RIGHTS}),
+)
+
+REAL_INSTRUMENT = "ACME"
+REAL_SOURCE = "ibkr"
+REAL_RIGHTS = "IBKR_MARKET_DATA_DISPLAY_ONLY"
+REAL_CONFIG = AnalysisConfig(
+    instruments=(REAL_INSTRUMENT,),
+    allowed_sources=frozenset({REAL_SOURCE}),
+    usable_rights=frozenset({REAL_RIGHTS}),
 )
 
 
@@ -88,6 +98,25 @@ def bars_record(
         rights=rights,
         schema_version="synthetic-daily-bars/1.0",
         payload=payload,
+    )
+
+
+def real_bars_record() -> BarRecord:
+    return BarRecord(
+        event_id="ibkr:daily-bars:acme:2026-08-24",
+        source=REAL_SOURCE,
+        instrument_ref=REAL_INSTRUMENT,
+        as_of=NOW - timedelta(hours=2),
+        quality_status="VALID",
+        rights=REAL_RIGHTS,
+        schema_version="ibkr.daily-bars/1.0",
+        payload={
+            "type": "daily_bars",
+            "ticker": REAL_INSTRUMENT,
+            "currency": "USD",
+            "adjustment_basis": "split_adjusted",
+            "bars": good_bars(),
+        },
     )
 
 
@@ -187,6 +216,42 @@ def test_bars_are_relayed_verbatim_with_last_close() -> None:
     assert bars_block["bars"][0]["open"] == "100.00"
     assert bars_block["discarded"] == []
     assert bars_block["fresh"] is True
+    advice = content["advice"]
+    assert advice["risk_summary"] == (
+        "SYNTHETIC development population retained; no authoritative "
+        "market risk assessment exists for this instrument"
+    )
+    assert advice["explanation_facts"][:2] == [
+        "3 SYNTHETIC daily bars from 2026-08-21 to 2026-08-24",
+        "last SYNTHETIC close 104.50 SYN",
+    ]
+    assert "SYNTHETIC development population" in advice["limitations"]
+
+
+def test_real_population_never_publishes_synthetic_advice_wording() -> None:
+    content = build_analysis_content(
+        [real_bars_record()],
+        instrument=REAL_INSTRUMENT,
+        evidence_records=(),
+        option_chain_content=None,
+        option_chain_version=None,
+        now=NOW,
+        config=REAL_CONFIG,
+    )
+
+    assert content["population"] == "REAL"
+    advice = content["advice"]
+    assert advice["risk_summary"] == (
+        "REAL observation population retained; no authoritative market "
+        "risk assessment exists for this instrument"
+    )
+    assert advice["explanation_facts"] == [
+        "3 REAL daily bars from 2026-08-21 to 2026-08-24",
+        "last REAL close 104.50 USD",
+    ]
+    assert all("synthetic" not in text.lower() for text in advice["explanation_facts"])
+    assert "synthetic" not in advice["risk_summary"].lower()
+    assert all("synthetic" not in text.lower() for text in advice["limitations"])
 
 
 @pytest.mark.parametrize(

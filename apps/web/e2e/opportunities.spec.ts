@@ -106,8 +106,9 @@ test.describe('Page Opportunités — snapshot réel', () => {
       await expect(row.locator('td')).toHaveText(String(count));
     }
     for (const [status, count] of Object.entries(statusCounts)) {
+      // LOT-A4 : barres de dénombrement dans le module « Statuts sur l'univers ».
       const row = page.getByTestId(`opp-status-count-${status}`);
-      await expect(row.locator('td')).toHaveText(String(count));
+      await expect(row.locator('.vx-census-count')).toHaveText(String(count));
     }
     // La totalité exclue en INSUFFICIENT_DATA est le comportement VOULU :
     // l'état vide du groupe qualifié le dit, sans aucune alerte d'erreur.
@@ -154,6 +155,56 @@ test.describe('Page Opportunités — snapshot réel', () => {
     await expect(block).toContainText(reference['snapshot_as_of'] as string);
     await expect(block).toContainText(reference['content_schema_version'] as string);
     await expect(block).toContainText(String(reference['events_upcoming']));
+  });
+
+  test('LOT-A4 : les QUATORZE modules de la planche §3, une dominante, absences motivées, inspecteur', async ({
+    page,
+  }) => {
+    const content = await apiOpportunities(page);
+    await page.goto('/opportunities');
+    await expect(page.getByTestId('opp-group-excluded')).toBeVisible({ timeout: 20_000 });
+    const MODULES = [
+      'active-ideas',
+      'mean-score',
+      'global-bias',
+      'expected-return',
+      'ranking',
+      'bias-split',
+      'score-return-scatter',
+      'factor-contribution',
+      'recent-activity',
+      'opportunity-health',
+      'profile',
+      'exclusions',
+      'catalysts-provenance',
+      'quality',
+    ];
+    for (const module of MODULES) {
+      await expect(page.locator(`[data-module="${module}"]`).first(), module).toBeVisible();
+    }
+    // Une seule dominante : le classement, qui contient les deux groupes.
+    const dominantes = page.locator('.vx-main [data-rank="dominant"]');
+    await expect(dominantes).toHaveCount(1);
+    await expect(dominantes.first().getByTestId('opp-group-qualified')).toBeVisible();
+    // Six absences, motif fermé, aucun chiffre dans le corps (article 17).
+    await expect(page.locator('.vx-absent-badge')).toHaveCount(6);
+    for (const corps of await page.locator('.vx-absent-body').allTextContents()) {
+      expect(corps).not.toMatch(/\d/);
+    }
+    // Les mesures servies sont les comptes publiés.
+    const coverage = content['coverage'] as Record<string, unknown>;
+    await expect(page.getByTestId('opp-ideas-universe')).toContainText(String(coverage['universe_size']));
+    await expect(page.getByTestId('opp-ideas-excluded')).toContainText(String(coverage['excluded_count']));
+    // Inspecteur par défaut : la vérité du snapshot ; « Inspecter » la remplace.
+    await expect(page.locator('.vx-inspector-heading')).toHaveText('Inspecteur — Snapshot publié');
+    await expect(page.getByTestId('opp-snapshot-facts')).toBeVisible();
+    const excluded = content['excluded'] as Record<string, unknown>[];
+    const premier = excluded[0]!['ticker'] as string;
+    await page.getByRole('button', { name: `Inspecter ${premier}` }).click();
+    await expect(page.locator('.vx-inspector-heading')).toHaveText(`Inspecteur — ${premier}`);
+    await expect(page.getByTestId('opp-candidate-gates')).toBeVisible();
+    await page.getByRole('button', { name: 'Fermer' }).click();
+    await expect(page.locator('.vx-inspector-heading')).toHaveText('Inspecteur — Snapshot publié');
   });
 
   test('axe : zéro violation critique/sérieuse + capture', async ({ page }, testInfo) => {

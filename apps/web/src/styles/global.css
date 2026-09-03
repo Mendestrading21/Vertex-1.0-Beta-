@@ -395,9 +395,14 @@ body {
 
 .vx-absent-head {
   display: flex;
+  /* LOT-A2 — vu sur capture, pas par un test : dans une colonne étroite
+     (grille à trois modules à 1280 px), un badge « CONTRAT SERVEUR ABSENT »
+     en `nowrap` débordait de sa carte et se faisait tronquer. Le badge passe
+     sous le titre quand la place manque ; il n'est jamais coupé. */
+  flex-wrap: wrap;
   align-items: baseline;
   justify-content: space-between;
-  gap: var(--vx-space-12);
+  gap: var(--vx-space-4) var(--vx-space-12);
 }
 
 .vx-absent-head h3 {
@@ -4353,9 +4358,8 @@ body {
    Ce sont deux sources pour le même numéro : le 2026-09-01 la table TSX a
    été corrigée sans eux, et chaque page affichait `TL / 03` à côté de
    `LEDGER 02`. Un test lit ce fichier et compare les deux — voir
-   shell.test.tsx. `08 charts` reste réservé ; `09 risks` est désormais
-   installé — sa route, ses données et ses tests existent, ce qui est
-   exactement la condition posée dans app/pages.ts. */
+   shell.test.tsx. Les douze codes sont attribués : `09 risks` depuis le
+   2026-09-01, `08 charts` depuis le LOT-A2 (2026-09-02). */
 .vx-main[data-page='today'] {
   --vx-page-ledger: 'LEDGER 01 · NOW';
 }
@@ -4388,6 +4392,10 @@ body {
   --vx-page-ledger: 'LEDGER 07 · BOOK';
 }
 
+.vx-main[data-page='charts'] {
+  --vx-page-ledger: 'LEDGER 08 · STUDY';
+}
+
 .vx-main[data-page='risks'] {
   --vx-page-ledger: 'LEDGER 09 · EXPOSURE';
 }
@@ -4398,6 +4406,23 @@ body {
 
 .vx-main[data-page='sources-reports'] {
   --vx-page-ledger: 'LEDGER 12 · CONTROL';
+}
+
+/* LOT-A2 — GRAPHIQUES : LES MODULES DE LA PLANCHE, SERVIS OU DÉCLARÉS.
+   La planche §8 aligne ses modules secondaires sous la dominante, par rangées
+   de largeur égale. Chaque `AbsentModule` y tient SA place à SA géométrie :
+   la grille rend l'absence visible sans lui donner de lumière. */
+.vx-charts-modules {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--vx-space-12);
+  margin-top: var(--vx-space-12);
+}
+
+@media (max-width: 1279px) {
+  .vx-charts-modules {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 /* V8 — L'EN-TÊTE REND SA PLACE AU TRAVAIL.
@@ -5359,4 +5384,2967 @@ label {
   top: 0;
   z-index: 1;
   background: var(--vx-surface-2);
+}
+
+/* ================================================================== */
+/* LOT-A3 — COMPOSITION DES PLANCHES §1 (Aujourd'hui) ET §2 (Marchés)  */
+/* ================================================================== */
+
+/* POURQUOI. Les deux pages étaient un seul objet déroulé — une file de
+   1 800 px, une table de 3 000 px. Les planches composent onze et douze
+   modules autour d'une dominante, avec l'inspecteur à droite. La grille est
+   nommée par ZONES : le placement d'un module ne dépend ni de son ordre dans
+   le DOM (qui reste l'ordre de lecture) ni d'une liste de sélecteurs. */
+
+/* ---- Bloc de mesure ------------------------------------------------ */
+
+.vx-metric {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 120px;
+  flex-direction: column;
+  gap: var(--vx-space-4);
+}
+
+.vx-metric-label {
+  color: var(--vx-titanium);
+  font-family: var(--vx-font-mono);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.vx-metric-value {
+  color: var(--vx-silver);
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-metric);
+  font-variant-numeric: tabular-nums lining-nums;
+  font-weight: 600;
+  letter-spacing: -0.025em;
+  line-height: 1.1;
+  overflow-wrap: anywhere;
+}
+
+.vx-metric-value.vx-cell-absent {
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-body);
+  font-weight: 500;
+}
+
+.vx-metric-unit {
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+.vx-metric-note {
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+}
+
+/* Le sens financier : couleur ET signe dans la chaîne servie. */
+.vx-metric[data-sign='up'] .vx-metric-value {
+  color: var(--vx-positive);
+}
+
+.vx-metric[data-sign='down'] .vx-metric-value {
+  color: var(--vx-negative);
+}
+
+.vx-metrics-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--vx-space-12) var(--vx-space-16);
+}
+
+.vx-metrics-row + .vx-metrics-row {
+  margin-top: var(--vx-space-12);
+}
+
+.vx-module-sentence {
+  margin: var(--vx-space-8) 0 0;
+  color: var(--vx-text-secondary);
+  font-size: var(--vx-font-size-meta);
+  line-height: 1.45;
+}
+
+.vx-module-sentence:first-child {
+  margin-top: 0;
+}
+
+/* L'état d'un module, à sa place : libellé stable, code serveur en chasse
+   fixe. « Ne jamais convertir UNKNOWN en neutre rassurant. » */
+.vx-module-state {
+  margin: 0;
+  padding: var(--vx-space-8) var(--vx-space-12);
+  border: 1px dashed var(--vx-border);
+  border-radius: var(--vx-radius-6);
+  color: var(--vx-text-secondary);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-module-state[data-state='stale'],
+.vx-module-state[data-state='delayed'] {
+  border-color: var(--vx-warning);
+  color: var(--vx-warning);
+}
+
+.vx-module-state[data-state='error'],
+.vx-module-state[data-state='offline'],
+.vx-module-state[data-state='closed'] {
+  border-color: var(--vx-negative);
+  color: var(--vx-negative);
+}
+
+.vx-module-state + * {
+  margin-top: var(--vx-space-12);
+}
+
+/* ---- Recensement des capacités ------------------------------------- */
+
+.vx-status-census {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--vx-space-8);
+  margin: var(--vx-space-12) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.vx-status-census li {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--vx-space-4);
+}
+
+.vx-status-census-count {
+  color: var(--vx-silver);
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-meta);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- Agenda compact ------------------------------------------------- */
+
+.vx-agenda-mini {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.vx-agenda-line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--vx-space-4) var(--vx-space-12);
+  align-items: baseline;
+  padding: var(--vx-space-8) 0;
+  border-bottom: 1px solid var(--vx-border-soft);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-agenda-line:last-child {
+  border-bottom: 0;
+}
+
+.vx-agenda-time {
+  color: var(--vx-silver);
+  font-family: var(--vx-font-mono);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.vx-agenda-tz {
+  color: var(--vx-text-muted);
+}
+
+.vx-agenda-ticker code {
+  font-family: var(--vx-font-mono);
+}
+
+.vx-agenda-title {
+  flex: 1 1 100%;
+  min-width: 0;
+  color: var(--vx-text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.vx-agenda-status {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--vx-space-8);
+  color: var(--vx-text-muted);
+  white-space: nowrap;
+}
+
+.vx-mini-list {
+  margin: 0;
+  padding: 0 0 0 var(--vx-space-20);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-mini-list li + li {
+  margin-top: var(--vx-space-4);
+}
+
+.vx-mini-list-meta {
+  color: var(--vx-text-muted);
+}
+
+/* ---- Carte sectorielle ---------------------------------------------- */
+
+.vx-sector-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: var(--vx-space-8);
+}
+
+.vx-sector {
+  min-width: 0;
+  padding: var(--vx-space-8);
+  border: 1px solid var(--vx-border-soft);
+  border-radius: var(--vx-radius-6);
+  background: var(--vx-surface-0);
+  box-shadow: var(--vx-shadow-inset);
+}
+
+.vx-sector-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--vx-space-8);
+  margin-bottom: var(--vx-space-8);
+}
+
+.vx-sector-head h3 {
+  margin: 0;
+  overflow: hidden;
+  color: var(--vx-text-secondary);
+  font-size: var(--vx-font-size-meta);
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vx-sector-count,
+.vx-sector-none,
+.vx-sector-empty {
+  margin: 0;
+  color: var(--vx-text-muted);
+  font-family: var(--vx-font-mono);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.vx-sector-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--vx-space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* La puce est la même en libellé et en bouton — et le bouton reprend ses
+   propriétés à la règle générique des boutons (V12, spécificité 0,2,1) par
+   un sélecteur d'un cran plus précis, jamais par `!important`. */
+.vx-sector-chip,
+.vx-main button.vx-sector-chip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--vx-space-4);
+  min-height: 0;
+  padding: 2px var(--vx-space-8);
+  border: 1px solid var(--vx-border-soft);
+  border-radius: var(--vx-radius-6);
+  background: var(--vx-surface-1);
+  color: var(--vx-text);
+  font-family: var(--vx-font-mono);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.5;
+}
+
+.vx-main button.vx-sector-chip:hover:not(:disabled) {
+  border-color: var(--vx-border);
+  background: var(--vx-surface-2);
+}
+
+/* Sélection : l'ambre, réservé à l'intention ; un glyphe le double. */
+.vx-main button.vx-sector-chip[aria-pressed='true'] {
+  border-color: var(--vx-signal);
+  background: var(--vx-signal-faint);
+  color: var(--vx-text);
+}
+
+.vx-main button.vx-sector-chip[aria-pressed='true']::before {
+  content: '▸ ';
+  color: var(--vx-signal);
+}
+
+.vx-sector-chip code {
+  font-family: inherit;
+}
+
+.vx-sector-chips li[data-sign='up'] .vx-sector-return {
+  color: var(--vx-positive);
+}
+
+.vx-sector-chips li[data-sign='down'] .vx-sector-return {
+  color: var(--vx-negative);
+}
+
+.vx-sector-chips li[data-sign='flat'] .vx-sector-return {
+  color: var(--vx-text-muted);
+}
+
+/* ---- Inspecteur par défaut d'Aujourd'hui ---------------------------- */
+
+.vx-snapshot-rail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--vx-space-16);
+}
+
+.vx-snapshot-block-title {
+  margin: 0 0 var(--vx-space-8);
+  color: var(--vx-titanium);
+  font-family: var(--vx-font-mono);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.vx-snapshot-rail-note {
+  margin: 0 0 var(--vx-space-8);
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+}
+
+/* ---- La file d'attention, bornée ----------------------------------- */
+
+.vx-queue-scroll[tabindex] {
+  max-height: 460px;
+  overflow-y: auto;
+}
+
+.vx-queue-scroll[tabindex]:focus-visible {
+  outline: 2px solid var(--vx-signal);
+  outline-offset: 2px;
+}
+
+/* ---- Grille d'Aujourd'hui (planche §1) ------------------------------ */
+
+/* L'inspecteur est TOUJOURS monté sur cette page : la zone de travail fait
+   ~730 px à 1440 et ~800 px à 1280. Quatre colonnes ; cinq seulement à 1600,
+   où elles font 200 px — mesuré, pas supposé (cinq colonnes à 1440 donnaient
+   des cellules de 135 px où plus rien ne tenait). Le régime tient la colonne
+   gauche à côté de la file, comme sur la planche. */
+.vx-today-grid {
+  display: grid;
+  grid-template-areas:
+    'global vol catalyst health'
+    'focus focus focus focus'
+    'regime attention attention attention'
+    'risks attention attention attention'
+    'opp sectors sectors calendar'
+    'portfolio sectors sectors calendar';
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--vx-space-12);
+  align-items: stretch;
+  margin-top: var(--vx-space-12);
+}
+
+.vx-today-cell {
+  min-width: 0;
+}
+
+.vx-today-cell > .vx-card,
+.vx-today-cell > .vx-absent {
+  height: 100%;
+  box-sizing: border-box;
+}
+
+.vx-today-grid [data-module='regime'] { grid-area: regime; }
+.vx-today-grid [data-module='global-market'] { grid-area: global; }
+.vx-today-grid [data-module='volatility'] { grid-area: vol; }
+.vx-today-grid [data-module='next-catalyst'] { grid-area: catalyst; }
+.vx-today-grid [data-module='source-health'] { grid-area: health; }
+.vx-today-grid [data-module='attention'] { grid-area: attention; }
+.vx-today-grid [data-module='focus'] { grid-area: focus; }
+.vx-today-grid [data-module='opportunities'] { grid-area: opp; }
+.vx-today-grid [data-module='active-risks'] { grid-area: risks; }
+.vx-today-grid [data-module='sectors'] { grid-area: sectors; }
+.vx-today-grid [data-module='manual-portfolio'] { grid-area: portfolio; }
+.vx-today-grid [data-module='calendar'] { grid-area: calendar; }
+
+@media (min-width: 1600px) {
+  .vx-today-grid {
+    grid-template-areas:
+      'global global vol catalyst health'
+      'focus focus focus focus focus'
+      'regime attention attention attention attention'
+      'risks attention attention attention attention'
+      'opp sectors sectors sectors calendar'
+      'portfolio sectors sectors sectors calendar';
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+/* Le module absent, dans une grille : même respiration qu'une carte quiet. */
+.vx-today-grid .vx-absent,
+.vx-markets-grid .vx-absent {
+  gap: var(--vx-space-8);
+  padding: var(--vx-space-12);
+  background: var(--vx-surface-0);
+}
+
+.vx-today-grid .vx-absent-head h3,
+.vx-markets-grid .vx-absent-head h3 {
+  font-size: var(--vx-font-size-body);
+}
+
+/* ---- Grille de Marchés (planche §2) --------------------------------- */
+
+.vx-markets-grid {
+  display: grid;
+  grid-template-areas:
+    'sessions vol indices breadth'
+    'focus focus focus focus'
+    'map map map map'
+    'sectors sectors rates fx'
+    'sectors sectors correlation volstruct'
+    'health health discards discards';
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--vx-space-12);
+  align-items: stretch;
+  margin-top: var(--vx-space-12);
+}
+
+.vx-markets-grid [data-module='sessions'] { grid-area: sessions; }
+.vx-markets-grid [data-module='volatility'] { grid-area: vol; }
+.vx-markets-grid [data-module='breadth'] { grid-area: breadth; }
+.vx-markets-grid [data-module='market-health'] { grid-area: health; }
+.vx-markets-grid [data-module='indices'] { grid-area: indices; }
+.vx-markets-grid [data-module='focus'] { grid-area: focus; }
+.vx-markets-grid [data-module='market-map'] { grid-area: map; }
+.vx-markets-grid [data-module='sectors'] { grid-area: sectors; }
+.vx-markets-grid [data-module='rates-curve'] { grid-area: rates; }
+.vx-markets-grid [data-module='fx'] { grid-area: fx; }
+.vx-markets-grid [data-module='correlation'] { grid-area: correlation; }
+.vx-markets-grid [data-module='vol-structure'] { grid-area: volstruct; }
+.vx-markets-grid [data-module='discards'] { grid-area: discards; }
+
+.vx-markets-grid > [data-module] {
+  min-width: 0;
+}
+
+.vx-markets-grid > [data-module] > .vx-card,
+.vx-markets-grid > [data-module] > .vx-absent {
+  height: 100%;
+  box-sizing: border-box;
+}
+
+/* La carte des marchés garde une hauteur FIXE de rendu : « préserver un
+   espace de rendu fixe pour éviter les décalages ». */
+.vx-markets-grid .vx-marketmap-canvas {
+  height: 360px;
+}
+
+/* La table équivalente reste sous la carte, bornée comme les autres tables
+   longues (règle commune plus haut) — elle défile, elle ne tronque pas. */
+.vx-markets-picked {
+  color: var(--vx-signal);
+}
+
+.vx-main button.vx-markets-pick {
+  min-height: 0;
+  padding: 0 var(--vx-space-4);
+  border-color: transparent;
+  background: transparent;
+  color: var(--vx-text);
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-meta);
+  text-align: left;
+}
+
+.vx-main button.vx-markets-pick:hover:not(:disabled) {
+  border-color: var(--vx-border-soft);
+  background: var(--vx-surface-2);
+}
+
+.vx-main button.vx-markets-pick[aria-pressed='true'] {
+  border-color: var(--vx-signal);
+  background: var(--vx-signal-faint);
+}
+
+.vx-main button.vx-markets-pick[aria-pressed='true']::before {
+  content: '▸ ';
+  color: var(--vx-signal);
+}
+
+/* Le rappel de calcul dans l'inspecteur : lignée, jamais un chiffre neuf. */
+.vx-inspector-lineage {
+  margin: var(--vx-space-12) 0 0;
+  color: var(--vx-text-muted);
+  font-family: var(--vx-font-mono);
+  font-size: 10px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+
+/* ---- Corrections vues SUR CAPTURE (1440×900), pas par un test ------- */
+
+/* Le badge d'absence débordait de sa tête dans une colonne de 200 px et
+   « AUCUNE SOURCE » était tronqué : il passe à la ligne. */
+.vx-today-grid .vx-absent-head,
+.vx-markets-grid .vx-absent-head {
+  flex-wrap: wrap;
+  gap: var(--vx-space-4) var(--vx-space-12);
+}
+
+/* Une valeur longue (horodatage) ne se lit pas en corps d'affichage. */
+.vx-metric[data-size='compact'] .vx-metric-value {
+  font-size: var(--vx-font-size-title);
+  letter-spacing: -0.01em;
+}
+
+/* Le bandeau santé, dans une carte de 200 px : une colonne, sans cadre
+   dans le cadre, et des valeurs qui passent à la ligne au lieu d'être
+   coupées. */
+.vx-today-module .vx-health-strip {
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--vx-space-8);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.vx-today-module .vx-health-strip-item {
+  flex-wrap: wrap;
+  gap: var(--vx-space-4) var(--vx-space-8);
+  padding: var(--vx-space-8);
+}
+
+.vx-today-module .vx-health-strip strong,
+.vx-today-module .vx-health-strip-label {
+  white-space: normal;
+}
+
+/* Les barres de breadth dans une carte de 200 px : libellé, barre et
+   chiffre s'empilent — le chiffre « 91,7 % (seuil 80,0 %) » était coupé. */
+.vx-markets-grid .vx-breadth {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.vx-markets-grid .vx-breadth-row {
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--vx-space-4);
+}
+
+.vx-markets-grid .vx-breadth-figure {
+  white-space: normal;
+}
+
+/* Sur Marchés la table équivalente vit SOUS une carte de 360 px : une borne
+   plus courte, elle défile toujours, ne tronque jamais. */
+.vx-markets-grid .vx-markets-table-scroll[tabindex] {
+  max-height: 320px;
+}
+
+/* La carte sectorielle occupe deux colonnes : deux tuiles de front. */
+.vx-today-grid .vx-sector-grid,
+.vx-markets-grid .vx-sector-grid {
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+}
+
+/* Vu sur capture, deuxième passe : le recensement des statuts empilait six
+   pilules dans une carte de 175 px, et le badge de fraîcheur du worker se
+   cassait en colonnes. Chips compactes, et retour à la ligne autorisé. */
+.vx-status-census .vx-status-badge {
+  padding: 0 var(--vx-space-8);
+  font-size: 10px;
+}
+
+.vx-today-module .vx-freshness {
+  flex-wrap: wrap;
+  padding: var(--vx-space-4) var(--vx-space-8);
+}
+
+/* La file, dans une dominante de ~560 px : ses badges passent à la ligne au
+   lieu de se compresser en colonnes de deux lettres. */
+.vx-today-primary .vx-queue-item-meta {
+  flex-wrap: wrap;
+  max-width: 50%;
+}
+
+/* Vu sur capture 1280×800 : « CONTRAT SERVEUR ABSENT » dépassait encore une
+   cellule de 170 px, et la table équivalente était coupée au bord droit du
+   cadre. Le badge peut passer sur deux lignes ; la table défile en largeur —
+   elle ne tronque jamais une colonne. */
+.vx-today-grid .vx-absent-badge,
+.vx-markets-grid .vx-absent-badge {
+  white-space: normal;
+  text-align: center;
+}
+
+.vx-markets-grid .vx-markets-table-scroll[tabindex] {
+  overflow-x: auto;
+}
+
+/* Le badge est un enfant flex en `flex: 0 0 auto` : autoriser le retour à la
+   ligne ne suffisait pas, sa largeur restait celle du contenu. Il doit aussi
+   pouvoir rétrécir. */
+.vx-today-grid .vx-absent-badge,
+.vx-markets-grid .vx-absent-badge {
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* ================================================================== */
+/* LOT-A3 — RESPIRATION ET CADRAGE (deuxième passe, sur demande)       */
+/* ================================================================== */
+
+/* « La densité vient de la précision des alignements et non de
+   l'accumulation d'effets » ; « gouttières principales 12–16 px ; espace
+   interne courant 14–18 px » ; « bordures : titane froid d'un pixel, PLUS
+   CLAIR AU BORD SUPÉRIEUR ». Cette passe applique le haut de chaque bande :
+   16 px entre modules, 20 px entre rangées, 18 px d'espace interne, une
+   arête haute plus claire sur chaque panneau, et des mesures séparées par un
+   filet — un registre, pas un bento. */
+
+.vx-today-grid,
+.vx-markets-grid {
+  gap: var(--vx-space-20) var(--vx-space-16);
+  margin-top: var(--vx-space-20);
+}
+
+.vx-page-header {
+  margin-bottom: var(--vx-space-20);
+}
+
+/* Le panneau : même matériau partout, arête haute plus claire, coins
+   constants. Le rang décide de la lumière, pas la page. */
+.vx-today-cell > .vx-card,
+.vx-markets-grid > [data-module] > .vx-card,
+.vx-today-cell > .vx-absent,
+.vx-markets-grid > [data-module] > .vx-absent {
+  gap: var(--vx-space-12);
+  padding: var(--vx-space-20) var(--vx-space-20) var(--vx-space-16);
+  border-color: var(--vx-border-soft);
+  border-top-color: var(--vx-border);
+  border-radius: var(--vx-radius-14);
+  background: var(--vx-surface-1);
+  box-shadow: var(--vx-shadow-inset);
+}
+
+.vx-today-cell > .vx-card[data-rank='dominant'] {
+  padding: var(--vx-space-20) var(--vx-space-24) var(--vx-space-16);
+  border-top-color: var(--vx-border-strong);
+}
+
+.vx-today-cell > .vx-card .vx-card-head,
+.vx-markets-grid > [data-module] > .vx-card .vx-card-head {
+  padding-bottom: var(--vx-space-12);
+  border-bottom: 1px solid var(--vx-border-soft);
+}
+
+.vx-today-cell > .vx-card .vx-card-kicker,
+.vx-markets-grid > [data-module] > .vx-card .vx-card-kicker {
+  margin-bottom: var(--vx-space-8);
+  color: var(--vx-titanium);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+}
+
+.vx-today-cell > .vx-card[data-rank='dominant'] .vx-card-kicker {
+  color: var(--vx-signal);
+}
+
+.vx-today-cell > .vx-card .vx-card-head h2,
+.vx-markets-grid > [data-module] > .vx-card .vx-card-head h2 {
+  font-size: var(--vx-font-size-title);
+  font-weight: 620;
+  letter-spacing: -0.015em;
+}
+
+.vx-today-cell > .vx-card .vx-card-body,
+.vx-markets-grid > [data-module] > .vx-card .vx-card-body {
+  flex: 1 1 auto;
+}
+
+.vx-today-cell > .vx-card .vx-card-foot,
+.vx-markets-grid > [data-module] > .vx-card .vx-card-foot {
+  padding-top: var(--vx-space-12);
+  border-top: 1px solid var(--vx-border-soft);
+  color: var(--vx-text-muted);
+  font-size: 10.5px;
+  letter-spacing: 0.01em;
+  line-height: 1.55;
+}
+
+/* Le module absent : même panneau, filet pointillé plus discret, titre en
+   titane — il tient sa place sans réclamer la lumière. */
+.vx-today-cell > .vx-absent,
+.vx-markets-grid > [data-module] > .vx-absent {
+  border-style: dashed;
+  border-top-style: solid;
+  background: var(--vx-surface-0);
+}
+
+.vx-today-grid .vx-absent-head,
+.vx-markets-grid .vx-absent-head {
+  padding-bottom: var(--vx-space-12);
+  border-bottom: 1px solid var(--vx-border-soft);
+}
+
+.vx-today-grid .vx-absent-head h3,
+.vx-markets-grid .vx-absent-head h3 {
+  color: var(--vx-text-secondary);
+  font-size: var(--vx-font-size-title);
+  font-weight: 620;
+  letter-spacing: -0.015em;
+}
+
+.vx-today-grid .vx-absent-question,
+.vx-markets-grid .vx-absent-question {
+  margin-top: var(--vx-space-4);
+  line-height: 1.5;
+}
+
+.vx-today-grid .vx-absent-body,
+.vx-markets-grid .vx-absent-body {
+  line-height: 1.55;
+}
+
+.vx-today-grid .vx-absent-note,
+.vx-markets-grid .vx-absent-note {
+  padding-left: var(--vx-space-12);
+  border-left: 2px solid var(--vx-border);
+  color: var(--vx-text-secondary);
+}
+
+/* Les mesures : alignées sur une même ligne de base, séparées par un filet
+   vertical — chaque chiffre a son cadre, sans boîte supplémentaire. */
+.vx-metrics-row {
+  gap: var(--vx-space-16) var(--vx-space-20);
+}
+
+.vx-metric + .vx-metric {
+  padding-left: var(--vx-space-20);
+  border-left: 1px solid var(--vx-border-soft);
+}
+
+.vx-metric {
+  gap: var(--vx-space-8);
+}
+
+.vx-metric-label {
+  letter-spacing: 0.12em;
+}
+
+.vx-metric-value {
+  font-size: 30px;
+  line-height: 1.05;
+}
+
+.vx-metric-note {
+  line-height: 1.45;
+}
+
+.vx-module-sentence {
+  margin-top: var(--vx-space-12);
+  line-height: 1.55;
+}
+
+.vx-module-state {
+  padding: var(--vx-space-12) var(--vx-space-16);
+  line-height: 1.5;
+}
+
+/* Recensement des capacités : chips alignées, compte en chasse fixe. */
+.vx-status-census {
+  gap: var(--vx-space-8) var(--vx-space-12);
+  margin-top: var(--vx-space-16);
+}
+
+.vx-today-module .vx-health-strip {
+  gap: var(--vx-space-12);
+}
+
+.vx-today-module .vx-health-strip-item {
+  padding: var(--vx-space-8) var(--vx-space-12);
+  border-radius: var(--vx-radius-10);
+}
+
+/* Agenda et listes : une ligne respire, le titre a sa propre ligne. */
+.vx-agenda-line {
+  gap: var(--vx-space-4) var(--vx-space-12);
+  padding: var(--vx-space-12) 0;
+}
+
+.vx-agenda-line:first-child {
+  padding-top: 0;
+}
+
+.vx-mini-list li + li {
+  margin-top: var(--vx-space-8);
+}
+
+/* Carte sectorielle : tuiles plus aérées, puces espacées. */
+.vx-today-grid .vx-sector-grid,
+.vx-markets-grid .vx-sector-grid {
+  gap: var(--vx-space-12);
+}
+
+.vx-sector {
+  padding: var(--vx-space-12);
+  border-radius: var(--vx-radius-10);
+}
+
+.vx-sector-head {
+  margin-bottom: var(--vx-space-12);
+  padding-bottom: var(--vx-space-8);
+  border-bottom: 1px solid var(--vx-border-soft);
+}
+
+.vx-sector-chips {
+  gap: var(--vx-space-8) var(--vx-space-8);
+}
+
+.vx-sector-chip,
+.vx-main button.vx-sector-chip {
+  gap: var(--vx-space-8);
+  padding: var(--vx-space-4) var(--vx-space-8);
+}
+
+/* La file d'attention : chaque ligne a de l'air, et la file monte à la
+   hauteur des deux modules de gauche. */
+.vx-today-primary .vx-queue-item {
+  padding: var(--vx-space-12) var(--vx-space-16);
+}
+
+.vx-today-primary .vx-queue-item-meta {
+  gap: var(--vx-space-8);
+}
+
+.vx-queue-scroll[tabindex] {
+  max-height: 620px;
+}
+
+/* La dominante de Marchés : même respiration que les cartes. */
+.vx-markets-grid > .vx-chartframe {
+  padding: var(--vx-space-20) var(--vx-space-24) var(--vx-space-16);
+  border-top-color: var(--vx-border-strong);
+  border-radius: var(--vx-radius-14);
+}
+
+.vx-markets-grid .vx-chartframe-head {
+  margin-bottom: var(--vx-space-16);
+  padding-bottom: var(--vx-space-16);
+}
+
+.vx-markets-grid .vx-chartframe-meta {
+  gap: var(--vx-space-8) var(--vx-space-24);
+  margin-bottom: var(--vx-space-16);
+  padding: var(--vx-space-12) var(--vx-space-16);
+  border-radius: var(--vx-radius-10);
+}
+
+.vx-markets-grid .vx-chartframe-legend {
+  margin: var(--vx-space-16) 0;
+}
+
+.vx-markets-grid .vx-marketmap-caption {
+  margin-top: var(--vx-space-12);
+}
+
+.vx-markets-grid .vx-chartframe-conclusion {
+  margin: var(--vx-space-16) 0;
+}
+
+.vx-markets-grid .vx-markets-table-actions {
+  margin-bottom: var(--vx-space-12);
+}
+
+.vx-markets-grid .vx-chartframe-foot {
+  margin-top: var(--vx-space-16);
+  padding-top: var(--vx-space-16);
+  line-height: 1.55;
+}
+
+.vx-markets-grid .vx-breadth-row {
+  margin-bottom: var(--vx-space-12);
+}
+
+.vx-markets-grid .vx-breadth h3 {
+  margin-bottom: var(--vx-space-12);
+  padding-bottom: var(--vx-space-8);
+  border-bottom: 1px solid var(--vx-border-soft);
+}
+
+.vx-markets-discards h3 {
+  margin: var(--vx-space-12) 0 var(--vx-space-8);
+  font-size: var(--vx-font-size-body);
+}
+
+.vx-markets-discards h3:first-child {
+  margin-top: 0;
+}
+
+.vx-markets-discards ul {
+  margin: 0 0 var(--vx-space-8);
+  padding-left: var(--vx-space-20);
+  line-height: 1.6;
+}
+
+/* L'inspecteur : faits séparés par un filet, valeurs en argent, respiration. */
+.vx-inspector-panel {
+  padding: var(--vx-space-20);
+  border-top-color: var(--vx-border);
+  border-radius: var(--vx-radius-14);
+  box-shadow: var(--vx-shadow-inset);
+}
+
+.vx-inspector-heading {
+  margin-bottom: var(--vx-space-16);
+  padding-bottom: var(--vx-space-12);
+  border-bottom: 1px solid var(--vx-border-soft);
+}
+
+.vx-inspector-facts {
+  gap: 0;
+}
+
+.vx-inspector-facts > div {
+  padding: var(--vx-space-8) 0;
+  border-bottom: 1px solid var(--vx-border-soft);
+}
+
+.vx-inspector-facts > div:last-child {
+  border-bottom: 0;
+}
+
+.vx-inspector-facts dt {
+  letter-spacing: 0.02em;
+}
+
+.vx-snapshot-rail {
+  gap: var(--vx-space-20);
+}
+
+.vx-snapshot-block-title {
+  margin-bottom: var(--vx-space-8);
+}
+
+.vx-inspector-lineage {
+  margin-top: var(--vx-space-16);
+  padding-top: var(--vx-space-12);
+  border-top: 1px solid var(--vx-border-soft);
+}
+
+/* Vu sur capture (deuxième passe) : deux mesures dans une carte de 180 px
+   passent l'une SOUS l'autre, et le filet vertical devenait un retrait
+   incompréhensible. Les mesures s'empilent donc franchement, séparées par
+   un filet horizontal — le même cadre pour toutes les cartes des grilles. */
+.vx-today-grid .vx-metrics-row,
+.vx-markets-grid .vx-metrics-row {
+  flex-direction: column;
+  gap: 0;
+}
+
+.vx-today-grid .vx-metric,
+.vx-markets-grid .vx-metric {
+  flex: 0 0 auto;
+  padding: var(--vx-space-12) 0;
+}
+
+.vx-today-grid .vx-metric:first-child,
+.vx-markets-grid .vx-metric:first-child {
+  padding-top: 0;
+}
+
+.vx-today-grid .vx-metric + .vx-metric,
+.vx-markets-grid .vx-metric + .vx-metric {
+  padding-left: 0;
+  border-top: 1px solid var(--vx-border-soft);
+  border-left: 0;
+}
+
+.vx-today-grid .vx-metrics-row + .vx-metrics-row,
+.vx-markets-grid .vx-metrics-row + .vx-metrics-row {
+  margin-top: 0;
+  padding-top: var(--vx-space-12);
+  border-top: 1px solid var(--vx-border-soft);
+}
+
+/* Le portefeuille manuel : le badge des marques respire avant les mesures. */
+.vx-today-module .vx-badge-synthetic + .vx-metrics-row {
+  margin-top: var(--vx-space-16);
+}
+
+/* Santé des marchés occupe deux colonnes : ses trois mesures se lisent de
+   front, séparées par un filet vertical, au lieu d'une pile qui laissait la
+   moitié de la carte vide. */
+.vx-markets-grid [data-module='market-health'] .vx-metrics-row {
+  flex-direction: row;
+  gap: var(--vx-space-20);
+}
+
+.vx-markets-grid [data-module='market-health'] .vx-metric {
+  flex: 1 1 0;
+  padding: 0;
+}
+
+.vx-markets-grid [data-module='market-health'] .vx-metric + .vx-metric {
+  padding-left: var(--vx-space-20);
+  border-top: 0;
+  border-left: 1px solid var(--vx-border-soft);
+}
+
+/* Vu sur capture 1280 : dans une tuile de 348 px, deux puces manquaient de
+   quatre pixels pour tenir de front. Marges internes des puces resserrées
+   d'un cran ; le texte, lui, ne change pas. */
+.vx-sector-chip,
+.vx-main button.vx-sector-chip {
+  gap: var(--vx-space-4);
+  padding: var(--vx-space-4) 6px;
+}
+
+/* ================================================================== */
+/* LOT-A3 — WIDGETS INSTRUMENT (rangée des instruments suivis)          */
+/* ================================================================== */
+
+/* Prix en grand, variation en pastille, mini-courbe et barres de volume,
+   fraîcheur en haut à droite. Chaque widget est un panneau du même matériau
+   que les cartes : arête haute plus claire, rayon constant, aucun halo. Le
+   vert et le rouge ne portent que le SIGNE publié, doublé du glyphe et du
+   texte ; la courbe reprend cette teinte pour ne pas en inventer une. */
+
+.vx-focus {
+  display: flex;
+  flex-direction: column;
+  gap: var(--vx-space-12);
+}
+
+.vx-focus-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--vx-space-4) var(--vx-space-16);
+  padding: 0 var(--vx-space-4);
+}
+
+.vx-focus-kicker {
+  margin: 0;
+  color: var(--vx-titanium);
+  font-family: var(--vx-font-mono);
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.vx-focus-note {
+  margin: 0;
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-focus-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: var(--vx-space-16);
+}
+
+.vx-iw {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--vx-space-12);
+  padding: var(--vx-space-16) var(--vx-space-20);
+  border: 1px solid var(--vx-border-soft);
+  border-top-color: var(--vx-border-strong);
+  border-radius: var(--vx-radius-18);
+  background:
+    linear-gradient(180deg, var(--vx-titanium-ghost), transparent 38%),
+    var(--vx-surface-1);
+  box-shadow: var(--vx-shadow-inset);
+}
+
+.vx-iw-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--vx-space-12);
+}
+
+.vx-iw-identity {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.vx-main .vx-iw-ticker {
+  color: var(--vx-text);
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-body);
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  text-decoration: none;
+}
+
+.vx-main .vx-iw-ticker:hover {
+  color: var(--vx-signal-bright);
+  text-decoration: underline;
+}
+
+.vx-iw-ticker code {
+  font-family: inherit;
+}
+
+.vx-iw-sector {
+  overflow: hidden;
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vx-iw-fresh {
+  flex: 0 0 auto;
+  max-width: 55%;
+  text-align: right;
+}
+
+.vx-iw-fresh .vx-freshness {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  padding: 2px var(--vx-space-8);
+  font-size: 11px;
+}
+
+.vx-iw-state {
+  color: var(--vx-text-muted);
+  font-family: var(--vx-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.vx-iw-state[data-state='stale'],
+.vx-iw-state[data-state='delayed'] {
+  color: var(--vx-warning);
+}
+
+.vx-iw-state[data-state='error'],
+.vx-iw-state[data-state='offline'] {
+  color: var(--vx-negative);
+}
+
+.vx-iw-price-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--vx-space-8) var(--vx-space-12);
+}
+
+.vx-iw-price {
+  color: var(--vx-silver);
+  font-family: var(--vx-font-mono);
+  font-size: 28px;
+  font-variant-numeric: tabular-nums lining-nums;
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+
+.vx-iw-currency {
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+/* La pastille : fond doux, texte plein, glyphe — jamais la couleur seule. */
+.vx-iw-delta {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--vx-space-4);
+  padding: 2px var(--vx-space-8);
+  border: 1px solid var(--vx-border-soft);
+  border-radius: var(--vx-radius-pill);
+  background: var(--vx-surface-2);
+  color: var(--vx-text-secondary);
+  font-family: var(--vx-font-mono);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.vx-iw-delta[data-sign='up'] {
+  background: var(--vx-positive-soft);
+  color: var(--vx-positive);
+}
+
+.vx-iw-delta[data-sign='down'] {
+  background: var(--vx-negative-soft);
+  color: var(--vx-negative);
+}
+
+.vx-iw-chart {
+  display: flex;
+  min-height: 64px;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.vx-iw-absent {
+  margin: 0;
+  padding: var(--vx-space-8) var(--vx-space-12);
+  border: 1px dashed var(--vx-border);
+  border-radius: var(--vx-radius-6);
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+  line-height: 1.45;
+}
+
+.vx-iw-foot {
+  color: var(--vx-text-muted);
+  font-family: var(--vx-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.02em;
+}
+
+/* ---- La mini-série ------------------------------------------------- */
+
+.vx-spark {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+}
+
+.vx-spark-line-svg {
+  display: block;
+  width: 100%;
+  height: 44px;
+  overflow: visible;
+}
+
+.vx-spark-vol-svg {
+  display: block;
+  width: 100%;
+  height: 18px;
+}
+
+.vx-spark-base {
+  stroke: var(--vx-titanium);
+  stroke-opacity: 0.55;
+  stroke-width: 0.6;
+  vector-effect: non-scaling-stroke;
+}
+
+.vx-spark-line {
+  fill: none;
+  stroke: var(--vx-silver);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.6;
+  vector-effect: non-scaling-stroke;
+}
+
+.vx-spark-area {
+  fill: var(--vx-titanium-ghost);
+}
+
+.vx-spark-dot {
+  fill: var(--vx-silver);
+}
+
+.vx-spark-vol {
+  fill: var(--vx-titanium);
+  fill-opacity: 0.35;
+}
+
+.vx-spark-vol[data-last='true'] {
+  fill-opacity: 0.9;
+}
+
+.vx-spark[data-sign='up'] .vx-spark-line,
+.vx-spark[data-sign='up'] .vx-spark-dot {
+  stroke: var(--vx-positive);
+  fill: none;
+}
+
+.vx-spark[data-sign='up'] .vx-spark-dot {
+  fill: var(--vx-positive);
+}
+
+.vx-spark[data-sign='up'] .vx-spark-area {
+  fill: var(--vx-positive-soft);
+}
+
+.vx-spark[data-sign='down'] .vx-spark-line {
+  stroke: var(--vx-negative);
+}
+
+.vx-spark[data-sign='down'] .vx-spark-dot {
+  fill: var(--vx-negative);
+}
+
+.vx-spark[data-sign='down'] .vx-spark-area {
+  fill: var(--vx-negative-soft);
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .vx-iw {
+    background: var(--vx-surface-1);
+  }
+}
+
+/* Vu sur capture : le ticker se coupait au trait d'union devant le badge de
+   fraîcheur. Le ticker ne se coupe jamais ; c'est la tête qui passe à la
+   ligne, et le secteur peut prendre deux lignes. */
+.vx-iw-head {
+  flex-wrap: wrap;
+}
+
+.vx-main .vx-iw-ticker {
+  white-space: nowrap;
+}
+
+.vx-iw-sector {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.vx-iw-fresh {
+  max-width: 100%;
+}
+
+/* ================================================================== */
+/* LOT-A4 — COMPOSITION DES PLANCHES §3 (Opportunités) ET §4 (Analyse) */
+/* ================================================================== */
+
+/* POURQUOI. Les deux pages étaient un seul objet déroulé. Les planches
+   composent quatorze et dix-neuf modules autour d'une dominante, avec
+   l'inspecteur à droite. Le motif du LOT-A3 est repris par une classe de
+   COMPOSITION générique, `.vx-board` : grille nommée par zones, panneaux du
+   même matériau (arête haute plus claire, coins constants, filets), modules
+   absents en pointillé. Chaque page ne déclare que ses zones. */
+
+.vx-board {
+  display: grid;
+  gap: var(--vx-space-20) var(--vx-space-16);
+  align-items: stretch;
+  margin-top: var(--vx-space-20);
+}
+
+.vx-board > [data-module] {
+  min-width: 0;
+}
+
+.vx-board > [data-module] > .vx-card,
+.vx-board > [data-module] > .vx-absent,
+.vx-board > [data-module] > .vx-indicators,
+.vx-board > [data-module] > .vx-ih {
+  height: 100%;
+  box-sizing: border-box;
+}
+
+.vx-board > [data-module] > .vx-card,
+.vx-board > [data-module] > .vx-absent,
+.vx-board > [data-module] > .vx-indicators {
+  gap: var(--vx-space-12);
+  padding: var(--vx-space-20) var(--vx-space-20) var(--vx-space-16);
+  border: 1px solid var(--vx-border-soft);
+  border-top-color: var(--vx-border);
+  border-radius: var(--vx-radius-14);
+  background: var(--vx-surface-1);
+  box-shadow: var(--vx-shadow-inset);
+}
+
+.vx-board > [data-module] > .vx-card[data-rank='dominant'] {
+  padding: var(--vx-space-20) var(--vx-space-24) var(--vx-space-16);
+  border-top-color: var(--vx-border-strong);
+}
+
+.vx-board > [data-module] > .vx-card .vx-card-head {
+  padding-bottom: var(--vx-space-12);
+  border-bottom: 1px solid var(--vx-border-soft);
+}
+
+.vx-board > [data-module] > .vx-card .vx-card-kicker {
+  margin-bottom: var(--vx-space-8);
+  color: var(--vx-titanium);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+}
+
+.vx-board > [data-module] > .vx-card[data-rank='dominant'] .vx-card-kicker {
+  color: var(--vx-signal);
+}
+
+.vx-board > [data-module] > .vx-card .vx-card-head h2 {
+  font-size: var(--vx-font-size-title);
+  font-weight: 620;
+  letter-spacing: -0.015em;
+}
+
+.vx-board > [data-module] > .vx-card .vx-card-body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.vx-board > [data-module] > .vx-card .vx-card-foot {
+  padding-top: var(--vx-space-12);
+  border-top: 1px solid var(--vx-border-soft);
+  color: var(--vx-text-muted);
+  font-size: 10.5px;
+  letter-spacing: 0.01em;
+  line-height: 1.55;
+}
+
+/* Le module absent : même panneau, filet pointillé, titre en titane. */
+.vx-board > [data-module] > .vx-absent {
+  border-style: dashed;
+  border-top-style: solid;
+  background: var(--vx-surface-0);
+}
+
+.vx-board .vx-absent-head {
+  flex-wrap: wrap;
+  gap: var(--vx-space-4) var(--vx-space-12);
+  padding-bottom: var(--vx-space-12);
+  border-bottom: 1px solid var(--vx-border-soft);
+}
+
+.vx-board .vx-absent-head h3 {
+  color: var(--vx-text-secondary);
+  font-size: var(--vx-font-size-title);
+  font-weight: 620;
+  letter-spacing: -0.015em;
+}
+
+.vx-board .vx-absent-badge {
+  min-width: 0;
+  max-width: 100%;
+  white-space: normal;
+  text-align: center;
+}
+
+.vx-board .vx-absent-question {
+  margin-top: var(--vx-space-4);
+  line-height: 1.5;
+}
+
+.vx-board .vx-absent-body {
+  line-height: 1.55;
+}
+
+.vx-board .vx-absent-note {
+  padding-left: var(--vx-space-12);
+  border-left: 2px solid var(--vx-border);
+  color: var(--vx-text-secondary);
+}
+
+/* Les mesures s'empilent, séparées par un filet (cartes étroites). */
+.vx-board .vx-metrics-row {
+  flex-direction: column;
+  gap: 0;
+}
+
+.vx-board .vx-metric {
+  flex: 0 0 auto;
+  padding: var(--vx-space-12) 0;
+}
+
+.vx-board .vx-metric:first-child {
+  padding-top: 0;
+}
+
+.vx-board .vx-metric + .vx-metric {
+  padding-left: 0;
+  border-top: 1px solid var(--vx-border-soft);
+  border-left: 0;
+}
+
+/* Une grille de mesures compactes (identité) : deux de front, filetées. */
+.vx-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 var(--vx-space-16);
+}
+
+.vx-metrics-grid .vx-metric {
+  padding: var(--vx-space-8) 0;
+  border-bottom: 1px solid var(--vx-border-soft);
+}
+
+.vx-metrics-grid .vx-metric + .vx-metric {
+  border-top: 0;
+}
+
+.vx-metrics-grid .vx-metric[data-size='compact'] .vx-metric-value {
+  font-size: var(--vx-font-size-body);
+  overflow-wrap: anywhere;
+}
+
+/* La dominante en cadre graphique : même respiration que les cartes. */
+.vx-board > .vx-chartframe {
+  padding: var(--vx-space-20) var(--vx-space-24) var(--vx-space-16);
+  border-top-color: var(--vx-border-strong);
+  border-radius: var(--vx-radius-14);
+}
+
+.vx-board .vx-chartframe-head {
+  margin-bottom: var(--vx-space-16);
+  padding-bottom: var(--vx-space-16);
+}
+
+.vx-board .vx-chartframe-meta {
+  gap: var(--vx-space-8) var(--vx-space-24);
+  margin-bottom: var(--vx-space-16);
+  padding: var(--vx-space-12) var(--vx-space-16);
+  border-radius: var(--vx-radius-10);
+}
+
+.vx-board .vx-chartframe-conclusion {
+  margin: var(--vx-space-16) 0;
+}
+
+.vx-board .vx-chartframe-foot {
+  margin-top: var(--vx-space-16);
+  padding-top: var(--vx-space-16);
+  line-height: 1.55;
+}
+
+/* ---- Barres de dénombrement (remplacent les donuts des planches) ----- */
+
+.vx-census {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Vu sur capture 1280/1440 : trois colonnes cassaient le libellé lettre à
+   lettre dans une cellule de 175 px. Libellé et compte sur une ligne, la
+   barre en dessous sur toute la largeur — lisible à toute largeur. */
+.vx-census-row {
+  display: grid;
+  grid-template-areas:
+    'label label'
+    'track count';
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--vx-space-4) var(--vx-space-12);
+  align-items: center;
+  padding: var(--vx-space-8) 0;
+  border-bottom: 1px solid var(--vx-border-soft);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-census-label { grid-area: label; }
+.vx-census-track { grid-area: track; }
+.vx-census-count { grid-area: count; }
+
+.vx-census-row:first-child {
+  padding-top: 0;
+}
+
+.vx-census-row:last-child {
+  border-bottom: 0;
+}
+
+.vx-census-label {
+  min-width: 0;
+  color: var(--vx-text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.vx-census-code {
+  color: var(--vx-text-muted);
+  font-size: 10px;
+}
+
+.vx-census-track {
+  display: block;
+  height: 6px;
+  overflow: hidden;
+  border-radius: var(--vx-radius-pill);
+  background: var(--vx-surface-0);
+  box-shadow: var(--vx-shadow-inset);
+}
+
+.vx-census-fill {
+  display: block;
+  height: 100%;
+  border-radius: var(--vx-radius-pill);
+  background: var(--vx-titanium);
+}
+
+.vx-census-count {
+  color: var(--vx-silver);
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-body);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+/* ---- Grille d'Opportunités (planche §3) ------------------------------ */
+
+.vx-opp-grid {
+  grid-template-areas:
+    'ideas score bias return'
+    'ranking ranking ranking ranking'
+    'biassplit health scatter factors'
+    'profile profile exclusions exclusions'
+    'provenance provenance quality activity';
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.vx-opp-grid [data-module='active-ideas'] { grid-area: ideas; }
+.vx-opp-grid [data-module='mean-score'] { grid-area: score; }
+.vx-opp-grid [data-module='global-bias'] { grid-area: bias; }
+.vx-opp-grid [data-module='expected-return'] { grid-area: return; }
+.vx-opp-grid [data-module='ranking'] { grid-area: ranking; }
+.vx-opp-grid [data-module='bias-split'] { grid-area: biassplit; }
+.vx-opp-grid [data-module='opportunity-health'] { grid-area: health; }
+.vx-opp-grid [data-module='score-return-scatter'] { grid-area: scatter; }
+.vx-opp-grid [data-module='factor-contribution'] { grid-area: factors; }
+.vx-opp-grid [data-module='profile'] { grid-area: profile; }
+.vx-opp-grid [data-module='exclusions'] { grid-area: exclusions; }
+.vx-opp-grid [data-module='recent-activity'] { grid-area: activity; }
+.vx-opp-grid [data-module='catalysts-provenance'] { grid-area: provenance; }
+.vx-opp-grid [data-module='quality'] { grid-area: quality; }
+
+@media (min-width: 1600px) {
+  .vx-opp-grid {
+    grid-template-areas:
+      'ideas ideas score bias return'
+      'ranking ranking ranking ranking ranking'
+      'biassplit health health scatter factors'
+      'profile profile exclusions exclusions activity'
+      'provenance provenance provenance quality quality';
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+/* Dans la dominante, les deux groupes gardent leur tranche verte / ambre
+   et perdent leur second cadre. La provenance devient une ligne fine. */
+.vx-opp-grid .vx-opp-provenance {
+  margin: 0 0 var(--vx-space-16);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+  line-height: 1.7;
+}
+
+.vx-opp-grid .vx-opp-group {
+  margin-bottom: var(--vx-space-16);
+  padding: var(--vx-space-16) var(--vx-space-16) var(--vx-space-12);
+  background: var(--vx-surface-0);
+}
+
+.vx-opp-grid .vx-opp-group:last-child {
+  margin-bottom: 0;
+}
+
+.vx-opp-grid .vx-matrix-scroll[tabindex] {
+  max-height: 520px;
+  overflow: auto;
+}
+
+.vx-opp-filters {
+  margin-bottom: var(--vx-space-16);
+}
+
+/* Le bouton « Inspecter » sous le ticker : discret, ambre à la sélection. */
+.vx-main button.vx-opp-inspect {
+  display: inline-block;
+  min-height: 0;
+  margin-top: var(--vx-space-4);
+  padding: 1px var(--vx-space-8);
+  border-color: var(--vx-border-soft);
+  background: transparent;
+  color: var(--vx-text-secondary);
+  font-family: var(--vx-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.vx-main button.vx-opp-inspect:hover:not(:disabled) {
+  border-color: var(--vx-border);
+  background: var(--vx-surface-2);
+}
+
+.vx-main button.vx-opp-inspect[aria-pressed='true'] {
+  border-color: var(--vx-signal);
+  background: var(--vx-signal-faint);
+  color: var(--vx-text);
+}
+
+.vx-main button.vx-opp-inspect[aria-pressed='true']::before {
+  content: '▸ ';
+  color: var(--vx-signal);
+}
+
+/* Les panneaux d'Opportunités perdent leurs marges de page et leurs titres
+   de section : la carte porte le titre. */
+.vx-opp-grid .vx-opp-profile,
+.vx-opp-grid .vx-opp-calref,
+.vx-opp-grid .vx-opp-reasons,
+.vx-opp-grid .vx-opp-limitations {
+  margin-bottom: 0;
+}
+
+.vx-opp-grid .vx-opp-profile h3 {
+  margin: 0 0 var(--vx-space-8);
+}
+
+.vx-opp-grid .vx-opp-profile-lists {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.vx-opp-grid .vx-opp-profile-lists > div {
+  background: var(--vx-surface-0);
+}
+
+.vx-opp-grid .vx-opp-profile-lists ul,
+.vx-opp-limits {
+  margin: 0;
+  padding-left: var(--vx-space-20);
+  font-size: var(--vx-font-size-meta);
+  line-height: 1.6;
+}
+
+.vx-opp-grid .vx-opp-calref-facts {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--vx-space-8) var(--vx-space-16);
+}
+
+.vx-opp-grid .vx-opp-calref-facts > div {
+  padding: var(--vx-space-8) 0;
+  border-bottom: 1px solid var(--vx-border-soft);
+}
+
+.vx-opp-grid .vx-cal-scroll[tabindex] {
+  max-height: 320px;
+  overflow: auto;
+}
+
+/* La table des raisons garde sa largeur de contenu et DÉFILE dans sa
+   région : une clé `gate:reason_code` ne se coupe jamais lettre à lettre. */
+.vx-opp-grid .vx-opp-reasons .vx-matrix-table {
+  width: 100%;
+  min-width: max-content;
+}
+
+/* Listes d'inspecteur : gates, preuves, limites. */
+.vx-inspector-list {
+  margin: 0;
+  padding-left: var(--vx-space-20);
+  color: var(--vx-text-secondary);
+  font-size: var(--vx-font-size-meta);
+  line-height: 1.6;
+}
+
+.vx-inspector-list li + li {
+  margin-top: var(--vx-space-4);
+}
+
+.vx-inspector-list li[data-present='false'] {
+  color: var(--vx-warning);
+}
+
+.vx-inspector-panel .vx-snapshot-block-title {
+  margin-top: var(--vx-space-16);
+}
+
+/* ---- Grille d'Analyse (planche §4) ----------------------------------- */
+
+.vx-analysis-grid {
+  grid-template-areas:
+    'header header facts facts'
+    'chart chart chart indicators'
+    'chart chart chart oscillators'
+    'chart chart chart revisions'
+    'verdict verdict financials financials'
+    'scenarios scenarios catalysts risks'
+    'regime quality valuation confidence'
+    'peers evidence levels contradictions';
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.vx-analysis-grid [data-module='instrument-header'] { grid-area: header; }
+.vx-analysis-grid [data-module='identity-facts'] { grid-area: facts; }
+.vx-analysis-grid [data-module='chart'] { grid-area: chart; }
+.vx-analysis-grid [data-module='indicators'] { grid-area: indicators; }
+.vx-analysis-grid [data-module='oscillators'] { grid-area: oscillators; }
+.vx-analysis-grid [data-module='analyst-revisions'] { grid-area: revisions; }
+.vx-analysis-grid [data-module='verdict'] { grid-area: verdict; }
+.vx-analysis-grid [data-module='financials'] { grid-area: financials; }
+.vx-analysis-grid [data-module='scenarios'] { grid-area: scenarios; }
+.vx-analysis-grid [data-module='upcoming-catalysts'] { grid-area: catalysts; }
+.vx-analysis-grid [data-module='key-risks'] { grid-area: risks; }
+.vx-analysis-grid [data-module='regime'] { grid-area: regime; }
+.vx-analysis-grid [data-module='fundamental-quality'] { grid-area: quality; }
+.vx-analysis-grid [data-module='valuation'] { grid-area: valuation; }
+.vx-analysis-grid [data-module='model-confidence'] { grid-area: confidence; }
+.vx-analysis-grid [data-module='peers'] { grid-area: peers; }
+.vx-analysis-grid [data-module='evidence'] { grid-area: evidence; }
+.vx-analysis-grid [data-module='levels'] { grid-area: levels; }
+.vx-analysis-grid [data-module='contradictions'] { grid-area: contradictions; }
+
+@media (min-width: 1600px) {
+  .vx-analysis-grid {
+    grid-template-areas:
+      'header header header facts facts'
+      'chart chart chart chart indicators'
+      'chart chart chart chart oscillators'
+      'chart chart chart chart revisions'
+      'verdict verdict financials financials financials'
+      'scenarios scenarios scenarios catalysts risks'
+      'regime quality valuation confidence levels'
+      'peers peers evidence evidence contradictions';
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+/* Le canvas garde une hauteur FIXE ; la table équivalente défile en dessous. */
+.vx-analysis-grid .vx-candles-canvas {
+  height: 360px;
+}
+
+.vx-analysis-grid .vx-ohlcv-scroll[tabindex] {
+  max-height: 300px;
+  overflow: auto;
+  margin-bottom: 0;
+}
+
+/* Les panneaux extraits (verdict, evidence, scénarios) vivent DANS une carte :
+   ils perdent leur second cadre et leur marge de page. */
+.vx-analysis-grid .vx-advice,
+.vx-analysis-grid .vx-evidence,
+.vx-analysis-grid .vx-scenarios {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.vx-analysis-grid .vx-advice h3,
+.vx-analysis-grid .vx-evidence h3,
+.vx-analysis-grid .vx-scenarios h3 {
+  margin-bottom: var(--vx-space-12);
+  color: var(--vx-text-secondary);
+  font-size: var(--vx-font-size-meta);
+  font-weight: 600;
+}
+
+.vx-analysis-grid .vx-indicators h2 {
+  margin: 0 0 var(--vx-space-8);
+  padding-bottom: var(--vx-space-12);
+  border-bottom: 1px solid var(--vx-border-soft);
+  font-size: var(--vx-font-size-title);
+  font-weight: 620;
+  letter-spacing: -0.015em;
+}
+
+.vx-analysis-grid .vx-indicators {
+  display: flex;
+  flex-direction: column;
+}
+
+.vx-analysis-grid .vx-indicator-list {
+  margin: 0;
+}
+
+.vx-analysis-grid .vx-indicator {
+  padding: var(--vx-space-8) 0;
+  border-bottom: 1px solid var(--vx-border-soft);
+}
+
+.vx-analysis-grid .vx-indicator dd {
+  margin: var(--vx-space-4) 0 0;
+}
+
+.vx-analysis-grid .vx-indicator-value {
+  color: var(--vx-silver);
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-title);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.vx-analysis-grid .vx-indicators-method {
+  margin-top: auto;
+  padding-top: var(--vx-space-12);
+  color: var(--vx-text-muted);
+  font-size: 10.5px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.vx-analysis-grid .vx-scenarios-table {
+  min-width: max-content;
+}
+
+/* ---- L'en-tête instrument : le widget A3, en plus grand ------------- */
+
+.vx-ih {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--vx-space-12);
+  padding: var(--vx-space-20) var(--vx-space-24) var(--vx-space-16);
+  border: 1px solid var(--vx-border-soft);
+  border-top-color: var(--vx-border-strong);
+  border-radius: var(--vx-radius-18);
+  background:
+    linear-gradient(180deg, var(--vx-titanium-ghost), transparent 38%),
+    var(--vx-surface-1);
+  box-shadow: var(--vx-shadow-inset);
+}
+
+.vx-ih-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--vx-space-12);
+}
+
+.vx-ih-identity {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--vx-space-4);
+}
+
+.vx-ih-ticker {
+  margin: 0;
+  color: var(--vx-text);
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-title);
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.vx-ih-ticker code {
+  font-family: inherit;
+}
+
+.vx-ih-sector {
+  margin: 0;
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+  overflow-wrap: anywhere;
+}
+
+.vx-ih-price-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--vx-space-8) var(--vx-space-16);
+}
+
+.vx-ih-price {
+  color: var(--vx-silver);
+  font-family: var(--vx-font-mono);
+  font-size: 40px;
+  font-variant-numeric: tabular-nums lining-nums;
+  font-weight: 600;
+  letter-spacing: -0.035em;
+  line-height: 1;
+}
+
+.vx-ih-price.vx-cell-absent {
+  font-size: var(--vx-font-size-body);
+  font-weight: 500;
+}
+
+.vx-ih .vx-spark-line-svg {
+  height: 64px;
+}
+
+.vx-ih .vx-spark-vol-svg {
+  height: 22px;
+}
+
+/* ---- Faits SEC ------------------------------------------------------- */
+
+.vx-sec-filings {
+  margin: 0 0 var(--vx-space-8);
+  padding-left: var(--vx-space-20);
+  font-size: var(--vx-font-size-meta);
+  line-height: 1.6;
+}
+
+.vx-sec .vx-snapshot-block-title {
+  margin-top: var(--vx-space-16);
+}
+
+.vx-sec .vx-cal-scroll[tabindex] {
+  max-height: 300px;
+  overflow: auto;
+}
+
+.vx-sec-facts {
+  width: 100%;
+  min-width: 0;
+}
+
+.vx-sec-facts th[scope='row'] code {
+  overflow-wrap: anywhere;
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .vx-ih {
+    background: var(--vx-surface-1);
+  }
+}
+
+/* ================================================================== */
+/* LOT-A5 — COMPOSITION DES PLANCHES §5 (Options) ET §6 (Simulateur)  */
+/* ================================================================== */
+
+/* ---- Grille d'Options (planche §5) ----------------------------------- */
+
+.vx-options-grid {
+  grid-template-areas:
+    'underlying underlying identity identity'
+    'spot move ivref ivrank'
+    'dividend rate volstruct volstruct'
+    'series series smile smile'
+    'chain chain chain chain'
+    'builder payoff metrics metrics';
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.vx-options-grid [data-module='underlying'] { grid-area: underlying; }
+.vx-options-grid [data-module='identity-strip'] { grid-area: identity; }
+.vx-options-grid [data-module='spot'] { grid-area: spot; }
+.vx-options-grid [data-module='expected-move'] { grid-area: move; }
+.vx-options-grid [data-module='iv-reference'] { grid-area: ivref; }
+.vx-options-grid [data-module='iv-rank'] { grid-area: ivrank; }
+.vx-options-grid [data-module='dividend'] { grid-area: dividend; }
+.vx-options-grid [data-module='rate'] { grid-area: rate; }
+.vx-options-grid [data-module='vol-structure'] { grid-area: volstruct; }
+.vx-options-grid [data-module='underlying-series'] { grid-area: series; }
+.vx-options-grid [data-module='iv-smile'] { grid-area: smile; }
+.vx-options-grid [data-module='chain'] { grid-area: chain; }
+.vx-options-grid [data-module='strategy-builder'] { grid-area: builder; }
+.vx-options-grid [data-module='payoff-profile'] { grid-area: payoff; }
+.vx-options-grid [data-module='strategy-metrics'] { grid-area: metrics; }
+
+@media (min-width: 1600px) {
+  .vx-options-grid {
+    grid-template-areas:
+      'underlying underlying identity identity identity'
+      'spot dividend rate move ivref'
+      'series series smile smile ivrank'
+      'volstruct volstruct volstruct volstruct volstruct'
+      'chain chain chain chain chain'
+      'builder payoff metrics metrics metrics';
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+/* Le widget du sous-jacent occupe sa cellule entière. */
+.vx-board > [data-module] > .vx-iw {
+  height: 100%;
+  box-sizing: border-box;
+}
+
+.vx-options-facts > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--vx-space-4) var(--vx-space-12);
+  justify-content: space-between;
+}
+
+.vx-options-facts dt {
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-options-facts dd {
+  margin: 0;
+  color: var(--vx-text-secondary);
+  font-size: var(--vx-font-size-meta);
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.vx-options-facts code {
+  font-family: var(--vx-font-mono);
+}
+
+/* La chaîne : la table défile dans sa région, bornée, jamais tronquée. */
+.vx-options-grid .vx-chain-table-scroll[tabindex] {
+  max-height: 560px;
+  overflow: auto;
+}
+
+.vx-options-grid .vx-chain-table-scroll[tabindex]:focus-visible {
+  outline: 2px solid var(--vx-signal);
+  outline-offset: 2px;
+}
+
+/* ---- Le sourire d'IV ------------------------------------------------- */
+
+.vx-smile {
+  display: flex;
+  flex-direction: column;
+  gap: var(--vx-space-8);
+  margin: 0;
+}
+
+.vx-smile-svg {
+  display: block;
+  width: 100%;
+  height: 120px;
+  overflow: visible;
+  border-bottom: 1px solid var(--vx-border-soft);
+}
+
+.vx-smile[data-compact='true'] .vx-smile-svg {
+  height: 56px;
+}
+
+.vx-smile-line {
+  fill: none;
+  stroke: var(--vx-titanium);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.2;
+  vector-effect: non-scaling-stroke;
+}
+
+.vx-smile-line[data-right='PUT'] {
+  stroke-dasharray: 3 2;
+}
+
+/* Violet = options (identité visuelle) : les points portent la teinte,
+   calls pleins, puts cerclés — la forme double la couleur. */
+.vx-smile-dot {
+  fill: var(--vx-option);
+  stroke: var(--vx-option);
+  stroke-width: 0.8;
+  vector-effect: non-scaling-stroke;
+}
+
+.vx-smile-dot[data-right='PUT'] {
+  fill: var(--vx-surface-1);
+}
+
+.vx-smile-caption {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--vx-space-4) var(--vx-space-16);
+  color: var(--vx-text-muted);
+  font-size: 10.5px;
+  line-height: 1.5;
+}
+
+.vx-smile-caption code {
+  color: var(--vx-text-secondary);
+  font-family: var(--vx-font-mono);
+}
+
+.vx-smile-key {
+  color: var(--vx-option);
+}
+
+.vx-smile-key[data-right='PUT'] {
+  opacity: 0.55;
+}
+
+.vx-smile-multiples {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: var(--vx-space-12);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.vx-smile-multiples li {
+  min-width: 0;
+  padding: var(--vx-space-8);
+  border: 1px solid var(--vx-border-soft);
+  border-radius: var(--vx-radius-10);
+  background: var(--vx-surface-0);
+}
+
+.vx-smile-multiple-title {
+  margin: 0 0 var(--vx-space-8);
+  color: var(--vx-text-secondary);
+  font-size: 10.5px;
+  overflow-wrap: anywhere;
+}
+
+.vx-smile[data-compact='true'] .vx-smile-caption {
+  font-size: 10px;
+}
+
+/* ---- Grille du Simulateur (planche §6) ------------------------------- */
+
+.vx-sim-grid {
+  grid-template-areas:
+    'entry entry entry params'
+    'payoff payoff payoff params'
+    'payoff payoff payoff kpi'
+    'scenarios scenarios mc kpiprob'
+    'stress sensitivity impact catalysts'
+    'assumptions sources method method';
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.vx-sim-grid [data-module='manual-entry'] { grid-area: entry; }
+.vx-sim-grid [data-module='base-parameters'] { grid-area: params; }
+.vx-sim-grid [data-module='payoff'] { grid-area: payoff; }
+.vx-sim-grid [data-module='kpi-served'] { grid-area: kpi; }
+.vx-sim-grid [data-module='scenarios'] { grid-area: scenarios; }
+.vx-sim-grid [data-module='monte-carlo'] { grid-area: mc; }
+.vx-sim-grid [data-module='kpi-probabilistic'] { grid-area: kpiprob; }
+.vx-sim-grid [data-module='stress-tests'] { grid-area: stress; }
+.vx-sim-grid [data-module='sensitivity'] { grid-area: sensitivity; }
+.vx-sim-grid [data-module='portfolio-impact'] { grid-area: impact; }
+.vx-sim-grid [data-module='catalysts'] { grid-area: catalysts; }
+.vx-sim-grid [data-module='key-assumptions'] { grid-area: assumptions; }
+.vx-sim-grid [data-module='sources'] { grid-area: sources; }
+.vx-sim-grid [data-module='method'] { grid-area: method; }
+
+@media (min-width: 1600px) {
+  .vx-sim-grid {
+    grid-template-areas:
+      'entry entry entry entry params'
+      'payoff payoff payoff kpi params'
+      'payoff payoff payoff kpi kpiprob'
+      'scenarios scenarios scenarios mc stress'
+      'sensitivity impact catalysts catalysts catalysts'
+      'assumptions sources sources method method';
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+/* Le composeur et les hypothèses vivent dans des cartes : plus de marge de
+   page ni de titre propre ; les champs d'hypothèses s'empilent dans une
+   colonne. */
+.vx-sim-grid .vx-leg {
+  margin: 0 0 var(--vx-space-12);
+  background: var(--vx-surface-0);
+}
+
+.vx-sim-grid .vx-sim-assumptions-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.vx-sim-grid .vx-sim-assumptions-grid input,
+.vx-sim-grid .vx-leg-grid input,
+.vx-sim-grid .vx-leg-grid select {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.vx-sim-grid .vx-sim-actions {
+  margin: var(--vx-space-16) 0 0;
+  padding-top: var(--vx-space-16);
+  border-top: 1px solid var(--vx-border-soft);
+}
+
+.vx-sim-grid .vx-sim-scope,
+.vx-sim-grid .vx-sim-transfer {
+  margin: 0 0 var(--vx-space-12);
+  padding: var(--vx-space-12);
+  background: var(--vx-surface-0);
+}
+
+.vx-sim-grid .vx-sim-scope:last-child {
+  margin-bottom: 0;
+}
+
+.vx-sim-grid .vx-sim-outcome > * {
+  margin: 0;
+}
+
+.vx-sim-grid .vx-sim-invalid,
+.vx-sim-grid .vx-sim-rejection {
+  margin: 0;
+}
+
+/* Le résultat : le payoff garde une hauteur fixe, la table défile. */
+.vx-sim-grid .vx-payoff-canvas {
+  height: 320px;
+}
+
+.vx-sim-grid .vx-ohlcv-scroll[tabindex] {
+  max-height: 260px;
+  overflow: auto;
+  margin-bottom: 0;
+}
+
+.vx-sim-grid .vx-sim-defined-risk {
+  margin: var(--vx-space-12) 0;
+}
+
+.vx-sim-grid .vx-sim-breakevens {
+  margin-top: var(--vx-space-4);
+}
+
+.vx-sim-grid .vx-sim-echo div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--vx-space-4) var(--vx-space-12);
+  justify-content: space-between;
+  padding: var(--vx-space-8) 0;
+  border-bottom: 1px solid var(--vx-border-soft);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-sim-grid .vx-sim-echo dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.vx-sim-grid .vx-sim-warnings {
+  margin: var(--vx-space-12) 0 0;
+}
+
+.vx-sim-grid .vx-sim-warnings ul {
+  margin: 0;
+  padding-left: var(--vx-space-20);
+  font-size: var(--vx-font-size-meta);
+  line-height: 1.55;
+}
+
+.vx-sim-grid .vx-scenarios-table {
+  min-width: max-content;
+}
+
+/* ================================================================== */
+/* LOT-A6 — COMPOSITION DES PLANCHES §7 (Portefeuille) ET §9 (Risques) */
+/* ================================================================== */
+
+/* POURQUOI. Portefeuille était une colonne de sections cadrées, Risques deux
+   panneaux. Les planches composent dix-huit et dix-neuf modules autour d'une
+   dominante — la concentration (elle répond à la question de la page) et la
+   matrice de corrélation. Les sections d'écriture du registre (journal,
+   déclaration, import) et le module Performance entier gardent leur corps ;
+   la grille leur donne le matériau des cartes. */
+
+/* Le module Performance (courbe, métriques, heatmap, points, export,
+   conventions) est le plus haut de la page : il occupe une rangée entière,
+   sinon ses voisins s'étirent en cartes vides (mesuré sur capture 1280). */
+.vx-pf-grid {
+  grid-template-areas:
+    'value value dayperf totalperf'
+    'cash allocation benchmark country'
+    'performance performance performance performance'
+    'concentration concentration concentration currency'
+    'concentration concentration concentration sector'
+    'positions positions positions dividends'
+    'positions positions positions alerts'
+    'positions positions positions attribution'
+    'ledger ledger ledger ledger'
+    'record record import import';
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.vx-pf-grid > [data-module='value'] { grid-area: value; }
+.vx-pf-grid > [data-module='day-performance'] { grid-area: dayperf; }
+.vx-pf-grid > [data-module='total-performance'] { grid-area: totalperf; }
+.vx-pf-grid > [data-module='cash'] { grid-area: cash; }
+.vx-pf-grid > [data-module='performance'] { grid-area: performance; }
+.vx-pf-grid > [data-module='benchmark'] { grid-area: benchmark; }
+.vx-pf-grid > [data-module='allocation'] { grid-area: allocation; }
+.vx-pf-grid > [data-module='concentration'] { grid-area: concentration; }
+.vx-pf-grid > [data-module='sector-exposure'] { grid-area: sector; }
+.vx-pf-grid > [data-module='country-exposure'] { grid-area: country; }
+.vx-pf-grid > [data-module='currency-exposure'] { grid-area: currency; }
+.vx-pf-grid > [data-module='concentration-alerts'] { grid-area: alerts; }
+.vx-pf-grid > [data-module='positions'] { grid-area: positions; }
+.vx-pf-grid > [data-module='attribution'] { grid-area: attribution; }
+.vx-pf-grid > [data-module='dividends'] { grid-area: dividends; }
+.vx-pf-grid > [data-module='ledger'] { grid-area: ledger; }
+.vx-pf-grid > [data-module='record-transaction'] { grid-area: record; }
+.vx-pf-grid > [data-module='csv-import'] { grid-area: import; }
+
+@media (min-width: 1600px) {
+  .vx-pf-grid {
+    grid-template-areas:
+      'value value dayperf totalperf cash'
+      'allocation benchmark country attribution alerts'
+      'performance performance performance performance performance'
+      'concentration concentration concentration currency sector'
+      'positions positions positions dividends dividends'
+      'ledger ledger ledger ledger ledger'
+      'record record import import import';
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+/* Les sections du registre gardent leur corps mais reçoivent le matériau des
+   cartes de la grille : plus de double cadre, plus de marge de page. */
+.vx-pf-grid > [data-module] > .vx-pf-ledger,
+.vx-pf-grid > [data-module] > .vx-pf-form,
+.vx-pf-grid > [data-module] > .vx-pf-import,
+.vx-pf-grid > [data-module] > .vx-perf-module {
+  height: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  padding: var(--vx-space-20) var(--vx-space-20) var(--vx-space-16);
+  border: 1px solid var(--vx-border-soft);
+  border-top-color: var(--vx-border);
+  border-radius: var(--vx-radius-14);
+  background: var(--vx-surface-1);
+  box-shadow: var(--vx-shadow-inset);
+}
+
+.vx-pf-grid > [data-module] > .vx-perf-module > .vx-page-header {
+  margin: 0 0 var(--vx-space-12);
+  padding-bottom: var(--vx-space-12);
+  border-bottom: 1px solid var(--vx-border-soft);
+}
+
+.vx-pf-grid > [data-module] > .vx-perf-module > .vx-page-header h2 {
+  font-size: var(--vx-font-size-title);
+}
+
+.vx-pf-grid .vx-perf-metrics,
+.vx-pf-grid .vx-perf-heatmap-section,
+.vx-pf-grid .vx-perf-export,
+.vx-pf-grid .vx-perf-conventions {
+  margin: var(--vx-space-16) 0 0;
+  padding: var(--vx-space-12) 0 0;
+  border: 0;
+  border-top: 1px solid var(--vx-border-soft);
+  border-radius: 0;
+  background: transparent;
+}
+
+.vx-pf-grid .vx-pf-ledger h2,
+.vx-pf-grid .vx-pf-form h2,
+.vx-pf-grid .vx-pf-import h2 {
+  padding-bottom: var(--vx-space-12);
+  border-bottom: 1px solid var(--vx-border-soft);
+}
+
+.vx-pf-grid .vx-pf-excluded {
+  margin-top: var(--vx-space-16);
+}
+
+.vx-pf-grid .vx-pf-concentration-block + .vx-pf-concentration-block {
+  margin-top: var(--vx-space-16);
+  padding-top: var(--vx-space-16);
+  border-top: 1px solid var(--vx-border-soft);
+}
+
+.vx-pf-grid .vx-pf-concentration-block h3,
+.vx-pf-grid .vx-pf-excluded h3 {
+  margin: 0 0 var(--vx-space-8);
+}
+
+.vx-pf-grid .vx-pf-concentration-table {
+  margin-top: var(--vx-space-12);
+}
+
+.vx-pf-grid .vx-pf-summary-grid {
+  margin: 0;
+}
+
+.vx-pf-grid .vx-pf-lots tr[data-selected='true'] > *,
+.vx-riskmatrix-table tr[data-selected='true'] > * {
+  background: var(--vx-surface-2);
+}
+
+.vx-pf-dividends li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--vx-space-8);
+  align-items: baseline;
+}
+
+/* ---- Risques ------------------------------------------------------- */
+
+/* La matrice tient sur UNE rangée avec les paires extrêmes à sa droite :
+   sur deux rangées, la dominante se vidait sous sa légende (capture 1280). */
+.vx-risk-grid {
+  grid-template-areas:
+    'score var drawdown benchrel'
+    'vol concentration liquidity turnover'
+    'correlations correlations correlations extremes'
+    'stress factors budget radar'
+    'coverage alignment discards register'
+    'coverage alerts discards register';
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.vx-risk-grid > [data-module='risk-score'] { grid-area: score; }
+.vx-risk-grid > [data-module='var-cvar'] { grid-area: var; }
+.vx-risk-grid > [data-module='max-drawdown'] { grid-area: drawdown; }
+.vx-risk-grid > [data-module='benchmark-relative'] { grid-area: benchrel; }
+.vx-risk-grid > [data-module='volatility'] { grid-area: vol; }
+.vx-risk-grid > [data-module='concentration'] { grid-area: concentration; }
+.vx-risk-grid > [data-module='liquidity'] { grid-area: liquidity; }
+.vx-risk-grid > [data-module='correlations'] { grid-area: correlations; }
+.vx-risk-grid > [data-module='turnover'] { grid-area: turnover; }
+.vx-risk-grid > [data-module='extremes'] { grid-area: extremes; }
+.vx-risk-grid > [data-module='stress-loss'] { grid-area: stress; }
+.vx-risk-grid > [data-module='factor-exposures'] { grid-area: factors; }
+.vx-risk-grid > [data-module='risk-budget'] { grid-area: budget; }
+.vx-risk-grid > [data-module='radar'] { grid-area: radar; }
+.vx-risk-grid > [data-module='coverage'] { grid-area: coverage; }
+.vx-risk-grid > [data-module='alignment'] { grid-area: alignment; }
+.vx-risk-grid > [data-module='discards'] { grid-area: discards; }
+.vx-risk-grid > [data-module='risk-register'] { grid-area: register; }
+.vx-risk-grid > [data-module='alert-log'] { grid-area: alerts; }
+
+@media (min-width: 1600px) {
+  .vx-risk-grid {
+    grid-template-areas:
+      'score var drawdown benchrel vol'
+      'concentration liquidity turnover stress factors'
+      'correlations correlations correlations correlations extremes'
+      'budget radar alerts alignment discards'
+      'coverage coverage register register register';
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+.vx-risk-grid .vx-risk-extremes,
+.vx-risk-grid .vx-risk-coverage {
+  margin: 0;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+
+.vx-risk-grid .vx-risk-caveat {
+  margin-top: var(--vx-space-16);
+}
+
+.vx-risk-alignment-list,
+.vx-risk-discards-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--vx-space-8);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.vx-risk-alignment-list li,
+.vx-risk-discards-list li {
+  padding: var(--vx-space-4) var(--vx-space-8);
+  border: 1px solid var(--vx-border-soft);
+  border-radius: var(--vx-radius-6);
+  color: var(--vx-text-secondary);
+  font-size: var(--vx-font-size-meta);
+  font-variant-numeric: tabular-nums;
+}
+
+.vx-risk-alignment-list li span,
+.vx-risk-discards-list li span {
+  margin-right: var(--vx-space-4);
+  color: var(--vx-text);
+  font-family: var(--vx-font-mono);
+}
+
+.vx-risk-concentration-block + .vx-risk-concentration-block {
+  margin-top: var(--vx-space-12);
+  padding-top: var(--vx-space-12);
+  border-top: 1px solid var(--vx-border-soft);
+}
+
+.vx-riskmatrix-rowbtn {
+  padding: 0 var(--vx-space-4);
+  border: 1px solid transparent;
+  border-radius: var(--vx-radius-6);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.vx-riskmatrix-rowbtn:hover {
+  border-color: var(--vx-border);
+}
+
+.vx-riskmatrix-rowbtn[aria-pressed='true'] {
+  border-color: var(--vx-signal);
+  color: var(--vx-signal-bright);
+}
+
+/* ================================================================== */
+/* LOT-A7 — COMPOSITION DES PLANCHES §10 (Catalyseurs) ET §11 (Calendrier) */
+/* ================================================================== */
+
+/* POURQUOI. Catalyseurs était une timeline suivie d'un module de revue,
+   Calendrier un formulaire suivi d'un agenda déroulé. Les planches composent
+   dix-sept et treize modules autour d'une dominante — la chronologie et
+   l'agenda, toutes deux régions défilantes bornées. La revue des thèses
+   garde son corps entier ; la grille lui donne le matériau des cartes. */
+
+.vx-cat-grid {
+  grid-template-areas:
+    'count impact confidence revisions'
+    'filters filters surprises consensus'
+    'timeline timeline timeline catsplit'
+    'timeline timeline timeline history'
+    'exposure exposure alerts sources'
+    'window conflicts orphans orphans'
+    'review review review review';
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.vx-cat-grid > [data-module='upcoming-count'] { grid-area: count; }
+.vx-cat-grid > [data-module='mean-impact'] { grid-area: impact; }
+.vx-cat-grid > [data-module='confidence'] { grid-area: confidence; }
+.vx-cat-grid > [data-module='revisions'] { grid-area: revisions; }
+.vx-cat-grid > [data-module='filters'] { grid-area: filters; }
+.vx-cat-grid > [data-module='surprises'] { grid-area: surprises; }
+.vx-cat-grid > [data-module='consensus'] { grid-area: consensus; }
+.vx-cat-grid > [data-module='timeline'] { grid-area: timeline; }
+.vx-cat-grid > [data-module='category-split'] { grid-area: catsplit; }
+.vx-cat-grid > [data-module='surprise-history'] { grid-area: history; }
+.vx-cat-grid > [data-module='portfolio-exposure'] { grid-area: exposure; }
+.vx-cat-grid > [data-module='event-alerts'] { grid-area: alerts; }
+.vx-cat-grid > [data-module='sources-freshness'] { grid-area: sources; }
+.vx-cat-grid > [data-module='window'] { grid-area: window; }
+.vx-cat-grid > [data-module='conflicts'] { grid-area: conflicts; }
+.vx-cat-grid > [data-module='orphan-theses'] { grid-area: orphans; }
+.vx-cat-grid > [data-module='review'] { grid-area: review; }
+
+@media (min-width: 1600px) {
+  .vx-cat-grid {
+    grid-template-areas:
+      'count impact confidence revisions conflicts'
+      'filters filters surprises consensus window'
+      'timeline timeline timeline catsplit history'
+      'exposure exposure alerts sources orphans'
+      'review review review review review';
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+/* La revue des thèses garde son corps mais reçoit le matériau des cartes. */
+.vx-cat-grid > [data-module] > .vx-fu-module {
+  height: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  padding: var(--vx-space-20) var(--vx-space-20) var(--vx-space-16);
+  border: 1px solid var(--vx-border-soft);
+  border-top-color: var(--vx-border);
+  border-radius: var(--vx-radius-14);
+  background: var(--vx-surface-1);
+  box-shadow: var(--vx-shadow-inset);
+}
+
+.vx-cat-grid > [data-module] > .vx-fu-module > .vx-page-header {
+  margin: 0 0 var(--vx-space-12);
+  padding-bottom: var(--vx-space-12);
+  border-bottom: 1px solid var(--vx-border-soft);
+}
+
+.vx-cat-grid > [data-module] > .vx-fu-module > .vx-page-header h2 {
+  font-size: var(--vx-font-size-title);
+}
+
+.vx-cat-grid .vx-fu-queue,
+.vx-cat-grid .vx-fu-theses,
+.vx-cat-grid .vx-thesis-form {
+  margin: var(--vx-space-16) 0 0;
+  padding: var(--vx-space-12) 0 0;
+  border: 0;
+  border-top: 1px solid var(--vx-border-soft);
+  border-radius: 0;
+  background: transparent;
+}
+
+.vx-cat-grid .vx-cat-timeline {
+  margin: 0;
+}
+
+.vx-cat-grid .vx-cat-scope,
+.vx-cat-grid .vx-cat-populations {
+  margin: 0 0 var(--vx-space-12);
+}
+
+.vx-cat-grid .vx-cat-missing {
+  margin: var(--vx-space-12) 0 0;
+}
+
+.vx-cat-grid .vx-cat-orphans ul {
+  margin: 0;
+  padding-left: var(--vx-space-20);
+}
+
+.vx-cat-grid .vx-cat-orphans li code {
+  margin-left: var(--vx-space-8);
+}
+
+.vx-cat-exposure-line {
+  display: flex;
+  flex-direction: column;
+  gap: var(--vx-space-4);
+}
+
+.vx-cat-exposure-line > .vx-agenda-line {
+  list-style: none;
+}
+
+/* ---- Calendrier ---------------------------------------------------- */
+
+.vx-cal-grid {
+  grid-template-areas:
+    'controls controls controls tz'
+    'agenda agenda agenda next'
+    'agenda agenda agenda conflicts'
+    'exposure density counters counters'
+    'revisions reminders changes provenance'
+    'rule rule rule provenance';
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.vx-cal-grid > [data-module='view-controls'] { grid-area: controls; }
+.vx-cal-grid > [data-module='timezone'] { grid-area: tz; }
+.vx-cal-grid > [data-module='agenda'] { grid-area: agenda; }
+.vx-cal-grid > [data-module='next-event'] { grid-area: next; }
+.vx-cal-grid > [data-module='counters'] { grid-area: counters; }
+.vx-cal-grid > [data-module='daily-exposure'] { grid-area: exposure; }
+.vx-cal-grid > [data-module='density'] { grid-area: density; }
+.vx-cal-grid > [data-module='reminders'] { grid-area: reminders; }
+.vx-cal-grid > [data-module='changes-since-visit'] { grid-area: changes; }
+.vx-cal-grid > [data-module='revisions'] { grid-area: revisions; }
+.vx-cal-grid > [data-module='conflicts'] { grid-area: conflicts; }
+.vx-cal-grid > [data-module='importance-rule'] { grid-area: rule; }
+.vx-cal-grid > [data-module='provenance'] { grid-area: provenance; }
+
+@media (min-width: 1600px) {
+  .vx-cal-grid {
+    grid-template-areas:
+      'controls controls controls tz next'
+      'agenda agenda agenda conflicts revisions'
+      'agenda agenda agenda exposure density'
+      'counters counters counters reminders changes'
+      'rule rule rule provenance provenance';
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+/* Le formulaire de fenêtre et l'agenda perdent leur cadre de page : la carte
+   porte le titre et le matériau. */
+.vx-cal-grid .vx-cal-window {
+  margin: 0;
+}
+
+.vx-cal-grid .vx-cal-window .vx-matrix-filters {
+  margin: 0 0 var(--vx-space-12);
+}
+
+.vx-cal-grid .vx-cal-agenda {
+  margin: 0;
+  max-height: 640px;
+}
+
+.vx-cal-grid .vx-cal-rule,
+.vx-cal-grid .vx-cal-counters {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.vx-cal-grid .vx-cal-provenance {
+  margin: var(--vx-space-12) 0 0;
+}
+
+/* Dans une cellule de planche, les tables des compteurs et de la règle
+   d'importance tiennent la largeur de leur carte : une ligne qui replie vaut
+   mieux qu'une colonne coupée derrière un défilement horizontal. */
+.vx-cal-grid .vx-cal-counters .vx-matrix-table,
+.vx-cal-grid .vx-cal-rule .vx-matrix-table {
+  min-width: 100%;
+  width: 100%;
+}
+
+/* Dix lignes tiennent dans la carte : aucune borne de hauteur qui laisserait
+   un vide sous un défilement. */
+.vx-cal-grid .vx-cal-counters .vx-cal-scroll[tabindex] {
+  max-height: none;
+}
+
+.vx-cal-grid .vx-cal-counters .vx-matrix-table caption,
+.vx-cal-grid .vx-cal-counters .vx-matrix-table th,
+.vx-cal-grid .vx-cal-counters .vx-matrix-table td,
+.vx-cal-grid .vx-cal-rule .vx-matrix-table caption,
+.vx-cal-grid .vx-cal-rule .vx-matrix-table th,
+.vx-cal-grid .vx-cal-rule .vx-matrix-table td {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.vx-cal-grid .vx-cal-blocked {
+  margin: 0;
+}
+
+.vx-cal-tz-label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--vx-space-4);
+  font-size: var(--vx-font-size-meta);
+  color: var(--vx-text-secondary);
+}
+
+.vx-cal-tz-label select {
+  font-family: var(--vx-font-mono);
+}
+
+.vx-cal-next-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--vx-space-8);
+  margin: 0 0 var(--vx-space-8);
+  color: var(--vx-text);
+  font-weight: 600;
+}
+
+.vx-cal-event-head .vx-opp-inspect {
+  margin-left: auto;
+}
+
+.vx-cal-event[data-selected='true'] {
+  border-color: var(--vx-signal);
+}
+
+/* ================================================================== */
+/* LOT-A8 — COMPOSITION DE LA PLANCHE §12 (Sources & Rapports) */
+/* ================================================================== */
+
+/* POURQUOI. La page était une matrice suivie d'une liste de santé. La planche
+   compose dix-sept modules autour du registre des sources ; la santé des
+   composants garde son corps, la grille lui donne le matériau des cartes. */
+
+.vx-sources-grid {
+  grid-template-areas:
+    'health census freshness fields'
+    'errors incidents lastsync versions'
+    'registry registry registry registry'
+    'lineage quality audit reports'
+    'exports backups probes probes'
+    'components components components components';
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.vx-sources-grid > [data-module='global-health'] { grid-area: health; }
+.vx-sources-grid > [data-module='status-census'] { grid-area: census; }
+.vx-sources-grid > [data-module='freshness'] { grid-area: freshness; }
+.vx-sources-grid > [data-module='field-coverage'] { grid-area: fields; }
+.vx-sources-grid > [data-module='error-rate'] { grid-area: errors; }
+.vx-sources-grid > [data-module='incidents'] { grid-area: incidents; }
+.vx-sources-grid > [data-module='last-sync'] { grid-area: lastsync; }
+.vx-sources-grid > [data-module='versions'] { grid-area: versions; }
+.vx-sources-grid > [data-module='registry'] { grid-area: registry; }
+.vx-sources-grid > [data-module='lineage'] { grid-area: lineage; }
+.vx-sources-grid > [data-module='field-quality'] { grid-area: quality; }
+.vx-sources-grid > [data-module='audit-log'] { grid-area: audit; }
+.vx-sources-grid > [data-module='reports'] { grid-area: reports; }
+.vx-sources-grid > [data-module='exports'] { grid-area: exports; }
+.vx-sources-grid > [data-module='backups'] { grid-area: backups; }
+.vx-sources-grid > [data-module='components-health'] { grid-area: components; }
+.vx-sources-grid > [data-module='unknown-probes'] { grid-area: probes; }
+
+@media (min-width: 1600px) {
+  .vx-sources-grid {
+    grid-template-areas:
+      'health census freshness fields errors'
+      'incidents lastsync versions lineage quality'
+      'registry registry registry registry registry'
+      'audit reports exports backups probes'
+      'components components components components components';
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+/* La santé des composants garde son corps mais reçoit le matériau des cartes. */
+.vx-sources-grid > [data-module] > .vx-health {
+  height: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  padding: var(--vx-space-20) var(--vx-space-20) var(--vx-space-16);
+  border: 1px solid var(--vx-border-soft);
+  border-top-color: var(--vx-border);
+  border-radius: var(--vx-radius-14);
+  background: var(--vx-surface-1);
+  box-shadow: var(--vx-shadow-inset);
+}
+
+.vx-sources-grid > [data-module] > .vx-health > h2 {
+  margin: 0 0 var(--vx-space-12);
+  padding-bottom: var(--vx-space-12);
+  border-bottom: 1px solid var(--vx-border-soft);
+  font-size: var(--vx-font-size-title);
+}
+
+.vx-sources-grid .vx-matrix {
+  margin: 0;
+}
+
+.vx-sources-grid .vx-matrix-filters {
+  margin: 0 0 var(--vx-space-12);
+}
+
+.vx-matrix-table th[scope='row'] .vx-opp-inspect {
+  display: block;
+  margin-top: var(--vx-space-4);
+}
+
+.vx-matrix-table tr[data-selected='true'] > * {
+  background: var(--vx-surface-2);
+}
+
+/* Dans la planche, le registre prend une rangée entière : ses six colonnes
+   restent visibles sans défilement ni cellule repliée (une raison coupée
+   lettre à lettre ne se lit plus). La liste des exports replie ses routes. */
+.vx-sources-grid .vx-matrix-card .vx-matrix-table {
+  min-width: 100%;
+  width: 100%;
+}
+
+/* Seule la colonne « Raison » (codes serveur longs) replie : l'identifiant,
+   le statut et l'instant restent d'un tenant. */
+.vx-sources-grid .vx-matrix-card .vx-matrix-table th,
+.vx-sources-grid .vx-matrix-card .vx-matrix-table td {
+  padding-inline: var(--vx-space-12);
+}
+
+.vx-sources-grid .vx-matrix-card .vx-matrix-table td:nth-child(5) {
+  min-width: 18ch;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.vx-sources-grid [data-module='exports'] code {
+  white-space: normal;
+  overflow-wrap: anywhere;
 }

@@ -1,22 +1,41 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 
+import type { CalendarResponse } from '../../api/client.ts';
 import { useCalendar } from '../../api/decisionApi.ts';
 import { useFollowUpQueue } from '../../api/portfolioApi.ts';
 import { pageStateOf } from '../../api/hooks.ts';
 import type { PageDataState } from '../../api/hooks.ts';
 import { AuthRequiredNotice } from '../../components/AuthRequiredNotice.tsx';
+import { Card } from '../../components/Card.tsx';
 import { DataStateBoundary } from '../../components/DataStateBoundary.tsx';
 import type { DataState } from '../../components/DataStateBoundary.tsx';
+import type { ModuleState } from '../../components/moduleState.ts';
 import { calendarEventsOf } from '../calendar/calendarView.ts';
 import { CatalystInspector } from './CatalystInspector.tsx';
+import {
+  AbsentCatalystsModule,
+  CategorySplitModule,
+  ConflictsModule,
+  FiltersModule,
+  OrphanThesesModule,
+  PortfolioExposureModule,
+  RevisionsModule,
+  SourcesFreshnessModule,
+  UpcomingCountModule,
+  WindowModule,
+  applyCatalystFilters,
+} from './CatalystsModules.tsx';
+import type { CatalystFilters } from './CatalystsModules.tsx';
 import { CatalystTimeline } from './CatalystTimeline.tsx';
+import { catalystsModule } from './catalystsModules.ts';
 import { selectCatalysts, selectedCatalystOf } from './catalystsView.ts';
-import type { CatalystSelectionView } from './catalystsView.ts';
+import type { CatalystLink, CatalystSelectionView } from './catalystsView.ts';
 import { ReviewQueueSection } from './review/ReviewQueueSection.tsx';
 import { queueContentOf } from './review/followUpView.ts';
+import type { QueueContentView } from './review/followUpView.ts';
 
 /**
- * Page Catalyseurs — question du contrat des douze pages (§10) :
+ * Page Catalyseurs (`TL / 10`) — question du contrat des douze pages :
  * « Quels événements vérifiés peuvent modifier la thèse et quand ? »
  *
  * Douzième destination du blueprint, créée au LOT-10. Elle n'invente aucune
@@ -25,23 +44,33 @@ import { queueContentOf } from './review/followUpView.ts';
  * positions touchées) et `review_queue/global` (thèses, échéances,
  * information nouvelle). Aucun nouvel endpoint, aucun nouveau calcul.
  *
+ * LOT-A7 — LA PLANCHE §10 EN ENTIER. `pages-09-10-risks-catalysts.png`
+ * (moitié droite) compose dix-sept modules. Onze sont SERVIS : les
+ * événements reliés (comptes), les révisions, les filtres locaux, la
+ * chronologie en DOMINANTE, la répartition par catégorie, l'exposition du
+ * registre aux événements, les sources et la fraîcheur, la fenêtre et les
+ * deux snapshots, les conflits de version, les thèses sans catalyseur, et
+ * la revue des thèses (module LOT-10 entier, inchangé). Six n'ont aucune
+ * source : impact moyen, confiance, surprises, historique des surprises,
+ * consensus, alertes d'événement — ils tiennent leur place avec le motif de
+ * leur absence. Rien n'est pondéré, rien n'est prédit.
+ *
  * Elle absorbe l'ancienne destination `/follow-up`
  * (docs/05-design/PAGE_ARBITRATION.md) : une thèse est mise en revue PARCE
- * QU'un catalyseur l'a touchée. La file de revue devient donc le module qui
- * suit la timeline, et garde sa question (règle 4).
+ * QU'un catalyseur l'a touchée. La file de revue reste le module qui suit
+ * la chronologie, et garde sa question (règle 4).
  *
  * Ne pas confondre avec Calendrier (§11) : Calendrier sert TOUT l'agenda dans
  * une fenêtre temporelle et son fuseau ; Catalyseurs n'en sert que la part
  * reliée à une thèse ou à une position. Un seul propriétaire de donnée, deux
  * questions — jamais deux vérités.
  *
- * Elle remplit aussi l'inspecteur contextuel du shell (point 6 de l'anatomie
- * canonique) quand un catalyseur est sélectionné. Le contenu de cet
- * inspecteur est fixé par le contrat §10 : source, fuseau, historique,
- * instruments liés et incertitude.
+ * L'inspecteur contextuel du shell (point 6) n'existe que si un catalyseur
+ * est RÉELLEMENT sélectionné et toujours servi : aucune colonne morte, aucun
+ * panneau par défaut sur cette page.
  *
  * Les deux requêtes sont INDÉPENDANTES et leurs états ne sont pas fondus :
- * si l'agenda répond et pas la file, la timeline s'affiche et le module de
+ * si l'agenda répond et pas la file, la chronologie s'affiche et le module de
  * revue affiche SON état dégradé. Fondre les deux masquerait laquelle des
  * deux sources manque.
  */
@@ -74,8 +103,178 @@ export function catalystFrameStateOf(
   return queryState;
 }
 
-export function CatalystsPage() {
+const NO_FILTERS: CatalystFilters = { hiddenCategories: new Set(), hiddenLinks: new Set() };
+
+function TimelineModule({
+  data,
+  frameState,
+  selection,
+  shown,
+  selectedEventId,
+  onSelect,
+}: {
+  readonly data: CalendarResponse | undefined;
+  readonly frameState: DataState | 'auth-required';
+  readonly selection: CatalystSelectionView | null;
+  readonly shown: CatalystSelectionView['catalysts'];
+  readonly selectedEventId: string | null;
+  readonly onSelect: (eventId: string) => void;
+}) {
+  const module = catalystsModule('timeline');
+  return (
+    <Card
+      rank="dominant"
+      kicker="Ordre publié"
+      title={module.title}
+      titleId="vx-cat-timeline-title"
+      className="vx-cat-timeline-card"
+      aside={selection === null ? undefined : <>{shown.length} sur {selection.catalysts.length} événement(s) relié(s)</>}
+      footer={<>seuls les événements que le snapshot relie à une thèse déclarée ou à une position du registre manuel figurent ici</>}
+    >
+      {frameState === 'empty' ? (
+        <DataStateBoundary
+          state="empty"
+          detail={
+            data?.reason !== null && data?.reason !== undefined
+              ? `Aucun agenda publié — raison serveur : ${data.reason}`
+              : "Aucun agenda publié par le worker : aucun catalyseur ne peut être relié."
+          }
+        />
+      ) : selection === null ? (
+        <DataStateBoundary
+          state={frameState === 'auth-required' ? 'error' : frameState}
+          {...(frameState === 'offline'
+            ? { detail: "L'API locale est injoignable — aucun catalyseur affiché." }
+            : frameState === 'error'
+              ? { detail: "Agenda absent, refusé ou sans droit — rien n'est reconstruit à la place." }
+              : {})}
+        />
+      ) : (
+        <DataStateBoundary
+          state={frameState === 'auth-required' ? 'error' : frameState}
+          {...(frameState === 'partial'
+            ? { detail: 'Couverture incomplète signalée par le serveur : la chronologie ne montre que les événements réellement servis.' }
+            : {})}
+          {...(data?.as_of !== null && data?.as_of !== undefined ? { asOfLabel: data.as_of } : {})}
+        >
+          <CatalystTimeline catalysts={shown} unlinkedCount={selection.unlinkedCount} selectedEventId={selectedEventId} onSelect={onSelect} />
+        </DataStateBoundary>
+      )}
+    </Card>
+  );
+}
+
+function CatalystsBoard({
+  data,
+  frameState,
+  selection,
+  queueView,
+}: {
+  readonly data: CalendarResponse | undefined;
+  readonly frameState: DataState | 'auth-required';
+  readonly selection: CatalystSelectionView | null;
+  readonly queueView: QueueContentView | null;
+}) {
   const [selectedEventId, setSelectedEventId] = useState<string | null>(null);
+  const [filters, setFilters] = useState<CatalystFilters>(NO_FILTERS);
+  const moduleState: ModuleState = frameState === 'auth-required' ? 'auth-required' : frameState;
+  const shown = useMemo(() => (selection === null ? [] : applyCatalystFilters(selection.catalysts, filters)), [selection, filters]);
+  const selected = selectedCatalystOf(selection, selectedEventId);
+
+  function toggleCategory(category: string): void {
+    setFilters((previous) => {
+      const next = new Set(previous.hiddenCategories);
+      if (next.has(category)) {
+        next.delete(category);
+      } else {
+        next.add(category);
+      }
+      return { ...previous, hiddenCategories: next };
+    });
+  }
+
+  function toggleLink(link: CatalystLink): void {
+    setFilters((previous) => {
+      const next = new Set(previous.hiddenLinks);
+      if (next.has(link)) {
+        next.delete(link);
+      } else {
+        next.add(link);
+      }
+      return { ...previous, hiddenLinks: next };
+    });
+  }
+
+  return (
+    <>
+      <div className="vx-cat-grid vx-board" data-testid="catalysts-grid">
+        <div data-module="upcoming-count">
+          <UpcomingCountModule selection={selection} state={moduleState} reason={data?.reason ?? null} />
+        </div>
+        <AbsentCatalystsModule id="mean-impact" />
+        <AbsentCatalystsModule id="confidence" />
+        <div data-module="revisions">
+          <RevisionsModule selection={selection} state={moduleState} />
+        </div>
+
+        <div data-module="filters">
+          <FiltersModule selection={selection} state={moduleState} filters={filters} onToggleCategory={toggleCategory} onToggleLink={toggleLink} shown={shown.length} />
+        </div>
+        <AbsentCatalystsModule id="surprises" />
+        <AbsentCatalystsModule id="consensus" />
+
+        <div data-module="timeline">
+          <TimelineModule
+            data={data}
+            frameState={frameState}
+            selection={selection}
+            shown={shown}
+            selectedEventId={selectedEventId}
+            onSelect={(eventId) => {
+              setSelectedEventId((previous) => (previous === eventId ? null : eventId));
+            }}
+          />
+        </div>
+        <div data-module="category-split">
+          <CategorySplitModule selection={selection} state={moduleState} />
+        </div>
+        <AbsentCatalystsModule id="surprise-history" />
+
+        <div data-module="portfolio-exposure">
+          <PortfolioExposureModule selection={selection} state={moduleState} />
+        </div>
+        <AbsentCatalystsModule id="event-alerts" />
+        <div data-module="sources-freshness">
+          <SourcesFreshnessModule selection={selection} state={moduleState} />
+        </div>
+
+        <div data-module="window">
+          <WindowModule data={data} populationTheses={queueView?.populationTheses ?? null} state={moduleState} />
+        </div>
+        <div data-module="conflicts">
+          <ConflictsModule selection={selection} state={moduleState} />
+        </div>
+        <div data-module="orphan-theses">
+          <OrphanThesesModule theses={selection === null ? null : selection.thesesWithoutCatalyst} state={moduleState} />
+        </div>
+
+        <div data-module="review">
+          <ReviewQueueSection />
+        </div>
+      </div>
+
+      {/*
+        L'inspecteur n'existe que si un catalyseur est RÉELLEMENT
+        sélectionné et toujours servi. Une sélection qui ne correspond
+        plus à rien (snapshot rafraîchi, événement disparu) ne laisse
+        pas un panneau figé : elle ne rend rien.
+      */}
+      {selected !== null ? <CatalystInspector catalyst={selected} /> : null}
+    </>
+  );
+}
+
+export function CatalystsPage() {
   const calendarQuery = useCalendar(null);
   const queueQuery = useFollowUpQueue();
 
@@ -94,8 +293,6 @@ export function CatalystsPage() {
       ? selectCatalysts(calendarEventsOf(calendarQuery.data.agenda), queueView?.theses ?? [])
       : null;
 
-  const selected = selectedCatalystOf(selection, selectedEventId);
-
   return (
     <article className="vx-page" aria-labelledby="vx-page-title-catalysts">
       <div className="vx-page-header">
@@ -108,94 +305,7 @@ export function CatalystsPage() {
       {calendarState === 'auth-required' ? (
         <AuthRequiredNotice />
       ) : (
-        <>
-          {frameState === 'empty' ? (
-            <DataStateBoundary
-              state="empty"
-              detail={
-                calendarQuery.data?.reason !== null && calendarQuery.data?.reason !== undefined
-                  ? `Aucun agenda publié — raison serveur : ${calendarQuery.data.reason}`
-                  : "Aucun agenda publié par le worker : aucun catalyseur ne peut être relié."
-              }
-            />
-          ) : selection === null ? (
-            <DataStateBoundary
-              state={frameState === 'auth-required' ? 'error' : frameState}
-              {...(frameState === 'offline'
-                ? { detail: "L'API locale est injoignable — aucun catalyseur affiché." }
-                : frameState === 'error'
-                  ? {
-                      detail:
-                        "Agenda absent, refusé ou sans droit — rien n'est reconstruit à la place.",
-                    }
-                  : {})}
-            />
-          ) : (
-            <DataStateBoundary
-              state={frameState === 'auth-required' ? 'error' : frameState}
-              {...(frameState === 'partial'
-                ? {
-                    detail:
-                      'Couverture incomplète signalée par le serveur : la timeline ne montre que les événements réellement servis.',
-                  }
-                : {})}
-              {...(calendarQuery.data?.as_of !== null && calendarQuery.data?.as_of !== undefined
-                ? { asOfLabel: calendarQuery.data.as_of }
-                : {})}
-            >
-              <p className="vx-cat-populations" role="note" data-testid="cat-populations">
-                Populations séparées, jamais additionnées — agenda :{' '}
-                <code>{calendarQuery.data?.population ?? '—'}</code> · thèses :{' '}
-                <code>{queueView?.populationTheses ?? '—'}</code>. Les deux snapshots sont
-                indépendants ; leur croisement ne crée aucune donnée nouvelle.
-              </p>
-
-              <CatalystTimeline
-                catalysts={selection.catalysts}
-                unlinkedCount={selection.unlinkedCount}
-                selectedEventId={selectedEventId}
-                onSelect={setSelectedEventId}
-              />
-
-              {/*
-                L'inspecteur n'existe que si un catalyseur est RÉELLEMENT
-                sélectionné et toujours servi. Une sélection qui ne correspond
-                plus à rien (snapshot rafraîchi, événement disparu) ne laisse
-                pas un panneau figé : elle ne rend rien.
-              */}
-              {selected !== null ? <CatalystInspector catalyst={selected} /> : null}
-
-              {selection.thesesWithoutCatalyst.length > 0 ? (
-                <section
-                  className="vx-cat-orphans"
-                  aria-labelledby="vx-cat-orphans-title"
-                  data-testid="cat-orphans"
-                >
-                  <h2 id="vx-cat-orphans-title">
-                    Thèses sans catalyseur servi ({selection.thesesWithoutCatalyst.length})
-                  </h2>
-                  <p className="vx-cat-orphans-note">
-                    Aucun événement de l'agenda servi ne touche ces thèses. C'est un fait de
-                    couverture, pas un verdict : l'absence d'événement publié ne signifie pas
-                    qu'aucun événement n'existe.
-                  </p>
-                  <ul>
-                    {selection.thesesWithoutCatalyst.map((thesis) => (
-                      <li key={thesis.id} data-testid={`cat-orphan-${thesis.id}`}>
-                        {thesis.title}
-                        {thesis.instrumentTicker !== null ? (
-                          <code>{thesis.instrumentTicker}</code>
-                        ) : null}
-                      </li>
-                    ))}
-                  </ul>
-                </section>
-              ) : null}
-            </DataStateBoundary>
-          )}
-
-          <ReviewQueueSection />
-        </>
+        <CatalystsBoard data={calendarQuery.data} frameState={frameState} selection={selection} queueView={queueView} />
       )}
     </article>
   );

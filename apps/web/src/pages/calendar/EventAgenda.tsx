@@ -14,7 +14,9 @@ import {
 import type { AgendaGrouping, CalendarEventView } from './calendarView.ts';
 
 /**
- * Composant dominant de la page Calendrier : l'agenda jour/semaine.
+ * Composant dominant de la page Calendrier : l'agenda jour/semaine. LOT-A7 :
+ * il est le CORPS de la carte dominante portée par la page (planche §11) ;
+ * chaque carte d'événement peut ouvrir l'inspecteur (« Inspecter »).
  *
  * Invariants d'affichage :
  * - « Estimé » et « Confirmé » ne partagent JAMAIS le même libellé : badge,
@@ -352,15 +354,37 @@ function EventContext({ event }: { readonly event: CalendarEventView }) {
 export function EventCard({
   event,
   viewerTimeZone,
+  selected = false,
+  onInspect,
 }: {
   readonly event: CalendarEventView;
   readonly viewerTimeZone: string | null;
+  readonly selected?: boolean;
+  readonly onInspect?: (eventId: string) => void;
 }) {
   return (
-    <li className="vx-cal-event" data-testid={`cal-event-${event.eventId}`} data-status={event.status}>
+    <li
+      className="vx-cal-event"
+      data-testid={`cal-event-${event.eventId}`}
+      data-status={event.status}
+      {...(selected ? { 'data-selected': 'true' } : {})}
+    >
       <div className="vx-cal-event-head" data-testid={`cal-head-${event.eventId}`}>
         <h4 className="vx-cal-event-title">{event.title ?? event.eventId}</h4>
         <EventStatusBadge status={event.status} />
+        {onInspect !== undefined ? (
+          <button
+            type="button"
+            className="vx-opp-inspect"
+            aria-pressed={selected}
+            aria-label={`Inspecter ${event.title ?? event.eventId}`}
+            onClick={() => {
+              onInspect(event.eventId);
+            }}
+          >
+            Inspecter
+          </button>
+        ) : null}
       </div>
       <p className="vx-cal-event-meta">
         <span className="vx-cal-category" data-category={event.category}>
@@ -433,10 +457,13 @@ export function EventCard({
 export interface EventAgendaProps {
   readonly events: readonly CalendarEventView[];
   readonly grouping: AgendaGrouping;
+  /** Fuseau IANA d'affichage (troisième lecture du temps) — explicite, jamais deviné. */
   readonly viewerTimeZone: string | null;
+  readonly selectedEventId?: string | null;
+  readonly onInspect?: (eventId: string) => void;
 }
 
-export function EventAgenda({ events, grouping, viewerTimeZone }: EventAgendaProps) {
+export function EventAgenda({ events, grouping, viewerTimeZone, selectedEventId = null, onInspect }: EventAgendaProps) {
   const groups = groupAgenda(events, grouping);
   if (groups.length === 0) {
     return (
@@ -465,7 +492,6 @@ export function EventAgenda({ events, grouping, viewerTimeZone }: EventAgendaPro
     */
     <div
       className="vx-cal-agenda"
-      data-rank="dominant"
       data-testid="cal-agenda"
       data-grouping={grouping}
       tabIndex={0}
@@ -484,7 +510,13 @@ export function EventAgenda({ events, grouping, viewerTimeZone }: EventAgendaPro
           </h3>
           <ul className="vx-cal-event-list">
             {group.events.map((event) => (
-              <EventCard key={event.eventId} event={event} viewerTimeZone={viewerTimeZone} />
+              <EventCard
+                key={event.eventId}
+                event={event}
+                viewerTimeZone={viewerTimeZone}
+                selected={event.eventId === selectedEventId}
+                {...(onInspect === undefined ? {} : { onInspect })}
+              />
             ))}
           </ul>
         </section>

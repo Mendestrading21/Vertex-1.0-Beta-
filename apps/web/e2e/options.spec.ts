@@ -192,6 +192,50 @@ test.describe('Page Options — chaîne, groupes jamais fusionnés, inspecteur',
     await expect(inspector).toHaveCount(0);
   });
 
+  test('LOT-A5 : les QUINZE modules de la planche §5, une dominante, absences motivées, sourire d’IV, inspecteur', async ({
+    page,
+  }) => {
+    const chain = await fetchChain(page);
+    await page.goto(`/options/${UNDERLYING}`);
+    await expect(page.getByRole('table').first()).toBeVisible();
+    const MODULES = [
+      'underlying',
+      'identity-strip',
+      'spot',
+      'expected-move',
+      'iv-reference',
+      'iv-rank',
+      'dividend',
+      'rate',
+      'vol-structure',
+      'underlying-series',
+      'iv-smile',
+      'chain',
+      'strategy-builder',
+      'payoff-profile',
+      'strategy-metrics',
+    ];
+    for (const module of MODULES) {
+      await expect(page.locator(`[data-module="${module}"]`).first(), module).toBeVisible();
+    }
+    await expect(page.locator('.vx-main [data-rank="dominant"]')).toHaveCount(1);
+    await expect(page.locator('.vx-absent-badge')).toHaveCount(6);
+    for (const corps of await page.locator('.vx-absent-body').allTextContents()) {
+      expect(corps).not.toMatch(/\d/);
+    }
+    // Le spot publié, verbatim (virgule française).
+    await expect(page.getByTestId('options-spot')).toContainText(chain.spot!.value.replace('.', ','));
+    // Un sourire par groupe publié dans la structure par échéance ; le groupe
+    // affiché a un sourire tracé (le seed publie des IV résolues).
+    await expect(page.getByTestId('options-vol-structure').locator('li')).toHaveCount(chain.expirations.length);
+    await expect(page.locator('[data-module="iv-smile"] [data-testid="iv-smile"]')).toBeVisible();
+    // Série du sous-jacent tracée depuis son dossier.
+    await expect(page.getByTestId('options-underlying-series').getByTestId('spark-line')).toBeVisible({ timeout: 15_000 });
+    // Inspecteur par défaut : la chaîne publiée, jamais une colonne vide.
+    await expect(page.locator('.vx-inspector-heading')).toHaveText('Inspecteur — Chaîne publiée');
+    await expect(page.getByTestId('options-snapshot-facts')).toBeVisible();
+  });
+
   test('axe : zéro violation critique/sérieuse + capture', async ({ page }, testInfo) => {
     await page.goto(`/options/${UNDERLYING}`);
     await expect(page.getByRole('table').first()).toBeVisible();

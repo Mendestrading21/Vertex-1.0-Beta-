@@ -1,5 +1,5 @@
 /**
- * Parcours /system — matrice de santé des sources sur le pipeline réel :
+ * Parcours /sources-reports — matrice de santé des sources sur le pipeline réel :
  * 14 capacités déclarées (manifeste committé), 5 sondes DEMO persistées, le
  * reste honnêtement ERROR/NEVER_TESTED. Axe + capture par viewport.
  */
@@ -86,8 +86,38 @@ test.describe('Page Sources & Rapports — SourceHealthMatrix', () => {
 
     await expectNoSeriousAxeViolations(page);
     await page.screenshot({
-      path: screenshotPath('system', testInfo.project.name),
+      path: screenshotPath('sources-reports', testInfo.project.name),
       fullPage: true,
     });
+  });
+});
+
+test.describe('Page Sources & Rapports — composition de la planche §12 (LOT-A8)', () => {
+  test('LOT-A8 : les dix-sept modules, une seule dominante (le registre), neuf absences, inspecteur sur sélection seulement', async ({
+    page,
+  }) => {
+    await page.goto('/sources-reports');
+    const grille = page.getByTestId('sources-grid');
+    await expect(grille).toBeVisible();
+    await expect(grille.locator('> [data-module]')).toHaveCount(17);
+    await expect(page.locator('.vx-main [data-rank="dominant"]')).toHaveCount(1);
+    await expect(page.locator('[data-module="registry"] [data-rank="dominant"] table')).toBeVisible();
+    await expect(grille.locator('.vx-absent')).toHaveCount(9);
+    for (const body of await grille.locator('[data-testid="absent-body"]').allTextContents()) {
+      expect(body).not.toMatch(/\d/);
+    }
+    await expect(page.getByTestId('src-status-ERROR')).toBeVisible();
+    await expect(page.locator('.vx-health')).toBeVisible();
+    // Témoin du shell : aucune colonne morte tant qu'aucune capacité n'est ouverte.
+    await expect(page.locator('#vx-inspector-slot')).toBeHidden();
+
+    const bouton = page.getByRole('table').getByRole('button', { name: /^Inspecter/ }).first();
+    await bouton.focus();
+    await page.keyboard.press('Enter');
+    await expect(page.getByTestId('src-capability-facts')).toBeVisible();
+    await expect(page.locator('#vx-inspector-slot')).toBeVisible();
+    await expect(bouton).toHaveAttribute('aria-pressed', 'true');
+    await page.getByRole('button', { name: 'Fermer' }).click();
+    await expect(page.locator('#vx-inspector-slot')).toBeHidden();
   });
 });

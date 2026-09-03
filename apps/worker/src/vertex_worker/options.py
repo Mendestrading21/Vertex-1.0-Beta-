@@ -516,7 +516,7 @@ def _build_contract_entry(
         completed_at=now,
         source_event_ids=(source_event_id,),
         assumptions=(
-            "flat synthetic rate and dividend yield",
+            "rate and dividend yield relayed from the admitted option-chain observation",
             "ACT/365F maturity from the expiration date",
         ),
     )
@@ -747,7 +747,7 @@ def build_option_chain_content(
             }
         )
 
-    if considered == 0:
+    if not by_group:
         population = "EMPTY"
     elif synthetic_count > 0:
         population = "SYNTHETIC"

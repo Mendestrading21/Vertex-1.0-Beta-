@@ -64,6 +64,10 @@ const ROUTES = [
   '/options',
   `/options/${INSTRUMENT_SYNTHETIQUE}`,
   '/simulator',
+  // Graphiques (LOT-A2) : dominante servie + neuf modules déclarés absents,
+  // chacun `role="status"` — c'est précisément ce qu'axe doit relire.
+  '/charts',
+  `/charts/${INSTRUMENT_SYNTHETIQUE}`,
   '/portfolio',
   // Risques porte une GRILLE dense et défilable : c'est précisément le genre
   // de composant où l'accessibilité se perd — en-têtes de ligne collants,

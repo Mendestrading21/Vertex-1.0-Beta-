@@ -10,7 +10,7 @@ drained outbox recomputes the chain snapshot before the dossier reads it.
 The handler recomputes one ``analysis/{instrument}`` snapshot per declared
 focus instrument present in the recent bars window:
 
-- the ~60 synthetic OHLCV bars relayed VERBATIM (decimal strings) after a
+- the admitted daily OHLCV bars relayed VERBATIM (decimal strings) after a
   fail-closed per-bar validation (an invalid bar is discarded WITH its
   reason, never repaired), plus the last close. This handler is the
   ADMISSION frontier of those source-controlled values: every payload field
@@ -30,7 +30,7 @@ focus instrument present in the recent bars window:
   ``value_nature = "THEORETICAL"`` and keep their ``CalculationRecord``
   lineage;
 - the canonical ``AdviceResult`` produced by THE single ``AdviceEngine`` on
-  ``AdviceInputs`` built HONESTLY from the real state of the synthetic data:
+  ``AdviceInputs`` built HONESTLY from the retained population:
   facts the worker genuinely holds are filled (identity in the declared
   universe without an IBKR con_id, snapshot quality/freshness from the bars,
   the statuses of the calculations actually run, the portfolio-risk
@@ -39,10 +39,12 @@ focus instrument present in the recent bars window:
   thresholds, contradiction review, user constraints, and the manual
   portfolio declarations when the caller requires them) stay ``None`` and
   their gates BLOCK ``UNEVALUABLE`` —
-  fail-closed. The resulting status (typically ``INSUFFICIENT_DATA`` on the
-  synthetic population) is published AS IS: the worker NEVER forces a
-  status, and ``direction`` stays ``UNKNOWN`` because no upstream analytical
-  reading exists.
+  fail-closed. The resulting status (typically ``INSUFFICIENT_DATA``) is
+  published AS IS: the worker NEVER forces a status, and ``direction`` stays
+  ``UNKNOWN`` because no upstream analytical reading exists. Population
+  wording in the explanation and risk summary is derived from the same
+  retained inputs as the top-level ``population`` field; real observations
+  are never described as synthetic fixtures.
 
 Publication follows the same publish-if-changed semantics as the other
 handlers.
@@ -1093,15 +1095,50 @@ def build_analysis_content(
     if scenarios["status"] == "OK":
         calculation_statuses["options.scenario_grid"] = CalculationStatus.OK
 
+    # Population is derived BEFORE the AdviceInputs so every sentence inside
+    # AdviceResult uses the same truth as the top-level dossier field.  A
+    # rejected record retains nothing and therefore cannot turn EMPTY into
+    # REAL; one retained synthetic component conservatively labels the whole
+    # population SYNTHETIC.
+    retained = bool(valid_bars) or bool(evidence["clusters"])
+    if not retained:
+        population = "EMPTY"
+    elif synthetic:
+        population = "SYNTHETIC"
+    else:
+        population = "REAL"
+
     explanation_facts: list[str] = []
     if valid_bars:
+        # The bars keep their own nature even when a synthetic evidence
+        # cluster makes the aggregate population SYNTHETIC.
+        assert chosen is not None  # noqa: S101 (valid_bars implies a chosen record)
+        bars_population = "SYNTHETIC" if _is_synthetic_bar(chosen) else "REAL"
         explanation_facts.append(
-            f"{len(valid_bars)} synthetic daily bars from "
+            f"{len(valid_bars)} {bars_population} daily bars from "
             f"{bars_block['first_trading_day']} to {bars_block['last_trading_day']}"
         )
-        explanation_facts.append(f"last synthetic close {last_close} {bars_block['currency']}")
+        explanation_facts.append(
+            f"last {bars_population} close {last_close} {bars_block['currency']}"
+        )
     if evidence["clusters"]:
         explanation_facts.append(f"{len(evidence['clusters'])} evidence cluster(s) from fusion")
+
+    if population == "SYNTHETIC":
+        risk_summary = (
+            "SYNTHETIC development population retained; no authoritative "
+            "market risk assessment exists for this instrument"
+        )
+    elif population == "REAL":
+        risk_summary = (
+            "REAL observation population retained; no authoritative market "
+            "risk assessment exists for this instrument"
+        )
+    else:
+        risk_summary = (
+            "EMPTY population; no observation was retained and no authoritative "
+            "market risk assessment exists for this instrument"
+        )
 
     inputs = AdviceInputs(
         instrument_id=instrument,
@@ -1111,13 +1148,10 @@ def build_analysis_content(
             chosen.event_id if chosen is not None else f"analysis:{instrument}:none"
         ),
         horizon=config.horizon,
-        # No upstream analytical reading exists for the synthetic population:
+        # No upstream analytical reading exists for this dossier population:
         # the direction is honestly UNKNOWN, never inferred here.
         direction=Direction.UNKNOWN,
-        risk_summary=(
-            "SYNTHETIC development data; deterministic fixtures; no real "
-            "market risk assessment exists for this instrument"
-        ),
+        risk_summary=risk_summary,
         evidence_ids=tuple(entry["cluster_id"] for entry in evidence["clusters"]),
         scenario_ids=(
             (scenarios["calculation"]["input_hash"],) if scenarios["status"] == "OK" else ()
@@ -1131,7 +1165,7 @@ def build_analysis_content(
             resolved_with_conid=False,
         ),
         # entitlements / session_event / liquidity / contradictions /
-        # constraints: nobody holds these facts for the synthetic population,
+        # constraints: nobody holds these facts for this dossier population,
         # so they stay absent and their gates BLOCK UNEVALUABLE (fail-closed;
         # the resulting INSUFFICIENT_DATA is the WANTED honest verdict).
         snapshot=SnapshotInput(quality=snapshot_quality, fresh=bars_fresh),
@@ -1144,17 +1178,6 @@ def build_analysis_content(
     )
     advice = engine.evaluate(inputs)
 
-    # Population DERIVED from what was really RETAINED, never from the number
-    # of records merely considered: records rejected (source, rights, payload)
-    # retain nothing, so the dossier is honestly EMPTY instead of claiming a
-    # REAL population nothing supports.
-    retained = bool(valid_bars) or bool(evidence["clusters"])
-    if not retained:
-        population = "EMPTY"
-    elif synthetic:
-        population = "SYNTHETIC"
-    else:
-        population = "REAL"
     return {
         "schema_version": ANALYSIS_SCHEMA_VERSION,
         "as_of": now.isoformat(),

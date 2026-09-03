@@ -46,15 +46,21 @@ comportement voulu tant qu'aucune source réelle n'est branchée. Avec, une
 population de démonstration entièrement SYNTHETIC est semée et publiée, pour
 que les 13 pages soient regardables sans IBKR.
 
-Résultat mesuré sur une base neuve :
+Résultat mesuré sur une base neuve, le 2026-09-02, sur `ba749c1` :
 
 ```text
 migrations: à jour (alembic upgrade head)
 population SYNTHETIC semée et publiée: enveloppes=48 quotes=46 chaines=12
-barres=4 calendrier=21 portefeuille=1 messages_traites=490
+barres=4 calendrier=21 portefeuille=1 messages_traites=402
 Tout ce qui précède porte population = SYNTHETIC jusqu'à l'écran.
 Aucune donnée réelle n'a été observée.
 ```
+
+Le `messages_traites=490` d'une mesure antérieure n'était pas inventé : il
+était juste, sur un autre arbre. Un compteur de messages d'outbox dépend du
+nombre de snapshots publiés, qui a changé depuis — 11 familles aujourd'hui.
+Les six autres compteurs, eux, sont identiques. Un chiffre mesuré sans son SHA
+redevient faux tout seul : d'où le SHA au-dessus.
 
 **Le semis refuse d'écraser un journal.** Si la base contient déjà des
 transactions ou des thèses, il s'arrête avec le compte exact des lignes
@@ -77,9 +83,28 @@ proprement.
 ## 5. Ouvrir `/system` en premier
 
 ```text
-http://127.0.0.1:4173/system     ← cette page d'abord
-http://127.0.0.1:4173/today
+http://localhost:4173/system     ← cette page d'abord
+http://localhost:4173/today
 ```
+
+**`localhost`, et non `127.0.0.1`.** `apps/api/src/vertex_api/auth/config.py`
+fixe l'identifiant de la partie de confiance WebAuthn à `localhost` (ADR-002),
+et la spécification exige que cet identifiant soit un suffixe de domaine
+enregistrable de l'origine. Une origine en **adresse IP** ne peut donc pas le
+porter. L'application, elle, peut rester liée à `127.0.0.1` : c'est l'URL
+tapée qui change, pas l'adresse d'écoute.
+
+Ce qui se passe réellement depuis `http://127.0.0.1:4173`, tracé dans le code
+(`apps/web/src/pages/AuthPage.tsx`, `apps/api/src/vertex_api/auth/routes.py`) :
+`POST /api/v1/auth/register/options` **est appelé et répond** — cette route ne
+lit pas l'origine et renvoie `rp.id = "localhost"` ; puis
+`navigator.credentials.create` **échoue dans le navigateur**, parce que ce RP ID
+ne convient pas à une origine IP ; `POST /api/v1/auth/register/verify` n'est
+donc **jamais** envoyé. L'API n'a rien refusé. Un message générique d'échec
+apparaît, qui n'en donne pas la cause. Le refus lui-même est une règle du
+navigateur : aucune ligne du dépôt ne le prouve ; ce que le dépôt prouve, c'est
+l'ordre des appels et que la campagne e2e, seule à créer réellement une
+passkey, passe par `localhost`.
 
 `/system` dit ce que le système sait de lui-même : base, migrations, horloge,
 sauvegarde, et l'état RÉEL de chaque capacité. Une capacité jamais sondée y
@@ -134,6 +159,7 @@ effectivement sondées — et pour elles seules.
 | `PostgreSQL ne répond pas sur 127.0.0.1:5432` | serveur arrêté | le démarrer, puis relancer |
 | `la base contient déjà des données utilisateur` | semis demandé sur une base non vierge | ne rien forcer ; utiliser une autre base |
 | `ressemble à une base de test` | DSN pointant `vertex_test`/`vertex_e2e` | corriger le DSN, ou `VERTEX_ALLOW_TEST_DB=1` en connaissance de cause |
+| message générique d'échec juste après la demande de passkey, alors que `/api/v1/auth/register/options` a répondu | interface ouverte depuis `127.0.0.1` alors que le RP ID est `localhost` : `navigator.credentials.create` échoue et `/api/v1/auth/register/verify` n'est pas envoyé | réouvrir sur `http://localhost:4173` |
 
 `INCIDENT.md` couvre les pannes en cours de service.
 

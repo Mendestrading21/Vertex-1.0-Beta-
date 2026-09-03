@@ -306,8 +306,9 @@ class AnalysisResponse(ContractModel):
       ``AdviceEngine`` — status, direction, the ten gates with their reason
       codes, limitations — exactly as published; the API neither recomputes
       nor softens it;
-    - ``bars`` carries the validated synthetic OHLCV series (decimal
-      strings) with its per-bar discard account;
+    - ``bars`` carries the admitted, validated OHLCV series (decimal strings)
+      with its per-bar discard account; its observation may belong to a
+      ``REAL`` or ``SYNTHETIC`` population, relayed separately;
     - ``indicators`` carries the technical indicators computed by the
       approved engine (``market.realized_volatility``, ``market.atr``), each
       with its ``CalculationRecord`` lineage — or a NAMED absence
@@ -435,9 +436,9 @@ class OptionChainResponse(ContractModel):
     ``state = "empty"`` means NO snapshot was ever published for this
     underlying: every snapshot-derived field is ``None`` (never invented) and
     ``reason`` says why. ``state = "ok"`` relays the persisted content
-    verbatim: population (``SYNTHETIC`` shown as-is), the synthetic spot,
-    the pricing assumptions, the per-(expiration, trading_class) groups and
-    the displayed row budget.
+    verbatim: population (``REAL``/``SYNTHETIC`` shown as-is), the published
+    spot, the pricing assumptions, the per-(expiration, trading_class) groups
+    and the displayed row budget.
 
     ``state = "stale"`` relaie le MÊME contenu, mais dit que l'instantané
     a dépassé son budget de fraîcheur (option_surface) : le worker n'a rien

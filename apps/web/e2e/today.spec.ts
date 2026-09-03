@@ -60,9 +60,12 @@ test.describe("Page Aujourd'hui — AttentionQueue", () => {
     );
     expect(focusDansPanneau).toBe(true);
 
-    // CONSERVÉ : Échap referme et rend le focus au déclencheur.
+    // CONSERVÉ : Échap referme et rend le focus au déclencheur. LOT-A3 :
+    // l'inspecteur n'est jamais vide — il retombe sur la vérité du snapshot.
     await page.keyboard.press('Escape');
-    await expect(panneau).toHaveCount(0);
+    await expect(page.locator('.vx-inspector-panel')).toHaveCount(1);
+    await expect(page.locator('.vx-inspector-heading')).toHaveText('Inspecteur — Snapshot publié');
+    await expect(page.getByTestId('snapshot-rail')).toBeVisible();
     const focusedIsTrigger = await trigger.evaluate(
       (element) => element === document.activeElement,
     );
@@ -92,6 +95,61 @@ test.describe("Page Aujourd'hui — AttentionQueue", () => {
       sorti = !(await panneau.evaluate((element) => element.contains(document.activeElement)));
     }
     expect(sorti).toBe(true);
+  });
+
+  test('LOT-A3 : les ONZE modules de la planche §1, une dominante, absences motivées, inspecteur par défaut', async ({
+    page,
+  }) => {
+    await page.goto('/today');
+    await expect(page.locator('.vx-queue-item').first()).toBeVisible();
+    const MODULES = [
+      'regime',
+      'global-market',
+      'volatility',
+      'next-catalyst',
+      'source-health',
+      'focus',
+      'attention',
+      'opportunities',
+      'active-risks',
+      'sectors',
+      'manual-portfolio',
+      'calendar',
+    ];
+    for (const module of MODULES) {
+      await expect(page.locator(`[data-module="${module}"]`).first(), module).toBeVisible();
+    }
+    const dominantes = page.locator('.vx-main [data-rank="dominant"]');
+    await expect(dominantes).toHaveCount(1);
+    // Trois absences, motif fermé, aucun chiffre dans le corps (article 17).
+    const badges = page.locator('.vx-absent-badge');
+    await expect(badges).toHaveCount(3);
+    for (const corps of await page.locator('.vx-absent-body').allTextContents()) {
+      expect(corps).not.toMatch(/\d/);
+    }
+    // Les modules servis portent des valeurs SERVIES : breadth du snapshot Marchés.
+    const overview = await (await page.request.get('/api/v1/markets/overview')).json();
+    const breadth = overview.breadth?.value_pct as string;
+    await expect(page.locator('[data-module="global-market"]')).toContainText(breadth.replace('.', ','));
+    // Carte sectorielle : autant de puces que d'instruments couverts.
+    const couverts = overview.sectors.flatMap((s: { tickers: unknown[] }) => s.tickers).length;
+    await expect(page.locator('[data-module="sectors"] .vx-sector-chip')).toHaveCount(couverts);
+    // Inspecteur par défaut : la vérité du snapshot, jamais une colonne vide.
+    await expect(page.locator('.vx-inspector-heading')).toHaveText('Inspecteur — Snapshot publié');
+    await expect(page.getByTestId('snapshot-rail')).toBeVisible();
+    // La file est bornée : région défilante atteignable au clavier.
+    await expect(page.locator('.vx-queue-scroll[tabindex="0"]')).toBeVisible();
+    // Instruments suivis : un widget par dossier publié, une série TRACÉE
+    // (polyline SVG), et le prix affiché est la chaîne du snapshot Marchés.
+    const widgets = page.locator('[data-testid="instrument-widget"]');
+    expect(await widgets.count()).toBeGreaterThanOrEqual(1);
+    await expect(widgets.first().getByTestId('spark-line')).toBeVisible({ timeout: 15_000 });
+    const premierTicker = (await widgets.first().locator('.vx-iw-ticker').textContent()) ?? '';
+    const cote = overview.sectors
+      .flatMap((s: { tickers: { ticker: string; last_close: string }[] }) => s.tickers)
+      .find((t: { ticker: string }) => t.ticker === premierTicker);
+    expect(cote).toBeDefined();
+    await expect(widgets.first()).toContainText(cote.last_close.replace('.', ','));
   });
 
   test('axe : zéro violation critique/sérieuse + capture', async ({ page }, testInfo) => {

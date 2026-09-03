@@ -58,7 +58,9 @@ export interface BarsView {
 
 export function barsViewOf(data: AnalysisResponse): BarsView | null {
   const block = data.bars;
-  if (block === null) {
+  // `undefined` n'est pas dans le contrat, mais un corps étranger reçu à la
+  // place d'un dossier ne doit jamais faire tomber la page : absent = absent.
+  if (block === null || block === undefined) {
     return null;
   }
   const rawBars = block['bars'];
@@ -379,6 +381,12 @@ export function analysisStateOf(
   }
   if (data.state === 'empty') {
     return 'empty';
+  }
+  if (data.state === 'stale') {
+    return 'stale'; // statut de fraîcheur du relais, propriétaire de l'âge servi
+  }
+  if (data.population === 'DELAYED') {
+    return 'delayed'; // nature publiée par le relais, jamais ramenée à ready
   }
   const bars = barsViewOf(data);
   if (bars === null || bars.status !== 'OK') {

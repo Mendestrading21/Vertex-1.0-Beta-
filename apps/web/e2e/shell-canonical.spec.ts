@@ -216,7 +216,7 @@ test.describe('Shell — anatomie canonique', () => {
     }
   });
 
-  test('une seule lumière dominante par écran, sur les onze destinations', async ({ page }) => {
+  test('une seule lumière dominante par écran, sur les douze destinations', async ({ page }) => {
     /**
      * « Une lumière dominante maximum par carte, deux par écran hors
      * rouge/vert. » — `references/canonical-visual.md`.
@@ -243,7 +243,8 @@ test.describe('Shell — anatomie canonique', () => {
       ['/analysis/SYN-TECH-01', '.vx-chartframe'],
       ['/options/SYN-TECH-01', '.vx-chartframe'],
       ['/simulator', '.vx-sim-composer'],
-      ['/portfolio', '.vx-pf-summary'],
+      ['/charts/SYN-TECH-01', '.vx-chartframe'],
+      ['/portfolio', '.vx-pf-concentration'],
       ['/risks', '.vx-riskmatrix'],
       ['/catalysts', '.vx-fu-queue'],
       ['/calendar', '.vx-cal-agenda'],
@@ -528,8 +529,16 @@ test.describe('Shell — anatomie canonique', () => {
     // contextuel à droite ». L'emplacement existe dans le shell, mais une
     // colonne vide en permanence serait de la chrome décorative : il ne
     // prend de place que rempli.
-    await page.goto('/today');
+    //
+    // LOT-A3 : ce test visitait `/today`, qui monte désormais PAR CONCEPTION
+    // la vérité du snapshot dans l'inspecteur (asséré dans `today.spec.ts`).
+    // L'assertion ne passait plus que par une course avec le chargement —
+    // verte quand elle précédait les données, rouge en CI à 1440. La
+    // destination témoin devient Sources & Rapports, qui ne monte aucun
+    // panneau : la propriété testée est la même, sans course.
+    await page.goto('/sources-reports');
     const inspecteur = page.locator('#vx-inspector-slot');
+    await expect(page.locator('.vx-health')).toBeVisible();
     await expect(inspecteur).toBeHidden();
 
     // Sur Catalyseurs, il reste masqué tant qu'aucun élément n'est ouvert.
@@ -558,7 +567,8 @@ test.describe('Shell — anatomie canonique', () => {
 
     // Changer de destination libère l'emplacement : aucun panneau ne survit
     // à la page qui l'a monté.
-    await page.goto('/today');
+    await page.goto('/sources-reports');
+    await expect(page.locator('.vx-health')).toBeVisible();
     await expect(inspecteur).toBeHidden();
   });
 
