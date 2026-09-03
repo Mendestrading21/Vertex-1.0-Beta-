@@ -1161,3 +1161,42 @@ fusion. Branche `lot/a6-portefeuille-risques-20260903` EMPILÉE sur
    désormais deux (explication IA, valorisation publiée). Locateur nommé
    exactement (`Inspecteur — explication`), comme déjà fait pour Analyse au
    LOT-A4. Aucune assertion retirée.
+
+### Mesuré sur cette machine (codes relus)
+
+- `tsc --noEmit` : 0 erreur ; `biome check src e2e` : 0 erreur (213 fichiers,
+  une information préexistante sur `OptionsModules.tsx`, hors lot).
+- `vitest run` : **59 fichiers, 647 tests, 0 échec** (622 sur A5 + 25) ;
+  portes de design incluses.
+- Playwright (portfolio, portfolio-performance, risk, shell-canonical,
+  accessibility ; 1280/1440/1600) : **252 passés / 252 déclarés** (`--list`),
+  code 0, 4,0 min — première passe, avant la correction des grilles ; puis
+  portfolio + risk rejoués deux fois après chaque passe CSS : 39 / 39 et
+  39 / 39, et Risques seul à 1600 après la dernière retouche : 5 / 5.
+- `tools/run_checks.sh` (racine, seul, après la fin des e2e) : toutes les
+  portes vertes — rôle du dépôt, blueprint, frontière financière, registre
+  des calculs, secrets, policy, traçabilité (entrée `NOT_YET_PROVEN` connue,
+  hors lot), notices, uv.lock, compilation, Worker Cloudflare, Biome,
+  performance, ruff et mypy ; puis le seul rouge déjà connu,
+  `test_denylist.py::test_adapter_satisfies_the_port_protocol` sur Python
+  3.11 — pas ce lot, aucun fichier Python touché, établi dans la PR #25.
+  Code de sortie 1 pour cette seule raison.
+
+### Transmis, non corrigé ici
+
+- Ordre utilisateur reçu en fin de lot : « pousse tout, fusionne tout et
+  continue » — la chaîne #25 → #26 → #27 → #28 → A6 est fusionnée en squash
+  dans cet ordre, chaque PR empilée reciblée sur `main` avant sa fusion ;
+  A7 et A8 partent ensuite de `main`.
+- Portefeuille reste la page la plus haute des douze : le module Performance
+  garde son corps entier (courbe, métriques, heatmap, points, export,
+  conventions) dans une rangée pleine ; le rendre plus compact serait un
+  autre lot, pas une composition.
+- La valeur exacte de l'indice de Herfindahl (jusqu'à vingt-huit décimales)
+  se replie sur deux lignes dans le module Risques : chaîne serveur
+  verbatim, jamais arrondie.
+- La matrice n'est pas rafraîchie pendant une session e2e
+  (`run_worker.py` sans `risk_config`) : `risk.spec.ts` lit la matrice semée.
+
+Prochaine commande recommandée : fusion de la chaîne A2 → A6 (ordre reçu),
+puis `EXÉCUTE A7` (Catalyseurs, Calendrier — planches §10, §11) depuis `main`.
