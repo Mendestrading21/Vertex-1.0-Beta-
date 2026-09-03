@@ -160,6 +160,17 @@ et le chargeur les applique AVANT la borne, comme ``DAILY_QUOTE_SCHEMA_PREFIXES`
 pour leurs propres familles. Les familles de marché (cotations, barres,
 chaînes d'options, sondes de capacité, faits SEC) ne portent jamais de titre :
 les déclarer ici n'ajouterait aucun contenu et rouvrirait la famine.
+
+Les ÉVÉNEMENTS DE CALENDRIER (``synthetic-calendar-event/``, familles de
+``vertex_worker.calendar.CALENDAR_EVENT_SCHEMA_PREFIXES``) portent un titre
+mais ne sont pas des dépêches : la page Calendrier les sert, Catalyseurs les
+croise ; la file d'attention et le contexte d'information de la revue ne les
+lisent pas. Avant cette déclaration, un événement synthétique pouvait entrer
+dans la file d'attention de développement ; ce n'est plus le cas, et c'est
+DÉCLARÉ (test-témoin dans ``tests/test_attention_content.py``), pas subi.
+Les réintroduire est une décision de produit, qui passe par cette liste —
+jamais par une borne plus large. Contrat écrit dans
+``docs/03-domain/ATTENTION_AND_RELEVANCE_ENGINE.md``.
 """
 
 MAX_ATTENTION_ITEMS = 15

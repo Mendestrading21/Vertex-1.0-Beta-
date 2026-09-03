@@ -15,6 +15,7 @@ from typing import Any, cast
 import pytest
 
 from vertex_core.synthetic import SYNTHETIC_RIGHTS, SYNTHETIC_SOURCE, generate_envelopes
+from vertex_worker.calendar import CALENDAR_EVENT_SCHEMA_PREFIXES
 from vertex_worker.handlers import (
     CONTENT_SCHEMA_PREFIXES,
     DEV_SYNTHETIC_CONFIG,
@@ -362,6 +363,38 @@ class TestDeclaredContentFamilies:
         )
         explicit = build_attention_content([demo_record(1)], now=NOW, config=declared)
         assert explicit["coverage"]["content_schema_prefixes"] == ["demo-news/"]
+
+    def test_calendar_events_are_served_by_their_own_page_not_by_the_queue(self) -> None:
+        """TÉMOIN d'un comportement DÉCLARÉ (pas un reproducteur) : un événement
+        de calendrier porte un titre mais n'est pas une dépêche. La page
+        Calendrier le sert (`CALENDAR_EVENT_SCHEMA_PREFIXES`), la file
+        d'attention ne le lit pas. Le réintroduire est une décision de
+        produit qui passe par `CONTENT_SCHEMA_PREFIXES`, jamais par une
+        borne plus large — ce test la rendra visible."""
+        assert CALENDAR_EVENT_SCHEMA_PREFIXES, "la page Calendrier déclare ses familles"
+        for famille in (*CALENDAR_EVENT_SCHEMA_PREFIXES, "synthetic-calendar-event/1.0"):
+            assert not famille.startswith(CONTENT_SCHEMA_PREFIXES), famille
+        title_bearing_event = ObservationRecord(
+            event_id="cal-1",
+            source=SYNTHETIC_SOURCE,
+            source_event_id="cal-1",
+            instrument_ref="SYN-0001",
+            published_at=BASE_TIME,
+            received_at=BASE_TIME,
+            as_of=BASE_TIME,
+            quality_status="VALID",
+            rights=SYNTHETIC_RIGHTS,
+            schema_version="synthetic-calendar-event/1.0",
+            payload={"title": "[SYNTHETIC] résultats trimestriels", "ticker": "SYN-0001"},
+        )
+        # Le constructeur pur, lui, lirait ce titre : c'est bien la DÉCLARATION
+        # (appliquée par le chargeur, avant la borne) qui tient l'événement
+        # hors de la file, pas une absence de titre.
+        content = build_attention_content(
+            [title_bearing_event], now=NOW, config=DEV_SYNTHETIC_CONFIG
+        )
+        assert content["coverage"]["content_observations"] == 1
+        assert "synthetic-calendar-event/" not in content["coverage"]["content_schema_prefixes"]
 
 
 class TestPerInstrumentWindowDeclaration:
