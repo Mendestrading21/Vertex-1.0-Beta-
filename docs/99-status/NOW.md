@@ -334,13 +334,17 @@ checks_locaux:
   - "worker Cloudflare : 53 tests de contrat"
   - "run_checks.sh TOUT VERT"
 pages_reelles: [/today, /opportunities, /analysis, /options, /simulator,
-                /calendar, /markets, /portfolio, /risks, /catalysts,
+                /calendar, /markets, /charts, /portfolio, /risks, /catalysts,
                 /sources-reports, plus /auth hors rail]
 pages_non_implementees: []
-destinations_cibles_manquantes: [charts]
-# Graphiques reste bloquée par un CONTRAT SERVEUR absent : la comparaison de
-# séries rebasées n'est pas dérivable sans calculer un rendement dans le
-# navigateur, ce qui est interdit. Raisonnement dans PAGE_ARBITRATION.md.
+destinations_cibles_manquantes: []
+# GRAPHIQUES A ÉTÉ INSTALLÉE le 2026-09-02 (LOT-A2, `TL / 08`), SANS nouveau
+# contrat et sans façade : la planche §8 est rendue en entier, sa dominante lit
+# le contrat Analyse (même DTO, même client, même composant que /analysis), et
+# chaque module sans source est DÉCLARÉ absent avec un motif du vocabulaire
+# fermé d'AbsentModule. La comparaison base 100 reste `CONTRAT SERVEUR ABSENT` :
+# `market.rebased_series` est approuvé et implémenté, mais relayé par aucune
+# route ni snapshot — la brancher est un lot SERVEUR. Voir PAGE_ARBITRATION.md.
 #
 # RISQUES A ÉTÉ INSTALLÉE le 2026-09-01, et son contrat a été CRÉÉ plutôt
 # qu'attendu : `risk.correlation` déclaré au registre des calculs, publié par
@@ -736,3 +740,746 @@ Ce qu'il faut retenir pour la session suivante :
 Reste : Portefeuille a 4971 px porte douze modules pour « trois a cinq » au
 contrat — decision d'architecture d'information, pas de style ; V7-V8
 (migration JSX des surfaces restantes) ; V9 (retrait des 15 enumerations).
+
+---
+
+## SESSION 2026-09-02 — LOT-A2 : Graphiques, la douzième destination (`TL / 08`)
+
+Consigne utilisateur : après fusion de #21 et #22 (déléguées, squash, CI 7/7
+chacune), « démarrer le nouveau visuel selon les exigences » du skill
+`vertex-titanium-ledger`. L'inventaire du skill ne signalait qu'un écart cible :
+`charts`. Base : `main@6e416d8` (squash #22). Branche `lot/a2-graphiques-20260902`.
+
+Ce qui existe désormais :
+
+- `apps/web/src/pages/charts/` — `ChartsPage.tsx` (dominante = espace
+  graphique servi par `GET /api/v1/analysis/{instrument}` ; `CandleChart`,
+  `OhlcvTable` et `IndicatorsPanel` réutilisés, les deux derniers désormais
+  exportés d'`AnalysisPage.tsx`), `chartsView.ts` (catalogue des douze modules
+  de la planche : trois servis, neuf déclarés absents avec motif et note).
+- `AbsentModule` a son premier consommateur réel ; sa tête passe en
+  `flex-wrap` (défaut vu SUR CAPTURE à 1280 px : badges tronqués en colonne
+  étroite — aucun test ne le voyait).
+- Rail : groupe Observer = Calendrier, Marchés, Graphiques. `LEDGER_CODE_BY_PAGE`
+  et `--vx-page-ledger` portent `08` ; les tests épinglent les douze codes.
+- Inspecteur : définition de la série (devise, base, qualité, fraîcheur,
+  référence, snapshot/moteur, exclusions) ; une absence est dite « non
+  publié », jamais un tiret.
+
+Mesuré sur cette machine, codes de sortie relus :
+
+- `audit_titanium_ledger.py` : `status: PASS`, `target_gaps: []`, `errors: []`
+  (avant le lot : `TARGET_GAPS`, « destinations cibles sans équivalent
+  détecté: charts »).
+- `tsc --noEmit` 0 ; `biome check` 0 sur 12 fichiers.
+- `vitest run` : 40 fichiers, 535 tests, 0 échec (521 sur `main` + 14).
+- Playwright Chromium, tous viewports : `charts + shell-canonical +
+  accessibility` = 231 passés / 231 déclarés / `.last-run.json` passed ;
+  `charts.spec` rejoué après le correctif CSS = 15 / 15.
+- Captures `charts-desktop-{1280x800,1440x900,1600x1000}.png`, relues.
+- `tools/run_checks.sh` sur l'arbre définitif : **onze portes vertes**
+  (rôle, blueprint, frontière, registre, secrets, policy, traçabilité,
+  notices, verrou, compilation, Cloudflare, Biome, budgets, ruff, mypy), puis
+  **UN échec** en suite Python :
+  `apps/edge-ibkr/tests/test_denylist.py::test_adapter_satisfies_the_port_protocol`.
+  Reproduit **à l'identique sur `main@6e416d8` intact**, avec le python
+  système ET le venv verrouillé — tous deux en **3.11.15**. Le même fichier
+  passe **6/6** sur un venv verrouillé **Python 3.13** (la cible de la CI,
+  `uv sync … --python ${PYTHON_VERSION}`), et la CI est verte sur ce même
+  arbre (run `33655158621`). Divergence 3.11/3.13 de `isinstance` sur un
+  `Protocol` `runtime_checkable` (`port.py:496`), dernier commit sur
+  l'adaptateur : `ecc50c1` (#20). **Aucun fichier Python n'est touché par ce
+  lot** ; le test n'est ni modifié ni sauté. Suite Python complète rejouée sur
+  3.13 : voir la PR. Conséquence pour le poste : un venv 3.11 ne reproduit
+  pas la CI — `uv sync --locked --all-extras --python 3.13`, comme
+  `start_local.sh` le demande déjà.
+
+Transmis, non corrigé ici (hors des fichiers du lot) :
+
+- `IndicatorsPanel` affiche l'ATR avec seize décimales (`4.413571428571428`) :
+  c'est la chaîne publiée par le serveur, relayée telle quelle, identique sur
+  `/analysis`. La précision est à déclarer côté contrat, pas à arrondir en TS.
+- `ChartsPage` importe `AnalysisPage.tsx` pour deux composants : à extraire
+  dans un module partagé (lot de suivi).
+- Brancher la comparaison base 100 = producteur + relais de
+  `market.rebased_series` (lot serveur).
+
+Prochaine commande recommandée : revue humaine de la PR LOT-A2, puis
+`EXÉCUTE J3` (régression `aria-pressed` de V12, reproducteur Playwright déjà
+cadré) — ou le lot serveur `market.rebased_series` si la comparaison prime.
+
+
+## SESSION 2026-09-02 — LOT-A3 : Aujourd'hui et Marchés composées sur leurs planches (§1, §2)
+
+Consigne utilisateur : « fait ça le plus beau possible et le mieux possible,
+que tous les graphiques s'affichent correctement, utilise des données
+fictives pour montrer le résultat final ». Données fictives = population
+`SYNTHETIC` du pipeline e2e, étiquetée à l'écran ; jamais présentée comme
+réelle.
+
+Branche `lot/a3-aujourdhui-marches-20260902` depuis `main@6e416d8`, PR
+brouillon, aucune fusion.
+
+### Ce qui est livré
+
+- **Aujourd'hui** : la planche §1 en entier — onze modules. Huit SERVIS par
+  des contrats existants, chacun lu par le hook de sa page propriétaire (file
+  d'attention en dominante ; marché global et carte sectorielle depuis
+  `markets_overview` ; catalyseur suivant et calendrier depuis `calendar` ;
+  santé des sources ; opportunités ; portefeuille manuel). Trois ABSENTS avec
+  motif mesuré (`AbsentModule`) : régime (le moteur publie lui-même « no
+  regime assessment exists for this population »), volatilité, risques
+  actifs. L'inspecteur est TOUJOURS occupé : l'item ouvert, sinon la vérité du
+  snapshot (l'ancien rail). La file est bornée (région défilante, `tabIndex`).
+- **Marchés** : la planche §2 en entier — douze modules. Cinq SERVIS par
+  `markets_overview` (carte en dominante, largeur de marché, santé de la
+  couverture, carte sectorielle, écartés et rejets), sept ABSENTS (sessions,
+  indices, volatilité, taux — `CONTRAT SERVEUR ABSENT` : l'adaptateur FRED
+  vit dans `apps/edge-official`, aucune route ni snapshot ne relaie une
+  courbe —, devises, corrélation, structure de volatilité). Sélection d'un
+  instrument depuis une tuile, une puce sectorielle ou une ligne de table →
+  inspecteur avec les chaînes publiées et la LIGNÉE du calcul.
+- Primitives réutilisables : `moduleStateOf()` (état d'un module depuis SON
+  snapshot), `Metric` (bloc de mesure), `SectorGrid` (partagée).
+
+### Ce qui a été vu SUR CAPTURE, pas par un test
+
+1. Cinq colonnes à 1440 donnaient des cellules de **135 px** : l'inspecteur
+   est monté en permanence sur ces pages, la zone de travail fait ~730 px.
+   Quatre colonnes ; cinq seulement à 1600.
+2. Badges d'absence tronqués (« AUCUNE SOURC ») dans une colonne étroite ;
+   bandeau santé et barres de breadth coupés ; horodatage en corps
+   d'affichage cassé caractère par caractère. Tous corrigés, captures
+   régénérées.
+3. Le module « Indices » manquait au DOM : le test de composition (douze
+   témoins `data-module`) l'a dit avant la capture — c'est le test qui a
+   rattrapé celui-là.
+4. CI rouge à la première tête (`7fc6289`, e2e 1440 seul) : le test du shell
+   « point 6 » visitait `/today` en supposant l'inspecteur masqué — vrai avant
+   ce lot, faux par conception depuis (la vérité du snapshot y est montée).
+   L'assertion ne tenait plus que par une course avec le chargement : verte
+   quand elle précédait les données, rouge quand elles arrivaient d'abord.
+   Témoin déplacé sur Sources & Rapports, qui ne monte aucun panneau ; la
+   propriété testée est la même, sans course. 6/6 aux trois viewports.
+
+### Mesuré sur cette machine (codes relus)
+
+- `tsc --noEmit` : 0 erreur ; `biome check` : 0 violation.
+- `vitest run` : **42 fichiers, 551 tests, 0 échec** (521 sur `main` + 30).
+- `audit_titanium_ledger.py` : `TARGET_GAPS` avec le seul écart `charts` —
+  attendu sur cette branche, issue de `main` où Graphiques n'est pas encore
+  fusionnée (PR #25) ; ce lot n'ajoute ni ne retire aucun écart.
+- Playwright (today, markets, shell-canonical, accessibility, 1280/1440/1600) :
+  **228 passés / 228 déclarés**, `.last-run.json` passed, code 0 ; passe finale
+  today + markets après les derniers correctifs : **36 / 36**, code 0.
+- `tools/run_checks.sh` (racine, seul) : toutes les portes vertes dont la
+  performance (après correction d'un `INEFFECTIVE_DYNAMIC_IMPORT` : la
+  fonction d'état d'Opportunités vit désormais dans sa vue pure), ruff et
+  mypy ; puis le seul rouge déjà connu, `test_denylist.py::
+  test_adapter_satisfies_the_port_protocol` sur Python 3.11 — pas ce lot,
+  aucun fichier Python touché, établi dans la PR #25.
+- Deux passes lancées EN PARALLÈLE (e2e et porte performance) ont reconstruit
+  `dist/` en même temps : un test e2e a échoué une fois pour cette seule
+  raison. Rejouées seules, les deux sont vertes. Règle consignée : jamais deux
+  builds web concurrents dans le même worktree.
+
+### Deuxième passe, sur demande : « plus aéré, mieux espacé, mieux cadré »
+
+Appliqué le haut de chaque bande canonique : 16 px entre modules, 20 px entre
+rangées, 20 px d'espace interne, arête haute plus claire sur chaque panneau
+(« titane froid, plus clair au bord supérieur »), têtes et pieds filetés,
+mesures empilées séparées d'un filet (de front quand la carte est large),
+inspecteur à faits filetés, dominante de Marchés recadrée. Rangées
+rééquilibrées d'après les captures : régime et risques empilés à gauche de la
+file (même hauteur), opportunités et portefeuille empilés à côté de la carte
+sectorielle, courbe des taux/corrélation et devises/structure empilées à côté
+de la carte sectorielle de Marchés, santé et refus de front. Trois passes de
+capture ; 36/36 à chaque fois. Reste : à 1280, les puces sectorielles
+n'entrent qu'une par ligne dans une tuile de 340 px — lisible, pas élégant.
+
+### Troisième passe, sur demande : des widgets « instrument » (références de widgets financiers)
+
+Une rangée « Instruments suivis » sur Aujourd'hui et Marchés — prix en grand,
+variation 1 j en pastille signée, mini-courbe des clôtures et barres de
+volume, fraîcheur en haut à droite. TOUT est servi : clôture, devise et
+rendement du snapshot Marchés (chaînes verbatim) ; série et fraîcheur du
+dossier d'analyse (`GET /api/v1/analysis/{instrument}`). La liste vient des
+candidats du snapshot Opportunités dont `bars_status` est `OK` — un dossier
+existe pour eux — dans l'ordre publié, bornée à quatre ; sans dossier, la
+rangée le dit. Aucun calcul (géométrie des clôtures publiées, comme la
+treemap ; base pointillée = première clôture de la fenêtre, un repère ; sens
+= signe publié, jamais la pente). Ce que les références montrent et que
+Vertex ne fera pas : boutons d'achat, jauges circulaires, valeurs de
+maquette. Mesuré : `tsc` 0, Biome 0, vitest 44 fichiers / 560 tests / 0
+échec, e2e today + markets 36/36 (deux passes), captures relues aux trois
+viewports.
+
+### Transmis, non corrigé ici
+
+- `NOW.md` et `docs/05-design/REFONTE_TITANIUM_LEDGER.md` sont modifiés en
+  fin de fichier par la PR #25 ET par ce lot : la seconde fusion demandera
+  une résolution triviale (garder les deux sections).
+- Le régime, la volatilité et les risques actifs n'auront une source que par
+  un lot SERVEUR (calcul au registre + snapshot) ; rien à faire côté interface.
+
+Prochaine commande recommandée : revue humaine de la PR LOT-A3, puis
+`EXÉCUTE A4` (Opportunités, Analyse — planches §3, §4).
+
+## SESSION 2026-09-03 — LOT-A4 : Opportunités et Analyse composées sur leurs planches (§3, §4)
+
+Consigne utilisateur : « continue toutes les autres pages » — même motif que
+LOT-A3, page par page. Branche `lot/a4-opportunites-analyse-20260903`
+EMPILÉE sur `lot/a3-aujourdhui-marches-20260902` (`c56d59a`) : `main` n'a
+pas encore `Metric`, `moduleState`, `Sparkline` ni les grilles ; la PR a pour
+base la branche A3 et sera reciblée sur `main` après la fusion humaine de
+#26 (merge de `main` dans la branche, jamais de rebase). Aucune fusion par
+Claude.
+
+### Ce qui est livré
+
+- **Opportunités** : la planche §3 en entier — quatorze modules. Huit SERVIS
+  par le seul snapshot `opportunities/global` : le classement en dominante
+  (les deux groupes, jamais mélangés, filtre LOCAL par statut publié,
+  bouton « Inspecter » par ligne), candidats évalués, répartition des
+  directions et statuts sur l'univers (barres de dénombrement), profil,
+  raisons d'exclusion, provenance des catalyseurs, limites. Six ABSENTS avec
+  motif mesuré : score moyen, biais global, rendement attendu, nuage
+  score/rendement, contribution des facteurs (le moteur ne publie AUCUN
+  score — son ordre est lexicographique et le dit : « aucun score opaque »),
+  activité récente (`CONTRAT SERVEUR ABSENT` : un seul snapshot relayé).
+  Inspecteur : le candidat ouvert (admission, exclusion publiée, gates,
+  preuves requises présentes/absentes, lien vers le dossier), sinon la
+  vérité du snapshot.
+- **Analyse** : la planche §4 en entier — dix-neuf modules. Onze SERVIS :
+  en-tête instrument (clôture publiée du dossier, variation 1 j du snapshot
+  Marchés, mini-série des clôtures et volumes), identité (secteur, devise,
+  population ; industrie, capitalisation, bêta DITS « non publié »),
+  chandeliers en dominante (cadre allégé : verdict, evidence et scénarios
+  en sortent pour leurs propres cartes), indicateurs (+ force relative
+  publiée par `market.relative_strength`), **faits officiels SEC** — premier
+  relais client de la route déjà typée `GET
+  /api/v1/sources/sec/{instrument}/fundamentals`, verbatim, seul le domaine
+  officiel devient un lien, aucun ratio —, verdict, scénarios, catalyseurs de
+  l'instrument (agenda publié filtré par ticker), risques déclarés, pairs du
+  secteur, evidence. Huit ABSENTS : oscillateurs, régime, qualité
+  fondamentale, valorisation, confiance du modèle, révisions d'analystes
+  (`AUCUNE SOURCE`), niveaux, contradictions (`CONTRAT SERVEUR ABSENT`).
+  Inspecteur : le dossier ouvert (version, instant, âge, population,
+  référence, couverture, fraîcheur, thèse et invalidation « non publiées »,
+  limites) ; l'explication IA reste le second panneau.
+- **Primitives partagées** extraites pour les lots suivants : `ModuleStatus`,
+  `AgendaLine` (+ `readableEventTime`), `CensusBars` (barres horizontales de
+  COMPTES entiers — le remplacement de tous les donuts des planches ; aucun
+  pourcentage écrit, il n'est pas publié), `SnapshotFacts`, et la classe de
+  composition `.vx-board` (grille par zones, panneaux du même matériau).
+- `OhlcvTable` et `IndicatorsPanel` vivent dans leurs fichiers et restent
+  ré-exportés depuis `AnalysisPage.tsx` : la page Graphiques (PR #25) les
+  importe d'ici.
+- Relais SEC : `getSecFundamentals` (client), `useSecFundamentals` (hook,
+  clé `sec_fundamentals/<instrument>` ajoutée aux préfixes SSE, comme le
+  serveur le signale), `secView.ts` (lecture défensive).
+
+### Tests adaptés, jamais affaiblis
+
+- `AnalysisPage.test.tsx` : le cadre porte la référence d'observation —
+  assertion portée au cadre (l'inspecteur la relaie aussi) ; routes
+  `/calendar` et `/sources/sec` servies explicitement dans le double de
+  `fetch` (sinon elles recevaient un corps d'ANALYSE).
+- `OpportunitiesPage.test.tsx` et `opportunities.spec.ts` : les statuts sur
+  l'univers sont des barres de dénombrement, le compte publié reste vérifié
+  tel quel (`.vx-census-count`).
+- `AiExplanationPanel.test.tsx` : Analyse monte désormais deux panneaux ;
+  le test attend celui de l'EXPLICATION.
+
+### Ce qui a été vu SUR CAPTURE, pas par un test
+
+1. La grille d'Opportunités n'était pas une grille : la classe de composition
+   manquait, tout s'empilait sur une colonne. Les tests de composition ne
+   voient pas le CSS ; la capture, si. Corrigé, régénérée.
+2. Le libellé d'une barre de dénombrement (`INSUFFICIENT_DATA`) et la clé
+   d'une raison d'exclusion se coupaient lettre à lettre dans une cellule de
+   175 px à 1280 et 1440. Libellé sur sa ligne, barre et compte dessous ;
+   raisons d'exclusion sur deux colonnes, table à largeur de contenu qui
+   défile dans sa région. Deux passes de capture.
+
+### Mesuré sur cette machine (codes relus)
+
+- `tsc --noEmit` : 0 erreur ; `biome check src e2e` : 0 violation (188 fichiers).
+- `vitest run` : **50 fichiers, 598 tests, 0 échec** (551 sur A3 + 47) ;
+  portes de design rejouées après la passe CSS : 65 / 65.
+- Playwright (opportunities, analysis, shell-canonical, accessibility ;
+  1280/1440/1600) : **237 passés / 237 déclarés** (`--list`), `.last-run.json`
+  passed, code 0 — passe finale après les correctifs de capture ; passes
+  intermédiaires 45 / 45 puis 16 / 16 et 8 / 8 (Opportunités seule).
+- `tools/run_checks.sh` (racine, seul, après la fin des e2e) : toutes les
+  portes vertes dont la performance, Biome, ruff et mypy ; puis le seul rouge
+  déjà connu, `test_denylist.py::test_adapter_satisfies_the_port_protocol`
+  sur Python 3.11 — pas ce lot, aucun fichier Python touché, établi dans la
+  PR #25.
+
+### Transmis, non corrigé ici
+
+- PR empilée : après la fusion de #26, recibler la PR A4 sur `main` (merge de
+  `main` dans la branche). `NOW.md` et `REFONTE_TITANIUM_LEDGER.md` sont
+  modifiés en fin de fichier par #25, #26 et ce lot : garder toutes les
+  sections.
+- Aucun snapshot SEC n'est semé par le pipeline synthétique : le module
+  « Faits officiels » y montre son état vide honnête ; le cas servi est
+  couvert par les tests unitaires (fixture SYNTHÉTIQUE).
+- La table des exclus et la grille de scénarios défilent en largeur dans leur
+  cellule : lisible, pas élégant.
+
+Prochaine commande recommandée : revue humaine de la PR LOT-A4, puis
+`EXÉCUTE A5` (Options, Simulateur — planches §5, §6).
+
+## SESSION 2026-09-03 — LOT-A5 : Options et Simulateur composés sur leurs planches (§5, §6)
+
+Consigne utilisateur : « Continue » après LOT-A4 — lot suivant du plan
+A4→A8 accepté. Branche `lot/a5-options-simulateur-20260903` EMPILÉE sur
+`lot/a4-opportunites-analyse-20260903` (`7a03081`) ; base de PR = branche
+A4, à recibler après chaque fusion humaine. Aucune fusion par Claude.
+
+### Ce qui est livré
+
+- **Options** : la planche §5 en entier — quinze modules. Neuf SERVIS : le
+  sous-jacent (widget de Marchés : clôture, variation 1 j, mini-série), la
+  série du dossier d'analyse, le snapshot de chaîne (références, version,
+  âge, couverture, budget de lignes, population), le spot observé, le taux
+  et le dividende SUPPOSÉS par le calcul d'IV (hypothèses publiées, jamais
+  un dividende observé), le **sourire d'IV** du groupe affiché et la
+  **structure par échéance** en petits multiples — géométrie des IV
+  THÉORIQUES publiées par contrat, calls pleins et puts cerclés, aucun point
+  de référence choisi (choisir un strike ATM serait une décision de
+  calcul) —, la chaîne en dominante (groupes jamais fusionnés, inchangée).
+  Six ABSENTS : mouvement attendu et IV de référence (`CONTRAT SERVEUR
+  ABSENT` : dérivables, non publiés), rang d'IV et métriques de stratégie
+  (`AUCUNE SOURCE`), composeur et profil de payoff (`DÉCISION EN ATTENTE` :
+  ils vivent sur Simulateur, joints par l'unique action de l'inspecteur —
+  pas une seconde saisie). Inspecteur par défaut « Chaîne publiée » ; le
+  contrat ouvert (LOT-13) le remplace, Échap y revient.
+- **Simulateur** : la planche §6 en entier — quatorze modules. Neuf SERVIS :
+  structure et hypothèses déclarées (composeur scindé en deux cartes,
+  libellés intacts), payoff en dominante APRÈS calcul seulement (à vide,
+  aucune dominante : la lumière n'est donnée qu'à un résultat réellement
+  calculé), résultats certifiés (gain et perte max sur la grille, breakevens,
+  risque défini), **grille de scénarios** rendue (spot × temps, chaînes
+  verbatim — publiée par le serveur, jamais montrée jusqu'ici), écho des
+  hypothèses, méthode (lignée des calculs, nature, avertissements),
+  catalyseurs du sous-jacent transféré (aucune requête sans sous-jacent
+  déclaré), sources et provenance. Cinq ABSENTS : Monte-Carlo, probabilité
+  de profit, chocs (`AUCUNE SOURCE` : rien de probabiliste n'est publié),
+  sensibilités et impact portefeuille (`CONTRAT SERVEUR ABSENT`).
+  Inspecteur « Étude » : contrat, bornes, origine, puis nature, risque
+  défini, avertissements.
+- Primitive : `components/options/IvSmile.tsx` (+ `ivSmileSeriesOf`, testée
+  sans DOM).
+
+### Tests adaptés, jamais affaiblis
+
+- `OptionsPage.test.tsx` : routes `/analysis/` et `/calendar` servies dans
+  le double de `fetch` (sinon un corps de CHAÎNE arrivait au widget du
+  sous-jacent). Ce cas a révélé que `barsViewOf` tombait sur un `bars`
+  `undefined` : garde ajoutée, absent = absent.
+- `SimulatorPage.test.tsx` et `simulator.spec.ts` : le résultat est réparti
+  en modules ; les mêmes chaînes serveur sont assérées à leur nouvelle place
+  (`sim-kpi`, `sim-echo`, `sim-method`) ; la dominante garde `sim-result`.
+- `no-fabricated-values.test.ts` : le libellé exempté du champ de
+  volatilité suit son fichier (`SimComposer.tsx`), même texte, même motif.
+
+### Ce qui a été vu SUR CAPTURE, pas par un test
+
+1. Rien à corriger sur les six captures (Options et Simulateur à 1280, 1440
+   et 1600) : les deux grilles sont composées, chaque cellule porte son
+   module, la chaîne et la grille de scénarios défilent dans leur cellule,
+   le sourire d'IV et les petits multiples se lisent avec leurs bornes en
+   texte. Première fois depuis A3 qu'une relecture de capture ne déclenche
+   aucune passe CSS.
+2. Vu par un test, pas par une capture : le locateur e2e `getByLabel('Sens')`
+   trouvait aussi la région « Sensibilités » (module absent, `aria-labelledby`)
+   — un nom de module partageait le préfixe d'un libellé de champ. Locateur
+   resserré sur le rôle `combobox` au nom exact ; aucun libellé changé.
+3. Le worker de la session a redémarré pendant la première passe e2e
+   (PostgreSQL à relancer) ; toutes les passes citées ci-dessous ont été
+   rejouées entièrement après ce redémarrage.
+
+### Mesuré sur cette machine (codes relus)
+
+- `tsc --noEmit` : 0 erreur ; `biome check src e2e` : 0 violation (202 fichiers).
+- `vitest run` : **55 fichiers, 622 tests, 0 échec** (598 sur A4 + 24) ;
+  portes de design incluses (`one-dominant-per-page`, `no-fabricated-values`,
+  `no-raw-colors`, `no-authoritative-calculation`).
+- Playwright (options, simulator, shell-canonical, accessibility ;
+  1280/1440/1600) : **231 passés / 231 déclarés** (`--list`), code 0, 2,9 min —
+  passe finale ; passes intermédiaires 228 / 231 (les trois rouges = le seul
+  locateur du point 2) puis 18 / 18 (Simulateur seul, après correction).
+- `tools/run_checks.sh` (racine, seul, après la fin des e2e) : toutes les
+  portes vertes — rôle du dépôt, blueprint, frontière financière, registre
+  des calculs, secrets, policy, traçabilité (entrée `NOT_YET_PROVEN` connue,
+  hors lot), notices, uv.lock, compilation, Worker Cloudflare, Biome,
+  performance, ruff et mypy ; puis le seul rouge déjà connu,
+  `test_denylist.py::test_adapter_satisfies_the_port_protocol` sur Python
+  3.11 — pas ce lot, aucun fichier Python touché, établi dans la PR #25.
+  Code de sortie 1 pour cette seule raison.
+
+### Transmis, non corrigé ici
+
+- PR empilée : après la fusion de #27, recibler la PR A5 sur `main` (merge de
+  `main` dans la branche, jamais de rebase). `NOW.md` et
+  `REFONTE_TITANIUM_LEDGER.md` sont modifiés en fin de fichier par #25, #26,
+  #27 et ce lot : garder toutes les sections.
+- Mouvement attendu et IV de référence sont dérivables d'une IV ATM et d'une
+  maturité : c'est un contrat serveur à écrire dans `vertex_core`, jamais une
+  géométrie TypeScript. Tant qu'il n'existe pas, les deux modules restent
+  déclarés absents.
+- La chaîne d'options et la grille de scénarios défilent en largeur dans leur
+  cellule : lisible, pas élégant.
+
+Prochaine commande recommandée : revue humaine de la PR LOT-A5, puis
+`EXÉCUTE A6` (Portefeuille, Risques — planches §7, §9).
+
+## SESSION 2026-09-03 — LOT-A6 : Portefeuille et Risques composés sur leurs planches (§7, §9)
+
+Consigne utilisateur : « Continue tout » après LOT-A5 — enchaîner A6, A7
+puis A8 sans attendre entre les lots, une PR brouillon par lot, aucune
+fusion. Branche `lot/a6-portefeuille-risques-20260903` EMPILÉE sur
+`lot/a5-options-simulateur-20260903` (`d56360f`) ; base de PR = branche A5,
+à recibler après chaque fusion humaine. Aucune fusion par Claude.
+
+### Ce qui est livré
+
+- **Portefeuille** : la planche §7 en entier — dix-huit modules. Dix SERVIS :
+  la valorisation publiée (carte, badge de marques, `as_of`, méthode,
+  moteur, espèces dites absentes à leur place), la performance totale (TWR
+  et XIRR brut/net du snapshot de performance), le module Performance entier
+  (absorbé au LOT-08, corps inchangé, matériau de carte par la grille), la
+  **concentration par ticker en DOMINANTE** — elle répond à la question de
+  la page (`REFONTE_TITANIUM_LEDGER.md` §4) —, l'exposition par devise
+  (valeur totale marquée par devise, verbatim, aucune conversion), les lots
+  valorisés et exclus (bouton « Détail » par lot), les **dividendes déclarés
+  au journal** (kind `DIVIDEND` : lignes listées, montants verbatim, jamais
+  sommés — la planche les mettait en widget ; le journal les publie déjà),
+  le journal, la déclaration d'un fait passé et l'import CSV (sections
+  conservées telles quelles dans leurs cellules). Huit ABSENTS : performance
+  du jour, benchmark, exposition par pays, attribution (`AUCUNE SOURCE`),
+  espèces, allocation, exposition par secteur (`CONTRAT SERVEUR ABSENT` —
+  le secteur existe par ticker dans Marchés, pas par lot ; sommer des poids
+  par secteur ici serait un calcul de concentration hors de son
+  propriétaire), alertes de concentration (`DÉCISION EN ATTENTE` : aucun
+  seuil déclaré). Inspecteur « Valorisation publiée » par défaut ; le lot
+  ouvert le remplace (provenance manuelle, poids publié, faits du journal
+  et corrections, catalyseurs publiés du ticker, lien Analyse).
+- **Risques** : la planche §9 en entier — dix-neuf modules. Sept SERVIS : la
+  matrice de corrélation en DOMINANTE (en-têtes de ligne devenus boutons
+  d'inspection, `aria-pressed`), les paires extrêmes et l'avertissement de
+  synchronicité, la couverture (périmètre déclaré et retenu, séances,
+  fenêtre, seuils, unité, retour en arrière — champs publiés jusqu'ici non
+  lus), le coût de l'alignement (séances perdues et séances par instrument),
+  les instruments écartés (et enregistrements rejetés), puis la
+  **concentration du registre** (poids et Herfindahl de la valorisation,
+  barres sans table) et le **drawdown** (snapshot de performance), lus par
+  les hooks des pages propriétaires — vues pures importées, jamais les
+  pages. Douze ABSENTS : score de risque, VaR, risque relatif, liquidité,
+  chocs, facteurs, budget de risque, radar, journal d'alertes (`AUCUNE
+  SOURCE`), volatilité, rotation, registre des risques (`CONTRAT SERVEUR
+  ABSENT` — `PAGE_ARBITRATION.md` : aucune source ne publie sévérité ni
+  horizon par risque). Aucun score global : le contrat l'interdit. En
+  `empty`, la planche reste composée et la dominante porte l'aveu.
+  Inspecteur « Matrice publiée » par défaut ; l'instrument ouvert le
+  remplace (coefficients avec chacun et bande publiée, séances, motif d'écart).
+- Primitives : `ConcentrationBars` (corps réutilisable des barres de poids),
+  `riskView.ts` étendu au contrat déjà publié (population, état des données,
+  moteur, schéma, unité, périmètre, rejetés, séances par instrument,
+  observations, retour en arrière).
+
+### Tests adaptés, jamais affaiblis
+
+- `PortfolioPage.test.tsx` : inchangé — tous les `pf-*`, la table des lots,
+  la section des exclus, les barres, le journal, les 422/409 verbatim
+  passent sur la page recomposée. Le cas « valorisation vide » exigeait une
+  seule occurrence de la raison serveur : elle n'est écrite qu'une fois
+  (module « Valorisation publiée »), les autres modules renvoient vers elle.
+- `RiskPage.test.tsx` : inchangé — ses seize cas exigent notamment
+  `queryByRole('table')` nul en refus et hors ligne, une seule `note`, une
+  seule occurrence de la conclusion et de « Aucun instantané publié » :
+  la concentration du registre est rendue en barres (aucune table sur
+  Risques hors la matrice), la conclusion n'est pas répétée dans
+  l'inspecteur, les modules non servis disent « Matrice non publiée ».
+- `shell-canonical.spec.ts` : témoin de dominante `/portfolio` →
+  `.vx-pf-concentration` (le résumé n'est plus la dominante).
+- Nouveaux : `portfolioModules.test.ts`, `riskModules.test.ts`,
+  `PortfolioComposition.test.tsx`, `RiskComposition.test.tsx`,
+  `e2e/risk.spec.ts` (première spec e2e de Risques : composition, matrice
+  = API, inspecteur au clavier, axe, capture, hors ligne), test de
+  composition dans `e2e/portfolio.spec.ts`.
+
+### Ce qui a été vu SUR CAPTURE, pas par un test
+
+1. Portefeuille à 1280 : le module Performance (courbe, métriques, heatmap,
+   points, export, conventions) occupait trois colonnes sur deux rangées ;
+   ses voisins « Benchmark » et « Exposition par devise » s'étiraient en
+   cartes vides de plusieurs écrans. Performance prend désormais une rangée
+   entière ; la valorisation ne s'étire plus sur deux rangées, les absents
+   de la première ligne se rangent sur la seconde. Deux passes de capture.
+2. Risques à 1280 : la matrice sur deux rangées se vidait sous sa légende.
+   Une rangée, les paires extrêmes à sa droite, la couverture (la plus
+   haute) sur deux rangées en bas. À 1600, le module des écartés s'étirait
+   seul sur deux rangées : le registre des risques prend sa place.
+3. Vu par un test, pas par une capture : `AiExplanationPanel.test.tsx`
+   attendait « le » titre `Inspecteur…` sur `/portfolio` ; la page en monte
+   désormais deux (explication IA, valorisation publiée). Locateur nommé
+   exactement (`Inspecteur — explication`), comme déjà fait pour Analyse au
+   LOT-A4. Aucune assertion retirée.
+
+### Mesuré sur cette machine (codes relus)
+
+- `tsc --noEmit` : 0 erreur ; `biome check src e2e` : 0 erreur (213 fichiers,
+  une information préexistante sur `OptionsModules.tsx`, hors lot).
+- `vitest run` : **59 fichiers, 647 tests, 0 échec** (622 sur A5 + 25) ;
+  portes de design incluses.
+- Playwright (portfolio, portfolio-performance, risk, shell-canonical,
+  accessibility ; 1280/1440/1600) : **252 passés / 252 déclarés** (`--list`),
+  code 0, 4,0 min — première passe, avant la correction des grilles ; puis
+  portfolio + risk rejoués deux fois après chaque passe CSS : 39 / 39 et
+  39 / 39, et Risques seul à 1600 après la dernière retouche : 5 / 5.
+- `tools/run_checks.sh` (racine, seul, après la fin des e2e) : toutes les
+  portes vertes — rôle du dépôt, blueprint, frontière financière, registre
+  des calculs, secrets, policy, traçabilité (entrée `NOT_YET_PROVEN` connue,
+  hors lot), notices, uv.lock, compilation, Worker Cloudflare, Biome,
+  performance, ruff et mypy ; puis le seul rouge déjà connu,
+  `test_denylist.py::test_adapter_satisfies_the_port_protocol` sur Python
+  3.11 — pas ce lot, aucun fichier Python touché, établi dans la PR #25.
+  Code de sortie 1 pour cette seule raison.
+
+### Transmis, non corrigé ici
+
+- Ordre utilisateur reçu en fin de lot : « pousse tout, fusionne tout et
+  continue » — la chaîne #25 → #26 → #27 → #28 → A6 est fusionnée en squash
+  dans cet ordre, chaque PR empilée reciblée sur `main` avant sa fusion ;
+  A7 et A8 partent ensuite de `main`.
+- Portefeuille reste la page la plus haute des douze : le module Performance
+  garde son corps entier (courbe, métriques, heatmap, points, export,
+  conventions) dans une rangée pleine ; le rendre plus compact serait un
+  autre lot, pas une composition.
+- La valeur exacte de l'indice de Herfindahl (jusqu'à vingt-huit décimales)
+  se replie sur deux lignes dans le module Risques : chaîne serveur
+  verbatim, jamais arrondie.
+- La matrice n'est pas rafraîchie pendant une session e2e
+  (`run_worker.py` sans `risk_config`) : `risk.spec.ts` lit la matrice semée.
+
+Prochaine commande recommandée : fusion de la chaîne A2 → A6 (ordre reçu),
+puis `EXÉCUTE A7` (Catalyseurs, Calendrier — planches §10, §11) depuis `main`.
+
+## SESSION 2026-09-03 — LOT-A7 : Catalyseurs et Calendrier composés sur leurs planches (§10, §11)
+
+Consigne utilisateur : « pousse tout, fusionne tout et continue » — la
+chaîne A2 → A6 est fusionnée en squash pendant ce lot (chaque PR empilée
+reciblée sur `main`, CI verte exigée par la protection de branche) ; A7
+part de la tête d'A6 et sera réaligné sur `main` (merge, jamais de rebase)
+avant sa fusion. Branche `lot/a7-catalyseurs-calendrier-20260903`.
+
+### Ce qui est livré
+
+- **Catalyseurs** : la planche §10 en entier — dix-sept modules. Onze SERVIS :
+  les événements reliés (reliés, non reliés, thèses orphelines — comptes du
+  croisement publié), les révisions (drapeau et détail, deux champs
+  distincts), les **filtres locaux** (catégorie et nature du lien, chips
+  `aria-pressed` : un filtre masque, il ne reclasse pas), la **chronologie
+  en DOMINANTE** (corps LOT-10 inchangé, `cat-unlinked` et `cat-missing-widget`
+  conservés), la répartition par catégorie et les sources/fraîcheur en
+  barres de dénombrement, l'exposition du registre aux événements (positions
+  déclarées nommées par le contexte croisé), la fenêtre et les deux
+  snapshots (`cat-populations` y vit désormais), les conflits de version, les
+  thèses sans catalyseur servi (section LOT-10 devenue module), la revue des
+  thèses (module LOT-10 entier, inchangé, matériau de carte par la grille).
+  Six ABSENTS : impact moyen, confiance, surprises, historique des surprises,
+  consensus (`AUCUNE SOURCE` — l'importance servie est un rang et un code
+  de règle, jamais une mesure pondérable), alertes d'événement (`CONTRAT
+  SERVEUR ABSENT`). Aucun inspecteur par défaut : le témoin « aucune colonne
+  morte » du shell (`shell-canonical.spec.ts:544`) l'exige, et l'inspecteur
+  LOT-10 s'ouvre depuis la chronologie.
+- **Calendrier** : la planche §11 en entier — treize modules. Onze SERVIS :
+  la fenêtre et les filtres (libellés intacts, URL inchangée), le **fuseau
+  d'affichage** (param `tz` : UTC, fuseau du navigateur s'il est résolu,
+  fuseaux de place publiés par les événements servis — conversion IANA
+  explicite, jamais devinée ; la troisième lecture du temps de chaque
+  événement le suit), l'**agenda en DOMINANTE** (région bornée LOT-V3
+  conservée, bouton « Inspecter » par événement), l'exposition du registre
+  par jour et la densité (dénombrements par journée UTC), le prochain
+  événement (premier de l'ordre publié, SANS compte à rebours), les
+  compteurs, la règle d'importance, la provenance, les révisions et les
+  conflits. Deux ABSENTS : rappels, changements depuis la dernière visite
+  (`CONTRAT SERVEUR ABSENT`). `BlockedAgenda` (droit manquant, refus)
+  reste l'état de la dominante ; les autres modules disent l'absence.
+  Inspecteur « Snapshot publié » par défaut ; l'événement ouvert le
+  remplace (statut, importance, trois lectures du temps, fraîcheur, source
+  et droits, instruments, positions déclarées, thèses, versions et
+  révisions ; les « chiffres » de la planche — actuel, consensus, précédent,
+  surprise — sont dits non publiés).
+- Extraction : `CalendarModules.tsx` (`BlockedAgenda`, `ImportanceRuleModule`,
+  `CountersModule`, `ProvenanceModule`, `applyFilters` sortis de la page, +
+  fuseau, densité, exposition, prochain événement, révisions, conflits),
+  `EventInspector.tsx`, `CatalystsModules.tsx`, catalogues et tests.
+
+### Tests adaptés, jamais affaiblis
+
+- `CatalystsPage.test.tsx` (20) et `ReviewQueueSection.test.tsx` (14) :
+  inchangés. Deux collisions de texte réglées côté page : la raison serveur
+  n'est écrite qu'une fois (dans la dominante) ; le libellé de métrique
+  « Révisions refusées » devenait une fausse alerte pour
+  `queryByText(/refusée/)` — renommé « Révisions rejetées ».
+- `CalendarPage.test.tsx` (23) : inchangé — tous les `cal-*`, les deux
+  libellés de statut strictement distincts, les compteurs liste/snapshot,
+  la fenêtre refusée, l'agenda bloqué passent sur la page recomposée.
+- `shell-canonical.spec.ts` : témoins `/catalysts` (`.vx-fu-queue`,
+  `cat-unlinked`, inspecteur masqué) et `/calendar` (`.vx-cal-agenda`)
+  inchangés.
+- Nouveaux : `catalystsModules.test.ts`, `calendarModules.test.ts`,
+  `CatalystsComposition.test.tsx`, `CalendarComposition.test.tsx`, tests de
+  composition dans `e2e/catalysts.spec.ts` et `e2e/calendar.spec.ts`.
+
+### Ce qui a été vu SUR CAPTURE, pas par un test
+
+1. Calendrier à 1280 et 1440 : les compteurs (deux colonnes) s'étiraient
+   sur la hauteur de l'agenda ; la densité et l'exposition par jour, hautes,
+   étiraient leurs voisines. Grille rebalancée : conflits à droite de
+   l'agenda, exposition · densité · compteurs sur une rangée, révisions ·
+   rappels · changements · provenance sur la suivante, la règle d'importance
+   sur trois colonnes en bas. Deux passes de capture.
+2. Calendrier à 1440 : la table des compteurs et celle de la règle
+   d'importance gardaient `min-width: max-content` (héritage de la page
+   pleine largeur) : légende coupée en plein mot, troisième colonne cachée
+   derrière un défilement horizontal. Dans la planche, les deux tables
+   tiennent la largeur de leur carte et replient leurs cellules. Recapture
+   relue après correction.
+3. Vu par axe, pas par une capture : `AgendaLine` (un `<li>`) rendue dans un
+   `<li>` du module « Prochain événement » — violation `listitem`. Corrigé
+   par une liste imbriquée.
+4. Vu par un test, pas par une capture : les comptages hors ligne de
+   `catalysts.spec.ts` et `calendar.spec.ts` lisent `[data-state="offline"]`
+   sur la frontière de page ; `ModuleStatus` posait le même attribut sur
+   chaque module. Les absences par module sont désormais des phrases
+   (`MODULE_STATE_LABELS`), sans attribut concurrent.
+
+### Mesuré sur cette machine (codes relus)
+
+- `tsc --noEmit` : 0 erreur ; `biome check src e2e` : 0 erreur.
+- `vitest run` : **63 fichiers, 670 tests, 0 échec** (647 sur A6 + 23) ;
+  portes de design incluses.
+- Playwright (catalysts, calendar, shell-canonical, accessibility ;
+  1280/1440/1600) : première passe **243 passés, 12 échoués sur 255**
+  (`listitem`, `data-state` par module, deux textes en double) — tous
+  corrigés côté page, aucune assertion retirée ; puis catalysts + calendar
+  rejoués après chaque passe : **63 / 63** et **63 / 63**, code 0 ; enfin
+  calendar seul après le repli des tables, puis après la levée de la borne
+  de hauteur des compteurs : **33 / 33** et **33 / 33**, code 0.
+- `tools/run_checks.sh` (racine, seul, après la fin des e2e) : toutes les
+  portes vertes (rôle, blueprint, frontière, registre, secrets, policy,
+  traçabilité — entrée `NOT_YET_PROVEN` connue, hors lot —, notices,
+  uv.lock, compilation, Worker, Biome, performance, ruff, mypy) ;
+  seul rouge connu `test_denylist.py::test_adapter_satisfies_the_port_protocol`
+  sur Python 3.11, hors lot, aucun fichier Python touché.
+
+### Transmis, non corrigé ici
+
+- La chaîne #25 → #26 → #27 → #28 → #29 est fusionnée en squash pendant ce
+  lot ; A7 est réaligné sur `main` par merge avant sa propre fusion.
+- `/catalysts` n'a pas d'inspecteur par défaut (témoin du shell) : la vérité
+  du snapshot vit dans le module « Fenêtre et snapshots ». Décision
+  documentée, pas un oubli.
+- Le fuseau du navigateur n'est proposé que s'il est résolu par
+  `Intl.DateTimeFormat` ; sous Playwright il l'est (« UTC (navigateur) »).
+
+Prochaine commande recommandée : `EXÉCUTE A8` (Sources & Rapports — planche
+§12) depuis la tête d'A7, puis fusion de la chaîne.
+
+## SESSION 2026-09-03 — LOT-A8 : Sources & Rapports composée sur sa planche (§12)
+
+Dernier lot de la vague A (« Continue tout »). Branche
+`lot/a8-sources-rapports-20260903`, partie de la tête d'A7 ; réalignée sur
+`main` par merge (jamais de rebase) après la fusion de la chaîne.
+
+### Ce qui est livré
+
+- La planche §12 en entier — dix-sept modules. Huit SERVIS : les statuts
+  testés (dénombrement par statut sondé, jamais une disponibilité
+  supposée), la fraîcheur (âges publiés des snapshots attention et
+  capacités, dernier snapshot du worker), la dernière vérification
+  (`checked_at`, `as_of`, âge publié), les versions et le flux SSE, le
+  **registre des sources en DOMINANTE** — la matrice LOT-01 inchangée (six
+  en-têtes, filtres persistés dans l'URL, région défilante focusable) sur
+  une rangée entière, un bouton « Détail » par capacité —, les exports
+  réellement servis par l'API (journal du registre, points de performance,
+  manifeste d'audit — trois routes, aucun rapport généré), la santé des
+  composants (section LOT-01 conservée, matériau de carte par la grille),
+  les sondes hors manifeste. Neuf ABSENTS : santé globale (`AUCUNE
+  SOURCE` — un pourcentage calculé sur des sondes partielles serait un faux
+  vert), couverture des champs, taux d'erreur, qualité des champs (`AUCUNE
+  SOURCE`), incidents, lignée, journal d'audit, rapports, sauvegardes
+  (`CONTRAT SERVEUR ABSENT`). Rien de simulé.
+- Inspecteur de capacité sur sélection SEULEMENT (identifiant, famille,
+  mode déclaré, description du manifeste — publiée mais jamais affichée
+  dans la matrice —, statut, raison, instant de sonde ; champs, licence et
+  historique dits non publiés) : le témoin « aucune colonne morte » du
+  shell lit `/sources-reports` sans sélection, l'inspecteur y reste masqué.
+- Extraction : `pages/sources/{sourcesModules.ts, SourcesModules.tsx,
+  CapabilityInspector.tsx}` ; `SourceHealthMatrix.tsx` perd son
+  `data-rank` (le seul littéral vit dans la page) et gagne `selected` /
+  `onInspect` ; `HealthPanel` sort de la page vers les modules.
+
+### Tests adaptés, jamais affaiblis
+
+- `SourceHealthMatrix.test.tsx` (6) et `SourcesReportsPage.test.tsx` :
+  inchangés — rôles, légende, six en-têtes exacts, `AbsentCell role="img"`.
+- `shell-canonical.spec.ts` : témoin `/sources-reports` (`.vx-health`
+  visible, `#vx-inspector-slot` masqué) inchangé.
+- `sources-reports.spec.ts` : capture renommée `sources-reports`
+  (héritage `system`), test de composition ajouté ; le libellé de la barre
+  de dénombrement (« Capacités par statut testé ») entrait en collision
+  avec `getByLabel('Statut testé')` du filtre — renommé « Dénombrement par
+  statut sondé » côté page, locateur intact.
+- Nouveaux : `sourcesModules.test.ts`, `SourcesComposition.test.tsx`.
+
+### Ce qui a été vu SUR CAPTURE, pas par un test
+
+1. À 1440, le registre sur trois colonnes ne montrait que quatre de ses six
+   colonnes (défilement horizontal) ; un premier repli des cellules coupait
+   `market_data` et `INFORMATION_ONLY` lettre à lettre. Le registre prend
+   une rangée entière ; seule la colonne « Raison » replie (plancher de
+   largeur, coupure aux soulignés), l'identifiant, le statut et l'instant
+   restent d'un tenant ; marge des cellules resserrée. Quatre passes de
+   capture. À 1280, la dernière colonne reste derrière un court défilement
+   dans sa région focusable — six colonnes ne tiennent pas en 1 000 px.
+2. Les routes d'export replient dans leur carte au lieu de déborder.
+3. La santé des composants prend une rangée entière : ses cinq faits sur
+   une ligne au lieu d'une grille creuse.
+
+### Mesuré sur cette machine (codes relus)
+
+- `tsc --noEmit` : 0 erreur ; `biome check` (fichiers du lot) : 0 erreur.
+- `vitest run` : **65 fichiers, 681 tests, 0 échec** (670 sur A7 + 11) ;
+  portes de design incluses.
+- Playwright (sources-reports, shell-canonical, accessibility ;
+  1280/1440/1600) : première passe **201 passés, 3 échoués sur 204**
+  (collision de libellé `Statut testé` entre la barre de dénombrement et le
+  filtre — corrigée côté page) ; sources-reports rejoué après chaque passe
+  CSS : **12 / 12** cinq fois, code 0.
+- `tools/run_checks.sh` (racine, seul, après la fin des e2e) : toutes les
+  portes vertes (rôle, blueprint, frontière, registre, secrets, policy,
+  traçabilité — entrée `NOT_YET_PROVEN` connue, hors lot —, notices,
+  uv.lock, compilation, Worker, Biome, performance, ruff, mypy) ; seul
+  rouge connu `test_denylist.py::test_adapter_satisfies_the_port_protocol`
+  sur Python 3.11, hors lot, aucun fichier Python touché. Code de sortie 1
+  pour cette seule raison.
+
+### Transmis, non corrigé ici
+
+- Ordre utilisateur : la chaîne #28 → #29 → #30 → #31 est fusionnée en
+  squash dans cet ordre, chaque PR réalignée sur `main` par merge avant
+  sa fusion ; puis #23, #24 et #9 sont évaluées.
+- Graphiques (§8) n'est pas recomposée au motif A3 : composée au LOT-A2
+  (#25 fusionnée), sa retouche serait un lot à part.
+- À 1280, la sixième colonne du registre reste derrière un court
+  défilement horizontal dans sa région focusable.
+
+Prochaine commande recommandée : fusion de la chaîne #29 → #30 → #31, puis
+`STATUT`.

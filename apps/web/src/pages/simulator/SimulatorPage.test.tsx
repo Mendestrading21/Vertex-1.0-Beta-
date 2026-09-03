@@ -193,20 +193,26 @@ describe('Page Simulateur — parcours', () => {
     expect(breakevens.textContent).toContain('0.00');
     expect(breakevens.textContent).toContain('100.00');
     expect(breakevens.textContent).toContain('110.00');
-    // Gain/perte max sur la grille.
-    expect(scoped.getByText(/Gain max/)).toBeDefined();
-    expect(scoped.getAllByText('600.00').length).toBeGreaterThanOrEqual(1);
-    expect(scoped.getAllByText('-400.00').length).toBeGreaterThanOrEqual(1);
+    // LOT-A5 : la planche §6 répartit le résultat en modules ; les mêmes
+    // chaînes serveur sont assérées à leur nouvelle place.
+    // Gain/perte max sur la grille (résultats certifiés) + risque défini.
+    const kpi = within(screen.getByTestId('sim-kpi'));
+    expect(kpi.getByText(/Gain max/)).toBeDefined();
+    expect(kpi.getByText('600,00')).toBeDefined();
+    expect(kpi.getByText('-400,00')).toBeDefined();
+    expect(kpi.getByText(/BULL_CALL_DEBIT/)).toBeDefined();
     // Hypothèses écho (serveur) + avertissements verbatim.
-    expect(scoped.getByText('102.50')).toBeDefined();
-    expect(scoped.getByText(/THEORETICAL values from declared assumptions/)).toBeDefined();
-    // Vérification de risque défini relayée.
-    expect(scoped.getByText(/BULL_CALL_DEBIT/)).toBeDefined();
+    expect(within(screen.getByTestId('sim-echo')).getByText('102.50')).toBeDefined();
+    expect(
+      within(screen.getByTestId('sim-method')).getByText(/THEORETICAL values from declared assumptions/),
+    ).toBeDefined();
     // Le moteur substitué a reçu les points serveur (dominante montée).
     expect(setOption).toHaveBeenCalled();
-    // Table équivalente des points (chaînes exactes).
+    // Table équivalente des points (chaînes exactes) dans la dominante.
     const table = scoped.getByRole('table', { name: /Points de P&L/ });
     expect(within(table).getAllByRole('row')).toHaveLength(1 + 5);
+    expect(scoped.getAllByText('600.00').length).toBeGreaterThanOrEqual(1);
+    expect(scoped.getAllByText('-400.00').length).toBeGreaterThanOrEqual(1);
   });
 
   it('422 : raison EXACTE affichée (code + message serveur + explication française)', async () => {

@@ -15,6 +15,7 @@ import {
 import {
   buildStrikeRows,
   chainStateOf,
+  chainTransferBlockReasonOf,
   groupKeyOf,
   groupLabelOf,
   ivAbsentLabel,
@@ -110,6 +111,30 @@ describe('chainStateOf — dérivation depuis les statuts publiés', () => {
     expect(chainStateOf('refreshing', makeOptionChain())).toBe('refreshing');
   });
 
+  it('state=stale serveur reste stale, même pendant un refresh ou avec un contenu partiel', () => {
+    const stale = makeOptionChain({ state: 'stale' });
+    expect(chainStateOf('ready', stale)).toBe('stale');
+    expect(chainStateOf('refreshing', stale)).toBe('stale');
+
+    const staleAndDegraded = makeOptionChain({
+      state: 'stale',
+      expirations: [makeChainGroup({ quality: 'PARTIAL' })],
+    });
+    expect(chainStateOf('ready', staleAndDegraded)).toBe('stale');
+  });
+
+  it('population=DELAYED publiée reste delayed et prime sur refresh/partial', () => {
+    const delayed = makeOptionChain({ population: 'DELAYED' });
+    expect(chainStateOf('ready', delayed)).toBe('delayed');
+    expect(chainStateOf('refreshing', delayed)).toBe('delayed');
+
+    const delayedAndDegraded = makeOptionChain({
+      population: 'DELAYED',
+      expirations: [makeChainGroup({ quality: 'PARTIAL' })],
+    });
+    expect(chainStateOf('ready', delayedAndDegraded)).toBe('delayed');
+  });
+
   it('qualité de groupe dégradée OU troncature publiée → partial', () => {
     const degraded = makeOptionChain({
       expirations: [makeChainGroup({ quality: 'PARTIAL' })],
@@ -119,6 +144,89 @@ describe('chainStateOf — dérivation depuis les statuts publiés', () => {
       row_budget: { max_rows: 240, total_rows: 250, published_rows: 240, truncated_rows: 10 },
     });
     expect(chainStateOf('ready', truncated)).toBe('partial');
+  });
+});
+
+describe('chainTransferBlockReasonOf — transfert fail-closed', () => {
+  it('autorise ready uniquement avec population REAL ou SYNTHETIC et groupe VALID', () => {
+    expect(chainTransferBlockReasonOf('ready', makeOptionChain(), 'VALID', false)).toBeNull();
+    expect(
+      chainTransferBlockReasonOf(
+        'ready',
+        makeOptionChain({ population: 'REAL' }),
+        'VALID',
+        false,
+      ),
+    ).toBeNull();
+    expect(
+      chainTransferBlockReasonOf(
+        'ready',
+        makeOptionChain({ population: 'UNKNOWN_SOURCE' }),
+        'VALID',
+        false,
+      ),
+    ).toContain("n'est ni REAL ni SYNTHETIC");
+  });
+
+  it('bloque refreshing même avec une population autorisée et un groupe VALID', () => {
+    expect(chainTransferBlockReasonOf('refreshing', makeOptionChain(), 'VALID', true)).toContain(
+      'actualisation est en cours',
+    );
+  });
+
+  it('bloque stale et delayed même avec un groupe VALID', () => {
+    expect(
+      chainTransferBlockReasonOf(
+        'stale',
+        makeOptionChain({ state: 'stale', population: 'REAL' }),
+        'VALID',
+        false,
+      ),
+    ).toContain("snapshot d'options est périmé");
+    expect(
+      chainTransferBlockReasonOf(
+        'delayed',
+        makeOptionChain({ population: 'DELAYED' }),
+        'VALID',
+        false,
+      ),
+    ).toContain("population d'options est DELAYED");
+  });
+
+  it('autorise un groupe sélectionné VALID lorsque seul un autre groupe rend la chaîne partielle', () => {
+    const partial = makeOptionChain({
+      population: 'REAL',
+      expirations: [makeChainGroup(), makeChainGroup({ quality: 'PARTIAL' })],
+    });
+
+    expect(chainStateOf('ready', partial)).toBe('partial');
+    expect(chainTransferBlockReasonOf('partial', partial, 'VALID', false)).toBeNull();
+    expect(chainTransferBlockReasonOf('partial', partial, 'VALID', true)).toContain(
+      'actualisation est en cours',
+    );
+  });
+
+  it('autorise un contrat publié dans un groupe VALID malgré une troncature globale', () => {
+    const truncated = makeOptionChain({
+      population: 'SYNTHETIC',
+      row_budget: { max_rows: 240, total_rows: 250, published_rows: 240, truncated_rows: 10 },
+    });
+
+    expect(chainStateOf('ready', truncated)).toBe('partial');
+    expect(chainTransferBlockReasonOf('partial', truncated, 'VALID', false)).toBeNull();
+  });
+
+  it('bloque un groupe absent, inconnu ou non-VALID même dans une chaîne consultable', () => {
+    const chain = makeOptionChain({ population: 'REAL' });
+    expect(chainTransferBlockReasonOf('ready', chain, null, false)).toContain(
+      'aucun groupe publié et sélectionné',
+    );
+    expect(chainTransferBlockReasonOf('partial', chain, 'UNKNOWN', false)).toContain(
+      'qualité publiée du groupe sélectionné est UNKNOWN, pas VALID',
+    );
+    expect(chainTransferBlockReasonOf('partial', chain, 'PARTIAL', false)).toContain(
+      'qualité publiée du groupe sélectionné est PARTIAL, pas VALID',
+    );
   });
 });
 

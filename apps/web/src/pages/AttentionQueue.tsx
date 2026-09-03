@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 
 import type { AttentionItem } from '../api/client.ts';
 import { FreshnessBadge } from '../components/FreshnessBadge.tsx';
@@ -235,9 +236,17 @@ function SideSheet({ item, asOf, onClose }: SideSheetProps) {
 export interface AttentionQueueProps {
   readonly items: readonly AttentionItem[];
   readonly asOf: string | null;
+  /**
+   * LOT-A3 : ce que l'inspecteur montre TANT QU'AUCUN item n'est ouvert — la
+   * vérité du snapshot. La planche §1 garde l'inspecteur à droite en
+   * permanence ; sans sélection, il porte la provenance de la file plutôt
+   * qu'une colonne vide. Un seul panneau à la fois : le détail d'un item le
+   * remplace, `Échap` le restitue.
+   */
+  readonly fallbackInspector?: ReactNode;
 }
 
-export function AttentionQueue({ items, asOf }: AttentionQueueProps) {
+export function AttentionQueue({ items, asOf, fallbackInspector }: AttentionQueueProps) {
   const [openItemId, setOpenItemId] = useState<string | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
 
@@ -251,6 +260,19 @@ export function AttentionQueue({ items, asOf }: AttentionQueueProps) {
 
   return (
     <div className="vx-queue">
+      {/*
+        LOT-A3 — la file est BORNÉE : quinze items déroulés faisaient 1 800 px
+        de page, et la planche §1 compose neuf autres modules autour. Le
+        conteneur défile, il ne tronque pas : le nombre d'items servis reste
+        le nombre d'items présents. `tabIndex` dans le même geste que la borne
+        (axe `scrollable-region-focusable`, seuil zéro).
+      */}
+      <div
+        className="vx-queue-scroll"
+        tabIndex={0}
+        role="region"
+        aria-label="File d’attention, liste défilante"
+      >
       <ol className="vx-queue-list">
         {items.map((item) => {
           const firstPublishedAt = provString(item.provenance, 'first_published_at');
@@ -291,7 +313,12 @@ export function AttentionQueue({ items, asOf }: AttentionQueueProps) {
           );
         })}
       </ol>
-      {openItem !== null ? <SideSheet item={openItem} asOf={asOf} onClose={close} /> : null}
+      </div>
+      {openItem !== null ? (
+        <SideSheet item={openItem} asOf={asOf} onClose={close} />
+      ) : (
+        (fallbackInspector ?? null)
+      )}
     </div>
   );
 }

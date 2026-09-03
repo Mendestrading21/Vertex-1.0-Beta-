@@ -74,6 +74,7 @@ export interface OptionInspectorProps {
   readonly underlying: string;
   readonly spot: SpotView | null;
   readonly population: string | null;
+  readonly transferBlockReason: string | null;
   readonly onClose: () => void;
 }
 
@@ -82,9 +83,11 @@ export function OptionInspector({
   underlying,
   spot,
   population,
+  transferBlockReason,
   onClose,
 }: OptionInspectorProps) {
   const titleId = useId();
+  const transferNoteId = useId();
   const navigate = useNavigate();
   const [sheetNode, setSheetNode] = useState<HTMLDivElement | null>(null);
 
@@ -128,10 +131,24 @@ export function OptionInspector({
   const quote = quoteViewOf(contract);
   const iv = ivViewOf(contract);
   const greeks = greeksViewOf(contract);
-  const canTransfer = contract.right !== null && contract.strike !== null;
+  const quoteTransferBlockReason =
+    quote.status !== 'OK'
+      ? `Transfert bloqué : statut de quote ${quote.status ?? 'NON_PUBLIÉ'}. Seule une quote OK peut fournir une prime au Simulateur.`
+      : quote.ask === null
+        ? 'Transfert bloqué : ask non publié. Aucune prime ne sera suggérée au Simulateur.'
+        : null;
+  const effectiveTransferBlockReason = transferBlockReason ?? quoteTransferBlockReason;
+  const canTransfer =
+    contract.right !== null && contract.strike !== null && effectiveTransferBlockReason === null;
 
   function sendToSimulator(): void {
-    if (contract.right === null || contract.strike === null) {
+    if (
+      contract.right === null ||
+      contract.strike === null ||
+      effectiveTransferBlockReason !== null ||
+      quote.status !== 'OK' ||
+      quote.ask === null
+    ) {
       return;
     }
     const transfer: SimulatorTransfer = {
@@ -146,7 +163,7 @@ export function OptionInspector({
       multiplier: contract.multiplier,
       currency: contract.currency,
       premium: quote.ask,
-      premiumSide: quote.ask !== null ? 'ASK' : null,
+      premiumSide: 'ASK',
       spot: spot?.value ?? null,
       iv: iv.status === 'OK' ? iv.value : null,
       population,
@@ -373,12 +390,13 @@ export function OptionInspector({
           className="vx-primary-action"
           onClick={sendToSimulator}
           disabled={!canTransfer}
+          aria-describedby={transferNoteId}
         >
           Envoyer au Simulateur
         </button>
-        <p className="vx-inspector-note">
-          Transfert d'analyse théorique uniquement : le Simulateur prépare une étude, jamais une
-          transaction.
+        <p id={transferNoteId} className="vx-inspector-note" role="status">
+          {effectiveTransferBlockReason ??
+            "Transfert d'analyse théorique uniquement : le Simulateur prépare une étude, jamais une transaction."}
         </p>
       </div>
       </div>

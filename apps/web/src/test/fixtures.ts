@@ -18,6 +18,7 @@ import type {
   OptionChainResponse,
   CalendarResponse,
   OpportunitiesResponse,
+  SecFundamentalsResponse,
   SimulationPreviewResponse,
   SystemCapabilities,
   SystemHealth,
@@ -632,6 +633,94 @@ export function makeEmptyAnalysis(): AnalysisResponse {
     evidence: null,
     scenarios: null,
     advice: null,
+    coverage: null,
+    reason: 'no snapshot published',
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Faits SEC officiels — relais verbatim (LOT-A4)
+// ---------------------------------------------------------------------------
+
+/**
+ * Snapshot SEC SYNTHÉTIQUE : forme du contrat, valeurs fictives. L'accession,
+ * le CIK et l'URL suivent la grammaire EDGAR sans désigner un émetteur réel.
+ */
+export function makeSecFundamentals(
+  overrides: Partial<SecFundamentalsResponse> = {},
+): SecFundamentalsResponse {
+  return {
+    state: 'ok',
+    snapshot_version: 3,
+    as_of: SYNTHETIC_AS_OF,
+    age_seconds: 120,
+    population: 'SYNTHETIC',
+    instrument: 'SYN-TECH-01',
+    source: 'sec_edgar',
+    rights: 'R1_PUBLIC_FACT_SEC_EDGAR_POLICY_2026_08_28',
+    identity_state: 'RESOLVED',
+    cik: '0000000001',
+    entity_name: '[SYNTHETIC] Fictional Tech One Inc.',
+    data_as_of: SYNTHETIC_AS_OF,
+    filings: [
+      {
+        accession: '0000000001-26-000001',
+        form: '10-Q',
+        available_at: SYNTHETIC_AS_OF,
+        primary_document_url: 'https://www.sec.gov/Archives/edgar/data/1/000000000126000001/syn.htm',
+      },
+    ],
+    facts: [
+      {
+        taxonomy: 'us-gaap',
+        concept: 'Assets',
+        value: '110',
+        unit: 'USD',
+        period_end: '2026-06-30',
+        available_at: SYNTHETIC_AS_OF,
+        accession: '0000000001-26-000001',
+      },
+      {
+        taxonomy: 'us-gaap',
+        concept: 'Revenues',
+        value: '42',
+        unit: 'USD',
+        period_end: '2026-06-30',
+        available_at: SYNTHETIC_AS_OF,
+        accession: '0000000001-26-000001',
+      },
+    ],
+    conflicts: [],
+    coverage: {
+      observations_considered: 2,
+      published_filings: 1,
+      published_facts: 2,
+      truncated_facts: 0,
+      conflicting_fact_keys: 0,
+      corrections_observed: 0,
+    },
+    reason: null,
+    ...overrides,
+  };
+}
+
+export function makeEmptySecFundamentals(): SecFundamentalsResponse {
+  return {
+    state: 'empty',
+    snapshot_version: null,
+    as_of: null,
+    age_seconds: null,
+    population: null,
+    instrument: 'SYN-TECH-01',
+    source: null,
+    rights: null,
+    identity_state: null,
+    cik: null,
+    entity_name: null,
+    data_as_of: null,
+    filings: [],
+    facts: [],
+    conflicts: [],
     coverage: null,
     reason: 'no snapshot published',
   };

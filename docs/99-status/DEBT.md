@@ -545,8 +545,10 @@ chemin de fraîcheur avec un lot de démarrage.
   `catalysts: TL / 09` puis `sources-reports: TL / 12` : les codes `10` et `11`
   n'étaient attribués à **rien**, et rien n'en souffrait. La contiguïté n'a
   jamais été requise — réserver un code pour une destination à venir est
-  exactement ce que cette table faisait déjà. `08 charts` et `09 risks` sont
-  donc réservés, avec un test qui vérifie leur absence délibérée.
+  exactement ce que cette table faisait déjà. `08 charts` et `09 risks` ont
+  été réservés ainsi, avec un test qui vérifiait leur absence délibérée —
+  puis attribués : `09 risks` le 2026-09-01, `08 charts` le 2026-09-02
+  (LOT-A2). Le test épingle désormais les douze codes, de `01` à `12`.
 
   **Pourquoi le garde-fou n'a rien vu.** Il vérifiait qu'aucune page ne
   RETOMBE sur `TL / —`, jamais que le code servi est le BON : un code faux lui

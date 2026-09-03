@@ -3,11 +3,14 @@
  * | Puts, IV absente rendue « — » avec sa raison, inspecteur avec lignée
  * CalculationRecord, transfert typé vers le Simulateur, états dégradés.
  */
-import { screen, within } from '@testing-library/react';
+import { screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { queryKeyForResource } from '../../api/hooks.ts';
 import {
+  makeAnalysis,
+  makeCalendarResponse,
   makeEmptyOptionChain,
   makeMarketsOverview,
   makeOptionChain,
@@ -36,6 +39,15 @@ function repondre(reponse: Response): void {
     if (url.includes('/markets/overview')) {
       return Promise.resolve(jsonResponse(makeMarketsOverview()));
     }
+    // LOT-A5 : la planche §5 lit aussi le dossier d'analyse du sous-jacent
+    // (série) et, après transfert, l'agenda publié (catalyseurs). Servis
+    // explicitement : le repli leur donnerait un corps de CHAÎNE.
+    if (url.includes('/v1/analysis/')) {
+      return Promise.resolve(jsonResponse(makeAnalysis()));
+    }
+    if (url.includes('/v1/calendar')) {
+      return Promise.resolve(jsonResponse(makeCalendarResponse()));
+    }
     return Promise.resolve(reponse.clone());
   });
 }
@@ -49,9 +61,10 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-async function renderOptions(path = '/options/SYN-TECH-01'): Promise<void> {
-  renderApp(path);
+async function renderOptions(path = '/options/SYN-TECH-01') {
+  const view = renderApp(path);
   await screen.findByRole('heading', { level: 1, name: 'Options' });
+  return view;
 }
 
 describe('Page Options — état nominal', () => {
@@ -77,6 +90,8 @@ describe('Page Options — état nominal', () => {
     await renderOptions();
     const table = await screen.findByRole('table', { name: /Chaîne d'options 2026-09-26 SYN-TECH-01$/ });
     expect(table).toBeDefined();
+    await user.click(within(table).getByRole('button', { name: /Inspecter CALL strike 100\.00/ }));
+    expect(await screen.findByTestId('option-inspector')).toBeDefined();
     const weekly = screen
       .getAllByTestId('chain-group')
       .find((group) => (group.textContent ?? '').includes('SYN-TECH-01W'));
@@ -84,9 +99,11 @@ describe('Page Options — état nominal', () => {
     expect(
       screen.getByRole('table', { name: "Chaîne d'options 2026-09-26 SYN-TECH-01W" }),
     ).toBeDefined();
+    expect(screen.queryByTestId('option-inspector')).toBeNull();
   });
 
   it('IV absente : cellule « — » avec la raison typée, jamais 0', async () => {
+    const user = userEvent.setup();
     repondre(jsonResponse(makeOptionChain()));
     await renderOptions();
     const table = await screen.findByRole('table', { name: /SYN-TECH-01$/ });
@@ -100,6 +117,15 @@ describe('Page Options — état nominal', () => {
     expect(row?.textContent).not.toContain('0.00000');
     // Statut de quote affiché en texte (jamais la couleur seule).
     expect(within(row as HTMLElement).getAllByText('CROSSED').length).toBeGreaterThan(0);
+
+    // Le contrat reste consultable, mais une quote CROSSED ne fournit jamais
+    // une prime au Simulateur.
+    await user.click(
+      screen.getByRole('button', { name: /Inspecter CALL strike 105\.00/ }),
+    );
+    const transfer = await screen.findByRole('button', { name: 'Envoyer au Simulateur' });
+    expect((transfer as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByText(/Transfert bloqué : statut de quote CROSSED/)).toBeDefined();
   });
 
   it('inspecteur : identité complète, quote, IV THÉORIQUE et CalculationRecord id', async () => {
@@ -156,6 +182,71 @@ describe('Page Options — état nominal', () => {
       '102.50',
     );
   });
+
+  it('refetch SSE : un ancien contrat inspecté ne survit pas au nouveau snapshot', async () => {
+    const user = userEvent.setup();
+    const initial = makeOptionChain();
+    let current = initial;
+    fetchMock.mockImplementation((entree: unknown) => {
+      const url = typeof entree === 'string' ? entree : String((entree as Request).url);
+      return Promise.resolve(
+        jsonResponse(
+          url.includes('/markets/overview')
+            ? makeMarketsOverview()
+            : url.includes('/v1/analysis/')
+              ? makeAnalysis()
+              : current,
+        ),
+      );
+    });
+
+    const { queryClient } = await renderOptions();
+    await screen.findByRole('table', { name: /Chaîne d'options 2026-09-26 SYN-TECH-01$/ });
+    await user.click(
+      screen.getAllByRole('button', { name: /Inspecter CALL strike 100\.00/ })[0]!,
+    );
+    expect(await screen.findByTestId('option-inspector')).toBeDefined();
+    expect(
+      (screen.getByRole('button', { name: 'Envoyer au Simulateur' }) as HTMLButtonElement).disabled,
+    ).toBe(false);
+
+    // Même groupe toujours VALID, mais la quote du contrat ouvert est
+    // remplacée : l'ancien ask ne doit jamais être réutilisé après le refetch.
+    current = makeOptionChain({
+      snapshot_version: 13,
+      as_of: '2026-08-25T12:05:00+00:00',
+      expirations: initial.expirations.map((group, groupIndex) =>
+        groupIndex === 0
+          ? {
+              ...group,
+              contracts: group.contracts.map((contract) =>
+                contract.con_id === 900000101
+                  ? {
+                      ...contract,
+                      quote: { ...contract.quote, status: 'CROSSED', ask: null },
+                      iv: { status: 'ABSENT', reason: 'crossed_quote' },
+                      greeks: { status: 'ABSENT', reason: 'iv_unresolved' },
+                    }
+                  : contract,
+              ),
+            }
+          : group,
+      ),
+    });
+    await queryClient.invalidateQueries({
+      queryKey: queryKeyForResource('option_chain/SYN-TECH-01'),
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByTestId('option-inspector')).toBeNull();
+    });
+    await user.click(
+      screen.getAllByRole('button', { name: /Inspecter CALL strike 100\.00/ })[0]!,
+    );
+    const transfer = await screen.findByRole('button', { name: 'Envoyer au Simulateur' });
+    expect((transfer as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByText(/Transfert bloqué : statut de quote CROSSED/)).toBeDefined();
+  });
 });
 
 describe('Page Options — états', () => {
@@ -180,7 +271,8 @@ describe('Page Options — états', () => {
     expect(screen.queryByRole('table')).toBeNull();
   });
 
-  it('partial : qualité de groupe dégradée publiée → bandeau + contenu conservé', async () => {
+  it('partial : seul le groupe sélectionné décide du transfert, sans masquer le cadre global', async () => {
+    const user = userEvent.setup();
     const chain = makeOptionChain();
     const degraded = {
       ...chain,
@@ -193,6 +285,159 @@ describe('Page Options — états', () => {
     await screen.findByText('Données partielles');
     expect(screen.getByText(/qualité dégradée/)).toBeDefined();
     expect(screen.getByRole('table', { name: /SYN-TECH-01$/ })).toBeDefined();
+    await user.click(
+      screen.getAllByRole('button', { name: /Inspecter CALL strike 100\.00/ })[0]!,
+    );
+    const transfer = await screen.findByRole('button', { name: 'Envoyer au Simulateur' });
+    expect((transfer as HTMLButtonElement).disabled).toBe(true);
+    expect(
+      screen.getByText(/qualité publiée du groupe sélectionné est PARTIAL, pas VALID/),
+    ).toBeDefined();
+
+    // Le groupe hebdomadaire est explicitement VALID : l'autre groupe reste
+    // PARTIAL et le cadre global le signale toujours, mais ce contrat sain est
+    // transférable sans lui attribuer la dégradation d'un voisin.
+    await user.keyboard('{Escape}');
+    const weekly = screen
+      .getAllByTestId('chain-group')
+      .find((group) => (group.textContent ?? '').includes('SYN-TECH-01W'));
+    await user.click(weekly!);
+    expect(screen.getByText('Données partielles')).toBeDefined();
+    const weeklyTable = screen.getByRole('table', {
+      name: "Chaîne d'options 2026-09-26 SYN-TECH-01W",
+    });
+    await user.click(within(weeklyTable).getByRole('button', { name: /Inspecter CALL strike/ }));
+    const validTransfer = await screen.findByRole('button', { name: 'Envoyer au Simulateur' });
+    expect((validTransfer as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it('stale serveur : bandeau « Données périmées » + contenu daté conservé', async () => {
+    const user = userEvent.setup();
+    repondre(jsonResponse(makeOptionChain({ state: 'stale', reason: 'snapshot too old' })));
+    await renderOptions();
+    await screen.findByText('Données périmées');
+    expect(screen.getByText('snapshot too old')).toBeDefined();
+    expect(screen.getByText(/as_of 2026-08-25T12:00:00\+00:00/)).toBeDefined();
+    const table = screen.getByRole('table', { name: /SYN-TECH-01$/ });
+    expect(table.closest('[data-state]')?.getAttribute('data-state')).toBe('stale');
+    await user.click(
+      screen.getAllByRole('button', { name: /Inspecter CALL strike 100\.00/ })[0]!,
+    );
+    const transfer = await screen.findByRole('button', { name: 'Envoyer au Simulateur' });
+    expect((transfer as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByText(/Transfert bloqué : le snapshot d'options est périmé/)).toBeDefined();
+  });
+
+  it('population DELAYED : bandeau et état différés, sans promotion ready', async () => {
+    const user = userEvent.setup();
+    const base = makeOptionChain();
+    const delayed = makeOptionChain({
+      population: 'DELAYED',
+      spot:
+        base.spot === null
+          ? null
+          : { ...base.spot, source_event_id: 'ibkr.option-chain:delayed:spot' },
+      expirations: base.expirations.map((group, index) => ({
+        ...group,
+        source_event_id: `ibkr.option-chain:delayed:${index}`,
+        contracts: group.contracts.map((contract) => ({ ...contract, synthetic: false })),
+      })),
+    });
+    repondre(jsonResponse(delayed));
+    await renderOptions();
+
+    await screen.findByText('DONNÉES RETARDÉES');
+    await screen.findByText('Données différées');
+    const table = screen.getByRole('table', { name: /SYN-TECH-01$/ });
+    expect(table.closest('[data-state]')?.getAttribute('data-state')).toBe('delayed');
+    expect(screen.getByTestId('chain-source-references').textContent).toContain(
+      'ibkr.option-chain:delayed:spot',
+    );
+    await user.click(
+      screen.getAllByRole('button', { name: /Inspecter CALL strike 100\.00/ })[0]!,
+    );
+    const transfer = await screen.findByRole('button', { name: 'Envoyer au Simulateur' });
+    expect((transfer as HTMLButtonElement).disabled).toBe(true);
+    expect(
+      screen.getByText(/Transfert bloqué : la population d'options est DELAYED/),
+    ).toBeDefined();
+  });
+
+  it('population REAL : aucune source ni limite synthétique inventée', async () => {
+    const user = userEvent.setup();
+    const base = makeOptionChain();
+    const real = makeOptionChain({
+      population: 'REAL',
+      spot:
+        base.spot === null
+          ? null
+          : { ...base.spot, source_event_id: 'ibkr.option-chain:real:spot' },
+      expirations: base.expirations.map((group, index) => ({
+        ...group,
+        source_event_id: `ibkr.option-chain:real:${index}`,
+        contracts: group.contracts.map((contract) => ({ ...contract, synthetic: false })),
+      })),
+    });
+    repondre(jsonResponse(real));
+    await renderOptions();
+
+    await screen.findByText('DONNÉES RÉELLES');
+    const references = screen.getByTestId('chain-source-references');
+    expect(references.textContent).toContain('ibkr.option-chain:real:spot');
+    expect(references.textContent).toContain('ibkr.option-chain:real:0');
+    expect(document.body.textContent).not.toContain('synthetic-dev');
+    expect(document.body.textContent).not.toContain('données SYNTHÉTIQUES de développement');
+    expect(screen.getByTestId('chain-population-limit').textContent).toContain('REAL');
+    await user.click(
+      screen.getAllByRole('button', { name: /Inspecter CALL strike 100\.00/ })[0]!,
+    );
+    const transfer = await screen.findByRole('button', { name: 'Envoyer au Simulateur' });
+    expect((transfer as HTMLButtonElement).disabled).toBe(false);
+  });
+
+  it('population inconnue : consultation conservée, transfert bloqué', async () => {
+    const user = userEvent.setup();
+    repondre(jsonResponse(makeOptionChain({ population: 'UNKNOWN_SOURCE' })));
+    await renderOptions();
+
+    await screen.findByText('NATURE NON RECONNUE');
+    expect(screen.getByRole('table', { name: /SYN-TECH-01$/ })).toBeDefined();
+    await user.click(
+      screen.getAllByRole('button', { name: /Inspecter CALL strike 100\.00/ })[0]!,
+    );
+    const transfer = await screen.findByRole('button', { name: 'Envoyer au Simulateur' });
+    expect((transfer as HTMLButtonElement).disabled).toBe(true);
+    expect(
+      screen.getByText(/Transfert bloqué : la population publiée n'est ni REAL ni SYNTHETIC/),
+    ).toBeDefined();
+  });
+
+  it('quote OK sans ask : consultation conservée, aucune prime suggérée au Simulateur', async () => {
+    const user = userEvent.setup();
+    const base = makeOptionChain();
+    const firstGroup = base.expirations[0]!;
+    const firstContract = firstGroup.contracts[0]!;
+    const withoutAsk = makeOptionChain({
+      expirations: [
+        {
+          ...firstGroup,
+          contracts: [
+            {
+              ...firstContract,
+              quote: { ...firstContract.quote, ask: null, status: 'OK' },
+            },
+          ],
+        },
+      ],
+    });
+    repondre(jsonResponse(withoutAsk));
+    await renderOptions();
+
+    expect(await screen.findByRole('table', { name: /SYN-TECH-01$/ })).toBeDefined();
+    await user.click(screen.getByRole('button', { name: /Inspecter CALL strike 100\.00/ }));
+    const transfer = await screen.findByRole('button', { name: 'Envoyer au Simulateur' });
+    expect((transfer as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.getByText(/Transfert bloqué : ask non publié/)).toBeDefined();
   });
 
   it('offline honnête quand l’API est injoignable', async () => {

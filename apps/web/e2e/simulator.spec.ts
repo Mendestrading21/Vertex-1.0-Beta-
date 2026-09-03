@@ -12,11 +12,13 @@ interface ApiChain {
   expirations: {
     expiration: string;
     trading_class: string;
+    exchange: string;
+    quality: string;
     contracts: {
       strike: string | null;
       right: string | null;
       iv: { status: string };
-      quote: { ask: string | null };
+      quote: { ask: string | null; status: string };
     }[];
   }[];
   spot: { value: string } | null;
@@ -49,18 +51,52 @@ test.describe('Simulateur — parcours complet et refus honnêtes', () => {
     const response = await page.request.get(`/api/v1/options/${UNDERLYING}/chain`);
     expect(response.ok()).toBe(true);
     const chain = (await response.json()) as ApiChain;
-    const group = chain.expirations[0]!;
+    expect(chain.expirations.some((candidate) => candidate.quality !== 'VALID')).toBe(true);
+    const group = chain.expirations.find(
+      (candidate) =>
+        candidate.quality === 'VALID' &&
+        candidate.contracts.some(
+          (entry) =>
+            entry.right === 'CALL' &&
+            entry.strike !== null &&
+            entry.iv.status === 'OK' &&
+            entry.quote.status === 'OK' &&
+            entry.quote.ask !== null,
+        ),
+    );
+    expect(group, 'le seed doit publier un groupe Options VALID transférable').toBeDefined();
+    if (group === undefined) {
+      throw new Error('aucun groupe Options VALID transférable publié par le seed');
+    }
     const resolved = group.contracts.find(
-      (entry) => entry.iv.status === 'OK' && entry.right === 'CALL',
-    )!;
+      (entry) =>
+        entry.right === 'CALL' &&
+        entry.strike !== null &&
+        entry.iv.status === 'OK' &&
+        entry.quote.status === 'OK' &&
+        entry.quote.ask !== null,
+    );
+    expect(resolved, 'le groupe VALID doit contenir un CALL avec IV et ask saines').toBeDefined();
+    if (resolved === undefined) {
+      throw new Error('aucun CALL sain publié dans le groupe Options VALID');
+    }
 
     await page.goto(`/options/${UNDERLYING}`);
+    await expect(page.getByText('Données partielles', { exact: true })).toBeVisible();
+    const groupButton = page.getByTestId('chain-group').filter({
+      hasText: `${group.expiration} · ${group.trading_class} (${group.exchange})`,
+    });
+    await expect(groupButton).toHaveCount(1);
+    await groupButton.click();
+    await expect(groupButton).toHaveAttribute('aria-pressed', 'true');
     await page
       .getByRole('button', {
         name: `Inspecter CALL strike ${resolved.strike} ${group.expiration} ${group.trading_class}`,
       })
       .click();
-    await page.getByRole('button', { name: 'Envoyer au Simulateur' }).click();
+    const transfer = page.getByRole('button', { name: 'Envoyer au Simulateur' });
+    await expect(transfer).toBeEnabled();
+    await transfer.click();
 
     // 2. Simulateur : préremplissage typé visible et éditable.
     await expect(page).toHaveURL(/\/simulator$/);
@@ -85,9 +121,9 @@ test.describe('Simulateur — parcours complet et refus honnêtes', () => {
     const breakevens = page.getByTestId('sim-breakevens');
     await expect(breakevens).toBeVisible();
     await expect(breakevens).toContainText('résidu certifié');
-    // Une jambe longue unique : ALL_LONG, risque défini, écho des hypothèses.
-    await expect(result).toContainText('ALL_LONG');
-    await expect(result).toContainText('250, 300, 350, 400, 450');
+    // Une jambe longue unique : ALL_LONG (résultats certifiés), écho des hypothèses.
+    await expect(page.getByTestId('sim-kpi')).toContainText('ALL_LONG');
+    await expect(page.getByTestId('sim-echo')).toContainText('250, 300, 350, 400, 450');
     // Table équivalente des points serveur (grille déclarée + strikes + zéro).
     const pointsTable = result.getByRole('table', { name: /Points de P&L/ });
     await expect(pointsTable.locator('tbody tr').first()).toBeVisible();
@@ -98,7 +134,7 @@ test.describe('Simulateur — parcours complet et refus honnêtes', () => {
   }) => {
     await page.goto('/simulator');
     // Déclarer une jambe COURTE CALL sans couverture (perte non bornée).
-    await page.getByLabel('Sens').selectOption('SHORT');
+    await page.getByRole('combobox', { name: 'Sens', exact: true }).selectOption('SHORT');
     await page.getByLabel('Strike (décimal)').fill('300');
     await page.getByLabel('Prime unitaire déclarée (décimal)').fill('10');
     await fillRemainingAssumptions(page);
@@ -126,6 +162,51 @@ test.describe('Simulateur — parcours complet et refus honnêtes', () => {
     await expect(invalid).toBeVisible();
     await expect(invalid).toContainText('strike est requis');
     expect(previewCalls).toBe(0);
+  });
+
+  test('LOT-A5 : les QUATORZE modules de la planche §6, aucune dominante à vide, une après Calculer, scénarios servis', async ({
+    page,
+  }) => {
+    await page.goto('/simulator');
+    const MODULES = [
+      'manual-entry',
+      'base-parameters',
+      'scenarios',
+      'payoff',
+      'monte-carlo',
+      'kpi-served',
+      'kpi-probabilistic',
+      'stress-tests',
+      'sensitivity',
+      'portfolio-impact',
+      'catalysts',
+      'key-assumptions',
+      'sources',
+      'method',
+    ];
+    for (const module of MODULES) {
+      await expect(page.locator(`[data-module="${module}"]`).first(), module).toBeVisible();
+    }
+    // À vide : aucune dominante ; cinq absences motivées, sans chiffre.
+    await expect(page.locator('.vx-main [data-rank="dominant"]')).toHaveCount(0);
+    await expect(page.locator('.vx-absent-badge')).toHaveCount(5);
+    for (const corps of await page.locator('.vx-absent-body').allTextContents()) {
+      expect(corps).not.toMatch(/\d/);
+    }
+    await expect(page.locator('.vx-inspector-heading')).toHaveText('Inspecteur — Étude');
+
+    await page.getByLabel('Strike (décimal)').fill('300');
+    await page.getByLabel('Prime unitaire déclarée (décimal)').fill('10');
+    await fillRemainingAssumptions(page);
+    await page.getByRole('button', { name: 'Calculer' }).click();
+    await expect(page.getByTestId('sim-result')).toBeVisible({ timeout: 15_000 });
+    // Après calcul : une seule dominante, le payoff ; scénarios et lignée servis.
+    await expect(page.locator('.vx-main [data-rank="dominant"]')).toHaveCount(1);
+    await expect(page.locator('[data-module="payoff"] [data-rank="dominant"]')).toHaveCount(1);
+    await expect(page.getByTestId('sim-scenarios').locator('tbody tr').first()).toBeVisible();
+    await expect(page.getByTestId('sim-method')).toContainText('options.payoff');
+    await expect(page.getByTestId('sim-kpi')).toContainText('Gain max');
+    await expect(page.getByTestId('sim-study-facts')).toContainText('THEORETICAL');
   });
 
   test('axe : zéro violation critique/sérieuse + capture (formulaire et résultat)', async ({

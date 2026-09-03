@@ -107,10 +107,12 @@ function mockAi(handlers: AiHandlers = {}): void {
 //
 // `/portfolio` est la page hôte par défaut ici : elle porte DEUX dossiers
 // explicables (valorisation et performance), donc elle exerce aussi le choix
-// entre dossiers.
+// entre dossiers. LOT-A6 : la page monte aussi son propre inspecteur
+// (« Valorisation publiée ») ; le panneau attendu ici est celui de
+// l'explication, nommé exactement.
 async function renderAi(path = '/portfolio'): Promise<void> {
   renderApp(path);
-  await screen.findByRole('heading', { level: 2, name: /^Inspecteur/ });
+  await screen.findByRole('heading', { level: 2, name: /^Inspecteur — explication/ });
 }
 
 describe('aiView — aides pures', () => {
@@ -281,7 +283,9 @@ describe('page Vertex IA — rendu', () => {
     // interdit.
     mockAi();
     renderApp('/analysis/SYN-TECH-01');
-    await screen.findByRole('heading', { level: 2, name: /^Inspecteur/ });
+    // LOT-A4 : Analyse monte aussi l'inspecteur du dossier ; c'est le panneau
+    // d'EXPLICATION qui est attendu ici.
+    await screen.findByRole('heading', { level: 2, name: /^Inspecteur — explication/ });
     expect(screen.queryByRole('combobox', { name: 'Dossier' })).toBeNull();
     await waitFor(() => {
       expect(screen.getByTestId('ai-subject-key').textContent).toBe('SYN-TECH-01');

@@ -70,12 +70,21 @@ export interface MarketMapProps {
   readonly visibleGroups: ReadonlySet<SignGroup>;
   /** Description courte lue par les lecteurs d'écran (résumé serveur). */
   readonly description: string;
+  /**
+   * LOT-A3 : un clic sur une TUILE ouvre l'instrument dans l'inspecteur. La
+   * souris seule ne suffit pas à l'accessibilité — la même sélection existe
+   * au clavier dans la table équivalente et la carte sectorielle.
+   */
+  readonly onSelect?: (ticker: string) => void;
 }
 
-export function MarketMap({ sectors, visibleGroups, description }: MarketMapProps) {
+export function MarketMap({ sectors, visibleGroups, description, onSelect }: MarketMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<EChartsInstance | null>(null);
   const [engineFailed, setEngineFailed] = useState(false);
+  // La dernière fonction de sélection, lue par l'écouteur sans le réabonner.
+  const onSelectRef = useRef(onSelect);
+  onSelectRef.current = onSelect;
 
   useEffect(() => {
     let disposed = false;
@@ -166,6 +175,16 @@ export function MarketMap({ sectors, visibleGroups, description }: MarketMapProp
           },
           true,
         );
+        // Seule une FEUILLE (un ticker servi) est sélectionnable : le nom d'un
+        // nœud de secteur n'ouvre rien. La liste des tickers vient du snapshot.
+        const tickers = new Set(flattenTickers(sectors).map((entry) => entry.ticker.ticker));
+        chart.off('click');
+        chart.on('click', (params: { readonly name?: string }) => {
+          const name = params.name;
+          if (typeof name === 'string' && tickers.has(name)) {
+            onSelectRef.current?.(name);
+          }
+        });
         resizeObserver = new ResizeObserver(() => {
           chartRef.current?.resize();
         });

@@ -15,7 +15,7 @@ recent daily-quote observation window:
   return through ``vertex_core.calculations.market.simple_return`` (the ONLY
   financial-calculation authority; its :class:`CalculationRecord` lineage —
   ``engine_version`` + ``input_hash`` — is kept in the snapshot), and the
-  ticker's synthetic relative weights (share of its sector / of the covered
+  ticker's descriptive relative weights (share of its sector / of the covered
   universe, plain Decimal shares labeled as descriptive composition data,
   not registry calculations);
 - global breadth through ``vertex_core.calculations.market.breadth`` with an
@@ -359,7 +359,7 @@ def _french_conclusion(
     threshold_pct: str,
 ) -> str:
     head = (
-        f"Sur {universe_size} instruments synthétiques attendus, {covered} sont "
+        f"Sur {universe_size} instruments attendus, {covered} sont "
         f"couverts et {discarded} écartés ; {up} en hausse, {down} en baisse, "
         f"{flat} stables"
     )
@@ -439,7 +439,9 @@ def build_markets_overview_content(
             started_at=now,
             completed_at=now,
             source_event_ids=(older.event_id, latest.event_id),
-            assumptions=("consecutive synthetic trading days",),
+            assumptions=(
+                "consecutive trading days from admitted daily-quote observations",
+            ),
         )
         if value > 0:
             up += 1
@@ -568,7 +570,7 @@ def build_markets_overview_content(
         }
 
     # -- population, data state, conclusion ---------------------------------
-    if not records:
+    if not by_ticker_day:
         population = "EMPTY"
     elif synthetic_count > 0:
         population = "SYNTHETIC"

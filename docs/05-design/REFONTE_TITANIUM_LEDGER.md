@@ -124,6 +124,12 @@ viewports desktop.
 | **V7** chaîne d'options | **fait** (`87bfec5`) | chasse fixe, colonnes alignées, IV/Delta bornés au rendu |
 | **V8** en-tête, bandeau, file | **fait** (`dab7add`) | Aujourd'hui 2 096 → 1 696 px |
 | **V9** Catalyseurs | **fait** (`57bac9d`) | 3 146 → 2 370 px, dominante déplacée sur la timeline |
+| **A3** Aujourd'hui + Marchés sur leurs planches (§1, §2) | **PR ouverte** (`lot/a3-aujourdhui-marches-20260902`) | onze et douze modules composés, servis ou déclarés absents ; inspecteur toujours occupé ; mesures dans `NOW.md` |
+| **A4** Opportunités + Analyse sur leurs planches (§3, §4) | **PR ouverte** (`lot/a4-opportunites-analyse-20260903`, empilée sur A3) | quatorze et dix-neuf modules composés ; classement et chandeliers en dominantes ; premier relais client de la route SEC ; barres de dénombrement à la place des donuts ; mesures dans `NOW.md` |
+| **A5** Options + Simulateur sur leurs planches (§5, §6) | **PR ouverte** (`lot/a5-options-simulateur-20260903`, empilée sur A4) | quinze et quatorze modules composés ; chaîne et payoff en dominantes ; sourire d'IV et structure par échéance (géométrie des IV publiées) ; Simulateur sans dominante à vide, grille de scénarios rendue ; mesures dans `NOW.md` |
+| **A6** Portefeuille + Risques sur leurs planches (§7, §9) | **PR ouverte** (`lot/a6-portefeuille-risques-20260903`, empilée sur A5) | dix-huit et dix-neuf modules composés ; concentration et matrice de corrélation en dominantes ; dividendes servis depuis le journal, inspecteurs du lot et de l'instrument ; douze absences mesurées sur Risques, aucun score global ; mesures dans `NOW.md` |
+| **A7** Catalyseurs + Calendrier sur leurs planches (§10, §11) | **PR ouverte** (`lot/a7-catalyseurs-calendrier-20260903`) | dix-sept et treize modules composés ; chronologie et agenda en dominantes ; fuseau d'affichage explicite, prochain événement sans compte à rebours, inspecteur de l'événement ; six absences mesurées sur Catalyseurs (impact, confiance, surprises, consensus, alertes), deux sur Calendrier ; mesures dans `NOW.md` |
+| **A8** Sources & Rapports sur sa planche (§12) | **PR ouverte** (`lot/a8-sources-rapports-20260903`) | dix-sept modules composés ; registre des sources en dominante sur une rangée entière, bouton « Détail » par capacité, inspecteur de capacité sur sélection seulement (témoin du shell) ; statuts testés en dénombrement, fraîcheur, versions et flux, exports réellement servis ; neuf absences mesurées (santé globale, couverture et qualité des champs, taux d'erreur, incidents, lignée, journal d'audit, rapports, sauvegardes) ; mesures dans `NOW.md` |
 
 ### Hauteurs de page mesurées, 1600×1000, après les neuf lots
 
@@ -167,6 +173,30 @@ l'arrivée des données — et lisait donc le squelette de chargement sur chaque
 route. La règle fonctionnait. Le commentaire CSS qui gravait cette conclusion a
 été réécrit, et la porte e2e attend désormais un témoin de contenu réel sur
 chaque route.
+
+### Phase A — composition page par page sur les planches (2026-09-02)
+
+Après le système commun (V1 → V9), chaque page est composée **module par
+module** contre sa planche du skill `vertex-titanium-ledger`. Un module servi
+lit le hook de sa page propriétaire ; un module sans source tient sa place
+avec `AbsentModule` et le motif mesuré de son absence (article 17). Ordre :
+A2 (Graphiques, créée), **A3 (Aujourd'hui, Marchés)**, puis A4 à A8 — deux
+pages par lot.
+
+Ce que A3 a établi et que les lots suivants réutilisent :
+
+- `moduleStateOf()` : l'état d'un module vient de SON snapshot (`empty`,
+  `stale`, `DELAYED`, état fermé), jamais du seul succès HTTP ; un module
+  hors de ces états ne montre aucune valeur.
+- `Metric` : bloc de mesure — libellé, chaîne serveur, unité, note ; une
+  absence est dite « non publié ».
+- `SectorGrid` : la carte sectorielle partagée par Aujourd'hui et Marchés,
+  sans rendement de secteur (le contrat n'en publie pas).
+- L'inspecteur est **toujours occupé** : la sélection, sinon la vérité du
+  snapshot de la dominante.
+- Les grilles sont nommées par ZONES (`grid-template-areas`) et dimensionnées
+  sur la largeur RÉELLE de la zone de travail, inspecteur monté : quatre
+  colonnes, cinq seulement à 1600.
 
 ### Ce qui reste
 

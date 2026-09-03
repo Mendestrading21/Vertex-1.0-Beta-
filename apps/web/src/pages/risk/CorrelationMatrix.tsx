@@ -12,12 +12,18 @@
  * (deny-by-default). Le composant s'aligne sur ce contrat plutôt que de
  * peindre une couleur par défaut, qui ferait passer une case inclassable pour
  * une case faiblement corrélée.
+ *
+ * LOT-A6 : la grille est le CORPS de la dominante de la planche §9 (la carte
+ * est portée par la page) ; chaque en-tête de ligne peut ouvrir l'instrument
+ * dans l'inspecteur (`onSelect`), qui relit ses coefficients avec chacun.
  */
 
 export interface CorrelationMatrixProps {
   readonly instruments: ReadonlyArray<{ readonly ticker: string; readonly label: string }>;
   readonly matrix: ReadonlyArray<readonly string[]>;
   readonly bands: ReadonlyArray<readonly string[]>;
+  readonly selected?: string | null;
+  readonly onSelect?: (ticker: string) => void;
 }
 
 /** Libellés français des bandes, pour la légende et les infobulles. */
@@ -40,7 +46,7 @@ const LEGEND_ORDER: readonly string[] = [
 ];
 
 export function correlationRowsOf(
-  props: CorrelationMatrixProps,
+  props: Pick<CorrelationMatrixProps, 'instruments' | 'matrix' | 'bands'>,
 ): ReadonlyArray<{
   readonly ticker: string;
   readonly label: string;
@@ -56,11 +62,11 @@ export function correlationRowsOf(
   }));
 }
 
-export function CorrelationMatrix({ instruments, matrix, bands }: CorrelationMatrixProps) {
+export function CorrelationMatrix({ instruments, matrix, bands, selected = null, onSelect }: CorrelationMatrixProps) {
   const rows = correlationRowsOf({ instruments, matrix, bands });
 
   return (
-    <div className="vx-riskmatrix" data-rank="dominant">
+    <div className="vx-riskmatrix">
       <div className="vx-riskmatrix-scroll" role="region" aria-labelledby="vx-riskmatrix-title" tabIndex={0}>
         <table className="vx-riskmatrix-table">
           <caption id="vx-riskmatrix-title" className="vx-riskmatrix-caption">
@@ -81,9 +87,23 @@ export function CorrelationMatrix({ instruments, matrix, bands }: CorrelationMat
           </thead>
           <tbody>
             {rows.map((row) => (
-              <tr key={row.ticker}>
+              <tr key={row.ticker} {...(selected === row.ticker ? { 'data-selected': 'true' } : {})}>
                 <th scope="row" className="vx-riskmatrix-rowhead">
-                  <abbr title={row.label}>{row.ticker}</abbr>
+                  {onSelect === undefined ? (
+                    <abbr title={row.label}>{row.ticker}</abbr>
+                  ) : (
+                    <button
+                      type="button"
+                      className="vx-riskmatrix-rowbtn"
+                      aria-pressed={selected === row.ticker}
+                      aria-label={`Inspecter ${row.ticker} (${row.label})`}
+                      onClick={() => {
+                        onSelect(row.ticker);
+                      }}
+                    >
+                      {row.ticker}
+                    </button>
+                  )}
                 </th>
                 {row.cells.map((cell, column) => {
                   const other = instruments[column];

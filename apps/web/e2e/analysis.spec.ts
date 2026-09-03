@@ -142,6 +142,57 @@ test.describe('Page Analyse — chandeliers, table équivalente, AdviceCard', ()
     }
   });
 
+  test('LOT-A4 : les DIX-NEUF modules de la planche §4, une dominante, absences motivées, inspecteur du dossier', async ({
+    page,
+  }) => {
+    const analysis = await fetchAnalysis(page);
+    await page.goto(`/analysis/${INSTRUMENT}`);
+    await expect(page.locator('.vx-candles-canvas canvas').first()).toBeVisible({ timeout: 15_000 });
+    const MODULES = [
+      'instrument-header',
+      'identity-facts',
+      'chart',
+      'indicators',
+      'oscillators',
+      'regime',
+      'fundamental-quality',
+      'valuation',
+      'financials',
+      'model-confidence',
+      'analyst-revisions',
+      'verdict',
+      'scenarios',
+      'upcoming-catalysts',
+      'key-risks',
+      'peers',
+      'evidence',
+      'levels',
+      'contradictions',
+    ];
+    for (const module of MODULES) {
+      await expect(page.locator(`[data-module="${module}"]`).first(), module).toBeVisible();
+    }
+    await expect(page.locator('.vx-main [data-rank="dominant"]')).toHaveCount(1);
+    await expect(page.locator('.vx-absent-badge')).toHaveCount(8);
+    for (const corps of await page.locator('.vx-absent-body').allTextContents()) {
+      expect(corps).not.toMatch(/\d/);
+    }
+    // L'en-tête porte la dernière clôture PUBLIÉE du dossier et une série tracée.
+    const lastClose = analysis.bars!.bars[analysis.bars!.bars.length - 1]!.close;
+    await expect(page.getByTestId('instrument-header-price')).toContainText(lastClose.replace('.', ','));
+    await expect(page.getByTestId('instrument-header').getByTestId('spark-line')).toBeVisible();
+    // Faits SEC : aucun snapshot semé → état vide HONNÊTE, rien à la place.
+    const sec = await (await page.request.get(`/api/v1/sources/sec/${INSTRUMENT}/fundamentals`)).json();
+    if (sec.state === 'empty') {
+      await expect(page.getByTestId('sec-empty')).toBeVisible();
+    } else {
+      await expect(page.getByTestId('sec-facts')).toBeVisible();
+    }
+    // Inspecteur du dossier + panneau d'explication : deux panneaux, le premier est le dossier.
+    await expect(page.locator('.vx-inspector-heading').first()).toHaveText(`Inspecteur — Dossier ${INSTRUMENT}`);
+    await expect(page.getByTestId('analysis-dossier-facts')).toBeVisible();
+  });
+
   test('axe : zéro violation critique/sérieuse + capture', async ({ page }, testInfo) => {
     await page.goto(`/analysis/${INSTRUMENT}`);
     await expect(page.locator('.vx-candles-canvas canvas').first()).toBeVisible({
