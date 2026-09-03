@@ -750,7 +750,9 @@ def bollinger_bands(
     - ``num_std`` fini et strictement positif (``invalid_type`` /
       ``non_finite_input`` / ``invalid_num_std``) ;
     - ``len(prices) >= window`` (``minimum_sample``) ; prix finis et
-      strictement positifs.
+      strictement positifs ;
+    - un débordement float64 de la moyenne ou de la variance d'une fenêtre
+      lève ``non_finite_result`` — jamais un ``OverflowError`` nu.
 
     Invariants : ``lower <= middle <= upper`` point à point, bandes
     symétriques autour de la médiane à un ulp près, trois séries de même
@@ -769,7 +771,15 @@ def bollinger_bands(
     lower: list[float] = []
     for start, mean in enumerate(middle):
         block = values[start : start + w]
-        variance = _mean([(value - mean) ** 2 for value in block], "market.bollinger_bands")
+        # Produit ``deviation * deviation`` et non ``** 2`` : le produit déborde
+        # en ``inf``, refusé par ``_finite_result`` (``non_finite_result``) ;
+        # la puissance lèverait un ``OverflowError`` nu, hors de la frontière
+        # typée, dès que |prix - moyenne| dépasse ~1.34e154.
+        squared: list[float] = []
+        for value in block:
+            deviation = value - mean
+            squared.append(deviation * deviation)
+        variance = _mean(squared, "market.bollinger_bands")
         half_width = _finite_result(k * math.sqrt(variance), "market.bollinger_bands")
         upper.append(_finite_result(mean + half_width, "market.bollinger_bands"))
         lower.append(_finite_result(mean - half_width, "market.bollinger_bands"))

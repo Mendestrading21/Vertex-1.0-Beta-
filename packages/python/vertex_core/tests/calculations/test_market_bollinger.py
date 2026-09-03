@@ -117,6 +117,26 @@ class TestBollingerBands:
             bollinger_bands([1, mauvais, 3], 2, num_std=2)
         assert capture.value.reason == "non_finite_input"
 
+    @pytest.mark.parametrize(
+        ("serie", "fenetre"),
+        [([1e200, 1.0], 2), ([1e160, 1.0], 2), ([1.0, 1e200, 1.0], 3)],
+    )
+    def test_debordement_float64_de_la_variance_refuse_type(self, serie, fenetre):
+        """|prix - moyenne| > ~1.34e154 : le carré de l'écart déborde float64.
+        Le domaine déclaré (prix finis > 0) l'admet ; le moteur rend l'erreur
+        TYPÉE ``non_finite_result`` — jamais un ``OverflowError`` nu, que
+        l'appelant (``_bloc_serie`` du worker) n'attrape pas."""
+        with pytest.raises(CalculationInputError) as capture:
+            bollinger_bands(serie, fenetre, num_std=2)
+        assert capture.value.reason == "non_finite_result"
+
+    def test_debordement_float64_de_la_moyenne_refuse_type(self):
+        """Somme de fenêtre au-delà de float64 : même porte typée que
+        ``market.sma`` (``non_finite_result``)."""
+        with pytest.raises(CalculationInputError) as capture:
+            bollinger_bands([1e308, 1e308], 2, num_std=2)
+        assert capture.value.reason == "non_finite_result"
+
 
 @pytest.mark.oracle
 class TestOracleNumpy:

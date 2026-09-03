@@ -1044,6 +1044,37 @@ class TestOverlaysEtOscillateurs:
         for bloc in self._cinq_blocs(indicateurs):
             assert not (interdits & set(bloc)), "un bloc ne publie qu'une serie et sa lignee"
 
+    def test_un_refus_du_moteur_n_abat_pas_le_reste_du_dossier(self):
+        """Regression du lot S6 : une cloture FINIE et strictement positive
+        mais enorme met le carre de son ecart a la moyenne de la fenetre hors
+        de portee de float64. Le moteur doit refuser AVEC SA RAISON typee,
+        que ``_bloc_serie`` relaie en bloc ``REFUSED`` ; un ``OverflowError``
+        nu n'est pas attrape et emportait le dossier ENTIER — les six autres
+        blocs, dont les indicateurs deja approuves, avec lui.
+
+        Le pic est place hors des fenetres glissantes de fin (volatilite 20,
+        ATR 14) mais dans une fenetre de Bollinger : le refus doit rester
+        borne au SEUL bloc qui ne peut pas etre calcule.
+        """
+        enorme = "1e200"
+        barres = _barres_croissantes(60)
+        barres[25] = dict(barres[25], open=enorme, high=enorme, low=enorme, close=enorme)
+
+        indicateurs = self._indicateurs(barres)
+
+        bandes = indicateurs["overlays"]["bollinger_bands"]
+        assert bandes["status"] == "REFUSED"
+        assert bandes["reason"] == "non_finite_result"
+        assert bandes["detail"]
+        assert not {"points", "last", "calculation"} & set(bandes)
+
+        assert indicateurs["overlays"]["sma"]["status"] == "OK"
+        assert indicateurs["overlays"]["ema"]["status"] == "OK"
+        assert indicateurs["oscillators"]["rsi"]["status"] == "OK"
+        assert indicateurs["oscillators"]["macd"]["status"] == "OK"
+        assert indicateurs["realized_volatility"]["status"] == "OK"
+        assert indicateurs["atr"]["status"] == "OK"
+
     def test_le_dossier_complet_relaie_overlays_et_oscillateurs(self):
         """Le contrat d'Analyse porte le bloc tel quel : c'est lui que la
         page Graphiques lit, par le meme client."""

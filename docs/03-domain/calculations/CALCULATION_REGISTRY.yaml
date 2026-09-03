@@ -414,6 +414,7 @@ calculations:
       - "window >= 2: a single price has no dispersion, so the band does not exist (invalid_window). num_std must be finite and strictly positive (invalid_num_std); no default multiplier exists."
       - "One point per complete window aligned on the last price; a shorter series is INVALID (minimum_sample). Prices finite and strictly positive."
       - "Output in the price unit of the inputs; the three bands have the same length len(prices) - window + 1 and are published under their declared names (lower, middle, upper)."
+      - "An overflowing float64 window mean or variance raises CalculationInputError (non_finite_result): the squared deviation is computed as a product (overflows to inf, refused by the finite gate), never with the power operator whose bare OverflowError would escape the typed boundary (asserted by test_debordement_float64_de_la_variance_refuse_type)."
     parameter_schema:
       prices: {type: "list | tuple of (int | float | Decimal)", unit: price, constraint: "length >= window, each finite and > 0"}
       window: {type: int, unit: bars, constraint: ">= 2, bool rejected"}
