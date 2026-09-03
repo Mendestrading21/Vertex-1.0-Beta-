@@ -9,7 +9,7 @@ import type { DataState } from '../components/DataStateBoundary.tsx';
 import { SyntheticBanner } from '../components/SyntheticBanner.tsx';
 import { InspectorPanel } from '../shell/inspector.tsx';
 import { AttentionQueue } from './AttentionQueue.tsx';
-import { FocusRowModule } from './InstrumentWidget.tsx';
+import { FocusRowModule } from '../components/widgets/InstrumentTile.tsx';
 import { SnapshotRail } from './SnapshotRail.tsx';
 import {
   CalendarModule,
