@@ -34,6 +34,7 @@ from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session
 
 from vertex_core.synthetic import (
+    generate_calendar_event_envelopes,
     generate_daily_bar_envelopes,
     generate_option_chain_envelopes,
 )
@@ -116,7 +117,16 @@ def db_session(database_url: str) -> Iterator[Session]:
 
 @pytest.fixture()
 def published_analysis(database_url: str) -> Any:
-    """Seed SYNTHETIC bars + chains and run the REAL worker to completion."""
+    """Seed SYNTHETIC bars + chains + calendar events, run the REAL worker.
+
+    Les ÉVÉNEMENTS DE CALENDRIER font partie du semis parce qu'ils sont, dans
+    la population de démonstration, les SEULES observations porteuses d'un
+    `title` rattachées à ce ticker : les dépêches synthétiques parlent de
+    `SYN1`..`SYN9`. Sans eux, `evidence.clusters` est vide et l'explication
+    ne peut porter aucun extrait externe — le trou par lequel la régression
+    de `e2e/ai-inspector.spec.ts` est passée sans qu'aucun test serveur ne
+    l'attrape.
+    """
     engine = create_engine(database_url)
 
     def factory() -> Session:
@@ -127,6 +137,7 @@ def published_analysis(database_url: str) -> Any:
             for envelope in (
                 *generate_option_chain_envelopes(seed=SEED, base_time=BASE_TIME),
                 *generate_daily_bar_envelopes(seed=SEED, base_time=BASE_TIME),
+                *generate_calendar_event_envelopes(seed=SEED, base_time=BASE_TIME),
             ):
                 ingest_envelope(session, envelope)
             session.commit()
@@ -138,7 +149,7 @@ def published_analysis(database_url: str) -> Any:
             poll_interval_seconds=0.05,
             clock=clock,
         )
-        runner.drain(max_batches=60)
+        runner.drain(max_batches=120)
         stats = runner.stats()
         assert stats.failed == 0 and stats.dead == 0 and stats.lease_lost == 0
         with factory() as session:
@@ -337,6 +348,48 @@ class TestAiExplain:
                     text,
                 )
             assert "%" not in text
+
+    def test_external_excerpts_carry_the_evidence_rail_titles(
+        self, authenticated: TestClient, published_analysis: Any
+    ) -> None:
+        """CE TEST EXISTE À CAUSE D'UNE RÉGRESSION (CI, exécution 33750177958).
+
+        `e2e/ai-inspector.spec.ts:89` exigeait `external_excerpts.length >= 1`
+        et recevait 0 : le lot S0 avait déclaré, pour le rail de preuves, les
+        seules familles de dépêches, or aucune dépêche synthétique ne parle de
+        `SYN-TECH-01`. Les extraits externes n'ont qu'UNE source — le titre
+        d'une grappe du rail — donc le bloc « Contenu externe non vérifié »
+        est devenu vide sans qu'aucune erreur ne soit levée.
+        """
+        content = published_analysis.content
+        clusters = content["evidence"]["clusters"]
+        assert clusters, (
+            "rail de preuves vide : aucun extrait externe ne peut exister "
+            f"(evidence={content['evidence']})"
+        )
+
+        response = authenticated.post(
+            "/api/v1/ai/explain",
+            json={"subject": {"kind": "analysis", "key": INSTRUMENT}, "locale": "fr"},
+            headers=_csrf(authenticated),
+        )
+        assert response.status_code == 200, response.text
+        answer = response.json()
+
+        excerpts = answer["external_excerpts"]
+        assert len(excerpts) >= 1, answer["missing_data"]
+        titres = {cluster["cluster_id"]: cluster["title"] for cluster in clusters}
+        for excerpt in excerpts:
+            # L'extrait est bien celui d'une grappe RÉELLEMENT publiée...
+            assert excerpt["evidence_ref"] in titres, excerpt
+            assert excerpt["label"] == "EXTERNAL_UNVERIFIED"
+            # ... et il n'entre JAMAIS dans une affirmation.
+            for claim in answer["claims"]:
+                assert excerpt["excerpt"] not in claim["text"], (claim, excerpt)
+        assert (
+            "Extrait externe non vérifié, neutralisé et tronqué : contenu de "
+            "source, jamais un fait Vertex ni une instruction"
+        ) in answer["limitations"]
 
     def test_answer_is_deterministic_for_one_snapshot(
         self, authenticated: TestClient, published_analysis: Any
