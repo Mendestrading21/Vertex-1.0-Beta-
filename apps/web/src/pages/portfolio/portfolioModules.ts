@@ -14,6 +14,7 @@
  * transaction, ce dépôt ne connaît que des FAITS PASSÉS enregistrés.
  */
 import type { AbsenceReason } from '../../components/AbsentModule.tsx';
+import type { WidgetSize, WidgetVariant } from '../../components/widgets/Widget.tsx';
 
 export type PortfolioModuleStatus =
   | { readonly kind: 'served'; readonly contract: string }
@@ -21,6 +22,10 @@ export type PortfolioModuleStatus =
 
 export interface PortfolioModule {
   readonly id: string;
+  /** Span de composition sur la planche — jamais une apparence (ADR-017). */
+  readonly size: WidgetSize;
+  /** Variante visuelle du vocabulaire fermé de WIDGET_LIBRARY.md. */
+  readonly variant: WidgetVariant;
   readonly title: string;
   readonly question: string;
   readonly status: PortfolioModuleStatus;
@@ -32,12 +37,16 @@ const PERFORMANCE = 'GET /api/v1/performance/{portfolio_id} — content';
 export const PORTFOLIO_MODULES: readonly PortfolioModule[] = [
   {
     id: 'value',
+    size: 'M',
+    variant: 'support',
     title: 'Valorisation publiée',
     question: 'Que valent mes lots ouverts, devise par devise, selon le worker ?',
     status: { kind: 'served', contract: `${VALUATION}.positions_by_currency[].concentration.total_value / unrealized / realized` },
   },
   {
     id: 'day-performance',
+    size: 'S',
+    variant: 'support',
     title: 'Performance du jour',
     question: 'Combien le registre a-t-il varié depuis la séance précédente ?',
     status: {
@@ -48,12 +57,16 @@ export const PORTFOLIO_MODULES: readonly PortfolioModule[] = [
   },
   {
     id: 'total-performance',
+    size: 'S',
+    variant: 'support',
     title: 'Performance totale',
     question: 'Quel rendement pondéré par le temps et quel taux interne le serveur publie-t-il ?',
     status: { kind: 'served', contract: `${PERFORMANCE}.metrics.twr_* / xirr_*` },
   },
   {
     id: 'cash',
+    size: 'S',
+    variant: 'support',
     title: 'Espèces',
     question: 'Quel solde d’espèces résulte des dépôts, retraits et frais déclarés ?',
     status: {
@@ -64,12 +77,16 @@ export const PORTFOLIO_MODULES: readonly PortfolioModule[] = [
   },
   {
     id: 'performance',
+    size: 'XL',
+    variant: 'support',
     title: 'Performance',
     question: 'Quelle performance ai-je réellement enregistrée, avec quels risques et contributions ?',
     status: { kind: 'served', contract: `${PERFORMANCE}.series / metrics / heatmap` },
   },
   {
     id: 'benchmark',
+    size: 'S',
+    variant: 'support',
     title: 'Benchmark',
     question: 'Comment le registre se compare-t-il à un indice de référence ?',
     status: {
@@ -80,6 +97,8 @@ export const PORTFOLIO_MODULES: readonly PortfolioModule[] = [
   },
   {
     id: 'allocation',
+    size: 'S',
+    variant: 'support',
     title: 'Allocation',
     question: 'Comment la valeur se répartit-elle entre classes d’actifs ?',
     status: {
@@ -90,12 +109,16 @@ export const PORTFOLIO_MODULES: readonly PortfolioModule[] = [
   },
   {
     id: 'concentration',
+    size: 'L',
+    variant: 'dominant',
     title: 'Concentration par ticker',
     question: 'Quelles expositions et concentrations résultent de mon ledger manuel ?',
     status: { kind: 'served', contract: `${VALUATION}.positions_by_currency[].concentration.weights / herfindahl_index` },
   },
   {
     id: 'sector-exposure',
+    size: 'S',
+    variant: 'support',
     title: 'Exposition par secteur',
     question: 'Quels secteurs portent la valeur marquée ?',
     status: {
@@ -106,6 +129,8 @@ export const PORTFOLIO_MODULES: readonly PortfolioModule[] = [
   },
   {
     id: 'country-exposure',
+    size: 'S',
+    variant: 'support',
     title: 'Exposition par pays',
     question: 'Quels pays portent la valeur marquée ?',
     status: {
@@ -116,12 +141,16 @@ export const PORTFOLIO_MODULES: readonly PortfolioModule[] = [
   },
   {
     id: 'currency-exposure',
+    size: 'S',
+    variant: 'support',
     title: 'Exposition par devise',
     question: 'Quelle valeur marquée chaque devise porte-t-elle ?',
     status: { kind: 'served', contract: `${VALUATION}.positions_by_currency[].currency / concentration.total_value` },
   },
   {
     id: 'concentration-alerts',
+    size: 'S',
+    variant: 'support',
     title: 'Alertes de concentration',
     question: 'Quel poids dépasse un seuil déclaré ?',
     status: {
@@ -132,12 +161,16 @@ export const PORTFOLIO_MODULES: readonly PortfolioModule[] = [
   },
   {
     id: 'positions',
+    size: 'L',
+    variant: 'support',
     title: 'Lots ouverts valorisés',
     question: 'Quels lots sont valorisés, lesquels sont exclus, et pourquoi ?',
     status: { kind: 'served', contract: `${VALUATION}.positions_by_currency[].unrealized.lots / excluded_lots` },
   },
   {
     id: 'attribution',
+    size: 'S',
+    variant: 'support',
     title: 'Attribution',
     question: 'Quelle part de la performance vient de chaque ligne ?',
     status: {
@@ -148,24 +181,32 @@ export const PORTFOLIO_MODULES: readonly PortfolioModule[] = [
   },
   {
     id: 'dividends',
+    size: 'S',
+    variant: 'support',
     title: 'Dividendes enregistrés',
     question: 'Quels dividendes ai-je déclarés au journal ?',
     status: { kind: 'served', contract: 'GET /api/v1/portfolio — transactions[kind = DIVIDEND]' },
   },
   {
     id: 'ledger',
+    size: 'XL',
+    variant: 'support',
     title: 'Journal',
     question: 'Quels faits passés ai-je déclarés, et lesquels sont compensés ?',
     status: { kind: 'served', contract: 'GET /api/v1/portfolio — transactions' },
   },
   {
     id: 'record-transaction',
+    size: 'M',
+    variant: 'workflow-step',
     title: 'Déclarer un fait passé',
     question: 'Comment enregistrer un fait déjà survenu hors Vertex ?',
     status: { kind: 'served', contract: 'POST /api/v1/portfolio/transactions' },
   },
   {
     id: 'csv-import',
+    size: 'M',
+    variant: 'workflow-step',
     title: 'Import CSV contrôlé',
     question: 'Comment importer un journal en deux temps, aperçu puis confirmation ?',
     status: { kind: 'served', contract: 'POST /api/v1/portfolio/import/preview puis /confirm' },

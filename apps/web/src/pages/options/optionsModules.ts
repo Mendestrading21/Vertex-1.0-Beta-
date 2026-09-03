@@ -14,6 +14,7 @@
  * vivent sur Simulateur, joints par l'unique action de l'inspecteur.
  */
 import type { AbsenceReason } from '../../components/AbsentModule.tsx';
+import type { WidgetSize, WidgetVariant } from '../../components/widgets/Widget.tsx';
 
 export type OptionsModuleStatus =
   | { readonly kind: 'served'; readonly contract: string }
@@ -21,6 +22,10 @@ export type OptionsModuleStatus =
 
 export interface OptionsModule {
   readonly id: string;
+  /** Span de composition sur la planche — jamais une apparence (ADR-017). */
+  readonly size: WidgetSize;
+  /** Variante visuelle du vocabulaire fermé de WIDGET_LIBRARY.md. */
+  readonly variant: WidgetVariant;
   readonly title: string;
   readonly question: string;
   readonly status: OptionsModuleStatus;
@@ -31,24 +36,32 @@ const CHAIN = 'GET /api/v1/options/{underlying}/chain';
 export const OPTIONS_MODULES: readonly OptionsModule[] = [
   {
     id: 'underlying',
+    size: 'M',
+    variant: 'support',
     title: 'Sous-jacent',
     question: 'Quelle est la dernière clôture publiée du sous-jacent, sa variation, sa série ?',
     status: { kind: 'served', contract: 'GET /api/v1/markets/overview — ticker ; GET /api/v1/analysis/{instrument} — bars' },
   },
   {
     id: 'identity-strip',
+    size: 'M',
+    variant: 'support',
     title: 'Snapshot de chaîne',
     question: 'Quel snapshot, quelles références, quelle couverture et quel budget ?',
     status: { kind: 'served', contract: `${CHAIN} — snapshot_version, as_of, coverage, row_budget, value_nature` },
   },
   {
     id: 'spot',
+    size: 'S',
+    variant: 'support',
     title: 'Spot publié',
     question: 'À quel spot observé le calcul d’IV a-t-il été fait ?',
     status: { kind: 'served', contract: `${CHAIN} — spot` },
   },
   {
     id: 'expected-move',
+    size: 'S',
+    variant: 'support',
     title: 'Mouvement attendu',
     question: 'Quel mouvement le marché d’options implique-t-il jusqu’à l’échéance ?',
     status: {
@@ -59,6 +72,8 @@ export const OPTIONS_MODULES: readonly OptionsModule[] = [
   },
   {
     id: 'iv-reference',
+    size: 'S',
+    variant: 'support',
     title: 'IV de référence',
     question: 'Quelle IV « au niveau du spot » résume la chaîne ?',
     status: {
@@ -69,6 +84,8 @@ export const OPTIONS_MODULES: readonly OptionsModule[] = [
   },
   {
     id: 'iv-rank',
+    size: 'S',
+    variant: 'support',
     title: 'Rang d’IV',
     question: 'L’IV actuelle est-elle haute ou basse par rapport à son histoire ?',
     status: {
@@ -79,42 +96,56 @@ export const OPTIONS_MODULES: readonly OptionsModule[] = [
   },
   {
     id: 'dividend',
+    size: 'S',
+    variant: 'support',
     title: 'Dividende (hypothèse)',
     question: 'Quel rendement de dividende le calcul d’IV a-t-il supposé ?',
     status: { kind: 'served', contract: `${CHAIN} — assumptions.dividend_yield` },
   },
   {
     id: 'rate',
+    size: 'S',
+    variant: 'support',
     title: 'Taux (hypothèse)',
     question: 'Quel taux sans risque le calcul d’IV a-t-il supposé ?',
     status: { kind: 'served', contract: `${CHAIN} — assumptions.rate, quote_side_for_iv, max_quote_age_seconds` },
   },
   {
     id: 'vol-structure',
+    size: 'M',
+    variant: 'support',
     title: 'Structure par échéance',
     question: 'Comment les IV publiées se répartissent-elles d’une échéance à l’autre ?',
     status: { kind: 'served', contract: `${CHAIN} — expirations[].contracts[].iv (petits multiples)` },
   },
   {
     id: 'underlying-series',
+    size: 'M',
+    variant: 'support',
     title: 'Série du sous-jacent',
     question: 'Comment le sous-jacent a-t-il clôturé sur les dernières séances ?',
     status: { kind: 'served', contract: 'GET /api/v1/analysis/{instrument} — bars' },
   },
   {
     id: 'iv-smile',
+    size: 'M',
+    variant: 'support',
     title: 'Sourire d’IV',
     question: 'Comment l’IV publiée varie-t-elle avec le strike, calls et puts, sur le groupe affiché ?',
     status: { kind: 'served', contract: `${CHAIN} — expirations[].contracts[].iv (géométrie seule)` },
   },
   {
     id: 'chain',
+    size: 'XL',
+    variant: 'dominant',
     title: 'Chaîne d’options',
     question: 'Quels contrats sont réellement exploitables et quels risques portent-ils ?',
     status: { kind: 'served', contract: `${CHAIN} — expirations[].contracts[]` },
   },
   {
     id: 'strategy-builder',
+    size: 'S',
+    variant: 'support',
     title: 'Composeur de stratégie',
     question: 'Quelle structure déclarer à partir de ce contrat ?',
     status: {
@@ -125,6 +156,8 @@ export const OPTIONS_MODULES: readonly OptionsModule[] = [
   },
   {
     id: 'payoff-profile',
+    size: 'S',
+    variant: 'support',
     title: 'Profil de payoff',
     question: 'Que vaut la structure à l’expiration selon le spot ?',
     status: {
@@ -135,6 +168,8 @@ export const OPTIONS_MODULES: readonly OptionsModule[] = [
   },
   {
     id: 'strategy-metrics',
+    size: 'M',
+    variant: 'support',
     title: 'Métriques de stratégie',
     question: 'Probabilité de profit, espérance, ratio : que valent-ils ?',
     status: {

@@ -14,6 +14,7 @@
  * source ni contrat.
  */
 import type { AbsenceReason } from '../../components/AbsentModule.tsx';
+import type { WidgetSize, WidgetVariant } from '../../components/widgets/Widget.tsx';
 
 export type AnalysisModuleStatus =
   | { readonly kind: 'served'; readonly contract: string }
@@ -21,6 +22,10 @@ export type AnalysisModuleStatus =
 
 export interface AnalysisModule {
   readonly id: string;
+  /** Span de composition sur la planche — jamais une apparence (ADR-017). */
+  readonly size: WidgetSize;
+  /** Variante visuelle du vocabulaire fermé de WIDGET_LIBRARY.md. */
+  readonly variant: WidgetVariant;
   readonly title: string;
   readonly question: string;
   readonly status: AnalysisModuleStatus;
@@ -31,30 +36,40 @@ const DOSSIER = 'GET /api/v1/analysis/{instrument}';
 export const ANALYSIS_MODULES: readonly AnalysisModule[] = [
   {
     id: 'instrument-header',
+    size: 'M',
+    variant: 'support',
     title: 'Instrument',
     question: 'Quelle est la dernière clôture publiée, sa variation et sa série ?',
     status: { kind: 'served', contract: `${DOSSIER} — bars ; GET /api/v1/markets/overview — return_1d_pct` },
   },
   {
     id: 'identity-facts',
+    size: 'M',
+    variant: 'support',
     title: 'Identité',
     question: 'Quel instrument, quel secteur, quelle devise, quelle population ?',
     status: { kind: 'served', contract: `${DOSSIER} — bars.currency, population ; markets/overview — sector` },
   },
   {
     id: 'chart',
+    size: 'XL',
+    variant: 'dominant',
     title: 'Chandeliers et volume',
     question: 'Que disent les données certifiées sur cet instrument ?',
     status: { kind: 'served', contract: `${DOSSIER} — bars (Lightweight Charts™)` },
   },
   {
     id: 'indicators',
+    size: 'S',
+    variant: 'support',
     title: 'Indicateurs techniques',
     question: 'Quelles mesures le moteur a-t-il calculées sur la série ?',
     status: { kind: 'served', contract: `${DOSSIER} — indicators` },
   },
   {
     id: 'oscillators',
+    size: 'S',
+    variant: 'support',
     title: 'Oscillateurs',
     question: 'RSI, MACD, stochastique : que disent-ils ?',
     status: {
@@ -65,6 +80,8 @@ export const ANALYSIS_MODULES: readonly AnalysisModule[] = [
   },
   {
     id: 'regime',
+    size: 'S',
+    variant: 'support',
     title: 'Régime',
     question: 'Dans quel régime de marché cet instrument évolue-t-il ?',
     status: {
@@ -75,6 +92,8 @@ export const ANALYSIS_MODULES: readonly AnalysisModule[] = [
   },
   {
     id: 'fundamental-quality',
+    size: 'S',
+    variant: 'support',
     title: 'Qualité fondamentale',
     question: 'Les fondamentaux sont-ils solides ?',
     status: {
@@ -85,6 +104,8 @@ export const ANALYSIS_MODULES: readonly AnalysisModule[] = [
   },
   {
     id: 'valuation',
+    size: 'S',
+    variant: 'support',
     title: 'Valorisation',
     question: 'L’instrument est-il cher ou bon marché ?',
     status: {
@@ -95,12 +116,16 @@ export const ANALYSIS_MODULES: readonly AnalysisModule[] = [
   },
   {
     id: 'financials',
+    size: 'M',
+    variant: 'support',
     title: 'Faits officiels (SEC)',
     question: 'Quels dépôts et faits XBRL officiels sont publiés pour cet instrument ?',
     status: { kind: 'served', contract: 'GET /api/v1/sources/sec/{instrument}/fundamentals' },
   },
   {
     id: 'model-confidence',
+    size: 'S',
+    variant: 'support',
     title: 'Confiance du modèle',
     question: 'À quel point le verdict est-il sûr ?',
     status: {
@@ -111,6 +136,8 @@ export const ANALYSIS_MODULES: readonly AnalysisModule[] = [
   },
   {
     id: 'analyst-revisions',
+    size: 'S',
+    variant: 'support',
     title: 'Révisions d’analystes',
     question: 'Le consensus s’est-il déplacé ?',
     status: {
@@ -121,42 +148,56 @@ export const ANALYSIS_MODULES: readonly AnalysisModule[] = [
   },
   {
     id: 'verdict',
+    size: 'M',
+    variant: 'support',
     title: 'Verdict analytique',
     question: 'Quel statut et quelle direction l’unique moteur publie-t-il ?',
     status: { kind: 'served', contract: `${DOSSIER} — advice (AdviceEngine)` },
   },
   {
     id: 'scenarios',
+    size: 'M',
+    variant: 'support',
     title: 'Scénarios',
     question: 'Que vaudrait la structure de base sous d’autres spots et horizons ?',
     status: { kind: 'served', contract: `${DOSSIER} — scenarios (THÉORIQUE)` },
   },
   {
     id: 'upcoming-catalysts',
+    size: 'S',
+    variant: 'support',
     title: 'Catalyseurs à venir',
     question: 'Quels événements publiés concernent cet instrument ?',
     status: { kind: 'served', contract: 'GET /api/v1/calendar — agenda filtré par ticker' },
   },
   {
     id: 'key-risks',
+    size: 'S',
+    variant: 'support',
     title: 'Risques déclarés',
     question: 'Quelles limites et gates dégradées le moteur déclare-t-il ?',
     status: { kind: 'served', contract: `${DOSSIER} — advice.risk_summary, limitations, gates` },
   },
   {
     id: 'peers',
+    size: 'S',
+    variant: 'support',
     title: 'Pairs du secteur',
     question: 'Comment les instruments du même secteur ont-ils clôturé ?',
     status: { kind: 'served', contract: 'GET /api/v1/markets/overview — sectors[].tickers' },
   },
   {
     id: 'evidence',
+    size: 'S',
+    variant: 'support',
     title: 'Evidence',
     question: 'Quels clusters d’observations la fusion a-t-elle retenus ?',
     status: { kind: 'served', contract: `${DOSSIER} — evidence` },
   },
   {
     id: 'levels',
+    size: 'S',
+    variant: 'support',
     title: 'Niveaux clés',
     question: 'Quels supports et résistances sont publiés ?',
     status: {
@@ -167,6 +208,8 @@ export const ANALYSIS_MODULES: readonly AnalysisModule[] = [
   },
   {
     id: 'contradictions',
+    size: 'S',
+    variant: 'support',
     title: 'Contradictions',
     question: 'Quels faits se contredisent dans ce dossier ?',
     status: {

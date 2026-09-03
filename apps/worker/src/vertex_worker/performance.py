@@ -92,6 +92,7 @@ from vertex_worker.markets import (
     MarketsConfig,
     QuoteRecord,
     _parse_quote,
+    daily_quote_payload_filter,
 )
 from vertex_worker.portfolio import (
     LOT_METHOD_VERSION,
@@ -251,7 +252,10 @@ def load_all_daily_quote_records(
     rows = (
         session.execute(
             select(Observation)
-            .where(Observation.as_of <= now, schema_filter)
+            # Meme forme exigee que la fenetre Marches : une cotation
+            # instantanee etiquetee du schema quotidien consommerait la borne
+            # de 10 000 pour rien, jusqu'a declarer la serie tronquee.
+            .where(Observation.as_of <= now, schema_filter, daily_quote_payload_filter())
             .order_by(Observation.as_of.asc(), Observation.id.asc())
             .limit(limit + 1)
         )

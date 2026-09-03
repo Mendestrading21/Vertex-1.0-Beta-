@@ -3,7 +3,10 @@ import { Link, useMatches } from 'react-router-dom';
 
 import { sessionStore } from '../api/client.ts';
 import type { SessionState } from '../api/client.ts';
+import { sseLinkStore } from '../api/events.ts';
+import { isKnownResource, useSnapshotMeta } from '../api/hooks.ts';
 import type { PageDef } from '../app/pages.ts';
+import { LiveBadge } from '../components/widgets/LiveBadge.tsx';
 
 /** `handle` de route portant la définition de page (posé dans routes.tsx). */
 export interface PageHandle {
@@ -34,15 +37,28 @@ const SESSION_LABELS: Readonly<Record<SessionState, string>> = {
   unauthenticated: 'Non connecté',
 };
 
-/** Barre de contexte — page courante et état de session réel. */
+/**
+ * Clé de repli quand la page n'a pas de tête fixe : elle n'est jamais
+ * interrogée, donc son état de cache est vide et le badge dit « SANS SIGNAL ».
+ * Un hook ne peut pas être appelé sous condition ; cette clé le remplace.
+ */
+const NO_RESOURCE_KEY = ['snapshot', '(aucune tête fixe)'] as const;
+
+/** Barre de contexte — page courante, lien de signalement, état de session. */
 export function ContextBar() {
   const matches = useMatches();
   const session = useSyncExternalStore(sessionStore.subscribe, sessionStore.getState);
+  const link = useSyncExternalStore(sseLinkStore.subscribe, sseLinkStore.getState);
   const pageMatch = [...matches].reverse().find((match) => isPageHandle(match.handle));
-  const title =
-    pageMatch !== undefined && isPageHandle(pageMatch.handle)
-      ? pageMatch.handle.page.title
-      : 'Page introuvable';
+  const page =
+    pageMatch !== undefined && isPageHandle(pageMatch.handle) ? pageMatch.handle.page : null;
+  const title = page === null ? 'Page introuvable' : page.title;
+  const live = page?.live ?? null;
+  const meta = useSnapshotMeta(live === null ? NO_RESOURCE_KEY : live.queryKey);
+  // « Suivie » veut dire : le flux signale RÉELLEMENT cette tête aujourd'hui.
+  const tracked = live?.resource !== null && live?.resource !== undefined
+    ? isKnownResource(live.resource)
+    : false;
 
   return (
     <header className="vx-contextbar">
@@ -57,13 +73,18 @@ export function ContextBar() {
       </div>
       <div className="vx-contextbar-meta">
         {/*
-          L'édition « Vertex 1.0 Beta » a rejoint le pied du rail (point 7 de
-          l'anatomie canonique). Le haut à droite est réservé au badge de mode,
-          à la cloche et à la fraîcheur (point 5) : aucun des trois n'a
-          aujourd'hui de source canonique côté shell, donc aucun des trois
-          n'est dessiné. Une cloche sans file de notifications ou un badge de
-          mode sans propriétaire de mode serait une façade.
+          POINT 5 DE L'ANATOMIE CANONIQUE — 2/3, et c'est dit.
+
+          La FRAÎCHEUR et le BADGE DE MODE ont désormais un propriétaire : le
+          lien de signalement (`sseLinkStore`) et les métadonnées SERVIES de la
+          ressource principale de la page (`useSnapshotMeta`). La CLOCHE reste
+          absente : aucune file de notifications n'existe côté contrat, et une
+          cloche sans file serait une façade (article 17).
+
+          Le badge ne dit jamais « en direct » : le flux est signal-only, il
+          prouve un LIEN, pas une cotation.
         */}
+        <LiveBadge session={session} link={link.link} mode={link.mode} tracked={tracked} meta={meta} />
         <p className="vx-contextbar-status" data-session={session}>
           <span className="vx-status-dot" aria-hidden="true" />
           {SESSION_LABELS[session]}

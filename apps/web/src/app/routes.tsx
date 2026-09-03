@@ -188,6 +188,9 @@ export const AUTH_PAGE: PageDef = {
   routePath: '/auth',
   question: 'Ouvrir une session locale par passkey — aucun mot de passe, aucun repli.',
   lot: 'LOT-14',
+  // La page d'accès ne lit aucun snapshot, et le flux SSE ne vit qu'en session
+  // authentifiée : il n'y a rien à signaler ici, donc rien à prétendre suivre.
+  live: null,
 };
 
 /**
