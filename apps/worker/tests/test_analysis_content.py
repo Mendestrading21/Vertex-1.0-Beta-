@@ -987,15 +987,56 @@ class TestSeriesGlissantes:
             assert calcul["result_hash"] != indicateurs[nom]["calculation"]["result_hash"]
 
     def test_aucune_interpretation_dans_la_serie(self):
-        from vertex_worker.analysis import _build_indicators
+        """Aucun vocabulaire d'interpretation dans une serie publiee.
+
+        Depuis le lot S6, `indicators` mele des BLOCS (valeur ponctuelle plus
+        serie glissante) et des CONTENEURS nommes — `overlays`, `oscillators` —
+        dont chaque entree est elle-meme un bloc. L'invariant couvre les deux
+        formes et descend RECURSIVEMENT : un champ d'interpretation ajoute a
+        n'importe quelle profondeur echoue ici, ce que la version precedente
+        (deux niveaux) laissait passer.
+
+        UNE exception, nommee et bornee au bloc MACD : les noms de ses lignes
+        (`MACD_LINES` = `macd`, `signal`, `histogram`) sont des identifiants
+        de lignes du moteur, declares au registre des calculs et publies tels
+        quels pour que la page les lise sans les deduire. Ils apparaissent
+        partout dans ce bloc — `series` (les points de chaque ligne), `last`
+        (la derniere valeur de chacune), `windows` (la fenetre declaree de
+        chacune, `signal` valant 9) — donc l'exception porte sur le bloc et
+        non sur une liste de chemins, qui casserait au prochain champ publie.
+        Elle ne retire QUE ces trois noms, et seulement sous
+        `oscillators.macd` : les six autres mots interdits y restent
+        interdits, et les trois noms restent interdits partout ailleurs.
+        """
+        from vertex_worker.analysis import MACD_LINES, _build_indicators
 
         indicateurs = _build_indicators(_barres_croissantes(60), now=NOW, source_event_id=None)
         interdits = {"level", "severity", "regime", "signal", "verdict", "score", "trend"}
-        for bloc in indicateurs.values():
-            serie = bloc["series"]
-            assert not (interdits & set(serie))
-            for point in serie.get("points", ()):
-                assert not (interdits & set(point))
+
+        blocs: list[tuple[str, dict]] = []
+        for nom, valeur in indicateurs.items():
+            assert isinstance(valeur, dict), nom
+            if "status" in valeur:
+                blocs.append((nom, valeur))
+            else:
+                blocs.extend((f"{nom}.{sous}", bloc) for sous, bloc in valeur.items())
+        # 2 blocs S3 servis sans indice de reference + 3 overlays + 2 oscillateurs.
+        assert len(blocs) >= 7, [nom for nom, _ in blocs]
+
+        def sans_interpretation(objet: object, chemin: str) -> None:
+            if isinstance(objet, dict):
+                cles = set(objet)
+                if chemin == "oscillators.macd" or chemin.startswith("oscillators.macd."):
+                    cles -= set(MACD_LINES)
+                assert not (interdits & cles), f"{chemin} : {sorted(interdits & cles)}"
+                for cle, valeur in objet.items():
+                    sans_interpretation(valeur, f"{chemin}.{cle}")
+            elif isinstance(objet, list):
+                for index, element in enumerate(objet):
+                    sans_interpretation(element, f"{chemin}[{index}]")
+
+        for nom, bloc in blocs:
+            sans_interpretation(bloc, nom)
 
     def test_une_seance_dupliquee_REFUSE_les_series_atr_et_volatilite_sans_les_trouer(self):
         """Une séance dupliquée loin du présent laisse les valeurs ponctuelles
@@ -1592,3 +1633,232 @@ class TestComparaisonDansLeDossier:
         ]
         force = content["indicators"]["relative_strength"]
         assert force["status"] == REASON_BENCHMARK_ABSENT
+
+
+class TestOverlaysEtOscillateurs:
+    """Lot S6 : ``market.sma``, ``market.ema``, ``market.bollinger_bands``,
+    ``market.rsi`` et ``market.macd`` publies dans ``indicators`` sous
+    ``overlays`` et ``oscillators``. Ces tests couvrent le BRANCHEMENT ; la
+    mathematique est testee dans ``packages/python/vertex_core/tests``.
+
+    Le serveur publie des chaines rendues, des fenetres declarees et les
+    noms des bandes et des lignes : la page Graphiques lit, ne calcule pas.
+    """
+
+    @staticmethod
+    def _indicateurs(barres):
+        from vertex_worker.analysis import _build_indicators
+
+        return _build_indicators(barres, now=NOW, source_event_id="evt-1")
+
+    @staticmethod
+    def _cinq_blocs(indicateurs):
+        return (
+            indicateurs["overlays"]["sma"],
+            indicateurs["overlays"]["ema"],
+            indicateurs["overlays"]["bollinger_bands"],
+            indicateurs["oscillators"]["rsi"],
+            indicateurs["oscillators"]["macd"],
+        )
+
+    def test_une_serie_suffisante_publie_les_cinq_blocs(self):
+        indicateurs = self._indicateurs(_barres_croissantes(60))
+        assert set(indicateurs["overlays"]) == {"sma", "ema", "bollinger_bands"}
+        assert set(indicateurs["oscillators"]) == {"rsi", "macd"}
+        for bloc in self._cinq_blocs(indicateurs):
+            assert bloc["status"] == "OK"
+
+    def test_les_fenetres_les_methodes_et_les_noms_sont_declares(self):
+        """Une courbe sans fenetre declaree est un nombre dont personne ne
+        connait la periode ; une bande sans nom est une ligne anonyme."""
+        from vertex_worker.analysis import (
+            BOLLINGER_BANDS,
+            BOLLINGER_WINDOW,
+            EMA_WINDOW,
+            MACD_FAST,
+            MACD_LINES,
+            MACD_SIGNAL,
+            MACD_SLOW,
+            RSI_WINDOW,
+            SMA_WINDOW,
+        )
+
+        indicateurs = self._indicateurs(_barres_croissantes(60))
+        sma, ema, bandes, rsi, macd = self._cinq_blocs(indicateurs)
+        assert sma["window"] == SMA_WINDOW
+        assert ema["window"] == EMA_WINDOW
+        assert bandes["window"] == BOLLINGER_WINDOW
+        assert bandes["num_std"] == "2"
+        assert bandes["bands"] == list(BOLLINGER_BANDS) == ["lower", "middle", "upper"]
+        assert rsi["window"] == RSI_WINDOW
+        assert macd["windows"] == {"fast": MACD_FAST, "slow": MACD_SLOW, "signal": MACD_SIGNAL}
+        assert macd["lines"] == list(MACD_LINES) == ["macd", "signal", "histogram"]
+        for bloc in (sma, ema, bandes, rsi, macd):
+            assert isinstance(bloc["method"], str) and bloc["method"]
+            assert isinstance(bloc["unit"], str) and bloc["unit"]
+
+    def test_les_valeurs_sont_des_chaines_rendues_jamais_des_flottants(self):
+        """`.claude/rules/frontend.md` : aucun calcul financier dans le
+        navigateur, donc aucun flottant a formater cote client."""
+        from decimal import Decimal
+
+        indicateurs = self._indicateurs(_barres_croissantes(60))
+
+        def _sans_flottant(valeur):
+            if isinstance(valeur, dict):
+                for element in valeur.values():
+                    _sans_flottant(element)
+            elif isinstance(valeur, list):
+                for element in valeur:
+                    _sans_flottant(element)
+            else:
+                assert not isinstance(valeur, float), "un flottant brut n'est pas une valeur rendue"
+
+        _sans_flottant(indicateurs["overlays"])
+        _sans_flottant(indicateurs["oscillators"])
+        sma, ema, bandes, rsi, macd = self._cinq_blocs(indicateurs)
+        for bloc in (sma, ema, rsi):
+            for point in bloc["points"]:
+                assert Decimal(point["value"]).is_finite()
+            assert Decimal(bloc["last"]["value"]).is_finite()
+        for point in bandes["points"]:
+            assert Decimal(point["lower"]) <= Decimal(point["middle"]) <= Decimal(point["upper"])
+        for ligne in ("macd", "signal", "histogram"):
+            for point in macd["series"][ligne]:
+                assert Decimal(point["value"]).is_finite()
+            assert Decimal(macd["last"][ligne]).is_finite()
+
+    def test_les_series_sont_alignees_sur_les_jours_de_bourse(self):
+        """Chaque point porte SON jour ; aucun remplissage en tete : la
+        premiere valeur tombe sur la premiere fenetre complete."""
+        from vertex_worker.analysis import (
+            MACD_SIGNAL,
+            MACD_SLOW,
+            RSI_WINDOW,
+            SMA_WINDOW,
+        )
+
+        barres = _barres_croissantes(60)
+        indicateurs = self._indicateurs(barres)
+        dernier = barres[-1]["trading_day"]
+        sma, _ema, bandes, rsi, macd = self._cinq_blocs(indicateurs)
+
+        assert len(sma["points"]) == 60 - SMA_WINDOW + 1
+        assert sma["points"][0]["trading_day"] == barres[SMA_WINDOW - 1]["trading_day"]
+        assert sma["points"][-1]["trading_day"] == dernier
+        assert sma["last"] == sma["points"][-1]
+
+        assert len(rsi["points"]) == 60 - RSI_WINDOW
+        assert rsi["points"][-1]["trading_day"] == dernier
+
+        assert bandes["last"]["trading_day"] == dernier
+        assert len(macd["series"]["macd"]) == 60 - MACD_SLOW + 1
+        assert len(macd["series"]["signal"]) == 60 - MACD_SLOW - MACD_SIGNAL + 2
+        assert len(macd["series"]["histogram"]) == len(macd["series"]["signal"])
+        assert macd["last"]["trading_day"] == dernier
+
+    def test_chaque_bloc_porte_sa_tracabilite(self):
+        """Une valeur financiere sans lignee n'est pas publiable."""
+        indicateurs = self._indicateurs(_barres_croissantes(60))
+        attendus = {
+            ("overlays", "sma"): "market.sma",
+            ("overlays", "ema"): "market.ema",
+            ("overlays", "bollinger_bands"): "market.bollinger_bands",
+            ("oscillators", "rsi"): "market.rsi",
+            ("oscillators", "macd"): "market.macd",
+        }
+        for (famille, nom), identifiant in attendus.items():
+            calcul = indicateurs[famille][nom]["calculation"]
+            assert calcul["calculation_id"] == identifiant
+            assert calcul["status"] == "OK"
+            assert calcul["input_hash"].startswith("sha256:")
+            assert calcul["result_hash"].startswith("sha256:")
+            assert calcul["engine_version"]
+
+    def test_une_fenetre_trop_courte_est_NOMMEE_jamais_approchee(self):
+        """Cinq barres : aucune des cinq fenetres n'est complete. Le statut
+        dit combien de barres existent ; aucune valeur n'est publiee."""
+        from vertex_worker.analysis import REASON_INSUFFICIENT_SAMPLE
+
+        indicateurs = self._indicateurs(_barres_croissantes(5))
+        for bloc in self._cinq_blocs(indicateurs):
+            assert bloc["status"] == REASON_INSUFFICIENT_SAMPLE
+            assert bloc["available_bars"] == 5
+            assert bloc["detail"]
+            assert not {"points", "series", "last", "value", "calculation"} & set(bloc)
+
+    def test_une_serie_vide_ne_leve_pas(self):
+        """Un instrument sans barre est un cas NORMAL, pas une panne."""
+        from vertex_worker.analysis import REASON_INSUFFICIENT_SAMPLE
+
+        indicateurs = self._indicateurs([])
+        for bloc in self._cinq_blocs(indicateurs):
+            assert bloc["status"] == REASON_INSUFFICIENT_SAMPLE
+            assert bloc["available_bars"] == 0
+
+    def test_une_serie_plate_REFUSE_le_rsi_avec_sa_raison_sans_entrainer_les_autres(self):
+        """AG = AL = 0 : le rapport n'existe pas, et le moteur refuse au lieu
+        de publier 50. Le refus est relaye avec sa raison ; la SMA d'une
+        serie plate, elle, existe."""
+        from decimal import Decimal
+
+        plates = [
+            dict(barre, open="100.00", high="101.00", low="99.00", close="100.00")
+            for barre in _barres_croissantes(60)
+        ]
+        indicateurs = self._indicateurs(plates)
+        rsi = indicateurs["oscillators"]["rsi"]
+        assert rsi["status"] == "REFUSED"
+        assert rsi["reason"] == "flat_series"
+        assert rsi["detail"]
+        assert "points" not in rsi and "last" not in rsi
+        assert indicateurs["overlays"]["sma"]["status"] == "OK"
+        assert Decimal(indicateurs["overlays"]["sma"]["last"]["value"]) == Decimal("100")
+
+    def test_aucune_interpretation_n_est_publiee(self):
+        """Un RSI est un indice, jamais un jugement : « surachete »
+        supposerait un seuil, et aucun seuil n'est declare."""
+        indicateurs = self._indicateurs(_barres_croissantes(60))
+        interdits = {"level", "severity", "regime", "signal", "verdict", "score", "overbought"}
+        for bloc in self._cinq_blocs(indicateurs):
+            assert not (interdits & set(bloc)), "un bloc ne publie qu'une serie et sa lignee"
+
+    def test_un_refus_du_moteur_n_abat_pas_le_reste_du_dossier(self):
+        """Regression du lot S6 : une cloture FINIE et strictement positive
+        mais enorme met le carre de son ecart a la moyenne de la fenetre hors
+        de portee de float64. Le moteur doit refuser AVEC SA RAISON typee,
+        que ``_bloc_serie`` relaie en bloc ``REFUSED`` ; un ``OverflowError``
+        nu n'est pas attrape et emportait le dossier ENTIER — les six autres
+        blocs, dont les indicateurs deja approuves, avec lui.
+
+        Le pic est place hors des fenetres glissantes de fin (volatilite 20,
+        ATR 14) mais dans une fenetre de Bollinger : le refus doit rester
+        borne au SEUL bloc qui ne peut pas etre calcule.
+        """
+        enorme = "1e200"
+        barres = _barres_croissantes(60)
+        barres[25] = dict(barres[25], open=enorme, high=enorme, low=enorme, close=enorme)
+
+        indicateurs = self._indicateurs(barres)
+
+        bandes = indicateurs["overlays"]["bollinger_bands"]
+        assert bandes["status"] == "REFUSED"
+        assert bandes["reason"] == "non_finite_result"
+        assert bandes["detail"]
+        assert not {"points", "last", "calculation"} & set(bandes)
+
+        assert indicateurs["overlays"]["sma"]["status"] == "OK"
+        assert indicateurs["overlays"]["ema"]["status"] == "OK"
+        assert indicateurs["oscillators"]["rsi"]["status"] == "OK"
+        assert indicateurs["oscillators"]["macd"]["status"] == "OK"
+        assert indicateurs["realized_volatility"]["status"] == "OK"
+        assert indicateurs["atr"]["status"] == "OK"
+
+    def test_le_dossier_complet_relaie_overlays_et_oscillateurs(self):
+        """Le contrat d'Analyse porte le bloc tel quel : c'est lui que la
+        page Graphiques lit, par le meme client."""
+        content = build([bars_record(bars=_barres_croissantes(60))])
+        indicateurs = content["indicators"]
+        assert indicateurs["overlays"]["ema"]["status"] == "OK"
+        assert indicateurs["oscillators"]["macd"]["status"] == "OK"
+        assert indicateurs["realized_volatility"]["status"] == "OK", "les blocs existants restent"

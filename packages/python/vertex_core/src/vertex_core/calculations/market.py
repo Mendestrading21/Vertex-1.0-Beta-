@@ -10,6 +10,11 @@ Pure, deterministic functions implementing the ``market.*`` entries of
 - ``market.rebased_series``      -> :func:`rebase_series`
 - ``market.relative_strength``   -> :func:`relative_strength`
 - ``market.breadth``             -> :func:`breadth`
+- ``market.sma``                 -> :func:`simple_moving_average`
+- ``market.ema``                 -> :func:`exponential_moving_average`
+- ``market.bollinger_bands``     -> :func:`bollinger_bands`
+- ``market.rsi``                 -> :func:`relative_strength_index`
+- ``market.macd``                -> :func:`macd`
 
 Numeric policy (UNITS_TIME_AND_PRECISION):
 
@@ -37,21 +42,30 @@ import math
 from collections.abc import Sequence
 from datetime import datetime
 from decimal import Decimal
+from itertools import pairwise
+from typing import NamedTuple
 
 from vertex_core.contracts.types import ContractModel, PositiveDecimal, UtcDatetime
 
 __all__ = [
     "FLOAT64_ABS_TOL",
     "FLOAT64_REL_TOL",
+    "BollingerBands",
     "CalculationInputError",
+    "MacdSeries",
     "NumberLike",
     "OhlcBar",
     "atr",
+    "bollinger_bands",
     "breadth",
+    "exponential_moving_average",
     "log_return",
+    "macd",
     "realized_volatility",
     "rebase_series",
     "relative_strength",
+    "relative_strength_index",
+    "simple_moving_average",
     "simple_return",
 ]
 
@@ -589,3 +603,297 @@ def breadth(
         )
     # threshold > 0 and coverage >= threshold imply covered >= 1 here.
     return _finite_result(above / covered, "market.breadth")
+
+
+# ---------------------------------------------------------------------------
+# Overlays et oscillateurs — market.sma, market.ema, market.bollinger_bands,
+# market.rsi, market.macd
+#
+# Convention commune, déclarée une fois : une série rend UNE valeur par
+# fenêtre COMPLÈTE, alignée sur le dernier prix de la fenêtre. Aucun
+# remplissage en tête, aucune fenêtre partielle : une série plus courte que
+# la fenêtre est INVALIDE (``minimum_sample``), jamais moyennée « sur ce
+# qu'on a ». Les prix passent la même frontière que :func:`rebase_series` :
+# finis, strictement positifs, et sur UNE seule base d'ajustement — ces
+# fonctions ne reçoivent que des nombres, l'appelant garantit la base.
+# ---------------------------------------------------------------------------
+
+
+def _require_window(value: object, name: str, *, minimum: int = 1) -> int:
+    window = _require_int(value, name)
+    if window < minimum:
+        raise CalculationInputError("invalid_window", f"{name} must be >= {minimum}, got {window}")
+    return window
+
+
+def _require_price_series(prices: object, *, minimum: int, calculation_id: str) -> list[float]:
+    seq = _require_sequence(prices, "prices")
+    if len(seq) < minimum:
+        raise CalculationInputError(
+            "minimum_sample",
+            f"{calculation_id} requires at least {minimum} prices, got {len(seq)}",
+        )
+    return [_require_positive_price(price, f"prices[{index}]") for index, price in enumerate(seq)]
+
+
+def _mean(values: Sequence[float], calculation_id: str) -> float:
+    """Moyenne arithmétique : somme exactement arrondie puis UNE division."""
+    try:
+        total = math.fsum(values)
+    except OverflowError:
+        raise CalculationInputError(
+            "non_finite_result", f"{calculation_id} sum overflowed float64"
+        ) from None
+    return _finite_result(total / len(values), calculation_id)
+
+
+def _sma_core(values: Sequence[float], window: int, calculation_id: str) -> tuple[float, ...]:
+    return tuple(
+        _mean(values[start : start + window], calculation_id)
+        for start in range(len(values) - window + 1)
+    )
+
+
+def simple_moving_average(prices: Sequence[NumberLike], window: int) -> tuple[float, ...]:
+    """``market.sma`` — moyenne mobile simple sur fenêtres complètes.
+
+    Méthode : ``SMA_t = (1 / window) * sum(p_{t-window+1..t})`` — somme
+    exactement arrondie (``math.fsum``) puis une division. Un point par
+    fenêtre COMPLÈTE, aligné sur le dernier prix de la fenêtre :
+    ``len(résultat) == len(prices) - window + 1``.
+
+    Portes (chaque violation lève :class:`CalculationInputError`) :
+
+    - ``prices`` est une liste ou un tuple (``invalid_type``) ;
+    - ``window`` est un entier ``>= 1`` (``invalid_type`` / ``invalid_window``) ;
+    - ``len(prices) >= window`` (``minimum_sample``) — une série plus courte
+      n'est jamais moyennée sur ce qu'on a ;
+    - chaque prix fini et strictement positif (``non_finite_input`` /
+      ``non_positive_price`` / ``invalid_type``).
+
+    Invariants : chaque point est fini et compris entre le minimum et le
+    maximum de sa fenêtre (à un arrondi float64 près) ; ``window == 1`` rend
+    les prix eux-mêmes, exactement. Unité : celle des prix.
+    """
+    _require_sequence(prices, "prices")
+    w = _require_window(window, "window")
+    values = _require_price_series(prices, minimum=w, calculation_id="market.sma")
+    return _sma_core(values, w, "market.sma")
+
+
+def _ema_core(values: Sequence[float], window: int, calculation_id: str) -> tuple[float, ...]:
+    """Amorce = moyenne arithmétique des ``window`` premières valeurs, puis
+    ``y_t = alpha * x_t + (1 - alpha) * y_{t-1}`` avec ``alpha = 2 / (window + 1)``.
+    Aucune contrainte de signe : la ligne de signal du MACD passe ici aussi."""
+    alpha = 2.0 / (window + 1.0)
+    decay = 1.0 - alpha
+    current = _mean(values[:window], calculation_id)
+    points = [current]
+    for value in values[window:]:
+        current = _finite_result(alpha * value + decay * current, calculation_id)
+        points.append(current)
+    return tuple(points)
+
+
+def exponential_moving_average(prices: Sequence[NumberLike], window: int) -> tuple[float, ...]:
+    """``market.ema`` — moyenne mobile exponentielle amorcée par la moyenne.
+
+    Méthode : amorce ``EMA_window = moyenne arithmétique des window premiers
+    prix``, puis ``EMA_t = alpha * p_t + (1 - alpha) * EMA_{t-1}`` avec
+    ``alpha = 2 / (window + 1)``. La convention d'amorce est DÉCLARÉE : une
+    bibliothèque qui amorce sur le premier prix seul publierait d'autres
+    valeurs pour la même fenêtre. Un point par fenêtre complète :
+    ``len(résultat) == len(prices) - window + 1``.
+
+    Portes : identiques à :func:`simple_moving_average` (``invalid_type``,
+    ``invalid_window``, ``minimum_sample``, ``non_finite_input``,
+    ``non_positive_price``).
+
+    Invariants : chaque point est une combinaison convexe des prix vus
+    jusque-là, donc compris dans leur intervalle (à un arrondi float64 près) ;
+    ``window == 1`` (``alpha == 1``) rend les prix eux-mêmes, exactement.
+    """
+    _require_sequence(prices, "prices")
+    w = _require_window(window, "window")
+    values = _require_price_series(prices, minimum=w, calculation_id="market.ema")
+    return _ema_core(values, w, "market.ema")
+
+
+class BollingerBands(NamedTuple):
+    """``market.bollinger_bands`` — trois bandes alignées sur le dernier prix.
+
+    ``middle`` EST ``simple_moving_average(prices, window)`` (égalité exacte,
+    vérifiée par test) ; ``upper`` et ``lower`` s'en écartent de ``num_std``
+    écarts-types de POPULATION (ddof = 0) de la fenêtre.
+    """
+
+    lower: tuple[float, ...]
+    middle: tuple[float, ...]
+    upper: tuple[float, ...]
+
+
+def bollinger_bands(
+    prices: Sequence[NumberLike], window: int, *, num_std: NumberLike
+) -> BollingerBands:
+    """``market.bollinger_bands`` — médiane SMA et bandes à ``num_std`` écarts-types.
+
+    Méthode : ``middle = SMA(window)`` (le MÊME calcul que ``market.sma``,
+    égalité exacte) ; ``sigma`` = écart-type de POPULATION (ddof = 0) de la
+    fenêtre, convention déclarée — la convention usuelle des bandes, qui
+    diffère du ddof = 1 de ``market.realized_volatility`` ;
+    ``upper = middle + num_std * sigma`` et ``lower = middle - num_std * sigma``.
+
+    Portes :
+
+    - ``window >= 2`` (``invalid_window``) : un seul prix n'a pas de
+      dispersion, la bande n'existe pas ;
+    - ``num_std`` fini et strictement positif (``invalid_type`` /
+      ``non_finite_input`` / ``invalid_num_std``) ;
+    - ``len(prices) >= window`` (``minimum_sample``) ; prix finis et
+      strictement positifs ;
+    - un débordement float64 de la moyenne ou de la variance d'une fenêtre
+      lève ``non_finite_result`` — jamais un ``OverflowError`` nu.
+
+    Invariants : ``lower <= middle <= upper`` point à point, bandes
+    symétriques autour de la médiane à un ulp près, trois séries de même
+    longueur ``len(prices) - window + 1``.
+    """
+    _require_sequence(prices, "prices")
+    w = _require_window(window, "window", minimum=2)
+    k = _to_float(num_std, "num_std")
+    if k <= 0.0:
+        raise CalculationInputError(
+            "invalid_num_std", f"num_std must be strictly positive, got {k!r}"
+        )
+    values = _require_price_series(prices, minimum=w, calculation_id="market.bollinger_bands")
+    middle = _sma_core(values, w, "market.bollinger_bands")
+    upper: list[float] = []
+    lower: list[float] = []
+    for start, mean in enumerate(middle):
+        block = values[start : start + w]
+        # Produit ``deviation * deviation`` et non ``** 2`` : le produit déborde
+        # en ``inf``, refusé par ``_finite_result`` (``non_finite_result``) ;
+        # la puissance lèverait un ``OverflowError`` nu, hors de la frontière
+        # typée, dès que |prix - moyenne| dépasse ~1.34e154.
+        squared: list[float] = []
+        for value in block:
+            deviation = value - mean
+            squared.append(deviation * deviation)
+        variance = _mean(squared, "market.bollinger_bands")
+        half_width = _finite_result(k * math.sqrt(variance), "market.bollinger_bands")
+        upper.append(_finite_result(mean + half_width, "market.bollinger_bands"))
+        lower.append(_finite_result(mean - half_width, "market.bollinger_bands"))
+    return BollingerBands(lower=tuple(lower), middle=middle, upper=tuple(upper))
+
+
+def relative_strength_index(prices: Sequence[NumberLike], window: int) -> tuple[float, ...]:
+    """``market.rsi`` — indice de force relative de Wilder.
+
+    Méthode : variations ``d_t = p_t - p_{t-1}`` ; gain ``max(d_t, 0)``,
+    perte ``max(-d_t, 0)`` ; gain moyen ``AG`` et perte moyenne ``AL``
+    amorcés par la moyenne arithmétique des ``window`` premières variations,
+    puis lissage de Wilder ``AG_t = (AG_{t-1} * (window - 1) + gain_t) / window``
+    (idem ``AL``) ; ``RSI_t = 100 * AG_t / (AG_t + AL_t)``. Un point par
+    variation au-delà de la fenêtre : ``len(résultat) == len(prices) - window``.
+
+    Portes :
+
+    - ``window >= 1`` (``invalid_window``) ; ``len(prices) >= window + 1``
+      (``minimum_sample``) ; prix finis et strictement positifs ;
+    - ``flat_series`` : ``AG_t + AL_t == 0`` en un point publié — fenêtre
+      d'amorce sans aucune variation, ou (fenêtre 1, sans mémoire) un pas
+      plat. Le rapport n'existe pas ; publier 0, 50 ou 100 serait une valeur
+      inventée, la série entière est refusée.
+
+    Invariant : chaque point est fini et compris dans ``[0, 100]`` ; une
+    série strictement croissante vaut exactement ``100.0`` (``AL == 0``), une
+    série strictement décroissante exactement ``0.0``.
+    """
+    _require_sequence(prices, "prices")
+    w = _require_window(window, "window")
+    values = _require_price_series(prices, minimum=w + 1, calculation_id="market.rsi")
+    gains: list[float] = []
+    losses: list[float] = []
+    for previous, current in pairwise(values):
+        delta = current - previous
+        gains.append(delta if delta > 0.0 else 0.0)
+        losses.append(-delta if delta < 0.0 else 0.0)
+
+    def _point(average_gain: float, average_loss: float, last_index: int) -> float:
+        total = average_gain + average_loss
+        if total <= 0.0:
+            raise CalculationInputError(
+                "flat_series",
+                "market.rsi: no price variation over the smoothing window ending at "
+                f"prices[{last_index}]; the gain/loss ratio does not exist and no "
+                "conventional value is substituted",
+            )
+        return _finite_result(100.0 * (average_gain / total), "market.rsi")
+
+    average_gain = _mean(gains[:w], "market.rsi")
+    average_loss = _mean(losses[:w], "market.rsi")
+    points = [_point(average_gain, average_loss, w)]
+    for offset in range(w, len(gains)):
+        average_gain = (average_gain * (w - 1) + gains[offset]) / w
+        average_loss = (average_loss * (w - 1) + losses[offset]) / w
+        points.append(_point(average_gain, average_loss, offset + 1))
+    return tuple(points)
+
+
+class MacdSeries(NamedTuple):
+    """``market.macd`` — ligne MACD, ligne de signal et histogramme.
+
+    ``macd`` compte ``len(prices) - slow + 1`` points ; ``signal`` et
+    ``histogram`` en comptent ``signal - 1`` de moins, alignés sur la fin.
+    """
+
+    macd: tuple[float, ...]
+    signal: tuple[float, ...]
+    histogram: tuple[float, ...]
+
+
+def macd(prices: Sequence[NumberLike], *, fast: int, slow: int, signal: int) -> MacdSeries:
+    """``market.macd`` — convergence/divergence de moyennes mobiles.
+
+    Méthode : ``MACD_t = EMA_fast(p)_t - EMA_slow(p)_t`` sur les points où
+    les DEUX moyennes existent (``len(prices) - slow + 1`` points) ; ligne de
+    signal ``EMA_signal(MACD)`` ; ``histogram = MACD - signal`` sur les points
+    où le signal existe (``len(prices) - slow - signal + 2`` points). Les
+    moyennes sont celles de ``market.ema`` (amorce = moyenne arithmétique),
+    la ligne de signal est amorcée de la même façon sur la ligne MACD.
+
+    Portes :
+
+    - ``fast``, ``slow``, ``signal`` entiers ``>= 1`` (``invalid_type`` /
+      ``invalid_window``) ;
+    - ``fast < slow`` strictement (``unordered_windows``) ;
+    - ``len(prices) >= slow + signal - 1`` (``minimum_sample``) : au moins un
+      point de signal ; prix finis et strictement positifs.
+
+    Invariant : toutes les valeurs sont finies ; une série constante donne
+    une ligne MACD nulle (à l'arrondi float64 près). Unité : celle des prix.
+    """
+    _require_sequence(prices, "prices")
+    f = _require_window(fast, "fast")
+    s = _require_window(slow, "slow")
+    g = _require_window(signal, "signal")
+    if f >= s:
+        raise CalculationInputError(
+            "unordered_windows",
+            f"fast window {f} must be strictly shorter than slow window {s}",
+        )
+    values = _require_price_series(prices, minimum=s + g - 1, calculation_id="market.macd")
+    fast_ema = _ema_core(values, f, "market.macd")
+    slow_ema = _ema_core(values, s, "market.macd")
+    offset = s - f
+    line = tuple(
+        _finite_result(fast_ema[index + offset] - slow_ema[index], "market.macd")
+        for index in range(len(slow_ema))
+    )
+    signal_line = _ema_core(line, g, "market.macd")
+    tail = line[len(line) - len(signal_line) :]
+    histogram = tuple(
+        _finite_result(value - smoothed, "market.macd")
+        for value, smoothed in zip(tail, signal_line, strict=True)
+    )
+    return MacdSeries(macd=line, signal=signal_line, histogram=histogram)
