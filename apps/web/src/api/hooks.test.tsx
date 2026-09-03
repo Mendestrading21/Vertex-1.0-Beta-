@@ -138,6 +138,18 @@ describe('hooks API (fetch factice)', () => {
     ]);
   });
 
+  it('lot S4 : risk_matrix/global est suivie — la page Risques se rafraîchit par le flux', async () => {
+    const { isKnownResource } = await import('./hooks.ts');
+    // Le serveur signale la tête FIXE `risk_matrix/global` (WATCHED_SNAPSHOTS,
+    // seule clé publiée par le worker) : toute autre clé de la famille est
+    // ignorée, jamais d'invalidation inventée.
+    expect(isKnownResource('risk_matrix/global')).toBe(true);
+    expect(isKnownResource('risk_matrix/autre')).toBe(false);
+    expect(isKnownResource('risk_matrix/')).toBe(false);
+    // Même clé que `useRiskMatrix` (decisionApi.ts) : le signal atteint son cache.
+    expect(queryKeyForResource('risk_matrix/global')).toEqual(['snapshot', 'risk_matrix/global']);
+  });
+
   it('la clé fenêtrée du calendrier reste PRÉFIXÉE par la ressource signalée', async () => {
     const { useCalendar } = await import('./decisionApi.ts');
     // La fenêtre n'ajoute que des segments APRÈS la ressource : l'invalidation
