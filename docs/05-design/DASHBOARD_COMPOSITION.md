@@ -104,8 +104,8 @@ Le navigateur choisit une représentation, filtre ou ordonne selon l'utilisateur
 - Lightweight Charts seulement pour chandeliers/volume sur Analyse ; deux overlays maximum ; attribution TradingView/NOTICE et lien public obligatoires.
 - ECharts pour carte, payoff, surface, drawdown, heatmap et attribution ; imports modulaires, ARIA activé, motifs et table alternative.
 - TanStack Table + Virtual pour les grandes collections ; la virtualisation n'est pas une permission de charger des données illimitées.
-- Jauges linéaires/segmentées pour confiance calibrée, régime, fraîcheur/couverture et risque nommé ; seuils/version/provenance obligatoires, zéro cadran décoratif.
-- SVG/CSS interne seulement pour sparklines, micro-barres et jauges factuelles du catalogue ; aucune 3D, aucun WebGL décoratif, aucun globe, cadran ou particule.
+- Jauges linéaires/segmentées ou en arc gradué (ADR-017 : position servie) pour confiance calibrée, régime, fraîcheur/couverture et risque nommé ; seuils/version/provenance obligatoires, aucun cadran décoratif.
+- SVG/CSS interne pour sparklines (aire à dégradé sur série servie), micro-barres sur rail, anneaux à chiffre central et jauges factuelles du catalogue (ADR-017) ; aucune 3D, aucun WebGL décoratif, aucun globe ni particule.
 
 ## Validation de page
 

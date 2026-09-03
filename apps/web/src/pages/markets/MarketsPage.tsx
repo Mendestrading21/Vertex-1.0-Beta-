@@ -14,7 +14,7 @@ import { BreadthPanel } from './BreadthPanel.tsx';
 import { MarketMap } from './MarketMap.tsx';
 import { InstrumentInspector, SnapshotInspector } from './MarketsInspector.tsx';
 import { MarketsTable } from './MarketsTable.tsx';
-import { FocusRowModule } from '../InstrumentWidget.tsx';
+import { FocusRowModule } from '../../components/widgets/InstrumentTile.tsx';
 import type { SignGroup } from '../../components/markets/marketsView.ts';
 import {
   GROUP_LABELS_FR,

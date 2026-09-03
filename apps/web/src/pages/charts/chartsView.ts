@@ -1,4 +1,5 @@
 import type { AbsenceReason } from '../../components/AbsentModule.tsx';
+import type { WidgetSize, WidgetVariant } from '../../components/widgets/Widget.tsx';
 
 /**
  * Graphiques — vue pure : le CATALOGUE des modules de la planche canonique
@@ -23,6 +24,10 @@ export type ChartsModuleStatus =
 export interface ChartsModule {
   /** Identifiant stable, utilisé par les tests et les `data-module`. */
   readonly id: string;
+  /** Span de composition sur la planche — jamais une apparence (ADR-017). */
+  readonly size: WidgetSize;
+  /** Variante visuelle du vocabulaire fermé de WIDGET_LIBRARY.md. */
+  readonly variant: WidgetVariant;
   readonly title: string;
   readonly question: string;
   readonly status: ChartsModuleStatus;
@@ -45,24 +50,32 @@ const ANALYSIS_CONTRACT = 'GET /api/v1/analysis/{instrument}';
 export const CHARTS_MODULES: readonly ChartsModule[] = [
   {
     id: 'main-chart',
+    size: 'XL',
+    variant: 'dominant',
     title: 'Espace graphique',
     question: 'Que publie le serveur de la série de cet instrument ?',
     status: { kind: 'served', contract: ANALYSIS_CONTRACT },
   },
   {
     id: 'volume',
+    size: 'S',
+    variant: 'support',
     title: 'Volume',
     question: 'Quel volume accompagne chaque barre publiée ?',
     status: { kind: 'served', contract: ANALYSIS_CONTRACT },
   },
   {
     id: 'served-indicators',
+    size: 'S',
+    variant: 'support',
     title: 'Indicateurs servis',
     question: 'Quelles mesures le moteur serveur publie-t-il sur cette série ?',
     status: { kind: 'served', contract: ANALYSIS_CONTRACT },
   },
   {
     id: 'overlays',
+    size: 'S',
+    variant: 'support',
     title: 'Overlays (moyennes mobiles)',
     question: 'Quelles moyennes mobiles superposer à la série ?',
     status: {
@@ -73,6 +86,8 @@ export const CHARTS_MODULES: readonly ChartsModule[] = [
   },
   {
     id: 'rsi',
+    size: 'S',
+    variant: 'support',
     title: 'RSI',
     question: 'Où se situe la force relative de la série sur sa fenêtre ?',
     status: {
@@ -83,6 +98,8 @@ export const CHARTS_MODULES: readonly ChartsModule[] = [
   },
   {
     id: 'macd',
+    size: 'S',
+    variant: 'support',
     title: 'MACD',
     question: 'Comment évoluent les moyennes mobiles convergentes et divergentes ?',
     status: {
@@ -93,6 +110,8 @@ export const CHARTS_MODULES: readonly ChartsModule[] = [
   },
   {
     id: 'comparison',
+    size: 'L',
+    variant: 'support',
     title: 'Comparaison base 100',
     question: 'Comment cette série se compare-t-elle à d’autres, ramenées à une base commune ?',
     status: {
@@ -103,6 +122,8 @@ export const CHARTS_MODULES: readonly ChartsModule[] = [
   },
   {
     id: 'synchronized',
+    size: 'M',
+    variant: 'support',
     title: 'Graphiques synchronisés',
     question: 'Quelles séries lire côte à côte sur le même calendrier ?',
     status: {
@@ -113,6 +134,8 @@ export const CHARTS_MODULES: readonly ChartsModule[] = [
   },
   {
     id: 'selected-object',
+    size: 'S',
+    variant: 'support',
     title: 'Objet sélectionné',
     question: 'Quels niveaux ou annotations ai-je posés sur cette série ?',
     status: {
@@ -123,6 +146,8 @@ export const CHARTS_MODULES: readonly ChartsModule[] = [
   },
   {
     id: 'linked-alerts',
+    size: 'S',
+    variant: 'support',
     title: 'Alertes liées',
     question: 'Quelles alertes surveillent cette série ?',
     status: {
@@ -133,6 +158,8 @@ export const CHARTS_MODULES: readonly ChartsModule[] = [
   },
   {
     id: 'layouts',
+    size: 'S',
+    variant: 'support',
     title: 'Agencement',
     question: 'Comment disposer plusieurs vues de cette série ?',
     status: {
@@ -143,6 +170,8 @@ export const CHARTS_MODULES: readonly ChartsModule[] = [
   },
   {
     id: 'saved-studies',
+    size: 'S',
+    variant: 'support',
     title: 'Études sauvegardées',
     question: 'Quelles études ai-je enregistrées pour y revenir ?',
     status: {

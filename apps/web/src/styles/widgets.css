@@ -1,0 +1,909 @@
+/*
+  SOCLE DES WIDGETS v2 (lot L0) — `docs/09-adr/017-titanium-ledger-v2-formes-widgets.md`.
+
+  PÉRIMÈTRE. Ce fichier habille les primitives de `src/components/widgets/`.
+  Il est importé par UNE ligne de `src/main.tsx`, APRÈS `global.css` : la
+  cascade est déterministe et `global.css` — le fichier le plus disputé du
+  dépôt — n'est pas touché.
+
+  CE QU'IL NE FAIT PAS, et c'est la règle centrale de la revue du lot C0 :
+  `.vx-w2` NE REDÉCLARE AUCUNE SURFACE. Pas de fond, pas de bordure, pas de
+  rayon, pas d'ombre. La surface vient de `.vx-card` (primitive `Card`) et la
+  composition de `.vx-board` (`global.css`). Redéclarer ici reproduirait
+  exactement la pathologie mesurée par `docs/05-design/REFONTE_TITANIUM_LEDGER.md`
+  (« la couche thématique redéclare au lieu d'hériter », 15 listes de
+  sélecteurs énumérées à la main). `.vx-w2` ne porte que l'état, la taille et
+  les micro-visualisations.
+
+  RÈGLES TENUES ICI :
+  - couleurs UNIQUEMENT par `var(--vx-*)` (`src/design/no-raw-colors.test.ts`) ;
+  - la propriété CSS de réordonnancement des éléments flex n'est pas utilisée :
+    son nom appartient au vocabulaire d'instruction de marché balayé par la
+    porte, y compris dans les `.css` ;
+  - aucun halo, aucun néon, aucun noir pur, aucune pulsation, aucune animation
+    infinie ; le seul mouvement est la surbrillance UNIQUE d'une valeur mise à
+    jour (`--vx-motion-600`), ramenée à 0 ms sous `prefers-reduced-motion` ;
+  - aucun dégradé de fond plein de carte ; les seuls dégradés sont ceux des
+    aires sous une série SERVIE (`--vx-<famille>-gradient-start/-end`).
+*/
+
+/* --------------------------------------------------------------------------
+   Constante de mise en page (ADR-017, réserve A3 de la revue C0) : hauteur de
+   rangée de la planche des widgets. Déclarée UNE seule fois, commentée, et
+   mesurée aux trois viewports par l'e2e de densité. Ce n'est pas un token de
+   couleur ; c'est un multiple de 4 comme toute la grille.
+   -------------------------------------------------------------------------- */
+.vx-w2 {
+  --vx-w2-row: 152px;
+  display: block;
+  min-width: 0;
+}
+
+/* La taille est un SPAN DE COMPOSITION, jamais une apparence. Les aires
+   nommées restent la propriété de chaque page (lots P1–P6). */
+.vx-w2[data-size='S'] {
+  grid-column: span 1;
+}
+.vx-w2[data-size='M'] {
+  grid-column: span 2;
+}
+.vx-w2[data-size='L'] {
+  grid-column: span 2;
+  grid-row: span 2;
+}
+.vx-w2[data-size='XL'] {
+  grid-column: span 4;
+  grid-row: span 2;
+}
+
+/* Surbrillance UNIQUE d'une valeur dont `snapshot_version` a changé.
+   Un fond argent posé une fois, jamais une pulsation. */
+.vx-w2[data-updated='true'] > .vx-card {
+  transition: background-color var(--vx-motion-600) var(--vx-ease-standard);
+  background-color: var(--vx-titanium-soft);
+}
+
+/* Sous mouvement réduit, la durée générée vaut 0 ms : l'attribut reste posé
+   plus longtemps (côté React) et se lit comme un CONTOUR STATIQUE, pas comme
+   une transition — `docs/05-design/MOTION_AND_MICROINTERACTIONS.md`. */
+@media (prefers-reduced-motion: reduce) {
+  .vx-w2[data-updated='true'] > .vx-card {
+    transition: none;
+    background-color: transparent;
+    outline: 1px solid var(--vx-border-strong);
+    outline-offset: -1px;
+  }
+}
+
+/* Filigrane des états dégradés : lisible, jamais alarmant, jamais seul
+   (le texte de `ModuleStatus` l'accompagne toujours). */
+.vx-w2[data-state='stale'] > .vx-card,
+.vx-w2[data-state='delayed'] > .vx-card {
+  border-top-color: var(--vx-warning-soft);
+}
+
+.vx-w2-skeleton {
+  height: var(--vx-space-16);
+  border-radius: var(--vx-radius-6);
+  background-color: var(--vx-titanium-soft);
+}
+
+.vx-w2-skeleton + .vx-w2-skeleton {
+  margin-top: var(--vx-space-8);
+}
+
+/* --------------------------------------------------------------------------
+   Pied de widget : conclusion SERVIE puis méta de provenance.
+   -------------------------------------------------------------------------- */
+.vx-w2-conclusion {
+  margin: 0;
+  color: var(--vx-text-secondary);
+  font-size: var(--vx-font-size-meta);
+  line-height: 1.45;
+}
+
+.vx-w2-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--vx-space-8);
+  /* 13 px : plancher AA du système typographique. Les 10/11 px hérités de
+     `global.css` sont une dette, pas un canon (revue C0, point A4). */
+  font-size: var(--vx-font-size-meta);
+  font-family: var(--vx-font-mono);
+  color: var(--vx-text-muted);
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.vx-w2-meta time {
+  color: var(--vx-text-secondary);
+}
+
+.vx-w2-provenance {
+  margin: 0;
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-meta);
+  color: var(--vx-text-muted);
+  font-variant-numeric: tabular-nums lining-nums;
+  overflow-wrap: anywhere;
+}
+
+/* --------------------------------------------------------------------------
+   Pastille de variation. Le SIGNE est textuel ; la couleur ne vient qu'après.
+   `radius-pill` suit le précédent `.vx-iw-delta` : une pastille de variation
+   EST un badge (revue C0, point C5).
+   -------------------------------------------------------------------------- */
+.vx-w2-delta {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--vx-space-4);
+  padding: 2px var(--vx-space-8);
+  border-radius: var(--vx-radius-pill);
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-meta);
+  font-variant-numeric: tabular-nums lining-nums;
+  color: var(--vx-text-secondary);
+  background-color: var(--vx-surface-2);
+}
+
+.vx-w2-delta[data-sign='up'] {
+  color: var(--vx-positive);
+  background-color: var(--vx-positive-soft);
+}
+
+.vx-w2-delta[data-sign='down'] {
+  color: var(--vx-negative);
+  background-color: var(--vx-negative-soft);
+}
+
+.vx-w2-delta[data-sign='flat'],
+.vx-w2-delta[data-sign='unknown'] {
+  color: var(--vx-text-secondary);
+  background-color: var(--vx-surface-2);
+}
+
+.vx-w2-delta-period {
+  color: var(--vx-text-muted);
+}
+
+/* --------------------------------------------------------------------------
+   Pastilles d'état / de nature. Icône + TEXTE, jamais la couleur seule.
+   -------------------------------------------------------------------------- */
+.vx-w2-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--vx-space-4);
+  padding: 2px var(--vx-space-8);
+  border: 1px solid var(--vx-border-soft);
+  border-radius: var(--vx-radius-pill);
+  font-size: var(--vx-font-size-meta);
+  color: var(--vx-text-secondary);
+  background-color: var(--vx-surface-2);
+}
+
+.vx-w2-chip[data-tone='positive'] {
+  color: var(--vx-positive);
+  background-color: var(--vx-positive-soft);
+}
+.vx-w2-chip[data-tone='negative'] {
+  color: var(--vx-negative);
+  background-color: var(--vx-negative-soft);
+}
+.vx-w2-chip[data-tone='warning'] {
+  color: var(--vx-warning);
+  background-color: var(--vx-warning-soft);
+}
+.vx-w2-chip[data-tone='macro'] {
+  color: var(--vx-macro);
+  background-color: var(--vx-macro-soft);
+}
+.vx-w2-chip[data-tone='option'] {
+  color: var(--vx-option);
+  background-color: var(--vx-option-soft);
+}
+.vx-w2-chip[data-tone='neutral'] {
+  color: var(--vx-text-secondary);
+  background-color: var(--vx-surface-2);
+}
+
+.vx-w2-chip-code {
+  font-family: var(--vx-font-mono);
+  color: var(--vx-text-muted);
+}
+
+/* --------------------------------------------------------------------------
+   Badge de lien de signalement (point 5 du shell). L'état du LIEN n'a pas de
+   teinte propre (revue C0, point B2 : `macro` catégorise une SOURCE, pas un
+   lien) ; seuls le retard, le silence et l'absence de session en portent une.
+   -------------------------------------------------------------------------- */
+.vx-w2-live {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--vx-space-4);
+  padding: 2px var(--vx-space-8);
+  border: 1px solid var(--vx-border-soft);
+  border-radius: var(--vx-radius-pill);
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-meta);
+  color: var(--vx-text-secondary);
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.vx-w2-live[data-tone='warning'] {
+  color: var(--vx-warning);
+  border-color: var(--vx-warning-soft);
+}
+.vx-w2-live[data-tone='negative'] {
+  color: var(--vx-negative);
+  border-color: var(--vx-negative-soft);
+}
+.vx-w2-live[data-tone='muted'] {
+  color: var(--vx-text-muted);
+}
+
+/* --------------------------------------------------------------------------
+   Jauge linéaire / bullet (v1, conservée) — coordonnées SERVIES.
+   -------------------------------------------------------------------------- */
+.vx-w2-gauge {
+  display: grid;
+  gap: var(--vx-space-4);
+}
+
+.vx-w2-gauge-track {
+  position: relative;
+  height: var(--vx-space-8);
+  border-radius: var(--vx-radius-pill);
+  /* RAIL visible derrière la barre (référence 25) : la piste neutre rend la
+     proportion lisible ; elle ne porte aucune valeur. */
+  background-color: var(--vx-titanium-soft);
+  overflow: hidden;
+}
+
+.vx-w2-gauge-fill {
+  height: 100%;
+  border-radius: var(--vx-radius-pill);
+  background-color: var(--vx-silver);
+}
+
+.vx-w2-gauge-seg {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  background-color: var(--vx-titanium-ghost);
+}
+
+.vx-w2-gauge-marker {
+  position: absolute;
+  top: -2px;
+  width: 2px;
+  height: calc(var(--vx-space-8) + 4px);
+  background-color: var(--vx-border-strong);
+}
+
+.vx-w2-gauge-bounds {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-meta);
+  color: var(--vx-text-muted);
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+/* --------------------------------------------------------------------------
+   Jauge en ARC graduée (ADR-017) — position, bornes et seuils SERVIS.
+   Aucun cadran décoratif : l'arc est une piste, le repère est statique.
+   -------------------------------------------------------------------------- */
+.vx-w2-arc {
+  display: grid;
+  justify-items: center;
+  gap: var(--vx-space-4);
+}
+
+.vx-w2-arc-svg {
+  width: 100%;
+  max-width: 220px;
+  height: auto;
+}
+
+.vx-w2-arc-rail {
+  fill: none;
+  stroke: var(--vx-titanium-soft);
+  stroke-width: 10;
+  stroke-linecap: round;
+}
+
+.vx-w2-arc-fill {
+  fill: none;
+  stroke: var(--vx-silver);
+  stroke-width: 10;
+  stroke-linecap: round;
+}
+
+.vx-w2-arc[data-tone='macro'] .vx-w2-arc-fill {
+  stroke: var(--vx-macro);
+}
+.vx-w2-arc[data-tone='option'] .vx-w2-arc-fill {
+  stroke: var(--vx-option);
+}
+.vx-w2-arc[data-tone='warning'] .vx-w2-arc-fill {
+  stroke: var(--vx-warning);
+}
+.vx-w2-arc[data-tone='positive'] .vx-w2-arc-fill {
+  stroke: var(--vx-positive);
+}
+.vx-w2-arc[data-tone='negative'] .vx-w2-arc-fill {
+  stroke: var(--vx-negative);
+}
+
+.vx-w2-arc-tick {
+  stroke: var(--vx-border-strong);
+  stroke-width: 1;
+}
+
+.vx-w2-arc-needle {
+  stroke: var(--vx-text);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.vx-w2-arc-figure {
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-display);
+  color: var(--vx-text);
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.vx-w2-arc-unit {
+  font-size: var(--vx-font-size-meta);
+  color: var(--vx-text-muted);
+}
+
+/* --------------------------------------------------------------------------
+   Anneau de parts à chiffre central (ADR-017) — parts SERVIES en pourcentage,
+   chiffre central SERVI verbatim, légende obligatoire.
+   -------------------------------------------------------------------------- */
+.vx-w2-ring {
+  display: grid;
+  gap: var(--vx-space-8);
+}
+
+.vx-w2-ring-figure {
+  position: relative;
+  display: grid;
+  justify-items: center;
+}
+
+.vx-w2-ring-svg {
+  width: 100%;
+  max-width: 160px;
+  height: auto;
+}
+
+.vx-w2-ring-rail {
+  fill: none;
+  stroke: var(--vx-titanium-soft);
+  stroke-width: 12;
+}
+
+.vx-w2-ring-arc {
+  fill: none;
+  stroke-width: 12;
+  stroke-linecap: butt;
+}
+
+.vx-w2-ring-arc[data-tone='silver'] {
+  stroke: var(--vx-silver);
+}
+.vx-w2-ring-arc[data-tone='titanium'] {
+  stroke: var(--vx-titanium);
+}
+.vx-w2-ring-arc[data-tone='macro'] {
+  stroke: var(--vx-macro);
+}
+.vx-w2-ring-arc[data-tone='option'] {
+  stroke: var(--vx-option);
+}
+.vx-w2-ring-arc[data-tone='warning'] {
+  stroke: var(--vx-warning);
+}
+
+.vx-w2-ring-center {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: grid;
+  justify-items: center;
+  text-align: center;
+}
+
+.vx-w2-ring-center-value {
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-display);
+  color: var(--vx-text);
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.vx-w2-ring-center-label {
+  font-size: var(--vx-font-size-meta);
+  color: var(--vx-text-muted);
+}
+
+.vx-w2-ring-legend {
+  display: grid;
+  gap: var(--vx-space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--vx-font-size-meta);
+  color: var(--vx-text-secondary);
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.vx-w2-ring-legend li {
+  display: flex;
+  align-items: baseline;
+  gap: var(--vx-space-8);
+  justify-content: space-between;
+}
+
+.vx-w2-ring-swatch {
+  width: var(--vx-space-8);
+  height: var(--vx-space-8);
+  border-radius: var(--vx-radius-pill);
+  background-color: var(--vx-titanium);
+}
+
+.vx-w2-ring-swatch[data-tone='silver'] {
+  background-color: var(--vx-silver);
+}
+.vx-w2-ring-swatch[data-tone='macro'] {
+  background-color: var(--vx-macro);
+}
+.vx-w2-ring-swatch[data-tone='option'] {
+  background-color: var(--vx-option);
+}
+.vx-w2-ring-swatch[data-tone='warning'] {
+  background-color: var(--vx-warning);
+}
+
+/* Quatuor d'anneaux (référence 26) : une rangée, jamais une grille bento. */
+.vx-w2-ring-quartet {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: var(--vx-space-16);
+}
+
+/* --------------------------------------------------------------------------
+   Bande de parts. Largeurs = chaînes SERVIES ; motif par part pour que la
+   teinte ne porte jamais seule l'information.
+   -------------------------------------------------------------------------- */
+.vx-w2-shares {
+  display: flex;
+  width: 100%;
+  height: var(--vx-space-12);
+  border-radius: var(--vx-radius-6);
+  overflow: hidden;
+  background-color: var(--vx-titanium-soft);
+}
+
+.vx-w2-share {
+  height: 100%;
+  background-color: var(--vx-titanium);
+}
+
+.vx-w2-share[data-tone='silver'] {
+  background-color: var(--vx-silver);
+}
+.vx-w2-share[data-tone='macro'] {
+  background-color: var(--vx-macro);
+}
+.vx-w2-share[data-tone='option'] {
+  background-color: var(--vx-option);
+}
+
+.vx-w2-share[data-pattern='b'] {
+  opacity: 0.72;
+}
+.vx-w2-share[data-pattern='c'] {
+  opacity: 0.52;
+}
+.vx-w2-share[data-pattern='d'] {
+  opacity: 0.36;
+}
+
+.vx-w2-shares-legend {
+  display: grid;
+  gap: var(--vx-space-4);
+  margin: var(--vx-space-8) 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--vx-font-size-meta);
+  color: var(--vx-text-secondary);
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+/* --------------------------------------------------------------------------
+   Barres par jour, sur RAIL (référence 25).
+   -------------------------------------------------------------------------- */
+.vx-w2-daybars {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--vx-space-4);
+  height: 72px;
+}
+
+.vx-w2-daybar {
+  display: flex;
+  flex: 1 1 0;
+  align-items: flex-end;
+  height: 100%;
+  border-radius: var(--vx-radius-6);
+  background-color: var(--vx-titanium-soft);
+}
+
+.vx-w2-daybar-fill {
+  width: 100%;
+  border-radius: var(--vx-radius-6);
+  background-color: var(--vx-titanium);
+}
+
+.vx-w2-daybar[data-band='positive'] .vx-w2-daybar-fill {
+  background-color: var(--vx-positive);
+}
+.vx-w2-daybar[data-band='negative'] .vx-w2-daybar-fill {
+  background-color: var(--vx-negative);
+}
+.vx-w2-daybar[data-band='warning'] .vx-w2-daybar-fill {
+  background-color: var(--vx-warning);
+}
+.vx-w2-daybar[data-band='macro'] .vx-w2-daybar-fill {
+  background-color: var(--vx-macro);
+}
+.vx-w2-daybar[data-band='unknown'] .vx-w2-daybar-fill {
+  background-color: var(--vx-titanium-ghost);
+}
+
+.vx-w2-daybar[aria-current='true'] {
+  outline: 1px solid var(--vx-border-strong);
+  outline-offset: 1px;
+}
+
+/* --------------------------------------------------------------------------
+   Figure de série : sparkline en ligne ou en AIRE À DÉGRADÉ (ADR-017).
+   Le dégradé va de la teinte de la série vers SA transparence — jamais entre
+   deux teintes, jamais sur un fond de carte.
+   -------------------------------------------------------------------------- */
+.vx-w2-spark {
+  margin: 0;
+  display: grid;
+  gap: var(--vx-space-4);
+}
+
+.vx-w2-spark-svg {
+  width: 100%;
+  height: 44px;
+}
+
+.vx-w2-spark-base {
+  stroke: var(--vx-border-strong);
+  stroke-width: 1;
+}
+
+.vx-w2-spark-line {
+  fill: none;
+  stroke: var(--vx-silver);
+  stroke-width: 1.4;
+}
+
+.vx-w2-spark[data-tone='macro'] .vx-w2-spark-line {
+  stroke: var(--vx-macro);
+}
+.vx-w2-spark[data-tone='option'] .vx-w2-spark-line {
+  stroke: var(--vx-option);
+}
+.vx-w2-spark[data-tone='warning'] .vx-w2-spark-line {
+  stroke: var(--vx-warning);
+}
+.vx-w2-spark[data-tone='positive'] .vx-w2-spark-line {
+  stroke: var(--vx-positive);
+}
+.vx-w2-spark[data-tone='negative'] .vx-w2-spark-line {
+  stroke: var(--vx-negative);
+}
+
+.vx-w2-spark-caption {
+  font-size: var(--vx-font-size-meta);
+  color: var(--vx-text-muted);
+}
+
+.vx-w2-spark-table,
+.vx-w2-figure-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-meta);
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.vx-w2-spark-table th,
+.vx-w2-spark-table td,
+.vx-w2-figure-table th,
+.vx-w2-figure-table td {
+  padding: 2px var(--vx-space-4);
+  border-bottom: 1px solid var(--vx-border-soft);
+  text-align: right;
+  color: var(--vx-text-secondary);
+}
+
+.vx-w2-spark-table th:first-child,
+.vx-w2-spark-table td:first-child,
+.vx-w2-figure-table th:first-child,
+.vx-w2-figure-table td:first-child {
+  text-align: left;
+}
+
+/* --------------------------------------------------------------------------
+   Aires multi-séries : deux ou trois séries SERVIES et ALIGNÉES par le
+   serveur. Trait distinct par série (motif), jamais la teinte seule.
+   -------------------------------------------------------------------------- */
+.vx-w2-multi {
+  margin: 0;
+  display: grid;
+  gap: var(--vx-space-8);
+}
+
+.vx-w2-multi-svg {
+  width: 100%;
+  height: 180px;
+}
+
+.vx-w2-multi-grid {
+  stroke: var(--vx-grid-line);
+  stroke-width: 1;
+}
+
+.vx-w2-multi-line {
+  fill: none;
+  stroke-width: 1.6;
+}
+
+.vx-w2-multi-line[data-tone='silver'] {
+  stroke: var(--vx-silver);
+}
+.vx-w2-multi-line[data-tone='macro'] {
+  stroke: var(--vx-macro);
+}
+.vx-w2-multi-line[data-tone='option'] {
+  stroke: var(--vx-option);
+}
+.vx-w2-multi-line[data-tone='warning'] {
+  stroke: var(--vx-warning);
+}
+
+.vx-w2-multi-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--vx-space-16);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--vx-font-size-meta);
+  color: var(--vx-text-secondary);
+}
+
+.vx-w2-multi-legend li {
+  display: flex;
+  align-items: center;
+  gap: var(--vx-space-4);
+}
+
+.vx-w2-multi-legend svg {
+  width: 28px;
+  height: 8px;
+}
+
+/* --------------------------------------------------------------------------
+   Matrice de bandes. Table sémantique ; la bande est un NOM servi.
+   -------------------------------------------------------------------------- */
+.vx-w2-grid-scroll {
+  overflow-x: auto;
+}
+
+.vx-w2-grid {
+  border-collapse: collapse;
+  font-size: var(--vx-font-size-meta);
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.vx-w2-grid th,
+.vx-w2-grid td {
+  padding: var(--vx-space-4) var(--vx-space-8);
+  border: 1px solid var(--vx-border-soft);
+  color: var(--vx-text-secondary);
+  white-space: nowrap;
+}
+
+.vx-w2-cell[data-band='self'] {
+  background-color: var(--vx-surface-2);
+}
+.vx-w2-cell[data-band='strong_positive'] {
+  background-color: var(--vx-signal-soft);
+}
+.vx-w2-cell[data-band='moderate_positive'] {
+  background-color: var(--vx-signal-faint);
+}
+.vx-w2-cell[data-band='weak'] {
+  background-color: var(--vx-surface-1);
+}
+.vx-w2-cell[data-band='moderate_negative'] {
+  background-color: var(--vx-macro-soft);
+}
+.vx-w2-cell[data-band='strong_negative'] {
+  background-color: var(--vx-macro-soft);
+  border-color: var(--vx-macro);
+}
+.vx-w2-cell[data-band='unknown'] {
+  background-color: var(--vx-surface-0);
+  color: var(--vx-text-muted);
+}
+
+.vx-w2-grid-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--vx-space-12);
+  margin: var(--vx-space-8) 0 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--vx-font-size-meta);
+  color: var(--vx-text-muted);
+}
+
+/* --------------------------------------------------------------------------
+   Étapes / portes.
+   -------------------------------------------------------------------------- */
+.vx-w2-steps {
+  display: grid;
+  gap: var(--vx-space-8);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.vx-w2-step {
+  display: grid;
+  gap: var(--vx-space-4);
+  padding-bottom: var(--vx-space-8);
+  border-bottom: 1px solid var(--vx-border-soft);
+}
+
+.vx-w2-step-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--vx-space-8);
+}
+
+.vx-w2-step-detail {
+  margin: 0;
+  font-size: var(--vx-font-size-meta);
+  color: var(--vx-text-muted);
+}
+
+/* --------------------------------------------------------------------------
+   Fenêtres d'affichage (onglets de période) — un CHOIX EXPLICITE de vue sur
+   des barres servies, jamais un fenêtrage de calcul.
+   -------------------------------------------------------------------------- */
+.vx-w2-periods {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--vx-space-4);
+}
+
+.vx-w2-period {
+  padding: var(--vx-space-4) var(--vx-space-12);
+  border: 1px solid var(--vx-border-soft);
+  border-radius: var(--vx-radius-6);
+  background-color: var(--vx-surface-2);
+  color: var(--vx-text-secondary);
+  font-size: var(--vx-font-size-meta);
+  min-height: 32px;
+  cursor: pointer;
+}
+
+.vx-w2-period[aria-pressed='true'] {
+  background-color: var(--vx-signal-soft);
+  border-color: var(--vx-signal);
+  color: var(--vx-signal);
+}
+
+.vx-w2-period[disabled] {
+  color: var(--vx-text-muted);
+  cursor: not-allowed;
+}
+
+.vx-w2-period-reason {
+  margin: var(--vx-space-4) 0 0;
+  font-size: var(--vx-font-size-meta);
+  color: var(--vx-text-muted);
+}
+
+/* --------------------------------------------------------------------------
+   Journal groupé par jour. Les libellés de jour sont SERVIS ; un libellé
+   relatif est refusé et remplacé par la date ISO (aucune horloge navigateur).
+   -------------------------------------------------------------------------- */
+.vx-w2-feed {
+  display: grid;
+  gap: var(--vx-space-16);
+}
+
+.vx-w2-feed-day {
+  display: grid;
+  gap: var(--vx-space-8);
+}
+
+.vx-w2-feed-day-head {
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-meta);
+  color: var(--vx-text-muted);
+  border-bottom: 1px solid var(--vx-border-soft);
+  padding-bottom: var(--vx-space-4);
+}
+
+.vx-w2-feed-list {
+  display: grid;
+  gap: var(--vx-space-8);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.vx-w2-feed-item {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: baseline;
+  gap: var(--vx-space-8);
+}
+
+.vx-w2-feed-time {
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-meta);
+  color: var(--vx-text-muted);
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.vx-w2-feed-amount {
+  font-family: var(--vx-font-mono);
+  font-variant-numeric: tabular-nums lining-nums;
+  color: var(--vx-text-secondary);
+}
+
+.vx-w2-feed-amount[data-sign='up'] {
+  color: var(--vx-positive);
+}
+.vx-w2-feed-amount[data-sign='down'] {
+  color: var(--vx-negative);
+}
+
+/* --------------------------------------------------------------------------
+   Tuile d'instrument (héritière de `.vx-iw`, déplacée dans le socle).
+   La surface reste celle de `global.css` ; on n'ajoute ici que les faits
+   supplémentaires servis (clôture précédente, qualité).
+   -------------------------------------------------------------------------- */
+.vx-w2-tile-facts {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--vx-space-8);
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-meta);
+  color: var(--vx-text-muted);
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+/* Absence DITE, jamais un zéro ni un tiret ambigu. */
+.vx-w2-absent {
+  margin: 0;
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+}

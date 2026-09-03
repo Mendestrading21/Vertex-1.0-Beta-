@@ -1,35 +1,42 @@
 import { Link } from 'react-router-dom';
 
-import { useOpportunities } from '../api/decisionApi.ts';
-import { pageStateOf, useAnalysis, useMarketsOverview } from '../api/hooks.ts';
-import { FreshnessBadge } from '../components/FreshnessBadge.tsx';
-import { Sparkline } from '../components/markets/Sparkline.tsx';
-import type { FlatTicker } from '../components/markets/marketsView.ts';
-import { GROUP_LABELS_FR, frDecimal, signSymbolOf } from '../components/markets/marketsView.ts';
-import { MODULE_STATE_LABELS, moduleStateOf } from '../components/moduleState.ts';
-import { analysisStateOf, barsViewOf } from './analysis/analysisView.ts';
-import { focusInstrumentsOf } from './focusView.ts';
-import { opportunitiesFrameStateOf } from './opportunities/opportunitiesView.ts';
+import { useOpportunities } from '../../api/decisionApi.ts';
+import { pageStateOf, useAnalysis, useMarketsOverview } from '../../api/hooks.ts';
+import { analysisStateOf, barsViewOf } from '../../pages/analysis/analysisView.ts';
+import { focusInstrumentsOf } from '../../pages/focusView.ts';
+import { opportunitiesFrameStateOf } from '../../pages/opportunities/opportunitiesView.ts';
+import { FreshnessBadge } from '../FreshnessBadge.tsx';
+import { Sparkline } from '../markets/Sparkline.tsx';
+import type { FlatTicker } from '../markets/marketsView.ts';
+import { GROUP_LABELS_FR, frDecimal, signSymbolOf } from '../markets/marketsView.ts';
+import { MODULE_STATE_LABELS, moduleStateOf } from '../moduleState.ts';
+import { StatusChip } from './StatusChip.tsx';
 
 /**
- * Widget instrument — prix en grand, variation en pastille, mini-courbe des
+ * Tuile d'instrument — prix en grand, variation en pastille, mini-courbe des
  * clôtures et barres de volume, fraîcheur en haut à droite.
  *
- * TOUT est servi : la dernière clôture, sa devise et le rendement 1 j
- * viennent du snapshot Marchés (chaînes verbatim) ; la série vient du dossier
- * d'analyse de l'instrument (`GET /api/v1/analysis/{instrument}`), avec son
- * propre état et sa propre fraîcheur. Le widget ne calcule rien : le sens de
- * la pastille est le SIGNE de la chaîne publiée, la courbe n'est que la
+ * DÉPLACÉE depuis `pages/InstrumentWidget.tsx` (lot L0) : c'est une primitive
+ * partagée par Aujourd'hui, Marchés et Options, pas une pièce d'une page. Le
+ * balayage des gardes la suit — `no-fabricated-values.test.ts` couvre
+ * désormais `src/components/widgets` en plus de `src/pages`, un déplacement ne
+ * sort jamais un fichier du périmètre des portes.
+ *
+ * TOUT est servi : la dernière clôture, la clôture PRÉCÉDENTE et son jour de
+ * séance, la qualité déclarée, le rendement 1 j viennent du snapshot Marchés
+ * (chaînes verbatim) ; la série vient du dossier d'analyse de l'instrument,
+ * avec son propre état et sa propre fraîcheur. La tuile ne calcule rien : le
+ * sens de la pastille est le SIGNE de la chaîne publiée, la courbe n'est que la
  * géométrie des clôtures publiées.
  *
- * Sans dossier, le cadre de la courbe DIT ce qui manque — il ne montre ni
- * une courbe plate, ni un exemple.
+ * Sans dossier, le cadre de la courbe DIT ce qui manque — il ne montre ni une
+ * courbe plate, ni un exemple.
  */
 
 const LINE_WINDOW = 30;
 const VOLUME_WINDOW = 14;
 
-export function InstrumentWidget({ entry }: { readonly entry: FlatTicker }) {
+export function InstrumentTile({ entry }: { readonly entry: FlatTicker }) {
   const ticker = entry.ticker;
   const query = useAnalysis(ticker.ticker);
   const state = analysisStateOf(pageStateOf(query), query.data);
@@ -41,9 +48,12 @@ export function InstrumentWidget({ entry }: { readonly entry: FlatTicker }) {
     bars.bars.length > 0;
   const lineBars = bars === null ? [] : bars.bars.slice(-LINE_WINDOW);
   const volumeBars = bars === null ? [] : bars.bars.slice(-VOLUME_WINDOW);
+  const previousClose = ticker.previous_close.trim();
+  const previousDay = ticker.previous_trading_day.trim();
+  const quality = ticker.quality.trim();
 
   return (
-    <article className="vx-iw" data-sign={entry.group} data-testid="instrument-widget">
+    <article className="vx-iw vx-w2-tile" data-sign={entry.group} data-testid="instrument-widget">
       <header className="vx-iw-head">
         <div className="vx-iw-identity">
           <Link to={`/analysis/${ticker.ticker}`} className="vx-iw-ticker">
@@ -72,6 +82,26 @@ export function InstrumentWidget({ entry }: { readonly entry: FlatTicker }) {
           <span className="vx-visually-hidden"> ({GROUP_LABELS_FR[entry.group]}, rendement 1 j)</span>
         </span>
       </div>
+
+      {/* Faits SERVIS que le contrat publiait déjà sans être affichés
+          (`MarketsTicker.previous_close`, `previous_trading_day`, `quality`). */}
+      <p className="vx-w2-tile-facts" data-testid="instrument-tile-facts">
+        <span>
+          clôture précédente{' '}
+          {previousClose === '' ? (
+            <span data-absent="true">non publiée</span>
+          ) : (
+            frDecimal(previousClose)
+          )}
+        </span>
+        <span>
+          {previousDay === '' ? <span data-absent="true">séance non publiée</span> : previousDay}
+        </span>
+        <StatusChip
+          label={quality === '' ? '' : quality}
+          tone={quality === 'OK' ? 'neutral' : 'warning'}
+        />
+      </p>
 
       <div className="vx-iw-chart" data-testid="instrument-widget-chart">
         {showsSeries && bars !== null ? (
@@ -147,7 +177,7 @@ export function FocusRowModule() {
       ) : (
         <div className="vx-focus-grid">
           {entries.map((entry) => (
-            <InstrumentWidget key={entry.ticker.ticker} entry={entry} />
+            <InstrumentTile key={entry.ticker.ticker} entry={entry} />
           ))}
         </div>
       )}

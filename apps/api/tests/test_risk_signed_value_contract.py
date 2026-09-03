@@ -239,6 +239,8 @@ def test_la_participation_de_marches_reste_bornee_a_zero_un() -> None:
                     "value": valeur,
                     "value_pct": "50.0",
                     "above_count": 2,
+                    "down_count": 1,
+                    "flat_count": 1,
                     "covered_count": 4,
                     "universe_size": 4,
                     "coverage_pct": "100.0",
