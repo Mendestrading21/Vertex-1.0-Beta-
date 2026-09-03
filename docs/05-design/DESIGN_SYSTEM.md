@@ -72,7 +72,7 @@ Radix Primitives apporte le comportement accessible ; Vertex fournit tous les st
 - le signal ambre n'exprime jamais une hausse, un score ou une validation ;
 - gradients : sélection/action principale, variation de matériau et — depuis ADR-017 — l'aire sous une série servie (dégradé vertical d'une teinte sémantique vers sa transparence, tokens `<famille>-gradient-start/-end`) ; jamais un fond plein de carte ;
 - jauges nommées et sourcées uniquement : barre linéaire, bullet, bande segmentée et, sur une valeur bornée servie avec seuils et position servie (ADR-017), arc gradué ; anneau à chiffre central sur des parts servies ; aucun cadran décoratif, aiguille animée ou score opaque ;
-- une teinte sémantique secondaire par page, déclarée dans le catalogue parmi `macro`, `option`, `positive`, `warning` (ADR-017) ; l'ambre reste la seule lumière de la dominante ;
+- une teinte sémantique secondaire par page, déclarée dans le catalogue parmi `macro`, `option`, `warning` (ADR-017) — jamais `positive` ni `negative`, réservés au signe financier servi ; l'ambre reste la seule lumière de la dominante ;
 - animations 140–220 ms et désactivables ;
 - un seul bouton rempli par page ;
 - unités, devise, fuseau, source et fraîcheur proches de la donnée ;

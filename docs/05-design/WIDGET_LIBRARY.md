@@ -103,8 +103,9 @@ socle (`apps/web/src/components/widgets/`) :
 
 Chaque widget porte la valeur en texte ; une absence est un état nommé, jamais
 une barre de hauteur zéro ni un secteur vide. La teinte sémantique secondaire de
-la page (`macro`, `option`, `positive` ou `warning`, déclarée dans le catalogue)
-est la seule teinte ajoutée à l'argent, au titane et à l'ambre de la dominante.
+la page (`macro`, `option` ou `warning`, déclarée dans le catalogue ; jamais
+`positive` ni `negative`, réservés au signe financier servi) est la seule teinte
+ajoutée à l'argent, au titane et à l'ambre de la dominante.
 Restent interdits : halo permanent, noir pur, carte floue, couleur seule,
 compte à rebours ou horloge client, radar sans dimension servie, dégradé de
 fond plein, pulsation, valeur abrégée côté client, toute forme sur une valeur

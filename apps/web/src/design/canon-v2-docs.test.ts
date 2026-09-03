@@ -88,6 +88,21 @@ const LIFTED_FORMULATIONS: ReadonlyArray<{ file: string; formulation: string }> 
   },
 ];
 
+/**
+ * Formulations qui feraient d'une famille de SIGNE une teinte de page (revue
+ * adverse du lot C0). `positive`/`negative` restent au signe financier servi :
+ * une teinte de page ne bascule pas selon le signe, elle colorerait en vert
+ * ou en rouge un anneau, un arc ou une aire, signe ou non.
+ */
+const SIGN_FAMILY_AS_PAGE_ACCENT = [
+  '`macro`, `option`, `positive`, `warning`',
+  '`macro`, `option`, `positive` ou `warning`',
+  'macro, option, positive, warning',
+  '"macro", "option", "positive", "warning"',
+  'page-accent: var(--vx-positive)',
+  'page-accent: var(--vx-negative)',
+] as const;
+
 /** Formes admises par ADR-017 : chacune doit être nommée dans la table de décision. */
 const ADMITTED_FORMS = [
   'Anneau / donut à chiffre central',
@@ -135,6 +150,11 @@ const KEPT_INVARIANTS: ReadonlyArray<{ file: string; text: string }> = [
   { file: '.claude/skills/vertex-titanium-ledger/references/canonical-visual.md', text: 'aucun halo néon permanent' },
   { file: '.claude/skills/vertex-titanium-ledger/references/canonical-visual.md', text: 'noir pur uniforme' },
   { file: '.claude/skills/vertex-titanium-ledger/references/charts.md', text: 'Réserver vert/rouge au signe financier.' },
+  {
+    file: 'docs/05-design/VERTEX_ONE_VISUAL_DIRECTION.md',
+    text: '`--vx-positive` et `--vx-negative` restent exclusivement financiers',
+  },
+  { file: 'docs/05-design/WIDGETS_V2_PLAN.md', text: 'Vert/rouge restent partout réservés au signe financier servi' },
   { file: '.claude/skills/vertex-titanium-ledger/references/visual-identity.md', text: 'jamais un halo lumineux permanent' },
   { file: 'manifests/widget-catalog.yaml', text: '"decorative_speedometer"' },
   { file: 'manifests/widget-catalog.yaml', text: '"animated_needle"' },
@@ -207,6 +227,21 @@ describe('documents du canon — cohérence v2', () => {
     expect(offenders, `Formulations v1 revenues : ${offenders.join(' ; ')}`).toEqual([]);
   });
 
+  it('aucune teinte de page ne porte un signe financier — positive/negative hors vocabulaire', () => {
+    const offenders: string[] = [];
+    for (const file of [ADR_PATH, ...CANON_DOCS]) {
+      const text = flat(read(file));
+      for (const formulation of SIGN_FAMILY_AS_PAGE_ACCENT) {
+        if (text.includes(flat(formulation))) {
+          offenders.push(`${file} → « ${formulation} »`);
+        }
+      }
+    }
+    expect(offenders, `Teinte de page signée : ${offenders.join(' ; ')}`).toEqual([]);
+    // L'ADR l'écrit en clair, à côté de l'inéligibilité de l'ambre.
+    expect(read(ADR_PATH)).toContain('`signal` (ambre), `positive` et `negative` ne sont pas éligibles');
+  });
+
   it('les invariants non levés restent écrits là où ils étaient', () => {
     const missing: string[] = [];
     for (const { file, text } of KEPT_INVARIANTS) {
@@ -224,7 +259,8 @@ describe('documents du canon — cohérence v2', () => {
     expect(catalog).toContain('"ring_center_value"');
     expect(catalog).toContain('"gradient_area_under_served_series"');
     expect(catalog).toContain('secondary_accent_per_page:');
-    expect(catalog).toContain('families: ["macro", "option", "positive", "warning"]');
+    expect(catalog).toContain('families: ["macro", "option", "warning"]');
+    expect(catalog).toContain('excluded: ["signal", "positive", "negative"]');
     expect(catalog).toContain('"any_form_on_unserved_value"');
   });
 });

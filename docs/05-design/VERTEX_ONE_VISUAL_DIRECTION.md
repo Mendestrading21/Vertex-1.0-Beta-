@@ -20,8 +20,8 @@ Cette direction est une synthèse des références fournies, pas une copie d'un
 > le canon passe en v2. Sur des données servies uniquement, sont admis les
 > anneaux à chiffre central, les jauges en arc graduées, les aires à dégradé
 > sous une série, les rails derrière les barres, les matrices de bandes et une
-> teinte sémantique secondaire par page (`macro`, `option`, `positive` ou
-> `warning`). Les interdits ci-dessous restent en vigueur.
+> teinte sémantique secondaire par page (`macro`, `option` ou `warning` ;
+> jamais `positive` ni `negative`). Les interdits ci-dessous restent en vigueur.
 
 ## Comparaison des trois propositions
 
@@ -89,7 +89,7 @@ réservé à une barre sticky ou un `SideSheet`.
 - `--vx-positive` et `--vx-negative` restent exclusivement financiers ;
 - `--vx-warning` signale prudence, retard ou population synthétique ;
 - `--vx-option` reste attaché aux options et à leurs sélections ;
-- une page peut déclarer une teinte sémantique secondaire parmi ces familles (ADR-017) ; elle garde le sens de sa famille et ne remplace jamais `--vx-signal` ;
+- une page peut déclarer une teinte sémantique secondaire parmi `--vx-macro`, `--vx-option` et `--vx-warning` (ADR-017) — jamais `--vx-positive` ni `--vx-negative`, ni `--vx-signal` ; elle garde le sens de sa famille ;
 - aucune couleur n'est le seul porteur d'une information.
 
 ### Typographie et nombres

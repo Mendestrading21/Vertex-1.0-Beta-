@@ -131,7 +131,7 @@ describe('tokens.css généré', () => {
   });
 
   it('expose la teinte secondaire de page par famille EXISTANTE — [data-page-accent], ADR-017', () => {
-    expect(Object.keys(pageAccent)).toEqual(['macro', 'option', 'positive', 'warning']);
+    expect(Object.keys(pageAccent)).toEqual(['macro', 'option', 'warning']);
     for (const [page, family] of Object.entries(pageAccent)) {
       // La clé NOMME la famille : aucun alias, « une couleur = une signification ».
       expect(page).toBe(family);
@@ -153,6 +153,12 @@ describe('tokens.css généré', () => {
     // L'ambre reste la seule lumière de la dominante : jamais une teinte de page.
     expect(Object.values(pageAccent)).not.toContain('signal');
     expect(committed).not.toContain('--vx-page-accent: var(--vx-signal)');
+    // Vert/rouge restent au signe financier servi : une teinte de page ne
+    // bascule pas selon le signe, elle ne peut donc pas en porter un (revue C0).
+    for (const reserved of ['positive', 'negative'] as const) {
+      expect(Object.keys(pageAccent)).not.toContain(reserved);
+      expect(committed).not.toContain(`--vx-page-accent: var(--vx-${reserved})`);
+    }
     // Aucune valeur par défaut silencieuse : sans déclaration de page, pas de teinte.
     expect(committed).not.toMatch(/:root\s*\{[^}]*--vx-page-accent/);
   });

@@ -119,13 +119,6 @@
   --vx-page-accent-gradient-end: var(--vx-option-gradient-end);
 }
 
-[data-page-accent="positive"] {
-  --vx-page-accent: var(--vx-positive);
-  --vx-page-accent-soft: var(--vx-positive-soft);
-  --vx-page-accent-gradient-start: var(--vx-positive-gradient-start);
-  --vx-page-accent-gradient-end: var(--vx-positive-gradient-end);
-}
-
 [data-page-accent="warning"] {
   --vx-page-accent: var(--vx-warning);
   --vx-page-accent-soft: var(--vx-warning-soft);

@@ -32,7 +32,7 @@ la porte `no-raw-colors`.
 | positif / négatif | sens financier | texte ou symbole obligatoire en plus de la couleur |
 | option | domaine options | ne remplace pas l'état positif/négatif |
 | macro | série contextuelle | secondaire, jamais verdict |
-| teinte secondaire de page | une famille par page (ADR-017) | déclarée dans le catalogue parmi macro, option, positive, warning ; garde le sens de sa famille ; jamais décorative, jamais à la place de l'ambre |
+| teinte secondaire de page | une famille par page (ADR-017) | déclarée dans le catalogue parmi macro, option, warning ; jamais positive ni negative (signe financier servi) ; garde le sens de sa famille ; jamais décorative, jamais à la place de l'ambre |
 
 ### Protocole de nuance
 

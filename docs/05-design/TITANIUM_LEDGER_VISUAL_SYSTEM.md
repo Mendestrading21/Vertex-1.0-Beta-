@@ -71,9 +71,11 @@ hausse, ni un signal de marché.
 ### Teinte secondaire et dégradés de série (ADR-017)
 
 Chaque page déclare dans son catalogue **une** teinte sémantique secondaire
-parmi `macro`, `option`, `positive`, `warning` (vocabulaire `pageAccent` de
-`tokens.ts`, exposé par `[data-page-accent]`). Elle garde le sens de sa famille
-et n'est jamais décorative ; l'ambre reste la seule lumière de la dominante.
+parmi `macro`, `option`, `warning` (vocabulaire `pageAccent` de `tokens.ts`,
+exposé par `[data-page-accent]`). Elle garde le sens de sa famille et n'est
+jamais décorative ; `positive` et `negative` restent réservés au signe
+financier servi (une teinte de page ne bascule pas selon le signe) ; l'ambre
+reste la seule lumière de la dominante.
 Chaque famille de série (`silver`, `positive`, `negative`, `warning`, `option`,
 `macro`) possède un couple `-gradient-start/-end` (teinte → transparence) réservé
 à l'aire sous une série servie.

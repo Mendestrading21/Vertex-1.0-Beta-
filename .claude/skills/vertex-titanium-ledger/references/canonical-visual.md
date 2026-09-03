@@ -110,9 +110,10 @@ admises **uniquement sur des données servies** :
   sparkline en aire ;
 - rail visible derrière les barres, matrice de bandes nommées, liste groupée
   par jour ;
-- une teinte sémantique secondaire par page (`macro`, `option`, `positive` ou
-  `warning`, déclarée dans le catalogue), en plus de l'ambre qui reste la seule
-  lumière de la dominante.
+- une teinte sémantique secondaire par page (`macro`, `option` ou `warning`,
+  déclarée dans le catalogue ; jamais `positive` ni `negative`, réservés au
+  signe financier servi), en plus de l'ambre qui reste la seule lumière de la
+  dominante.
 
 Restent interdits : halo ou néon permanent, noir pur, carte translucide floue,
 couleur seule sans texte, compte à rebours ou horloge client, radar ou nuage

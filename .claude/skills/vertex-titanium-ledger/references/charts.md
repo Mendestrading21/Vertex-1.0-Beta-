@@ -54,9 +54,9 @@ même couleur à travers les vues comparables.
 - Réserver vert/rouge au signe financier. Utiliser argent, macro et option pour
   les séries non directionnelles (option dans le domaine options seulement).
 - La teinte sémantique secondaire d'une page (ADR-017) est une famille déclarée
-  dans son catalogue — `macro`, `option`, `positive` ou `warning` — consommée
-  par `--vx-page-accent*` ; elle garde le sens de sa famille et l'ambre reste
-  la seule lumière de la dominante.
+  dans son catalogue — `macro`, `option` ou `warning`, jamais `positive` ni
+  `negative` — consommée par `--vx-page-accent*` ; elle garde le sens de sa
+  famille et l'ambre reste la seule lumière de la dominante.
 - L'aire sous une série servie va de `<famille>-gradient-start` à
   `<famille>-gradient-end` (transparence) ; jamais entre deux teintes.
 - Une palette séquentielle représente une magnitude ; une palette divergente

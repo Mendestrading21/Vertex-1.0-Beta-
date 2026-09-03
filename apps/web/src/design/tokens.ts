@@ -78,7 +78,9 @@ export const color = {
  * dominante et n'est pas éligible. Chaque clé renvoie à une famille EXISTANTE —
  * aucune couleur nouvelle : « une couleur = une signification » est préservé,
  * la teinte garde le sens de sa famille (macro = contexte, option = domaine
- * options, positive = signe financier, warning = prudence, retard, synthétique).
+ * options, warning = prudence, retard, synthétique). `positive` et `negative`
+ * restent réservés au signe financier servi : une teinte de page ne bascule
+ * pas selon le signe, elle n'est donc jamais verte ni rouge (revue du lot C0).
  * Le CSS généré expose `[data-page-accent="<clé>"]` → `--vx-page-accent`,
  * `--vx-page-accent-soft`, `--vx-page-accent-gradient-start/-end`. Aucune
  * valeur par défaut : sans déclaration de page, il n'y a pas de teinte.
@@ -86,7 +88,6 @@ export const color = {
 export const pageAccent = {
   macro: 'macro',
   option: 'option',
-  positive: 'positive',
   warning: 'warning',
 } as const satisfies Record<string, ColorToken>;
 

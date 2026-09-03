@@ -77,10 +77,11 @@ visual_contracts:
         primitive: "ActivityFeed"
         served_data: "horodatages ISO servis ; montants en chaînes signées"
     secondary_accent_per_page:
-      families: ["macro", "option", "positive", "warning"]
+      families: ["macro", "option", "warning"]
       declared_in: "catalogue de la page ; une seule famille par page"
       css: "[data-page-accent] -> --vx-page-accent, --vx-page-accent-soft, --vx-page-accent-gradient-start, --vx-page-accent-gradient-end"
-      excluded: ["signal"]
+      excluded: ["signal", "positive", "negative"]
+      excluded_reason: "signal = seule lumière de la dominante ; positive/negative = signe financier servi, une teinte de page ne bascule pas selon le signe"
     always_forbidden:
       - "permanent_halo_or_neon"
       - "pure_black"

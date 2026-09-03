@@ -24,9 +24,10 @@ déclare une couleur brute.
 
 `pageAccent` (`apps/web/src/design/tokens.ts`) est le vocabulaire fermé des
 familles éligibles comme teinte sémantique secondaire d'une page : `macro`,
-`option`, `positive`, `warning`. Chaque clé renvoie à une famille existante —
-aucune couleur nouvelle, « une couleur = une signification » est préservé, et
-`signal` (ambre) n'est pas éligible. Le CSS généré expose, par famille,
+`option`, `warning`. Chaque clé renvoie à une famille existante — aucune
+couleur nouvelle, « une couleur = une signification » est préservé ; `signal`
+(ambre) n'est pas éligible, ni `positive` ni `negative` (signe financier servi :
+une teinte de page ne bascule pas selon le signe). Le CSS généré expose, par famille,
 `[data-page-accent="<famille>"]` → `--vx-page-accent`, `--vx-page-accent-soft`,
 `--vx-page-accent-gradient-start`, `--vx-page-accent-gradient-end`, sans valeur
 par défaut dans `:root`. La page déclare sa famille dans son catalogue ; les
