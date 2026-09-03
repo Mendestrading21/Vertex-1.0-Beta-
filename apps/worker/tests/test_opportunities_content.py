@@ -29,6 +29,8 @@ from vertex_core.contracts.decision import AdviceResult, GateResult
 from vertex_core.contracts.enums import AdviceStatus, Direction, GateStatus
 from vertex_core.synthetic import (
     SYNTHETIC_FOCUS_TICKERS,
+    SYNTHETIC_RIGHTS,
+    SYNTHETIC_SOURCE,
     generate_calendar_event_envelopes,
     generate_daily_bar_envelopes,
 )
@@ -37,6 +39,7 @@ from vertex_worker.calendar import (
     DEV_SYNTHETIC_CALENDAR_CONFIG,
     build_calendar_content,
 )
+from vertex_worker.handlers import ObservationRecord
 from vertex_worker.opportunities import (
     CALENDAR_REF_ABSENT,
     CALENDAR_REF_FUTURE,
@@ -850,3 +853,65 @@ def test_a_profile_declaring_no_required_evidence_is_refused(
 
     with pytest.raises(StrategyProfileError, match="invalid required_evidence"):
         load_strategy_profile("empty_evidence_profile", path=manifest)
+
+
+# --------------------------------------------------------------------------
+# Evidence framed per instrument (S0)
+# --------------------------------------------------------------------------
+
+
+def news_record(ticker: str, number: int) -> ObservationRecord:
+    """SYNTHETIC news mentioning ``ticker`` only."""
+    instant = NOW - timedelta(hours=1, minutes=number)
+    return ObservationRecord(
+        event_id=f"syn:news:{ticker}:{number}",
+        source=SYNTHETIC_SOURCE,
+        source_event_id=f"native-{ticker}-{number}",
+        instrument_ref=ticker,
+        published_at=instant,
+        received_at=instant,
+        as_of=instant,
+        quality_status="VALID",
+        rights=SYNTHETIC_RIGHTS,
+        schema_version="synthetic-news/1.0",
+        payload={
+            "title": f"[SYNTHETIC] fictional note {number} on {ticker}",
+            "entities": [ticker],
+        },
+    )
+
+
+def _candidate(content: Mapping[str, Any], ticker: str) -> Mapping[str, Any]:
+    for group in ("qualified", "excluded"):
+        for entry in content[group]:
+            if entry["ticker"] == ticker:
+                return dict(entry)
+    raise AssertionError(f"{ticker} absent from both groups")
+
+
+def test_evidence_window_per_instrument_reaches_only_its_candidate(profile) -> None:
+    """Preuves cadrées PAR INSTRUMENT (S0) : la table ``ticker -> fenêtre``.
+
+    Le candidat A voit ses grappes ; B, absent de la table, n'en a aucune —
+    jamais celles d'un autre. La fenêtre globale (liste) donne la même
+    réponse par filtrage : les deux formes publient les MÊMES grappes.
+    """
+    a, b = SYNTHETIC_FOCUS_TICKERS[:2]
+    evidence_a = [news_record(a, 1), news_record(a, 2)]
+    kwargs: dict[str, Any] = {
+        "chain_by_instrument": {},
+        "calendar_content": None,
+        "calendar_ref": None,
+        "theses_by_ticker": {},
+        "now": NOW,
+        "config": DEV_SYNTHETIC_OPPORTUNITIES_CONFIG,
+        "profile": profile,
+    }
+    framed = build_opportunities_content([], {a: evidence_a}, **kwargs)
+    shared = build_opportunities_content([], evidence_a, **kwargs)
+
+    clusters_a = _candidate(framed, a)["evidence_cluster_ids"]
+    assert clusters_a, "the framed window must reach its own candidate"
+    assert _candidate(framed, b)["evidence_cluster_ids"] == []
+    assert _candidate(shared, a)["evidence_cluster_ids"] == clusters_a
+    assert _candidate(shared, b)["evidence_cluster_ids"] == []

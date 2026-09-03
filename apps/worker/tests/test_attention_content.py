@@ -10,11 +10,14 @@ from __future__ import annotations
 
 import random
 from datetime import UTC, datetime, timedelta
+from typing import Any, cast
 
 import pytest
 
 from vertex_core.synthetic import SYNTHETIC_RIGHTS, SYNTHETIC_SOURCE, generate_envelopes
+from vertex_worker.calendar import CALENDAR_EVENT_SCHEMA_PREFIXES
 from vertex_worker.handlers import (
+    CONTENT_SCHEMA_PREFIXES,
     DEV_SYNTHETIC_CONFIG,
     MAX_ATTENTION_ITEMS,
     POPULATION_EMPTY,
@@ -24,6 +27,7 @@ from vertex_worker.handlers import (
     ObservationRecord,
     build_attention_content,
     is_synthetic_record,
+    load_recent_observation_records_by_instrument,
 )
 
 NOW = datetime(2026, 8, 25, 12, 0, 0, tzinfo=UTC)
@@ -317,3 +321,106 @@ class TestPolarityConflictIsNeverResolvedByElection:
         first = build_attention_content(records, now=NOW, config=DEMO_ONLY_CONFIG)
         second = build_attention_content(shuffled, now=NOW, config=DEMO_ONLY_CONFIG)
         assert first == second
+
+
+class TestDeclaredContentFamilies:
+    """La fenêtre est cadrée par les familles que le consommateur DÉCLARE.
+
+    Mesuré le 2026-09-03 : les 500 observations les plus récentes étaient
+    toutes des cotations instantanées, et la file d'attention servait 0 item
+    sur données réelles. Le registre déclare donc les familles de contenu, et
+    la couverture publiée les répète.
+    """
+
+    def test_default_families_are_the_worker_content_families(self) -> None:
+        assert DEV_SYNTHETIC_CONFIG.content_schema_prefixes == CONTENT_SCHEMA_PREFIXES
+        assert "synthetic-news/" in CONTENT_SCHEMA_PREFIXES
+        assert "ibkr.news-headline/" in CONTENT_SCHEMA_PREFIXES
+
+    @pytest.mark.parametrize(
+        "instantanee",
+        ["ibkr.quote/1", "ibkr.daily-quote/1", "synthetic-daily-quote/1.0", "ibkr.bars/1"],
+    )
+    def test_market_families_are_never_declared_as_content(self, instantanee: str) -> None:
+        assert not instantanee.startswith(CONTENT_SCHEMA_PREFIXES)
+
+    @pytest.mark.parametrize("prefixes", [(), ("",), ("  ",), ("synthetic-news/", 3), "x/"])
+    def test_config_refuses_an_empty_or_malformed_declaration(self, prefixes: object) -> None:
+        with pytest.raises(ValueError, match="content_schema_prefixes"):
+            FusionConfig(
+                allowed_sources=frozenset({DEMO_SOURCE}),
+                usable_rights=frozenset({DEMO_RIGHTS}),
+                content_schema_prefixes=cast("tuple[str, ...]", prefixes),
+            )
+
+    def test_coverage_publishes_the_declared_families(self) -> None:
+        by_default = build_attention_content([demo_record(1)], now=NOW, config=DEMO_ONLY_CONFIG)
+        assert by_default["coverage"]["content_schema_prefixes"] == list(CONTENT_SCHEMA_PREFIXES)
+        declared = FusionConfig(
+            allowed_sources=frozenset({DEMO_SOURCE}),
+            usable_rights=frozenset({DEMO_RIGHTS}),
+            content_schema_prefixes=("demo-news/",),
+        )
+        explicit = build_attention_content([demo_record(1)], now=NOW, config=declared)
+        assert explicit["coverage"]["content_schema_prefixes"] == ["demo-news/"]
+
+    def test_calendar_events_are_served_by_their_own_page_not_by_the_queue(self) -> None:
+        """TÉMOIN d'un comportement DÉCLARÉ (pas un reproducteur) : un événement
+        de calendrier porte un titre mais n'est pas une dépêche. La page
+        Calendrier le sert (`CALENDAR_EVENT_SCHEMA_PREFIXES`), la file
+        d'attention ne le lit pas. Le réintroduire est une décision de
+        produit qui passe par `CONTENT_SCHEMA_PREFIXES`, jamais par une
+        borne plus large — ce test la rendra visible."""
+        assert CALENDAR_EVENT_SCHEMA_PREFIXES, "la page Calendrier déclare ses familles"
+        for famille in (*CALENDAR_EVENT_SCHEMA_PREFIXES, "synthetic-calendar-event/1.0"):
+            assert not famille.startswith(CONTENT_SCHEMA_PREFIXES), famille
+        title_bearing_event = ObservationRecord(
+            event_id="cal-1",
+            source=SYNTHETIC_SOURCE,
+            source_event_id="cal-1",
+            instrument_ref="SYN-0001",
+            published_at=BASE_TIME,
+            received_at=BASE_TIME,
+            as_of=BASE_TIME,
+            quality_status="VALID",
+            rights=SYNTHETIC_RIGHTS,
+            schema_version="synthetic-calendar-event/1.0",
+            payload={"title": "[SYNTHETIC] résultats trimestriels", "ticker": "SYN-0001"},
+        )
+        # Le constructeur pur, lui, lirait ce titre : c'est bien la DÉCLARATION
+        # (appliquée par le chargeur, avant la borne) qui tient l'événement
+        # hors de la file, pas une absence de titre.
+        content = build_attention_content(
+            [title_bearing_event], now=NOW, config=DEV_SYNTHETIC_CONFIG
+        )
+        assert content["coverage"]["content_observations"] == 1
+        assert "synthetic-calendar-event/" not in content["coverage"]["content_schema_prefixes"]
+
+
+class TestPerInstrumentWindowDeclaration:
+    """`load_recent_observation_records_by_instrument` refuse une demande vide
+    ou mal formée AVANT toute lecture — même règle que pour les familles :
+    rien de déclaré, rien de lu, et le refus est explicite."""
+
+    @pytest.mark.parametrize("refs", [(), ("",), ("  ",), ("208813720", 3), "208813720"])
+    def test_refuses_an_empty_or_malformed_reference_list(self, refs: object) -> None:
+        with pytest.raises(ValueError, match="instrument_refs"):
+            load_recent_observation_records_by_instrument(
+                cast(Any, None),
+                now=NOW,
+                lookback=timedelta(hours=72),
+                limit=10,
+                schema_prefixes=CONTENT_SCHEMA_PREFIXES,
+                instrument_refs=cast(Any, refs),
+            )
+
+    def test_refuses_an_empty_family_declaration(self) -> None:
+        with pytest.raises(ValueError, match="schema_prefixes"):
+            load_recent_observation_records_by_instrument(
+                cast(Any, None),
+                now=NOW,
+                lookback=timedelta(hours=72),
+                limit=10,
+                schema_prefixes=(),
+                instrument_refs=("208813720",),
+            )
