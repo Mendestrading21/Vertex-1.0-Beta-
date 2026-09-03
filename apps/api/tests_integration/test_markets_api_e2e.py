@@ -153,6 +153,9 @@ class TestMarketsOverview:
         breadth = body["breadth"]
         assert breadth["status"] == "OK"  # coverage 1/2 >= 0.5
         assert breadth["above_count"] == 1
+        assert breadth["down_count"] == 0
+        assert breadth["flat_count"] == 0
+        assert breadth["covered_count"] == 1
         assert breadth["value"] == "1.0"
         assert breadth["calculation"]["calculation_id"] == "market.breadth"
 
