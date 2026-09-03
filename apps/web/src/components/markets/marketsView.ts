@@ -52,6 +52,11 @@ export function geometryNumber(value: string): number {
   return Number.isFinite(parsed) ? parsed : 0;
 }
 
+/** Glyphe de sens, TOUJOURS accompagné du texte signé — jamais la couleur seule. */
+export function signSymbolOf(group: SignGroup): string {
+  return group === 'up' ? '▲' : group === 'down' ? '▼' : '=';
+}
+
 export const GROUP_LABELS_FR: Readonly<Record<SignGroup, string>> = {
   up: 'En hausse',
   down: 'En baisse',

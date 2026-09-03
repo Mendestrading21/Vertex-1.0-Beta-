@@ -810,3 +810,119 @@ Prochaine commande recommandée : revue humaine de la PR LOT-A2, puis
 `EXÉCUTE J3` (régression `aria-pressed` de V12, reproducteur Playwright déjà
 cadré) — ou le lot serveur `market.rebased_series` si la comparaison prime.
 
+
+## SESSION 2026-09-02 — LOT-A3 : Aujourd'hui et Marchés composées sur leurs planches (§1, §2)
+
+Consigne utilisateur : « fait ça le plus beau possible et le mieux possible,
+que tous les graphiques s'affichent correctement, utilise des données
+fictives pour montrer le résultat final ». Données fictives = population
+`SYNTHETIC` du pipeline e2e, étiquetée à l'écran ; jamais présentée comme
+réelle.
+
+Branche `lot/a3-aujourdhui-marches-20260902` depuis `main@6e416d8`, PR
+brouillon, aucune fusion.
+
+### Ce qui est livré
+
+- **Aujourd'hui** : la planche §1 en entier — onze modules. Huit SERVIS par
+  des contrats existants, chacun lu par le hook de sa page propriétaire (file
+  d'attention en dominante ; marché global et carte sectorielle depuis
+  `markets_overview` ; catalyseur suivant et calendrier depuis `calendar` ;
+  santé des sources ; opportunités ; portefeuille manuel). Trois ABSENTS avec
+  motif mesuré (`AbsentModule`) : régime (le moteur publie lui-même « no
+  regime assessment exists for this population »), volatilité, risques
+  actifs. L'inspecteur est TOUJOURS occupé : l'item ouvert, sinon la vérité du
+  snapshot (l'ancien rail). La file est bornée (région défilante, `tabIndex`).
+- **Marchés** : la planche §2 en entier — douze modules. Cinq SERVIS par
+  `markets_overview` (carte en dominante, largeur de marché, santé de la
+  couverture, carte sectorielle, écartés et rejets), sept ABSENTS (sessions,
+  indices, volatilité, taux — `CONTRAT SERVEUR ABSENT` : l'adaptateur FRED
+  vit dans `apps/edge-official`, aucune route ni snapshot ne relaie une
+  courbe —, devises, corrélation, structure de volatilité). Sélection d'un
+  instrument depuis une tuile, une puce sectorielle ou une ligne de table →
+  inspecteur avec les chaînes publiées et la LIGNÉE du calcul.
+- Primitives réutilisables : `moduleStateOf()` (état d'un module depuis SON
+  snapshot), `Metric` (bloc de mesure), `SectorGrid` (partagée).
+
+### Ce qui a été vu SUR CAPTURE, pas par un test
+
+1. Cinq colonnes à 1440 donnaient des cellules de **135 px** : l'inspecteur
+   est monté en permanence sur ces pages, la zone de travail fait ~730 px.
+   Quatre colonnes ; cinq seulement à 1600.
+2. Badges d'absence tronqués (« AUCUNE SOURC ») dans une colonne étroite ;
+   bandeau santé et barres de breadth coupés ; horodatage en corps
+   d'affichage cassé caractère par caractère. Tous corrigés, captures
+   régénérées.
+3. Le module « Indices » manquait au DOM : le test de composition (douze
+   témoins `data-module`) l'a dit avant la capture — c'est le test qui a
+   rattrapé celui-là.
+4. CI rouge à la première tête (`7fc6289`, e2e 1440 seul) : le test du shell
+   « point 6 » visitait `/today` en supposant l'inspecteur masqué — vrai avant
+   ce lot, faux par conception depuis (la vérité du snapshot y est montée).
+   L'assertion ne tenait plus que par une course avec le chargement : verte
+   quand elle précédait les données, rouge quand elles arrivaient d'abord.
+   Témoin déplacé sur Sources & Rapports, qui ne monte aucun panneau ; la
+   propriété testée est la même, sans course. 6/6 aux trois viewports.
+
+### Mesuré sur cette machine (codes relus)
+
+- `tsc --noEmit` : 0 erreur ; `biome check` : 0 violation.
+- `vitest run` : **42 fichiers, 551 tests, 0 échec** (521 sur `main` + 30).
+- `audit_titanium_ledger.py` : `TARGET_GAPS` avec le seul écart `charts` —
+  attendu sur cette branche, issue de `main` où Graphiques n'est pas encore
+  fusionnée (PR #25) ; ce lot n'ajoute ni ne retire aucun écart.
+- Playwright (today, markets, shell-canonical, accessibility, 1280/1440/1600) :
+  **228 passés / 228 déclarés**, `.last-run.json` passed, code 0 ; passe finale
+  today + markets après les derniers correctifs : **36 / 36**, code 0.
+- `tools/run_checks.sh` (racine, seul) : toutes les portes vertes dont la
+  performance (après correction d'un `INEFFECTIVE_DYNAMIC_IMPORT` : la
+  fonction d'état d'Opportunités vit désormais dans sa vue pure), ruff et
+  mypy ; puis le seul rouge déjà connu, `test_denylist.py::
+  test_adapter_satisfies_the_port_protocol` sur Python 3.11 — pas ce lot,
+  aucun fichier Python touché, établi dans la PR #25.
+- Deux passes lancées EN PARALLÈLE (e2e et porte performance) ont reconstruit
+  `dist/` en même temps : un test e2e a échoué une fois pour cette seule
+  raison. Rejouées seules, les deux sont vertes. Règle consignée : jamais deux
+  builds web concurrents dans le même worktree.
+
+### Deuxième passe, sur demande : « plus aéré, mieux espacé, mieux cadré »
+
+Appliqué le haut de chaque bande canonique : 16 px entre modules, 20 px entre
+rangées, 20 px d'espace interne, arête haute plus claire sur chaque panneau
+(« titane froid, plus clair au bord supérieur »), têtes et pieds filetés,
+mesures empilées séparées d'un filet (de front quand la carte est large),
+inspecteur à faits filetés, dominante de Marchés recadrée. Rangées
+rééquilibrées d'après les captures : régime et risques empilés à gauche de la
+file (même hauteur), opportunités et portefeuille empilés à côté de la carte
+sectorielle, courbe des taux/corrélation et devises/structure empilées à côté
+de la carte sectorielle de Marchés, santé et refus de front. Trois passes de
+capture ; 36/36 à chaque fois. Reste : à 1280, les puces sectorielles
+n'entrent qu'une par ligne dans une tuile de 340 px — lisible, pas élégant.
+
+### Troisième passe, sur demande : des widgets « instrument » (références de widgets financiers)
+
+Une rangée « Instruments suivis » sur Aujourd'hui et Marchés — prix en grand,
+variation 1 j en pastille signée, mini-courbe des clôtures et barres de
+volume, fraîcheur en haut à droite. TOUT est servi : clôture, devise et
+rendement du snapshot Marchés (chaînes verbatim) ; série et fraîcheur du
+dossier d'analyse (`GET /api/v1/analysis/{instrument}`). La liste vient des
+candidats du snapshot Opportunités dont `bars_status` est `OK` — un dossier
+existe pour eux — dans l'ordre publié, bornée à quatre ; sans dossier, la
+rangée le dit. Aucun calcul (géométrie des clôtures publiées, comme la
+treemap ; base pointillée = première clôture de la fenêtre, un repère ; sens
+= signe publié, jamais la pente). Ce que les références montrent et que
+Vertex ne fera pas : boutons d'achat, jauges circulaires, valeurs de
+maquette. Mesuré : `tsc` 0, Biome 0, vitest 44 fichiers / 560 tests / 0
+échec, e2e today + markets 36/36 (deux passes), captures relues aux trois
+viewports.
+
+### Transmis, non corrigé ici
+
+- `NOW.md` et `docs/05-design/REFONTE_TITANIUM_LEDGER.md` sont modifiés en
+  fin de fichier par la PR #25 ET par ce lot : la seconde fusion demandera
+  une résolution triviale (garder les deux sections).
+- Le régime, la volatilité et les risques actifs n'auront une source que par
+  un lot SERVEUR (calcul au registre + snapshot) ; rien à faire côté interface.
+
+Prochaine commande recommandée : revue humaine de la PR LOT-A3, puis
+`EXÉCUTE A4` (Opportunités, Analyse — planches §3, §4).
