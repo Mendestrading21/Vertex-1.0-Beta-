@@ -12,6 +12,10 @@ import { StatusBadge } from '../components/StatusBadge.tsx';
  * cellule vide : une valeur absente est rendue « — » avec un aria-label
  * explicite (« jamais sondé » pour un tested_at nul), jamais un zéro ni un
  * texte inventé. Les filtres famille/statut persistent dans l'URL.
+ *
+ * LOT-A8 : la matrice est le CORPS de la carte dominante portée par la page
+ * (planche §12) ; chaque ligne peut ouvrir la capacité dans l'inspecteur
+ * (« Détail »).
  */
 
 export const FAMILY_PARAM = 'famille';
@@ -51,9 +55,11 @@ export interface SourceHealthMatrixProps {
   readonly entries: readonly CapabilityEntry[];
   /** `total` du DTO — le nombre exact d'entrées du manifeste déclaré. */
   readonly total: number;
+  readonly selected?: string | null;
+  readonly onInspect?: (capabilityId: string) => void;
 }
 
-export function SourceHealthMatrix({ entries, total }: SourceHealthMatrixProps) {
+export function SourceHealthMatrix({ entries, total, selected = null, onInspect }: SourceHealthMatrixProps) {
   const [searchParams, setSearchParams] = useSearchParams();
   const familyFilter = searchParams.get(FAMILY_PARAM) ?? ALL;
   const statusFilter = searchParams.get(STATUS_PARAM) ?? ALL;
@@ -79,25 +85,11 @@ export function SourceHealthMatrix({ entries, total }: SourceHealthMatrixProps) 
   }
 
   return (
-    <section
-      className="vx-matrix"
-      /*
-        LA DOMINANTE DE SOURCES & RAPPORTS. La page demande « puis-je faire
-        confiance aux sources, traitements et sauvegardes maintenant ? » — et
-        c'est cette matrice, quatorze capacités croisées avec les sondes
-        réellement persistées, qui y répond. La santé des composants informe ;
-        elle ne tranche pas la question.
-      */
-      data-rank="dominant"
-      aria-label="Matrice de santé des sources"
-    >
+    <div className="vx-matrix">
       <div className="vx-matrix-filters">
         <label>
           Famille
-          <select
-            value={familyFilter}
-            onChange={(event) => updateParam(FAMILY_PARAM, event.target.value)}
-          >
+          <select value={familyFilter} onChange={(event) => updateParam(FAMILY_PARAM, event.target.value)}>
             <option value={ALL}>Toutes ({entries.length})</option>
             {families.map((family) => (
               <option key={family} value={family}>
@@ -108,10 +100,7 @@ export function SourceHealthMatrix({ entries, total }: SourceHealthMatrixProps) 
         </label>
         <label>
           Statut testé
-          <select
-            value={statusFilter}
-            onChange={(event) => updateParam(STATUS_PARAM, event.target.value)}
-          >
+          <select value={statusFilter} onChange={(event) => updateParam(STATUS_PARAM, event.target.value)}>
             <option value={ALL}>Tous ({entries.length})</option>
             {STATUS_VALUES.map((status) => (
               <option key={status} value={status}>
@@ -129,17 +118,11 @@ export function SourceHealthMatrix({ entries, total }: SourceHealthMatrixProps) 
       {/* Région défilante focusable au clavier (WCAG 2.1.1 — axe
           scrollable-region-focusable) : la table large défile dans SON
           conteneur, jamais la page entière. */}
-      <div
-        className="vx-matrix-scroll"
-        role="region"
-        aria-label="Table des capacités (défilement horizontal possible)"
-        tabIndex={0}
-      >
+      <div className="vx-matrix-scroll" role="region" aria-label="Table des capacités (défilement horizontal possible)" tabIndex={0}>
         <table className="vx-matrix-table">
           <caption>
-            Capacités IBKR market-data déclarées ({total}) croisées avec les sondes réellement
-            persistées — un statut jamais sondé reste ERROR / NEVER_TESTED, jamais une
-            disponibilité supposée.
+            Capacités IBKR market-data déclarées ({total}) croisées avec les sondes réellement persistées — un statut jamais sondé
+            reste ERROR / NEVER_TESTED, jamais une disponibilité supposée.
           </caption>
           <thead>
             <tr>
@@ -153,29 +136,30 @@ export function SourceHealthMatrix({ entries, total }: SourceHealthMatrixProps) 
           </thead>
           <tbody>
             {filtered.map((entry) => (
-              <tr key={entry.capability_id}>
+              <tr key={entry.capability_id} {...(selected === entry.capability_id ? { 'data-selected': 'true' } : {})}>
                 <th scope="row">
                   <code>{entry.capability_id}</code>
+                  {onInspect !== undefined ? (
+                    <button
+                      type="button"
+                      className="vx-opp-inspect"
+                      aria-pressed={selected === entry.capability_id}
+                      aria-label={`Inspecter ${entry.capability_id}`}
+                      onClick={() => {
+                        onInspect(entry.capability_id);
+                      }}
+                    >
+                      Détail
+                    </button>
+                  ) : null}
                 </th>
                 <td>{entry.family}</td>
                 <td>{entry.declared_mode}</td>
                 <td>
                   <StatusBadge status={entry.tested_status} />
                 </td>
-                <td>
-                  {entry.reason === null ? (
-                    <AbsentCell label="aucune raison fournie" />
-                  ) : (
-                    entry.reason
-                  )}
-                </td>
-                <td>
-                  {entry.tested_at === null ? (
-                    <AbsentCell label="jamais sondé" />
-                  ) : (
-                    <time dateTime={entry.tested_at}>{entry.tested_at}</time>
-                  )}
-                </td>
+                <td>{entry.reason === null ? <AbsentCell label="aucune raison fournie" /> : entry.reason}</td>
+                <td>{entry.tested_at === null ? <AbsentCell label="jamais sondé" /> : <time dateTime={entry.tested_at}>{entry.tested_at}</time>}</td>
               </tr>
             ))}
           </tbody>
@@ -183,10 +167,9 @@ export function SourceHealthMatrix({ entries, total }: SourceHealthMatrixProps) 
       </div>
       {filtered.length === 0 ? (
         <p className="vx-matrix-empty" role="status">
-          Aucune capacité ne correspond aux filtres actifs — les {entries.length} entrées reçues
-          restent comptées ci-dessus.
+          Aucune capacité ne correspond aux filtres actifs — les {entries.length} entrées reçues restent comptées ci-dessus.
         </p>
       ) : null}
-    </section>
+    </div>
   );
 }
