@@ -1,4 +1,5 @@
-import { geometryValue } from './geometry.ts';
+import { geometryValue, textDensityOf } from './geometry.ts';
+import type { TextDensity } from './geometry.ts';
 
 /**
  * Anneau de parts SERVIES à chiffre central — forme admise par ADR-017.
@@ -63,17 +64,10 @@ function servedTextOf(part: RingPart): string | null {
  * financière ici) et laisse la feuille de style choisir le cran qui le fait
  * tenir ENTIER dans le creux.
  */
-const CENTER_SHORT = 8;
-const CENTER_MEDIUM = 16;
+export type CenterDensity = TextDensity;
 
-export type CenterDensity = 'short' | 'medium' | 'long';
-
-export function centerDensityOf(text: string): CenterDensity {
-  if (text.length <= CENTER_SHORT) {
-    return 'short';
-  }
-  return text.length <= CENTER_MEDIUM ? 'medium' : 'long';
-}
+/** La mesure vit dans `geometry.ts` : l'arc en a besoin autant que l'anneau. */
+export const centerDensityOf = textDensityOf;
 
 export interface RingSharesProps {
   readonly parts: readonly RingPart[];

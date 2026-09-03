@@ -1969,3 +1969,82 @@ Le module `calendar` d'Aujourd'hui garde sa liste `AgendaLine` : le passage à
 `ActivityFeed` perdrait la lecture du temps servi par fuseau, et rien ne le
 justifie tant que la primitive ne la porte pas. Les anneaux de poids sectoriel
 (`weight_in_sector_pct`) attendent le lot Marchés suivant.
+
+## SESSION 2026-09-03 — LOT P5 : Graphiques, et trois modules qui mentaient
+
+Branche `lot/w2-charts-20260903`, base `main` à `11251d4` (P1 fusionné).
+
+### L'aveu devenu faux
+
+`chartsView.ts` déclarait `overlays`, `rsi` et `macd` **absents**, note à
+l'appui : « Aucun calcul … n'est déclaré au registre des calculs ni publié par
+un snapshot ». C'était exact avant le LOT-S6. Ça ne l'est plus : le worker
+publie `indicators.overlays.{sma, ema, bollinger_bands}` et
+`indicators.oscillators.{rsi, macd}`, chacun avec sa série RENDUE en chaînes,
+sa méthode, ses paramètres et sa lignée
+(`apps/worker/src/vertex_worker/analysis.py:972-977, 1056-1194`). Une absence
+qui a cessé d'être vraie n'est plus une prudence : c'est un mensonge.
+
+Test reproducteur écrit ROUGE d'abord (`chartsView.test.ts`) : les trois
+modules sont servis par le contrat Analyse. Conséquence exacte sur l'e2e :
+`charts.spec.ts` attendait **8** badges d'absence, il en attend **5** — la
+même assertion, sur un compte devenu juste.
+
+### Ce qui est livré
+
+- **Lecture des blocs S6** (`indicatorBlockOf`, `indicatorFamilyOf`, huit cas
+  de test) : trois formes servies reconnues sans en deviner aucune — série
+  simple (`points[{trading_day, value}]`), bandes (`points` + `bands`), lignes
+  (`series` + `lines`) — et trois refus relayés tels quels
+  (`INSUFFICIENT_SAMPLE` avec son détail, `REFUSED` avec son code, bloc
+  amputé déclaré illisible).
+- **Un FAIT constaté, jamais corrigé** : `aligned` dit si les lignes d'un bloc
+  partagent leurs séances. Les bandes de Bollinger les partagent (une même
+  liste de points) et se superposent en `MultiSeriesArea` — **première pose de
+  cette primitive**. Les trois lignes du MACD commencent à des séances
+  différentes : chacune garde sa figure, parce que les aligner ici produirait
+  une comparaison que personne n'a publiée.
+- **`PeriodTabs`, première pose** : fenêtres d'affichage (20 / 60 / 120
+  séances / tout le servi) bornées par `bars.count` SERVI ; une fenêtre plus
+  large que la série est désactivée avec son motif visible. La description de
+  la figure dit désormais le compte publié ET le compte affiché.
+- **`ArcGauge` sur le RSI** : l'unité SERVIE est `index_0_100` — le serveur
+  déclare l'échelle, la valeur servie EST sa position, l'arc n'en dérive
+  aucune. Si l'unité change, la forme est refusée plutôt que réinterprétée.
+- **`DayBars` sur le volume**, **`SparkFigure` en aire** sur chaque série
+  d'indicateur, **planche §8** en aires nommées (elle n'en avait aucune : ni
+  `vx-board`, ni `Card`, ni `Widget`), accent `macro` posé, matière v2 étendue.
+
+### Trois défauts de primitive, trouvés parce qu'une planche a enfin servi ces formes
+
+1. **Aucune barre n'était jamais peinte.** `DayBars` posait
+   `height: <part>%` sur un enfant d'un conteneur dont la hauteur venait de
+   `flex: 1 1 auto` — indéfinie pour la résolution des pourcentages. Le DOM
+   portait bien « height: 100% » ; l'écran ne montrait qu'un rail vide. Le
+   défaut est resté invisible tant que la seule planche à poser cette forme
+   servait des comptes nuls (Risques). La barre est désormais positionnée, et
+   résout son pourcentage contre un bloc conteneur de hauteur définie.
+2. **« Pas de bande » se lisait « bande non publiée ».** Sans vocabulaire de
+   bandes déclaré, chaque barre tombait sur `unknown`, dont la teinte fantôme
+   dit une absence — sur une donnée complète, et en la rendant invisible. Une
+   bande n'est un manque que si l'appelant a DÉCLARÉ un vocabulaire.
+3. **Un signe affirmé sur une mesure qui n'en a pas.** `SparkFigure` exigeait
+   un sens financier ; une moyenne mobile ou un RSI n'en ont aucun. Le signe
+   est devenu facultatif : sans lui, l'attribut n'existe pas.
+
+Plus deux corrections de lisibilité mesurées sur capture : le chiffre central
+de l'arc (un RSI servi fait quatorze caractères) descend d'un cran plutôt que
+de déborder — même remède que l'anneau au LOT P4, désormais partagé
+(`textDensityOf`, `geometry.ts`) ; et le titre du module de comparaison n'est
+plus écrit deux fois l'un sous l'autre.
+
+### Mesuré sur cette machine
+
+- `npx tsc --noEmit` : code 0.
+- `npx biome check src` : 1 info préexistante, 0 erreur.
+- `npx vitest run` : 87 fichiers, **919 tests**, tous verts.
+- `npm run build` : succès.
+- Playwright `charts`, `analysis`, `risk`, `shell-canonical`, `accessibility`
+  aux trois viewports desktop : **267 passés, code 0**.
+- `bash tools/run_checks.sh` : vert sauf le rouge PRÉEXISTANT
+  `test_denylist.py::test_adapter_satisfies_the_port_protocol`.

@@ -101,4 +101,26 @@ describe('SparkFigure — figure de série servie', () => {
     expect(texte).not.toMatch(/%/);
     expect(texte).not.toMatch(/min|max/i);
   });
+
+  it('une série SANS signe financier ne porte aucun signe', () => {
+    // Une moyenne mobile, un RSI, une bande de Bollinger n'ont pas de sens
+    // financier « en hausse » ou « stable » : ce sont des mesures, pas des
+    // variations. Écrire `data-sign="flat"` sur leur figure affirmerait une
+    // stabilité que personne n'a publiée.
+    const { container } = render(
+      <SparkFigure
+        closes={CLOSES}
+        labels={LABELS}
+        sign={null}
+        caption="RSI"
+        unit="index_0_100"
+        windowLabel={WINDOW}
+        tone="macro"
+      />,
+    );
+    const figure = container.querySelector('.vx-w2-spark');
+    expect(figure).not.toBeNull();
+    expect(figure?.getAttribute('data-sign')).toBeNull();
+    expect(figure?.getAttribute('data-tone')).toBe('macro');
+  });
 });

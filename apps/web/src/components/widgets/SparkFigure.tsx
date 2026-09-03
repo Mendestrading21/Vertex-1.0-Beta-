@@ -37,7 +37,13 @@ export interface SparkFigureProps {
   readonly closes: readonly string[];
   /** Étiquettes SERVIES (jours de séance) pour la table équivalente. */
   readonly labels?: readonly string[];
-  readonly sign: SignGroup;
+  /**
+   * Sens financier SERVI de la série. `null` = la série n'en a pas : une
+   * moyenne mobile, un RSI ou une bande de Bollinger sont des MESURES, pas
+   * des variations, et écrire « stable » sur leur figure affirmerait une
+   * stabilité que personne n'a publiée. Sans signe, l'attribut n'existe pas.
+   */
+  readonly sign: SignGroup | null;
   readonly caption: string;
   readonly unit: string;
   /** Période SERVIE, obligatoire (« 30 dernières barres servies sur 252 »). */
@@ -81,7 +87,12 @@ export function SparkFigure({
   const gradientId = `vx-w2-spark-${tone}-${closes.length}`;
 
   return (
-    <figure className="vx-w2-spark" data-sign={sign} data-tone={tone} data-variant={variant}>
+    <figure
+      className="vx-w2-spark"
+      {...(sign === null ? {} : { 'data-sign': sign })}
+      data-tone={tone}
+      data-variant={variant}
+    >
       <svg
         className="vx-w2-spark-svg"
         viewBox={`0 0 ${WIDTH} ${HEIGHT}`}

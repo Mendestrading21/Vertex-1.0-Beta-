@@ -578,12 +578,20 @@
   height: 100%;
 }
 
-/* Le rail garde la hauteur : la barre se lit par comparaison, pas seule. */
+/* Le rail garde la hauteur : la barre se lit par comparaison, pas seule.
+   LA BARRE EST POSITIONNÉE, pas étirée. Elle portait `height: <part>%` dans un
+   conteneur dont la hauteur venait de `flex: 1 1 auto` : indéfinie pour la
+   résolution des pourcentages, donc AUCUNE barre n'était peinte — les rails
+   restaient vides alors que le DOM portait bien « height: 100% ». Le défaut
+   est resté invisible tant que la seule planche à utiliser cette forme
+   servait des comptes nuls (Risques) ; la planche §8, qui sert des volumes,
+   l'a montré du premier coup. Une position absolue résout son pourcentage
+   contre le bloc conteneur, dont la hauteur est définie après mise en page. */
 .vx-w2-daybar-track {
-  display: flex;
+  position: relative;
   flex: 1 1 auto;
-  align-items: flex-end;
   min-height: 24px;
+  overflow: hidden;
   border-radius: var(--vx-radius-6);
   background-color: var(--vx-titanium-soft);
 }
@@ -608,10 +616,15 @@
   font-style: italic;
 }
 
+/* La barre doit se DÉTACHER de son rail : `titanium` sur `titanium-soft`,
+   c'était deux gris voisins, et douze barres de hauteur proche ne se
+   distinguaient plus du rail (mesuré sur la planche §8). */
 .vx-w2-daybar-fill {
-  width: 100%;
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
   border-radius: var(--vx-radius-6);
-  background-color: var(--vx-titanium);
+  background-color: var(--vx-silver);
 }
 
 .vx-w2-daybar[data-band='positive'] .vx-w2-daybar-fill {
@@ -1239,9 +1252,134 @@
 .vx-w2-arc-figure {
   font-family: var(--vx-font-mono);
   font-size: var(--vx-font-size-headline);
+  line-height: 1.15;
   color: var(--vx-text);
   font-variant-numeric: tabular-nums lining-nums;
   margin: 0;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  text-align: center;
+}
+
+/* Une chaîne servie longue descend d'un cran plutôt que de déborder de l'arc.
+   Elle reste ENTIÈRE : aucune décimale n'est cachée. */
+.vx-w2-arc-figure[data-density='medium'] {
+  font-size: var(--vx-font-size-title);
+}
+
+.vx-w2-arc-figure[data-density='long'] {
+  font-size: var(--vx-font-size-meta);
+  letter-spacing: -0.02em;
+}
+
+/* ===========================================================================
+   LOT P5 — PLACEMENT DE LA PLANCHE §8 (Graphiques)
+   ---------------------------------------------------------------------------
+   Ici et pas dans `global.css`, pour la même raison qu'aux lots P4 et P1 : les
+   règles de span du socle (`.vx-w2[data-size='M']`) ont la même spécificité
+   que `.vx-charts-grid [data-module='x']`, et cette feuille est importée en
+   dernier.
+
+   La planche n'existait pas : la page empilait sa dominante, puis une
+   comparaison, puis un panneau d'indicateurs, puis trois rangées d'absences.
+   Elle est désormais composée — le cadre graphique en pleine largeur, ses
+   mesures dessous, les séries servies par le moteur ensuite, les absences en
+   fermeture.
+   =========================================================================== */
+.vx-charts-grid {
+  display: grid;
+  grid-template-areas:
+    'main main main main'
+    'volume volume indicators indicators'
+    'overlays overlays rsi rsi'
+    'macd macd comparison comparison'
+    'sync selected alerts layouts'
+    'saved saved . .';
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--vx-space-12);
+  align-items: stretch;
+  margin-top: var(--vx-space-12);
+}
+
+.vx-charts-grid > [data-module='main-chart'] { grid-area: main; }
+.vx-charts-grid > [data-module='volume'] { grid-area: volume; }
+.vx-charts-grid > [data-module='served-indicators'] { grid-area: indicators; }
+.vx-charts-grid > [data-module='overlays'] { grid-area: overlays; }
+.vx-charts-grid > [data-module='rsi'] { grid-area: rsi; }
+.vx-charts-grid > [data-module='macd'] { grid-area: macd; }
+.vx-charts-grid > [data-module='comparison'] { grid-area: comparison; }
+.vx-charts-grid > [data-module='synchronized'] { grid-area: sync; }
+.vx-charts-grid > [data-module='selected-object'] { grid-area: selected; }
+.vx-charts-grid > [data-module='linked-alerts'] { grid-area: alerts; }
+.vx-charts-grid > [data-module='layouts'] { grid-area: layouts; }
+.vx-charts-grid > [data-module='saved-studies'] { grid-area: saved; }
+
+.vx-charts-grid > [data-module] {
+  min-width: 0;
+}
+
+@media (min-width: 1600px) {
+  .vx-charts-grid {
+    grid-template-areas:
+      'main main main main main'
+      'volume volume indicators indicators indicators'
+      'overlays overlays overlays rsi rsi'
+      'macd macd comparison comparison comparison'
+      'sync selected alerts layouts saved';
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+/* Le volume de la planche §8 occupe deux colonnes : ses barres ont la place
+   d'être hautes, et ses chiffres d'axe celle d'être lus. */
+.vx-charts-grid .vx-w2-daybars {
+  height: 132px;
+}
+
+.vx-charts-grid .vx-w2-daybar-value,
+.vx-charts-grid .vx-w2-daybar-label {
+  font-size: 11px;
+}
+
+/* Un corps de module ne redéclare pas de cadre : la carte du widget est déjà
+   la surface. Sans cela, la comparaison dessinait une carte dans la carte. */
+.vx-charts-grid .vx-comparison {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+/* Les figures d'un module d'indicateur : côte à côte tant qu'il y a la place,
+   empilées sinon. `auto-fit` et non un nombre fixe de colonnes — la même
+   composition sert une cellule large (overlays) et une cellule étroite (RSI). */
+.vx-charts-figures {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: var(--vx-space-16);
+  align-items: start;
+}
+
+.vx-charts-figures h4 {
+  margin: 0 0 var(--vx-space-8);
+  color: var(--vx-text-secondary);
+  font-size: var(--vx-font-size-meta);
+  font-weight: 600;
+}
+
+/* Les trois bandes superposées demandent toute la largeur du module. */
+.vx-charts-figure-wide {
+  grid-column: 1 / -1;
+}
+
+.vx-charts-provenance,
+.vx-charts-note {
+  margin: var(--vx-space-8) 0 0;
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
 }
 
 /* ===========================================================================
@@ -1258,14 +1396,17 @@
 .vx-pf-grid > [data-module] > .vx-card,
 .vx-markets-grid > [data-module] > .vx-card,
 .vx-today-grid > [data-module] > .vx-card,
+.vx-charts-grid > [data-module] > .vx-card,
 .vx-risk-grid > .vx-w2 > .vx-card,
 .vx-pf-grid > .vx-w2 > .vx-card,
 .vx-markets-grid > .vx-w2 > .vx-card,
 .vx-today-grid > .vx-w2 > .vx-card,
+.vx-charts-grid > .vx-w2 > .vx-card,
 .vx-risk-grid > [data-module] > .vx-absent,
 .vx-pf-grid > [data-module] > .vx-absent,
 .vx-markets-grid > [data-module] > .vx-absent,
-.vx-today-grid > [data-module] > .vx-absent {
+.vx-today-grid > [data-module] > .vx-absent,
+.vx-charts-grid > [data-module] > .vx-absent {
   border-radius: var(--vx-radius-22);
   background-color: var(--vx-surface-1);
   border-color: var(--vx-border-soft);
@@ -1276,7 +1417,8 @@
 .vx-risk-grid [data-rank='dominant'],
 .vx-pf-grid [data-rank='dominant'],
 .vx-markets-grid [data-rank='dominant'],
-.vx-today-grid [data-rank='dominant'] {
+.vx-today-grid [data-rank='dominant'],
+.vx-charts-grid [data-rank='dominant'] {
   background-color: var(--vx-surface-2);
 }
 
@@ -1287,7 +1429,8 @@
 .vx-risk-grid .vx-metric-value,
 .vx-pf-grid .vx-metric-value,
 .vx-markets-grid .vx-metric-value,
-.vx-today-grid .vx-metric-value {
+.vx-today-grid .vx-metric-value,
+.vx-charts-grid .vx-metric-value {
   line-height: 1.05;
   letter-spacing: -0.02em;
 }
@@ -1295,7 +1438,8 @@
 .vx-risk-grid .vx-metric-label,
 .vx-pf-grid .vx-metric-label,
 .vx-markets-grid .vx-metric-label,
-.vx-today-grid .vx-metric-label {
+.vx-today-grid .vx-metric-label,
+.vx-charts-grid .vx-metric-label {
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }

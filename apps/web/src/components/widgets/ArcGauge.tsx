@@ -1,4 +1,4 @@
-import { geometryValue } from './geometry.ts';
+import { geometryValue, textDensityOf } from './geometry.ts';
 
 /**
  * Jauge en ARC graduée — forme admise par ADR-017 UNIQUEMENT lorsque la valeur
@@ -146,7 +146,14 @@ export function ArcGauge({
           )}
         </p>
       ) : (
-        <p className="vx-w2-arc-figure" data-testid="arc-figure">
+        <p
+          className="vx-w2-arc-figure"
+          // Même défaut que le chiffre central de l'anneau, même remède : un
+          // RSI servi fait quatorze caractères (`57.584431426615`) et
+          // débordait de l'arc. Ni arrondi, ni tronqué — un cran de moins.
+          data-density={textDensityOf(valueText ?? '')}
+          data-testid="arc-figure"
+        >
           {valueText}
           <span className="vx-w2-arc-unit"> {unit}</span>
         </p>

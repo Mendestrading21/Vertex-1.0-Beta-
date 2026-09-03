@@ -78,4 +78,41 @@ describe('DayBars — comptes servis sur rail', () => {
     expect(screen.getByRole('status').textContent).toContain('Aucune valeur publiée');
     expect(container.querySelectorAll('.vx-w2-daybar-fill')).toHaveLength(0);
   });
+
+  it('une figure SANS vocabulaire de bande ne déclare aucune bande', () => {
+    // Défaut mesuré sur la planche §8 : le volume n'a pas de bandes — le
+    // serveur n'en publie pas et personne n'en attend. Les barres tombaient
+    // pourtant sur « unknown », dont la teinte fantôme dit « bande NON
+    // publiée » : elles étaient invisibles, et le motif d'absence portait sur
+    // une donnée que rien ne devait publier.
+    const { container } = render(
+      <DayBars
+        entries={[
+          { key: 'a', label: '2026-08-24', value: '5294000' },
+          { key: 'b', label: '2026-08-25', value: '82230' },
+        ]}
+        unit="titres"
+        ariaLabel="Volume par séance"
+      />,
+    );
+    const barres = [...container.querySelectorAll('.vx-w2-daybar')];
+    expect(barres).toHaveLength(2);
+    for (const barre of barres) {
+      expect(barre.getAttribute('data-band')).toBeNull();
+    }
+  });
+
+  it('un mapping DÉCLARÉ mais une bande non servie reste « unknown », visible', () => {
+    const { container } = render(
+      <DayBars
+        entries={[{ key: 'a', label: 'lun', value: '3' }]}
+        unit="jours"
+        ariaLabel="x"
+        bands={{ served: 'macro' }}
+      />,
+    );
+    expect(
+      container.querySelector('.vx-w2-daybar')?.getAttribute('data-band'),
+    ).toBe('unknown');
+  });
 });

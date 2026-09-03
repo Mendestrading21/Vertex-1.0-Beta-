@@ -77,16 +77,19 @@ export const CHARTS_MODULES: readonly ChartsModule[] = [
     status: { kind: 'served', contract: ANALYSIS_CONTRACT },
   },
   {
+    // LOT-S6, fusionné le 2026-09-03. Ces trois modules déclaraient « aucun
+    // calcul … n'est déclaré au registre des calculs ni publié par un
+    // snapshot ». C'était exact avant S6 ; ça ne l'est plus. Le worker publie
+    // `indicators.overlays.{sma, ema, bollinger_bands}` et
+    // `indicators.oscillators.{rsi, macd}`, chacun avec sa série RENDUE par
+    // le serveur, sa méthode, ses paramètres et sa lignée. Une absence qui a
+    // cessé d'être vraie n'est plus une prudence : c'est un mensonge.
     id: 'overlays',
-    size: 'S',
+    size: 'M',
     variant: 'support',
     title: 'Overlays (moyennes mobiles)',
     question: 'Quelles moyennes mobiles superposer à la série ?',
-    status: {
-      kind: 'absent',
-      reason: 'NO_SOURCE',
-      note: 'Aucun calcul de moyenne mobile n’est déclaré au registre des calculs ni publié par un snapshot.',
-    },
+    status: { kind: 'served', contract: ANALYSIS_CONTRACT },
   },
   {
     id: 'rsi',
@@ -94,23 +97,15 @@ export const CHARTS_MODULES: readonly ChartsModule[] = [
     variant: 'support',
     title: 'RSI',
     question: 'Où se situe la force relative de la série sur sa fenêtre ?',
-    status: {
-      kind: 'absent',
-      reason: 'NO_SOURCE',
-      note: 'Aucun calcul RSI n’est déclaré au registre des calculs ni publié par un snapshot.',
-    },
+    status: { kind: 'served', contract: ANALYSIS_CONTRACT },
   },
   {
     id: 'macd',
-    size: 'S',
+    size: 'M',
     variant: 'support',
     title: 'MACD',
     question: 'Comment évoluent les moyennes mobiles convergentes et divergentes ?',
-    status: {
-      kind: 'absent',
-      reason: 'NO_SOURCE',
-      note: 'Aucun calcul MACD n’est déclaré au registre des calculs ni publié par un snapshot.',
-    },
+    status: { kind: 'served', contract: ANALYSIS_CONTRACT },
   },
   {
     // LOT-S2, 2026-09-03. `market.rebased_series` était approuvé au registre et
@@ -190,6 +185,19 @@ export const CHARTS_MODULES: readonly ChartsModule[] = [
 
 export function servedModules(): readonly ChartsModule[] {
   return CHARTS_MODULES.filter((module) => module.status.kind === 'served');
+}
+
+/**
+ * UN module du catalogue, par identifiant. Échoue visiblement sur un
+ * identifiant inconnu : une planche qui compose un module absent du catalogue
+ * est un défaut de composition, pas un cas d'affichage.
+ */
+export function chartsModule(id: string): ChartsModule {
+  const module = CHARTS_MODULES.find((candidate) => candidate.id === id);
+  if (module === undefined) {
+    throw new Error(`Unknown charts module: ${id}`);
+  }
+  return module;
 }
 
 export function absentModules(): readonly (ChartsModule & {
@@ -331,4 +339,235 @@ export function comparisonViewOf(
     method: calcul === null ? null : texteOuNull(calcul['method']),
     points,
   };
+}
+
+// ---------------------------------------------------------------------------
+// Overlays et oscillateurs — LECTURE des blocs servis (LOT-S6)
+// ---------------------------------------------------------------------------
+
+/**
+ * Une LIGNE d'indicateur servie : son nom publié, ses séances et ses valeurs.
+ *
+ * Le serveur rend déjà chaque valeur en chaîne décimale et aligne la série sur
+ * la FIN des séances (première fenêtre complète). Cette vue ne fait que la
+ * nommer : aucune moyenne, aucun lissage, aucun remplissage de trou.
+ */
+export interface IndicatorLineView {
+  readonly key: string;
+  /** Nom SERVI de la ligne ou de la bande (`lower`, `macd`, `value`…). */
+  readonly label: string;
+  readonly tradingDays: readonly string[];
+  readonly values: readonly string[];
+  readonly last: string;
+}
+
+export type IndicatorBlockView =
+  | {
+      readonly kind: 'served';
+      readonly id: string;
+      readonly unit: string;
+      readonly method: string | null;
+      /** Paramètres SERVIS du calcul (fenêtre, écarts-types, fenêtres MACD). */
+      readonly parameters: readonly { readonly label: string; readonly value: string }[];
+      readonly lines: readonly IndicatorLineView[];
+      /**
+       * Les lignes partagent-elles EXACTEMENT les mêmes séances servies ?
+       *
+       * C'est une CONSTATATION, jamais un alignement : les bandes de Bollinger
+       * sortent d'une même liste de points et partagent donc leurs séances,
+       * tandis que les trois lignes du MACD commencent à des séances
+       * différentes (leurs fenêtres diffèrent). Superposer les secondes
+       * exigerait de les réaligner dans le navigateur — ce que
+       * `references/charts.md` interdit. La page lit ce fait et choisit sa
+       * forme ; elle ne le corrige pas.
+       */
+      readonly aligned: boolean;
+      readonly lastTradingDay: string | null;
+      readonly calculationId: string | null;
+      readonly engineVersion: string | null;
+    }
+  | {
+      readonly kind: 'refused';
+      readonly id: string;
+      /** Statut SERVI (`INSUFFICIENT_SAMPLE`, `REFUSED`), repris tel quel. */
+      readonly status: string;
+      readonly detail: string | null;
+    }
+  | { readonly kind: 'unreadable'; readonly id: string }
+  | { readonly kind: 'none'; readonly id: string };
+
+/** Points `{trading_day, <nom>}` d'une ligne servie. `null` si illisible. */
+function ligneDePoints(
+  points: readonly unknown[],
+  nom: string,
+  key: string,
+): IndicatorLineView | null {
+  const jours: string[] = [];
+  const valeurs: string[] = [];
+  for (const brut of points) {
+    const point = objetOuNull(brut);
+    const jour = point === null ? null : texteOuNull(point['trading_day']);
+    const valeur = point === null ? null : texteOuNull(point[nom]);
+    if (jour === null || valeur === null) {
+      return null;
+    }
+    jours.push(jour);
+    valeurs.push(valeur);
+  }
+  const dernier = valeurs[valeurs.length - 1];
+  if (dernier === undefined) {
+    return null;
+  }
+  return { key, label: nom, tradingDays: jours, values: valeurs, last: dernier };
+}
+
+/** Noms SERVIS des lignes d'un bloc (`bands` ou `lines`), sinon `null`. */
+function nomsServis(bloc: Readonly<Record<string, unknown>>, cle: string): readonly string[] | null {
+  const brut = bloc[cle];
+  if (!Array.isArray(brut)) {
+    return null;
+  }
+  const noms = brut.flatMap((entree) => {
+    const nom = texteOuNull(entree);
+    return nom === null ? [] : [nom];
+  });
+  return noms.length === brut.length && noms.length > 0 ? noms : null;
+}
+
+/** Paramètres SERVIS du bloc, à plat, verbatim. */
+function parametresServis(
+  bloc: Readonly<Record<string, unknown>>,
+): readonly { readonly label: string; readonly value: string }[] {
+  const sortie: { label: string; value: string }[] = [];
+  const fenetre = nombreOuNull(bloc['window']);
+  if (fenetre !== null) {
+    sortie.push({ label: 'fenêtre', value: String(fenetre) });
+  }
+  const ecarts = texteOuNull(bloc['num_std']) ?? nombreOuNull(bloc['num_std']);
+  if (ecarts !== null) {
+    sortie.push({ label: 'écarts-types', value: String(ecarts) });
+  }
+  const fenetres = objetOuNull(bloc['windows']);
+  if (fenetres !== null) {
+    for (const [nom, valeur] of Object.entries(fenetres)) {
+      const nombre = nombreOuNull(valeur);
+      if (nombre !== null) {
+        sortie.push({ label: `fenêtre ${nom}`, value: String(nombre) });
+      }
+    }
+  }
+  return sortie;
+}
+
+/**
+ * Lit UN bloc d'`indicators.overlays` ou d'`indicators.oscillators`.
+ *
+ * Trois formes servies, toutes reconnues sans en deviner aucune :
+ *   - `points: [{trading_day, value}]` — une ligne (SMA, EMA, RSI) ;
+ *   - `points: [{trading_day, lower, middle, upper}]` + `bands` — trois lignes
+ *     sur LES MÊMES séances, par construction du serveur ;
+ *   - `series: {macd: [...], signal: [...], histogram: [...]}` + `lines` —
+ *     trois lignes sur des séances DIFFÉRENTES, que le serveur n'a pas
+ *     alignées et que la page n'alignera pas.
+ *
+ * Un statut autre que `OK` est relayé TEL QUEL avec son détail : une fenêtre
+ * plus longue que l'historique (`INSUFFICIENT_SAMPLE`) n'est pas une panne, et
+ * l'afficher sur une fenêtre partielle produirait une valeur que le moteur a
+ * refusé de calculer.
+ */
+export function indicatorBlockOf(
+  famille: Readonly<Record<string, unknown>> | null | undefined,
+  id: string,
+): IndicatorBlockView {
+  if (famille === null || famille === undefined) {
+    return { kind: 'none', id };
+  }
+  const bloc = objetOuNull(famille[id]);
+  if (bloc === null) {
+    return { kind: 'none', id };
+  }
+  const statut = texteOuNull(bloc['status']);
+  if (statut === null) {
+    return { kind: 'unreadable', id };
+  }
+  if (statut !== 'OK') {
+    return {
+      kind: 'refused',
+      id,
+      status: statut,
+      detail: texteOuNull(bloc['detail']) ?? texteOuNull(bloc['reason']),
+    };
+  }
+
+  const unit = texteOuNull(bloc['unit']);
+  if (unit === null) {
+    return { kind: 'unreadable', id };
+  }
+
+  const lignes: IndicatorLineView[] = [];
+  const points = bloc['points'];
+  const series = objetOuNull(bloc['series']);
+  if (Array.isArray(points) && points.length > 0) {
+    const bandes = nomsServis(bloc, 'bands');
+    for (const nom of bandes ?? ['value']) {
+      const ligne = ligneDePoints(points, nom, nom);
+      if (ligne === null) {
+        return { kind: 'unreadable', id };
+      }
+      lignes.push(ligne);
+    }
+  } else if (series !== null) {
+    const noms = nomsServis(bloc, 'lines');
+    if (noms === null) {
+      return { kind: 'unreadable', id };
+    }
+    for (const nom of noms) {
+      const brut = series[nom];
+      if (!Array.isArray(brut) || brut.length === 0) {
+        return { kind: 'unreadable', id };
+      }
+      const ligne = ligneDePoints(brut, 'value', nom);
+      if (ligne === null) {
+        return { kind: 'unreadable', id };
+      }
+      lignes.push({ ...ligne, label: nom });
+    }
+  } else {
+    return { kind: 'unreadable', id };
+  }
+
+  const premiere = lignes[0];
+  if (premiere === undefined) {
+    return { kind: 'unreadable', id };
+  }
+  const aligned = lignes.every(
+    (ligne) =>
+      ligne.tradingDays.length === premiere.tradingDays.length &&
+      ligne.tradingDays.every((jour, index) => jour === premiere.tradingDays[index]),
+  );
+  const calcul = objetOuNull(bloc['calculation']);
+  const dernierJour = premiere.tradingDays[premiere.tradingDays.length - 1] ?? null;
+
+  return {
+    kind: 'served',
+    id,
+    unit,
+    method: texteOuNull(bloc['method']),
+    parameters: parametresServis(bloc),
+    lines: lignes,
+    aligned,
+    lastTradingDay: dernierJour,
+    calculationId: calcul === null ? null : texteOuNull(calcul['calculation_id']),
+    engineVersion: calcul === null ? null : texteOuNull(calcul['engine_version']),
+  };
+}
+
+/** Les blocs d'une famille servie (`overlays` ou `oscillators`), dans l'ordre déclaré. */
+export function indicatorFamilyOf(
+  indicators: Readonly<Record<string, unknown>> | null | undefined,
+  famille: 'overlays' | 'oscillators',
+  ids: readonly string[],
+): readonly IndicatorBlockView[] {
+  const bloc = indicators === null || indicators === undefined ? null : objetOuNull(indicators[famille]);
+  return ids.map((id) => indicatorBlockOf(bloc, id));
 }

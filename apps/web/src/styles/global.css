@@ -4441,22 +4441,10 @@ body {
   --vx-page-ledger: 'LEDGER 12 · CONTROL';
 }
 
-/* LOT-A2 — GRAPHIQUES : LES MODULES DE LA PLANCHE, SERVIS OU DÉCLARÉS.
-   La planche §8 aligne ses modules secondaires sous la dominante, par rangées
-   de largeur égale. Chaque `AbsentModule` y tient SA place à SA géométrie :
-   la grille rend l'absence visible sans lui donner de lumière. */
-.vx-charts-modules {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--vx-space-12);
-  margin-top: var(--vx-space-12);
-}
-
-@media (max-width: 1279px) {
-  .vx-charts-modules {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
+/* LOT P5 — la planche §8 a désormais des AIRES NOMMÉES, déclarées dans
+   `widgets.css` après les règles de span du socle. L'ancienne grille de
+   secours (`.vx-charts-modules`, trois colonnes égales sous la dominante) est
+   retirée : plus aucun fichier ne la porte. */
 
 /* V8 — L'EN-TÊTE REND SA PLACE AU TRAVAIL.
    Il réservait 92 px de hauteur minimale, plus 20 px de fond et 24 px de

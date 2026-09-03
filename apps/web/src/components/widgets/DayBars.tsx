@@ -23,6 +23,12 @@ export interface DayBarEntry {
   readonly label: string;
   /** Valeur SERVIE (compte ou chaîne décimale). `null` = non publiée. */
   readonly value: string | null;
+  /**
+   * Libellé COURT de l'axe. Le libellé complet reste dans l'infobulle ET
+   * dans la table équivalente : c'est un rendu d'abscisse, jamais une valeur
+   * raccourcie (ADR-017 interdit d'abréger une VALEUR, pas une date).
+   */
+  readonly shortLabel?: string;
   /** Nom de bande SERVI. */
   readonly band?: string;
 }
@@ -61,10 +67,21 @@ export function DayBars({
     );
   }
 
-  function bandOf(entry: DayBarEntry): string {
+  /**
+   * Bande d'une entrée, ou `null` quand la figure n'a PAS de vocabulaire de
+   * bandes.
+   *
+   * « Bande non publiée » (`unknown`, teinte fantôme) et « cette donnée n'a
+   * pas de bandes » sont deux choses différentes. Le volume d'une séance n'en
+   * a aucune : personne n'en publie, personne n'en attend. Le classer
+   * `unknown` affichait un aveu d'absence sur une donnée complète — et le
+   * rendait invisible (mesuré sur la planche §8). L'absence de bande n'est un
+   * manque que si l'appelant a DÉCLARÉ un vocabulaire.
+   */
+  function bandOf(entry: DayBarEntry): string | null {
     const served = entry.band;
     if (served === undefined || served === '') {
-      return 'unknown';
+      return bands === undefined ? null : 'unknown';
     }
     if (bands === undefined) {
       return served;
@@ -82,7 +99,7 @@ export function DayBars({
             <span
               key={entry.key}
               className="vx-w2-daybar"
-              data-band={band}
+              {...(band === null ? {} : { 'data-band': band })}
               {...(value === null ? { 'data-absent': 'true' } : {})}
               {...(currentKey !== undefined && entry.key === currentKey
                 ? { 'aria-current': 'true' }
@@ -102,7 +119,7 @@ export function DayBars({
                 )}
               </span>
               <span className="vx-w2-daybar-label" title={entry.label}>
-                {entry.label}
+                {entry.shortLabel ?? entry.label}
               </span>
             </span>
           );

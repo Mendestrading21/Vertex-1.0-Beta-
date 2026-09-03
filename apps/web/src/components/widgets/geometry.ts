@@ -65,3 +65,26 @@ export function geometryShare(value: number, max: number): number {
 export function round2(value: number): number {
   return Number(value.toFixed(2));
 }
+
+/**
+ * DENSITÉ d'un texte servi — combien de place il demande dans une forme
+ * bornée (creux d'anneau, centre d'arc).
+ *
+ * Une chaîne servie peut faire trois caractères comme trente
+ * (`0.5020890861513105581980366928`, `57.584431426615`). L'arrondir
+ * afficherait une valeur que le serveur n'a pas servie ; la tronquer
+ * cacherait des décimales. Reste la TYPOGRAPHIE : on mesure la LONGUEUR du
+ * texte — jamais sa valeur, aucune arithmétique — et la feuille de style
+ * choisit le cran qui le fait tenir ENTIER.
+ */
+const TEXT_SHORT = 8;
+const TEXT_MEDIUM = 16;
+
+export type TextDensity = 'short' | 'medium' | 'long';
+
+export function textDensityOf(text: string): TextDensity {
+  if (text.length <= TEXT_SHORT) {
+    return 'short';
+  }
+  return text.length <= TEXT_MEDIUM ? 'medium' : 'long';
+}
