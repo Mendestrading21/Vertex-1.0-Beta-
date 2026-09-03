@@ -4,11 +4,13 @@ import type { MarketsOverview } from '../../api/client.ts';
 import { pageStateOf, useMarketsOverview } from '../../api/hooks.ts';
 import { AbsentModule } from '../../components/AbsentModule.tsx';
 import { AuthRequiredNotice } from '../../components/AuthRequiredNotice.tsx';
-import { Card } from '../../components/Card.tsx';
 import { DataStateBoundary } from '../../components/DataStateBoundary.tsx';
 import type { DataState } from '../../components/DataStateBoundary.tsx';
 import { Metric } from '../../components/Metric.tsx';
+import { CensusBars } from '../../components/CensusBars.tsx';
 import { SectorGrid } from '../../components/markets/SectorGrid.tsx';
+import { StatusChip } from '../../components/widgets/StatusChip.tsx';
+import { Widget } from '../../components/widgets/Widget.tsx';
 import { SyntheticBanner } from '../../components/SyntheticBanner.tsx';
 import { BreadthPanel } from './BreadthPanel.tsx';
 import { MarketMap } from './MarketMap.tsx';
@@ -81,7 +83,7 @@ function AbsentMarketsModule({ id }: { readonly id: string }) {
     throw new Error(`Module ${id} is served, not absent`);
   }
   return (
-    <div data-module={id}>
+    <div data-module={id} data-size={module.size}>
       <AbsentModule
         title={module.title}
         question={module.question}
@@ -269,15 +271,26 @@ function MarketsFrame({
   );
 }
 
+/**
+ * Santé de la couverture — trois mesures servies, puis leur DÉNOMBREMENT.
+ *
+ * Aucune part n'est calculée ici : le contrat publie des COMPTES (reçus,
+ * couverts, écartés, rejetés) et aucun pourcentage de couverture. Les barres
+ * de dénombrement montrent leur rapport de taille sans jamais écrire un
+ * pourcentage que le serveur n'a pas servi — c'est exactement la raison
+ * d'être de `CensusBars`.
+ */
 function MarketHealthModule({ data }: { readonly data: MarketsOverview }) {
   const module = marketsModule('market-health');
   const coverage = data.coverage;
   return (
-    <Card
-      rank="quiet"
+    <Widget
+      id="market-health"
+      size={module.size}
       kicker="Couverture publiée"
       title={module.title}
       titleId="vx-markets-health-title"
+      state="ready"
       footer={
         <>
           état worker <code>{data.data_state ?? 'non publié'}</code> · âge publié{' '}
@@ -302,7 +315,20 @@ function MarketHealthModule({ data }: { readonly data: MarketsOverview }) {
           {...(coverage !== null ? { note: 'observations refusées par les gates' } : {})}
         />
       </div>
-    </Card>
+      {coverage === null ? null : (
+        <CensusBars
+          entries={[
+            { key: 'received', label: 'Reçus', count: coverage.received },
+            { key: 'covered', label: 'Couverts', count: coverage.covered },
+            { key: 'discarded', label: 'Écartés', count: coverage.discarded },
+            { key: 'rejected', label: 'Rejetés', count: coverage.rejected_records.length },
+          ]}
+          ariaLabel="Dénombrement de la couverture publiée"
+          testIdPrefix="markets-coverage-count"
+          emptyLabel="Aucun compte de couverture publié."
+        />
+      )}
+    </Widget>
   );
 }
 
@@ -310,11 +336,13 @@ function DiscardsModule({ data }: { readonly data: MarketsOverview }) {
   const module = marketsModule('discards');
   const coverage = data.coverage;
   return (
-    <Card
-      rank="quiet"
+    <Widget
+      id="discards"
+      size={module.size}
       kicker="Refus nommés"
       title={module.title}
       titleId="vx-markets-discards-title"
+      state="ready"
       footer={<>raisons relayées telles quelles — jamais interpolées</>}
     >
       {coverage === null ? (
@@ -330,7 +358,8 @@ function DiscardsModule({ data }: { readonly data: MarketsOverview }) {
             <ul>
               {coverage.discarded_tickers.map((entry) => (
                 <li key={entry.ticker}>
-                  <code>{entry.ticker}</code> — raison : <code>{entry.reason}</code>
+                  <code>{entry.ticker}</code> — raison :{' '}
+                  <StatusChip label={entry.reason} tone="warning" />
                 </li>
               ))}
             </ul>
@@ -342,14 +371,15 @@ function DiscardsModule({ data }: { readonly data: MarketsOverview }) {
             <ul>
               {coverage.rejected_records.map((record) => (
                 <li key={record.event_id}>
-                  <code>{record.event_id}</code> — raison : <code>{record.reason}</code>
+                  <code>{record.event_id}</code> — raison :{' '}
+                  <StatusChip label={record.reason} tone="warning" />
                 </li>
               ))}
             </ul>
           )}
         </section>
       )}
-    </Card>
+    </Widget>
   );
 }
 
@@ -368,27 +398,25 @@ function MarketsBoard({ data, state }: { readonly data: MarketsOverview; readonl
         <AbsentMarketsModule id="volatility" />
         <AbsentMarketsModule id="indices" />
 
-        <div data-module="breadth">
-          <Card
-            rank="quiet"
-            kicker="Breadth publiée"
-            title={breadthModule.title}
-            titleId="vx-markets-breadth-title"
-            footer={<>comptes et seuils publiés par le worker — aucun pourcentage recalculé</>}
-          >
-            {data.breadth === null ? (
-              <p className="vx-module-sentence" role="status">
-                Breadth non publiée par le worker — aucune valeur de remplacement.
-              </p>
-            ) : (
-              <BreadthPanel breadth={data.breadth} />
-            )}
-          </Card>
-        </div>
+        <Widget
+          id="breadth"
+          size={breadthModule.size}
+          kicker="Breadth publiée"
+          title={breadthModule.title}
+          titleId="vx-markets-breadth-title"
+          state="ready"
+          footer={<>comptes et seuils publiés par le worker — aucun pourcentage recalculé</>}
+        >
+          {data.breadth === null ? (
+            <p className="vx-module-sentence" role="status">
+              Breadth non publiée par le worker — aucune valeur de remplacement.
+            </p>
+          ) : (
+            <BreadthPanel breadth={data.breadth} />
+          )}
+        </Widget>
 
-        <div data-module="market-health">
-          <MarketHealthModule data={data} />
-        </div>
+        <MarketHealthModule data={data} />
 
         <div data-module="focus">
           <FocusRowModule />
@@ -396,26 +424,25 @@ function MarketsBoard({ data, state }: { readonly data: MarketsOverview; readonl
 
         <MarketsFrame data={data} state={state} selected={selected} onSelect={setSelected} />
 
-        <div data-module="sectors">
-          <Card
-            rank="quiet"
-            kicker="Snapshot Marchés"
-            title={sectorsModule.title}
-            titleId="vx-markets-sectors-title"
-            footer={<>rendement 1 j par instrument, chaîne serveur ; aucun rendement de secteur n&apos;est publié</>}
-          >
-            <SectorGrid sectors={data.sectors} selected={selected} onSelect={setSelected} />
-          </Card>
-        </div>
+        <Widget
+          id="sectors"
+          size={sectorsModule.size}
+          kicker="Snapshot Marchés"
+          title={sectorsModule.title}
+          titleId="vx-markets-sectors-title"
+          state="ready"
+          action={<StatusChip label={`${data.sectors.length} secteur(s) publié(s)`} tone="neutral" />}
+          footer={<>rendement 1 j par instrument, chaîne serveur ; aucun rendement de secteur n&apos;est publié</>}
+        >
+          <SectorGrid sectors={data.sectors} selected={selected} onSelect={setSelected} />
+        </Widget>
 
         <AbsentMarketsModule id="rates-curve" />
         <AbsentMarketsModule id="fx" />
         <AbsentMarketsModule id="correlation" />
         <AbsentMarketsModule id="vol-structure" />
 
-        <div data-module="discards">
-          <DiscardsModule data={data} />
-        </div>
+        <DiscardsModule data={data} />
       </div>
 
       {selectedEntry === null ? (
@@ -440,7 +467,7 @@ export function MarketsPage() {
   const state = frameStateOf(queryState, data);
 
   return (
-    <article className="vx-page" aria-labelledby="vx-page-title-markets">
+    <article className="vx-page" data-page-accent="macro" aria-labelledby="vx-page-title-markets">
       <div className="vx-page-header">
         <h1 id="vx-page-title-markets">Marchés</h1>
         <p className="vx-page-question">
