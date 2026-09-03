@@ -86,6 +86,7 @@ __all__ = [
     "CONTEXT_GREEK_FIELDS",
     "DEFAULT_CLIENT_ID",
     "LOOPBACK_HOST",
+    "QUOTE_SCHEMA_VERSION",
     "REQUIRED_GREEK_FIELDS",
     "IbAsyncInformationAdapter",
 ]
@@ -103,12 +104,22 @@ _NO_STARTUP_FETCH = StartupFetch(0)
 #: reconnaissable comme IBKR, ce que « 1 » n'etait pas.
 _SCHEMA_VERSION = "ibkr.observation/1"
 
+#: Cotation INSTANTANEE : un carnet haut (`bid`/`ask`/`last`/`volume`) date de
+#: l'instant, sans ticker, sans jour de bourse, sans cloture de seance. Ce
+#: n'est PAS une cotation quotidienne : ce schema-la (`ibkr.daily-quote/1`,
+#: `normalize.DAILY_QUOTE_SCHEMA_VERSION`) est reserve a la derivation d'une
+#: barre quotidienne. Mesure le 2026-09-03 sur la base reelle : etiquetees du
+#: schema quotidien, 3197 cotations instantanees en 72 h (8 indices, un cycle
+#: de 60 s) occupaient 495 des 500 places de la fenetre Marches, qui servait
+#: alors 0 ticker couvert sur 161.
+QUOTE_SCHEMA_VERSION = "ibkr.quote/1"
+
 #: Un schema par NATURE de donnee. Le worker ne declenche ses pages que sur des
 #: PREFIXES de schema (`is_daily_quote_schema`, `is_option_chain_schema`) : une
 #: valeur unique pour tout rendait les donnees IBKR indiscernables et donc
 #: invisibles a l'ecran.
 _SCHEMA_BY_PAYLOAD: dict[str, str] = {
-    "QuoteObservation": "ibkr.daily-quote/1",
+    "QuoteObservation": QUOTE_SCHEMA_VERSION,
     "GreeksObservation": "ibkr.option-computation/1",
     "BarsPayload": "ibkr.bars/1",
     "ScannerPayload": "ibkr.scanner/1",

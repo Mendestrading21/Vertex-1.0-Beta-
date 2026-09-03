@@ -127,6 +127,11 @@ def test_schema_predicate() -> None:
     assert is_daily_quote_schema("synthetic-quote/1.0") is False
     assert is_daily_quote_schema("synthetic-news/1.0") is False
     assert is_daily_quote_schema("") is False
+    # L1 (2026-09-03) : seule la cotation DERIVEE d'une barre quotidienne est
+    # une cotation quotidienne ; la cotation instantanee de l'edge IBKR porte
+    # son propre schema et ne reveille pas la page Marches.
+    assert is_daily_quote_schema("ibkr.daily-quote/1") is True
+    assert is_daily_quote_schema("ibkr.quote/1") is False
 
 
 def test_full_coverage_content() -> None:

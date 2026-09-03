@@ -770,3 +770,30 @@ def test_recovery_requires_a_later_valid_ticker_callback_for_the_exact_snapshot(
     assert result.quote() is not None
     assert result.envelopes[0].quality_status is EnvelopeQuality.VALID
     assert state.state is ConnectionState.HEALTHY
+
+
+# -- schéma d'une cotation INSTANTANÉE (L1, mesuré le 2026-09-03) -----------
+
+
+def test_une_cotation_instantanee_ne_porte_PAS_le_schema_des_cotations_quotidiennes() -> None:
+    """Un carnet haut à 11 h 27 n'est pas une clôture de séance.
+
+    Mesuré le 2026-09-03 sur la base réelle : dans la fenêtre de 72 h, 3197
+    lignes `ibkr.daily-quote/1` SANS `ticker` ni `trading_day` — les cotations
+    temps réel des 8 indices, une par instrument et par cycle de 60 s — contre
+    323 vraies cotations quotidiennes. La page Marchés chargeait les 500 plus
+    récentes : 495 instantanées, 5 quotidiennes, 0 ticker couvert.
+
+    Le schéma des cotations QUOTIDIENNES (`ibkr.daily-quote/1`) est réservé à
+    la dérivation d'une barre quotidienne (`normalize.daily_quote_envelopes`).
+    Une `QuoteObservation` porte son propre schéma, que le worker ne prend pas
+    pour une cotation quotidienne ; l'identité fournisseur ne bouge pas.
+    """
+    from vertex_worker.markets import is_daily_quote_schema
+
+    result = snapshot(make_adapter(FakeIB()), STOCK)
+    quote_env = next(e for e in result.envelopes if isinstance(e.payload, QuoteObservation))
+    assert quote_env.schema_version == "ibkr.quote/1"
+    assert not is_daily_quote_schema(quote_env.schema_version)
+    assert quote_env.source == "ibkr"
+    assert quote_env.instrument_id == str(STOCK.con_id)
