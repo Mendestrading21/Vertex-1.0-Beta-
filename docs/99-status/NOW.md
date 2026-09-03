@@ -327,13 +327,17 @@ checks_locaux:
   - "worker Cloudflare : 53 tests de contrat"
   - "run_checks.sh TOUT VERT"
 pages_reelles: [/today, /opportunities, /analysis, /options, /simulator,
-                /calendar, /markets, /portfolio, /risks, /catalysts,
+                /calendar, /markets, /charts, /portfolio, /risks, /catalysts,
                 /sources-reports, plus /auth hors rail]
 pages_non_implementees: []
-destinations_cibles_manquantes: [charts]
-# Graphiques reste bloquée par un CONTRAT SERVEUR absent : la comparaison de
-# séries rebasées n'est pas dérivable sans calculer un rendement dans le
-# navigateur, ce qui est interdit. Raisonnement dans PAGE_ARBITRATION.md.
+destinations_cibles_manquantes: []
+# GRAPHIQUES A ÉTÉ INSTALLÉE le 2026-09-02 (LOT-A2, `TL / 08`), SANS nouveau
+# contrat et sans façade : la planche §8 est rendue en entier, sa dominante lit
+# le contrat Analyse (même DTO, même client, même composant que /analysis), et
+# chaque module sans source est DÉCLARÉ absent avec un motif du vocabulaire
+# fermé d'AbsentModule. La comparaison base 100 reste `CONTRAT SERVEUR ABSENT` :
+# `market.rebased_series` est approuvé et implémenté, mais relayé par aucune
+# route ni snapshot — la brancher est un lot SERVEUR. Voir PAGE_ARBITRATION.md.
 #
 # RISQUES A ÉTÉ INSTALLÉE le 2026-09-01, et son contrat a été CRÉÉ plutôt
 # qu'attendu : `risk.correlation` déclaré au registre des calculs, publié par
@@ -740,6 +744,72 @@ contrat — decision d'architecture d'information, pas de style ; V7-V8
 (migration JSX des surfaces restantes) ; V9 (retrait des 15 enumerations).
 
 ---
+
+## SESSION 2026-09-02 — LOT-A2 : Graphiques, la douzième destination (`TL / 08`)
+
+Consigne utilisateur : après fusion de #21 et #22 (déléguées, squash, CI 7/7
+chacune), « démarrer le nouveau visuel selon les exigences » du skill
+`vertex-titanium-ledger`. L'inventaire du skill ne signalait qu'un écart cible :
+`charts`. Base : `main@6e416d8` (squash #22). Branche `lot/a2-graphiques-20260902`.
+
+Ce qui existe désormais :
+
+- `apps/web/src/pages/charts/` — `ChartsPage.tsx` (dominante = espace
+  graphique servi par `GET /api/v1/analysis/{instrument}` ; `CandleChart`,
+  `OhlcvTable` et `IndicatorsPanel` réutilisés, les deux derniers désormais
+  exportés d'`AnalysisPage.tsx`), `chartsView.ts` (catalogue des douze modules
+  de la planche : trois servis, neuf déclarés absents avec motif et note).
+- `AbsentModule` a son premier consommateur réel ; sa tête passe en
+  `flex-wrap` (défaut vu SUR CAPTURE à 1280 px : badges tronqués en colonne
+  étroite — aucun test ne le voyait).
+- Rail : groupe Observer = Calendrier, Marchés, Graphiques. `LEDGER_CODE_BY_PAGE`
+  et `--vx-page-ledger` portent `08` ; les tests épinglent les douze codes.
+- Inspecteur : définition de la série (devise, base, qualité, fraîcheur,
+  référence, snapshot/moteur, exclusions) ; une absence est dite « non
+  publié », jamais un tiret.
+
+Mesuré sur cette machine, codes de sortie relus :
+
+- `audit_titanium_ledger.py` : `status: PASS`, `target_gaps: []`, `errors: []`
+  (avant le lot : `TARGET_GAPS`, « destinations cibles sans équivalent
+  détecté: charts »).
+- `tsc --noEmit` 0 ; `biome check` 0 sur 12 fichiers.
+- `vitest run` : 40 fichiers, 535 tests, 0 échec (521 sur `main` + 14).
+- Playwright Chromium, tous viewports : `charts + shell-canonical +
+  accessibility` = 231 passés / 231 déclarés / `.last-run.json` passed ;
+  `charts.spec` rejoué après le correctif CSS = 15 / 15.
+- Captures `charts-desktop-{1280x800,1440x900,1600x1000}.png`, relues.
+- `tools/run_checks.sh` sur l'arbre définitif : **onze portes vertes**
+  (rôle, blueprint, frontière, registre, secrets, policy, traçabilité,
+  notices, verrou, compilation, Cloudflare, Biome, budgets, ruff, mypy), puis
+  **UN échec** en suite Python :
+  `apps/edge-ibkr/tests/test_denylist.py::test_adapter_satisfies_the_port_protocol`.
+  Reproduit **à l'identique sur `main@6e416d8` intact**, avec le python
+  système ET le venv verrouillé — tous deux en **3.11.15**. Le même fichier
+  passe **6/6** sur un venv verrouillé **Python 3.13** (la cible de la CI,
+  `uv sync … --python ${PYTHON_VERSION}`), et la CI est verte sur ce même
+  arbre (run `33655158621`). Divergence 3.11/3.13 de `isinstance` sur un
+  `Protocol` `runtime_checkable` (`port.py:496`), dernier commit sur
+  l'adaptateur : `ecc50c1` (#20). **Aucun fichier Python n'est touché par ce
+  lot** ; le test n'est ni modifié ni sauté. Suite Python complète rejouée sur
+  3.13 : voir la PR. Conséquence pour le poste : un venv 3.11 ne reproduit
+  pas la CI — `uv sync --locked --all-extras --python 3.13`, comme
+  `start_local.sh` le demande déjà.
+
+Transmis, non corrigé ici (hors des fichiers du lot) :
+
+- `IndicatorsPanel` affiche l'ATR avec seize décimales (`4.413571428571428`) :
+  c'est la chaîne publiée par le serveur, relayée telle quelle, identique sur
+  `/analysis`. La précision est à déclarer côté contrat, pas à arrondir en TS.
+- `ChartsPage` importe `AnalysisPage.tsx` pour deux composants : à extraire
+  dans un module partagé (lot de suivi).
+- Brancher la comparaison base 100 = producteur + relais de
+  `market.rebased_series` (lot serveur).
+
+Prochaine commande recommandée : revue humaine de la PR LOT-A2, puis
+`EXÉCUTE J3` (régression `aria-pressed` de V12, reproducteur Playwright déjà
+cadré) — ou le lot serveur `market.rebased_series` si la comparaison prime.
+
 
 ## SESSION 2026-09-02 — LOT-A3 : Aujourd'hui et Marchés composées sur leurs planches (§1, §2)
 
