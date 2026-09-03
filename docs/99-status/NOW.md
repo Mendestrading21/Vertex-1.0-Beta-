@@ -1395,5 +1395,23 @@ Dernier lot de la vague A (« Continue tout »). Branche
   (collision de libellé `Statut testé` entre la barre de dénombrement et le
   filtre — corrigée côté page) ; sources-reports rejoué après chaque passe
   CSS : **12 / 12** cinq fois, code 0.
-- `tools/run_checks.sh` (racine, seul, après la fin des e2e) : résultat
-  reporté ci-dessous une fois la passe terminée — pas avant.
+- `tools/run_checks.sh` (racine, seul, après la fin des e2e) : toutes les
+  portes vertes (rôle, blueprint, frontière, registre, secrets, policy,
+  traçabilité — entrée `NOT_YET_PROVEN` connue, hors lot —, notices,
+  uv.lock, compilation, Worker, Biome, performance, ruff, mypy) ; seul
+  rouge connu `test_denylist.py::test_adapter_satisfies_the_port_protocol`
+  sur Python 3.11, hors lot, aucun fichier Python touché. Code de sortie 1
+  pour cette seule raison.
+
+### Transmis, non corrigé ici
+
+- Ordre utilisateur : la chaîne #28 → #29 → #30 → #31 est fusionnée en
+  squash dans cet ordre, chaque PR réalignée sur `main` par merge avant
+  sa fusion ; puis #23, #24 et #9 sont évaluées.
+- Graphiques (§8) n'est pas recomposée au motif A3 : composée au LOT-A2
+  (#25 fusionnée), sa retouche serait un lot à part.
+- À 1280, la sixième colonne du registre reste derrière un court
+  défilement horizontal dans sa région focusable.
+
+Prochaine commande recommandée : fusion de la chaîne #29 → #30 → #31, puis
+`STATUT`.
