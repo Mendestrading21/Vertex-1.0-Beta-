@@ -1323,3 +1323,77 @@ avant sa fusion. Branche `lot/a7-catalyseurs-calendrier-20260903`.
 
 Prochaine commande recommandée : `EXÉCUTE A8` (Sources & Rapports — planche
 §12) depuis la tête d'A7, puis fusion de la chaîne.
+
+## SESSION 2026-09-03 — LOT-A8 : Sources & Rapports composée sur sa planche (§12)
+
+Dernier lot de la vague A (« Continue tout »). Branche
+`lot/a8-sources-rapports-20260903`, partie de la tête d'A7 ; réalignée sur
+`main` par merge (jamais de rebase) après la fusion de la chaîne.
+
+### Ce qui est livré
+
+- La planche §12 en entier — dix-sept modules. Huit SERVIS : les statuts
+  testés (dénombrement par statut sondé, jamais une disponibilité
+  supposée), la fraîcheur (âges publiés des snapshots attention et
+  capacités, dernier snapshot du worker), la dernière vérification
+  (`checked_at`, `as_of`, âge publié), les versions et le flux SSE, le
+  **registre des sources en DOMINANTE** — la matrice LOT-01 inchangée (six
+  en-têtes, filtres persistés dans l'URL, région défilante focusable) sur
+  une rangée entière, un bouton « Détail » par capacité —, les exports
+  réellement servis par l'API (journal du registre, points de performance,
+  manifeste d'audit — trois routes, aucun rapport généré), la santé des
+  composants (section LOT-01 conservée, matériau de carte par la grille),
+  les sondes hors manifeste. Neuf ABSENTS : santé globale (`AUCUNE
+  SOURCE` — un pourcentage calculé sur des sondes partielles serait un faux
+  vert), couverture des champs, taux d'erreur, qualité des champs (`AUCUNE
+  SOURCE`), incidents, lignée, journal d'audit, rapports, sauvegardes
+  (`CONTRAT SERVEUR ABSENT`). Rien de simulé.
+- Inspecteur de capacité sur sélection SEULEMENT (identifiant, famille,
+  mode déclaré, description du manifeste — publiée mais jamais affichée
+  dans la matrice —, statut, raison, instant de sonde ; champs, licence et
+  historique dits non publiés) : le témoin « aucune colonne morte » du
+  shell lit `/sources-reports` sans sélection, l'inspecteur y reste masqué.
+- Extraction : `pages/sources/{sourcesModules.ts, SourcesModules.tsx,
+  CapabilityInspector.tsx}` ; `SourceHealthMatrix.tsx` perd son
+  `data-rank` (le seul littéral vit dans la page) et gagne `selected` /
+  `onInspect` ; `HealthPanel` sort de la page vers les modules.
+
+### Tests adaptés, jamais affaiblis
+
+- `SourceHealthMatrix.test.tsx` (6) et `SourcesReportsPage.test.tsx` :
+  inchangés — rôles, légende, six en-têtes exacts, `AbsentCell role="img"`.
+- `shell-canonical.spec.ts` : témoin `/sources-reports` (`.vx-health`
+  visible, `#vx-inspector-slot` masqué) inchangé.
+- `sources-reports.spec.ts` : capture renommée `sources-reports`
+  (héritage `system`), test de composition ajouté ; le libellé de la barre
+  de dénombrement (« Capacités par statut testé ») entrait en collision
+  avec `getByLabel('Statut testé')` du filtre — renommé « Dénombrement par
+  statut sondé » côté page, locateur intact.
+- Nouveaux : `sourcesModules.test.ts`, `SourcesComposition.test.tsx`.
+
+### Ce qui a été vu SUR CAPTURE, pas par un test
+
+1. À 1440, le registre sur trois colonnes ne montrait que quatre de ses six
+   colonnes (défilement horizontal) ; un premier repli des cellules coupait
+   `market_data` et `INFORMATION_ONLY` lettre à lettre. Le registre prend
+   une rangée entière ; seule la colonne « Raison » replie (plancher de
+   largeur, coupure aux soulignés), l'identifiant, le statut et l'instant
+   restent d'un tenant ; marge des cellules resserrée. Quatre passes de
+   capture. À 1280, la dernière colonne reste derrière un court défilement
+   dans sa région focusable — six colonnes ne tiennent pas en 1 000 px.
+2. Les routes d'export replient dans leur carte au lieu de déborder.
+3. La santé des composants prend une rangée entière : ses cinq faits sur
+   une ligne au lieu d'une grille creuse.
+
+### Mesuré sur cette machine (codes relus)
+
+- `tsc --noEmit` : 0 erreur ; `biome check` (fichiers du lot) : 0 erreur.
+- `vitest run` : **65 fichiers, 681 tests, 0 échec** (670 sur A7 + 11) ;
+  portes de design incluses.
+- Playwright (sources-reports, shell-canonical, accessibility ;
+  1280/1440/1600) : première passe **201 passés, 3 échoués sur 204**
+  (collision de libellé `Statut testé` entre la barre de dénombrement et le
+  filtre — corrigée côté page) ; sources-reports rejoué après chaque passe
+  CSS : **12 / 12** cinq fois, code 0.
+- `tools/run_checks.sh` (racine, seul, après la fin des e2e) : résultat
+  reporté ci-dessous une fois la passe terminée — pas avant.
