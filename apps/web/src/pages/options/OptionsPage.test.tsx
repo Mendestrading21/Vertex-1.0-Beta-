@@ -9,6 +9,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { queryKeyForResource } from '../../api/hooks.ts';
 import {
+  makeAnalysis,
+  makeCalendarResponse,
   makeEmptyOptionChain,
   makeMarketsOverview,
   makeOptionChain,
@@ -36,6 +38,15 @@ function repondre(reponse: Response): void {
     const url = typeof entree === 'string' ? entree : String((entree as Request).url);
     if (url.includes('/markets/overview')) {
       return Promise.resolve(jsonResponse(makeMarketsOverview()));
+    }
+    // LOT-A5 : la planche §5 lit aussi le dossier d'analyse du sous-jacent
+    // (série) et, après transfert, l'agenda publié (catalyseurs). Servis
+    // explicitement : le repli leur donnerait un corps de CHAÎNE.
+    if (url.includes('/v1/analysis/')) {
+      return Promise.resolve(jsonResponse(makeAnalysis()));
+    }
+    if (url.includes('/v1/calendar')) {
+      return Promise.resolve(jsonResponse(makeCalendarResponse()));
     }
     return Promise.resolve(reponse.clone());
   });
@@ -179,7 +190,13 @@ describe('Page Options — état nominal', () => {
     fetchMock.mockImplementation((entree: unknown) => {
       const url = typeof entree === 'string' ? entree : String((entree as Request).url);
       return Promise.resolve(
-        jsonResponse(url.includes('/markets/overview') ? makeMarketsOverview() : current),
+        jsonResponse(
+          url.includes('/markets/overview')
+            ? makeMarketsOverview()
+            : url.includes('/v1/analysis/')
+              ? makeAnalysis()
+              : current,
+        ),
       );
     });
 

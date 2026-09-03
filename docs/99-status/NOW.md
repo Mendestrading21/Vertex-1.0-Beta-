@@ -1033,3 +1033,108 @@ Claude.
 
 Prochaine commande recommandée : revue humaine de la PR LOT-A4, puis
 `EXÉCUTE A5` (Options, Simulateur — planches §5, §6).
+
+## SESSION 2026-09-03 — LOT-A5 : Options et Simulateur composés sur leurs planches (§5, §6)
+
+Consigne utilisateur : « Continue » après LOT-A4 — lot suivant du plan
+A4→A8 accepté. Branche `lot/a5-options-simulateur-20260903` EMPILÉE sur
+`lot/a4-opportunites-analyse-20260903` (`7a03081`) ; base de PR = branche
+A4, à recibler après chaque fusion humaine. Aucune fusion par Claude.
+
+### Ce qui est livré
+
+- **Options** : la planche §5 en entier — quinze modules. Neuf SERVIS : le
+  sous-jacent (widget de Marchés : clôture, variation 1 j, mini-série), la
+  série du dossier d'analyse, le snapshot de chaîne (références, version,
+  âge, couverture, budget de lignes, population), le spot observé, le taux
+  et le dividende SUPPOSÉS par le calcul d'IV (hypothèses publiées, jamais
+  un dividende observé), le **sourire d'IV** du groupe affiché et la
+  **structure par échéance** en petits multiples — géométrie des IV
+  THÉORIQUES publiées par contrat, calls pleins et puts cerclés, aucun point
+  de référence choisi (choisir un strike ATM serait une décision de
+  calcul) —, la chaîne en dominante (groupes jamais fusionnés, inchangée).
+  Six ABSENTS : mouvement attendu et IV de référence (`CONTRAT SERVEUR
+  ABSENT` : dérivables, non publiés), rang d'IV et métriques de stratégie
+  (`AUCUNE SOURCE`), composeur et profil de payoff (`DÉCISION EN ATTENTE` :
+  ils vivent sur Simulateur, joints par l'unique action de l'inspecteur —
+  pas une seconde saisie). Inspecteur par défaut « Chaîne publiée » ; le
+  contrat ouvert (LOT-13) le remplace, Échap y revient.
+- **Simulateur** : la planche §6 en entier — quatorze modules. Neuf SERVIS :
+  structure et hypothèses déclarées (composeur scindé en deux cartes,
+  libellés intacts), payoff en dominante APRÈS calcul seulement (à vide,
+  aucune dominante : la lumière n'est donnée qu'à un résultat réellement
+  calculé), résultats certifiés (gain et perte max sur la grille, breakevens,
+  risque défini), **grille de scénarios** rendue (spot × temps, chaînes
+  verbatim — publiée par le serveur, jamais montrée jusqu'ici), écho des
+  hypothèses, méthode (lignée des calculs, nature, avertissements),
+  catalyseurs du sous-jacent transféré (aucune requête sans sous-jacent
+  déclaré), sources et provenance. Cinq ABSENTS : Monte-Carlo, probabilité
+  de profit, chocs (`AUCUNE SOURCE` : rien de probabiliste n'est publié),
+  sensibilités et impact portefeuille (`CONTRAT SERVEUR ABSENT`).
+  Inspecteur « Étude » : contrat, bornes, origine, puis nature, risque
+  défini, avertissements.
+- Primitive : `components/options/IvSmile.tsx` (+ `ivSmileSeriesOf`, testée
+  sans DOM).
+
+### Tests adaptés, jamais affaiblis
+
+- `OptionsPage.test.tsx` : routes `/analysis/` et `/calendar` servies dans
+  le double de `fetch` (sinon un corps de CHAÎNE arrivait au widget du
+  sous-jacent). Ce cas a révélé que `barsViewOf` tombait sur un `bars`
+  `undefined` : garde ajoutée, absent = absent.
+- `SimulatorPage.test.tsx` et `simulator.spec.ts` : le résultat est réparti
+  en modules ; les mêmes chaînes serveur sont assérées à leur nouvelle place
+  (`sim-kpi`, `sim-echo`, `sim-method`) ; la dominante garde `sim-result`.
+- `no-fabricated-values.test.ts` : le libellé exempté du champ de
+  volatilité suit son fichier (`SimComposer.tsx`), même texte, même motif.
+
+### Ce qui a été vu SUR CAPTURE, pas par un test
+
+1. Rien à corriger sur les six captures (Options et Simulateur à 1280, 1440
+   et 1600) : les deux grilles sont composées, chaque cellule porte son
+   module, la chaîne et la grille de scénarios défilent dans leur cellule,
+   le sourire d'IV et les petits multiples se lisent avec leurs bornes en
+   texte. Première fois depuis A3 qu'une relecture de capture ne déclenche
+   aucune passe CSS.
+2. Vu par un test, pas par une capture : le locateur e2e `getByLabel('Sens')`
+   trouvait aussi la région « Sensibilités » (module absent, `aria-labelledby`)
+   — un nom de module partageait le préfixe d'un libellé de champ. Locateur
+   resserré sur le rôle `combobox` au nom exact ; aucun libellé changé.
+3. Le worker de la session a redémarré pendant la première passe e2e
+   (PostgreSQL à relancer) ; toutes les passes citées ci-dessous ont été
+   rejouées entièrement après ce redémarrage.
+
+### Mesuré sur cette machine (codes relus)
+
+- `tsc --noEmit` : 0 erreur ; `biome check src e2e` : 0 violation (202 fichiers).
+- `vitest run` : **55 fichiers, 622 tests, 0 échec** (598 sur A4 + 24) ;
+  portes de design incluses (`one-dominant-per-page`, `no-fabricated-values`,
+  `no-raw-colors`, `no-authoritative-calculation`).
+- Playwright (options, simulator, shell-canonical, accessibility ;
+  1280/1440/1600) : **231 passés / 231 déclarés** (`--list`), code 0, 2,9 min —
+  passe finale ; passes intermédiaires 228 / 231 (les trois rouges = le seul
+  locateur du point 2) puis 18 / 18 (Simulateur seul, après correction).
+- `tools/run_checks.sh` (racine, seul, après la fin des e2e) : toutes les
+  portes vertes — rôle du dépôt, blueprint, frontière financière, registre
+  des calculs, secrets, policy, traçabilité (entrée `NOT_YET_PROVEN` connue,
+  hors lot), notices, uv.lock, compilation, Worker Cloudflare, Biome,
+  performance, ruff et mypy ; puis le seul rouge déjà connu,
+  `test_denylist.py::test_adapter_satisfies_the_port_protocol` sur Python
+  3.11 — pas ce lot, aucun fichier Python touché, établi dans la PR #25.
+  Code de sortie 1 pour cette seule raison.
+
+### Transmis, non corrigé ici
+
+- PR empilée : après la fusion de #27, recibler la PR A5 sur `main` (merge de
+  `main` dans la branche, jamais de rebase). `NOW.md` et
+  `REFONTE_TITANIUM_LEDGER.md` sont modifiés en fin de fichier par #25, #26,
+  #27 et ce lot : garder toutes les sections.
+- Mouvement attendu et IV de référence sont dérivables d'une IV ATM et d'une
+  maturité : c'est un contrat serveur à écrire dans `vertex_core`, jamais une
+  géométrie TypeScript. Tant qu'il n'existe pas, les deux modules restent
+  déclarés absents.
+- La chaîne d'options et la grille de scénarios défilent en largeur dans leur
+  cellule : lisible, pas élégant.
+
+Prochaine commande recommandée : revue humaine de la PR LOT-A5, puis
+`EXÉCUTE A6` (Portefeuille, Risques — planches §7, §9).

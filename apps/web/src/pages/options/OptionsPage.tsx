@@ -1,15 +1,28 @@
 import { useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
-import type { OptionChainContract, OptionChainResponse } from '../../api/client.ts';
+import type { OptionChainContract, OptionChainExpiration, OptionChainResponse } from '../../api/client.ts';
 import { pageStateOf, useOptionChain } from '../../api/hooks.ts';
+import { AbsentModule } from '../../components/AbsentModule.tsx';
 import { AuthRequiredNotice } from '../../components/AuthRequiredNotice.tsx';
 import { DataStateBoundary } from '../../components/DataStateBoundary.tsx';
 import type { DataState } from '../../components/DataStateBoundary.tsx';
 import { SyntheticBanner } from '../../components/SyntheticBanner.tsx';
 import { useDeclaredInstruments } from '../devUniverse.ts';
+import { ChainSnapshotInspector } from './ChainSnapshotInspector.tsx';
 import { OptionChainTable } from './OptionChainTable.tsx';
 import { OptionInspector } from './OptionInspector.tsx';
+import {
+  DividendModule,
+  IdentityStripModule,
+  IvSmileModule,
+  RateModule,
+  SpotModule,
+  UnderlyingModule,
+  UnderlyingSeriesModule,
+  VolStructureModule,
+} from './OptionsModules.tsx';
+import { optionsModule } from './optionsModules.ts';
 import {
   chainStateOf,
   chainTransferBlockReasonOf,
@@ -17,22 +30,30 @@ import {
   groupKeyOf,
   groupLabelOf,
   rowBudgetOf,
-  sourceEventIdsOf,
   spotViewOf,
 } from './optionsView.ts';
 
 /**
- * Page Options — question : « Quels contrats sont réellement exploitables et
- * quels risques portent-ils ? »
+ * Page Options (`TL / 05`) — question : « Quels contrats sont réellement
+ * exploitables et quels risques portent-ils ? »
  *
- * Dominante unique : la table de chaîne Calls | Strike | Puts du groupe
- * (expiration, trading_class) sélectionné. Le sélecteur liste les groupes
- * EXACTEMENT comme publiés — deux trading classes d'une même date restent
- * deux entrées distinctes, jamais fusionnées — avec la couverture de chaque
- * groupe et le budget de lignes publié. Le détail d'un contrat s'ouvre dans
- * l'inspecteur (panneau latéral) ; son unique action est « Envoyer au
- * Simulateur » (transfert d'analyse typé). Aucun calcul financier ici : IV,
- * Greeks et statuts arrivent calculés et étiquetés par le worker.
+ * LOT-A5 — LA PLANCHE §5 EN ENTIER. `pages-05-06-options-simulator.png`
+ * (moitié gauche) compose quinze modules autour d'une dominante : la table
+ * de chaîne Calls | Strike | Puts du groupe (expiration, trading_class)
+ * sélectionné — les groupes ne sont JAMAIS fusionnés. Neuf modules sont
+ * SERVIS : le sous-jacent (clôture et variation de Marchés, série du
+ * dossier), le snapshot de chaîne (références, couverture, budget), le spot
+ * observé, le taux et le dividende SUPPOSÉS par le calcul d'IV, le sourire
+ * d'IV du groupe affiché et la structure par échéance (géométrie des IV
+ * publiées, calls et puts, aucun point de référence choisi). Six n'ont ni
+ * source ni contrat : mouvement attendu, IV de référence, rang d'IV,
+ * métriques de stratégie ; le composeur et le profil de payoff vivent sur
+ * Simulateur, joints par l'unique action de l'inspecteur.
+ *
+ * L'INSPECTEUR PORTE LE CONTRAT OUVERT (identité, quote, IV et Greeks
+ * THÉORIQUES avec leur lignée — LOT-13), sinon la vérité du snapshot.
+ * Aucun calcul financier ici : IV, Greeks et statuts arrivent calculés et
+ * étiquetés par le worker.
  */
 
 function UnderlyingPicker({ current }: { readonly current: string | null }) {
@@ -64,6 +85,18 @@ function UnderlyingPicker({ current }: { readonly current: string | null }) {
   );
 }
 
+function AbsentOptionsModule({ id }: { readonly id: string }) {
+  const module = optionsModule(id);
+  if (module.status.kind !== 'absent') {
+    throw new Error(`Module ${id} is served, not absent`);
+  }
+  return (
+    <div data-module={id}>
+      <AbsentModule title={module.title} question={module.question} reason={module.status.reason} note={module.status.note} />
+    </div>
+  );
+}
+
 interface InspectedContractSelection {
   readonly contract: OptionChainContract;
   readonly groupKey: string;
@@ -73,39 +106,22 @@ interface InspectedContractSelection {
 function ChainFrame({
   data,
   state,
-  queryRefreshing,
   underlying,
+  groups,
+  selected,
+  onSelectGroup,
+  onInspect,
 }: {
   readonly data: OptionChainResponse;
   readonly state: DataState;
-  readonly queryRefreshing: boolean;
   readonly underlying: string;
+  readonly groups: readonly OptionChainExpiration[];
+  readonly selected: OptionChainExpiration | null;
+  readonly onSelectGroup: (key: string) => void;
+  readonly onInspect: (contract: OptionChainContract, trigger: HTMLElement | null) => void;
 }) {
-  const groups = data.expirations;
-  const [selectedKey, setSelectedKey] = useState<string>(() =>
-    groups.length > 0 && groups[0] !== undefined ? groupKeyOf(groups[0]) : '',
-  );
-  const [inspected, setInspected] = useState<InspectedContractSelection | null>(null);
-  const triggerRef = useRef<HTMLElement | null>(null);
-
-  const selected = groups.find((group) => groupKeyOf(group) === selectedKey) ?? groups[0] ?? null;
-  // Un contrat inspecté n'est valable que dans le snapshot et le groupe qui
-  // l'ont publié. Un refetch SSE peut remplacer sa quote ou retirer le groupe :
-  // l'ancien objet ne doit alors jamais redevenir transférable avec le nouvel
-  // état global. La comparaison de référence est immédiate au rendu (aucune
-  // fenêtre entre un rendu et un useEffect de nettoyage).
-  const currentInspected =
-    inspected !== null &&
-    inspected.snapshot === data &&
-    selected !== null &&
-    inspected.groupKey === groupKeyOf(selected)
-      ? inspected.contract
-      : null;
   const budget = rowBudgetOf(data);
-  const spot = spotViewOf(data);
-  const sourceEventIds = sourceEventIdsOf(data);
   const asOf = data.as_of;
-
   const degradedGroups = groups.filter((group) => group.quality !== 'VALID');
   const detail =
     state === 'partial'
@@ -126,90 +142,16 @@ function ChainFrame({
         : state === 'delayed'
           ? 'La population publiée est DELAYED : ces observations ne décrivent pas le marché à cet instant.'
           : undefined;
-  const transferBlockReason = chainTransferBlockReasonOf(
-    state,
-    data,
-    selected?.quality ?? null,
-    queryRefreshing,
-  );
-
-  function closeInspector(): void {
-    setInspected(null);
-    triggerRef.current?.focus();
-    triggerRef.current = null;
-  }
+  const pendingTrigger = useRef<HTMLElement | null>(null);
 
   return (
-    <section className="vx-chartframe" data-rank="dominant" aria-labelledby="vx-chain-title">
+    <section className="vx-chartframe" data-rank="dominant" data-module="chain" aria-labelledby="vx-chain-title">
       <header className="vx-chartframe-head">
         <p className="vx-chartframe-question">
           Quels contrats sont réellement exploitables et quels risques portent-ils ?
         </p>
         <h2 id="vx-chain-title">Chaîne d'options — {underlying}</h2>
       </header>
-
-      <dl className="vx-chartframe-meta">
-        <div>
-          <dt>Références d’observation publiées</dt>
-          <dd data-testid="chain-source-references">
-            {sourceEventIds.length === 0 ? (
-              '—'
-            ) : (
-              <code>{sourceEventIds.join(' · ')}</code>
-            )}
-          </dd>
-        </div>
-        <div>
-          <dt>Snapshot</dt>
-          <dd>
-            version {data.snapshot_version ?? '—'} · moteur{' '}
-            <code>{data.engine_version ?? '—'}</code>
-          </dd>
-        </div>
-        <div>
-          <dt>as_of</dt>
-          <dd>{asOf === null ? '—' : <time dateTime={asOf}>{asOf}</time>}</dd>
-        </div>
-        <div>
-          <dt>Spot publié</dt>
-          <dd>
-            {spot === null || spot.value === null ? (
-              '—'
-            ) : (
-              <>
-                <code className="vx-num">{spot.value}</code> {spot.currency ?? ''} (observé{' '}
-                {spot.observedAt ?? 'à un instant non publié'})
-              </>
-            )}
-          </dd>
-        </div>
-        <div>
-          <dt>Couverture</dt>
-          <dd>
-            {data.coverage === null
-              ? '—'
-              : `${String(data.coverage['groups_published'] ?? '—')} groupe(s) publié(s) sur ${String(
-                  data.coverage['observations_considered'] ?? '—',
-                )} observation(s) considérée(s)`}
-          </dd>
-        </div>
-        <div>
-          <dt>Budget de lignes</dt>
-          <dd data-testid="chain-row-budget">
-            {budget === null
-              ? '—'
-              : `${budget.publishedRows ?? '—'} publiée(s) / ${budget.totalRows ?? '—'} construite(s), plafond ${budget.maxRows ?? '—'}, ${budget.truncatedRows ?? '—'} tronquée(s)`}
-          </dd>
-        </div>
-        <div>
-          <dt>Nature des valeurs</dt>
-          <dd>
-            quotes verbatim ; IV/Greeks{' '}
-            <span className="vx-badge vx-badge-theoretical">THÉORIQUE</span> (
-            {data.value_nature ?? '—'})
-          </dd>
-        </div>
-      </dl>
 
       <SyntheticBanner population={data.population} />
 
@@ -236,15 +178,7 @@ function ChainFrame({
                   className="vx-chain-group"
                   data-testid="chain-group"
                   onClick={() => {
-                    // L'inspecteur porte un contrat du groupe courant. Le
-                    // conserver après une bascule ferait juger cet ancien
-                    // contrat avec la qualité du nouveau groupe sélectionné.
-                    // Fermer le panneau maintient cette identité fail-closed.
-                    if (key !== selectedKey) {
-                      setInspected(null);
-                      triggerRef.current = null;
-                    }
-                    setSelectedKey(key);
+                    onSelectGroup(key);
                   }}
                 >
                   <span className="vx-chain-group-name">{groupLabelOf(group)}</span>
@@ -274,18 +208,14 @@ function ChainFrame({
                 // Mémorise le déclencheur pour restituer le focus à la fermeture.
                 const target = event.target;
                 if (target instanceof HTMLElement && target.closest('.vx-chain-inspect') !== null) {
-                  triggerRef.current = target;
+                  pendingTrigger.current = target;
                 }
               }}
             >
               <OptionChainTable
                 group={selected}
                 onInspect={(contract) => {
-                  setInspected({
-                    contract,
-                    groupKey: groupKeyOf(selected),
-                    snapshot: data,
-                  });
+                  onInspect(contract, pendingTrigger.current);
                 }}
               />
             </div>
@@ -310,6 +240,108 @@ function ChainFrame({
           contrat par contrat lorsqu'il est publié.
         </p>
       </footer>
+    </section>
+  );
+}
+
+function OptionsBoard({
+  data,
+  state,
+  queryRefreshing,
+  underlying,
+}: {
+  readonly data: OptionChainResponse;
+  readonly state: DataState;
+  readonly queryRefreshing: boolean;
+  readonly underlying: string;
+}) {
+  const groups = data.expirations;
+  const [selectedKey, setSelectedKey] = useState<string>(() =>
+    groups.length > 0 && groups[0] !== undefined ? groupKeyOf(groups[0]) : '',
+  );
+  const [inspected, setInspected] = useState<InspectedContractSelection | null>(null);
+  const triggerRef = useRef<HTMLElement | null>(null);
+
+  const selected = groups.find((group) => groupKeyOf(group) === selectedKey) ?? groups[0] ?? null;
+  // Un contrat inspecté n'est valable que dans le snapshot et le groupe qui
+  // l'ont publié. Un refetch SSE peut remplacer sa quote ou retirer le groupe :
+  // l'ancien objet ne doit alors jamais redevenir transférable avec le nouvel
+  // état global. La comparaison de référence est immédiate au rendu.
+  const currentInspected =
+    inspected !== null && inspected.snapshot === data && selected !== null && inspected.groupKey === groupKeyOf(selected)
+      ? inspected.contract
+      : null;
+  const spot = spotViewOf(data);
+  const transferBlockReason = chainTransferBlockReasonOf(state, data, selected?.quality ?? null, queryRefreshing);
+
+  function closeInspector(): void {
+    setInspected(null);
+    triggerRef.current?.focus();
+    triggerRef.current = null;
+  }
+
+  return (
+    <>
+      <div className="vx-options-grid vx-board" data-testid="options-grid">
+        <div data-module="underlying">
+          <UnderlyingModule underlying={underlying} />
+        </div>
+        <div data-module="identity-strip">
+          <IdentityStripModule data={data} />
+        </div>
+
+        <div data-module="spot">
+          <SpotModule data={data} />
+        </div>
+        <AbsentOptionsModule id="expected-move" />
+        <AbsentOptionsModule id="iv-reference" />
+        <AbsentOptionsModule id="iv-rank" />
+
+        <div data-module="dividend">
+          <DividendModule data={data} />
+        </div>
+        <div data-module="rate">
+          <RateModule data={data} />
+        </div>
+        <div data-module="vol-structure">
+          <VolStructureModule groups={groups} />
+        </div>
+
+        <div data-module="underlying-series">
+          <UnderlyingSeriesModule underlying={underlying} />
+        </div>
+        <div data-module="iv-smile">
+          <IvSmileModule group={selected} />
+        </div>
+
+        <ChainFrame
+          data={data}
+          state={state}
+          underlying={underlying}
+          groups={groups}
+          selected={selected}
+          onSelectGroup={(key) => {
+            // L'inspecteur porte un contrat du groupe courant. Le conserver
+            // après une bascule ferait juger cet ancien contrat avec la qualité
+            // du nouveau groupe. Fermer le panneau maintient cette identité.
+            if (key !== selectedKey) {
+              setInspected(null);
+              triggerRef.current = null;
+            }
+            setSelectedKey(key);
+          }}
+          onInspect={(contract, trigger) => {
+            triggerRef.current = trigger;
+            if (selected !== null) {
+              setInspected({ contract, groupKey: groupKeyOf(selected), snapshot: data });
+            }
+          }}
+        />
+
+        <AbsentOptionsModule id="strategy-builder" />
+        <AbsentOptionsModule id="payoff-profile" />
+        <AbsentOptionsModule id="strategy-metrics" />
+      </div>
 
       {currentInspected !== null ? (
         <OptionInspector
@@ -320,8 +352,10 @@ function ChainFrame({
           transferBlockReason={transferBlockReason}
           onClose={closeInspector}
         />
-      ) : null}
-    </section>
+      ) : (
+        <ChainSnapshotInspector data={data} />
+      )}
+    </>
   );
 }
 
@@ -353,7 +387,7 @@ function ChainRoute({ underlying }: { readonly underlying: string }) {
               : {})}
         />
       ) : data !== undefined ? (
-        <ChainFrame
+        <OptionsBoard
           key={underlying}
           data={data}
           state={state}

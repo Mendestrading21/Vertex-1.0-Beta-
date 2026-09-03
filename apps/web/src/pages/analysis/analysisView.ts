@@ -58,7 +58,9 @@ export interface BarsView {
 
 export function barsViewOf(data: AnalysisResponse): BarsView | null {
   const block = data.bars;
-  if (block === null) {
+  // `undefined` n'est pas dans le contrat, mais un corps étranger reçu à la
+  // place d'un dossier ne doit jamais faire tomber la page : absent = absent.
+  if (block === null || block === undefined) {
     return null;
   }
   const rawBars = block['bars'];

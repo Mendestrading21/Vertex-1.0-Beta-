@@ -7422,3 +7422,322 @@ label {
     background: var(--vx-surface-1);
   }
 }
+
+/* ================================================================== */
+/* LOT-A5 — COMPOSITION DES PLANCHES §5 (Options) ET §6 (Simulateur)  */
+/* ================================================================== */
+
+/* ---- Grille d'Options (planche §5) ----------------------------------- */
+
+.vx-options-grid {
+  grid-template-areas:
+    'underlying underlying identity identity'
+    'spot move ivref ivrank'
+    'dividend rate volstruct volstruct'
+    'series series smile smile'
+    'chain chain chain chain'
+    'builder payoff metrics metrics';
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.vx-options-grid [data-module='underlying'] { grid-area: underlying; }
+.vx-options-grid [data-module='identity-strip'] { grid-area: identity; }
+.vx-options-grid [data-module='spot'] { grid-area: spot; }
+.vx-options-grid [data-module='expected-move'] { grid-area: move; }
+.vx-options-grid [data-module='iv-reference'] { grid-area: ivref; }
+.vx-options-grid [data-module='iv-rank'] { grid-area: ivrank; }
+.vx-options-grid [data-module='dividend'] { grid-area: dividend; }
+.vx-options-grid [data-module='rate'] { grid-area: rate; }
+.vx-options-grid [data-module='vol-structure'] { grid-area: volstruct; }
+.vx-options-grid [data-module='underlying-series'] { grid-area: series; }
+.vx-options-grid [data-module='iv-smile'] { grid-area: smile; }
+.vx-options-grid [data-module='chain'] { grid-area: chain; }
+.vx-options-grid [data-module='strategy-builder'] { grid-area: builder; }
+.vx-options-grid [data-module='payoff-profile'] { grid-area: payoff; }
+.vx-options-grid [data-module='strategy-metrics'] { grid-area: metrics; }
+
+@media (min-width: 1600px) {
+  .vx-options-grid {
+    grid-template-areas:
+      'underlying underlying identity identity identity'
+      'spot dividend rate move ivref'
+      'series series smile smile ivrank'
+      'volstruct volstruct volstruct volstruct volstruct'
+      'chain chain chain chain chain'
+      'builder payoff metrics metrics metrics';
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+/* Le widget du sous-jacent occupe sa cellule entière. */
+.vx-board > [data-module] > .vx-iw {
+  height: 100%;
+  box-sizing: border-box;
+}
+
+.vx-options-facts > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--vx-space-4) var(--vx-space-12);
+  justify-content: space-between;
+}
+
+.vx-options-facts dt {
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-options-facts dd {
+  margin: 0;
+  color: var(--vx-text-secondary);
+  font-size: var(--vx-font-size-meta);
+  text-align: right;
+  overflow-wrap: anywhere;
+}
+
+.vx-options-facts code {
+  font-family: var(--vx-font-mono);
+}
+
+/* La chaîne : la table défile dans sa région, bornée, jamais tronquée. */
+.vx-options-grid .vx-chain-table-scroll[tabindex] {
+  max-height: 560px;
+  overflow: auto;
+}
+
+.vx-options-grid .vx-chain-table-scroll[tabindex]:focus-visible {
+  outline: 2px solid var(--vx-signal);
+  outline-offset: 2px;
+}
+
+/* ---- Le sourire d'IV ------------------------------------------------- */
+
+.vx-smile {
+  display: flex;
+  flex-direction: column;
+  gap: var(--vx-space-8);
+  margin: 0;
+}
+
+.vx-smile-svg {
+  display: block;
+  width: 100%;
+  height: 120px;
+  overflow: visible;
+  border-bottom: 1px solid var(--vx-border-soft);
+}
+
+.vx-smile[data-compact='true'] .vx-smile-svg {
+  height: 56px;
+}
+
+.vx-smile-line {
+  fill: none;
+  stroke: var(--vx-titanium);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.2;
+  vector-effect: non-scaling-stroke;
+}
+
+.vx-smile-line[data-right='PUT'] {
+  stroke-dasharray: 3 2;
+}
+
+/* Violet = options (identité visuelle) : les points portent la teinte,
+   calls pleins, puts cerclés — la forme double la couleur. */
+.vx-smile-dot {
+  fill: var(--vx-option);
+  stroke: var(--vx-option);
+  stroke-width: 0.8;
+  vector-effect: non-scaling-stroke;
+}
+
+.vx-smile-dot[data-right='PUT'] {
+  fill: var(--vx-surface-1);
+}
+
+.vx-smile-caption {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--vx-space-4) var(--vx-space-16);
+  color: var(--vx-text-muted);
+  font-size: 10.5px;
+  line-height: 1.5;
+}
+
+.vx-smile-caption code {
+  color: var(--vx-text-secondary);
+  font-family: var(--vx-font-mono);
+}
+
+.vx-smile-key {
+  color: var(--vx-option);
+}
+
+.vx-smile-key[data-right='PUT'] {
+  opacity: 0.55;
+}
+
+.vx-smile-multiples {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: var(--vx-space-12);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.vx-smile-multiples li {
+  min-width: 0;
+  padding: var(--vx-space-8);
+  border: 1px solid var(--vx-border-soft);
+  border-radius: var(--vx-radius-10);
+  background: var(--vx-surface-0);
+}
+
+.vx-smile-multiple-title {
+  margin: 0 0 var(--vx-space-8);
+  color: var(--vx-text-secondary);
+  font-size: 10.5px;
+  overflow-wrap: anywhere;
+}
+
+.vx-smile[data-compact='true'] .vx-smile-caption {
+  font-size: 10px;
+}
+
+/* ---- Grille du Simulateur (planche §6) ------------------------------- */
+
+.vx-sim-grid {
+  grid-template-areas:
+    'entry entry entry params'
+    'payoff payoff payoff params'
+    'payoff payoff payoff kpi'
+    'scenarios scenarios mc kpiprob'
+    'stress sensitivity impact catalysts'
+    'assumptions sources method method';
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.vx-sim-grid [data-module='manual-entry'] { grid-area: entry; }
+.vx-sim-grid [data-module='base-parameters'] { grid-area: params; }
+.vx-sim-grid [data-module='payoff'] { grid-area: payoff; }
+.vx-sim-grid [data-module='kpi-served'] { grid-area: kpi; }
+.vx-sim-grid [data-module='scenarios'] { grid-area: scenarios; }
+.vx-sim-grid [data-module='monte-carlo'] { grid-area: mc; }
+.vx-sim-grid [data-module='kpi-probabilistic'] { grid-area: kpiprob; }
+.vx-sim-grid [data-module='stress-tests'] { grid-area: stress; }
+.vx-sim-grid [data-module='sensitivity'] { grid-area: sensitivity; }
+.vx-sim-grid [data-module='portfolio-impact'] { grid-area: impact; }
+.vx-sim-grid [data-module='catalysts'] { grid-area: catalysts; }
+.vx-sim-grid [data-module='key-assumptions'] { grid-area: assumptions; }
+.vx-sim-grid [data-module='sources'] { grid-area: sources; }
+.vx-sim-grid [data-module='method'] { grid-area: method; }
+
+@media (min-width: 1600px) {
+  .vx-sim-grid {
+    grid-template-areas:
+      'entry entry entry entry params'
+      'payoff payoff payoff kpi params'
+      'payoff payoff payoff kpi kpiprob'
+      'scenarios scenarios scenarios mc stress'
+      'sensitivity impact catalysts catalysts catalysts'
+      'assumptions sources sources method method';
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+/* Le composeur et les hypothèses vivent dans des cartes : plus de marge de
+   page ni de titre propre ; les champs d'hypothèses s'empilent dans une
+   colonne. */
+.vx-sim-grid .vx-leg {
+  margin: 0 0 var(--vx-space-12);
+  background: var(--vx-surface-0);
+}
+
+.vx-sim-grid .vx-sim-assumptions-grid {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.vx-sim-grid .vx-sim-assumptions-grid input,
+.vx-sim-grid .vx-leg-grid input,
+.vx-sim-grid .vx-leg-grid select {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.vx-sim-grid .vx-sim-actions {
+  margin: var(--vx-space-16) 0 0;
+  padding-top: var(--vx-space-16);
+  border-top: 1px solid var(--vx-border-soft);
+}
+
+.vx-sim-grid .vx-sim-scope,
+.vx-sim-grid .vx-sim-transfer {
+  margin: 0 0 var(--vx-space-12);
+  padding: var(--vx-space-12);
+  background: var(--vx-surface-0);
+}
+
+.vx-sim-grid .vx-sim-scope:last-child {
+  margin-bottom: 0;
+}
+
+.vx-sim-grid .vx-sim-outcome > * {
+  margin: 0;
+}
+
+.vx-sim-grid .vx-sim-invalid,
+.vx-sim-grid .vx-sim-rejection {
+  margin: 0;
+}
+
+/* Le résultat : le payoff garde une hauteur fixe, la table défile. */
+.vx-sim-grid .vx-payoff-canvas {
+  height: 320px;
+}
+
+.vx-sim-grid .vx-ohlcv-scroll[tabindex] {
+  max-height: 260px;
+  overflow: auto;
+  margin-bottom: 0;
+}
+
+.vx-sim-grid .vx-sim-defined-risk {
+  margin: var(--vx-space-12) 0;
+}
+
+.vx-sim-grid .vx-sim-breakevens {
+  margin-top: var(--vx-space-4);
+}
+
+.vx-sim-grid .vx-sim-echo div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--vx-space-4) var(--vx-space-12);
+  justify-content: space-between;
+  padding: var(--vx-space-8) 0;
+  border-bottom: 1px solid var(--vx-border-soft);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-sim-grid .vx-sim-echo dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.vx-sim-grid .vx-sim-warnings {
+  margin: var(--vx-space-12) 0 0;
+}
+
+.vx-sim-grid .vx-sim-warnings ul {
+  margin: 0;
+  padding-left: var(--vx-space-20);
+  font-size: var(--vx-font-size-meta);
+  line-height: 1.55;
+}
+
+.vx-sim-grid .vx-scenarios-table {
+  min-width: max-content;
+}
