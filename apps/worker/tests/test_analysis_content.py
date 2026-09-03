@@ -854,3 +854,268 @@ class TestForceRelative:
         calcul = bloc["calculation"]
         assert calcul["calculation_id"] == "market.relative_strength"
         assert calcul["input_hash"].startswith("sha256:")
+
+
+# --------------------------------------------------------------------------
+# LOT S3 — séries glissantes : une valeur par séance servie, jamais un point
+# inventé avant la première fenêtre complète
+# --------------------------------------------------------------------------
+
+
+def _serie_geometrique(nombre: int, pas: float, depart: float = 100.0) -> list[dict]:
+    """Barres OHLC à croissance géométrique constante, prix rendus à 4 décimales
+    (forme admise par `_validate_bar` : chiffres ASCII, point décimal)."""
+    premier = date(2026, 1, 2)
+    barres = []
+    for index in range(nombre):
+        cloture = depart * (1.0 + pas) ** index
+        barres.append(
+            {
+                "trading_day": (premier + timedelta(days=index)).isoformat(),
+                "open": f"{cloture:.4f}",
+                "high": f"{cloture * 1.01:.4f}",
+                "low": f"{cloture * 0.99:.4f}",
+                "close": f"{cloture:.4f}",
+                "volume": 1000,
+            }
+        )
+    return barres
+
+
+class TestSeriesGlissantes:
+    """Chaque indicateur publie, à côté de sa valeur ponctuelle, sa SÉRIE
+    glissante : une valeur par séance servie disposant d'une fenêtre complète,
+    rendue en chaîne comme la valeur ponctuelle, avec le même statut et la
+    même méthode. Le dernier point EST la valeur ponctuelle : deux nombres pour
+    la même séance seraient deux vérités. L'interface trace ce qu'elle reçoit
+    et ne recalcule rien."""
+
+    def test_chaque_indicateur_porte_sa_serie(self):
+        from vertex_worker.analysis import _build_indicators
+
+        indicateurs = _build_indicators(_barres_croissantes(60), now=NOW, source_event_id="evt-1")
+        for nom in ("realized_volatility", "atr"):
+            bloc = indicateurs[nom]
+            serie = bloc["series"]
+            assert serie["status"] == bloc["status"] == "OK"
+            assert serie["calculation"]["calculation_id"] == bloc["calculation"]["calculation_id"]
+            assert serie["calculation"]["method"] == bloc["calculation"]["method"]
+            assert serie["unit"] == bloc["unit"]
+
+    def test_la_longueur_est_la_fenetre_servie(self):
+        """Une valeur par séance servie : ni plus (rien n'est extrapolé avant
+        la première fenêtre complète), ni moins (aucune séance servie n'est
+        tue)."""
+        from vertex_worker.analysis import ATR_LOOKBACK, VOLATILITY_WINDOW, _build_indicators
+
+        barres = _barres_croissantes(60)
+        indicateurs = _build_indicators(barres, now=NOW, source_event_id=None)
+
+        vol = indicateurs["realized_volatility"]["series"]
+        assert vol["window"] == VOLATILITY_WINDOW
+        assert vol["sessions"] == len(vol["points"]) == 60 - VOLATILITY_WINDOW
+        assert [p["trading_day"] for p in vol["points"]] == [
+            b["trading_day"] for b in barres[VOLATILITY_WINDOW:]
+        ]
+        assert vol["first_trading_day"] == vol["points"][0]["trading_day"]
+        assert vol["last_trading_day"] == vol["points"][-1]["trading_day"]
+
+        amplitude = indicateurs["atr"]["series"]
+        assert amplitude["lookback"] == ATR_LOOKBACK
+        assert amplitude["sessions"] == len(amplitude["points"]) == 60 - ATR_LOOKBACK
+        assert [p["trading_day"] for p in amplitude["points"]] == [
+            b["trading_day"] for b in barres[ATR_LOOKBACK:]
+        ]
+
+    def test_le_dernier_point_est_la_valeur_ponctuelle(self):
+        """Mêmes clôtures, mêmes rendements, même moteur : la même chaîne."""
+        from vertex_worker.analysis import _build_indicators
+
+        indicateurs = _build_indicators(_barres_croissantes(60), now=NOW, source_event_id=None)
+        vol = indicateurs["realized_volatility"]
+        assert vol["series"]["points"][-1]["value"] == vol["value"]
+        assert vol["series"]["points"][-1]["value_pct"] == vol["value_pct"]
+        amplitude = indicateurs["atr"]
+        assert amplitude["series"]["points"][-1]["value"] == amplitude["value"]
+
+    def test_les_points_sont_des_chaines_rendues(self):
+        """Le serveur publie des chaînes ; le navigateur n'arrondit rien."""
+        import re
+
+        from vertex_worker.analysis import _build_indicators
+
+        decimal = re.compile(r"^-?[0-9]+(\.[0-9]+)?$")
+        indicateurs = _build_indicators(_barres_croissantes(60), now=NOW, source_event_id=None)
+        for point in indicateurs["realized_volatility"]["series"]["points"]:
+            assert isinstance(point["value"], str) and decimal.fullmatch(point["value"])
+            assert isinstance(point["value_pct"], str) and decimal.fullmatch(point["value_pct"])
+        for point in indicateurs["atr"]["series"]["points"]:
+            assert isinstance(point["value"], str) and decimal.fullmatch(point["value"])
+
+    def test_trop_peu_de_barres_est_NOMME_sur_la_serie_aussi(self):
+        """Une série vide n'est pas « zéro point » : c'est une absence nommée,
+        avec le compte réel de barres."""
+        from vertex_worker.analysis import REASON_INSUFFICIENT_SAMPLE, _build_indicators
+
+        indicateurs = _build_indicators(_barres_croissantes(5), now=NOW, source_event_id=None)
+        for nom in ("realized_volatility", "atr"):
+            serie = indicateurs[nom]["series"]
+            assert serie["status"] == REASON_INSUFFICIENT_SAMPLE
+            assert serie["available_bars"] == 5
+            assert "points" not in serie
+            assert "sessions" not in serie
+
+    def test_une_serie_vide_ne_leve_pas(self):
+        from vertex_worker.analysis import REASON_INSUFFICIENT_SAMPLE, _build_indicators
+
+        indicateurs = _build_indicators([], now=NOW, source_event_id=None)
+        for nom in ("realized_volatility", "atr"):
+            assert indicateurs[nom]["series"]["status"] == REASON_INSUFFICIENT_SAMPLE
+
+    def test_la_serie_porte_sa_propre_lignee(self):
+        """Le résultat d'une série n'est pas celui d'un point : sa lignée non
+        plus. Une valeur financière sans lignée n'est pas publiable."""
+        from vertex_worker.analysis import _build_indicators
+
+        indicateurs = _build_indicators(_barres_croissantes(60), now=NOW, source_event_id="evt-7")
+        for nom in ("realized_volatility", "atr"):
+            calcul = indicateurs[nom]["series"]["calculation"]
+            assert calcul["status"] == "OK"
+            assert calcul["input_hash"].startswith("sha256:")
+            assert calcul["result_hash"].startswith("sha256:")
+            assert calcul["result_hash"] != indicateurs[nom]["calculation"]["result_hash"]
+
+    def test_aucune_interpretation_dans_la_serie(self):
+        from vertex_worker.analysis import _build_indicators
+
+        indicateurs = _build_indicators(_barres_croissantes(60), now=NOW, source_event_id=None)
+        interdits = {"level", "severity", "regime", "signal", "verdict", "score", "trend"}
+        for bloc in indicateurs.values():
+            serie = bloc["series"]
+            assert not (interdits & set(serie))
+            for point in serie.get("points", ()):
+                assert not (interdits & set(point))
+
+    def test_une_seance_dupliquee_REFUSE_la_serie_atr_sans_la_trouer(self):
+        """Une séance dupliquée loin du présent laisse la valeur ponctuelle
+        intacte ; la série qui la traverse est REFUSÉE avec sa raison — jamais
+        publiée avec un trou, ni avec une valeur inventée à cet endroit."""
+        from vertex_worker.analysis import _build_indicators
+
+        barres = _barres_croissantes(60)
+        barres[3] = dict(barres[3], trading_day=barres[2]["trading_day"])
+        indicateurs = _build_indicators(barres, now=NOW, source_event_id=None)
+        amplitude = indicateurs["atr"]
+        assert amplitude["status"] == "OK"
+        assert amplitude["series"]["status"] == "REFUSED"
+        assert amplitude["series"]["reason"] == "unordered_bars"
+        assert amplitude["series"]["trading_day"] == barres[2]["trading_day"]
+        assert "points" not in amplitude["series"]
+
+
+class TestSerieForceRelative:
+    """`market.relative_strength` : une valeur par séance COMMUNE après
+    l'horizon, sur le calendrier intersecté — jamais tronqué."""
+
+    def test_la_serie_couvre_les_seances_communes_apres_l_horizon(self):
+        from vertex_worker.analysis import RELATIVE_STRENGTH_HORIZON, _relative_strength_block
+
+        actif = _serie_geometrique(80, 0.002)
+        indice = _serie_geometrique(80, 0.001)
+        bloc = _relative_strength_block(actif, indice, instrument="AAA", benchmark="SPX", now=NOW)
+        serie = bloc["series"]
+        assert serie["status"] == bloc["status"] == "OK"
+        assert serie["benchmark"] == "SPX"
+        assert serie["horizon"] == RELATIVE_STRENGTH_HORIZON
+        assert serie["sessions"] == len(serie["points"]) == 80 - RELATIVE_STRENGTH_HORIZON
+        assert [p["trading_day"] for p in serie["points"]] == [
+            b["trading_day"] for b in actif[RELATIVE_STRENGTH_HORIZON:]
+        ]
+        assert serie["points"][-1]["value"] == bloc["value"]
+        assert serie["calculation"]["method"] == bloc["calculation"]["method"]
+        assert serie["calculation"]["calculation_id"] == "market.relative_strength"
+        assert serie["calculation"]["result_hash"] != bloc["calculation"]["result_hash"]
+        for point in serie["points"]:
+            assert isinstance(point["value"], str)
+            assert float(point["value"]) > 1.0
+
+    def test_la_serie_suit_le_calendrier_INTERSECTE(self):
+        """L'indice perd dix séances : la série ne compte que les séances
+        PARTAGÉES, et ses dates sont celles du calendrier commun."""
+        from vertex_worker.analysis import RELATIVE_STRENGTH_HORIZON, _relative_strength_block
+
+        actif = _serie_geometrique(80, 0.002)
+        indice = _serie_geometrique(80, 0.001)
+        del indice[30:40]
+        bloc = _relative_strength_block(actif, indice, instrument="AAA", benchmark="SPX", now=NOW)
+        serie = bloc["series"]
+        assert serie["status"] == "OK"
+        assert serie["common_sessions"] == 70
+        assert serie["sessions"] == 70 - RELATIVE_STRENGTH_HORIZON
+        communs = sorted(
+            {b["trading_day"] for b in actif} & {b["trading_day"] for b in indice}
+        )
+        assert [p["trading_day"] for p in serie["points"]] == communs[RELATIVE_STRENGTH_HORIZON:]
+
+    def test_l_absence_du_point_est_celle_de_la_serie(self):
+        """Sans indice, contre soi-même, indice non observé ou trop peu de
+        séances : la série porte le MÊME statut nommé, et aucun point."""
+        from vertex_worker.analysis import (
+            REASON_BENCHMARK_ABSENT,
+            REASON_INSUFFICIENT_SAMPLE,
+            REASON_IS_BENCHMARK,
+            REASON_NO_BENCHMARK,
+            _relative_strength_block,
+        )
+
+        actif = _serie_geometrique(80, 0.002)
+        cas = [
+            (_relative_strength_block(actif, None, instrument="AAA", benchmark=None, now=NOW),
+             REASON_NO_BENCHMARK),
+            (_relative_strength_block(actif, actif, instrument="SPX", benchmark="SPX", now=NOW),
+             REASON_IS_BENCHMARK),
+            (_relative_strength_block(actif, [], instrument="AAA", benchmark="SPX", now=NOW),
+             REASON_BENCHMARK_ABSENT),
+            (_relative_strength_block(
+                actif, _serie_geometrique(10, 0.001), instrument="AAA", benchmark="SPX", now=NOW
+            ), REASON_INSUFFICIENT_SAMPLE),
+        ]
+        for bloc, attendu in cas:
+            assert bloc["status"] == attendu
+            assert bloc["series"]["status"] == attendu
+            assert "points" not in bloc["series"]
+            assert "value" not in bloc["series"]
+
+
+def test_le_dossier_publie_les_trois_series() -> None:
+    """De bout en bout : le constructeur du dossier publie les trois séries
+    dans le bloc `indicators`, contre l'indice DÉCLARÉ par la configuration."""
+    config = AnalysisConfig(
+        instruments=("SYN-TECH-01", "SYN-TECH-02"),
+        allowed_sources=frozenset({SYNTHETIC_SOURCE}),
+        usable_rights=frozenset({SYNTHETIC_RIGHTS}),
+        benchmark="SYN-TECH-02",
+    )
+    content = build_analysis_content(
+        [
+            bars_record(bars=_serie_geometrique(80, 0.002)),
+            bars_record(
+                ticker="SYN-TECH-02",
+                bars=_serie_geometrique(80, 0.001),
+                event_id="synthetic-dev:t:db0002",
+            ),
+        ],
+        instrument=INSTRUMENT,
+        evidence_records=(),
+        option_chain_content=None,
+        option_chain_version=None,
+        now=NOW,
+        config=config,
+    )
+    indicateurs = content["indicators"]
+    assert indicateurs["realized_volatility"]["series"]["status"] == "OK"
+    assert indicateurs["atr"]["series"]["status"] == "OK"
+    assert indicateurs["relative_strength"]["series"]["status"] == "OK"
+    assert indicateurs["realized_volatility"]["series"]["sessions"] == 80 - 20
+    assert indicateurs["atr"]["series"]["sessions"] == 80 - 14
+    assert indicateurs["relative_strength"]["series"]["sessions"] == 80 - 60
