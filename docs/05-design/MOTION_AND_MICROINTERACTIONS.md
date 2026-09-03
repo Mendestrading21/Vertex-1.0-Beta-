@@ -12,7 +12,7 @@ Le mouvement confirme une action, révèle une relation spatiale ou signale qu'u
 | `--vx-motion-fast` | 140 ms | sélection, badge, bouton |
 | `--vx-motion-base` | 180 ms | accordéon court, contenu conditionnel |
 | `--vx-motion-slow` | 220 ms | sheet, dialog, changement de panneau |
-| `--vx-motion-data` | 600 ms max | surbrillance unique d'une valeur mise à jour |
+| `--vx-motion-data` (généré : `--vx-motion-600`) | 600 ms max | surbrillance unique d'une valeur mise à jour (ADR-017) |
 
 Courbes :
 

@@ -142,7 +142,12 @@ def test_markets_chain_end_to_end(session_factory) -> None:
     assert breadth["universe_size"] == 24
     assert breadth["covered_count"] == 22
     up = sum(1 for t in published if Decimal(t["return_1d"]) > 0)
+    down = sum(1 for t in published if Decimal(t["return_1d"]) < 0)
+    flat = sum(1 for t in published if Decimal(t["return_1d"]) == 0)
     assert breadth["above_count"] == up
+    assert breadth["down_count"] == down
+    assert breadth["flat_count"] == flat
+    assert up + down + flat == breadth["covered_count"] == 22
     assert breadth["calculation"]["calculation_id"] == "market.breadth"
 
     # The generator degrades 2 PARTIAL + 2 STALE latest closes -> partial.

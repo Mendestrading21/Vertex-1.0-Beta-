@@ -65,8 +65,10 @@ mémoire/FPS et comparaison visuelle sur les profils laptop cible.
 
 Les jauges sont autorisées lorsqu'elles répondent à une question bornée et que
 le serveur fournit valeur, unité, échelle, seuils, méthode, qualité et `as_of`.
-Elles utilisent une barre linéaire, un bullet chart ou une bande segmentée ;
-aucun compteur automobile, aiguille animée, volume 3D ou score composite opaque.
+Elles utilisent une barre linéaire, un bullet chart, une bande segmentée ou,
+depuis ADR-017, un arc gradué (`ArcGauge`) dont la position du marqueur est une
+coordonnée servie ; aucun compteur automobile décoratif, aiguille animée,
+volume 3D ou score composite opaque.
 
 - `CalibratedConfidenceGauge` : visible uniquement avec
   `probability_evidence` valide, population/holdout, taille d'échantillon,
@@ -83,6 +85,31 @@ Chaque jauge expose la valeur en texte, le seuil actuel, les extrêmes, les
 limites et une alternative tabulaire. Couleur, longueur et animation ne portent
 jamais seules le sens. Le navigateur ne calcule ni pourcentage, ni seuil, ni
 position du marqueur : les coordonnées de rendu proviennent du DTO serveur.
+
+### Formes v2 (ADR-017)
+
+Depuis `docs/09-adr/017-titanium-ledger-v2-formes-widgets.md`, les formes
+suivantes sont admises, chacune sur une donnée servie et par une primitive du
+socle (`apps/web/src/components/widgets/`) :
+
+| Forme | Primitive | Donnée servie exigée |
+|---|---|---|
+| anneau / donut à chiffre central, quatuor d'anneaux | `RingShares` | parts `*_pct` servies ; chiffre central servi verbatim |
+| jauge en arc graduée | `ArcGauge` | valeur bornée, bornes, seuils, position servie |
+| aire à dégradé sous une série, sparkline en aire | `SparkFigure`, `MultiSeriesArea` | série servie ≥ 2 points, période nommée |
+| barres sur rail | `CensusBars`, `DayBars` | comptes entiers ou parts servis |
+| matrice de bandes | `CellGrid` | nom de bande servi + texte servi |
+| liste groupée par jour | `ActivityFeed` | horodatages ISO servis, montants en chaînes signées |
+
+Chaque widget porte la valeur en texte ; une absence est un état nommé, jamais
+une barre de hauteur zéro ni un secteur vide. La teinte sémantique secondaire de
+la page (`macro`, `option` ou `warning`, déclarée dans le catalogue ; jamais
+`positive` ni `negative`, réservés au signe financier servi) est la seule teinte
+ajoutée à l'argent, au titane et à l'ambre de la dominante.
+Restent interdits : halo permanent, noir pur, carte floue, couleur seule,
+compte à rebours ou horloge client, radar sans dimension servie, dégradé de
+fond plein, pulsation, valeur abrégée côté client, toute forme sur une valeur
+non servie.
 
 ### Fiches et formulaires
 

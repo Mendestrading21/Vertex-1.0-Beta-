@@ -41,14 +41,24 @@ même couleur à travers les vues comparables.
 | payoff | option violet, axe zéro, breakevens pointillés | points et hypothèses serveur |
 | performance | valeur brute/nette, drawdown séparé | unités, jours exclus, valeurs non recomposées |
 | heatmap | cellule + valeur ou absence | palette divergente, pas couleur seule |
-| mini-série | contexte seulement, valeur et période adjacentes | pas de sparkline décorative sans données |
+| mini-série | contexte seulement, valeur et période adjacentes ; aire à dégradé admise sous une série servie (ADR-017) | pas de sparkline décorative sans données |
+| anneau à chiffre central (ADR-017) | parts servies, chiffre central servi, légende chiffrée | jamais une somme calculée ; quatre teintes au plus |
+| arc gradué (ADR-017) | valeur bornée servie, seuils et position servis | aucune aiguille animée, aucun pourcentage calculé |
+| barres sur rail (ADR-017) | comptes ou parts servis, rail visible | hauteur zéro pour une absence |
+| matrice de bandes (ADR-017) | cellule + nom de bande servi + texte | bande absente remplacée en silence |
 
 ## Couleur et comparaison
 
 - Limiter le nombre de séries simultanées ; ajouter forme, motif, style de trait
   ou marqueur lorsque les séries doivent survivre à une perception altérée.
 - Réserver vert/rouge au signe financier. Utiliser argent, macro et option pour
-  les séries non directionnelles.
+  les séries non directionnelles (option dans le domaine options seulement).
+- La teinte sémantique secondaire d'une page (ADR-017) est une famille déclarée
+  dans son catalogue — `macro`, `option` ou `warning`, jamais `positive` ni
+  `negative` — consommée par `--vx-page-accent*` ; elle garde le sens de sa
+  famille et l'ambre reste la seule lumière de la dominante.
+- L'aire sous une série servie va de `<famille>-gradient-start` à
+  `<famille>-gradient-end` (transparence) ; jamais entre deux teintes.
 - Une palette séquentielle représente une magnitude ; une palette divergente
   exige un centre significatif, généralement zéro.
 - Une nouvelle couleur de série doit rester cohérente sur toutes les pages.

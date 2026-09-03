@@ -20,6 +20,21 @@ focus instrument present in the recent bars window:
   out of shape is NEVER cleaned, escaped or truncated: it excludes its bar
   (``discarded``) or the whole observation (``coverage.rejected_records``)
   with a typed reason, and the rest of the dossier is still produced;
+- the technical indicators of the approved engine (``market.realized_volatility``,
+  ``market.atr``, ``market.relative_strength`` against the DECLARED
+  benchmark): each block carries its point value with its
+  ``CalculationRecord`` lineage AND, under ``series`` (LOT S3), its rolling
+  series — one rendered value per served session with a complete window,
+  same engine, same method, same status vocabulary, own lineage. A window
+  the engine refuses refuses the whole series with its reason: never a
+  hole, never an invented point. A session served twice (or out of order)
+  is refused by the builder's own strict-order gate (``unordered_bars``,
+  the same code as the ATR engine's gate) wherever the engine only sees
+  returns: the series crossing it, the volatility point whose window
+  crosses it, and the whole relative-strength block, whose calendar
+  alignment consumes every bar of both sides — a source error is never a
+  value; too little history is a NAMED absence (``INSUFFICIENT_SAMPLE``)
+  with the real bar count;
 - a short evidence rail: the ticker's content clusters from the single
   deterministic fusion engine (``vertex_core.fusion.fuse``) — dedup only,
   no invented relevance;
@@ -58,11 +73,19 @@ from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from decimal import ROUND_HALF_EVEN, Decimal, InvalidOperation
+from itertools import pairwise
 from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import ColumnElement, select
 from sqlalchemy.orm import Session
 
+from vertex_core.calculations.market import (
+    CalculationInputError,
+    OhlcBar,
+    atr,
+    realized_volatility,
+    relative_strength,
+)
 from vertex_core.calculations.options import (
     OptionInputError,
     OptionLeg,
@@ -103,6 +126,7 @@ __all__ = [
     "ANALYSIS_SCHEMA_VERSION",
     "DAILY_BARS_SCHEMA_PREFIXES",
     "DEV_SYNTHETIC_ANALYSIS_CONFIG",
+    "INDICATOR_SERIES_KEY",
     "REASON_INVALID_ADJUSTMENT_BASIS",
     "REASON_INVALID_BAR",
     "REASON_INVALID_CURRENCY",
@@ -248,6 +272,30 @@ RELATIVE_STRENGTH_HORIZON = 60
 REASON_NO_BENCHMARK = "NO_BENCHMARK_DECLARED"
 REASON_BENCHMARK_ABSENT = "BENCHMARK_NOT_OBSERVED"
 REASON_IS_BENCHMARK = "INSTRUMENT_IS_BENCHMARK"
+
+#: Cle, dans chaque bloc d'indicateur, de sa serie glissante (LOT S3) : une
+#: valeur rendue par seance servie disposant d'une fenetre COMPLETE, meme
+#: statut, meme methode et meme forme de lignee que la valeur ponctuelle.
+INDICATOR_SERIES_KEY = "series"
+
+#: Raison publiee quand une seance servie ne suit pas STRICTEMENT la
+#: precedente (seance servie deux fois ou hors ordre). Meme code que la porte
+#: `ordered_complete_bars` du moteur `market.atr` : une porte, une verite,
+#: quel que soit l'indicateur qui la franchit.
+REASON_UNORDERED_BARS = "unordered_bars"
+
+#: Empreinte de code des calculs `market.*`, commune a la valeur ponctuelle
+#: et a la serie glissante d'un meme indicateur.
+_MARKET_CODE_SHA = f"module:vertex_core.calculations.market@{ENGINE_VERSION}"
+
+#: Methodes publiees dans la lignee. UNE constante par indicateur : la valeur
+#: ponctuelle et sa serie annoncent la meme methode parce qu'elles sortent du
+#: meme moteur sur les memes rendements — deux libelles seraient deux verites.
+_METHOD_REALIZED_VOLATILITY = "unbiased sample stdev of daily simple returns, annualized"
+_METHOD_ATR = "Wilder true range, arithmetic mean over the lookback"
+_METHOD_RELATIVE_STRENGTH = "compounded asset return divided by compounded benchmark return"
+
+_POURCENT = Decimal("0.01")
 
 
 def is_daily_bars_schema(schema_version: str) -> bool:
@@ -457,6 +505,265 @@ def _instrument_ref_de(
     return None
 
 
+def _en_pourcent(valeur: str) -> str:
+    """Forme en pourcentage d'un ratio rendu, produite ICI et une seule fois.
+
+    Multiplier par 100 dans le navigateur serait un calcul financier en
+    TypeScript, ce que `.claude/rules/frontend.md` interdit. La page Marches
+    suit deja cette regle avec `return_1d_pct`. La valeur ponctuelle et
+    chaque point de la serie passent par cette meme fonction : la meme
+    seance ne peut pas recevoir deux chaines differentes.
+    """
+    return format((Decimal(valeur) * 100).quantize(_POURCENT, rounding=ROUND_HALF_EVEN), "f")
+
+
+def _ohlc_bar(bar: Mapping[str, Any]) -> OhlcBar:
+    """Barre admise -> `OhlcBar` du moteur (jour de bourse a minuit UTC)."""
+    return OhlcBar(
+        timestamp=datetime.fromisoformat(bar["trading_day"]).replace(tzinfo=UTC),
+        open=Decimal(bar["open"]),
+        high=Decimal(bar["high"]),
+        low=Decimal(bar["low"]),
+        close=Decimal(bar["close"]),
+    )
+
+
+def _rendements_simples(clotures: Sequence[Decimal]) -> list[float]:
+    """Rendements simples de seance en seance, par UNE seule expression.
+
+    La valeur ponctuelle et la serie glissante lisent les memes nombres : la
+    division est faite en `Decimal` puis convertie une fois, exactement comme
+    avant ce lot, si bien que le dernier point de la serie et la valeur
+    ponctuelle rendent la meme chaine.
+    """
+    return [float(clotures[i] / clotures[i - 1] - 1) for i in range(1, len(clotures))]
+
+
+def _seance_hors_ordre(bars: Sequence[Mapping[str, Any]]) -> str | None:
+    """Premiere seance qui ne suit pas STRICTEMENT la precedente, ou `None`.
+
+    Une seance servie deux fois n'est pas une seance de plus : entre ses deux
+    barres, un « rendement quotidien » n'existe pas. Le moteur `market.atr`
+    porte cette porte lui-meme (`ordered_complete_bars`) et ce releve ne sert
+    qu'a NOMMER la seance en defaut dans son refus, la ou le moteur ne
+    connait que la position dans la fenetre recue. Les moteurs
+    `market.realized_volatility` et `market.relative_strength` ne voient que
+    des rendements et ne connaissent pas les seances : la porte est alors
+    celle du constructeur, par `_refus_ordre_strict`, et refuse exactement
+    ce que la porte de l'ATR refuserait.
+    """
+    for precedente, courante in pairwise(bars):
+        if courante["trading_day"] <= precedente["trading_day"]:
+            return str(courante["trading_day"])
+    return None
+
+
+def _refus_ordre_strict(bars: Sequence[Mapping[str, Any]]) -> dict[str, str] | None:
+    """Champs du refus `unordered_bars` — raison, detail, seance en defaut —
+    ou `None` quand chaque seance suit strictement la precedente.
+
+    UNE seule fonction pour la volatilite (valeur ponctuelle et serie) et la
+    force relative (bloc entier) : la meme charge produit le meme refus,
+    jamais deux vocabulaires. Ce qui traverse la seance en defaut est refuse
+    en entier, jamais troue : sauter la seance choisirait en silence laquelle
+    des deux barres est la vraie, et choisir serait inventer.
+    """
+    en_defaut = _seance_hors_ordre(bars)
+    if en_defaut is None:
+        return None
+    return {
+        "reason": REASON_UNORDERED_BARS,
+        "detail": (
+            f"la séance {en_defaut} ne suit pas strictement la précédente "
+            "(séance servie deux fois ou hors ordre)"
+        ),
+        "trading_day": en_defaut,
+    }
+
+
+def _serie_volatilite(
+    valid_bars: Sequence[Mapping[str, Any]],
+    *,
+    now: datetime,
+    evenements: tuple[str, ...],
+) -> dict[str, Any]:
+    """Serie glissante de `market.realized_volatility`.
+
+    Une valeur par seance servie disposant d'une fenetre COMPLETE de
+    `VOLATILITY_WINDOW` rendements : la serie commence a la seance d'indice
+    `VOLATILITY_WINDOW`, rien n'est extrapole avant. Meme moteur, meme
+    methode, memes rendements que la valeur ponctuelle — le dernier point EST
+    la valeur ponctuelle. Une fenetre refusee par le moteur refuse la serie
+    ENTIERE avec sa raison et la seance concernee : jamais un trou, jamais
+    une valeur inventee a cet endroit.
+
+    Le moteur ne voit que des rendements : entre les deux barres d'une seance
+    servie deux fois, il calculerait un « rendement quotidien » qui n'existe
+    pas et le publierait sous la methode des rendements quotidiens. La porte
+    d'ordre strict est donc celle du constructeur (`_refus_ordre_strict`),
+    sur TOUTES les barres servies, et refuse la serie entiere avec la seance
+    en defaut — la meme porte que celle que le moteur de l'ATR applique a
+    `_serie_atr`.
+    """
+    clotures = [Decimal(bar["close"]) for bar in valid_bars]
+    if len(clotures) < VOLATILITY_WINDOW + 1:
+        return {
+            "status": REASON_INSUFFICIENT_SAMPLE,
+            "window": VOLATILITY_WINDOW,
+            "available_bars": len(clotures),
+            "detail": (
+                f"{VOLATILITY_WINDOW + 1} clôtures requises pour la première fenêtre ; "
+                f"{len(clotures)} disponibles"
+            ),
+        }
+    refus_ordre = _refus_ordre_strict(valid_bars)
+    if refus_ordre is not None:
+        return {
+            "status": "REFUSED",
+            "window": VOLATILITY_WINDOW,
+            "available_bars": len(clotures),
+            **refus_ordre,
+        }
+    rendements = _rendements_simples(clotures)
+    debut = now
+    points: list[dict[str, str]] = []
+    for fin in range(VOLATILITY_WINDOW, len(clotures)):
+        # Rendements des clotures [fin - W, fin] : `rendements[fin - W : fin]`.
+        try:
+            valeur = realized_volatility(
+                rendements[fin - VOLATILITY_WINDOW : fin], TRADING_PERIODS_PER_YEAR
+            )
+        except CalculationInputError as erreur:
+            return {
+                "status": "REFUSED",
+                "window": VOLATILITY_WINDOW,
+                "available_bars": len(clotures),
+                "reason": erreur.reason,
+                "detail": erreur.detail,
+                "trading_day": valid_bars[fin]["trading_day"],
+            }
+        chaine = _num_string(valeur)
+        points.append(
+            {
+                "trading_day": valid_bars[fin]["trading_day"],
+                "value": chaine,
+                "value_pct": _en_pourcent(chaine),
+            }
+        )
+    enregistrement = make_calculation_record(
+        calculation_id="market.realized_volatility",
+        calculation_type="market_statistic",
+        code_sha=_MARKET_CODE_SHA,
+        method=_METHOD_REALIZED_VOLATILITY,
+        inputs={
+            "returns": [_num_string(r) for r in rendements],
+            "window": VOLATILITY_WINDOW,
+            "periods_per_year": TRADING_PERIODS_PER_YEAR,
+            "sessions": [point["trading_day"] for point in points],
+        },
+        result={"values": [point["value"] for point in points]},
+        started_at=debut,
+        completed_at=now,
+        source_event_ids=evenements,
+    )
+    return {
+        "status": "OK",
+        "window": VOLATILITY_WINDOW,
+        "unit": "annualized_ratio",
+        "sessions": len(points),
+        "first_trading_day": points[0]["trading_day"],
+        "last_trading_day": points[-1]["trading_day"],
+        "points": points,
+        "calculation": _calculation_meta(enregistrement),
+    }
+
+
+def _serie_atr(
+    valid_bars: Sequence[Mapping[str, Any]],
+    *,
+    now: datetime,
+    evenements: tuple[str, ...],
+) -> dict[str, Any]:
+    """Serie glissante de `market.atr`.
+
+    Une valeur par seance servie disposant de `ATR_LOOKBACK` barres
+    precedentes (chaque true range exige la cloture de la veille) : la serie
+    commence a la seance d'indice `ATR_LOOKBACK`. Meme moteur et meme methode
+    que la valeur ponctuelle ; le dernier point EST la valeur ponctuelle.
+
+    Le moteur refuse une fenetre desordonnee ou incoherente : la serie est
+    alors REFUSEE en entier, avec la raison du moteur et la seance en defaut
+    (`trading_day`), pendant que la valeur ponctuelle — calculee sur ses
+    seules `ATR_LOOKBACK + 1` dernieres barres — garde son propre statut.
+    """
+    if len(valid_bars) < ATR_LOOKBACK + 1:
+        return {
+            "status": REASON_INSUFFICIENT_SAMPLE,
+            "lookback": ATR_LOOKBACK,
+            "available_bars": len(valid_bars),
+            "detail": (
+                f"{ATR_LOOKBACK + 1} barres requises pour la première fenêtre ; "
+                f"{len(valid_bars)} disponibles"
+            ),
+        }
+    debut = now
+    try:
+        barres = tuple(_ohlc_bar(bar) for bar in valid_bars)
+    except ValueError as erreur:
+        return {
+            "status": "REFUSED",
+            "lookback": ATR_LOOKBACK,
+            "available_bars": len(valid_bars),
+            "reason": getattr(erreur, "reason", "invalid_bar"),
+            "detail": str(erreur),
+        }
+    points: list[dict[str, str]] = []
+    for fin in range(ATR_LOOKBACK, len(barres)):
+        try:
+            valeur = atr(barres[fin - ATR_LOOKBACK : fin + 1], ATR_LOOKBACK)
+        except CalculationInputError as erreur:
+            en_defaut = (
+                _seance_hors_ordre(valid_bars[fin - ATR_LOOKBACK : fin + 1])
+                if erreur.reason == "unordered_bars"
+                else None
+            )
+            return {
+                "status": "REFUSED",
+                "lookback": ATR_LOOKBACK,
+                "available_bars": len(valid_bars),
+                "reason": erreur.reason,
+                "detail": erreur.detail,
+                "trading_day": en_defaut or valid_bars[fin]["trading_day"],
+            }
+        points.append(
+            {"trading_day": valid_bars[fin]["trading_day"], "value": _num_string(valeur)}
+        )
+    enregistrement = make_calculation_record(
+        calculation_id="market.atr",
+        calculation_type="market_statistic",
+        code_sha=_MARKET_CODE_SHA,
+        method=_METHOD_ATR,
+        inputs={
+            "bars": [bar["trading_day"] for bar in valid_bars],
+            "lookback": ATR_LOOKBACK,
+        },
+        result={"values": [point["value"] for point in points]},
+        started_at=debut,
+        completed_at=now,
+        source_event_ids=evenements,
+    )
+    return {
+        "status": "OK",
+        "lookback": ATR_LOOKBACK,
+        "unit": "price",
+        "sessions": len(points),
+        "first_trading_day": points[0]["trading_day"],
+        "last_trading_day": points[-1]["trading_day"],
+        "points": points,
+        "calculation": _calculation_meta(enregistrement),
+    }
+
+
 def _build_indicators(
     valid_bars: Sequence[Mapping[str, Any]],
     *,
@@ -471,19 +778,27 @@ def _build_indicators(
 
     Une fenetre plus longue que l'historique disponible ne produit PAS une
     valeur approchee : elle produit `INSUFFICIENT_SAMPLE` avec le compte reel.
-    """
-    from vertex_core.calculations.market import (
-        CalculationInputError,
-        OhlcBar,
-        atr,
-        realized_volatility,
-    )
 
+    Chaque bloc porte aussi, sous `INDICATOR_SERIES_KEY`, sa serie glissante
+    (LOT S3) : une valeur rendue par seance servie disposant d'une fenetre
+    complete, meme statut, meme methode, lignee propre. La serie est calculee
+    INDEPENDAMMENT de la valeur ponctuelle par le meme moteur : chacune dit
+    son propre statut, et le dernier point d'une serie OK est la valeur
+    ponctuelle.
+
+    Une seance servie deux fois refuse ce qui la traverse, et seulement cela :
+    la valeur ponctuelle de volatilite si elle tombe dans ses
+    `VOLATILITY_WINDOW + 1` dernieres barres (porte du constructeur, le
+    moteur ne voyant que des rendements), la valeur ponctuelle d'ATR si elle
+    tombe dans ses `ATR_LOOKBACK + 1` dernieres (porte du moteur), et chaque
+    serie, qui traverse tout l'historique servi.
+    """
     indicateurs: dict[str, Any] = {}
     evenements = (source_event_id,) if source_event_id else ()
 
     # -- volatilite realisee annualisee -------------------------------------
     cloture_series = [Decimal(bar["close"]) for bar in valid_bars]
+    refus_ordre = _refus_ordre_strict(list(valid_bars)[-(VOLATILITY_WINDOW + 1) :])
     if len(cloture_series) < VOLATILITY_WINDOW + 1:
         indicateurs["realized_volatility"] = {
             "status": REASON_INSUFFICIENT_SAMPLE,
@@ -494,9 +809,16 @@ def _build_indicators(
                 f"{VOLATILITY_WINDOW} rendements ; {len(cloture_series)} disponibles"
             ),
         }
+    elif refus_ordre is not None:
+        # Les barres que cette valeur consomme contiennent une seance servie
+        # deux fois : le moteur y verrait un rendement qui n'existe pas.
+        indicateurs["realized_volatility"] = {
+            "status": "REFUSED",
+            "window": VOLATILITY_WINDOW,
+            **refus_ordre,
+        }
     else:
-        fenetre = cloture_series[-(VOLATILITY_WINDOW + 1) :]
-        rendements = [float(fenetre[i] / fenetre[i - 1] - 1) for i in range(1, len(fenetre))]
+        rendements = _rendements_simples(cloture_series[-(VOLATILITY_WINDOW + 1) :])
         debut = now
         try:
             valeur = realized_volatility(rendements, TRADING_PERIODS_PER_YEAR)
@@ -511,8 +833,8 @@ def _build_indicators(
             enregistrement = make_calculation_record(
                 calculation_id="market.realized_volatility",
                 calculation_type="market_statistic",
-                code_sha=f"module:vertex_core.calculations.market@{ENGINE_VERSION}",
-                method="unbiased sample stdev of daily simple returns, annualized",
+                code_sha=_MARKET_CODE_SHA,
+                method=_METHOD_REALIZED_VOLATILITY,
                 inputs={
                     "returns": [_num_string(r) for r in rendements],
                     "periods_per_year": TRADING_PERIODS_PER_YEAR,
@@ -522,21 +844,17 @@ def _build_indicators(
                 completed_at=now,
                 source_event_ids=evenements,
             )
-            # Forme en pourcentage produite ICI : multiplier par 100 dans le
-            # navigateur serait un calcul financier en TypeScript, ce que
-            # `.claude/rules/frontend.md` interdit. La page Marches suit deja
-            # cette regle avec `return_1d_pct`.
-            en_pourcent = (Decimal(_num_string(valeur)) * 100).quantize(
-                Decimal("0.01"), rounding=ROUND_HALF_EVEN
-            )
             indicateurs["realized_volatility"] = {
                 "status": "OK",
                 "window": VOLATILITY_WINDOW,
                 "unit": "annualized_ratio",
                 "value": _num_string(valeur),
-                "value_pct": format(en_pourcent, "f"),
+                "value_pct": _en_pourcent(_num_string(valeur)),
                 "calculation": _calculation_meta(enregistrement),
             }
+    indicateurs["realized_volatility"][INDICATOR_SERIES_KEY] = _serie_volatilite(
+        valid_bars, now=now, evenements=evenements
+    )
 
     # -- ATR ----------------------------------------------------------------
     if len(valid_bars) < ATR_LOOKBACK + 1:
@@ -550,16 +868,7 @@ def _build_indicators(
         recentes = list(valid_bars)[-(ATR_LOOKBACK + 1) :]
         debut = now
         try:
-            barres = tuple(
-                OhlcBar(
-                    timestamp=datetime.fromisoformat(bar["trading_day"]).replace(tzinfo=UTC),
-                    open=Decimal(bar["open"]),
-                    high=Decimal(bar["high"]),
-                    low=Decimal(bar["low"]),
-                    close=Decimal(bar["close"]),
-                )
-                for bar in recentes
-            )
+            barres = tuple(_ohlc_bar(bar) for bar in recentes)
             valeur = atr(barres, ATR_LOOKBACK)
         except (CalculationInputError, ValueError) as erreur:
             indicateurs["atr"] = {
@@ -572,8 +881,8 @@ def _build_indicators(
             enregistrement = make_calculation_record(
                 calculation_id="market.atr",
                 calculation_type="market_statistic",
-                code_sha=f"module:vertex_core.calculations.market@{ENGINE_VERSION}",
-                method="Wilder true range, arithmetic mean over the lookback",
+                code_sha=_MARKET_CODE_SHA,
+                method=_METHOD_ATR,
                 inputs={
                     "bars": [bar["trading_day"] for bar in recentes],
                     "lookback": ATR_LOOKBACK,
@@ -590,6 +899,9 @@ def _build_indicators(
                 "value": _num_string(valeur),
                 "calculation": _calculation_meta(enregistrement),
             }
+    indicateurs["atr"][INDICATOR_SERIES_KEY] = _serie_atr(
+        valid_bars, now=now, evenements=evenements
+    )
 
     return indicateurs
 
@@ -634,26 +946,55 @@ def _relative_strength_block(
     de longueurs differentes et ne tronque jamais. Deux places n'ont pas les
     memes jours feries, on intersecte donc les jours de bourse AVANT d'appeler,
     et on publie le nombre de seances communes retenues.
-    """
-    from vertex_core.calculations.market import (
-        CalculationInputError,
-        relative_strength,
-    )
 
+    Le bloc porte aussi sa serie glissante (LOT S3) sous
+    `INDICATOR_SERIES_KEY` : une valeur par seance COMMUNE apres l'horizon,
+    sur le calendrier intersecte. Une absence nommee du point (pas d'indice
+    declare, indice non observe, instrument compare a lui-meme, trop peu de
+    seances communes) est CELLE de la serie : meme statut, aucun point.
+
+    Porte d'ordre strict AVANT l'alignement : `{trading_day: close}`
+    dedoublonnerait en silence une seance servie deux fois (derniere barre
+    gagne, dans l'ordre de la charge). L'intersection consomme TOUTES les
+    barres des deux cotes, donc une seance en defaut d'un cote ou de l'autre
+    refuse le bloc ENTIER — point et serie — avec `unordered_bars`, la
+    seance et le ticker en defaut. Choisir une barre serait inventer.
+    """
     if benchmark is None:
-        return {"status": REASON_NO_BENCHMARK, "detail": "aucun indice de référence déclaré"}
+        return _avec_serie_absente(
+            {"status": REASON_NO_BENCHMARK, "detail": "aucun indice de référence déclaré"}
+        )
     if benchmark == instrument:
-        return {
-            "status": REASON_IS_BENCHMARK,
-            "benchmark": benchmark,
-            "detail": "un instrument ne se compare pas à lui-même",
-        }
+        return _avec_serie_absente(
+            {
+                "status": REASON_IS_BENCHMARK,
+                "benchmark": benchmark,
+                "detail": "un instrument ne se compare pas à lui-même",
+            }
+        )
     if not benchmark_bars:
-        return {
-            "status": REASON_BENCHMARK_ABSENT,
-            "benchmark": benchmark,
-            "detail": f"aucune barre observée pour {benchmark}",
-        }
+        return _avec_serie_absente(
+            {
+                "status": REASON_BENCHMARK_ABSENT,
+                "benchmark": benchmark,
+                "detail": f"aucune barre observée pour {benchmark}",
+            }
+        )
+
+    # Porte d'ordre strict des deux cotes, AVANT que `{trading_day: close}`
+    # ne puisse dedoublonner quoi que ce soit.
+    for ticker, barres_du_cote in ((instrument, valid_bars), (benchmark, benchmark_bars)):
+        refus_ordre = _refus_ordre_strict(barres_du_cote)
+        if refus_ordre is not None:
+            return _avec_serie_absente(
+                {
+                    "status": "REFUSED",
+                    "benchmark": benchmark,
+                    "horizon": RELATIVE_STRENGTH_HORIZON,
+                    "ticker": ticker,
+                    **refus_ordre,
+                }
+            )
 
     # Intersection des jours de bourse : alignement, jamais troncature.
     par_jour_actif = {bar["trading_day"]: Decimal(bar["close"]) for bar in valid_bars}
@@ -662,52 +1003,129 @@ def _relative_strength_block(
     }
     jours = sorted(set(par_jour_actif) & set(par_jour_indice))
     if len(jours) < RELATIVE_STRENGTH_HORIZON + 1:
-        return {
-            "status": REASON_INSUFFICIENT_SAMPLE,
-            "benchmark": benchmark,
-            "horizon": RELATIVE_STRENGTH_HORIZON,
-            "common_sessions": len(jours),
-            "detail": (
-                f"{RELATIVE_STRENGTH_HORIZON + 1} séances communes requises ; "
-                f"{len(jours)} partagées avec {benchmark}"
-            ),
-        }
+        return _avec_serie_absente(
+            {
+                "status": REASON_INSUFFICIENT_SAMPLE,
+                "benchmark": benchmark,
+                "horizon": RELATIVE_STRENGTH_HORIZON,
+                "common_sessions": len(jours),
+                "detail": (
+                    f"{RELATIVE_STRENGTH_HORIZON + 1} séances communes requises ; "
+                    f"{len(jours)} partagées avec {benchmark}"
+                ),
+            }
+        )
 
+    # Rendements simples sur TOUT le calendrier commun, par une seule
+    # expression : la valeur ponctuelle (les `RELATIVE_STRENGTH_HORIZON`
+    # derniers) et la serie lisent les memes nombres.
+    rendements_actif = _rendements_simples([par_jour_actif[jour] for jour in jours])
+    rendements_indice = _rendements_simples([par_jour_indice[jour] for jour in jours])
     fenetre = jours[-(RELATIVE_STRENGTH_HORIZON + 1) :]
-    rendements_actif = [
-        float(par_jour_actif[fenetre[i]] / par_jour_actif[fenetre[i - 1]] - 1)
-        for i in range(1, len(fenetre))
-    ]
-    rendements_indice = [
-        float(par_jour_indice[fenetre[i]] / par_jour_indice[fenetre[i - 1]] - 1)
-        for i in range(1, len(fenetre))
-    ]
 
     debut = now
+    bloc: dict[str, Any]
     try:
         valeur = relative_strength(
-            rendements_actif, rendements_indice, RELATIVE_STRENGTH_HORIZON
+            rendements_actif[-RELATIVE_STRENGTH_HORIZON:],
+            rendements_indice[-RELATIVE_STRENGTH_HORIZON:],
+            RELATIVE_STRENGTH_HORIZON,
         )
     except CalculationInputError as erreur:
-        return {
+        bloc = {
             "status": "REFUSED",
             "benchmark": benchmark,
             "horizon": RELATIVE_STRENGTH_HORIZON,
             "reason": erreur.reason,
             "detail": erreur.detail,
         }
+    else:
+        enregistrement = make_calculation_record(
+            calculation_id="market.relative_strength",
+            calculation_type="market_statistic",
+            code_sha=_MARKET_CODE_SHA,
+            method=_METHOD_RELATIVE_STRENGTH,
+            inputs={
+                "sessions": fenetre,
+                "benchmark": benchmark,
+                "horizon": RELATIVE_STRENGTH_HORIZON,
+            },
+            result={"value": _num_string(valeur)},
+            started_at=debut,
+            completed_at=now,
+        )
+        bloc = {
+            "status": "OK",
+            "benchmark": benchmark,
+            "horizon": RELATIVE_STRENGTH_HORIZON,
+            "common_sessions": len(jours),
+            "unit": "ratio",
+            "value": _num_string(valeur),
+            "calculation": _calculation_meta(enregistrement),
+        }
+    bloc[INDICATOR_SERIES_KEY] = _serie_force_relative(
+        jours, rendements_actif, rendements_indice, benchmark=benchmark, now=now
+    )
+    return bloc
 
+
+def _avec_serie_absente(bloc: dict[str, Any]) -> dict[str, Any]:
+    """Une absence nommee — ou un refus — du point est celle de sa serie :
+    meme statut, meme raison, meme compte — et aucun point. Publier
+    `points: []` dirait « zero seance » la ou la verite est « rien n'a ete
+    calcule »."""
+    return {**bloc, INDICATOR_SERIES_KEY: dict(bloc)}
+
+
+def _serie_force_relative(
+    jours: Sequence[str],
+    rendements_actif: Sequence[float],
+    rendements_indice: Sequence[float],
+    *,
+    benchmark: str,
+    now: datetime,
+) -> dict[str, Any]:
+    """Serie glissante de `market.relative_strength` sur le calendrier commun.
+
+    Une valeur par seance commune disposant de `RELATIVE_STRENGTH_HORIZON`
+    rendements alignes avant elle : la serie commence a la seance commune
+    d'indice `RELATIVE_STRENGTH_HORIZON`. Les dates sont celles du calendrier
+    INTERSECTE, jamais celles d'une seule place. Le dernier point est la
+    valeur ponctuelle ; une fenetre refusee par le moteur refuse la serie
+    entiere avec sa raison et la seance concernee.
+    """
+    debut = now
+    points: list[dict[str, str]] = []
+    for fin in range(RELATIVE_STRENGTH_HORIZON, len(jours)):
+        tranche = slice(fin - RELATIVE_STRENGTH_HORIZON, fin)
+        try:
+            valeur = relative_strength(
+                rendements_actif[tranche], rendements_indice[tranche], RELATIVE_STRENGTH_HORIZON
+            )
+        except CalculationInputError as erreur:
+            return {
+                "status": "REFUSED",
+                "benchmark": benchmark,
+                "horizon": RELATIVE_STRENGTH_HORIZON,
+                "common_sessions": len(jours),
+                "reason": erreur.reason,
+                "detail": erreur.detail,
+                "trading_day": jours[fin],
+            }
+        points.append({"trading_day": jours[fin], "value": _num_string(valeur)})
     enregistrement = make_calculation_record(
         calculation_id="market.relative_strength",
         calculation_type="market_statistic",
-        code_sha=f"module:vertex_core.calculations.market@{ENGINE_VERSION}",
-        method="compounded asset return divided by compounded benchmark return",
+        code_sha=_MARKET_CODE_SHA,
+        method=_METHOD_RELATIVE_STRENGTH,
         inputs={
-            "sessions": fenetre,
+            "sessions": list(jours),
             "benchmark": benchmark,
             "horizon": RELATIVE_STRENGTH_HORIZON,
+            "asset_returns": [_num_string(r) for r in rendements_actif],
+            "benchmark_returns": [_num_string(r) for r in rendements_indice],
         },
-        result={"value": _num_string(valeur)},
+        result={"values": [point["value"] for point in points]},
         started_at=debut,
         completed_at=now,
     )
@@ -717,7 +1135,10 @@ def _relative_strength_block(
         "horizon": RELATIVE_STRENGTH_HORIZON,
         "common_sessions": len(jours),
         "unit": "ratio",
-        "value": _num_string(valeur),
+        "sessions": len(points),
+        "first_trading_day": points[0]["trading_day"],
+        "last_trading_day": points[-1]["trading_day"],
+        "points": points,
         "calculation": _calculation_meta(enregistrement),
     }
 

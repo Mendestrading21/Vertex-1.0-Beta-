@@ -35,6 +35,18 @@
   --vx-option-soft: rgba(168, 138, 232, 0.12);
   --vx-macro: #6bc5bc;
   --vx-macro-soft: rgba(107, 197, 188, 0.12);
+  --vx-silver-gradient-start: rgba(216, 211, 199, 0.22);
+  --vx-silver-gradient-end: rgba(216, 211, 199, 0);
+  --vx-positive-gradient-start: rgba(80, 201, 146, 0.22);
+  --vx-positive-gradient-end: rgba(80, 201, 146, 0);
+  --vx-negative-gradient-start: rgba(239, 111, 108, 0.22);
+  --vx-negative-gradient-end: rgba(239, 111, 108, 0);
+  --vx-warning-gradient-start: rgba(240, 195, 106, 0.22);
+  --vx-warning-gradient-end: rgba(240, 195, 106, 0);
+  --vx-option-gradient-start: rgba(168, 138, 232, 0.22);
+  --vx-option-gradient-end: rgba(168, 138, 232, 0);
+  --vx-macro-gradient-start: rgba(107, 197, 188, 0.22);
+  --vx-macro-gradient-end: rgba(107, 197, 188, 0);
   --vx-overlay: rgba(3, 3, 2, 0.86);
   --vx-scrim: rgba(3, 3, 2, 0.56);
 
@@ -67,6 +79,7 @@
   --vx-motion-140: 140ms;
   --vx-motion-180: 180ms;
   --vx-motion-220: 220ms;
+  --vx-motion-600: 600ms;
   --vx-ease-standard: cubic-bezier(0.2, 0, 0, 1);
   --vx-ease-decelerate: cubic-bezier(0, 0, 0.2, 1);
 
@@ -90,6 +103,29 @@
   --vx-font-size-metric: 34px;
 }
 
+/* Teinte sémantique secondaire par page (ADR-017) : une famille existante,
+   déclarée par le catalogue de la page ; aucune valeur par défaut. */
+[data-page-accent="macro"] {
+  --vx-page-accent: var(--vx-macro);
+  --vx-page-accent-soft: var(--vx-macro-soft);
+  --vx-page-accent-gradient-start: var(--vx-macro-gradient-start);
+  --vx-page-accent-gradient-end: var(--vx-macro-gradient-end);
+}
+
+[data-page-accent="option"] {
+  --vx-page-accent: var(--vx-option);
+  --vx-page-accent-soft: var(--vx-option-soft);
+  --vx-page-accent-gradient-start: var(--vx-option-gradient-start);
+  --vx-page-accent-gradient-end: var(--vx-option-gradient-end);
+}
+
+[data-page-accent="warning"] {
+  --vx-page-accent: var(--vx-warning);
+  --vx-page-accent-soft: var(--vx-warning-soft);
+  --vx-page-accent-gradient-start: var(--vx-warning-gradient-start);
+  --vx-page-accent-gradient-end: var(--vx-warning-gradient-end);
+}
+
 /* Reduced motion : toutes les durées tombent à 0 ms. */
 @media (prefers-reduced-motion: reduce) {
   :root {
@@ -97,5 +133,6 @@
     --vx-motion-140: 0ms;
     --vx-motion-180: 0ms;
     --vx-motion-220: 0ms;
+    --vx-motion-600: 0ms;
   }
 }

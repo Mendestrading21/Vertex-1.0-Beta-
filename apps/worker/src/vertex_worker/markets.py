@@ -75,6 +75,7 @@ __all__ = [
     "MarketsOverviewHandler",
     "QuoteRecord",
     "build_markets_overview_content",
+    "daily_quote_payload_filter",
     "is_daily_quote_schema",
     "load_daily_quote_records",
     "register_markets_handler",
@@ -196,6 +197,28 @@ synthetic 24-ticker universe. Every snapshot it produces is population
 # --------------------------------------------------------------------------
 
 
+def daily_quote_payload_filter() -> ColumnElement[bool]:
+    """Predicat SQL : la charge utile a la FORME d'une cotation quotidienne.
+
+    Le prefixe de schema ne suffit pas. Mesure le 2026-09-03 sur la base
+    reelle : 3197 lignes `ibkr.daily-quote/1` SANS `ticker` ni `trading_day`
+    dans la fenetre de 72 h — des cotations INSTANTANEES (carnet haut) que
+    l'adaptateur etiquetait du schema quotidien — contre 323 vraies clotures.
+    Chargees par `as_of` decroissant sous une borne de 500, elles occupaient
+    495 places ; la page Marches servait 0 ticker couvert sur 161. Ces lignes
+    restent en base (append-only) : elles doivent etre exclues AVANT la borne,
+    pas chargees puis rejetees une a une.
+
+    Le filtre ne porte que sur les deux champs qui distinguent une cotation
+    quotidienne d'une instantanee. Une cotation quotidienne INCOMPLETE —
+    cloture ou base d'ajustement absente — le passe toujours et reste refusee,
+    visiblement, par `_parse_quote` : rien n'est assoupli, rien ne disparait.
+    """
+    a_un_ticker: ColumnElement[bool] = Observation.payload.has_key("ticker")
+    a_un_jour: ColumnElement[bool] = Observation.payload.has_key("trading_day")
+    return a_un_ticker & a_un_jour
+
+
 def load_daily_quote_records(
     session: Session, *, now: datetime, lookback: timedelta, limit: int
 ) -> list[QuoteRecord]:
@@ -203,7 +226,8 @@ def load_daily_quote_records(
 
     Window is ``[now - lookback, now]`` on ``as_of`` (future rows excluded),
     most recent first, capped at ``limit`` rows, restricted to the declared
-    daily-quote schema families.
+    daily-quote schema families AND to payloads shaped as daily quotes
+    (:func:`daily_quote_payload_filter`) — the cap is applied after both.
     """
     filters = [
         Observation.schema_version.like(f"{prefix}%")
@@ -219,6 +243,7 @@ def load_daily_quote_records(
                 Observation.as_of <= now,
                 Observation.as_of >= now - lookback,
                 schema_filter,
+                daily_quote_payload_filter(),
             )
             .order_by(Observation.as_of.desc(), Observation.id.desc())
             .limit(limit)
@@ -508,6 +533,14 @@ def build_markets_overview_content(
         )
 
     # -- breadth (single authority; INVALID below the coverage gate) --------
+    # Les trois comptes (hausses, baisses, inchangés) partitionnent EXACTEMENT
+    # `covered_count` : chaque instrument couvert a incrémenté un seul d'entre
+    # eux ci-dessus, un ticker écarté n'en incrémente aucun. Ils sont publiés
+    # dans les DEUX états du bloc — un bloc INVALID refuse le RATIO, pas les
+    # faits comptés. Seul `above_count` est une ENTRÉE du calcul
+    # `market.breadth` (registre) ; `down_count` et `flat_count` sont des
+    # comptes descriptifs que la conclusion française énonçait déjà sans les
+    # publier en champs — l'interface devait les déduire, ou les taire.
     covered_count = len(covered)
     universe_size = len(universe_set)
     threshold_pct = _pct_string(config.coverage_threshold * 100, _PCT_ONE_DP)
@@ -530,6 +563,8 @@ def build_markets_overview_content(
             "value": None,
             "value_pct": None,
             "above_count": up,
+            "down_count": down,
+            "flat_count": flat,
             "covered_count": covered_count,
             "universe_size": universe_size,
             "coverage_pct": coverage_pct,
@@ -561,6 +596,8 @@ def build_markets_overview_content(
             "value": format(breadth_decimal, "f"),
             "value_pct": breadth_pct,
             "above_count": up,
+            "down_count": down,
+            "flat_count": flat,
             "covered_count": covered_count,
             "universe_size": universe_size,
             "coverage_pct": coverage_pct,

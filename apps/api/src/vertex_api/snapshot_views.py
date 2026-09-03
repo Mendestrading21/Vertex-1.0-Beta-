@@ -1728,17 +1728,38 @@ def _markets_breadth(raw: Any) -> MarketsBreadth:
             "breadth.status: 'OK' or 'INVALID' required", field="breadth.status"
         )
     calculation = entry.get("calculation")
+    above_count = _require_non_negative_int(
+        entry.get("above_count"), field="breadth.above_count"
+    )
+    down_count = _require_non_negative_int(
+        entry.get("down_count"), field="breadth.down_count"
+    )
+    flat_count = _require_non_negative_int(
+        entry.get("flat_count"), field="breadth.flat_count"
+    )
+    covered_count = _require_non_negative_int(
+        entry.get("covered_count"), field="breadth.covered_count"
+    )
+    # Les trois comptes PARTITIONNENT les couverts (`vertex_worker.markets`
+    # incrémente exactement l'un d'eux par instrument couvert). Un bloc où ils
+    # ne s'additionnent pas se contredit : il n'est pas relayé. Ce n'est pas un
+    # recalcul — aucun compte n'est dérivé des autres, un compte absent n'est
+    # jamais lu comme zéro — mais le refus d'un contenu incohérent, au même
+    # titre que la borne [0, 1] tenue sur `value` juste au-dessus.
+    if above_count + down_count + flat_count != covered_count:
+        raise SnapshotContentError(
+            "breadth: above_count + down_count + flat_count must equal covered_count",
+            field="breadth.covered_count",
+        )
     return MarketsBreadth(
         status=status,
         reason=_optional_str(entry.get("reason"), field="breadth.reason"),
         value=_bounded_ratio(entry.get("value"), field="breadth.value"),
         value_pct=_optional_str(entry.get("value_pct"), field="breadth.value_pct"),
-        above_count=_require_non_negative_int(
-            entry.get("above_count"), field="breadth.above_count"
-        ),
-        covered_count=_require_non_negative_int(
-            entry.get("covered_count"), field="breadth.covered_count"
-        ),
+        above_count=above_count,
+        down_count=down_count,
+        flat_count=flat_count,
+        covered_count=covered_count,
         universe_size=_require_positive_int(
             entry.get("universe_size"), field="breadth.universe_size"
         ),

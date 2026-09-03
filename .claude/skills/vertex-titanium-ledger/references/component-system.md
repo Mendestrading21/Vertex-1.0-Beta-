@@ -69,6 +69,12 @@ composant, vérifier ses consommateurs, ses données, ses états et ses tests.
 | Manual Ledger | lots et mouvements manuels | identité, quantité, prix, devise, date, provenance |
 | Thesis Queue | suivi des thèses | état, raison, échéance, historique, action autorisée |
 | Source Matrix | santé et droits | fournisseur, méthode, fraîcheur, entitlement, fallback |
+| Ring Shares (ADR-017) | parts servies à chiffre central | parts `*_pct` en chaînes, chiffre central servi, légende chiffrée, table équivalente |
+| Arc Gauge (ADR-017) | valeur bornée servie | valeur, bornes, seuils, position servie, méthode/version, `as_of`, raison si non calculable |
+| Spark Figure (ADR-017) | mini-série servie en aire | points en chaînes, période nommée, `figcaption`, table |
+| Day Bars (ADR-017) | comptes ou parts par jour sur rail | valeur servie ou `null`, nom de bande servi, unité, table |
+| Cell Grid (ADR-017) | matrice de bandes nommées | nom de bande servi, texte servi, légende, `unknown` visible |
+| Activity Feed (ADR-017) | liste groupée par jour | horodatages ISO servis, montants en chaînes signées, chips d'état |
 
 ## Matrice d'états obligatoire
 
