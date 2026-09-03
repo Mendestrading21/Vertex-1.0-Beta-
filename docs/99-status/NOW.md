@@ -1485,3 +1485,79 @@ Dernier lot de la vague A (« Continue tout »). Branche
 
 Prochaine commande recommandée : fusion de la chaîne #29 → #30 → #31, puis
 `STATUT`.
+
+## LOT C0 — canon Titanium Ledger v2 (2026-09-03)
+
+Branche `lot/w2-c0-canon-v2-20260903`, base `main@4fc901a`, worktree
+`/home/elio/vertex-c0`. Décision de l'utilisateur du 2026-09-03 (« pour chaque
+widget trouve toujours le meilleur, crée tes propres visuels au max, que ça
+affiche au max ») consignée en
+`docs/09-adr/017-titanium-ledger-v2-formes-widgets.md`.
+
+### Ce qui change
+
+- ADR-017 : formes admises **uniquement sur des données servies** — anneaux à
+  chiffre central, quatuor d'anneaux, jauges en arc graduées (position
+  servie), aires à dégradé sous une série, sparklines en aire, rails derrière
+  les barres, matrices de bandes, listes groupées par jour, teinte sémantique
+  secondaire par page (`macro`, `option`, `positive`, `warning`). Interdits
+  maintenus écrits (halo, noir pur, carte floue, couleur seule, compte à
+  rebours ou horloge client, radar sans dimension servie, dégradé de fond
+  plein, pulsation, valeur abrégée, toute forme sur une valeur non servie).
+  Empreinte de la capture canonique inchangée.
+- Documents mis en cohérence, chacun citant ADR-017 : DESIGN_SYSTEM,
+  CHART_STANDARD, WIDGET_LIBRARY, TOKENS, TITANIUM_LEDGER_VISUAL_SYSTEM,
+  VERTEX_ONE_VISUAL_DIRECTION, DASHBOARD_COMPOSITION,
+  MOTION_AND_MICROINTERACTIONS ; références du skill canonical-visual,
+  visual-identity, component-system, charts ; `manifests/widget-catalog.yaml`
+  (arc gradué admis, `v2_forms`, interdits).
+- Tokens (`tokens.ts`, `tokens.css` régénéré) : `motionDuration[600]`, douze
+  `<famille>-gradient-start/-end` (fin à alpha 0), `pageAccent` et blocs
+  `[data-page-accent]` émis par `generate-css.ts` sans valeur par défaut.
+  Script d'audit : tokens de dégradé ajoutés aux tokens requis.
+- Tests : `tokens-css.test.ts` étendu (rien retiré), `canon-v2-docs.test.ts`
+  nouveau (formulations levées absentes, invariants non levés présents,
+  citation d'ADR-017 par chaque document, catalogue cohérent).
+- Plan directeur : `docs/05-design/WIDGETS_V2_PLAN.md` (lots, ordre, formes
+  par famille de donnée, socle L0, plan des douze pages).
+
+### Mesuré sur cette machine (codes relus)
+
+- `pnpm tokens:css` puis `git diff --exit-code -- src/design/tokens.css`
+  après le commit des tokens : aucune dérive.
+- `pnpm lint` : 0 erreur (1 info préexistante, `OptionsModules.tsx:204`,
+  fragment redondant, hors lot).
+- `pnpm typecheck` : 0 erreur.
+- `pnpm exec vitest run src/design` : 7 fichiers, 71 tests, 0 échec.
+- `pnpm exec vitest run --no-file-parallelism` : **68 fichiers, 705 tests,
+  0 échec** (88,6 s). Avec le parallélisme par défaut (28 workers) sur ce
+  poste chargé (load average 18,7 ; pile live et autres lots en marche),
+  29 puis 49 échecs par dépassement de délai jsdom ; le `main` intact
+  (4fc901a) en produit 9 dans les mêmes fichiers → contention
+  d'environnement, pas le lot.
+- `pnpm exec vite build --manifest` : ✓ built in 550ms, manifeste présent.
+- `audit_titanium_ledger.py --strict-target` : `PASS`, 0 erreur, 0 écart,
+  empreinte `eb2eb0fc…c7ace`, aucun token requis manquant.
+- `tools/verify_blueprint.py` : ok (fences Markdown, YAML, lots).
+- `tools/run_checks.sh` (venv du worktree créé par
+  `uv sync --locked --all-extras --python 3.13`, sans `env.live`, aucun
+  `VERTEX_*` exporté) : toutes les portes vertes (rôle, blueprint, frontière, registre,
+  secrets, policy, traçabilité — entrée `NOT_YET_PROVEN` connue, hors lot —,
+  notices, uv.lock, compilation, Worker, Biome, performance, ruff, mypy) ;
+  pytest :  ; « TOUT VERT », code de sortie 0.
+
+### Transmis, non corrigé ici
+
+- `apps/web/src/components/CensusBars.tsx:1-7` : l'en-tête cite encore
+  « pas d'anneau » de `charts.md` ; à réécrire au lot L0 avec `RingShares`.
+- `docs/05-design/DASHBOARD_COMPOSITION.md:78` (« gradient argent→violet »),
+  kicker 10 px vs plancher 13 px, « 3–5 modules » vs 11–19 composés : tensions
+  du canon non tranchées par ADR-017.
+- Teintes secondaires proposées par page (`WIDGETS_V2_PLAN.md` §2) : à
+  confirmer dans chaque catalogue au lot P.
+- Aucune capture d'écran : ce lot ne touche aucun rendu de page (tokens et
+  blocs `[data-page-accent]` sans consommateur avant L0).
+
+Prochaine commande recommandée : revue adverse de la branche
+`lot/w2-c0-canon-v2-20260903`, puis lot L0 (`lot/w2-l0-socle-20260903`,
+empilé sur C0).
