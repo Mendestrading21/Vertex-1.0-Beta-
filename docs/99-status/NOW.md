@@ -1596,3 +1596,71 @@ Prochaine commande recommandée : pousser `lot/srv-s0-attention-fenetre-20260903
 et ouvrir la PR (orchestrateur), puis lot de migration `0008` pour l'index
 `(instrument_ref, as_of)` avec mesure `EXPLAIN` avant/après sur une copie
 de `vertex_live`.
+
+## SESSION 2026-09-03 — LOT SRV-S0-F : le rail de preuves affamé par sa propre déclaration
+
+Même branche, même worktree. Correction d'une RÉGRESSION introduite par S0-B
+et détectée par la CI GitHub (exécution 33750177958, tâche « e2e — Chromium,
+3 viewports desktop, axe », trois échecs identiques sur les trois viewports) :
+
+    ✘ e2e/ai-inspector.spec.ts:89 › extraits externes
+    > 122 |     expect(answer.external_excerpts.length).toBeGreaterThanOrEqual(1);
+    Expected: >= 1
+    Received:    0
+
+### Cause exacte
+
+S0-B a cadré le rail de preuves sur `CONTENT_SCHEMA_PREFIXES` — les trois
+appels du chargeur qui l'alimentent portent aujourd'hui la déclaration
+corrigée : `apps/worker/src/vertex_worker/analysis.py:1261`,
+`apps/worker/src/vertex_worker/opportunities.py:940` (fenêtres par
+instrument) et `:956` (fenêtre globale de repli). Or, dans la
+population de démonstration, les dépêches synthétiques parlent des tickers
+`SYN1`..`SYN9` (`vertex_core/synthetic/generator.py:317`) et JAMAIS d'un
+ticker de l'univers : les seules observations titrées rattachées à
+`SYN-TECH-01` sont ses événements de calendrier
+(`synthetic-calendar-event/1.0`, `vertex_core/synthetic/events.py:156`,
+`instrument_id = ticker`). `_build_evidence`
+(`apps/worker/src/vertex_worker/analysis.py:726`) ne retenant que les
+observations titrées de l'instrument, le rail est passé de plusieurs grappes
+à `clusters: []`, `considered: 0`. Les extraits externes de l'explication IA
+n'ont qu'une source — `evidence.clusters[].title`, lu par
+`apps/api/src/vertex_api/ai_explain.py:1658` — donc le bloc « Contenu externe
+non vérifié » est devenu vide, sans erreur ni journal.
+
+### Ce qui est livré
+
+- `EVIDENCE_SCHEMA_PREFIXES` (`handlers.py:178`) : la déclaration du RAIL —
+  `CONTENT_SCHEMA_PREFIXES` + `CALENDAR_EVENT_SCHEMA_PREFIXES`. Explicite,
+  deny by default, jamais une liste vide ni un retour à « toutes les
+  familles » : les familles de marché (sans titre) restent dehors.
+- Les DEUX consommateurs du rail la déclarent : `AnalysisHandler`
+  (page Analyse) et `OpportunitiesHandler` (deux appels : fenêtres par
+  instrument et fenêtre globale de repli).
+- Les DEUX consommateurs de la file (attention, revue) sont inchangés :
+  ils lisent toujours `content_schema_prefixes`, sans les événements de
+  calendrier.
+
+### Tests (rouge d'abord)
+
+- `apps/worker/tests_integration/test_evidence_rail_families.py` (nouveau,
+  rouge avant) : semis SYNTHETIC réel (barres + événements) → VRAI worker
+  drainé → `analysis/SYN-TECH-01` porte au moins une grappe titrée ;
+  `opportunities/global` cite les mêmes ; la file d'attention reste VIDE
+  sur la même base (témoin du partage).
+- `apps/api/tests_integration/test_ai_explain_e2e.py` (fixture élargie aux
+  événements de calendrier, test ajouté, rouge avant) :
+  `POST /api/v1/ai/explain` rend au moins un extrait externe, chacun
+  rattaché à une grappe réellement publiée, étiqueté `EXTERNAL_UNVERIFIED`
+  et absent des affirmations. C'est l'assertion e2e, au niveau serveur.
+- `apps/worker/tests/test_evidence_rail_declaration.py` (nouveau, garde) :
+  une famille titrée du semis qu'aucun consommateur du rail ne déclare est
+  refusée, ET un préfixe synthétique déclaré que le semis ne produit pas
+  l'est aussi. Rejoué avec la déclaration d'avant le correctif : 3 tests
+  sur 5 échouent — la garde aurait attrapé la régression.
+
+### Non vérifié ici
+
+Les parcours e2e Playwright ne sont pas lancés sur cette machine (ports 8000
+et 4173 servent la pile vivante de l'utilisateur) : c'est la CI GitHub qui
+jugera `e2e/ai-inspector.spec.ts`.

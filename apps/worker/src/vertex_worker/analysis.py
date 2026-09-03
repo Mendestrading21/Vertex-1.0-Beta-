@@ -1215,7 +1215,7 @@ class AnalysisHandler:
         # Local imports avoid a module cycle (handlers imports ingest,
         # ingest imports this module).
         from vertex_worker.handlers import (
-            CONTENT_SCHEMA_PREFIXES,
+            EVIDENCE_SCHEMA_PREFIXES,
             load_recent_observation_records,
             publish_if_changed,
         )
@@ -1245,15 +1245,20 @@ class AnalysisHandler:
             # puis filtrer affamait chaque dossier dès que d'autres
             # instruments étaient collectés après lui. Mesuré le 2026-09-01 :
             # 0 dépêche GOOG dans les 500 plus récentes, alors que 140
-            # existaient en base. Et cadrées sur les familles de CONTENU :
+            # existaient en base. Et cadrées sur les familles TITRÉES :
             # l'instrument porte aussi ses propres cotations instantanées
-            # (une par minute), qui chassaient ses dépêches de la même façon.
+            # (une par minute), qui chassaient ses preuves de la même façon.
+            # Les familles du RAIL, pas celles de la file : un événement de
+            # calendrier est une preuve titrée de CET instrument, alors qu'il
+            # n'est pas une dépêche (régression CI 33750177958 — le rail cadré
+            # sur les seules dépêches rendait 0 grappe sur la population de
+            # démonstration, dont les dépêches parlent de SYN1..SYN9).
             evidence_records = load_recent_observation_records(
                 session,
                 now=now,
                 lookback=self._config.lookback,
                 limit=self._config.max_observations,
-                schema_prefixes=CONTENT_SCHEMA_PREFIXES,
+                schema_prefixes=EVIDENCE_SCHEMA_PREFIXES,
                 instrument_ref=instrument_ref_de(bar_records, instrument),
             )
             content = build_analysis_content(

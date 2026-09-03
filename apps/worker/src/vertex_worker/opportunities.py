@@ -896,7 +896,7 @@ class OpportunitiesHandler:
             SNAPSHOT_KIND_CALENDAR,
         )
         from vertex_worker.handlers import (
-            CONTENT_SCHEMA_PREFIXES,
+            EVIDENCE_SCHEMA_PREFIXES,
             load_recent_observation_records,
             load_recent_observation_records_by_instrument,
             publish_if_changed,
@@ -921,6 +921,9 @@ class OpportunitiesHandler:
         # candidats (revue S0, réserve 3) : une requête par instrument
         # parcourait chacune toute la plage `as_of` du lookback, faute
         # d'index sur `instrument_ref` — ≈161 lectures en profil réel.
+        # Familles : celles du RAIL (`EVIDENCE_SCHEMA_PREFIXES`), identiques à
+        # celles de la page Analyse — c'est le MÊME dossier qui est recalculé
+        # ici, une famille manquante l'affame exactement de la même façon.
         ref_par_instrument = {
             instrument: instrument_ref_de(bar_records, instrument)
             for instrument in self._config.instruments
@@ -934,7 +937,7 @@ class OpportunitiesHandler:
                 now=now,
                 lookback=self._config.lookback,
                 limit=self._config.max_observations,
-                schema_prefixes=CONTENT_SCHEMA_PREFIXES,
+                schema_prefixes=EVIDENCE_SCHEMA_PREFIXES,
                 instrument_refs=references,
             )
             if references
@@ -950,7 +953,7 @@ class OpportunitiesHandler:
                         now=now,
                         lookback=self._config.lookback,
                         limit=self._config.max_observations,
-                        schema_prefixes=CONTENT_SCHEMA_PREFIXES,
+                        schema_prefixes=EVIDENCE_SCHEMA_PREFIXES,
                     )
                 evidence_by_instrument[instrument] = global_evidence
                 continue

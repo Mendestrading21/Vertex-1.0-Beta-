@@ -78,10 +78,16 @@ en profil réel). Le contrat de cette fenêtre, mesuré et testé
 `test_opportunities_real_chain.py`, `test_observation_window_families.py`) :
 
 1. **Le consommateur déclare les familles de schéma qu'il sait lire** —
+   la file d'attention et la file de revue déclarent
    `FusionConfig.content_schema_prefixes`, dont le défaut est
    `vertex_worker.handlers.CONTENT_SCHEMA_PREFIXES` (`synthetic-news/`,
-   `ibkr.news-headline/`). Une déclaration vide ou mal formée est refusée à
-   la construction ; rien n'est deviné (deny by default, même patron que
+   `ibkr.news-headline/`) ; le **rail de preuves** (Analyse, Opportunités)
+   déclare `vertex_worker.handlers.EVIDENCE_SCHEMA_PREFIXES` — les mêmes
+   dépêches **plus** les familles d'événements de calendrier
+   (`CALENDAR_EVENT_SCHEMA_PREFIXES`), qui sont des preuves titrées de
+   l'instrument sans être des dépêches. Deux consommateurs, deux
+   déclarations. Une déclaration vide ou mal formée est refusée à la
+   construction ; rien n'est deviné (deny by default, même patron que
    `DAILY_QUOTE_SCHEMA_PREFIXES` pour Marchés et `DAILY_BARS_SCHEMA_PREFIXES`
    pour Analyse).
 2. **Le chargeur applique ces familles AVANT la borne** —
@@ -110,6 +116,18 @@ en profil réel). Le contrat de cette fenêtre, mesuré et testé
 - 2026-09-01 : 1 376 dépêches sur 28 instruments — la fenêtre globale de
   500 ne contenait plus aucune dépêche de GOOG ; le rail de preuves
   affichait « aucune preuve » alors que 140 existaient en base.
+- 2026-09-03, CI GitHub, exécution 33750177958, tâche « e2e — Chromium,
+  3 viewports desktop, axe » : `e2e/ai-inspector.spec.ts:89` attendait au
+  moins un extrait externe pour `analysis/SYN-TECH-01` et en recevait
+  **zéro**, sur les trois viewports. Le rail de preuves avait été cadré sur
+  les seules familles de dépêches ; or les dépêches de la population de
+  démonstration parlent des tickers `SYN1`..`SYN9` et jamais d'un ticker de
+  l'univers. Les seules observations titrées rattachées à `SYN-TECH-01`
+  sont ses événements de calendrier : le rail est passé de plusieurs
+  grappes à zéro, et l'explication IA — dont les extraits externes n'ont
+  qu'une source, `evidence.clusters[].title` — a servi un bloc vide sans
+  qu'aucune erreur ne soit levée. D'où `EVIDENCE_SCHEMA_PREFIXES` : une
+  famille de plus, nommée, jamais un retour à « toutes les familles ».
 - 2026-09-03, 08:40 UTC : `today/attention` servait 0 item sur données
   réelles. Le collecteur temps réel écrit une cotation instantanée par
   instrument et par cycle de 60 s (`ibkr.quote/1`, `ibkr.daily-quote/1`) :
@@ -129,22 +147,34 @@ prochain instrument collecté.
   elles ne produiraient aucun item ; les déclarer rouvrirait la famine.
 - Les événements de calendrier (`synthetic-calendar-event/`, familles de
   `vertex_worker.calendar.CALENDAR_EVENT_SCHEMA_PREFIXES`) : ils portent
-  un titre mais ne sont pas des dépêches. La page Calendrier les sert,
-  Catalyseurs les croise ; la file d'attention et le contexte
-  d'information de la revue ne les lisent pas. Avant le 2026-09-03, un
+  un titre mais ne sont pas des dépêches. **Ils ne sont pas du contenu pour
+  la file d'attention ni pour le contexte d'information de la revue** — la
+  page Calendrier les sert, Catalyseurs les croise. Avant le 2026-09-03, un
   événement synthétique pouvait apparaître dans la file d'attention de
   développement ; ce n'est plus le cas, et c'est déclaré, pas subi
   (test-témoin `test_calendar_events_are_served_by_their_own_page_not_by_the_queue`).
-  Les réintroduire — « proximité temporelle d'un catalyste » est un facteur
-  positif de ce moteur — est une décision de produit : elle passe par la
-  déclaration, jamais par une borne.
+  Les réintroduire dans la FILE — « proximité temporelle d'un catalyste »
+  est un facteur positif de ce moteur — est une décision de produit : elle
+  passe par la déclaration, jamais par une borne.
+  **Le rail de preuves, lui, les lit** : la preuve d'un instrument est ce
+  qui est titré ET rattaché à CET instrument, et un résultat trimestriel
+  daté en est une. C'est la déclaration `EVIDENCE_SCHEMA_PREFIXES` qui le
+  dit, et deux témoins la tiennent dans les deux sens
+  (`apps/worker/tests/test_evidence_rail_declaration.py`,
+  `apps/worker/tests_integration/test_evidence_rail_families.py` : le rail
+  publie la grappe, la file reste vide sur la même base).
 
 ### Ajouter une famille
 
 Une nouvelle source de dépêches (autre schéma que `ibkr.news-headline/`)
 n'atteint l'écran que si sa famille est déclarée dans
-`CONTENT_SCHEMA_PREFIXES` (ou dans la `FusionConfig` du profil) et si ses
-observations portent `title` et `entities`. Le lot brut IBKR
+`CONTENT_SCHEMA_PREFIXES` (ou dans la `FusionConfig` du profil) — et le rail
+de preuves ne la voit que par `EVIDENCE_SCHEMA_PREFIXES` — et si ses
+observations portent `title` et `entities`. Une déclaration se trompe dans
+les deux sens : une famille titrée que le semis produit et qu'aucun
+consommateur ne déclare affame l'écran ; une famille synthétique déclarée
+que le semis ne produit pas fait mentir la couverture publiée. Les deux sont
+refusées par `apps/worker/tests/test_evidence_rail_declaration.py`. Le lot brut IBKR
 (`ibkr.news-headlines/`, une liste par réponse, sans titre) n'en fait pas
 partie : seule la dépêche dérivée (une ligne par titre) est du contenu.
 

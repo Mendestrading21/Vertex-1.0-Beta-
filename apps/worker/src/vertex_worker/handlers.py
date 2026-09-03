@@ -80,6 +80,7 @@ from vertex_persistence.repository.snapshots import (
     get_current_snapshot,
     publish_snapshot,
 )
+from vertex_worker.calendar import CALENDAR_EVENT_SCHEMA_PREFIXES
 from vertex_worker.ingest import TOPIC_OBSERVATION_INGESTED
 from vertex_worker.registry import HandlerRegistry
 
@@ -90,6 +91,7 @@ __all__ = [
     "CONTENT_SCHEMA_PREFIXES",
     "DEFAULT_SOURCE_TIER",
     "DEV_SYNTHETIC_CONFIG",
+    "EVIDENCE_SCHEMA_PREFIXES",
     "MAX_ATTENTION_ITEMS",
     "POPULATION_EMPTY",
     "POPULATION_REAL",
@@ -170,6 +172,44 @@ dans la file d'attention de développement ; ce n'est plus le cas, et c'est
 DÉCLARÉ (test-témoin dans ``tests/test_attention_content.py``), pas subi.
 Les réintroduire est une décision de produit, qui passe par cette liste —
 jamais par une borne plus large. Contrat écrit dans
+``docs/03-domain/ATTENTION_AND_RELEVANCE_ENGINE.md``.
+"""
+
+EVIDENCE_SCHEMA_PREFIXES: tuple[str, ...] = (
+    *CONTENT_SCHEMA_PREFIXES,
+    *CALENDAR_EVENT_SCHEMA_PREFIXES,
+)
+"""Familles ADMISES par le RAIL DE PREUVES des pages Analyse et Opportunités
+(deny by default) : les dépêches de :data:`CONTENT_SCHEMA_PREFIXES` ET les
+événements de calendrier de
+:data:`vertex_worker.calendar.CALENDAR_EVENT_SCHEMA_PREFIXES`.
+
+POURQUOI CETTE DÉCLARATION EXISTE. Régression mesurée (CI GitHub, exécution
+33750177958, tâche « e2e — Chromium, 3 viewports desktop, axe », trois échecs
+identiques sur les trois viewports) : ``e2e/ai-inspector.spec.ts:89``
+attendait au moins un extrait externe et en recevait ZÉRO. Le rail avait été
+cadré sur :data:`CONTENT_SCHEMA_PREFIXES` seul ; or, dans la population de
+démonstration, les dépêches synthétiques parlent des tickers ``SYN1``..``SYN9``
+(``vertex_core.synthetic.generator``) et JAMAIS d'un ticker de l'univers
+(``SYN-TECH-01``). Les seules observations titrées rattachées à ces tickers
+sont les événements de calendrier : le rail est passé de plusieurs grappes à
+zéro, et l'explication IA — dont les extraits externes n'ont qu'une source,
+``evidence.clusters[].title`` — a servi un bloc vide sans qu'aucune erreur ne
+soit levée.
+
+CE N'EST PAS UN RETOUR À « TOUTES LES FAMILLES ». Le rail lit UNE famille de
+plus que la file, nommée ; les familles de marché (cotations, barres, chaînes,
+sondes de capacité) restent dehors : sans titre, elles ne produiraient aucune
+grappe et rouvriraient la famine décrite ci-dessus.
+
+LE PARTAGE RESTE DÉCLARÉ DANS LES DEUX SENS. La file d'attention et le
+contexte d'information de la revue ne lisent PAS les événements de calendrier
+(:data:`CONTENT_SCHEMA_PREFIXES`) : un événement n'est pas une dépêche, la
+page Calendrier le sert et Catalyseurs le croise. Le rail de preuves d'un
+instrument, lui, les cite comme preuve titrée de CET instrument. Deux
+consommateurs, deux déclarations, deux témoins
+(``tests/test_evidence_rail_declaration.py``,
+``tests_integration/test_evidence_rail_families.py``). Contrat écrit dans
 ``docs/03-domain/ATTENTION_AND_RELEVANCE_ENGINE.md``.
 """
 
