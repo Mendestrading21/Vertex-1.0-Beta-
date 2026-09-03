@@ -54,8 +54,9 @@ if TYPE_CHECKING:  # import-time cycle avoidance (ingest -> markets)
     from vertex_worker.options import OptionsConfig
     from vertex_worker.risk import RiskConfig
 
-from sqlalchemy import or_, select
-from sqlalchemy.orm import Session
+from sqlalchemy import func, or_, select
+from sqlalchemy.orm import Session, aliased
+from sqlalchemy.sql import ColumnElement
 
 from vertex_core.contracts import (
     EnvelopeQuality,
@@ -107,6 +108,7 @@ __all__ = [
     "is_synthetic_record",
     "load_capability_records",
     "load_recent_observation_records",
+    "load_recent_observation_records_by_instrument",
     "publish_if_changed",
 ]
 
@@ -194,6 +196,20 @@ def _require_schema_prefixes(prefixes: Sequence[str], *, name: str) -> tuple[str
         if not isinstance(prefix, str) or not prefix.strip():
             raise ValueError(f"{name}: non-empty string prefixes required")
     return tuple(prefixes)
+
+
+def _schema_family_filter(familles: tuple[str, ...]) -> ColumnElement[bool]:
+    """``schema_version`` COMMENCE PAR l'une des familles, caractère pour
+    caractère : ``%``, ``_`` et le caractère d'échappement sont échappés
+    (``autoescape``). Mesuré (revue S0, réserve 4) : ``LIKE 'demo_news/%'``
+    lisait le souligné comme « n'importe quel caractère » et laissait entrer
+    ``demoXnews/1.0`` dans une fenêtre qui ne l'avait pas déclarée."""
+    return or_(
+        *(
+            Observation.schema_version.startswith(prefix, autoescape=True)
+            for prefix in familles
+        )
+    )
 
 
 @dataclass(frozen=True)
@@ -303,7 +319,8 @@ def load_recent_observation_records(
     capped at ``limit`` rows.
 
     ``schema_prefixes`` sont les familles que l'APPELANT sait lire ; elles
-    s'appliquent AVANT la borne, et il n'y a pas de défaut. Mesuré le
+    s'appliquent AVANT la borne, et il n'y a pas de défaut. Chaque préfixe
+    est un LITTÉRAL (``%`` et ``_`` échappés), jamais un motif. Mesuré le
     2026-09-03 : les 500 lignes les plus récentes étaient toutes des
     cotations instantanées (une par instrument et par minute), et la file
     d'attention ne voyait plus aucune dépêche — voir
@@ -325,7 +342,7 @@ def load_recent_observation_records(
     requete = select(Observation).where(
         Observation.as_of <= now,
         Observation.as_of >= now - lookback,
-        or_(*(Observation.schema_version.like(f"{prefix}%") for prefix in familles)),
+        _schema_family_filter(familles),
     )
     if instrument_ref is not None:
         requete = requete.where(Observation.instrument_ref == instrument_ref)
@@ -339,6 +356,82 @@ def load_recent_observation_records(
         .all()
     )
     return [_record_from_row(row) for row in rows]
+
+
+def load_recent_observation_records_by_instrument(
+    session: Session,
+    *,
+    now: datetime,
+    lookback: timedelta,
+    limit: int,
+    schema_prefixes: Sequence[str],
+    instrument_refs: Sequence[str],
+) -> dict[str, list[ObservationRecord]]:
+    """Une fenêtre PAR INSTRUMENT, en UNE lecture de ``observations``.
+
+    Pour chaque référence de ``instrument_refs``, exactement ce que
+    :func:`load_recent_observation_records` rend avec ``instrument_ref=ref`` :
+    mêmes bornes sur ``as_of``, mêmes familles (préfixes littéraux), même
+    ordre ``as_of DESC, id DESC`` et même ``limit`` — PAR instrument, jamais
+    partagé entre eux. Une référence sans observation dans la fenêtre rend
+    une liste vide, comme le chargeur unitaire ; une référence non demandée
+    n'apparaît pas.
+
+    POURQUOI. Mesuré (revue S0, réserve 3) : la page Opportunités exécutait
+    une requête de preuves par instrument à barres, ≈161 en profil réel,
+    chacune parcourant toute la plage ``as_of`` du lookback — le seul index
+    de ``observations`` porte sur ``as_of``. Ici la plage est lue une fois :
+    numérotation par instrument (``row_number() OVER (PARTITION BY
+    instrument_ref ORDER BY as_of DESC, id DESC)``) puis coupe à ``limit``.
+    Ce n'est pas un index : le coût reste proportionnel à la plage, mais il
+    ne croît plus avec la taille de l'univers.
+    """
+    now = _require_aware_utc_now(now)
+    familles = _require_schema_prefixes(schema_prefixes, name="schema_prefixes")
+    if (
+        isinstance(instrument_refs, (str, bytes))
+        or not isinstance(instrument_refs, Sequence)
+        or not instrument_refs
+    ):
+        raise ValueError("instrument_refs: at least one instrument reference required")
+    references: list[str] = []
+    for ref in instrument_refs:
+        if not isinstance(ref, str) or not ref.strip():
+            raise ValueError("instrument_refs: non-empty string references required")
+        if ref not in references:
+            references.append(ref)
+    rang = (
+        func.row_number()
+        .over(
+            partition_by=Observation.instrument_ref,
+            order_by=(Observation.as_of.desc(), Observation.id.desc()),
+        )
+        .label("rang")
+    )
+    interieur = (
+        select(Observation, rang)
+        .where(
+            Observation.as_of <= now,
+            Observation.as_of >= now - lookback,
+            _schema_family_filter(familles),
+            Observation.instrument_ref.in_(references),
+        )
+        .subquery()
+    )
+    fenetre = aliased(Observation, interieur)
+    rows = (
+        session.execute(
+            select(fenetre)
+            .where(interieur.c.rang <= limit)
+            .order_by(fenetre.instrument_ref, fenetre.as_of.desc(), fenetre.id.desc())
+        )
+        .scalars()
+        .all()
+    )
+    par_instrument: dict[str, list[ObservationRecord]] = {ref: [] for ref in references}
+    for row in rows:
+        par_instrument[str(row.instrument_ref)].append(_record_from_row(row))
+    return par_instrument
 
 
 def load_capability_records(session: Session) -> list[ObservationRecord]:

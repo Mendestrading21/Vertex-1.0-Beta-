@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import random
 from datetime import UTC, datetime, timedelta
-from typing import cast
+from typing import Any, cast
 
 import pytest
 
@@ -26,6 +26,7 @@ from vertex_worker.handlers import (
     ObservationRecord,
     build_attention_content,
     is_synthetic_record,
+    load_recent_observation_records_by_instrument,
 )
 
 NOW = datetime(2026, 8, 25, 12, 0, 0, tzinfo=UTC)
@@ -361,3 +362,32 @@ class TestDeclaredContentFamilies:
         )
         explicit = build_attention_content([demo_record(1)], now=NOW, config=declared)
         assert explicit["coverage"]["content_schema_prefixes"] == ["demo-news/"]
+
+
+class TestPerInstrumentWindowDeclaration:
+    """`load_recent_observation_records_by_instrument` refuse une demande vide
+    ou mal formée AVANT toute lecture — même règle que pour les familles :
+    rien de déclaré, rien de lu, et le refus est explicite."""
+
+    @pytest.mark.parametrize("refs", [(), ("",), ("  ",), ("208813720", 3), "208813720"])
+    def test_refuses_an_empty_or_malformed_reference_list(self, refs: object) -> None:
+        with pytest.raises(ValueError, match="instrument_refs"):
+            load_recent_observation_records_by_instrument(
+                cast(Any, None),
+                now=NOW,
+                lookback=timedelta(hours=72),
+                limit=10,
+                schema_prefixes=CONTENT_SCHEMA_PREFIXES,
+                instrument_refs=cast(Any, refs),
+            )
+
+    def test_refuses_an_empty_family_declaration(self) -> None:
+        with pytest.raises(ValueError, match="schema_prefixes"):
+            load_recent_observation_records_by_instrument(
+                cast(Any, None),
+                now=NOW,
+                lookback=timedelta(hours=72),
+                limit=10,
+                schema_prefixes=(),
+                instrument_refs=("208813720",),
+            )

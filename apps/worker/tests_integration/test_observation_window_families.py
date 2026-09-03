@@ -23,7 +23,10 @@ from typing import Any
 import pytest
 
 from vertex_persistence.repository.observations import insert_observation
-from vertex_worker.handlers import load_recent_observation_records
+from vertex_worker.handlers import (
+    load_recent_observation_records,
+    load_recent_observation_records_by_instrument,
+)
 
 NOW = datetime(2026, 9, 3, 10, 0, 0, tzinfo=UTC)
 LOOKBACK = timedelta(hours=72)
@@ -31,16 +34,25 @@ SOURCE = "demo-source"
 RIGHTS = "DEMO"
 
 
-def ecrire(session: Any, *, event_id: str, schema_version: str, rang: int) -> None:
+def ecrire(
+    session: Any,
+    *,
+    event_id: str,
+    schema_version: str,
+    rang: int,
+    instrument_ref: str | None = "1",
+    instant: datetime | None = None,
+) -> None:
     """Une dépêche minimale (titre + entités) sous le schéma demandé."""
-    instant = NOW - timedelta(minutes=10 + rang)
+    if instant is None:
+        instant = NOW - timedelta(minutes=10 + rang)
     inseree = insert_observation(
         session,
         event_id=event_id,
         schema_version=schema_version,
         source=SOURCE,
         source_event_id=event_id,
-        instrument_ref="1",
+        instrument_ref=instrument_ref,
         observed_at=instant,
         published_at=instant,
         received_at=instant,
@@ -104,3 +116,113 @@ def test_le_separateur_de_famille_est_lu_tel_quel(db_session: Any) -> None:
     db_session.commit()
 
     assert familles_chargees(db_session, ("demo-news/",)) == ["demo-news/1.0"]
+
+
+# --------------------------------------------------------------------------
+# Une fenêtre par instrument, en une lecture (garde du correctif S0-D)
+# --------------------------------------------------------------------------
+
+LIMITE = 40
+FAMILLE = "demo-news/1.0"
+HORS_FAMILLE = "ibkr.quote/1"
+
+
+def peupler_trois_instruments(session: Any) -> None:
+    """A : plus de dépêches que la borne, des instantanées, trois lignes hors
+    fenêtre et une future ; B : cinq dépêches ; C : aucune ; D (jamais
+    demandé) : trois ; et quatre dépêches sans instrument."""
+    for rang in range(LIMITE + 15):
+        ecrire(session, event_id=f"a-{rang}", schema_version=FAMILLE, rang=rang, instrument_ref="A")
+    for rang in range(5):
+        ecrire(
+            session,
+            event_id=f"a-quote-{rang}",
+            schema_version=HORS_FAMILLE,
+            rang=rang,
+            instrument_ref="A",
+        )
+    for rang in range(3):
+        ecrire(
+            session,
+            event_id=f"a-vieux-{rang}",
+            schema_version=FAMILLE,
+            rang=rang,
+            instrument_ref="A",
+            instant=NOW - LOOKBACK - timedelta(hours=1 + rang),
+        )
+    ecrire(
+        session,
+        event_id="a-futur",
+        schema_version=FAMILLE,
+        rang=0,
+        instrument_ref="A",
+        instant=NOW + timedelta(minutes=1),
+    )
+    for rang in range(5):
+        ecrire(session, event_id=f"b-{rang}", schema_version=FAMILLE, rang=rang, instrument_ref="B")
+    for rang in range(3):
+        ecrire(session, event_id=f"d-{rang}", schema_version=FAMILLE, rang=rang, instrument_ref="D")
+    for rang in range(4):
+        ecrire(
+            session, event_id=f"sans-{rang}", schema_version=FAMILLE, rang=rang, instrument_ref=None
+        )
+    session.commit()
+
+
+@pytest.mark.usefixtures("migrated_engine")
+def test_la_fenetre_par_instrument_en_une_lecture_vaut_le_chargeur_unitaire(
+    db_session: Any,
+) -> None:
+    """GARDE du correctif S0-D (pas un reproducteur) :
+    `load_recent_observation_records_by_instrument` rend, pour CHAQUE
+    référence demandée, exactement la fenêtre que rend
+    `load_recent_observation_records(instrument_ref=ref)` — mêmes lignes,
+    même ordre, même borne PAR instrument ; une référence sans ligne rend
+    une liste vide ; une référence non demandée n'apparaît pas."""
+    peupler_trois_instruments(db_session)
+    references = ("A", "B", "C")
+    familles = ("demo-news/",)
+
+    en_une_lecture = load_recent_observation_records_by_instrument(
+        db_session,
+        now=NOW,
+        lookback=LOOKBACK,
+        limit=LIMITE,
+        schema_prefixes=familles,
+        instrument_refs=references,
+    )
+
+    assert set(en_une_lecture) == set(references)
+    for ref in references:
+        unitaire = load_recent_observation_records(
+            db_session,
+            now=NOW,
+            lookback=LOOKBACK,
+            limit=LIMITE,
+            schema_prefixes=familles,
+            instrument_ref=ref,
+        )
+        assert en_une_lecture[ref] == unitaire, f"{ref} : fenêtres différentes"
+    assert len(en_une_lecture["A"]) == LIMITE, "la borne s'applique PAR instrument"
+    assert len(en_une_lecture["B"]) == 5
+    assert en_une_lecture["C"] == []
+    assert all(record.schema_version == FAMILLE for record in en_une_lecture["A"])
+    assert all(record.instrument_ref == "A" for record in en_une_lecture["A"])
+    instants = [record.as_of for record in en_une_lecture["A"]]
+    assert instants == sorted(instants, reverse=True), "ordre as_of décroissant"
+    assert all(NOW - LOOKBACK <= instant <= NOW for instant in instants)
+
+
+@pytest.mark.usefixtures("migrated_engine")
+def test_une_reference_dupliquee_est_lue_une_fois(db_session: Any) -> None:
+    peupler_trois_instruments(db_session)
+    en_une_lecture = load_recent_observation_records_by_instrument(
+        db_session,
+        now=NOW,
+        lookback=LOOKBACK,
+        limit=LIMITE,
+        schema_prefixes=("demo-news/",),
+        instrument_refs=("B", "B"),
+    )
+    assert list(en_une_lecture) == ["B"]
+    assert len(en_une_lecture["B"]) == 5

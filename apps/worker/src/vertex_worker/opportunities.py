@@ -898,6 +898,7 @@ class OpportunitiesHandler:
         from vertex_worker.handlers import (
             CONTENT_SCHEMA_PREFIXES,
             load_recent_observation_records,
+            load_recent_observation_records_by_instrument,
             publish_if_changed,
         )
         from vertex_worker.options import SNAPSHOT_KIND_OPTION_CHAIN
@@ -916,10 +917,32 @@ class OpportunitiesHandler:
         # récentes — la page Analyse voyait 3 grappes, Opportunités aucune.
         # Sans barre pour un instrument, sa référence est inconnue : il garde
         # la fenêtre globale, chargée UNE fois — jamais pire qu'avant.
+        # Et les fenêtres cadrées sont lues en UNE requête pour tous les
+        # candidats (revue S0, réserve 3) : une requête par instrument
+        # parcourait chacune toute la plage `as_of` du lookback, faute
+        # d'index sur `instrument_ref` — ≈161 lectures en profil réel.
+        ref_par_instrument = {
+            instrument: instrument_ref_de(bar_records, instrument)
+            for instrument in self._config.instruments
+        }
+        references = tuple(
+            dict.fromkeys(ref for ref in ref_par_instrument.values() if ref is not None)
+        )
+        fenetres = (
+            load_recent_observation_records_by_instrument(
+                session,
+                now=now,
+                lookback=self._config.lookback,
+                limit=self._config.max_observations,
+                schema_prefixes=CONTENT_SCHEMA_PREFIXES,
+                instrument_refs=references,
+            )
+            if references
+            else {}
+        )
         evidence_by_instrument: dict[str, Sequence[Any]] = {}
         global_evidence: Sequence[Any] | None = None
-        for instrument in self._config.instruments:
-            ref = instrument_ref_de(bar_records, instrument)
+        for instrument, ref in ref_par_instrument.items():
             if ref is None:
                 if global_evidence is None:
                     global_evidence = load_recent_observation_records(
@@ -931,14 +954,7 @@ class OpportunitiesHandler:
                     )
                 evidence_by_instrument[instrument] = global_evidence
                 continue
-            evidence_by_instrument[instrument] = load_recent_observation_records(
-                session,
-                now=now,
-                lookback=self._config.lookback,
-                limit=self._config.max_observations,
-                schema_prefixes=CONTENT_SCHEMA_PREFIXES,
-                instrument_ref=ref,
-            )
+            evidence_by_instrument[instrument] = fenetres[ref]
         chain_by_instrument: dict[str, tuple[Mapping[str, Any], int]] = {}
         for instrument in self._config.instruments:
             chain = get_current_snapshot(
