@@ -1379,6 +1379,8 @@ export function makeCalendarResponse(
     state: 'ok',
     snapshot_version: 21,
     as_of: SYNTHETIC_AS_OF,
+    age_seconds: 60,
+    freshness_policy: makeFreshnessPolicy({ kind: 'corporate_event', budget_seconds: 86400 }),
     population: 'SYNTHETIC',
     importance_rule: {
       version: 'importance_rule/1.1',

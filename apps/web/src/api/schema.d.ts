@@ -1292,8 +1292,17 @@ export interface components {
          *     non-ok state carries its ``reason``: an empty agenda never passes for a
          *     success, and a relayed ``fresh`` flag is recomputed against the server
          *     clock — never a frozen boolean.
+         *
+         *     ``age_seconds`` est publié dans TOUS les états datés et
+         *     ``freshness_policy`` porte l'échelle qui le juge : le relais mesurait déjà
+         *     cet âge — il nommait même son budget dans la raison ``stale`` — sans le
+         *     servir, donc un agenda de vingt heures était indiscernable d'un agenda
+         *     d'une minute tant que le budget tenait. Sans instantané publié l'âge est
+         *     ``null`` (il n'existe pas) ; le budget, propriété de la route, reste servi.
          */
         CalendarResponse: {
+            /** Age Seconds */
+            age_seconds: number | null;
             /** Agenda */
             agenda: {
                 [key: string]: unknown;
@@ -1308,6 +1317,7 @@ export interface components {
             coverage: {
                 [key: string]: unknown;
             } | null;
+            freshness_policy: components["schemas"]["FreshnessPolicyView"] | null;
             /** Importance Rule */
             importance_rule: {
                 [key: string]: unknown;
