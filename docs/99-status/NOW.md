@@ -1268,3 +1268,58 @@ avant sa fusion. Branche `lot/a7-catalyseurs-calendrier-20260903`.
 - Nouveaux : `catalystsModules.test.ts`, `calendarModules.test.ts`,
   `CatalystsComposition.test.tsx`, `CalendarComposition.test.tsx`, tests de
   composition dans `e2e/catalysts.spec.ts` et `e2e/calendar.spec.ts`.
+
+### Ce qui a été vu SUR CAPTURE, pas par un test
+
+1. Calendrier à 1280 et 1440 : les compteurs (deux colonnes) s'étiraient
+   sur la hauteur de l'agenda ; la densité et l'exposition par jour, hautes,
+   étiraient leurs voisines. Grille rebalancée : conflits à droite de
+   l'agenda, exposition · densité · compteurs sur une rangée, révisions ·
+   rappels · changements · provenance sur la suivante, la règle d'importance
+   sur trois colonnes en bas. Deux passes de capture.
+2. Calendrier à 1440 : la table des compteurs et celle de la règle
+   d'importance gardaient `min-width: max-content` (héritage de la page
+   pleine largeur) : légende coupée en plein mot, troisième colonne cachée
+   derrière un défilement horizontal. Dans la planche, les deux tables
+   tiennent la largeur de leur carte et replient leurs cellules. Recapture
+   relue après correction.
+3. Vu par axe, pas par une capture : `AgendaLine` (un `<li>`) rendue dans un
+   `<li>` du module « Prochain événement » — violation `listitem`. Corrigé
+   par une liste imbriquée.
+4. Vu par un test, pas par une capture : les comptages hors ligne de
+   `catalysts.spec.ts` et `calendar.spec.ts` lisent `[data-state="offline"]`
+   sur la frontière de page ; `ModuleStatus` posait le même attribut sur
+   chaque module. Les absences par module sont désormais des phrases
+   (`MODULE_STATE_LABELS`), sans attribut concurrent.
+
+### Mesuré sur cette machine (codes relus)
+
+- `tsc --noEmit` : 0 erreur ; `biome check src e2e` : 0 erreur.
+- `vitest run` : **63 fichiers, 670 tests, 0 échec** (647 sur A6 + 23) ;
+  portes de design incluses.
+- Playwright (catalysts, calendar, shell-canonical, accessibility ;
+  1280/1440/1600) : première passe **243 passés, 12 échoués sur 255**
+  (`listitem`, `data-state` par module, deux textes en double) — tous
+  corrigés côté page, aucune assertion retirée ; puis catalysts + calendar
+  rejoués après chaque passe : **63 / 63** et **63 / 63**, code 0 ; enfin
+  calendar seul après le repli des tables, puis après la levée de la borne
+  de hauteur des compteurs : **33 / 33** et **33 / 33**, code 0.
+- `tools/run_checks.sh` (racine, seul, après la fin des e2e) : toutes les
+  portes vertes (rôle, blueprint, frontière, registre, secrets, policy,
+  traçabilité — entrée `NOT_YET_PROVEN` connue, hors lot —, notices,
+  uv.lock, compilation, Worker, Biome, performance, ruff, mypy) ;
+  seul rouge connu `test_denylist.py::test_adapter_satisfies_the_port_protocol`
+  sur Python 3.11, hors lot, aucun fichier Python touché.
+
+### Transmis, non corrigé ici
+
+- La chaîne #25 → #26 → #27 → #28 → #29 est fusionnée en squash pendant ce
+  lot ; A7 est réaligné sur `main` par merge avant sa propre fusion.
+- `/catalysts` n'a pas d'inspecteur par défaut (témoin du shell) : la vérité
+  du snapshot vit dans le module « Fenêtre et snapshots ». Décision
+  documentée, pas un oubli.
+- Le fuseau du navigateur n'est proposé que s'il est résolu par
+  `Intl.DateTimeFormat` ; sous Playwright il l'est (« UTC (navigateur) »).
+
+Prochaine commande recommandée : `EXÉCUTE A8` (Sources & Rapports — planche
+§12) depuis la tête d'A7, puis fusion de la chaîne.
