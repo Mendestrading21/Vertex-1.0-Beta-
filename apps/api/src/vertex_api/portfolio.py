@@ -57,7 +57,12 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from vertex_api.auth.db import open_db_session
-from vertex_api.freshness import closed_session_budget, evaluate_relay_freshness
+from vertex_api.freshness import (
+    closed_session_budget,
+    evaluate_relay_freshness,
+    published_budget,
+)
+from vertex_api.schemas import FreshnessPolicyView
 from vertex_api.snapshot_views import checked_relayed_content, require_snapshot_as_of
 from vertex_core.contracts.types import (
     ContractModel,
@@ -500,6 +505,7 @@ class PortfolioValuationView(ContractModel):
     snapshot_version: PositiveInt | None
     as_of: UtcDatetime | None
     age_seconds: int | None
+    freshness_policy: FreshnessPolicyView | None
     content: FrozenStrMapping | None
     reason: NonEmptyStr | None
 
@@ -1235,6 +1241,10 @@ _FRESHNESS_POLICY = get_freshness_policy(PORTFOLIO_FRESHNESS_POLICY)
 
 PORTFOLIO_MAX_AGE = closed_session_budget(_FRESHNESS_POLICY)
 
+#: Coordonnées publiées de la jauge âge / budget — propriété de la route,
+#: servies dans tous les états (`vertex_api.freshness.published_budget`).
+_PUBLISHED_BUDGET = published_budget(_FRESHNESS_POLICY)
+
 
 def build_portfolio_response(
     overview: PortfolioOverview, *, now: datetime
@@ -1256,6 +1266,7 @@ def build_portfolio_response(
             snapshot_version=None,
             as_of=None,
             age_seconds=None,
+            freshness_policy=_PUBLISHED_BUDGET,
             content=None,
             reason="no valuation snapshot published",
         )
@@ -1270,6 +1281,7 @@ def build_portfolio_response(
             snapshot_version=overview.valuation.version,
             as_of=overview.valuation.as_of,
             age_seconds=freshness.age_seconds,
+            freshness_policy=_PUBLISHED_BUDGET,
             # Le contenu de valorisation était relayé sans AUCUNE validation :
             # 100 % de ses champs chaîne passaient verbatim, valeurs monétaires
             # et étiquette `population` comprises. Il subit désormais le même
