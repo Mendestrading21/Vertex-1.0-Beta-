@@ -216,7 +216,7 @@ test.describe('Shell — anatomie canonique', () => {
     }
   });
 
-  test('une seule lumière dominante par écran, sur les onze destinations', async ({ page }) => {
+  test('une seule lumière dominante par écran, sur les douze destinations', async ({ page }) => {
     /**
      * « Une lumière dominante maximum par carte, deux par écran hors
      * rouge/vert. » — `references/canonical-visual.md`.
@@ -243,6 +243,7 @@ test.describe('Shell — anatomie canonique', () => {
       ['/analysis/SYN-TECH-01', '.vx-chartframe'],
       ['/options/SYN-TECH-01', '.vx-chartframe'],
       ['/simulator', '.vx-sim-composer'],
+      ['/charts/SYN-TECH-01', '.vx-chartframe'],
       ['/portfolio', '.vx-pf-concentration'],
       ['/risks', '.vx-riskmatrix'],
       ['/catalysts', '.vx-fu-queue'],
