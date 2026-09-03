@@ -213,7 +213,12 @@ calculations:
         = 20 rendements, 252 séances par an) ET sa série glissante
         `indicators.realized_volatility.series` (LOT S3 : une valeur rendue par
         séance servie disposant d'une fenêtre complète, même méthode, même
-        statut, lignée propre ; `value_pct` produit côté serveur).
+        statut, lignée propre ; `value_pct` produit côté serveur ; une séance
+        servie deux fois ou hors ordre refuse, par la porte d'ordre strict du
+        constructeur — `unordered_bars`, même code que la porte du moteur
+        ATR, le moteur de volatilité ne voyant que des rendements — la série
+        entière et la valeur ponctuelle dont la fenêtre la traverse, jamais
+        un rendement intra-séance).
       api: >-
         GET /api/v1/analysis/{instrument} — bloc `indicators` relayé VERBATIM
         par apps/api/src/vertex_api/snapshot_views.py::build_analysis_response,
@@ -323,7 +328,11 @@ calculations:
         séance commune après l'horizon, même méthode, même statut ; une
         absence nommée du point — indice non déclaré, non observé, instrument
         comparé à lui-même, trop peu de séances communes — est celle de la
-        série).
+        série ; une séance servie deux fois ou hors ordre, d'un côté ou de
+        l'autre, refuse le bloc entier — point et série — avec
+        `unordered_bars`, la séance et le ticker en défaut, parce que
+        l'alignement des calendriers consomme toutes les barres des deux
+        côtés : jamais « dernière barre gagne »).
       api: >-
         GET /api/v1/analysis/{instrument} — bloc `indicators` relayé VERBATIM
         par apps/api/src/vertex_api/snapshot_views.py::build_analysis_response,
