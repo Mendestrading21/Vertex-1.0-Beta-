@@ -45,12 +45,54 @@ engines:
     source: "https://echarts.apache.org/handbook/en/best-practices/aria/"
 visual_contracts:
   gauges:
-    allowed_forms: ["linear_bullet", "segmented_band", "progress_with_target"]
+    allowed_forms: ["linear_bullet", "segmented_band", "progress_with_target", "arc_graduated_served_position"]
     forbidden_forms: ["decorative_speedometer", "three_dimensional_dial", "animated_needle", "opaque_composite_score"]
     server_authority_required: true
     required_fields: ["metric_name", "value", "unit", "scale_min", "scale_max", "thresholds", "method_version", "as_of", "quality_status"]
     accessibility: "Valeur textuelle, seuil courant et limites annoncés; couleur jamais seule."
     independence_rule: "Confiance, régime, fraîcheur, couverture et risque restent des mesures distinctes."
+  v2_forms:
+    adr: "ADR-017 — docs/09-adr/017-titanium-ledger-v2-formes-widgets.md"
+    rule: "Chaque grandeur dessinée est servie ; le client ne calcule que la géométrie sur des propriétés neutres et n'écrit aucun nombre dérivé."
+    admitted:
+      - id: "ring_center_value"
+        primitive: "RingShares"
+        served_data: "parts *_pct en chaînes ; chiffre central servi verbatim, jamais une somme calculée"
+      - id: "ring_quartet"
+        primitive: "RingShares"
+        served_data: "quatre parts ou valeurs bornées servies, unité et période pour chacune"
+      - id: "arc_graduated_served_position"
+        primitive: "ArcGauge"
+        served_data: "valeur bornée, bornes, seuils, position en pourcentage servie, méthode/version, as_of"
+      - id: "gradient_area_under_served_series"
+        primitive: "SparkFigure, MultiSeriesArea"
+        served_data: "série servie d'au moins deux points, période nommée ; tokens <famille>-gradient-start/-end"
+      - id: "rail_behind_bars"
+        primitive: "CensusBars, DayBars"
+        served_data: "comptes entiers ou parts servis ; aucune barre pour une absence"
+      - id: "band_matrix"
+        primitive: "CellGrid"
+        served_data: "nom de bande servi + texte servi ; bande absente = unknown visible"
+      - id: "day_grouped_list"
+        primitive: "ActivityFeed"
+        served_data: "horodatages ISO servis ; montants en chaînes signées"
+    secondary_accent_per_page:
+      families: ["macro", "option", "warning"]
+      declared_in: "catalogue de la page ; une seule famille par page"
+      css: "[data-page-accent] -> --vx-page-accent, --vx-page-accent-soft, --vx-page-accent-gradient-start, --vx-page-accent-gradient-end"
+      excluded: ["signal", "positive", "negative"]
+      excluded_reason: "signal = seule lumière de la dominante ; positive/negative = signe financier servi, une teinte de page ne bascule pas selon le signe"
+    always_forbidden:
+      - "permanent_halo_or_neon"
+      - "pure_black"
+      - "blurred_translucent_cards"
+      - "color_only_without_text"
+      - "client_countdown_or_clock"
+      - "radar_or_scatter_without_served_dimensions"
+      - "full_gradient_card_background"
+      - "pulse_or_animated_needle"
+      - "client_abbreviated_value"
+      - "any_form_on_unserved_value"
   required_graphic_families:
     - "price_and_volume"
     - "option_chain"

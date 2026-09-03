@@ -101,6 +101,19 @@ REQUIRED_COLOR_TOKENS = {
     "negative",
     "option",
     "macro",
+    # ADR-017 — dégradés de série (teinte → transparence), un couple par famille.
+    "silver-gradient-start",
+    "silver-gradient-end",
+    "positive-gradient-start",
+    "positive-gradient-end",
+    "negative-gradient-start",
+    "negative-gradient-end",
+    "warning-gradient-start",
+    "warning-gradient-end",
+    "option-gradient-start",
+    "option-gradient-end",
+    "macro-gradient-start",
+    "macro-gradient-end",
     "scrim",
 }
 
