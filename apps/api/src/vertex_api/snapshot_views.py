@@ -1969,6 +1969,44 @@ def _checked_advice(value: Any) -> Mapping[str, Any]:
     return advice
 
 
+def _checked_rebased_comparison(indicators: Mapping[str, Any]) -> None:
+    """La comparaison base 100 est relayée VERBATIM, mais jamais muette.
+
+    Le bloc est FACULTATIF : un dossier publié avant son ajout n'en porte
+    aucun, et exiger la clé transformerait cette absence légitime en 500.
+
+    Quand il est là, deux exigences fail-closed :
+
+    - une comparaison SERVIE (``status = "OK"``) doit dire sur quelle base
+      elle repose (``base_value``, ``unit``), porter la série alignée par le
+      worker et la lignée des DEUX rebasages. Une série d'index sans sa base
+      afficherait deux courbes dont personne ne pourrait dire de quoi elles
+      partent, et sans lignée personne ne pourrait dire d'où elles viennent ;
+    - une comparaison ABSENTE doit être NOMMÉE. Une absence muette est pire
+      qu'une absence : l'écran ne saurait pas quoi afficher à sa place.
+
+    Le relais ne rebase rien, ne réaligne rien et ne complète rien : il
+    vérifie que ce qu'il transporte est lisible, ou il refuse.
+    """
+    bloc = indicators.get("rebased_comparison")
+    if bloc is None:
+        return
+    champ = "indicators.rebased_comparison"
+    comparaison = _require_mapping(bloc, field=champ)
+    statut = _require_str(comparaison.get("status"), field=f"{champ}.status")
+    if statut != "OK":
+        return
+    _require_str(comparaison.get("unit"), field=f"{champ}.unit")
+    _require_str(comparaison.get("base_value"), field=f"{champ}.base_value")
+    _require_str(comparaison.get("benchmark"), field=f"{champ}.benchmark")
+    _require_list(comparaison.get("series"), field=f"{champ}.series")
+    _require_mapping(comparaison.get("calculation"), field=f"{champ}.calculation")
+    _require_mapping(
+        comparaison.get("benchmark_calculation"),
+        field=f"{champ}.benchmark_calculation",
+    )
+
+
 def build_analysis_response(
     snapshot: CurrentSnapshot | None, *, instrument: str, now: datetime
 ) -> AnalysisResponse:
@@ -2034,6 +2072,16 @@ def build_analysis_response(
     if scenario_status == "ABSENT":
         _require_str(scenarios.get("reason"), field="scenarios.reason")
     freshness = _relay_freshness(snapshot, now=now, policy=_ANALYSIS_POLICY)
+    # FACULTATIF : un dossier publié avant l'ajout des indicateurs n'en porte
+    # aucun. Exiger la clé transformerait cette absence légitime en 500 — une
+    # absence n'est jamais une erreur.
+    indicators = (
+        _wire_mapping(content["indicators"], field="indicators")
+        if content.get("indicators") is not None
+        else None
+    )
+    if indicators is not None:
+        _checked_rebased_comparison(indicators)
     return AnalysisResponse(
         state="stale" if freshness.stale else "ok",
         snapshot_version=snapshot.version,
@@ -2046,14 +2094,7 @@ def build_analysis_response(
             content.get("engine_version"), field="engine_version"
         ),
         bars=bars,
-        # FACULTATIF : un dossier publié avant l'ajout des indicateurs n'en
-        # porte aucun. Exiger la clé transformerait cette absence légitime
-        # en 500 — une absence n'est jamais une erreur.
-        indicators=(
-            _wire_mapping(content["indicators"], field="indicators")
-            if content.get("indicators") is not None
-            else None
-        ),
+        indicators=indicators,
         evidence=_wire_mapping(content.get("evidence"), field="evidence"),
         scenarios=scenarios,
         advice=dict(_checked_advice(content.get("advice"))),
