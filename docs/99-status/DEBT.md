@@ -754,3 +754,46 @@ chemin de fraîcheur avec un lot de démarrage.
   PRÉVISUALISATION ne part, pas qu'aucun octet ne circule. Ils asserent
   maintenant l'absence de `/api/v1/simulations/preview` dans les chemins
   appelés, plus l'absence de tout appel autre que celui du shell.
+
+## Trouvé au lot SRV-S0 (2026-09-03)
+
+- **`observations` n'a d'index que sur `as_of`** — **OUVERT, lot de
+  migration dédié.** Chaque fenêtre cadrée par instrument (`instrument_ref`)
+  ou par famille (`schema_version LIKE`) parcourt toute la plage du lookback
+  (8 jours en profil réel, une cotation instantanée par instrument et par
+  minute depuis L1) puis filtre. Analyse exécute une lecture par instrument
+  à barres (≈161 en profil réel) ; Opportunités en exécutait autant depuis
+  S0-B et une seule depuis S0-D (`row_number() OVER (PARTITION BY
+  instrument_ref)`, `load_recent_observation_records_by_instrument`). **Non
+  mesuré sur la base vivante.** Un index `(instrument_ref, as_of)` et/ou
+  `(schema_version text_pattern_ops, as_of)` exige une migration Alembic
+  (`0008_…`), la mise à jour de `Observation.__table_args__` (le test de
+  dérive `compare_metadata` de `vertex_persistence` l'impose) et une mesure
+  `EXPLAIN (ANALYZE)` avant/après sur une copie de `vertex_live` — un
+  `CREATE INDEX` non concurrent bloque les écritures du collecteur pendant
+  sa construction, ce qui se décide avec l'utilisateur.
+- **Six chargeurs émettent encore `LIKE '<préfixe>%'` sans échappement** —
+  **OUVERT, sans effet aujourd'hui.** `markets.py`, `analysis.py`,
+  `calendar.py`, `options.py`, `performance.py` et
+  `handlers.load_capability_records` appliquent des CONSTANTES du code,
+  dont aucune ne porte `%` ni `_`. Le seul chargeur dont les familles
+  viennent de l'appelant (`load_recent_observation_records`) est échappé
+  depuis S0-D (`_schema_family_filter`, `autoescape`). À unifier à
+  l'occasion, avec un reproducteur par site.
+- **Comportement changé en développement, déclaré** :
+  `synthetic-calendar-event/` (porte un titre) n'entre plus dans la file
+  d'attention ni dans le contexte d'information de la revue. La page
+  Calendrier et Catalyseurs les servent toujours ; test-témoin
+  `test_calendar_events_are_served_by_their_own_page_not_by_the_queue`.
+  Réintroduire les catalyseurs dans la file (« proximité temporelle d'un
+  catalyste » est un facteur positif du moteur) est une décision de produit
+  qui passe par `CONTENT_SCHEMA_PREFIXES`.
+- **`observations_considered` a changé de sens** : il ne compte plus que
+  les familles déclarées, et `population` vaut `EMPTY` — non plus `REAL` —
+  quand seules des cotations sont en fenêtre. C'est plus honnête, mais un
+  consommateur qui lisait ce compteur comme « toutes les observations
+  récentes » lit désormais autre chose.
+- **Non vérifié sur données réelles** : la famine « 0 item à 08:40 UTC »
+  est reproduite en base de test, pas rejouée sur `vertex_live` ; la
+  présence de lignes `ibkr.news-headline/1` en base vivante n'a pas été
+  interrogée ; fusion avec L1 (PR #32) non testée sur branche combinée.

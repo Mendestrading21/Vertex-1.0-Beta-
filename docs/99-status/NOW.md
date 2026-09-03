@@ -1629,3 +1629,182 @@ Mesuré après les trois commits (codes relus) :
 Prochaine commande recommandée : relecture des commits de correction
 (`bce6762`, `9fa1f72`, `b39c98d` et le commit NOW.md qui suit), puis lot L0
 (`lot/w2-l0-socle-20260903`, empilé sur C0).
+
+## SESSION 2026-09-03 — LOT SRV-S0 : la file d'attention affamée par les cotations instantanées
+
+Lot SERVEUR. Branche `lot/srv-s0-attention-fenetre-20260903`, base
+`origin/main` = `4fc901a`, worktree `/home/elio/vertex-srv-s0`. Aucun push,
+aucune PR par l'implémenteur (l'orchestrateur s'en charge). Cinq commits :
+S0-A (reproducteurs, rouge), S0-B (correctif), puis — après la revue
+adverse (verdict APPROUVÉ, quatre réserves non bloquantes) — S0-C
+(reproducteurs des réserves 3 et 4, rouge), S0-D (correctifs) et S0-E
+(cette documentation).
+
+### Ce qui a été mesuré (base de test, jamais `vertex_live`)
+
+- `today/attention` : 20 dépêches `ibkr.news-headline/1` valides sur quatre
+  instruments réels, puis 600 cotations instantanées PLUS RÉCENTES
+  (`ibkr.quote/1`, `ibkr.daily-quote/1`, sans titre) → **0 item**,
+  `content_observations: 0`, `observations_considered: 500`. La fenêtre de
+  500 était bornée AVANT le filtre de famille : elle ne contenait plus que
+  des instantanées. Même famine pour le contexte d'information de la file
+  de revue (même chargeur).
+- Opportunités : 3 dépêches de GOOG plus anciennes que 520 dépêches de
+  MSFT → la page Analyse (fenêtre cadrée par instrument) voyait 3 grappes,
+  la page Opportunités (fenêtre globale) **aucune**.
+- Réserve 4 de la revue : `LIKE 'demo_news/%'` sans échappement acceptait
+  `demoXnews/1.0` et `demo-news/1.0` (3 lignes chargées sur 1 attendue) ;
+  `LIKE 'demo%%'` acceptait tout ce qui commence par `demo`.
+- Réserve 3 de la revue : **7 lectures** de `observations` pour un
+  `opportunities.refresh` sur six instruments à barres (1 pour les barres
+  + 1 PAR instrument), chacune parcourant la plage `as_of` du lookback
+  faute d'index sur `instrument_ref`.
+
+### Ce qui est livré
+
+- `CONTENT_SCHEMA_PREFIXES` (`handlers.py`) : les familles de CONTENU
+  admises, deny by default — `synthetic-news/`, `ibkr.news-headline/` ;
+  `FusionConfig.content_schema_prefixes` (déclaration vide ou mal formée
+  refusée) ; `load_recent_observation_records(schema_prefixes=…)`
+  obligatoire, appliqué AVANT la borne ; couverture publiée
+  (`content_schema_prefixes`) sur la file d'attention et la file de revue.
+- Préfixes LITTÉRAUX : `_schema_family_filter` émet
+  `LIKE :préfixe || '%' ESCAPE '/'` (`%`, `_` et `/` échappés).
+- Opportunités cadrée par instrument comme Analyse, et en UNE lecture pour
+  tous les candidats : `load_recent_observation_records_by_instrument`
+  (`row_number() OVER (PARTITION BY instrument_ref ORDER BY as_of DESC, id
+  DESC)`, borne PAR instrument, même ordre que le chargeur unitaire) ; un
+  instrument sans barre garde la fenêtre globale, chargée une fois ;
+  `build_opportunities_content` accepte `Mapping[ticker, fenêtre]` — un
+  ticker absent n'a aucune preuve, jamais celles d'un autre.
+- Contrat écrit : `docs/03-domain/ATTENTION_AND_RELEVANCE_ENGINE.md`,
+  section « Fenêtre d'observation : familles déclarées avant la borne ».
+
+### Tests (rouge d'abord, jamais affaiblis)
+
+- Reproducteurs S0-A (rouge sur l'assertion mesurée, re-prouvés par la
+  revue sur `origin/main`) : `test_attention_real_chain.py` (attention,
+  revue), `test_opportunities_real_chain.py` (preuves chassées).
+- Reproducteurs S0-C : `test_observation_window_families.py` (souligné,
+  pourcent ; le séparateur `/` vert avant comme après),
+  `test_opportunities_real_chain.py::test_les_preuves_de_tous_les_candidats_sont_lues_sans_une_requete_par_instrument`
+  (7 → 2 lectures).
+- Gardes S0-D : équivalence par instrument contre PostgreSQL (borne PAR
+  instrument, familles, ordre, hors fenêtre et futur exclus, référence
+  sans ligne → liste vide, référence non demandée absente, doublon lu une
+  fois) ; refus unitaire d'une demande vide ou mal formée.
+- Témoin S0-E : `test_calendar_events_are_served_by_their_own_page_not_by_the_queue`.
+- Ajustés, assertions intactes : `test_real_profile_chain.py` (dépêche
+  DÉRIVÉE `ibkr.news-headline/1`, la seule qui porte un titre),
+  `test_worker_failure_paths.py` (déclare `demo-news/` pour sa fixture).
+
+### Mesuré sur cette machine (codes relus, venv du worktree, sans `env.live`)
+
+- `ruff check .` : All checks passed ; `mypy` : 0 erreur, 143 fichiers.
+- `pytest apps/worker/tests` : 378 passed.
+- `pytest -p no:xdist apps/worker/tests_integration` (sous
+  `flock /tmp/vertex_test.lock`) : 53 passed.
+- `pytest apps/api/tests` : 1287 passed (relais inchangé : la couverture
+  reste `FrozenStrMapping`, aucun fichier `apps/api` touché, OpenAPI
+  intact).
+- `tools/check_financial_boundary.py` et `tools/check_calculation_registry.py` :
+  ok, 0 finding (aucun calcul financier nouveau).
+
+### Comportement changé en développement, DÉCLARÉ
+
+- `synthetic-calendar-event/` (porte un titre) n'entre plus dans la file
+  d'attention ni dans le contexte d'information de la revue ; la page
+  Calendrier et Catalyseurs les servent toujours. Cohérent avec la
+  politique `news_attention` ; réintroduire les catalyseurs dans la file est
+  une décision de produit, qui passe par `CONTENT_SCHEMA_PREFIXES`.
+- `observations_considered` (attention, revue) ne compte plus que les
+  familles déclarées ; `population` vaut `EMPTY` (et non `REAL`) quand
+  seules des cotations sont en fenêtre.
+
+### Transmis, non corrigé ici
+
+- `observations` n'a d'index que sur `as_of` : un index
+  `(instrument_ref, as_of)` et/ou `(schema_version text_pattern_ops,
+  as_of)` est un lot de migration dédié (`DEBT.md`, « Trouvé au lot
+  SRV-S0 »). Analyse exécute toujours une lecture par instrument à barres.
+- Six autres chargeurs émettent `LIKE '<préfixe>%'` sur des CONSTANTES du
+  code (aucune ne porte `%` ni `_`) ; à unifier sur `_schema_family_filter`.
+- Non vérifié sur données réelles : la mesure « 0 item à 08:40 UTC » est
+  reproduite en base de test, pas rejouée sur `vertex_live` ; la présence
+  de lignes `ibkr.news-headline/1` en base vivante n'a pas été interrogée
+  (sans elles, la file reste vide — honnêtement) ; fusion combinée avec L1
+  (`ibkr.quote/1`, PR #32) non testée sur branche combinée, les deux
+  préfixes sont couverts par le reproducteur.
+
+Prochaine commande recommandée : pousser `lot/srv-s0-attention-fenetre-20260903`
+et ouvrir la PR (orchestrateur), puis lot de migration `0008` pour l'index
+`(instrument_ref, as_of)` avec mesure `EXPLAIN` avant/après sur une copie
+de `vertex_live`.
+
+## SESSION 2026-09-03 — LOT SRV-S0-F : le rail de preuves affamé par sa propre déclaration
+
+Même branche, même worktree. Correction d'une RÉGRESSION introduite par S0-B
+et détectée par la CI GitHub (exécution 33750177958, tâche « e2e — Chromium,
+3 viewports desktop, axe », trois échecs identiques sur les trois viewports) :
+
+    ✘ e2e/ai-inspector.spec.ts:89 › extraits externes
+    > 122 |     expect(answer.external_excerpts.length).toBeGreaterThanOrEqual(1);
+    Expected: >= 1
+    Received:    0
+
+### Cause exacte
+
+S0-B a cadré le rail de preuves sur `CONTENT_SCHEMA_PREFIXES` — les trois
+appels du chargeur qui l'alimentent portent aujourd'hui la déclaration
+corrigée : `apps/worker/src/vertex_worker/analysis.py:1261`,
+`apps/worker/src/vertex_worker/opportunities.py:940` (fenêtres par
+instrument) et `:956` (fenêtre globale de repli). Or, dans la
+population de démonstration, les dépêches synthétiques parlent des tickers
+`SYN1`..`SYN9` (`vertex_core/synthetic/generator.py:317`) et JAMAIS d'un
+ticker de l'univers : les seules observations titrées rattachées à
+`SYN-TECH-01` sont ses événements de calendrier
+(`synthetic-calendar-event/1.0`, `vertex_core/synthetic/events.py:156`,
+`instrument_id = ticker`). `_build_evidence`
+(`apps/worker/src/vertex_worker/analysis.py:726`) ne retenant que les
+observations titrées de l'instrument, le rail est passé de plusieurs grappes
+à `clusters: []`, `considered: 0`. Les extraits externes de l'explication IA
+n'ont qu'une source — `evidence.clusters[].title`, lu par
+`apps/api/src/vertex_api/ai_explain.py:1658` — donc le bloc « Contenu externe
+non vérifié » est devenu vide, sans erreur ni journal.
+
+### Ce qui est livré
+
+- `EVIDENCE_SCHEMA_PREFIXES` (`handlers.py:178`) : la déclaration du RAIL —
+  `CONTENT_SCHEMA_PREFIXES` + `CALENDAR_EVENT_SCHEMA_PREFIXES`. Explicite,
+  deny by default, jamais une liste vide ni un retour à « toutes les
+  familles » : les familles de marché (sans titre) restent dehors.
+- Les DEUX consommateurs du rail la déclarent : `AnalysisHandler`
+  (page Analyse) et `OpportunitiesHandler` (deux appels : fenêtres par
+  instrument et fenêtre globale de repli).
+- Les DEUX consommateurs de la file (attention, revue) sont inchangés :
+  ils lisent toujours `content_schema_prefixes`, sans les événements de
+  calendrier.
+
+### Tests (rouge d'abord)
+
+- `apps/worker/tests_integration/test_evidence_rail_families.py` (nouveau,
+  rouge avant) : semis SYNTHETIC réel (barres + événements) → VRAI worker
+  drainé → `analysis/SYN-TECH-01` porte au moins une grappe titrée ;
+  `opportunities/global` cite les mêmes ; la file d'attention reste VIDE
+  sur la même base (témoin du partage).
+- `apps/api/tests_integration/test_ai_explain_e2e.py` (fixture élargie aux
+  événements de calendrier, test ajouté, rouge avant) :
+  `POST /api/v1/ai/explain` rend au moins un extrait externe, chacun
+  rattaché à une grappe réellement publiée, étiqueté `EXTERNAL_UNVERIFIED`
+  et absent des affirmations. C'est l'assertion e2e, au niveau serveur.
+- `apps/worker/tests/test_evidence_rail_declaration.py` (nouveau, garde) :
+  une famille titrée du semis qu'aucun consommateur du rail ne déclare est
+  refusée, ET un préfixe synthétique déclaré que le semis ne produit pas
+  l'est aussi. Rejoué avec la déclaration d'avant le correctif : 3 tests
+  sur 5 échouent — la garde aurait attrapé la régression.
+
+### Non vérifié ici
+
+Les parcours e2e Playwright ne sont pas lancés sur cette machine (ports 8000
+et 4173 servent la pile vivante de l'utilisateur) : c'est la CI GitHub qui
+jugera `e2e/ai-inspector.spec.ts`.
