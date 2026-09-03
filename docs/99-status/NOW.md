@@ -1544,7 +1544,9 @@ affiche au max ») consignée en
   `VERTEX_*` exporté) : toutes les portes vertes (rôle, blueprint, frontière, registre,
   secrets, policy, traçabilité — entrée `NOT_YET_PROVEN` connue, hors lot —,
   notices, uv.lock, compilation, Worker, Biome, performance, ruff, mypy) ;
-  pytest :  ; « TOUT VERT », code de sortie 0.
+  pytest : 4075 marqueurs de résultat comptés dans la sortie `-q` (4071 réussis,
+  4 ignorés, 0 échec ; la configuration n'imprime pas de résumé chiffré) ;
+  « TOUT VERT », code de sortie 0.
 
 ### Transmis, non corrigé ici
 
