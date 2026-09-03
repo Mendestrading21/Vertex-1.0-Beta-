@@ -243,7 +243,7 @@ test.describe('Shell — anatomie canonique', () => {
       ['/analysis/SYN-TECH-01', '.vx-chartframe'],
       ['/options/SYN-TECH-01', '.vx-chartframe'],
       ['/simulator', '.vx-sim-composer'],
-      ['/portfolio', '.vx-pf-summary'],
+      ['/portfolio', '.vx-pf-concentration'],
       ['/risks', '.vx-riskmatrix'],
       ['/catalysts', '.vx-fu-queue'],
       ['/calendar', '.vx-cal-agenda'],

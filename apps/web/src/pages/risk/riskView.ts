@@ -12,6 +12,11 @@ import type { RiskMatrixResponse } from '../../api/client.ts';
  * chaînes publiées. Rien n'est arrondi, comparé ni reclassé ici :
  * `.claude/rules/frontend.md` l'interdit, et un arrondi refait côté client
  * pourrait afficher un nombre différent de celui que le serveur a certifié.
+ *
+ * LOT-A6 : la vue relaie aussi ce que le contrat publiait sans être lu —
+ * population, état des données, moteur, schéma, unité, périmètre déclaré et
+ * retenu, enregistrements rejetés, séances par instrument, observations,
+ * fenêtre de retour. Aucun champ nouveau côté serveur.
  */
 
 /** Libellés français des motifs de refus publiés par le worker. */
@@ -38,6 +43,11 @@ export interface RiskExtremePair {
 export interface RiskView {
   readonly serverState: string;
   readonly population: string;
+  readonly dataState: string | null;
+  readonly asOf: string | null;
+  readonly engineVersion: string | null;
+  readonly schemaVersion: string | null;
+  readonly unit: string | null;
   readonly conclusion: string;
   readonly refusalReason: string | null;
   readonly synchronicityWarning: string | null;
@@ -49,6 +59,8 @@ export interface RiskView {
     readonly mostOpposed: RiskExtremePair;
   } | null;
   readonly coverage: {
+    readonly perimeter: readonly string[];
+    readonly retainedTickers: readonly string[];
     readonly perimeterSize: number;
     readonly retained: number;
     readonly commonDays: number;
@@ -56,11 +68,15 @@ export interface RiskView {
     readonly moderateThreshold: string;
     readonly strongThreshold: string;
     readonly window: string | null;
+    readonly observationsConsidered: number | null;
+    readonly lookbackSeconds: number | null;
+    readonly tradingDaysPerInstrument: ReadonlyArray<{ readonly ticker: string; readonly days: number }>;
     readonly alignmentLoss: ReadonlyArray<{ readonly ticker: string; readonly lost: number }>;
     readonly discarded: ReadonlyArray<{
       readonly instrument: string;
       readonly reason: string;
     }>;
+    readonly rejectedRecords: readonly string[];
   };
 }
 
@@ -70,6 +86,14 @@ function stringOf(value: unknown): string | null {
 
 function numberOf(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : 0;
+}
+
+function optionalNumberOf(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+function stringListOf(value: unknown): readonly string[] {
+  return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string') : [];
 }
 
 function stringGridOf(value: unknown): ReadonlyArray<readonly string[]> {
@@ -95,6 +119,21 @@ function pairOf(value: unknown): RiskExtremePair | null {
   return { pair: `${a} et ${b}`, value: coefficient };
 }
 
+/** Un enregistrement rejeté, rendu lisible sans en inventer la forme. */
+function rejectedRecordOf(value: unknown): string | null {
+  if (typeof value === 'string') {
+    return value.length > 0 ? value : null;
+  }
+  if (typeof value !== 'object' || value === null) {
+    return null;
+  }
+  const record = value as Record<string, unknown>;
+  const parts = Object.entries(record)
+    .filter(([, entry]) => typeof entry === 'string' || typeof entry === 'number')
+    .map(([key, entry]) => `${key}=${String(entry)}`);
+  return parts.length === 0 ? null : parts.join(' · ');
+}
+
 /**
  * Traduit la réponse de l'API en vue affichable.
  *
@@ -110,7 +149,9 @@ export function riskViewOf(response: RiskMatrixResponse): RiskView {
 
   const refusalCode = stringOf(coverage.refusal_reason);
   const lost = (coverage.trading_days_lost_to_alignment ?? {}) as Record<string, unknown>;
+  const perInstrument = (coverage.trading_days_per_instrument ?? {}) as Record<string, unknown>;
   const discarded = Array.isArray(coverage.discarded) ? coverage.discarded : [];
+  const rejected = Array.isArray(coverage.rejected_records) ? coverage.rejected_records : [];
 
   const mostCorrelated = extremes === null ? null : pairOf(extremes.most_correlated);
   const mostOpposed = extremes === null ? null : pairOf(extremes.most_opposed);
@@ -121,6 +162,11 @@ export function riskViewOf(response: RiskMatrixResponse): RiskView {
   return {
     serverState: response.state,
     population: stringOf(content.population) ?? 'EMPTY',
+    dataState: stringOf(content.data_state),
+    asOf: stringOf(content.as_of) ?? response.as_of,
+    engineVersion: stringOf(content.engine_version),
+    schemaVersion: stringOf(content.schema_version),
+    unit: stringOf(content.unit),
     conclusion: stringOf(content.conclusion) ?? '',
     refusalReason: refusalCode === null ? null : (REFUSAL_LABELS[refusalCode] ?? refusalCode),
     synchronicityWarning: stringOf(content.synchronicity_warning),
@@ -136,6 +182,8 @@ export function riskViewOf(response: RiskMatrixResponse): RiskView {
     extremes:
       mostCorrelated !== null && mostOpposed !== null ? { mostCorrelated, mostOpposed } : null,
     coverage: {
+      perimeter: stringListOf(coverage.perimeter),
+      retainedTickers: stringListOf(coverage.retained),
       perimeterSize: numberOf(coverage.perimeter_size),
       retained: numberOf(coverage.retained_count),
       commonDays: numberOf(coverage.common_trading_days),
@@ -143,6 +191,12 @@ export function riskViewOf(response: RiskMatrixResponse): RiskView {
       moderateThreshold: stringOf(coverage.moderate_threshold) ?? '—',
       strongThreshold: stringOf(coverage.strong_threshold) ?? '—',
       window: windowStart !== null && windowEnd !== null ? `${windowStart} → ${windowEnd}` : null,
+      observationsConsidered: optionalNumberOf(coverage.observations_considered),
+      lookbackSeconds: optionalNumberOf(coverage.lookback_seconds),
+      // Ordre alphabétique : un compte par instrument, stable d'un rendu à l'autre.
+      tradingDaysPerInstrument: Object.entries(perInstrument)
+        .map(([ticker, value]) => ({ ticker, days: numberOf(value) }))
+        .sort((a, b) => a.ticker.localeCompare(b.ticker)),
       // Trié par perte DÉCROISSANTE : ce qui coûte le plus se lit d'abord.
       // À perte égale, l'ordre alphabétique garde l'affichage stable d'un
       // rendu à l'autre.
@@ -158,6 +212,7 @@ export function riskViewOf(response: RiskMatrixResponse): RiskView {
           reason: DISCARD_LABELS[reason] ?? reason,
         };
       }),
+      rejectedRecords: rejected.map(rejectedRecordOf).filter((entry): entry is string => entry !== null),
     },
   };
 }

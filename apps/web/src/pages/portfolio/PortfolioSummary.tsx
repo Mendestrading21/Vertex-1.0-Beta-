@@ -1,15 +1,18 @@
+import { Card } from '../../components/Card.tsx';
+import { portfolioModule } from './portfolioModules.ts';
 import type { ValuationContentView } from './portfolioView.ts';
 
 /**
- * Synthèse de valorisation — chiffres = chaînes serveur VERBATIM, avec
- * provenance (calcul, méthode, hash) et `as_of` du snapshot.
+ * Module « Valorisation publiée » (planche §7) — chiffres = chaînes serveur
+ * VERBATIM, avec provenance (calcul, méthode, hash) et `as_of` du snapshot.
  *
  * - Le badge « Marks : DONNÉES SYNTHÉTIQUES » est TOUJOURS rendu tant que la
  *   population des marques publiée est SYNTHETIC (elle l'est par contrat en
  *   1.0 Beta) : une marque synthétique ne se présente jamais comme réelle.
  * - Le solde d'espèces n'existe PAS dans le snapshot de valorisation publié :
  *   il est affiché comme absent avec sa raison, jamais recalculé côté client
- *   depuis le journal (aucun total TypeScript).
+ *   depuis le journal (aucun total TypeScript). Le module « Espèces » de la
+ *   planche porte le même aveu à sa place.
  */
 
 function StatusValue({
@@ -39,11 +42,16 @@ function StatusValue({
 }
 
 export function PortfolioSummary({ valuation }: { readonly valuation: ValuationContentView }) {
+  const module = portfolioModule('value');
   return (
-    <section className="vx-pf-summary" data-rank="dominant" aria-labelledby="vx-pf-summary-title">
-      <div className="vx-pf-summary-head">
-        <h2 id="vx-pf-summary-title">Valorisation publiée</h2>
-        {valuation.markPopulation === 'SYNTHETIC' ? (
+    <Card
+      rank="quiet"
+      kicker="Snapshot du worker"
+      title={module.title}
+      titleId="vx-pf-summary-title"
+      className="vx-pf-value"
+      aside={
+        valuation.markPopulation === 'SYNTHETIC' ? (
           <span className="vx-badge vx-badge-synthetic" data-testid="pf-marks-badge">
             Marks : DONNÉES SYNTHÉTIQUES
           </span>
@@ -51,34 +59,29 @@ export function PortfolioSummary({ valuation }: { readonly valuation: ValuationC
           <span className="vx-badge vx-badge-warning" data-testid="pf-marks-badge">
             Population de marques : {valuation.markPopulation ?? 'inconnue'}
           </span>
-        )}
-      </div>
-
-      <p className="vx-pf-summary-meta">
-        Instant du snapshot (<code>as_of</code>) :{' '}
-        {valuation.asOf !== null ? <time dateTime={valuation.asOf}>{valuation.asOf}</time> : '—'}
-        {' · '}méthode de lots : <code>{valuation.lotMethod ?? '—'}</code>
-        {' · '}moteur : <code>{valuation.engineVersion ?? '—'}</code>
-        {' · '}marques :{' '}
-        {valuation.marks.status === 'OK' ? (
-          <>
-            snapshot marchés v{valuation.marks.snapshotVersion ?? '—'} (
-            {valuation.marks.tickersMarked ?? '—'} tickers,{' '}
-            {valuation.marks.asOf !== null ? (
-              <time dateTime={valuation.marks.asOf}>{valuation.marks.asOf}</time>
-            ) : (
-              '—'
-            )}
-            )
-          </>
-        ) : (
-          <span className="vx-cell-absent">
-            {valuation.marks.status ?? 'ABSENT'}
-            {valuation.marks.reason !== null ? ` — ${valuation.marks.reason}` : null}
-          </span>
-        )}
-      </p>
-
+        )
+      }
+      footer={
+        <>
+          <code>as_of</code>{' '}
+          {valuation.asOf !== null ? <time dateTime={valuation.asOf}>{valuation.asOf}</time> : '—'}
+          {' · '}lots <code>{valuation.lotMethod ?? '—'}</code>
+          {' · '}moteur <code>{valuation.engineVersion ?? '—'}</code>
+          {' · '}marques :{' '}
+          {valuation.marks.status === 'OK' ? (
+            <>
+              snapshot marchés v{valuation.marks.snapshotVersion ?? '—'} ({valuation.marks.tickersMarked ?? '—'} tickers,{' '}
+              {valuation.marks.asOf !== null ? <time dateTime={valuation.marks.asOf}>{valuation.marks.asOf}</time> : '—'})
+            </>
+          ) : (
+            <span className="vx-cell-absent">
+              {valuation.marks.status ?? 'ABSENT'}
+              {valuation.marks.reason !== null ? ` — ${valuation.marks.reason}` : null}
+            </span>
+          )}
+        </>
+      }
+    >
       {valuation.blocks.length === 0 ? (
         <p className="vx-cell-absent">
           Aucune position dérivée du journal — aucun agrégat n'est fabriqué.
@@ -154,6 +157,6 @@ export function PortfolioSummary({ valuation }: { readonly valuation: ValuationC
           ))}
         </dl>
       )}
-    </section>
+    </Card>
   );
 }

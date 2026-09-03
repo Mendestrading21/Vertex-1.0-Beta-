@@ -22,6 +22,10 @@ import type { CurrencyBlockView } from './portfolioView.ts';
  *      entend la valeur complète, chiffre par chiffre.
  * Seul l'œil est soulagé, au profit de la barre, qui est la comparaison qu'il
  * cherchait.
+ *
+ * LOT-A6 : ce composant est le CORPS de la dominante de la planche §7 ; la
+ * carte (titre, kicker, pied) est portée par la page. Il sert aussi la page
+ * Risques (module « Concentration du registre »), en barres seules.
  */
 
 /** Largeur de barre en % (géométrie de rendu uniquement). */
@@ -33,10 +37,47 @@ export function barWidthPct(weight: string): number {
   return Math.min(100, parsed * 100);
 }
 
+export function ConcentrationBars({
+  block,
+  testIdPrefix = 'pf-bars',
+}: {
+  readonly block: CurrencyBlockView;
+  readonly testIdPrefix?: string;
+}) {
+  return (
+    <ul className="vx-pf-bars" data-testid={`${testIdPrefix}-${block.currency}`}>
+      {block.weights.map((entry) => (
+        <li key={entry.ticker} className="vx-pf-bar-row" aria-label={`${entry.ticker} — poids normalisé ${entry.weight}`}>
+          <span className="vx-pf-bar-ticker">
+            <code>{entry.ticker}</code>
+          </span>
+          <span className="vx-pf-bar-track" aria-hidden="true">
+            <span className="vx-pf-bar-fill" style={{ width: `${barWidthPct(entry.weight)}%` }} />
+          </span>
+          {/*
+            `title` porte la chaîne exacte au survol ; le texte visible
+            est la MÊME chaîne, simplement bornée en largeur par le
+            style. Rien n'est réécrit : `text-overflow` coupe le rendu,
+            il ne fabrique pas un arrondi — la distinction compte, car
+            un arrondi ressemblerait à une valeur servie.
+          */}
+          <span className="vx-num vx-pf-bar-value" title={entry.weight}>
+            {entry.weight}
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export function ConcentrationPanel({ blocks }: { readonly blocks: readonly CurrencyBlockView[] }) {
   return (
-    <section className="vx-pf-concentration" aria-labelledby="vx-pf-concentration-title">
-      <h2 id="vx-pf-concentration-title">Concentration par ticker</h2>
+    <div className="vx-pf-concentration-body">
+      {blocks.length === 0 ? (
+        <p className="vx-cell-absent" role="status">
+          Aucune position dérivée du journal : aucune concentration à mesurer.
+        </p>
+      ) : null}
       {blocks.map((block) => (
         <div key={block.currency} className="vx-pf-concentration-block">
           <h3>
@@ -50,32 +91,7 @@ export function ConcentrationPanel({ blocks }: { readonly blocks: readonly Curre
             </p>
           ) : (
             <>
-              <ul className="vx-pf-bars" data-testid={`pf-bars-${block.currency}`}>
-                {block.weights.map((entry) => (
-                  <li
-                    key={entry.ticker}
-                    className="vx-pf-bar-row"
-                    aria-label={`${entry.ticker} — poids normalisé ${entry.weight}`}
-                  >
-                    <span className="vx-pf-bar-ticker">
-                      <code>{entry.ticker}</code>
-                    </span>
-                    <span className="vx-pf-bar-track" aria-hidden="true">
-                      <span className="vx-pf-bar-fill" style={{ width: `${barWidthPct(entry.weight)}%` }} />
-                    </span>
-                    {/*
-                      `title` porte la chaîne exacte au survol ; le texte visible
-                      est la MÊME chaîne, simplement bornée en largeur par le
-                      style. Rien n'est réécrit : `text-overflow` coupe le rendu,
-                      il ne fabrique pas un arrondi — la distinction compte, car
-                      un arrondi ressemblerait à une valeur servie.
-                    */}
-                    <span className="vx-num vx-pf-bar-value" title={entry.weight}>
-                      {entry.weight}
-                    </span>
-                  </li>
-                ))}
-              </ul>
+              <ConcentrationBars block={block} />
               <table className="vx-pf-concentration-table" aria-label={`Poids de concentration (${block.currency})`}>
                 <thead>
                   <tr>
@@ -109,6 +125,6 @@ export function ConcentrationPanel({ blocks }: { readonly blocks: readonly Curre
           )}
         </div>
       ))}
-    </section>
+    </div>
   );
 }

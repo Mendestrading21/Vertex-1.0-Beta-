@@ -7716,3 +7716,257 @@ label {
 .vx-sim-grid .vx-scenarios-table {
   min-width: max-content;
 }
+
+/* ================================================================== */
+/* LOT-A6 — COMPOSITION DES PLANCHES §7 (Portefeuille) ET §9 (Risques) */
+/* ================================================================== */
+
+/* POURQUOI. Portefeuille était une colonne de sections cadrées, Risques deux
+   panneaux. Les planches composent dix-huit et dix-neuf modules autour d'une
+   dominante — la concentration (elle répond à la question de la page) et la
+   matrice de corrélation. Les sections d'écriture du registre (journal,
+   déclaration, import) et le module Performance entier gardent leur corps ;
+   la grille leur donne le matériau des cartes. */
+
+/* Le module Performance (courbe, métriques, heatmap, points, export,
+   conventions) est le plus haut de la page : il occupe une rangée entière,
+   sinon ses voisins s'étirent en cartes vides (mesuré sur capture 1280). */
+.vx-pf-grid {
+  grid-template-areas:
+    'value value dayperf totalperf'
+    'value value cash allocation'
+    'performance performance performance performance'
+    'concentration concentration concentration currency'
+    'concentration concentration concentration benchmark'
+    'concentration concentration concentration sector'
+    'positions positions positions country'
+    'positions positions positions alerts'
+    'dividends dividends attribution attribution'
+    'ledger ledger ledger ledger'
+    'record record import import';
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.vx-pf-grid > [data-module='value'] { grid-area: value; }
+.vx-pf-grid > [data-module='day-performance'] { grid-area: dayperf; }
+.vx-pf-grid > [data-module='total-performance'] { grid-area: totalperf; }
+.vx-pf-grid > [data-module='cash'] { grid-area: cash; }
+.vx-pf-grid > [data-module='performance'] { grid-area: performance; }
+.vx-pf-grid > [data-module='benchmark'] { grid-area: benchmark; }
+.vx-pf-grid > [data-module='allocation'] { grid-area: allocation; }
+.vx-pf-grid > [data-module='concentration'] { grid-area: concentration; }
+.vx-pf-grid > [data-module='sector-exposure'] { grid-area: sector; }
+.vx-pf-grid > [data-module='country-exposure'] { grid-area: country; }
+.vx-pf-grid > [data-module='currency-exposure'] { grid-area: currency; }
+.vx-pf-grid > [data-module='concentration-alerts'] { grid-area: alerts; }
+.vx-pf-grid > [data-module='positions'] { grid-area: positions; }
+.vx-pf-grid > [data-module='attribution'] { grid-area: attribution; }
+.vx-pf-grid > [data-module='dividends'] { grid-area: dividends; }
+.vx-pf-grid > [data-module='ledger'] { grid-area: ledger; }
+.vx-pf-grid > [data-module='record-transaction'] { grid-area: record; }
+.vx-pf-grid > [data-module='csv-import'] { grid-area: import; }
+
+@media (min-width: 1600px) {
+  .vx-pf-grid {
+    grid-template-areas:
+      'value value dayperf totalperf cash'
+      'performance performance performance performance performance'
+      'concentration concentration concentration currency allocation'
+      'concentration concentration concentration benchmark sector'
+      'positions positions positions country alerts'
+      'positions positions positions attribution dividends'
+      'ledger ledger ledger ledger ledger'
+      'record record import import import';
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+/* Les sections du registre gardent leur corps mais reçoivent le matériau des
+   cartes de la grille : plus de double cadre, plus de marge de page. */
+.vx-pf-grid > [data-module] > .vx-pf-ledger,
+.vx-pf-grid > [data-module] > .vx-pf-form,
+.vx-pf-grid > [data-module] > .vx-pf-import,
+.vx-pf-grid > [data-module] > .vx-perf-module {
+  height: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  padding: var(--vx-space-20) var(--vx-space-20) var(--vx-space-16);
+  border: 1px solid var(--vx-border-soft);
+  border-top-color: var(--vx-border);
+  border-radius: var(--vx-radius-14);
+  background: var(--vx-surface-1);
+  box-shadow: var(--vx-shadow-inset);
+}
+
+.vx-pf-grid > [data-module] > .vx-perf-module > .vx-page-header {
+  margin: 0 0 var(--vx-space-12);
+  padding-bottom: var(--vx-space-12);
+  border-bottom: 1px solid var(--vx-border-soft);
+}
+
+.vx-pf-grid > [data-module] > .vx-perf-module > .vx-page-header h2 {
+  font-size: var(--vx-font-size-title);
+}
+
+.vx-pf-grid .vx-perf-metrics,
+.vx-pf-grid .vx-perf-heatmap-section,
+.vx-pf-grid .vx-perf-export,
+.vx-pf-grid .vx-perf-conventions {
+  margin: var(--vx-space-16) 0 0;
+  padding: var(--vx-space-12) 0 0;
+  border: 0;
+  border-top: 1px solid var(--vx-border-soft);
+  border-radius: 0;
+  background: transparent;
+}
+
+.vx-pf-grid .vx-pf-ledger h2,
+.vx-pf-grid .vx-pf-form h2,
+.vx-pf-grid .vx-pf-import h2 {
+  padding-bottom: var(--vx-space-12);
+  border-bottom: 1px solid var(--vx-border-soft);
+}
+
+.vx-pf-grid .vx-pf-excluded {
+  margin-top: var(--vx-space-16);
+}
+
+.vx-pf-grid .vx-pf-concentration-block + .vx-pf-concentration-block {
+  margin-top: var(--vx-space-16);
+  padding-top: var(--vx-space-16);
+  border-top: 1px solid var(--vx-border-soft);
+}
+
+.vx-pf-grid .vx-pf-concentration-block h3,
+.vx-pf-grid .vx-pf-excluded h3 {
+  margin: 0 0 var(--vx-space-8);
+}
+
+.vx-pf-grid .vx-pf-concentration-table {
+  margin-top: var(--vx-space-12);
+}
+
+.vx-pf-grid .vx-pf-summary-grid {
+  margin: 0;
+}
+
+.vx-pf-grid .vx-pf-lots tr[data-selected='true'] > *,
+.vx-riskmatrix-table tr[data-selected='true'] > * {
+  background: var(--vx-surface-2);
+}
+
+.vx-pf-dividends li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--vx-space-8);
+  align-items: baseline;
+}
+
+/* ---- Risques ------------------------------------------------------- */
+
+/* La matrice tient sur UNE rangée avec les paires extrêmes à sa droite :
+   sur deux rangées, la dominante se vidait sous sa légende (capture 1280). */
+.vx-risk-grid {
+  grid-template-areas:
+    'score var drawdown benchrel'
+    'vol concentration liquidity turnover'
+    'correlations correlations correlations extremes'
+    'stress factors budget radar'
+    'coverage alignment discards register'
+    'coverage alerts discards register';
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.vx-risk-grid > [data-module='risk-score'] { grid-area: score; }
+.vx-risk-grid > [data-module='var-cvar'] { grid-area: var; }
+.vx-risk-grid > [data-module='max-drawdown'] { grid-area: drawdown; }
+.vx-risk-grid > [data-module='benchmark-relative'] { grid-area: benchrel; }
+.vx-risk-grid > [data-module='volatility'] { grid-area: vol; }
+.vx-risk-grid > [data-module='concentration'] { grid-area: concentration; }
+.vx-risk-grid > [data-module='liquidity'] { grid-area: liquidity; }
+.vx-risk-grid > [data-module='correlations'] { grid-area: correlations; }
+.vx-risk-grid > [data-module='turnover'] { grid-area: turnover; }
+.vx-risk-grid > [data-module='extremes'] { grid-area: extremes; }
+.vx-risk-grid > [data-module='stress-loss'] { grid-area: stress; }
+.vx-risk-grid > [data-module='factor-exposures'] { grid-area: factors; }
+.vx-risk-grid > [data-module='risk-budget'] { grid-area: budget; }
+.vx-risk-grid > [data-module='radar'] { grid-area: radar; }
+.vx-risk-grid > [data-module='coverage'] { grid-area: coverage; }
+.vx-risk-grid > [data-module='alignment'] { grid-area: alignment; }
+.vx-risk-grid > [data-module='discards'] { grid-area: discards; }
+.vx-risk-grid > [data-module='risk-register'] { grid-area: register; }
+.vx-risk-grid > [data-module='alert-log'] { grid-area: alerts; }
+
+@media (min-width: 1600px) {
+  .vx-risk-grid {
+    grid-template-areas:
+      'score var drawdown benchrel vol'
+      'concentration liquidity turnover stress factors'
+      'correlations correlations correlations correlations extremes'
+      'budget radar alerts alignment discards'
+      'coverage coverage register register discards';
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+.vx-risk-grid .vx-risk-extremes,
+.vx-risk-grid .vx-risk-coverage {
+  margin: 0;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+
+.vx-risk-grid .vx-risk-caveat {
+  margin-top: var(--vx-space-16);
+}
+
+.vx-risk-alignment-list,
+.vx-risk-discards-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--vx-space-8);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.vx-risk-alignment-list li,
+.vx-risk-discards-list li {
+  padding: var(--vx-space-4) var(--vx-space-8);
+  border: 1px solid var(--vx-border-soft);
+  border-radius: var(--vx-radius-6);
+  color: var(--vx-text-secondary);
+  font-size: var(--vx-font-size-meta);
+  font-variant-numeric: tabular-nums;
+}
+
+.vx-risk-alignment-list li span,
+.vx-risk-discards-list li span {
+  margin-right: var(--vx-space-4);
+  color: var(--vx-text);
+  font-family: var(--vx-font-mono);
+}
+
+.vx-risk-concentration-block + .vx-risk-concentration-block {
+  margin-top: var(--vx-space-12);
+  padding-top: var(--vx-space-12);
+  border-top: 1px solid var(--vx-border-soft);
+}
+
+.vx-riskmatrix-rowbtn {
+  padding: 0 var(--vx-space-4);
+  border: 1px solid transparent;
+  border-radius: var(--vx-radius-6);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.vx-riskmatrix-rowbtn:hover {
+  border-color: var(--vx-border);
+}
+
+.vx-riskmatrix-rowbtn[aria-pressed='true'] {
+  border-color: var(--vx-signal);
+  color: var(--vx-signal-bright);
+}
