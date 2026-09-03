@@ -7993,3 +7993,246 @@ label {
   border-color: var(--vx-signal);
   color: var(--vx-signal-bright);
 }
+
+/* ================================================================== */
+/* LOT-A7 — COMPOSITION DES PLANCHES §10 (Catalyseurs) ET §11 (Calendrier) */
+/* ================================================================== */
+
+/* POURQUOI. Catalyseurs était une timeline suivie d'un module de revue,
+   Calendrier un formulaire suivi d'un agenda déroulé. Les planches composent
+   dix-sept et treize modules autour d'une dominante — la chronologie et
+   l'agenda, toutes deux régions défilantes bornées. La revue des thèses
+   garde son corps entier ; la grille lui donne le matériau des cartes. */
+
+.vx-cat-grid {
+  grid-template-areas:
+    'count impact confidence revisions'
+    'filters filters surprises consensus'
+    'timeline timeline timeline catsplit'
+    'timeline timeline timeline history'
+    'exposure exposure alerts sources'
+    'window conflicts orphans orphans'
+    'review review review review';
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.vx-cat-grid > [data-module='upcoming-count'] { grid-area: count; }
+.vx-cat-grid > [data-module='mean-impact'] { grid-area: impact; }
+.vx-cat-grid > [data-module='confidence'] { grid-area: confidence; }
+.vx-cat-grid > [data-module='revisions'] { grid-area: revisions; }
+.vx-cat-grid > [data-module='filters'] { grid-area: filters; }
+.vx-cat-grid > [data-module='surprises'] { grid-area: surprises; }
+.vx-cat-grid > [data-module='consensus'] { grid-area: consensus; }
+.vx-cat-grid > [data-module='timeline'] { grid-area: timeline; }
+.vx-cat-grid > [data-module='category-split'] { grid-area: catsplit; }
+.vx-cat-grid > [data-module='surprise-history'] { grid-area: history; }
+.vx-cat-grid > [data-module='portfolio-exposure'] { grid-area: exposure; }
+.vx-cat-grid > [data-module='event-alerts'] { grid-area: alerts; }
+.vx-cat-grid > [data-module='sources-freshness'] { grid-area: sources; }
+.vx-cat-grid > [data-module='window'] { grid-area: window; }
+.vx-cat-grid > [data-module='conflicts'] { grid-area: conflicts; }
+.vx-cat-grid > [data-module='orphan-theses'] { grid-area: orphans; }
+.vx-cat-grid > [data-module='review'] { grid-area: review; }
+
+@media (min-width: 1600px) {
+  .vx-cat-grid {
+    grid-template-areas:
+      'count impact confidence revisions conflicts'
+      'filters filters surprises consensus window'
+      'timeline timeline timeline catsplit history'
+      'exposure exposure alerts sources orphans'
+      'review review review review review';
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+/* La revue des thèses garde son corps mais reçoit le matériau des cartes. */
+.vx-cat-grid > [data-module] > .vx-fu-module {
+  height: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  padding: var(--vx-space-20) var(--vx-space-20) var(--vx-space-16);
+  border: 1px solid var(--vx-border-soft);
+  border-top-color: var(--vx-border);
+  border-radius: var(--vx-radius-14);
+  background: var(--vx-surface-1);
+  box-shadow: var(--vx-shadow-inset);
+}
+
+.vx-cat-grid > [data-module] > .vx-fu-module > .vx-page-header {
+  margin: 0 0 var(--vx-space-12);
+  padding-bottom: var(--vx-space-12);
+  border-bottom: 1px solid var(--vx-border-soft);
+}
+
+.vx-cat-grid > [data-module] > .vx-fu-module > .vx-page-header h2 {
+  font-size: var(--vx-font-size-title);
+}
+
+.vx-cat-grid .vx-fu-queue,
+.vx-cat-grid .vx-fu-theses,
+.vx-cat-grid .vx-thesis-form {
+  margin: var(--vx-space-16) 0 0;
+  padding: var(--vx-space-12) 0 0;
+  border: 0;
+  border-top: 1px solid var(--vx-border-soft);
+  border-radius: 0;
+  background: transparent;
+}
+
+.vx-cat-grid .vx-cat-timeline {
+  margin: 0;
+}
+
+.vx-cat-grid .vx-cat-scope,
+.vx-cat-grid .vx-cat-populations {
+  margin: 0 0 var(--vx-space-12);
+}
+
+.vx-cat-grid .vx-cat-missing {
+  margin: var(--vx-space-12) 0 0;
+}
+
+.vx-cat-grid .vx-cat-orphans ul {
+  margin: 0;
+  padding-left: var(--vx-space-20);
+}
+
+.vx-cat-grid .vx-cat-orphans li code {
+  margin-left: var(--vx-space-8);
+}
+
+.vx-cat-exposure-line {
+  display: flex;
+  flex-direction: column;
+  gap: var(--vx-space-4);
+}
+
+.vx-cat-exposure-line > .vx-agenda-line {
+  list-style: none;
+}
+
+/* ---- Calendrier ---------------------------------------------------- */
+
+.vx-cal-grid {
+  grid-template-areas:
+    'controls controls controls tz'
+    'agenda agenda agenda next'
+    'agenda agenda agenda conflicts'
+    'exposure density counters counters'
+    'revisions reminders changes provenance'
+    'rule rule rule provenance';
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.vx-cal-grid > [data-module='view-controls'] { grid-area: controls; }
+.vx-cal-grid > [data-module='timezone'] { grid-area: tz; }
+.vx-cal-grid > [data-module='agenda'] { grid-area: agenda; }
+.vx-cal-grid > [data-module='next-event'] { grid-area: next; }
+.vx-cal-grid > [data-module='counters'] { grid-area: counters; }
+.vx-cal-grid > [data-module='daily-exposure'] { grid-area: exposure; }
+.vx-cal-grid > [data-module='density'] { grid-area: density; }
+.vx-cal-grid > [data-module='reminders'] { grid-area: reminders; }
+.vx-cal-grid > [data-module='changes-since-visit'] { grid-area: changes; }
+.vx-cal-grid > [data-module='revisions'] { grid-area: revisions; }
+.vx-cal-grid > [data-module='conflicts'] { grid-area: conflicts; }
+.vx-cal-grid > [data-module='importance-rule'] { grid-area: rule; }
+.vx-cal-grid > [data-module='provenance'] { grid-area: provenance; }
+
+@media (min-width: 1600px) {
+  .vx-cal-grid {
+    grid-template-areas:
+      'controls controls controls tz next'
+      'agenda agenda agenda conflicts revisions'
+      'agenda agenda agenda exposure density'
+      'counters counters counters reminders changes'
+      'rule rule rule provenance provenance';
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+/* Le formulaire de fenêtre et l'agenda perdent leur cadre de page : la carte
+   porte le titre et le matériau. */
+.vx-cal-grid .vx-cal-window {
+  margin: 0;
+}
+
+.vx-cal-grid .vx-cal-window .vx-matrix-filters {
+  margin: 0 0 var(--vx-space-12);
+}
+
+.vx-cal-grid .vx-cal-agenda {
+  margin: 0;
+  max-height: 640px;
+}
+
+.vx-cal-grid .vx-cal-rule,
+.vx-cal-grid .vx-cal-counters {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.vx-cal-grid .vx-cal-provenance {
+  margin: var(--vx-space-12) 0 0;
+}
+
+/* Dans une cellule de planche, les tables des compteurs et de la règle
+   d'importance tiennent la largeur de leur carte : une ligne qui replie vaut
+   mieux qu'une colonne coupée derrière un défilement horizontal. */
+.vx-cal-grid .vx-cal-counters .vx-matrix-table,
+.vx-cal-grid .vx-cal-rule .vx-matrix-table {
+  min-width: 100%;
+  width: 100%;
+}
+
+/* Dix lignes tiennent dans la carte : aucune borne de hauteur qui laisserait
+   un vide sous un défilement. */
+.vx-cal-grid .vx-cal-counters .vx-cal-scroll[tabindex] {
+  max-height: none;
+}
+
+.vx-cal-grid .vx-cal-counters .vx-matrix-table caption,
+.vx-cal-grid .vx-cal-counters .vx-matrix-table th,
+.vx-cal-grid .vx-cal-counters .vx-matrix-table td,
+.vx-cal-grid .vx-cal-rule .vx-matrix-table caption,
+.vx-cal-grid .vx-cal-rule .vx-matrix-table th,
+.vx-cal-grid .vx-cal-rule .vx-matrix-table td {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.vx-cal-grid .vx-cal-blocked {
+  margin: 0;
+}
+
+.vx-cal-tz-label {
+  display: flex;
+  flex-direction: column;
+  gap: var(--vx-space-4);
+  font-size: var(--vx-font-size-meta);
+  color: var(--vx-text-secondary);
+}
+
+.vx-cal-tz-label select {
+  font-family: var(--vx-font-mono);
+}
+
+.vx-cal-next-title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--vx-space-8);
+  margin: 0 0 var(--vx-space-8);
+  color: var(--vx-text);
+  font-weight: 600;
+}
+
+.vx-cal-event-head .vx-opp-inspect {
+  margin-left: auto;
+}
+
+.vx-cal-event[data-selected='true'] {
+  border-color: var(--vx-signal);
+}
