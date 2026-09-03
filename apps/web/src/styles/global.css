@@ -7734,14 +7734,13 @@ label {
 .vx-pf-grid {
   grid-template-areas:
     'value value dayperf totalperf'
-    'value value cash allocation'
+    'cash allocation benchmark country'
     'performance performance performance performance'
     'concentration concentration concentration currency'
-    'concentration concentration concentration benchmark'
     'concentration concentration concentration sector'
-    'positions positions positions country'
+    'positions positions positions dividends'
     'positions positions positions alerts'
-    'dividends dividends attribution attribution'
+    'positions positions positions attribution'
     'ledger ledger ledger ledger'
     'record record import import';
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -7770,11 +7769,10 @@ label {
   .vx-pf-grid {
     grid-template-areas:
       'value value dayperf totalperf cash'
+      'allocation benchmark country attribution alerts'
       'performance performance performance performance performance'
-      'concentration concentration concentration currency allocation'
-      'concentration concentration concentration benchmark sector'
-      'positions positions positions country alerts'
-      'positions positions positions attribution dividends'
+      'concentration concentration concentration currency sector'
+      'positions positions positions dividends dividends'
       'ledger ledger ledger ledger ledger'
       'record record import import import';
     grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -7904,7 +7902,7 @@ label {
       'concentration liquidity turnover stress factors'
       'correlations correlations correlations correlations extremes'
       'budget radar alerts alignment discards'
-      'coverage coverage register register discards';
+      'coverage coverage register register register';
     grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 }

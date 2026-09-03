@@ -1143,3 +1143,21 @@ fusion. Branche `lot/a6-portefeuille-risques-20260903` EMPILÉE sur
   `e2e/risk.spec.ts` (première spec e2e de Risques : composition, matrice
   = API, inspecteur au clavier, axe, capture, hors ligne), test de
   composition dans `e2e/portfolio.spec.ts`.
+
+### Ce qui a été vu SUR CAPTURE, pas par un test
+
+1. Portefeuille à 1280 : le module Performance (courbe, métriques, heatmap,
+   points, export, conventions) occupait trois colonnes sur deux rangées ;
+   ses voisins « Benchmark » et « Exposition par devise » s'étiraient en
+   cartes vides de plusieurs écrans. Performance prend désormais une rangée
+   entière ; la valorisation ne s'étire plus sur deux rangées, les absents
+   de la première ligne se rangent sur la seconde. Deux passes de capture.
+2. Risques à 1280 : la matrice sur deux rangées se vidait sous sa légende.
+   Une rangée, les paires extrêmes à sa droite, la couverture (la plus
+   haute) sur deux rangées en bas. À 1600, le module des écartés s'étirait
+   seul sur deux rangées : le registre des risques prend sa place.
+3. Vu par un test, pas par une capture : `AiExplanationPanel.test.tsx`
+   attendait « le » titre `Inspecteur…` sur `/portfolio` ; la page en monte
+   désormais deux (explication IA, valorisation publiée). Locateur nommé
+   exactement (`Inspecteur — explication`), comme déjà fait pour Analyse au
+   LOT-A4. Aucune assertion retirée.
