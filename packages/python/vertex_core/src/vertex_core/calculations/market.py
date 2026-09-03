@@ -14,6 +14,7 @@ Pure, deterministic functions implementing the ``market.*`` entries of
 - ``market.ema``                 -> :func:`exponential_moving_average`
 - ``market.bollinger_bands``     -> :func:`bollinger_bands`
 - ``market.rsi``                 -> :func:`relative_strength_index`
+- ``market.macd``                -> :func:`macd`
 
 Numeric policy (UNITS_TIME_AND_PRECISION):
 
@@ -51,6 +52,7 @@ __all__ = [
     "FLOAT64_REL_TOL",
     "BollingerBands",
     "CalculationInputError",
+    "MacdSeries",
     "NumberLike",
     "OhlcBar",
     "atr",
@@ -58,6 +60,7 @@ __all__ = [
     "breadth",
     "exponential_moving_average",
     "log_return",
+    "macd",
     "realized_volatility",
     "rebase_series",
     "relative_strength",
@@ -826,3 +829,61 @@ def relative_strength_index(prices: Sequence[NumberLike], window: int) -> tuple[
         points.append(_point(average_gain, average_loss, offset + 1))
     return tuple(points)
 
+
+class MacdSeries(NamedTuple):
+    """``market.macd`` — ligne MACD, ligne de signal et histogramme.
+
+    ``macd`` compte ``len(prices) - slow + 1`` points ; ``signal`` et
+    ``histogram`` en comptent ``signal - 1`` de moins, alignés sur la fin.
+    """
+
+    macd: tuple[float, ...]
+    signal: tuple[float, ...]
+    histogram: tuple[float, ...]
+
+
+def macd(prices: Sequence[NumberLike], *, fast: int, slow: int, signal: int) -> MacdSeries:
+    """``market.macd`` — convergence/divergence de moyennes mobiles.
+
+    Méthode : ``MACD_t = EMA_fast(p)_t - EMA_slow(p)_t`` sur les points où
+    les DEUX moyennes existent (``len(prices) - slow + 1`` points) ; ligne de
+    signal ``EMA_signal(MACD)`` ; ``histogram = MACD - signal`` sur les points
+    où le signal existe (``len(prices) - slow - signal + 2`` points). Les
+    moyennes sont celles de ``market.ema`` (amorce = moyenne arithmétique),
+    la ligne de signal est amorcée de la même façon sur la ligne MACD.
+
+    Portes :
+
+    - ``fast``, ``slow``, ``signal`` entiers ``>= 1`` (``invalid_type`` /
+      ``invalid_window``) ;
+    - ``fast < slow`` strictement (``unordered_windows``) ;
+    - ``len(prices) >= slow + signal - 1`` (``minimum_sample``) : au moins un
+      point de signal ; prix finis et strictement positifs.
+
+    Invariant : toutes les valeurs sont finies ; une série constante donne
+    une ligne MACD nulle (à l'arrondi float64 près). Unité : celle des prix.
+    """
+    _require_sequence(prices, "prices")
+    f = _require_window(fast, "fast")
+    s = _require_window(slow, "slow")
+    g = _require_window(signal, "signal")
+    if f >= s:
+        raise CalculationInputError(
+            "unordered_windows",
+            f"fast window {f} must be strictly shorter than slow window {s}",
+        )
+    values = _require_price_series(prices, minimum=s + g - 1, calculation_id="market.macd")
+    fast_ema = _ema_core(values, f, "market.macd")
+    slow_ema = _ema_core(values, s, "market.macd")
+    offset = s - f
+    line = tuple(
+        _finite_result(fast_ema[index + offset] - slow_ema[index], "market.macd")
+        for index in range(len(slow_ema))
+    )
+    signal_line = _ema_core(line, g, "market.macd")
+    tail = line[len(line) - len(signal_line) :]
+    histogram = tuple(
+        _finite_result(value - smoothed, "market.macd")
+        for value, smoothed in zip(tail, signal_line, strict=True)
+    )
+    return MacdSeries(macd=line, signal=signal_line, histogram=histogram)
