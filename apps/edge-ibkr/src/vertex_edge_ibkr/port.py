@@ -357,7 +357,11 @@ class NewsHeadline(ContractModel):
     article_id: NonEmptyStr
     headline: NonEmptyStr
     time: UtcDatetime | None = None
-    time_unzoned: datetime | None = None
+    #: ISO 8601 SANS fuseau, en CHAINE et non en `datetime` : l'enveloppe est
+    #: hachee, et le canonicaliseur refuse tout datetime naif — a juste titre.
+    #: Un datetime ici a fait echouer TOUTE la collecte de depeches le
+    #: 2026-09-02. L'ambiguite est portee par le nom du champ, pas par son type.
+    time_unzoned: str | None = None
 
 
 class NewsHeadlinesPayload(ContractModel):
