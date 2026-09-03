@@ -395,9 +395,14 @@ body {
 
 .vx-absent-head {
   display: flex;
+  /* LOT-A2 — vu sur capture, pas par un test : dans une colonne étroite
+     (grille à trois modules à 1280 px), un badge « CONTRAT SERVEUR ABSENT »
+     en `nowrap` débordait de sa carte et se faisait tronquer. Le badge passe
+     sous le titre quand la place manque ; il n'est jamais coupé. */
+  flex-wrap: wrap;
   align-items: baseline;
   justify-content: space-between;
-  gap: var(--vx-space-12);
+  gap: var(--vx-space-4) var(--vx-space-12);
 }
 
 .vx-absent-head h3 {
@@ -4353,9 +4358,8 @@ body {
    Ce sont deux sources pour le même numéro : le 2026-09-01 la table TSX a
    été corrigée sans eux, et chaque page affichait `TL / 03` à côté de
    `LEDGER 02`. Un test lit ce fichier et compare les deux — voir
-   shell.test.tsx. `08 charts` reste réservé ; `09 risks` est désormais
-   installé — sa route, ses données et ses tests existent, ce qui est
-   exactement la condition posée dans app/pages.ts. */
+   shell.test.tsx. Les douze codes sont attribués : `09 risks` depuis le
+   2026-09-01, `08 charts` depuis le LOT-A2 (2026-09-02). */
 .vx-main[data-page='today'] {
   --vx-page-ledger: 'LEDGER 01 · NOW';
 }
@@ -4388,6 +4392,10 @@ body {
   --vx-page-ledger: 'LEDGER 07 · BOOK';
 }
 
+.vx-main[data-page='charts'] {
+  --vx-page-ledger: 'LEDGER 08 · STUDY';
+}
+
 .vx-main[data-page='risks'] {
   --vx-page-ledger: 'LEDGER 09 · EXPOSURE';
 }
@@ -4398,6 +4406,23 @@ body {
 
 .vx-main[data-page='sources-reports'] {
   --vx-page-ledger: 'LEDGER 12 · CONTROL';
+}
+
+/* LOT-A2 — GRAPHIQUES : LES MODULES DE LA PLANCHE, SERVIS OU DÉCLARÉS.
+   La planche §8 aligne ses modules secondaires sous la dominante, par rangées
+   de largeur égale. Chaque `AbsentModule` y tient SA place à SA géométrie :
+   la grille rend l'absence visible sans lui donner de lumière. */
+.vx-charts-modules {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--vx-space-12);
+  margin-top: var(--vx-space-12);
+}
+
+@media (max-width: 1279px) {
+  .vx-charts-modules {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 /* V8 — L'EN-TÊTE REND SA PLACE AU TRAVAIL.

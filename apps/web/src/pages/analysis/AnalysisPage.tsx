@@ -62,7 +62,7 @@ function InstrumentPicker({ current }: { readonly current: string | null }) {
   );
 }
 
-function OhlcvTable({ bars, currency }: { readonly bars: BarsView; readonly currency: string }) {
+export function OhlcvTable({ bars, currency }: { readonly bars: BarsView; readonly currency: string }) {
   return (
     <div
       className="vx-ohlcv-scroll"
@@ -435,7 +435,7 @@ function AnalysisFrame({
  * amplitude, pas un jugement, et aucun seuil n'est déclaré qui permettrait de
  * dire « élevé ».
  */
-function IndicatorsPanel({
+export function IndicatorsPanel({
   indicators,
   currency,
 }: {
