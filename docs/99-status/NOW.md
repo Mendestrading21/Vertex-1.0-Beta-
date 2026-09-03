@@ -1500,7 +1500,8 @@ affiche au max ») consignée en
   chiffre central, quatuor d'anneaux, jauges en arc graduées (position
   servie), aires à dégradé sous une série, sparklines en aire, rails derrière
   les barres, matrices de bandes, listes groupées par jour, teinte sémantique
-  secondaire par page (`macro`, `option`, `positive`, `warning`). Interdits
+  secondaire par page (`macro`, `option`, `warning` ; `positive` retiré après
+  la revue adverse, voir « Corrections » ci-dessous). Interdits
   maintenus écrits (halo, noir pur, carte floue, couleur seule, compte à
   rebours ou horloge client, radar sans dimension servie, dégradé de fond
   plein, pulsation, valeur abrégée, toute forme sur une valeur non servie).
@@ -1552,6 +1553,10 @@ affiche au max ») consignée en
 
 - `apps/web/src/components/CensusBars.tsx:1-7` : l'en-tête cite encore
   « pas d'anneau » de `charts.md` ; à réécrire au lot L0 avec `RingShares`.
+- `apps/web/src/pages/markets/BreadthPanel.tsx:5` (« jamais circulaire ») et
+  `apps/web/src/styles/global.css:6935` (« remplacent les donuts ») : même
+  catégorie de commentaires périmés, relevés par la revue adverse ; code non
+  touché, à réécrire au lot L0.
 - `docs/05-design/DASHBOARD_COMPOSITION.md:78` (« gradient argent→violet »),
   kicker 10 px vs plancher 13 px, « 3–5 modules » vs 11–19 composés : tensions
   du canon non tranchées par ADR-017.
@@ -1560,6 +1565,69 @@ affiche au max ») consignée en
 - Aucune capture d'écran : ce lot ne touche aucun rendu de page (tokens et
   blocs `[data-page-accent]` sans consommateur avant L0).
 
-Prochaine commande recommandée : revue adverse de la branche
-`lot/w2-c0-canon-v2-20260903`, puis lot L0 (`lot/w2-l0-socle-20260903`,
-empilé sur C0).
+### Corrections après revue adverse (2026-09-03)
+
+Verdict de la revue : changements requis (deux corrections de texte/tokens),
+le reste approuvé. Commits `bce6762`, `9fa1f72`, `b39c98d`, empilés sur
+`203462f` (aucun amend, aucun push).
+
+- Requis 1 — `bce6762` : ADR-017 :43 contredisait `DESIGN_SYSTEM.md:73`
+  (« gradients : sélection/action principale ») et le shell en vigueur
+  (`global.css` : tranche `signal-bright → signal-deep` :4538/:5271, action
+  principale `signal-bright → signal` :4772, liseré `signal-bright →
+  transparent` :4448). L'ADR nomme désormais trois familles de dégradé
+  (matériau ; sélection/action principale et tranche ambre, famille `signal`,
+  précédents cités ; aire sous une série servie) ; « jamais entre deux
+  teintes » ne porte plus que sur l'aire de série ; « jamais un fond plein de
+  carte, jamais décoratif » vaut pour les trois.
+- Requis 2 — `9fa1f72` : `positive` retiré de `pageAccent` (`tokens.ts`),
+  `tokens.css` régénéré (bloc `[data-page-accent="positive"]` disparu) ;
+  `tokens-css.test.ts` resserré à `['macro', 'option', 'warning']` et refuse
+  `positive`/`negative` explicitement ; `canon-v2-docs.test.ts` : catalogue à
+  trois familles, `excluded` étendu, nouveau test « aucune teinte de page ne
+  porte un signe financier » (ADR + documents du canon), deux invariants
+  gardés de plus (VERTEX_ONE « exclusivement financiers », plan « Vert/rouge
+  … servi »). Textes mis à jour : ADR :38/:42, DESIGN_SYSTEM,
+  TITANIUM_LEDGER_VISUAL_SYSTEM, WIDGET_LIBRARY, VERTEX_ONE :23/:92, TOKENS,
+  WIDGETS_V2_PLAN, canonical-visual, charts, visual-identity,
+  widget-catalog.yaml (`excluded_reason`), commentaire de `tokens.ts`.
+- Réserves 3–5 — `b39c98d` : consignées comme contraintes du lot L0 dans
+  ADR-017 (Coûts : `warning` #f0c36a ≈ `signal-bright` #f2c76b, ≤ 4/255 par
+  canal → distinguabilité mesurée sur capture ou retrait de `warning`, aucune
+  page ne le déclare avant ; Preuves : `catalog.test.ts` avant tout
+  consommateur — sans déclaration `--vx-page-accent` est invalide et un `fill`
+  SVG tombe au noir, sans erreur). `ICON_SYSTEM.md` gagne une ligne citant
+  ADR-017 (ses règles régissent les icônes ; la teinte de page colore les
+  formes, jamais un statut d'icône) et entre dans `CANON_DOCS` et
+  `KEPT_INVARIANTS` ; `TOKENS.md`, plan §2 (les trois propositions `warning`
+  suspendues à la réserve) et §3.6. Nouveau test « consigne les réserves de
+  la revue C0 comme contraintes du lot L0 ».
+- Réserve 6 : commentaires périmés ajoutés à « Transmis » ci-dessus.
+
+Mesuré après les trois commits (codes relus) :
+
+- `pnpm tokens:css` puis `git diff --exit-code -- src/design/tokens.css` :
+  aucune dérive, code 0.
+- `pnpm lint` : `Checked 237 files in 81ms. No fixes applied. Found 1 info.`,
+  code 0 (info préexistante `OptionsModules.tsx:204`).
+- `pnpm typecheck` : code 0.
+- `pnpm exec vitest run src/design` : 7 fichiers, **73 tests, 0 échec**
+  (71 → 73 : deux tests ajoutés).
+- `pnpm exec vitest run --no-file-parallelism` : **68 fichiers, 707 tests,
+  0 échec**, 78,37 s (load average 0,32 au lancement).
+- `pnpm exec vite build --manifest` : ✓ built in 465ms, manifeste 7033 o.
+- `audit_titanium_ledger.py --strict-target` : `PASS`, `errors []`,
+  `target_gaps []`, `missing_color_tokens []`, empreinte `eb2eb0fc…c7ace`
+  inchangée.
+- `tools/verify_blueprint.py` : `ok true`, `errors []`.
+- `tools/run_checks.sh` (venv `.venv` Python 3.13.15 activé par
+  `source .venv/bin/activate`, sans `env.live`, 0 variable `VERTEX_*`) :
+  `== TOUT VERT ==`, code 0 en 67 s ; ruff `All checks passed!`, `OK mypy` ;
+  pytest `-q` : 4075 marqueurs (4071 réussis, 4 ignorés, 0 échec). Sans le
+  venv activé, le script s'arrête sur `/usr/bin/python3: No module named
+  pytest` (code 1) : activer le venv avant l'appel.
+- Aucune capture : aucun rendu modifié ; e2e non lancés (règle du poste).
+
+Prochaine commande recommandée : relecture des commits de correction
+(`bce6762`, `9fa1f72`, `b39c98d` et le commit NOW.md qui suit), puis lot L0
+(`lot/w2-l0-socle-20260903`, empilé sur C0).
