@@ -398,6 +398,52 @@ calculations:
     criticality: high
     tests:
       - packages/python/vertex_core/tests/calculations/test_market_ema.py
+  - id: market.bollinger_bands
+    owner: indicators
+    inputs: [prices, window, num_std]
+    output_unit: price
+    gates: [valid_window, positive_num_std, minimum_sample, positive_prices]
+    invariants: [finite, lower_le_middle_le_upper, symmetric_around_middle, middle_equals_sma]
+    runtime_status: APPROVED
+    spec_version: "1.0.0"
+    implementation: packages/python/vertex_core/src/vertex_core/calculations/market.py::bollinger_bands
+    method: sma_middle_plus_minus_num_std_population_stdev_ddof0
+    assumptions:
+      - "middle = SMA(window): the SAME computation as market.sma (asserted EXACTLY equal, no tolerance); sigma = POPULATION standard deviation (ddof = 0) of each window, the declared convention of the bands — distinct from the ddof = 1 of market.realized_volatility; upper = middle + num_std * sigma, lower = middle - num_std * sigma."
+      - "window >= 2: a single price has no dispersion, so the band does not exist (invalid_window). num_std must be finite and strictly positive (invalid_num_std); no default multiplier exists."
+      - "One point per complete window aligned on the last price; a shorter series is INVALID (minimum_sample). Prices finite and strictly positive."
+      - "Output in the price unit of the inputs; the three bands have the same length len(prices) - window + 1 and are published under their declared names (lower, middle, upper)."
+    parameter_schema:
+      prices: {type: "list | tuple of (int | float | Decimal)", unit: price, constraint: "length >= window, each finite and > 0"}
+      window: {type: int, unit: bars, constraint: ">= 2, bool rejected"}
+      num_std: {type: "int | float | Decimal", unit: multiplier, constraint: "keyword-only, finite and > 0, bool rejected"}
+      returns: {type: "BollingerBands(lower, middle, upper)", unit: price, note: "three tuple[float, ...] of length len(prices) - window + 1"}
+    tolerances:
+      float64_rel_tol: 1.0e-9
+      float64_abs_tol: 1.0e-12
+      symmetry_abs_tol: "max(FLOAT64_ABS_TOL, 2 * ulp(middle))"
+      note: >-
+        The numpy sliding-window oracle is asserted with rtol=FLOAT64_REL_TOL
+        and atol=0 on the three bands. The symmetry property
+        upper - middle == middle - lower is asserted with
+        rel_tol=FLOAT64_REL_TOL and abs_tol=max(FLOAT64_ABS_TOL,
+        2 * math.ulp(middle)): two float64 roundings (middle + h, middle - h)
+        of at most ulp(middle) / 2 each. middle == market.sma is asserted
+        EXACTLY.
+    oracle: numpy_sliding_window_std_independent_implementation_in_test
+    oracle_evidence: >-
+      TestOracleNumpy.test_oracle_sliding_window recomputes mean and
+      population standard deviation (ddof = 0) of every window with
+      numpy.lib.stride_tricks.sliding_window_view on a 40-point synthetic
+      series for (window, k) in (2, 1), (5, 2), (20, 2), (40, 0.5);
+      TestBollingerBands asserts the hand-derived vector 1..5 with window 5
+      (mean 3, population variance 2) and the sliding window of three.
+    oracle_limitation: >-
+      numpy is a third-party numerical library, not a technical-analysis
+      library; the vectors are not registered under the pytest golden marker.
+    criticality: high
+    tests:
+      - packages/python/vertex_core/tests/calculations/test_market_bollinger.py
   - id: portfolio.fx_conversion
     owner: portfolio
     inputs: [money, fx_quote, quote_as_of]

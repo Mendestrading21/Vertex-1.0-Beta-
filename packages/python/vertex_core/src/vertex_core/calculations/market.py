@@ -12,6 +12,7 @@ Pure, deterministic functions implementing the ``market.*`` entries of
 - ``market.breadth``             -> :func:`breadth`
 - ``market.sma``                 -> :func:`simple_moving_average`
 - ``market.ema``                 -> :func:`exponential_moving_average`
+- ``market.bollinger_bands``     -> :func:`bollinger_bands`
 
 Numeric policy (UNITS_TIME_AND_PRECISION):
 
@@ -39,16 +40,19 @@ import math
 from collections.abc import Sequence
 from datetime import datetime
 from decimal import Decimal
+from typing import NamedTuple
 
 from vertex_core.contracts.types import ContractModel, PositiveDecimal, UtcDatetime
 
 __all__ = [
     "FLOAT64_ABS_TOL",
     "FLOAT64_REL_TOL",
+    "BollingerBands",
     "CalculationInputError",
     "NumberLike",
     "OhlcBar",
     "atr",
+    "bollinger_bands",
     "breadth",
     "exponential_moving_average",
     "log_return",
@@ -707,4 +711,61 @@ def exponential_moving_average(prices: Sequence[NumberLike], window: int) -> tup
     w = _require_window(window, "window")
     values = _require_price_series(prices, minimum=w, calculation_id="market.ema")
     return _ema_core(values, w, "market.ema")
+
+
+class BollingerBands(NamedTuple):
+    """``market.bollinger_bands`` — trois bandes alignées sur le dernier prix.
+
+    ``middle`` EST ``simple_moving_average(prices, window)`` (égalité exacte,
+    vérifiée par test) ; ``upper`` et ``lower`` s'en écartent de ``num_std``
+    écarts-types de POPULATION (ddof = 0) de la fenêtre.
+    """
+
+    lower: tuple[float, ...]
+    middle: tuple[float, ...]
+    upper: tuple[float, ...]
+
+
+def bollinger_bands(
+    prices: Sequence[NumberLike], window: int, *, num_std: NumberLike
+) -> BollingerBands:
+    """``market.bollinger_bands`` — médiane SMA et bandes à ``num_std`` écarts-types.
+
+    Méthode : ``middle = SMA(window)`` (le MÊME calcul que ``market.sma``,
+    égalité exacte) ; ``sigma`` = écart-type de POPULATION (ddof = 0) de la
+    fenêtre, convention déclarée — la convention usuelle des bandes, qui
+    diffère du ddof = 1 de ``market.realized_volatility`` ;
+    ``upper = middle + num_std * sigma`` et ``lower = middle - num_std * sigma``.
+
+    Portes :
+
+    - ``window >= 2`` (``invalid_window``) : un seul prix n'a pas de
+      dispersion, la bande n'existe pas ;
+    - ``num_std`` fini et strictement positif (``invalid_type`` /
+      ``non_finite_input`` / ``invalid_num_std``) ;
+    - ``len(prices) >= window`` (``minimum_sample``) ; prix finis et
+      strictement positifs.
+
+    Invariants : ``lower <= middle <= upper`` point à point, bandes
+    symétriques autour de la médiane à un ulp près, trois séries de même
+    longueur ``len(prices) - window + 1``.
+    """
+    _require_sequence(prices, "prices")
+    w = _require_window(window, "window", minimum=2)
+    k = _to_float(num_std, "num_std")
+    if k <= 0.0:
+        raise CalculationInputError(
+            "invalid_num_std", f"num_std must be strictly positive, got {k!r}"
+        )
+    values = _require_price_series(prices, minimum=w, calculation_id="market.bollinger_bands")
+    middle = _sma_core(values, w, "market.bollinger_bands")
+    upper: list[float] = []
+    lower: list[float] = []
+    for start, mean in enumerate(middle):
+        block = values[start : start + w]
+        variance = _mean([(value - mean) ** 2 for value in block], "market.bollinger_bands")
+        half_width = _finite_result(k * math.sqrt(variance), "market.bollinger_bands")
+        upper.append(_finite_result(mean + half_width, "market.bollinger_bands"))
+        lower.append(_finite_result(mean - half_width, "market.bollinger_bands"))
+    return BollingerBands(lower=tuple(lower), middle=middle, upper=tuple(upper))
 
