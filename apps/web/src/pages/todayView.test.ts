@@ -1,7 +1,13 @@
 import { describe, expect, it } from 'vitest';
 
 import { ABSENCE_REASONS } from '../components/AbsentModule.tsx';
-import { makeCapabilityEntries, makeCalendarResponse, makeOpportunities, makeValuationContent } from '../test/fixtures.ts';
+import {
+  makeCalendarResponse,
+  makeCapabilityEntries,
+  makeFreshnessPolicy,
+  makeOpportunities,
+  makeValuationContent,
+} from '../test/fixtures.ts';
 import { opportunitiesContentOf } from './opportunities/opportunitiesView.ts';
 import { valuationContentOf } from './portfolio/portfolioView.ts';
 import {
@@ -84,6 +90,7 @@ describe('dérivations pures — ordre publié, comptes publiés', () => {
       snapshot_version: 3,
       as_of: '2026-08-25T12:00:00+00:00',
       age_seconds: 60,
+      freshness_policy: makeFreshnessPolicy({ kind: 'portfolio_mark', budget_seconds: 86400 }),
       reason: null,
       content: makeValuationContent(),
     });
