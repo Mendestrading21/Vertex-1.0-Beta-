@@ -257,3 +257,23 @@ test.describe('Catalyseurs — timeline reliée aux thèses et positions', () =>
     });
   });
 });
+
+test.describe('Page Catalyseurs — composition de la planche §10 (LOT-A7)', () => {
+  test('LOT-A7 : les dix-sept modules, une seule dominante (la chronologie), six absences sans chiffre', async ({ page }) => {
+    await page.goto('/catalysts');
+    const grille = page.getByTestId('catalysts-grid');
+    await expect(grille).toBeVisible();
+    await expect(grille.locator('> [data-module]')).toHaveCount(17);
+    await expect(page.locator('.vx-main [data-rank="dominant"]')).toHaveCount(1);
+    await expect(page.locator('[data-module="timeline"] [data-rank="dominant"]')).toBeVisible();
+    await expect(grille.locator('.vx-absent')).toHaveCount(6);
+    for (const body of await grille.locator('[data-testid="absent-body"]').allTextContents()) {
+      expect(body).not.toMatch(/\d/);
+    }
+    await expect(page.getByTestId('cat-unlinked')).toBeVisible();
+    await expect(page.getByTestId('cat-window')).toBeVisible();
+    await expect(page.getByTestId('cat-conflicts')).toBeVisible();
+    // Aucun inspecteur par défaut sur cette page (témoin « aucune colonne morte »).
+    await expect(page.locator('#vx-inspector-slot')).toBeHidden();
+  });
+});

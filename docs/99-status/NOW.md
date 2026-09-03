@@ -1200,3 +1200,71 @@ fusion. Branche `lot/a6-portefeuille-risques-20260903` EMPILÉE sur
 
 Prochaine commande recommandée : fusion de la chaîne A2 → A6 (ordre reçu),
 puis `EXÉCUTE A7` (Catalyseurs, Calendrier — planches §10, §11) depuis `main`.
+
+## SESSION 2026-09-03 — LOT-A7 : Catalyseurs et Calendrier composés sur leurs planches (§10, §11)
+
+Consigne utilisateur : « pousse tout, fusionne tout et continue » — la
+chaîne A2 → A6 est fusionnée en squash pendant ce lot (chaque PR empilée
+reciblée sur `main`, CI verte exigée par la protection de branche) ; A7
+part de la tête d'A6 et sera réaligné sur `main` (merge, jamais de rebase)
+avant sa fusion. Branche `lot/a7-catalyseurs-calendrier-20260903`.
+
+### Ce qui est livré
+
+- **Catalyseurs** : la planche §10 en entier — dix-sept modules. Onze SERVIS :
+  les événements reliés (reliés, non reliés, thèses orphelines — comptes du
+  croisement publié), les révisions (drapeau et détail, deux champs
+  distincts), les **filtres locaux** (catégorie et nature du lien, chips
+  `aria-pressed` : un filtre masque, il ne reclasse pas), la **chronologie
+  en DOMINANTE** (corps LOT-10 inchangé, `cat-unlinked` et `cat-missing-widget`
+  conservés), la répartition par catégorie et les sources/fraîcheur en
+  barres de dénombrement, l'exposition du registre aux événements (positions
+  déclarées nommées par le contexte croisé), la fenêtre et les deux
+  snapshots (`cat-populations` y vit désormais), les conflits de version, les
+  thèses sans catalyseur servi (section LOT-10 devenue module), la revue des
+  thèses (module LOT-10 entier, inchangé, matériau de carte par la grille).
+  Six ABSENTS : impact moyen, confiance, surprises, historique des surprises,
+  consensus (`AUCUNE SOURCE` — l'importance servie est un rang et un code
+  de règle, jamais une mesure pondérable), alertes d'événement (`CONTRAT
+  SERVEUR ABSENT`). Aucun inspecteur par défaut : le témoin « aucune colonne
+  morte » du shell (`shell-canonical.spec.ts:544`) l'exige, et l'inspecteur
+  LOT-10 s'ouvre depuis la chronologie.
+- **Calendrier** : la planche §11 en entier — treize modules. Onze SERVIS :
+  la fenêtre et les filtres (libellés intacts, URL inchangée), le **fuseau
+  d'affichage** (param `tz` : UTC, fuseau du navigateur s'il est résolu,
+  fuseaux de place publiés par les événements servis — conversion IANA
+  explicite, jamais devinée ; la troisième lecture du temps de chaque
+  événement le suit), l'**agenda en DOMINANTE** (région bornée LOT-V3
+  conservée, bouton « Inspecter » par événement), l'exposition du registre
+  par jour et la densité (dénombrements par journée UTC), le prochain
+  événement (premier de l'ordre publié, SANS compte à rebours), les
+  compteurs, la règle d'importance, la provenance, les révisions et les
+  conflits. Deux ABSENTS : rappels, changements depuis la dernière visite
+  (`CONTRAT SERVEUR ABSENT`). `BlockedAgenda` (droit manquant, refus)
+  reste l'état de la dominante ; les autres modules disent l'absence.
+  Inspecteur « Snapshot publié » par défaut ; l'événement ouvert le
+  remplace (statut, importance, trois lectures du temps, fraîcheur, source
+  et droits, instruments, positions déclarées, thèses, versions et
+  révisions ; les « chiffres » de la planche — actuel, consensus, précédent,
+  surprise — sont dits non publiés).
+- Extraction : `CalendarModules.tsx` (`BlockedAgenda`, `ImportanceRuleModule`,
+  `CountersModule`, `ProvenanceModule`, `applyFilters` sortis de la page, +
+  fuseau, densité, exposition, prochain événement, révisions, conflits),
+  `EventInspector.tsx`, `CatalystsModules.tsx`, catalogues et tests.
+
+### Tests adaptés, jamais affaiblis
+
+- `CatalystsPage.test.tsx` (20) et `ReviewQueueSection.test.tsx` (14) :
+  inchangés. Deux collisions de texte réglées côté page : la raison serveur
+  n'est écrite qu'une fois (dans la dominante) ; le libellé de métrique
+  « Révisions refusées » devenait une fausse alerte pour
+  `queryByText(/refusée/)` — renommé « Révisions rejetées ».
+- `CalendarPage.test.tsx` (23) : inchangé — tous les `cal-*`, les deux
+  libellés de statut strictement distincts, les compteurs liste/snapshot,
+  la fenêtre refusée, l'agenda bloqué passent sur la page recomposée.
+- `shell-canonical.spec.ts` : témoins `/catalysts` (`.vx-fu-queue`,
+  `cat-unlinked`, inspecteur masqué) et `/calendar` (`.vx-cal-agenda`)
+  inchangés.
+- Nouveaux : `catalystsModules.test.ts`, `calendarModules.test.ts`,
+  `CatalystsComposition.test.tsx`, `CalendarComposition.test.tsx`, tests de
+  composition dans `e2e/catalysts.spec.ts` et `e2e/calendar.spec.ts`.
