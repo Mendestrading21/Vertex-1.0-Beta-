@@ -103,13 +103,14 @@ pourquoi elles n'ont PAS été créées en façade.
   page ne recalcule rien. Ce que `/analysis` porte en propre (verdict, gates,
   preuves, scénarios, explication) n'y est pas repris.
 
-  Les neuf modules sans source, et leur motif mesuré :
+  Les neuf modules sans source au 2026-09-02, et leur motif mesuré (état
+  serveur mis à jour le 2026-09-03 pour les overlays et oscillateurs) :
 
   | Module | Motif | Ce qui manque exactement |
   |---|---|---|
   | Comparaison base 100 | `CONTRAT SERVEUR ABSENT` | `market.rebased_series` est approuvé au registre et implémenté dans `vertex_core`, mais **aucun snapshot ni aucune route ne le relaie** |
   | Graphiques synchronisés | `CONTRAT SERVEUR ABSENT` | aucun contrat d'alignement de plusieurs séries sur un calendrier commun |
-  | Overlays (moyennes mobiles), RSI, MACD | `AUCUNE SOURCE` | aucun calcul déclaré au registre, aucun snapshot |
+  | Overlays (moyennes mobiles), RSI, MACD | `AUCUNE SOURCE` côté page → **source serveur depuis le lot S6 (2026-09-03)** | `market.sma`, `market.ema`, `market.bollinger_bands`, `market.rsi`, `market.macd` sont approuvés au registre, implémentés dans `vertex_core` et publiés par le worker dans `indicators.overlays` / `indicators.oscillators` du snapshot `analysis/{instrument}` (chaînes rendues alignées sur leurs jours de bourse, fenêtres déclarées, noms des bandes et des lignes, `INSUFFICIENT_SAMPLE` nommé avec le compte réel), relayés tels quels par `GET /api/v1/analysis/{instrument}` ; la page les déclare encore absents — les brancher est un lot d'interface, sans calcul |
   | Objet sélectionné, Alertes liées, Agencement, Études sauvegardées | `DÉCISION EN ATTENTE` | données ou préférences **utilisateur** persistées ; propriétaire et contrat non tranchés (« Alertes » est une capacité globale, pas un module de page) |
 
   Brancher la comparaison est donc un lot **serveur** — producteur et relais de

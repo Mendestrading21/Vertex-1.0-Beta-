@@ -20,6 +20,14 @@ focus instrument present in the recent bars window:
   out of shape is NEVER cleaned, escaped or truncated: it excludes its bar
   (``discarded``) or the whole observation (``coverage.rejected_records``)
   with a typed reason, and the rest of the dossier is still produced;
+- the technical indicators of the approved engine (realized volatility,
+  ATR, relative strength against the DECLARED benchmark) and, since lot S6,
+  the chart overlays (SMA, EMA, Bollinger bands) and oscillators (RSI,
+  MACD) under ``indicators.overlays`` / ``indicators.oscillators``: rendered
+  decimal strings aligned on their trading days, declared windows and
+  methods, named bands and lines, a NAMED absence (``INSUFFICIENT_SAMPLE``
+  with the real bar count) or the engine's typed refusal — never an
+  interpretation, never a value approximated on a partial window;
 - a short evidence rail: the ticker's content clusters from the single
   deterministic fusion engine (``vertex_core.fusion.fuse``) — dedup only,
   no invented relevance;
@@ -248,6 +256,25 @@ RELATIVE_STRENGTH_HORIZON = 60
 REASON_NO_BENCHMARK = "NO_BENCHMARK_DECLARED"
 REASON_BENCHMARK_ABSENT = "BENCHMARK_NOT_OBSERVED"
 REASON_IS_BENCHMARK = "INSTRUMENT_IS_BENCHMARK"
+
+#: Fenetres des overlays et oscillateurs de la page Graphiques (lot S6).
+#: DECLAREES ici, comme VOLATILITY_WINDOW : une fenetre deduite de
+#: l'historique disponible publierait une courbe dont personne ne
+#: connaitrait la periode.
+SMA_WINDOW = 50
+EMA_WINDOW = 20
+BOLLINGER_WINDOW = 20
+BOLLINGER_NUM_STD = Decimal("2")
+RSI_WINDOW = 14
+MACD_FAST = 12
+MACD_SLOW = 26
+MACD_SIGNAL = 9
+
+#: Noms PUBLIES des bandes et des lignes : la page les lit, ne les deduit pas.
+BOLLINGER_BANDS: tuple[str, ...] = ("lower", "middle", "upper")
+MACD_LINES: tuple[str, ...] = ("macd", "signal", "histogram")
+
+_MARKET_CODE_SHA = f"module:vertex_core.calculations.market@{ENGINE_VERSION}"
 
 
 def is_daily_bars_schema(schema_version: str) -> bool:
@@ -591,7 +618,229 @@ def _build_indicators(
                 "calculation": _calculation_meta(enregistrement),
             }
 
+    # -- overlays et oscillateurs de la page Graphiques (lot S6) --------------
+    overlays, oscillators = _build_overlays_and_oscillators(
+        valid_bars, now=now, source_event_id=source_event_id
+    )
+    indicateurs["overlays"] = overlays
+    indicateurs["oscillators"] = oscillators
+
     return indicateurs
+
+
+def _points_alignes(jours: Sequence[str], valeurs: Sequence[float]) -> list[dict[str, str]]:
+    """Points ``{trading_day, value}`` d'une serie alignee sur la FIN des
+    jours : la premiere valeur tombe sur la premiere fenetre complete, jamais
+    avant. La valeur est RENDUE ici (chaine decimale), pas dans le navigateur."""
+    debut = len(jours) - len(valeurs)
+    return [
+        {"trading_day": jours[debut + index], "value": _num_string(valeur)}
+        for index, valeur in enumerate(valeurs)
+    ]
+
+
+def _bloc_serie(
+    *,
+    calculation_id: str,
+    method: str,
+    unit: str,
+    parameters: Mapping[str, Any],
+    required: int,
+    closes_text: Sequence[str],
+    closes: Sequence[Decimal],
+    compute: Callable[[Sequence[Decimal]], tuple[dict[str, Any], dict[str, Any]]],
+    now: datetime,
+    source_event_ids: Sequence[str],
+) -> dict[str, Any]:
+    """Un bloc d'overlay ou d'oscillateur, dans l'un de trois etats honnetes.
+
+    - ``OK`` : la serie rendue en chaines, ses parametres declares, sa
+      methode et la lignee du calcul ;
+    - ``INSUFFICIENT_SAMPLE`` : la fenetre depasse l'historique, avec le
+      compte reel — jamais une valeur approchee sur une fenetre partielle ;
+    - ``REFUSED`` : le moteur a refuse (raison typee), relaye tel quel.
+
+    ``compute`` rend ``(resultat pour la lignee, champs publies)``.
+    """
+    from vertex_core.calculations.market import CalculationInputError
+
+    disponibles = len(closes)
+    if disponibles < required:
+        return {
+            "status": REASON_INSUFFICIENT_SAMPLE,
+            **parameters,
+            "available_bars": disponibles,
+            "detail": f"{required} clôtures requises ; {disponibles} disponibles",
+        }
+    try:
+        resultat, publie = compute(closes)
+    except CalculationInputError as erreur:
+        return {
+            "status": "REFUSED",
+            **parameters,
+            "reason": erreur.reason,
+            "detail": erreur.detail,
+        }
+    enregistrement = make_calculation_record(
+        calculation_id=calculation_id,
+        calculation_type="market_statistic",
+        code_sha=_MARKET_CODE_SHA,
+        method=method,
+        inputs={"closes": list(closes_text), **parameters},
+        result=resultat,
+        started_at=now,
+        completed_at=now,
+        source_event_ids=source_event_ids,
+    )
+    return {
+        "status": "OK",
+        **parameters,
+        "unit": unit,
+        "method": method,
+        **publie,
+        "calculation": _calculation_meta(enregistrement),
+    }
+
+
+def _build_overlays_and_oscillators(
+    valid_bars: Sequence[Mapping[str, Any]],
+    *,
+    now: datetime,
+    source_event_id: str | None,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Overlays (SMA, EMA, bandes de Bollinger) et oscillateurs (RSI, MACD)
+    de la page Graphiques, calcules par le moteur approuve sur les clotures
+    admises.
+
+    Chaque point porte SON jour de bourse et une valeur rendue ; les
+    fenetres, la methode et les noms des bandes ou des lignes sont publies
+    avec la serie. Aucune interpretation : un RSI est un indice, jamais un
+    « surachete » — cela supposerait un seuil, et aucun n'est declare.
+    """
+    from vertex_core.calculations.market import (
+        bollinger_bands,
+        exponential_moving_average,
+        macd,
+        relative_strength_index,
+        simple_moving_average,
+    )
+
+    jours = [str(bar["trading_day"]) for bar in valid_bars]
+    closes_text = [str(bar["close"]) for bar in valid_bars]
+    closes = [Decimal(texte) for texte in closes_text]
+    evenements = (source_event_id,) if source_event_id else ()
+    Resultat = tuple[dict[str, Any], dict[str, Any]]
+
+    def _simple(serie: Sequence[float]) -> Resultat:
+        points = _points_alignes(jours, serie)
+        return {"values": [point["value"] for point in points]}, {
+            "points": points,
+            "last": points[-1],
+        }
+
+    def _sma(serie: Sequence[Decimal]) -> Resultat:
+        return _simple(simple_moving_average(serie, SMA_WINDOW))
+
+    def _ema(serie: Sequence[Decimal]) -> Resultat:
+        return _simple(exponential_moving_average(serie, EMA_WINDOW))
+
+    def _rsi(serie: Sequence[Decimal]) -> Resultat:
+        return _simple(relative_strength_index(serie, RSI_WINDOW))
+
+    def _bandes(serie: Sequence[Decimal]) -> Resultat:
+        bandes = bollinger_bands(serie, BOLLINGER_WINDOW, num_std=BOLLINGER_NUM_STD)
+        debut = len(jours) - len(bandes.middle)
+        points = [
+            {
+                "trading_day": jours[debut + index],
+                "lower": _num_string(bandes.lower[index]),
+                "middle": _num_string(bandes.middle[index]),
+                "upper": _num_string(bandes.upper[index]),
+            }
+            for index in range(len(bandes.middle))
+        ]
+        resultat = {nom: [point[nom] for point in points] for nom in BOLLINGER_BANDS}
+        return resultat, {"bands": list(BOLLINGER_BANDS), "points": points, "last": points[-1]}
+
+    def _macd(serie: Sequence[Decimal]) -> Resultat:
+        lignes_calculees = macd(serie, fast=MACD_FAST, slow=MACD_SLOW, signal=MACD_SIGNAL)
+        lignes = {
+            "macd": _points_alignes(jours, lignes_calculees.macd),
+            "signal": _points_alignes(jours, lignes_calculees.signal),
+            "histogram": _points_alignes(jours, lignes_calculees.histogram),
+        }
+        dernier: dict[str, str] = {"trading_day": jours[-1]}
+        for nom in MACD_LINES:
+            dernier[nom] = lignes[nom][-1]["value"]
+        resultat = {nom: [point["value"] for point in lignes[nom]] for nom in MACD_LINES}
+        return resultat, {"lines": list(MACD_LINES), "series": lignes, "last": dernier}
+
+    def bloc(
+        calculation_id: str,
+        method: str,
+        unit: str,
+        parameters: Mapping[str, Any],
+        required: int,
+        compute: Callable[[Sequence[Decimal]], Resultat],
+    ) -> dict[str, Any]:
+        return _bloc_serie(
+            calculation_id=calculation_id,
+            method=method,
+            unit=unit,
+            parameters=parameters,
+            required=required,
+            closes_text=closes_text,
+            closes=closes,
+            compute=compute,
+            now=now,
+            source_event_ids=evenements,
+        )
+
+    overlays = {
+        "sma": bloc(
+            calculation_id="market.sma",
+            method="trailing arithmetic mean (fsum) over complete windows",
+            unit="price",
+            parameters={"window": SMA_WINDOW},
+            required=SMA_WINDOW,
+            compute=_sma,
+        ),
+        "ema": bloc(
+            calculation_id="market.ema",
+            method="exponential smoothing alpha = 2 / (window + 1), seeded by the arithmetic mean",
+            unit="price",
+            parameters={"window": EMA_WINDOW},
+            required=EMA_WINDOW,
+            compute=_ema,
+        ),
+        "bollinger_bands": bloc(
+            calculation_id="market.bollinger_bands",
+            method="SMA middle band +/- num_std population standard deviations (ddof = 0)",
+            unit="price",
+            parameters={"window": BOLLINGER_WINDOW, "num_std": format(BOLLINGER_NUM_STD, "f")},
+            required=BOLLINGER_WINDOW,
+            compute=_bandes,
+        ),
+    }
+    oscillators = {
+        "rsi": bloc(
+            calculation_id="market.rsi",
+            method="Wilder smoothed average gain / (gain + loss), seeded by the arithmetic mean",
+            unit="index_0_100",
+            parameters={"window": RSI_WINDOW},
+            required=RSI_WINDOW + 1,
+            compute=_rsi,
+        ),
+        "macd": bloc(
+            calculation_id="market.macd",
+            method="EMA(fast) - EMA(slow); signal = EMA(signal) of the MACD line; histogram",
+            unit="price",
+            parameters={"windows": {"fast": MACD_FAST, "slow": MACD_SLOW, "signal": MACD_SIGNAL}},
+            required=MACD_SLOW + MACD_SIGNAL - 1,
+            compute=_macd,
+        ),
+    }
+    return overlays, oscillators
 
 
 def _barres_de(
