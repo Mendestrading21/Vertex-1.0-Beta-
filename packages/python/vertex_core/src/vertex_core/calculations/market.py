@@ -13,6 +13,7 @@ Pure, deterministic functions implementing the ``market.*`` entries of
 - ``market.sma``                 -> :func:`simple_moving_average`
 - ``market.ema``                 -> :func:`exponential_moving_average`
 - ``market.bollinger_bands``     -> :func:`bollinger_bands`
+- ``market.rsi``                 -> :func:`relative_strength_index`
 
 Numeric policy (UNITS_TIME_AND_PRECISION):
 
@@ -40,6 +41,7 @@ import math
 from collections.abc import Sequence
 from datetime import datetime
 from decimal import Decimal
+from itertools import pairwise
 from typing import NamedTuple
 
 from vertex_core.contracts.types import ContractModel, PositiveDecimal, UtcDatetime
@@ -59,6 +61,7 @@ __all__ = [
     "realized_volatility",
     "rebase_series",
     "relative_strength",
+    "relative_strength_index",
     "simple_moving_average",
     "simple_return",
 ]
@@ -768,4 +771,58 @@ def bollinger_bands(
         upper.append(_finite_result(mean + half_width, "market.bollinger_bands"))
         lower.append(_finite_result(mean - half_width, "market.bollinger_bands"))
     return BollingerBands(lower=tuple(lower), middle=middle, upper=tuple(upper))
+
+
+def relative_strength_index(prices: Sequence[NumberLike], window: int) -> tuple[float, ...]:
+    """``market.rsi`` — indice de force relative de Wilder.
+
+    Méthode : variations ``d_t = p_t - p_{t-1}`` ; gain ``max(d_t, 0)``,
+    perte ``max(-d_t, 0)`` ; gain moyen ``AG`` et perte moyenne ``AL``
+    amorcés par la moyenne arithmétique des ``window`` premières variations,
+    puis lissage de Wilder ``AG_t = (AG_{t-1} * (window - 1) + gain_t) / window``
+    (idem ``AL``) ; ``RSI_t = 100 * AG_t / (AG_t + AL_t)``. Un point par
+    variation au-delà de la fenêtre : ``len(résultat) == len(prices) - window``.
+
+    Portes :
+
+    - ``window >= 1`` (``invalid_window``) ; ``len(prices) >= window + 1``
+      (``minimum_sample``) ; prix finis et strictement positifs ;
+    - ``flat_series`` : ``AG_t + AL_t == 0`` en un point publié — fenêtre
+      d'amorce sans aucune variation, ou (fenêtre 1, sans mémoire) un pas
+      plat. Le rapport n'existe pas ; publier 0, 50 ou 100 serait une valeur
+      inventée, la série entière est refusée.
+
+    Invariant : chaque point est fini et compris dans ``[0, 100]`` ; une
+    série strictement croissante vaut exactement ``100.0`` (``AL == 0``), une
+    série strictement décroissante exactement ``0.0``.
+    """
+    _require_sequence(prices, "prices")
+    w = _require_window(window, "window")
+    values = _require_price_series(prices, minimum=w + 1, calculation_id="market.rsi")
+    gains: list[float] = []
+    losses: list[float] = []
+    for previous, current in pairwise(values):
+        delta = current - previous
+        gains.append(delta if delta > 0.0 else 0.0)
+        losses.append(-delta if delta < 0.0 else 0.0)
+
+    def _point(average_gain: float, average_loss: float, last_index: int) -> float:
+        total = average_gain + average_loss
+        if total <= 0.0:
+            raise CalculationInputError(
+                "flat_series",
+                "market.rsi: no price variation over the smoothing window ending at "
+                f"prices[{last_index}]; the gain/loss ratio does not exist and no "
+                "conventional value is substituted",
+            )
+        return _finite_result(100.0 * (average_gain / total), "market.rsi")
+
+    average_gain = _mean(gains[:w], "market.rsi")
+    average_loss = _mean(losses[:w], "market.rsi")
+    points = [_point(average_gain, average_loss, w)]
+    for offset in range(w, len(gains)):
+        average_gain = (average_gain * (w - 1) + gains[offset]) / w
+        average_loss = (average_loss * (w - 1) + losses[offset]) / w
+        points.append(_point(average_gain, average_loss, offset + 1))
+    return tuple(points)
 

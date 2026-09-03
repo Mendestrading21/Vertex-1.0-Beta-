@@ -444,6 +444,48 @@ calculations:
     criticality: high
     tests:
       - packages/python/vertex_core/tests/calculations/test_market_bollinger.py
+  - id: market.rsi
+    owner: indicators
+    inputs: [prices, window]
+    output_unit: index_0_100
+    gates: [valid_window, minimum_sample, positive_prices, flat_series]
+    invariants: [finite, between_zero_and_hundred, one_point_per_variation_beyond_window]
+    runtime_status: APPROVED
+    spec_version: "1.0.0"
+    implementation: packages/python/vertex_core/src/vertex_core/calculations/market.py::relative_strength_index
+    method: wilder_smoothed_average_gain_over_gain_plus_loss_seeded_by_arithmetic_mean
+    assumptions:
+      - "Variations d_t = p_t - p_{t-1}; gain_t = max(d_t, 0), loss_t = max(-d_t, 0). Average gain AG and average loss AL are seeded by the arithmetic mean (math.fsum) of the first window variations, then Wilder-smoothed: AG_t = (AG_{t-1} * (window - 1) + gain_t) / window, idem AL. RSI_t = 100 * AG_t / (AG_t + AL_t)."
+      - "One point per variation beyond the seed window: len(result) == len(prices) - window; len(prices) >= window + 1 is required (minimum_sample)."
+      - "flat_series: when AG_t + AL_t == 0 at any published point (seed window without any variation, or with window 1 — which has no memory — a flat step) the gain/loss ratio does not exist. The WHOLE series is rejected; 0, 50 or 100 is never substituted as a conventional value."
+      - "A strictly rising series yields EXACTLY 100.0 (AL == 0 gives AG / AG == 1.0 in float64) and a strictly falling series EXACTLY 0.0. Prices finite and strictly positive; the output is dimensionless."
+    parameter_schema:
+      prices: {type: "list | tuple of (int | float | Decimal)", unit: price, constraint: "length >= window + 1, each finite and > 0"}
+      window: {type: int, unit: bars, constraint: ">= 1, bool rejected"}
+      returns: {type: "tuple[float, ...]", unit: index_0_100, note: "length == len(prices) - window, each in [0, 100]"}
+    tolerances:
+      float64_rel_tol: 1.0e-9
+      oracle_abs_tol: 1.0e-9
+      note: >-
+        The scipy.signal.lfilter oracle, written in the classical form
+        100 - 100 / (1 + AG / AL), is asserted with rtol=FLOAT64_REL_TOL and
+        atol=1e-9 for windows 1, 2, 7, 14 and 30. The saturation values
+        100.0 and 0.0 and the hand-derived vector are asserted EXACTLY or
+        with rel=FLOAT64_REL_TOL.
+    oracle: scipy_lfilter_independent_implementation_in_test
+    oracle_evidence: >-
+      TestOracleScipy.test_oracle_lfilter smooths gains and losses with the
+      first-order IIR filter of alpha = 1 / window (scipy.signal.lfilter
+      seeded through lfiltic) and evaluates the classical form
+      100 - 100 / (1 + RS); TestRelativeStrengthIndex asserts the
+      hand-derived vector 10, 11, 12, 11, 12 with window 2 -> (100, 50, 75).
+    oracle_limitation: >-
+      scipy is a signal-processing library, not a technical-analysis one; the
+      seed convention is Vertex's declared choice and the oracle shares it.
+      The vectors are not registered under the pytest golden marker.
+    criticality: high
+    tests:
+      - packages/python/vertex_core/tests/calculations/test_market_rsi.py
   - id: portfolio.fx_conversion
     owner: portfolio
     inputs: [money, fx_quote, quote_as_of]
