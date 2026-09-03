@@ -36,6 +36,9 @@ export const SSE_RESOURCES = [
   'markets_overview/global',
   'opportunities/global',
   'review_queue/global',
+  // LOT S4 : la matrice de risques est publiée sous cette seule tête fixe
+  // (`WATCHED_SNAPSHOTS` côté serveur) ; c'est la clé de `useRiskMatrix`.
+  'risk_matrix/global',
 ] as const;
 
 /**
