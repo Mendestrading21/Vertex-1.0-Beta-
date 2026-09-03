@@ -6734,3 +6734,691 @@ label {
 .vx-iw-fresh {
   max-width: 100%;
 }
+
+/* ================================================================== */
+/* LOT-A4 — COMPOSITION DES PLANCHES §3 (Opportunités) ET §4 (Analyse) */
+/* ================================================================== */
+
+/* POURQUOI. Les deux pages étaient un seul objet déroulé. Les planches
+   composent quatorze et dix-neuf modules autour d'une dominante, avec
+   l'inspecteur à droite. Le motif du LOT-A3 est repris par une classe de
+   COMPOSITION générique, `.vx-board` : grille nommée par zones, panneaux du
+   même matériau (arête haute plus claire, coins constants, filets), modules
+   absents en pointillé. Chaque page ne déclare que ses zones. */
+
+.vx-board {
+  display: grid;
+  gap: var(--vx-space-20) var(--vx-space-16);
+  align-items: stretch;
+  margin-top: var(--vx-space-20);
+}
+
+.vx-board > [data-module] {
+  min-width: 0;
+}
+
+.vx-board > [data-module] > .vx-card,
+.vx-board > [data-module] > .vx-absent,
+.vx-board > [data-module] > .vx-indicators,
+.vx-board > [data-module] > .vx-ih {
+  height: 100%;
+  box-sizing: border-box;
+}
+
+.vx-board > [data-module] > .vx-card,
+.vx-board > [data-module] > .vx-absent,
+.vx-board > [data-module] > .vx-indicators {
+  gap: var(--vx-space-12);
+  padding: var(--vx-space-20) var(--vx-space-20) var(--vx-space-16);
+  border: 1px solid var(--vx-border-soft);
+  border-top-color: var(--vx-border);
+  border-radius: var(--vx-radius-14);
+  background: var(--vx-surface-1);
+  box-shadow: var(--vx-shadow-inset);
+}
+
+.vx-board > [data-module] > .vx-card[data-rank='dominant'] {
+  padding: var(--vx-space-20) var(--vx-space-24) var(--vx-space-16);
+  border-top-color: var(--vx-border-strong);
+}
+
+.vx-board > [data-module] > .vx-card .vx-card-head {
+  padding-bottom: var(--vx-space-12);
+  border-bottom: 1px solid var(--vx-border-soft);
+}
+
+.vx-board > [data-module] > .vx-card .vx-card-kicker {
+  margin-bottom: var(--vx-space-8);
+  color: var(--vx-titanium);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+}
+
+.vx-board > [data-module] > .vx-card[data-rank='dominant'] .vx-card-kicker {
+  color: var(--vx-signal);
+}
+
+.vx-board > [data-module] > .vx-card .vx-card-head h2 {
+  font-size: var(--vx-font-size-title);
+  font-weight: 620;
+  letter-spacing: -0.015em;
+}
+
+.vx-board > [data-module] > .vx-card .vx-card-body {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.vx-board > [data-module] > .vx-card .vx-card-foot {
+  padding-top: var(--vx-space-12);
+  border-top: 1px solid var(--vx-border-soft);
+  color: var(--vx-text-muted);
+  font-size: 10.5px;
+  letter-spacing: 0.01em;
+  line-height: 1.55;
+}
+
+/* Le module absent : même panneau, filet pointillé, titre en titane. */
+.vx-board > [data-module] > .vx-absent {
+  border-style: dashed;
+  border-top-style: solid;
+  background: var(--vx-surface-0);
+}
+
+.vx-board .vx-absent-head {
+  flex-wrap: wrap;
+  gap: var(--vx-space-4) var(--vx-space-12);
+  padding-bottom: var(--vx-space-12);
+  border-bottom: 1px solid var(--vx-border-soft);
+}
+
+.vx-board .vx-absent-head h3 {
+  color: var(--vx-text-secondary);
+  font-size: var(--vx-font-size-title);
+  font-weight: 620;
+  letter-spacing: -0.015em;
+}
+
+.vx-board .vx-absent-badge {
+  min-width: 0;
+  max-width: 100%;
+  white-space: normal;
+  text-align: center;
+}
+
+.vx-board .vx-absent-question {
+  margin-top: var(--vx-space-4);
+  line-height: 1.5;
+}
+
+.vx-board .vx-absent-body {
+  line-height: 1.55;
+}
+
+.vx-board .vx-absent-note {
+  padding-left: var(--vx-space-12);
+  border-left: 2px solid var(--vx-border);
+  color: var(--vx-text-secondary);
+}
+
+/* Les mesures s'empilent, séparées par un filet (cartes étroites). */
+.vx-board .vx-metrics-row {
+  flex-direction: column;
+  gap: 0;
+}
+
+.vx-board .vx-metric {
+  flex: 0 0 auto;
+  padding: var(--vx-space-12) 0;
+}
+
+.vx-board .vx-metric:first-child {
+  padding-top: 0;
+}
+
+.vx-board .vx-metric + .vx-metric {
+  padding-left: 0;
+  border-top: 1px solid var(--vx-border-soft);
+  border-left: 0;
+}
+
+/* Une grille de mesures compactes (identité) : deux de front, filetées. */
+.vx-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 var(--vx-space-16);
+}
+
+.vx-metrics-grid .vx-metric {
+  padding: var(--vx-space-8) 0;
+  border-bottom: 1px solid var(--vx-border-soft);
+}
+
+.vx-metrics-grid .vx-metric + .vx-metric {
+  border-top: 0;
+}
+
+.vx-metrics-grid .vx-metric[data-size='compact'] .vx-metric-value {
+  font-size: var(--vx-font-size-body);
+  overflow-wrap: anywhere;
+}
+
+/* La dominante en cadre graphique : même respiration que les cartes. */
+.vx-board > .vx-chartframe {
+  padding: var(--vx-space-20) var(--vx-space-24) var(--vx-space-16);
+  border-top-color: var(--vx-border-strong);
+  border-radius: var(--vx-radius-14);
+}
+
+.vx-board .vx-chartframe-head {
+  margin-bottom: var(--vx-space-16);
+  padding-bottom: var(--vx-space-16);
+}
+
+.vx-board .vx-chartframe-meta {
+  gap: var(--vx-space-8) var(--vx-space-24);
+  margin-bottom: var(--vx-space-16);
+  padding: var(--vx-space-12) var(--vx-space-16);
+  border-radius: var(--vx-radius-10);
+}
+
+.vx-board .vx-chartframe-conclusion {
+  margin: var(--vx-space-16) 0;
+}
+
+.vx-board .vx-chartframe-foot {
+  margin-top: var(--vx-space-16);
+  padding-top: var(--vx-space-16);
+  line-height: 1.55;
+}
+
+/* ---- Barres de dénombrement (remplacent les donuts des planches) ----- */
+
+.vx-census {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* Vu sur capture 1280/1440 : trois colonnes cassaient le libellé lettre à
+   lettre dans une cellule de 175 px. Libellé et compte sur une ligne, la
+   barre en dessous sur toute la largeur — lisible à toute largeur. */
+.vx-census-row {
+  display: grid;
+  grid-template-areas:
+    'label label'
+    'track count';
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--vx-space-4) var(--vx-space-12);
+  align-items: center;
+  padding: var(--vx-space-8) 0;
+  border-bottom: 1px solid var(--vx-border-soft);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-census-label { grid-area: label; }
+.vx-census-track { grid-area: track; }
+.vx-census-count { grid-area: count; }
+
+.vx-census-row:first-child {
+  padding-top: 0;
+}
+
+.vx-census-row:last-child {
+  border-bottom: 0;
+}
+
+.vx-census-label {
+  min-width: 0;
+  color: var(--vx-text-secondary);
+  overflow-wrap: anywhere;
+}
+
+.vx-census-code {
+  color: var(--vx-text-muted);
+  font-size: 10px;
+}
+
+.vx-census-track {
+  display: block;
+  height: 6px;
+  overflow: hidden;
+  border-radius: var(--vx-radius-pill);
+  background: var(--vx-surface-0);
+  box-shadow: var(--vx-shadow-inset);
+}
+
+.vx-census-fill {
+  display: block;
+  height: 100%;
+  border-radius: var(--vx-radius-pill);
+  background: var(--vx-titanium);
+}
+
+.vx-census-count {
+  color: var(--vx-silver);
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-body);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+/* ---- Grille d'Opportunités (planche §3) ------------------------------ */
+
+.vx-opp-grid {
+  grid-template-areas:
+    'ideas score bias return'
+    'ranking ranking ranking ranking'
+    'biassplit health scatter factors'
+    'profile profile exclusions exclusions'
+    'provenance provenance quality activity';
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.vx-opp-grid [data-module='active-ideas'] { grid-area: ideas; }
+.vx-opp-grid [data-module='mean-score'] { grid-area: score; }
+.vx-opp-grid [data-module='global-bias'] { grid-area: bias; }
+.vx-opp-grid [data-module='expected-return'] { grid-area: return; }
+.vx-opp-grid [data-module='ranking'] { grid-area: ranking; }
+.vx-opp-grid [data-module='bias-split'] { grid-area: biassplit; }
+.vx-opp-grid [data-module='opportunity-health'] { grid-area: health; }
+.vx-opp-grid [data-module='score-return-scatter'] { grid-area: scatter; }
+.vx-opp-grid [data-module='factor-contribution'] { grid-area: factors; }
+.vx-opp-grid [data-module='profile'] { grid-area: profile; }
+.vx-opp-grid [data-module='exclusions'] { grid-area: exclusions; }
+.vx-opp-grid [data-module='recent-activity'] { grid-area: activity; }
+.vx-opp-grid [data-module='catalysts-provenance'] { grid-area: provenance; }
+.vx-opp-grid [data-module='quality'] { grid-area: quality; }
+
+@media (min-width: 1600px) {
+  .vx-opp-grid {
+    grid-template-areas:
+      'ideas ideas score bias return'
+      'ranking ranking ranking ranking ranking'
+      'biassplit health health scatter factors'
+      'profile profile exclusions exclusions activity'
+      'provenance provenance provenance quality quality';
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+/* Dans la dominante, les deux groupes gardent leur tranche verte / ambre
+   et perdent leur second cadre. La provenance devient une ligne fine. */
+.vx-opp-grid .vx-opp-provenance {
+  margin: 0 0 var(--vx-space-16);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+  line-height: 1.7;
+}
+
+.vx-opp-grid .vx-opp-group {
+  margin-bottom: var(--vx-space-16);
+  padding: var(--vx-space-16) var(--vx-space-16) var(--vx-space-12);
+  background: var(--vx-surface-0);
+}
+
+.vx-opp-grid .vx-opp-group:last-child {
+  margin-bottom: 0;
+}
+
+.vx-opp-grid .vx-matrix-scroll[tabindex] {
+  max-height: 520px;
+  overflow: auto;
+}
+
+.vx-opp-filters {
+  margin-bottom: var(--vx-space-16);
+}
+
+/* Le bouton « Inspecter » sous le ticker : discret, ambre à la sélection. */
+.vx-main button.vx-opp-inspect {
+  display: inline-block;
+  min-height: 0;
+  margin-top: var(--vx-space-4);
+  padding: 1px var(--vx-space-8);
+  border-color: var(--vx-border-soft);
+  background: transparent;
+  color: var(--vx-text-secondary);
+  font-family: var(--vx-font-mono);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.vx-main button.vx-opp-inspect:hover:not(:disabled) {
+  border-color: var(--vx-border);
+  background: var(--vx-surface-2);
+}
+
+.vx-main button.vx-opp-inspect[aria-pressed='true'] {
+  border-color: var(--vx-signal);
+  background: var(--vx-signal-faint);
+  color: var(--vx-text);
+}
+
+.vx-main button.vx-opp-inspect[aria-pressed='true']::before {
+  content: '▸ ';
+  color: var(--vx-signal);
+}
+
+/* Les panneaux d'Opportunités perdent leurs marges de page et leurs titres
+   de section : la carte porte le titre. */
+.vx-opp-grid .vx-opp-profile,
+.vx-opp-grid .vx-opp-calref,
+.vx-opp-grid .vx-opp-reasons,
+.vx-opp-grid .vx-opp-limitations {
+  margin-bottom: 0;
+}
+
+.vx-opp-grid .vx-opp-profile h3 {
+  margin: 0 0 var(--vx-space-8);
+}
+
+.vx-opp-grid .vx-opp-profile-lists {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.vx-opp-grid .vx-opp-profile-lists > div {
+  background: var(--vx-surface-0);
+}
+
+.vx-opp-grid .vx-opp-profile-lists ul,
+.vx-opp-limits {
+  margin: 0;
+  padding-left: var(--vx-space-20);
+  font-size: var(--vx-font-size-meta);
+  line-height: 1.6;
+}
+
+.vx-opp-grid .vx-opp-calref-facts {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--vx-space-8) var(--vx-space-16);
+}
+
+.vx-opp-grid .vx-opp-calref-facts > div {
+  padding: var(--vx-space-8) 0;
+  border-bottom: 1px solid var(--vx-border-soft);
+}
+
+.vx-opp-grid .vx-cal-scroll[tabindex] {
+  max-height: 320px;
+  overflow: auto;
+}
+
+/* La table des raisons garde sa largeur de contenu et DÉFILE dans sa
+   région : une clé `gate:reason_code` ne se coupe jamais lettre à lettre. */
+.vx-opp-grid .vx-opp-reasons .vx-matrix-table {
+  width: 100%;
+  min-width: max-content;
+}
+
+/* Listes d'inspecteur : gates, preuves, limites. */
+.vx-inspector-list {
+  margin: 0;
+  padding-left: var(--vx-space-20);
+  color: var(--vx-text-secondary);
+  font-size: var(--vx-font-size-meta);
+  line-height: 1.6;
+}
+
+.vx-inspector-list li + li {
+  margin-top: var(--vx-space-4);
+}
+
+.vx-inspector-list li[data-present='false'] {
+  color: var(--vx-warning);
+}
+
+.vx-inspector-panel .vx-snapshot-block-title {
+  margin-top: var(--vx-space-16);
+}
+
+/* ---- Grille d'Analyse (planche §4) ----------------------------------- */
+
+.vx-analysis-grid {
+  grid-template-areas:
+    'header header facts facts'
+    'chart chart chart indicators'
+    'chart chart chart oscillators'
+    'chart chart chart revisions'
+    'verdict verdict financials financials'
+    'scenarios scenarios catalysts risks'
+    'regime quality valuation confidence'
+    'peers evidence levels contradictions';
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.vx-analysis-grid [data-module='instrument-header'] { grid-area: header; }
+.vx-analysis-grid [data-module='identity-facts'] { grid-area: facts; }
+.vx-analysis-grid [data-module='chart'] { grid-area: chart; }
+.vx-analysis-grid [data-module='indicators'] { grid-area: indicators; }
+.vx-analysis-grid [data-module='oscillators'] { grid-area: oscillators; }
+.vx-analysis-grid [data-module='analyst-revisions'] { grid-area: revisions; }
+.vx-analysis-grid [data-module='verdict'] { grid-area: verdict; }
+.vx-analysis-grid [data-module='financials'] { grid-area: financials; }
+.vx-analysis-grid [data-module='scenarios'] { grid-area: scenarios; }
+.vx-analysis-grid [data-module='upcoming-catalysts'] { grid-area: catalysts; }
+.vx-analysis-grid [data-module='key-risks'] { grid-area: risks; }
+.vx-analysis-grid [data-module='regime'] { grid-area: regime; }
+.vx-analysis-grid [data-module='fundamental-quality'] { grid-area: quality; }
+.vx-analysis-grid [data-module='valuation'] { grid-area: valuation; }
+.vx-analysis-grid [data-module='model-confidence'] { grid-area: confidence; }
+.vx-analysis-grid [data-module='peers'] { grid-area: peers; }
+.vx-analysis-grid [data-module='evidence'] { grid-area: evidence; }
+.vx-analysis-grid [data-module='levels'] { grid-area: levels; }
+.vx-analysis-grid [data-module='contradictions'] { grid-area: contradictions; }
+
+@media (min-width: 1600px) {
+  .vx-analysis-grid {
+    grid-template-areas:
+      'header header header facts facts'
+      'chart chart chart chart indicators'
+      'chart chart chart chart oscillators'
+      'chart chart chart chart revisions'
+      'verdict verdict financials financials financials'
+      'scenarios scenarios scenarios catalysts risks'
+      'regime quality valuation confidence levels'
+      'peers peers evidence evidence contradictions';
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+/* Le canvas garde une hauteur FIXE ; la table équivalente défile en dessous. */
+.vx-analysis-grid .vx-candles-canvas {
+  height: 360px;
+}
+
+.vx-analysis-grid .vx-ohlcv-scroll[tabindex] {
+  max-height: 300px;
+  overflow: auto;
+  margin-bottom: 0;
+}
+
+/* Les panneaux extraits (verdict, evidence, scénarios) vivent DANS une carte :
+   ils perdent leur second cadre et leur marge de page. */
+.vx-analysis-grid .vx-advice,
+.vx-analysis-grid .vx-evidence,
+.vx-analysis-grid .vx-scenarios {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.vx-analysis-grid .vx-advice h3,
+.vx-analysis-grid .vx-evidence h3,
+.vx-analysis-grid .vx-scenarios h3 {
+  margin-bottom: var(--vx-space-12);
+  color: var(--vx-text-secondary);
+  font-size: var(--vx-font-size-meta);
+  font-weight: 600;
+}
+
+.vx-analysis-grid .vx-indicators h2 {
+  margin: 0 0 var(--vx-space-8);
+  padding-bottom: var(--vx-space-12);
+  border-bottom: 1px solid var(--vx-border-soft);
+  font-size: var(--vx-font-size-title);
+  font-weight: 620;
+  letter-spacing: -0.015em;
+}
+
+.vx-analysis-grid .vx-indicators {
+  display: flex;
+  flex-direction: column;
+}
+
+.vx-analysis-grid .vx-indicator-list {
+  margin: 0;
+}
+
+.vx-analysis-grid .vx-indicator {
+  padding: var(--vx-space-8) 0;
+  border-bottom: 1px solid var(--vx-border-soft);
+}
+
+.vx-analysis-grid .vx-indicator dd {
+  margin: var(--vx-space-4) 0 0;
+}
+
+.vx-analysis-grid .vx-indicator-value {
+  color: var(--vx-silver);
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-title);
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
+.vx-analysis-grid .vx-indicators-method {
+  margin-top: auto;
+  padding-top: var(--vx-space-12);
+  color: var(--vx-text-muted);
+  font-size: 10.5px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+}
+
+.vx-analysis-grid .vx-scenarios-table {
+  min-width: max-content;
+}
+
+/* ---- L'en-tête instrument : le widget A3, en plus grand ------------- */
+
+.vx-ih {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--vx-space-12);
+  padding: var(--vx-space-20) var(--vx-space-24) var(--vx-space-16);
+  border: 1px solid var(--vx-border-soft);
+  border-top-color: var(--vx-border-strong);
+  border-radius: var(--vx-radius-18);
+  background:
+    linear-gradient(180deg, var(--vx-titanium-ghost), transparent 38%),
+    var(--vx-surface-1);
+  box-shadow: var(--vx-shadow-inset);
+}
+
+.vx-ih-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--vx-space-12);
+}
+
+.vx-ih-identity {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: var(--vx-space-4);
+}
+
+.vx-ih-ticker {
+  margin: 0;
+  color: var(--vx-text);
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-title);
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+.vx-ih-ticker code {
+  font-family: inherit;
+}
+
+.vx-ih-sector {
+  margin: 0;
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+  overflow-wrap: anywhere;
+}
+
+.vx-ih-price-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--vx-space-8) var(--vx-space-16);
+}
+
+.vx-ih-price {
+  color: var(--vx-silver);
+  font-family: var(--vx-font-mono);
+  font-size: 40px;
+  font-variant-numeric: tabular-nums lining-nums;
+  font-weight: 600;
+  letter-spacing: -0.035em;
+  line-height: 1;
+}
+
+.vx-ih-price.vx-cell-absent {
+  font-size: var(--vx-font-size-body);
+  font-weight: 500;
+}
+
+.vx-ih .vx-spark-line-svg {
+  height: 64px;
+}
+
+.vx-ih .vx-spark-vol-svg {
+  height: 22px;
+}
+
+/* ---- Faits SEC ------------------------------------------------------- */
+
+.vx-sec-filings {
+  margin: 0 0 var(--vx-space-8);
+  padding-left: var(--vx-space-20);
+  font-size: var(--vx-font-size-meta);
+  line-height: 1.6;
+}
+
+.vx-sec .vx-snapshot-block-title {
+  margin-top: var(--vx-space-16);
+}
+
+.vx-sec .vx-cal-scroll[tabindex] {
+  max-height: 300px;
+  overflow: auto;
+}
+
+.vx-sec-facts {
+  width: 100%;
+  min-width: 0;
+}
+
+.vx-sec-facts th[scope='row'] code {
+  overflow-wrap: anywhere;
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  .vx-ih {
+    background: var(--vx-surface-1);
+  }
+}

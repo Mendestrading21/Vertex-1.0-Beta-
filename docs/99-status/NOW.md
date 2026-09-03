@@ -926,3 +926,110 @@ viewports.
 
 Prochaine commande recommandée : revue humaine de la PR LOT-A3, puis
 `EXÉCUTE A4` (Opportunités, Analyse — planches §3, §4).
+
+## SESSION 2026-09-03 — LOT-A4 : Opportunités et Analyse composées sur leurs planches (§3, §4)
+
+Consigne utilisateur : « continue toutes les autres pages » — même motif que
+LOT-A3, page par page. Branche `lot/a4-opportunites-analyse-20260903`
+EMPILÉE sur `lot/a3-aujourdhui-marches-20260902` (`c56d59a`) : `main` n'a
+pas encore `Metric`, `moduleState`, `Sparkline` ni les grilles ; la PR a pour
+base la branche A3 et sera reciblée sur `main` après la fusion humaine de
+#26 (merge de `main` dans la branche, jamais de rebase). Aucune fusion par
+Claude.
+
+### Ce qui est livré
+
+- **Opportunités** : la planche §3 en entier — quatorze modules. Huit SERVIS
+  par le seul snapshot `opportunities/global` : le classement en dominante
+  (les deux groupes, jamais mélangés, filtre LOCAL par statut publié,
+  bouton « Inspecter » par ligne), candidats évalués, répartition des
+  directions et statuts sur l'univers (barres de dénombrement), profil,
+  raisons d'exclusion, provenance des catalyseurs, limites. Six ABSENTS avec
+  motif mesuré : score moyen, biais global, rendement attendu, nuage
+  score/rendement, contribution des facteurs (le moteur ne publie AUCUN
+  score — son ordre est lexicographique et le dit : « aucun score opaque »),
+  activité récente (`CONTRAT SERVEUR ABSENT` : un seul snapshot relayé).
+  Inspecteur : le candidat ouvert (admission, exclusion publiée, gates,
+  preuves requises présentes/absentes, lien vers le dossier), sinon la
+  vérité du snapshot.
+- **Analyse** : la planche §4 en entier — dix-neuf modules. Onze SERVIS :
+  en-tête instrument (clôture publiée du dossier, variation 1 j du snapshot
+  Marchés, mini-série des clôtures et volumes), identité (secteur, devise,
+  population ; industrie, capitalisation, bêta DITS « non publié »),
+  chandeliers en dominante (cadre allégé : verdict, evidence et scénarios
+  en sortent pour leurs propres cartes), indicateurs (+ force relative
+  publiée par `market.relative_strength`), **faits officiels SEC** — premier
+  relais client de la route déjà typée `GET
+  /api/v1/sources/sec/{instrument}/fundamentals`, verbatim, seul le domaine
+  officiel devient un lien, aucun ratio —, verdict, scénarios, catalyseurs de
+  l'instrument (agenda publié filtré par ticker), risques déclarés, pairs du
+  secteur, evidence. Huit ABSENTS : oscillateurs, régime, qualité
+  fondamentale, valorisation, confiance du modèle, révisions d'analystes
+  (`AUCUNE SOURCE`), niveaux, contradictions (`CONTRAT SERVEUR ABSENT`).
+  Inspecteur : le dossier ouvert (version, instant, âge, population,
+  référence, couverture, fraîcheur, thèse et invalidation « non publiées »,
+  limites) ; l'explication IA reste le second panneau.
+- **Primitives partagées** extraites pour les lots suivants : `ModuleStatus`,
+  `AgendaLine` (+ `readableEventTime`), `CensusBars` (barres horizontales de
+  COMPTES entiers — le remplacement de tous les donuts des planches ; aucun
+  pourcentage écrit, il n'est pas publié), `SnapshotFacts`, et la classe de
+  composition `.vx-board` (grille par zones, panneaux du même matériau).
+- `OhlcvTable` et `IndicatorsPanel` vivent dans leurs fichiers et restent
+  ré-exportés depuis `AnalysisPage.tsx` : la page Graphiques (PR #25) les
+  importe d'ici.
+- Relais SEC : `getSecFundamentals` (client), `useSecFundamentals` (hook,
+  clé `sec_fundamentals/<instrument>` ajoutée aux préfixes SSE, comme le
+  serveur le signale), `secView.ts` (lecture défensive).
+
+### Tests adaptés, jamais affaiblis
+
+- `AnalysisPage.test.tsx` : le cadre porte la référence d'observation —
+  assertion portée au cadre (l'inspecteur la relaie aussi) ; routes
+  `/calendar` et `/sources/sec` servies explicitement dans le double de
+  `fetch` (sinon elles recevaient un corps d'ANALYSE).
+- `OpportunitiesPage.test.tsx` et `opportunities.spec.ts` : les statuts sur
+  l'univers sont des barres de dénombrement, le compte publié reste vérifié
+  tel quel (`.vx-census-count`).
+- `AiExplanationPanel.test.tsx` : Analyse monte désormais deux panneaux ;
+  le test attend celui de l'EXPLICATION.
+
+### Ce qui a été vu SUR CAPTURE, pas par un test
+
+1. La grille d'Opportunités n'était pas une grille : la classe de composition
+   manquait, tout s'empilait sur une colonne. Les tests de composition ne
+   voient pas le CSS ; la capture, si. Corrigé, régénérée.
+2. Le libellé d'une barre de dénombrement (`INSUFFICIENT_DATA`) et la clé
+   d'une raison d'exclusion se coupaient lettre à lettre dans une cellule de
+   175 px à 1280 et 1440. Libellé sur sa ligne, barre et compte dessous ;
+   raisons d'exclusion sur deux colonnes, table à largeur de contenu qui
+   défile dans sa région. Deux passes de capture.
+
+### Mesuré sur cette machine (codes relus)
+
+- `tsc --noEmit` : 0 erreur ; `biome check src e2e` : 0 violation (188 fichiers).
+- `vitest run` : **50 fichiers, 598 tests, 0 échec** (551 sur A3 + 47) ;
+  portes de design rejouées après la passe CSS : 65 / 65.
+- Playwright (opportunities, analysis, shell-canonical, accessibility ;
+  1280/1440/1600) : **237 passés / 237 déclarés** (`--list`), `.last-run.json`
+  passed, code 0 — passe finale après les correctifs de capture ; passes
+  intermédiaires 45 / 45 puis 16 / 16 et 8 / 8 (Opportunités seule).
+- `tools/run_checks.sh` (racine, seul, après la fin des e2e) : toutes les
+  portes vertes dont la performance, Biome, ruff et mypy ; puis le seul rouge
+  déjà connu, `test_denylist.py::test_adapter_satisfies_the_port_protocol`
+  sur Python 3.11 — pas ce lot, aucun fichier Python touché, établi dans la
+  PR #25.
+
+### Transmis, non corrigé ici
+
+- PR empilée : après la fusion de #26, recibler la PR A4 sur `main` (merge de
+  `main` dans la branche). `NOW.md` et `REFONTE_TITANIUM_LEDGER.md` sont
+  modifiés en fin de fichier par #25, #26 et ce lot : garder toutes les
+  sections.
+- Aucun snapshot SEC n'est semé par le pipeline synthétique : le module
+  « Faits officiels » y montre son état vide honnête ; le cas servi est
+  couvert par les tests unitaires (fixture SYNTHÉTIQUE).
+- La table des exclus et la grille de scénarios défilent en largeur dans leur
+  cellule : lisible, pas élégant.
+
+Prochaine commande recommandée : revue humaine de la PR LOT-A4, puis
+`EXÉCUTE A5` (Options, Simulateur — planches §5, §6).

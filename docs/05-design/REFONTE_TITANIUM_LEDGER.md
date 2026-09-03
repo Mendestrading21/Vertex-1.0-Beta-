@@ -125,6 +125,7 @@ viewports desktop.
 | **V8** en-tête, bandeau, file | **fait** (`dab7add`) | Aujourd'hui 2 096 → 1 696 px |
 | **V9** Catalyseurs | **fait** (`57bac9d`) | 3 146 → 2 370 px, dominante déplacée sur la timeline |
 | **A3** Aujourd'hui + Marchés sur leurs planches (§1, §2) | **PR ouverte** (`lot/a3-aujourdhui-marches-20260902`) | onze et douze modules composés, servis ou déclarés absents ; inspecteur toujours occupé ; mesures dans `NOW.md` |
+| **A4** Opportunités + Analyse sur leurs planches (§3, §4) | **PR ouverte** (`lot/a4-opportunites-analyse-20260903`, empilée sur A3) | quatorze et dix-neuf modules composés ; classement et chandeliers en dominantes ; premier relais client de la route SEC ; barres de dénombrement à la place des donuts ; mesures dans `NOW.md` |
 
 ### Hauteurs de page mesurées, 1600×1000, après les neuf lots
 

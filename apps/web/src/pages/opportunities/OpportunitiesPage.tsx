@@ -1,16 +1,29 @@
+import { useMemo, useState } from 'react';
+
+import type { OpportunitiesResponse } from '../../api/client.ts';
 import { useOpportunities } from '../../api/decisionApi.ts';
 import { pageStateOf } from '../../api/hooks.ts';
+import { AbsentModule } from '../../components/AbsentModule.tsx';
 import { AuthRequiredNotice } from '../../components/AuthRequiredNotice.tsx';
+import { Card } from '../../components/Card.tsx';
 import { DataStateBoundary } from '../../components/DataStateBoundary.tsx';
 import type { DataState } from '../../components/DataStateBoundary.tsx';
 import { FreshnessBadge } from '../../components/FreshnessBadge.tsx';
 import { SyntheticBanner } from '../../components/SyntheticBanner.tsx';
-import { OpportunityTable } from './OpportunityTable.tsx';
+import { CandidateInspector, OpportunitiesSnapshotInspector } from './CandidateInspector.tsx';
 import {
-  CALENDAR_REF_STATUS_LABELS,
-  opportunitiesFrameStateOf,
-} from './opportunitiesView.ts';
-import type { OpportunitiesContentView } from './opportunitiesView.ts';
+  ActiveIdeasModule,
+  BiasSplitModule,
+  CalendarRefModule,
+  ExclusionsModule,
+  LimitationsModule,
+  OpportunityHealthModule,
+  ProfileModule,
+} from './OpportunitiesModules.tsx';
+import { OpportunityTable } from './OpportunityTable.tsx';
+import { opportunitiesModule } from './opportunitiesModules.ts';
+import { opportunitiesFrameStateOf } from './opportunitiesView.ts';
+import type { CandidateView, OpportunitiesContentView } from './opportunitiesView.ts';
 
 /**
  * LOT-A3 : la dérivation d'état vit dans la vue pure, parce qu'Aujourd'hui
@@ -21,253 +34,243 @@ import type { OpportunitiesContentView } from './opportunitiesView.ts';
 export { opportunitiesFrameStateOf };
 
 /**
- * Page Opportunités — question : « Quels candidats admissibles méritent une
- * analyse approfondie ? »
+ * Page Opportunités (`TL / 03`) — question : « Quels candidats admissibles
+ * méritent une analyse approfondie ? »
  *
- * Tout vient du snapshot `opportunities/global` publié par le worker sous
- * l'unique `AdviceEngine`. L'interface ne classe ni ne note : elle sépare
- * strictement les deux groupes, affiche pour chaque exclu la raison publiée,
- * et rend visible la provenance (profil appliqué / non appliqué, snapshot
- * calendrier utilisé comme provenance des catalyseurs).
+ * LOT-A4 — LA PLANCHE §3 EN ENTIER. `pages-03-04-opportunities-analysis.png`
+ * (moitié gauche) compose quatorze modules autour d'une dominante. Huit sont
+ * SERVIS par le seul snapshot `opportunities/global` — le classement
+ * (dominante : les deux groupes, jamais mélangés), les candidats évalués, la
+ * répartition des directions, les statuts sur l'univers, le profil, les
+ * raisons d'exclusion, la provenance des catalyseurs, les limites — et six
+ * n'ont aucune source ou aucun contrat : score moyen, biais global,
+ * rendement attendu, nuage score/rendement, contribution des facteurs
+ * (le moteur ne publie AUCUN score : « aucun score opaque »), activité
+ * récente. Ils tiennent leur place avec le motif mesuré de leur absence.
  *
- * Sur la population synthétique actuelle, la totalité des candidats est
- * exclue en `INSUFFICIENT_DATA` : c'est le comportement VOULU d'un moteur
- * fail-closed, affiché comme tel — pas un état d'erreur — et le groupe
- * qualifié porte son état vide honnête.
+ * L'INSPECTEUR MONTRE LE CANDIDAT OUVERT depuis le classement — admission,
+ * exclusion publiée, gates, preuves requises — sinon la vérité du snapshot.
  *
- * États servis, jamais confondus : `ok`, `stale` (même contenu, mais hors
- * budget de fraîcheur : il s'affiche sous le bandeau « Données périmées » avec
- * son âge serveur et sa raison) et `empty`. L'âge affiché est le `age_seconds`
- * PUBLIÉ par le serveur — jamais mesuré par le navigateur.
+ * Tout vient du snapshot publié par le worker sous l'unique `AdviceEngine`.
+ * L'interface ne classe ni ne note : elle sépare strictement les deux
+ * groupes, affiche pour chaque exclu la raison publiée, et rend visible la
+ * provenance. Sur la population synthétique actuelle, la totalité des
+ * candidats est exclue en `INSUFFICIENT_DATA` : comportement VOULU d'un
+ * moteur fail-closed, affiché comme tel — pas un état d'erreur.
  *
- * `clock_inconsistent` (dérive d'horloge entre le worker et l'API au-delà de
- * la tolérance) reste FERMÉ : aucun contenu n'est rendu. Mais la cause publiée
- * par le serveur est affichée, sinon la page dirait « erreur » là où le
- * serveur dit précisément que c'est l'horloge, et non le contenu. Tout autre
- * état hors contrat reste fermé sans cause inventée.
+ * États servis, jamais confondus : `ok`, `stale` (même contenu sous le
+ * bandeau « Données périmées », âge PUBLIÉ par le serveur) et `empty`.
+ * `clock_inconsistent` reste FERMÉ, avec la cause publiée.
  */
 
-function ProfileRefPanel({ view }: { readonly view: OpportunitiesContentView }) {
-  const profile = view.profileRef;
+function AbsentOpportunitiesModule({ id }: { readonly id: string }) {
+  const module = opportunitiesModule(id);
+  if (module.status.kind !== 'absent') {
+    throw new Error(`Module ${id} is served, not absent`);
+  }
   return (
-    <section className="vx-opp-profile" aria-labelledby="vx-opp-profile-title" data-testid="opp-profile">
-      <h2 id="vx-opp-profile-title">Profil de stratégie référencé</h2>
-      <p className="vx-opp-profile-id">
-        Identifiant <code data-testid="opp-profile-id">{profile.id ?? '—'}</code> — version{' '}
-        <code data-testid="opp-profile-version">{profile.version ?? '—'}</code> — source{' '}
-        <code>{profile.source ?? '—'}</code>
+    <div data-module={id}>
+      <AbsentModule
+        title={module.title}
+        question={module.question}
+        reason={module.status.reason}
+        note={module.status.note}
+      />
+    </div>
+  );
+}
+
+/** Filtre LOCAL d'affichage par statut publié — jamais un reclassement. */
+function statusesOf(view: OpportunitiesContentView): readonly string[] {
+  const statuses = new Set<string>();
+  for (const candidate of [
+    ...view.candidates.qualified,
+    ...view.candidates.contradictory,
+    ...view.candidates.excluded,
+  ]) {
+    statuses.add(candidate.advice.status);
+  }
+  return [...statuses].sort((left, right) => left.localeCompare(right));
+}
+
+function RankingModule({
+  data,
+  view,
+  selected,
+  onInspect,
+}: {
+  readonly data: OpportunitiesResponse;
+  readonly view: OpportunitiesContentView;
+  readonly selected: string | null;
+  readonly onInspect: (ticker: string) => void;
+}) {
+  const module = opportunitiesModule('ranking');
+  const statuses = useMemo(() => statusesOf(view), [view]);
+  const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set());
+  const keep = (candidate: CandidateView): boolean => !hidden.has(candidate.advice.status);
+  const qualified = view.candidates.qualified.filter(keep);
+  const contradictory = view.candidates.contradictory.filter(keep);
+  const excluded = view.candidates.excluded.filter(keep);
+
+  function toggle(status: string): void {
+    setHidden((previous) => {
+      const next = new Set(previous);
+      if (next.has(status)) {
+        next.delete(status);
+      } else {
+        next.add(status);
+      }
+      return next;
+    });
+  }
+
+  return (
+    <Card
+      rank="dominant"
+      kicker="Ordre publié"
+      title={module.title}
+      titleId="vx-opp-ranking-title"
+      aside={<>{view.candidates.qualified.length + view.candidates.contradictory.length + view.candidates.excluded.length} candidats publiés</>}
+      footer={
+        <>
+          Classement : <code>{view.ordering.method ?? '—'}</code> —{' '}
+          {view.ordering.keys.join(' → ') || 'aucune clé publiée'}.{' '}
+          {view.ordering.note ?? ''} Aucun reclassement local.
+        </>
+      }
+    >
+      <p className="vx-opp-provenance" data-testid="opp-provenance">
+        <FreshnessBadge
+          ageSeconds={data.age_seconds}
+          sourceLabel="âge publié par le serveur"
+        />
+        {' — '}
+        Snapshot version <code>{data.snapshot_version ?? '—'}</code> — publié{' '}
+        {view.asOf !== null ? <time dateTime={view.asOf}>{view.asOf}</time> : '—'} — moteur{' '}
+        <code>{view.engineVersion ?? '—'}</code> — schéma <code>{view.schemaVersion ?? '—'}</code>{' '}
+        — univers déclaré <span className="vx-num">{view.coverage.universeSize ?? '—'}</span> —
+        observations considérées{' '}
+        <span className="vx-num">{view.coverage.observationsConsidered ?? '—'}</span>
       </p>
-      <p className="vx-opp-profile-note">
-        Le profil n’est appliqué qu’EN PARTIE, et le snapshot le publie : les deux listes
-        ci-dessous sont distinctes et ne se remplacent jamais.
-      </p>
-      <div className="vx-opp-profile-lists">
-        <div data-testid="opp-profile-applied">
-          <h3>
-            <span aria-hidden="true">✓</span> Appliqué
-          </h3>
-          {profile.applied.length === 0 ? (
-            <p className="vx-cell-absent">Aucun champ déclaré appliqué.</p>
-          ) : (
-            <ul>
-              {profile.applied.map((entry) => (
-                <li key={entry}>{entry}</li>
-              ))}
-            </ul>
-          )}
+
+      {statuses.length > 1 ? (
+        <div className="vx-matrix-filters vx-opp-filters" role="group" aria-label="Statuts affichés">
+          {statuses.map((status) => (
+            <button
+              key={status}
+              type="button"
+              className="vx-legend-chip"
+              aria-pressed={!hidden.has(status)}
+              onClick={() => {
+                toggle(status);
+              }}
+            >
+              <code>{status}</code>
+            </button>
+          ))}
         </div>
-        <div data-testid="opp-profile-not-applied">
-          <h3>
-            <span aria-hidden="true">⊘</span> Non appliqué
-          </h3>
-          {profile.notApplied.length === 0 ? (
-            <p className="vx-cell-absent">Aucun champ déclaré non appliqué.</p>
-          ) : (
-            <ul>
-              {profile.notApplied.map((entry) => (
-                <li key={entry.field}>
-                  <code>{entry.field}</code> — {entry.reason ?? 'raison non publiée'}
-                </li>
-              ))}
-            </ul>
-          )}
+      ) : null}
+
+      <OpportunityTable
+        group="qualified"
+        candidates={qualified}
+        contradictory={[]}
+        selected={selected}
+        onInspect={onInspect}
+        emptyMessage={
+          hidden.size > 0 && view.candidates.qualified.length > 0
+            ? 'Aucun candidat qualifié dans les statuts affichés.'
+            : 'Aucun candidat qualifié. Sur cette population, le moteur unique ferme les gates ' +
+              'requises et publie un statut fermé pour chaque candidat : c’est le comportement ' +
+              'attendu d’une décision fail-closed, pas une panne. Le détail par candidat est ' +
+              'dans le groupe « Exclus » ci-dessous.'
+        }
+      />
+
+      <OpportunityTable
+        group="excluded"
+        candidates={excluded}
+        contradictory={contradictory}
+        selected={selected}
+        onInspect={onInspect}
+        emptyMessage="Aucun candidat exclu publié."
+      />
+    </Card>
+  );
+}
+
+function OpportunitiesBoard({
+  data,
+  view,
+}: {
+  readonly data: OpportunitiesResponse;
+  readonly view: OpportunitiesContentView;
+}) {
+  const [selected, setSelected] = useState<string | null>(null);
+  const picked = useMemo(() => {
+    if (selected === null) {
+      return null;
+    }
+    const contradictory = view.candidates.contradictory.find((candidate) => candidate.ticker === selected);
+    if (contradictory !== undefined) {
+      return { candidate: contradictory, contradictory: true };
+    }
+    const candidate = [...view.candidates.qualified, ...view.candidates.excluded].find(
+      (entry) => entry.ticker === selected,
+    );
+    return candidate === undefined ? null : { candidate, contradictory: false };
+  }, [selected, view]);
+
+  return (
+    <>
+      <div className="vx-opp-grid vx-board" data-testid="opportunities-grid">
+        <div data-module="active-ideas">
+          <ActiveIdeasModule view={view} />
+        </div>
+        <AbsentOpportunitiesModule id="mean-score" />
+        <AbsentOpportunitiesModule id="global-bias" />
+        <AbsentOpportunitiesModule id="expected-return" />
+
+        <div data-module="ranking">
+          <RankingModule data={data} view={view} selected={selected} onInspect={setSelected} />
+        </div>
+
+        <div data-module="bias-split">
+          <BiasSplitModule view={view} />
+        </div>
+        <AbsentOpportunitiesModule id="score-return-scatter" />
+        <AbsentOpportunitiesModule id="factor-contribution" />
+        <AbsentOpportunitiesModule id="recent-activity" />
+
+        <div data-module="opportunity-health">
+          <OpportunityHealthModule view={view} />
+        </div>
+        <div data-module="profile">
+          <ProfileModule view={view} />
+        </div>
+        <div data-module="exclusions">
+          <ExclusionsModule view={view} />
+        </div>
+        <div data-module="catalysts-provenance">
+          <CalendarRefModule view={view} />
+        </div>
+        <div data-module="quality">
+          <LimitationsModule view={view} />
         </div>
       </div>
-    </section>
-  );
-}
 
-function CalendarRefPanel({ view }: { readonly view: OpportunitiesContentView }) {
-  const reference = view.calendarRef;
-  const status = reference.status ?? '';
-  return (
-    <section
-      className="vx-opp-calref"
-      aria-labelledby="vx-opp-calref-title"
-      data-testid="opp-calendar-ref"
-      data-status={status}
-    >
-      <h2 id="vx-opp-calref-title">Provenance des catalyseurs — snapshot calendrier</h2>
-      <p className="vx-opp-calref-status">
-        <span aria-hidden="true">{status === 'USED' ? '●' : '⊘'}</span> Statut{' '}
-        <code data-testid="opp-calref-status">{status === '' ? '—' : status}</code> —{' '}
-        {CALENDAR_REF_STATUS_LABELS[status] ?? 'statut relayé tel quel par le serveur'}
-      </p>
-      <dl className="vx-opp-calref-facts">
-        <div>
-          <dt>Ressource</dt>
-          <dd>
-            <code>
-              {reference.kind ?? '—'}/{reference.key ?? '—'}
-            </code>{' '}
-            version <code data-testid="opp-calref-version">{reference.version ?? '—'}</code>
-          </dd>
-        </div>
-        <div>
-          <dt>as_of du snapshot</dt>
-          <dd>
-            {reference.snapshotAsOf !== null ? (
-              <time dateTime={reference.snapshotAsOf}>{reference.snapshotAsOf}</time>
-            ) : (
-              <span className="vx-cell-absent">non publié</span>
-            )}
-          </dd>
-        </div>
-        <div>
-          <dt>as_of du contenu</dt>
-          <dd>
-            {reference.contentAsOf !== null ? (
-              <time dateTime={reference.contentAsOf}>{reference.contentAsOf}</time>
-            ) : (
-              <span className="vx-cell-absent">non publié</span>
-            )}
-          </dd>
-        </div>
-        <div>
-          <dt>Schéma du contenu</dt>
-          <dd>
-            <code>{reference.contentSchemaVersion ?? '—'}</code>
-          </dd>
-        </div>
-        <div>
-          <dt>Âge maximal admis (s)</dt>
-          <dd className="vx-num">{reference.maxAgeSeconds ?? '—'}</dd>
-        </div>
-        <div>
-          <dt>Événements à venir comptés</dt>
-          <dd className="vx-num">{reference.eventsUpcoming ?? '—'}</dd>
-        </div>
-        <div>
-          <dt>Événements passés ignorés</dt>
-          <dd className="vx-num">{reference.eventsIgnoredPast ?? '—'}</dd>
-        </div>
-        <div>
-          <dt>Événements sans instrument</dt>
-          <dd className="vx-num">{reference.eventsWithoutTicker ?? '—'}</dd>
-        </div>
-        <div>
-          <dt>Événements refusés</dt>
-          <dd className="vx-num">{reference.eventsRejected ?? '—'}</dd>
-        </div>
-      </dl>
-    </section>
-  );
-}
-
-function ExclusionReasonsPanel({ view }: { readonly view: OpportunitiesContentView }) {
-  const entries = [...view.exclusionReasons.entries()].sort((left, right) =>
-    left[0].localeCompare(right[0]),
-  );
-  return (
-    <section
-      className="vx-opp-reasons"
-      aria-labelledby="vx-opp-reasons-title"
-      data-testid="opp-exclusion-reasons"
-    >
-      <h2 id="vx-opp-reasons-title">Répartition des raisons d’exclusion</h2>
-      {entries.length === 0 ? (
-        <p className="vx-matrix-empty">Aucune raison d’exclusion publiée.</p>
+      {picked === null ? (
+        <OpportunitiesSnapshotInspector data={data} view={view} />
       ) : (
-        <div
-          className="vx-cal-scroll"
-          tabIndex={0}
-          role="region"
-          aria-label="Répartition publiée des raisons d’exclusion"
-        >
-        <table className="vx-matrix-table">
-          <caption>
-            Compteurs publiés par le worker. Chaque clé est la raison exacte
-            (<code>gate:reason_code</code> ou <code>required_evidence:nom</code>).
-          </caption>
-          <thead>
-            <tr>
-              <th scope="col">Raison publiée</th>
-              <th scope="col">Candidats</th>
-            </tr>
-          </thead>
-          <tbody>
-            {entries.map(([reason, count]) => (
-              <tr key={reason} data-testid={`opp-reason-${reason}`}>
-                <th scope="row">
-                  <code>{reason}</code>
-                </th>
-                <td className="vx-num">{count}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        </div>
+        <CandidateInspector
+          candidate={picked.candidate}
+          contradictory={picked.contradictory}
+          onClose={() => {
+            setSelected(null);
+          }}
+        />
       )}
-      <h3>Statuts publiés sur l’univers</h3>
-      <div
-        className="vx-cal-scroll"
-        tabIndex={0}
-        role="region"
-        aria-label="Comptage des statuts publiés sur l’univers"
-      >
-      <table className="vx-matrix-table">
-        <caption>Comptage des statuts du moteur unique sur l’univers déclaré.</caption>
-        <thead>
-          <tr>
-            <th scope="col">Statut</th>
-            <th scope="col">Candidats</th>
-          </tr>
-        </thead>
-        <tbody>
-          {[...view.coverage.statusCounts.entries()].sort().map(([status, count]) => (
-            <tr key={status} data-testid={`opp-status-count-${status}`}>
-              <th scope="row">
-                <code>{status}</code>
-              </th>
-              <td className="vx-num">{count}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      </div>
-    </section>
-  );
-}
-
-function LimitationsPanel({ view }: { readonly view: OpportunitiesContentView }) {
-  return (
-    <section className="vx-opp-limitations" aria-labelledby="vx-opp-limitations-title">
-      <h2 id="vx-opp-limitations-title">Limites publiées</h2>
-      {view.limitations.length === 0 ? (
-        <p className="vx-cell-absent">Aucune limite publiée.</p>
-      ) : (
-        <ul data-testid="opp-limitations">
-          {view.limitations.map((limitation) => (
-            <li key={limitation}>{limitation}</li>
-          ))}
-        </ul>
-      )}
-      <p className="vx-opp-ordering">
-        Classement : <code>{view.ordering.method ?? '—'}</code> —{' '}
-        {view.ordering.keys.join(' → ') || 'aucune clé publiée'}.{' '}
-        {view.ordering.note ?? ''}
-      </p>
-    </section>
+    </>
   );
 }
 
@@ -278,19 +281,19 @@ export function OpportunitiesPage() {
   const view = frame.view;
 
   return (
-    <article className="vx-opportunities" aria-labelledby="vx-page-title-opportunities">
-      <header className="vx-page-header">
+    <article className="vx-page vx-opportunities" aria-labelledby="vx-page-title-opportunities">
+      <div className="vx-page-header">
         <h1 id="vx-page-title-opportunities">Opportunités</h1>
         <p className="vx-page-question">
           Quels candidats admissibles méritent une analyse approfondie ?
         </p>
-      </header>
+      </div>
 
       {view !== null ? <SyntheticBanner population={view.population} /> : null}
 
       {frame.state === 'auth-required' ? (
         <AuthRequiredNotice />
-      ) : view === null ? (
+      ) : view === null || query.data === undefined ? (
         <DataStateBoundary
           state={frame.state as DataState}
           {...(frame.state === 'empty'
@@ -308,49 +311,13 @@ export function OpportunitiesPage() {
           {...(frame.state === 'stale'
             ? {
                 detail:
-                  query.data?.reason ??
+                  query.data.reason ??
                   'Verdict hors budget de fraîcheur (raison non publiée) : il n’est pas courant.',
               }
             : {})}
-          {...(query.data?.as_of != null ? { asOfLabel: query.data.as_of } : {})}
+          {...(query.data.as_of != null ? { asOfLabel: query.data.as_of } : {})}
         >
-          <p className="vx-opp-provenance" data-testid="opp-provenance">
-            <FreshnessBadge
-              ageSeconds={query.data?.age_seconds ?? null}
-              sourceLabel="âge publié par le serveur"
-            />
-            {' — '}
-            Snapshot version <code>{query.data?.snapshot_version ?? '—'}</code> — publié{' '}
-            {view.asOf !== null ? <time dateTime={view.asOf}>{view.asOf}</time> : '—'} — moteur{' '}
-            <code>{view.engineVersion ?? '—'}</code> — schéma{' '}
-            <code>{view.schemaVersion ?? '—'}</code> — univers déclaré{' '}
-            <span className="vx-num">{view.coverage.universeSize ?? '—'}</span> — observations
-            considérées{' '}
-            <span className="vx-num">{view.coverage.observationsConsidered ?? '—'}</span>
-          </p>
-
-          <OpportunityTable
-            group="qualified"
-            candidates={view.candidates.qualified}
-            emptyMessage={
-              'Aucun candidat qualifié. Sur cette population, le moteur unique ferme les gates ' +
-              'requises et publie un statut fermé pour chaque candidat : c’est le comportement ' +
-              'attendu d’une décision fail-closed, pas une panne. Le détail par candidat est ' +
-              'dans le groupe « Exclus » ci-dessous.'
-            }
-          />
-
-          <OpportunityTable
-            group="excluded"
-            candidates={view.candidates.excluded}
-            contradictory={view.candidates.contradictory}
-            emptyMessage="Aucun candidat exclu publié."
-          />
-
-          <ExclusionReasonsPanel view={view} />
-          <ProfileRefPanel view={view} />
-          <CalendarRefPanel view={view} />
-          <LimitationsPanel view={view} />
+          <OpportunitiesBoard data={query.data} view={view} />
         </DataStateBoundary>
       )}
     </article>

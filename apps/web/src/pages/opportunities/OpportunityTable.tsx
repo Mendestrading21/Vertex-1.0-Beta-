@@ -159,6 +159,36 @@ export interface OpportunityTableProps {
   readonly emptyMessage: string;
   /** Candidats publiés qualifiés mais contredits — jamais rendus qualifiés. */
   readonly contradictory?: readonly CandidateView[];
+  /** LOT-A4 : ouvre le candidat dans l'inspecteur de la page. */
+  readonly onInspect?: (ticker: string) => void;
+  readonly selected?: string | null;
+}
+
+function InspectButton({
+  ticker,
+  selected,
+  onInspect,
+}: {
+  readonly ticker: string;
+  readonly selected: string | null;
+  readonly onInspect: ((ticker: string) => void) | undefined;
+}) {
+  if (onInspect === undefined) {
+    return null;
+  }
+  return (
+    <button
+      type="button"
+      className="vx-opp-inspect"
+      aria-label={`Inspecter ${ticker}`}
+      aria-pressed={selected === ticker}
+      onClick={() => {
+        onInspect(ticker);
+      }}
+    >
+      Inspecter
+    </button>
+  );
 }
 
 export function OpportunityTable({
@@ -166,6 +196,8 @@ export function OpportunityTable({
   candidates,
   emptyMessage,
   contradictory = [],
+  onInspect,
+  selected = null,
 }: OpportunityTableProps) {
   const titleId = `vx-opp-group-${group}`;
   const isQualified = group === 'qualified';
@@ -173,12 +205,11 @@ export function OpportunityTable({
     <section
       className="vx-opp-group"
       /*
-        SEUL le groupe « qualifiés » domine : c'est lui qui répond à la
-        question de la page (« quels candidats méritent une analyse ? »). Le
-        groupe des exclus reste au rang par défaut — il informe, il ne dirige
-        pas le regard. Deux dominantes sur un écran, c'est zéro dominante.
+        LOT-A4 : le rang dominant est porté par la CARTE « Classement publié »
+        qui contient les deux groupes — un seul porteur par page, tenu par la
+        porte `one-dominant-per-page`. Le groupe qualifié garde sa tranche
+        verte, le groupe exclu son ambre : deux régions, jamais confondues.
       */
-      {...(isQualified ? { 'data-rank': 'dominant' } : {})}
       data-group={group}
       data-testid={`opp-group-${group}`}
       aria-labelledby={titleId}
@@ -232,6 +263,7 @@ export function OpportunityTable({
                   <th scope="row">
                     <code>{candidate.ticker}</code>
                     <span className="vx-badge vx-badge-warning">SNAPSHOT INCOHÉRENT</span>
+                    <InspectButton ticker={candidate.ticker} selected={selected} onInspect={onInspect} />
                   </th>
                   <td>
                     <StatusCell candidate={candidate} />
@@ -270,6 +302,7 @@ export function OpportunityTable({
                     {candidate.sector !== null ? (
                       <span className="vx-opp-sector"> {candidate.sector}</span>
                     ) : null}
+                    <InspectButton ticker={candidate.ticker} selected={selected} onInspect={onInspect} />
                   </th>
                   <td>
                     <StatusCell candidate={candidate} />

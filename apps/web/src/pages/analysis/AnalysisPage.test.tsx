@@ -15,7 +15,9 @@ import {
   makeAiAnswer,
   makeAnalysis,
   makeAnalysisBars,
+  makeCalendarResponse,
   makeEmptyAnalysis,
+  makeEmptySecFundamentals,
   makeMarketsOverview,
 } from '../../test/fixtures.ts';
 import { renderApp } from '../../test/render.tsx';
@@ -53,6 +55,8 @@ function jsonResponse(body: unknown, status = 200): Response {
  * page. Un `mockResolvedValue` unique rendrait le même objet `Response` aux
  * deux appels, et un corps de réponse ne se lit qu'une fois.
  */
+let secResponse: unknown = makeEmptySecFundamentals();
+
 function repondre(reponse: Response): void {
   fetchMock.mockImplementation((entree: unknown) => {
     const url = typeof entree === 'string' ? entree : String((entree as Request).url);
@@ -76,6 +80,15 @@ function repondre(reponse: Response): void {
     if (url.includes('/v1/ai/explain')) {
       return Promise.resolve(jsonResponse(makeAiAnswer()));
     }
+    // LOT-A4 : la planche §4 lit aussi l'agenda publié (catalyseurs de
+    // l'instrument) et la route SEC (faits officiels). Servies explicitement :
+    // les laisser tomber dans le repli leur donnerait un corps d'ANALYSE.
+    if (url.includes('/v1/calendar')) {
+      return Promise.resolve(jsonResponse(makeCalendarResponse()));
+    }
+    if (url.includes('/sources/sec/')) {
+      return Promise.resolve(jsonResponse(secResponse));
+    }
     return Promise.resolve(reponse.clone());
   });
 }
@@ -85,6 +98,7 @@ beforeEach(() => {
   fetchMock.mockReset();
   setData.mockClear();
   remove.mockClear();
+  secResponse = makeEmptySecFundamentals();
 });
 
 afterEach(() => {
@@ -125,10 +139,13 @@ describe('Page Analyse — état nominal', () => {
   it('cadre complet : question, méta (unité/devise/timezone/source/as_of/couverture), SYNTHETIC', async () => {
     repondre(jsonResponse(makeAnalysis()));
     await renderAnalysis();
-    await screen.findByRole('heading', { level: 2, name: 'Analyse — SYN-TECH-01' });
-    expect(screen.getByText(/prix OHLC en SYN/)).toBeDefined();
-    expect(screen.getByText(/UTC \(stockage\)/)).toBeDefined();
-    expect(screen.getByText('synthetic-dev:1234:db0002')).toBeDefined();
+    const heading = await screen.findByRole('heading', { level: 2, name: 'Analyse — SYN-TECH-01' });
+    // Portée au CADRE : depuis le LOT-A4 l'inspecteur du dossier relaie aussi
+    // la référence d'observation ; c'est le cadre qui doit la porter.
+    const frame = within(heading.closest('.vx-chartframe') as HTMLElement);
+    expect(frame.getByText(/prix OHLC en SYN/)).toBeDefined();
+    expect(frame.getByText(/UTC \(stockage\)/)).toBeDefined();
+    expect(frame.getByText('synthetic-dev:1234:db0002')).toBeDefined();
     // as_of du cadre (il réapparaît aussi dans la validité de l'AdviceCard).
     expect(screen.getAllByText('2026-08-25T12:00:00+00:00').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText(/3 barre\(s\) valides/)).toBeDefined();

@@ -273,8 +273,10 @@ describe('page Opportunités — rendu', () => {
     const reasons = await screen.findByTestId('opp-exclusion-reasons');
     const row = within(reasons).getByTestId('opp-reason-entitlements_sufficient:UNEVALUABLE');
     expect(within(row).getByRole('cell').textContent).toBe('24');
-    const statusRow = within(reasons).getByTestId('opp-status-count-INSUFFICIENT_DATA');
-    expect(within(statusRow).getByRole('cell').textContent).toBe('24');
+    // LOT-A4 : les statuts sur l'univers vivent dans leur propre module, en
+    // barres de dénombrement — le compte publié reste lisible tel quel.
+    const statusRow = screen.getByTestId('opp-status-count-INSUFFICIENT_DATA');
+    expect(within(statusRow).getByText('24')).toBeDefined();
   });
 });
 

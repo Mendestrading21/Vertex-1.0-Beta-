@@ -281,7 +281,9 @@ describe('page Vertex IA — rendu', () => {
     // interdit.
     mockAi();
     renderApp('/analysis/SYN-TECH-01');
-    await screen.findByRole('heading', { level: 2, name: /^Inspecteur/ });
+    // LOT-A4 : Analyse monte aussi l'inspecteur du dossier ; c'est le panneau
+    // d'EXPLICATION qui est attendu ici.
+    await screen.findByRole('heading', { level: 2, name: /^Inspecteur — explication/ });
     expect(screen.queryByRole('combobox', { name: 'Dossier' })).toBeNull();
     await waitFor(() => {
       expect(screen.getByTestId('ai-subject-key').textContent).toBe('SYN-TECH-01');
