@@ -27,6 +27,7 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
+from sqlalchemy import event
 
 from vertex_core.contracts import DataEnvelope, DelayStatus, EnvelopeQuality
 from vertex_core.contracts.hashing import canonical_json_hash
@@ -34,6 +35,7 @@ from vertex_edge_ibkr.news import NEWS_HEADLINE_SCHEMA_VERSION, news_headline_ev
 from vertex_edge_ibkr.normalize import daily_bars_envelope
 from vertex_edge_ibkr.port import BarObservation, BarsPayload, ContractSpec
 from vertex_persistence.repository.observations import insert_observation
+from vertex_persistence.repository.outbox import ClaimedOutboxMessage
 from vertex_persistence.repository.snapshots import get_current_snapshot
 from vertex_worker.analysis import SNAPSHOT_KIND_ANALYSIS
 from vertex_worker.handlers import build_registry
@@ -41,6 +43,7 @@ from vertex_worker.ingest import ingest_envelope
 from vertex_worker.opportunities import (
     SNAPSHOT_KEY_GLOBAL,
     SNAPSHOT_KIND_OPPORTUNITIES,
+    TOPIC_OPPORTUNITIES_REFRESH,
 )
 from vertex_worker.profiles import (
     IBKR_RIGHTS,
@@ -254,3 +257,128 @@ def test_les_preuves_d_un_candidat_ne_sont_pas_chassees_par_un_autre_instrument(
     )
     preuves_b = candidat(contenu, B.symbol)["evidence_cluster_ids"]
     assert preuves_b, f"les preuves de {B.symbol} ont disparu"
+
+
+# --------------------------------------------------------------------------
+# Coût du cadrage par instrument (réserve de revue S0-3)
+# --------------------------------------------------------------------------
+
+#: Six instruments réels à barres : un compte de lectures qui croît avec
+#: l'univers se lit sans ambiguïté.
+UNIVERS_LARGE = (
+    A,
+    B,
+    RealInstrument(ref="265598", symbol="AAPL"),
+    RealInstrument(ref="4391", symbol="IBM"),
+    RealInstrument(ref="3691937", symbol="AMZN"),
+    RealInstrument(ref="107113386", symbol="META"),
+)
+NB_DEPECHES_PAR_INSTRUMENT = 2
+
+#: Lectures de ``observations`` attendues par rafraîchissement : UNE pour les
+#: barres, UNE pour les preuves de TOUS les candidats. Jamais une par instrument.
+NB_LECTURES_OBSERVATIONS_ATTENDUES = 2
+
+
+class CompteurDeLectures:
+    """Relève chaque ``SELECT`` sur ``observations`` émis pendant un rafraîchissement."""
+
+    def __init__(self) -> None:
+        self.lectures: list[str] = []
+
+    def __call__(
+        self,
+        conn: Any,
+        cursor: Any,
+        statement: str,
+        parameters: Any,
+        context: Any,
+        executemany: bool,
+    ) -> None:
+        texte = " ".join(statement.split())
+        if texte.upper().startswith("SELECT") and "FROM observations" in texte:
+            self.lectures.append(texte)
+
+
+def peupler_univers_large(session_factory: Any) -> None:
+    """Barres par le chemin d'ingestion, deux dépêches par instrument à l'état hérité."""
+    with session_factory() as session:
+        for instrument in UNIVERS_LARGE:
+            source = enveloppe_barres(instrument)
+            derivee, resultat = daily_bars_envelope(source, source.payload, spec(instrument))
+            assert resultat.refused_reason is None, resultat.refused_reason
+            assert derivee is not None, "la dérivation n'a produit aucun enregistrement"
+            for enveloppe in (source, derivee):
+                assert ingest_envelope(session, enveloppe).inserted
+            for rang in range(NB_DEPECHES_PAR_INSTRUMENT):
+                ecrire_sans_outbox(
+                    session,
+                    depeche(instrument, rang, NOW - timedelta(hours=1, seconds=rang)),
+                )
+        session.commit()
+
+
+@pytest.mark.usefixtures("clean_database")
+def test_les_preuves_de_tous_les_candidats_sont_lues_sans_une_requete_par_instrument(
+    migrated_engine: Any, session_factory: Any
+) -> None:
+    """RÉSERVE DE REVUE S0-3 : le cadrage par instrument coûtait UNE requête
+    par instrument à barres (≈161 en profil réel), chacune parcourant toute
+    la plage ``as_of`` du lookback faute d'index sur ``instrument_ref``.
+
+    Attendu : le nombre de lectures de ``observations`` pendant un
+    ``opportunities.refresh`` ne dépend pas de la taille de l'univers — et
+    chaque candidat voit quand même SES propres preuves.
+    Avant le correctif : 1 (barres) + 6 (une par instrument) = 7 lectures.
+    """
+    peupler_univers_large(session_factory)
+    profil = real_ibkr_profile(UNIVERS_LARGE)
+    registre = build_registry(
+        clock=horloge,
+        fusion_config=profil.fusion,
+        markets_config=profil.markets,
+        options_config=profil.options,
+        analysis_config=profil.analysis,
+        calendar_config=profil.calendar,
+        opportunities_config=profil.opportunities,
+        risk_config=profil.risk,
+    )
+    handler = registre.get(TOPIC_OPPORTUNITIES_REFRESH)
+    assert handler is not None, "aucun handler enregistré pour opportunities.refresh"
+    message = ClaimedOutboxMessage(
+        id=1,
+        topic=TOPIC_OPPORTUNITIES_REFRESH,
+        payload={},
+        attempts=0,
+        lease_until=NOW + timedelta(seconds=60),
+        lease_token="lecture-1",
+    )
+
+    compteur = CompteurDeLectures()
+    event.listen(migrated_engine, "before_cursor_execute", compteur)
+    try:
+        with session_factory() as session:
+            handler(session, message)
+            session.commit()
+    finally:
+        event.remove(migrated_engine, "before_cursor_execute", compteur)
+
+    assert len(compteur.lectures) == NB_LECTURES_OBSERVATIONS_ATTENDUES, (
+        f"{len(compteur.lectures)} lectures de `observations` pour "
+        f"{len(UNIVERS_LARGE)} instruments ; attendu "
+        f"{NB_LECTURES_OBSERVATIONS_ATTENDUES} (les barres, puis les preuves de "
+        "tous les candidats en une fois) — une requête par instrument"
+    )
+
+    with session_factory() as session:
+        opportunites = get_current_snapshot(
+            session, kind=SNAPSHOT_KIND_OPPORTUNITIES, key=SNAPSHOT_KEY_GLOBAL
+        )
+    assert opportunites is not None, "aucun snapshot d'opportunités publié"
+    assert opportunites.content["population"] == "REAL"
+    for instrument in UNIVERS_LARGE:
+        preuves = candidat(opportunites.content, instrument.symbol)["evidence_cluster_ids"]
+        assert preuves, (
+            f"{instrument.symbol} : aucune preuve alors que "
+            f"{NB_DEPECHES_PAR_INSTRUMENT} dépêches existent en base"
+        )
