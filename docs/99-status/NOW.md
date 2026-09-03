@@ -1044,3 +1044,27 @@ A4, à recibler après chaque fusion humaine. Aucune fusion par Claude.
   1280/1440/1600) : **231 passés / 231 déclarés** (`--list`), code 0, 2,9 min —
   passe finale ; passes intermédiaires 228 / 231 (les trois rouges = le seul
   locateur du point 2) puis 18 / 18 (Simulateur seul, après correction).
+- `tools/run_checks.sh` (racine, seul, après la fin des e2e) : toutes les
+  portes vertes — rôle du dépôt, blueprint, frontière financière, registre
+  des calculs, secrets, policy, traçabilité (entrée `NOT_YET_PROVEN` connue,
+  hors lot), notices, uv.lock, compilation, Worker Cloudflare, Biome,
+  performance, ruff et mypy ; puis le seul rouge déjà connu,
+  `test_denylist.py::test_adapter_satisfies_the_port_protocol` sur Python
+  3.11 — pas ce lot, aucun fichier Python touché, établi dans la PR #25.
+  Code de sortie 1 pour cette seule raison.
+
+### Transmis, non corrigé ici
+
+- PR empilée : après la fusion de #27, recibler la PR A5 sur `main` (merge de
+  `main` dans la branche, jamais de rebase). `NOW.md` et
+  `REFONTE_TITANIUM_LEDGER.md` sont modifiés en fin de fichier par #25, #26,
+  #27 et ce lot : garder toutes les sections.
+- Mouvement attendu et IV de référence sont dérivables d'une IV ATM et d'une
+  maturité : c'est un contrat serveur à écrire dans `vertex_core`, jamais une
+  géométrie TypeScript. Tant qu'il n'existe pas, les deux modules restent
+  déclarés absents.
+- La chaîne d'options et la grille de scénarios défilent en largeur dans leur
+  cellule : lisible, pas élégant.
+
+Prochaine commande recommandée : revue humaine de la PR LOT-A5, puis
+`EXÉCUTE A6` (Portefeuille, Risques — planches §7, §9).
