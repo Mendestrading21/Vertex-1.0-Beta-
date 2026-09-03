@@ -32,6 +32,7 @@ la porte `no-raw-colors`.
 | positif / négatif | sens financier | texte ou symbole obligatoire en plus de la couleur |
 | option | domaine options | ne remplace pas l'état positif/négatif |
 | macro | série contextuelle | secondaire, jamais verdict |
+| teinte secondaire de page | une famille par page (ADR-017) | déclarée dans le catalogue parmi macro, option, positive, warning ; garde le sens de sa famille ; jamais décorative, jamais à la place de l'ambre |
 
 ### Protocole de nuance
 
@@ -40,7 +41,9 @@ la porte `no-raw-colors`.
 - Nommer le rôle, pas la couleur : `surface-2`, `signal-soft`, `text-muted`.
 - Vérifier le contraste dans le contexte réel, y compris sur gradient ou overlay.
 - Pour une nouvelle famille, définir au maximum : valeur principale, valeur
-  atténuée, fond faible. Éviter les gammes décoratives de dix tons.
+  atténuée, fond faible et, pour une famille de série, le couple de dégradé
+  `-gradient-start/-end` vers la transparence (ADR-017). Éviter les gammes
+  décoratives de dix tons.
 - Lorsque le navigateur ciblé le permet, OKLCH peut servir à explorer des pas de
   luminosité perceptuellement réguliers ; commiter ensuite une valeur compatible
   et testée dans la source typée.
@@ -48,8 +51,9 @@ la porte `no-raw-colors`.
 
 ## Surfaces et lumière
 
-- Le canevas reste presque mat ; les gradients sont des variations de matériau,
-  pas des projecteurs.
+- Le canevas reste presque mat ; les gradients sont des variations de matériau
+  ou, sous une série servie, une aire d'une teinte sémantique vers sa
+  transparence (ADR-017) — jamais des projecteurs ni un fond plein de carte.
 - Un seul Ledger Frame domine la page. Les panneaux voisins sont plus calmes.
 - Liseré, angle métallique et grille doivent rester sous le contenu.
 - Les ombres donnent un plan, jamais un halo lumineux permanent.

@@ -68,6 +68,16 @@ hausse, ni un signal de marché.
 | options | `--vx-option` | `#a88ae8` | domaine options et payoff |
 | macro | `--vx-macro` | `#6bc5bc` | contexte macro et série secondaire |
 
+### Teinte secondaire et dégradés de série (ADR-017)
+
+Chaque page déclare dans son catalogue **une** teinte sémantique secondaire
+parmi `macro`, `option`, `positive`, `warning` (vocabulaire `pageAccent` de
+`tokens.ts`, exposé par `[data-page-accent]`). Elle garde le sens de sa famille
+et n'est jamais décorative ; l'ambre reste la seule lumière de la dominante.
+Chaque famille de série (`silver`, `positive`, `negative`, `warning`, `option`,
+`macro`) possède un couple `-gradient-start/-end` (teinte → transparence) réservé
+à l'aire sous une série servie.
+
 ## Grammaire des objets
 
 ### Ledger Frame
@@ -122,6 +132,10 @@ Chaque graphique possède quatre couches :
 | payoff | Simulateur | courbe options violette, breakevens pointillés, axe zéro explicite |
 | valeur brute/nette + drawdown | Performance | argent, macro pointillé, drawdown négatif |
 | heatmap mensuelle | Performance | cellule + valeur ou absence, jamais couleur seule |
+| anneau à chiffre central (ADR-017) | Marchés, Opportunités, Portefeuille | parts servies, chiffre central servi verbatim, légende chiffrée, quatre teintes au plus |
+| jauge en arc graduée (ADR-017) | Aujourd'hui, Marchés, Sources & Rapports | valeur bornée servie, seuils et position servis, valeur en texte |
+| aire à dégradé sous série (ADR-017) | mini-séries de toutes les pages | série servie, dégradé de la teinte vers sa transparence, base pointillée |
+| barres sur rail, matrice de bandes (ADR-017) | comptes et bandes servis | rail `titanium-soft` visible ; `data-band` verbatim, `unknown` visible |
 
 Les moteurs restent chargés par route. Les tracés ne calculent ni score, ni
 rendement, ni probabilité dans le navigateur.
@@ -169,14 +183,15 @@ reste desktop : une navigation téléphone doit faire l'objet d'un lot distinct.
 
 ## Interdits
 
-- glow généralisé, néon décoratif ou gradient arc-en-ciel ;
+- glow généralisé, néon décoratif, gradient arc-en-ciel ou dégradé de fond plein sur une carte (l'aire à dégradé sous une série servie est admise, ADR-017) ;
 - vert/rouge dans le logo ou les éléments de marque ;
 - carte 3D, illustration boursière ou chandelier décoratif ;
 - KPI, score, prix, tendance, probabilité ou recommandation inventés ;
 - graphique sans question, unité, période, source et équivalent accessible ;
 - ambre utilisé pour signifier une performance positive ;
 - différence d'état portée uniquement par la couleur ;
-- action d'exécution, lecture du cash ou des positions IBKR dans cette Beta.
+- action d'exécution, lecture du cash ou des positions IBKR dans cette Beta ;
+- anneau, arc, aire, barre ou cellule dessinés sur une valeur non servie ; compte à rebours ou horloge client ; pulsation ; valeur abrégée côté client (ADR-017).
 
 ## Critères de validation
 

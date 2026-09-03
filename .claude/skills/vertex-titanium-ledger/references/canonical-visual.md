@@ -96,6 +96,29 @@ elle vient d'une hiérarchie stable, d'alignements nets et d'espaces courts.
 - Prévoir surfaces opaques sous `prefers-reduced-transparency` et supprimer les
   mouvements non essentiels sous `prefers-reduced-motion`.
 
+## Formes de widgets — canon v2 (ADR-017)
+
+La capture canonique montre des anneaux, des arcs et des aires. Depuis
+`docs/09-adr/017-titanium-ledger-v2-formes-widgets.md`, ces formes sont
+admises **uniquement sur des données servies** :
+
+- anneau / donut à chiffre central et quatuor d'anneaux, sur des parts servies
+  (chiffre central servi verbatim) ;
+- jauge en arc à graduations, sur une valeur bornée servie avec seuils et
+  position servie ;
+- aire à dégradé sous une série servie (teinte sémantique → transparence),
+  sparkline en aire ;
+- rail visible derrière les barres, matrice de bandes nommées, liste groupée
+  par jour ;
+- une teinte sémantique secondaire par page (`macro`, `option`, `positive` ou
+  `warning`, déclarée dans le catalogue), en plus de l'ambre qui reste la seule
+  lumière de la dominante.
+
+Restent interdits : halo ou néon permanent, noir pur, carte translucide floue,
+couleur seule sans texte, compte à rebours ou horloge client, radar ou nuage
+sans dimension multiple servie, dégradé de fond plein sur une carte, pulsation,
+valeur abrégée côté client, toute forme sur une valeur non servie.
+
 ## Comparaison obligatoire
 
 Pour chaque page :
@@ -111,7 +134,9 @@ Pour chaque page :
 
 - rail gauche large, flottant ou très arrondi ;
 - fond bleu saturé, noir pur uniforme ou dominante violette ;
-- cartes opaques grises, verre blanc, gradients arc-en-ciel ou néon ;
+- cartes opaques grises, verre blanc, gradients arc-en-ciel ou néon (l'aire à
+  dégradé d'une teinte sémantique vers sa transparence, sous une série servie,
+  est admise par ADR-017) ;
 - capsules partout, rayons exagérés ou ombres molles de style mobile ;
 - nouveau logo, mot-symbole envahissant ou logo `VX` ;
 - bento générique identique sur chaque page ;
