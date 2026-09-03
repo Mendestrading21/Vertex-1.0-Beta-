@@ -1808,3 +1808,85 @@ non vérifié » est devenu vide, sans erreur ni journal.
 Les parcours e2e Playwright ne sont pas lancés sur cette machine (ports 8000
 et 4173 servent la pile vivante de l'utilisateur) : c'est la CI GitHub qui
 jugera `e2e/ai-inspector.spec.ts`.
+
+## SESSION 2026-09-03 — LOT P4 : Portefeuille et Risques sur les formes v2
+
+Branche `lot/w2-portfolio-risks-20260903`. Les deux planches passent aux
+primitives du socle v2 (ADR-017) et à la matière des cartes recomposées. Ce
+qui suit est ce que les CAPTURES ont montré, puis ce qui a été corrigé.
+
+### Ce que la capture a trouvé, que les tests ne voyaient pas
+
+1. **Le bloc `@media (min-width: 1600px)` de la planche Portefeuille n'était
+   jamais fermé.** Tout ce qui le suivait dans `widgets.css` — le rayon, la
+   surface, l'ombre, la taille des chiffres, la géométrie de la
+   concentration — n'était appliqué qu'au-delà de 1600 px. Les deux planches
+   étaient plates à 1280 et 1440. Détecté par `biome check` (« expected `}`
+   but instead the file ends ») une fois le fichier relu, jamais par un test
+   de rendu.
+2. **La table des lots perdait deux colonnes.** Dix colonnes sur trois quarts
+   de largeur : « Valeur marquée » et « P&L latent » sortaient du cadre et ne
+   se lisaient qu'au défilement horizontal. La table prend la largeur entière
+   de la planche.
+3. **Le chiffre central de l'anneau traversait l'anneau.** Le Herfindahl servi
+   fait 29 caractères ; écrit à la taille d'affichage dans une boîte aussi
+   large que le module, il débordait des deux côtés. Ni arrondi (ce serait une
+   valeur que le serveur n'a pas servie) ni tronqué (ce serait cacher des
+   décimales) : la primitive DIT la densité du texte servi (`data-density`) et
+   la feuille de style lui donne le cran typographique qui le fait tenir
+   ENTIER dans le creux, replié.
+4. **La matrice de corrélation n'avait aucune bande visible.**
+   `--vx-signal-soft` (0,15) et `--vx-signal-faint` (0,065) ne se distinguaient
+   pas d'une cellule à l'autre, et les pastilles de la légende étaient rendues
+   à zéro pixel. Deux jetons de tension ajoutés (`signal-strong`,
+   `macro-strong`), échelle à quatre crans, pastilles dimensionnées. La teinte
+   ne porte jamais seule : le coefficient est écrit dans la case, la bande est
+   nommée dans la légende et répétée dans `data-band`.
+5. **La pastille d'état de la matrice affichait « ok ok »** : le libellé et le
+   code servis étaient la même chaîne. Un code n'est plus montré que s'il dit
+   autre chose.
+
+### Un zéro fabriqué, corrigé rouge d'abord
+
+`PortfolioSummary` écrivait « (0 événement(s) de trésorerie au journal) »
+quand le serveur ne publiait AUCUN compte (`coverage.cash_events` absent).
+Un zéro fabriqué est un fait de journal inventé. Test reproducteur écrit
+avant le correctif (`PortfolioPage.test.tsx`, « compte d'événements de
+trésorerie NON publié ») : rouge sur le code d'avant, vert après ; la
+phrase dit maintenant « nombre d'événements de trésorerie non publié » et
+ne contient plus aucun chiffre.
+
+### Ce qui est livré
+
+- **Valorisation publiée** : bande de trois mesures (`Metric`), chiffres
+  serveur verbatim avec leur devise, tuiles alignées en grille. Le SIGNE ne
+  vient que du serveur (`signGroupOfText`, socle v2) : une chaîne positive
+  publiée sans « + » n'a pas de signe publié, donc pas de couleur. Une seule
+  règle de signe sur la page.
+- **Concentration** (dominante) : anneau de parts servies à chiffre central +
+  bande de parts + table équivalente ; l'anneau et sa légende ont la place de
+  leur chaîne exacte.
+- **Corrélations** (dominante Risques) : `CellGrid` pleine largeur, cases à la
+  taille d'une case, échelle de bandes lisible, légende à pastilles.
+- Planche Portefeuille recomposée : bande de mesures en tête, dominante
+  ensuite, table pleine largeur, puis journal, écritures et absences
+  déclarées ; variante à cinq colonnes au-delà de 1600 px.
+
+### Mesuré sur cette machine
+
+- `npx tsc --noEmit` : code 0.
+- `npx biome check src` : 1 info (préexistante, `OptionsModules.tsx`), 0 erreur.
+- `npx vitest run` : 87 fichiers, 908 tests, tous verts.
+- Playwright, cinq spécifications aux trois viewports desktop
+  (`portfolio`, `portfolio-performance`, `risk`, `shell-canonical`,
+  `accessibility`) : **276 passés, code 0**.
+- `bash tools/run_checks.sh` : toutes les portes vertes SAUF
+  `apps/edge-ibkr/tests/test_denylist.py::test_adapter_satisfies_the_port_protocol`,
+  rouge PRÉEXISTANT — rejoué sur le checkout `origin/main` (`b22ea20`) avec
+  le même Python 3.11.15 local : même échec, hors de ce lot.
+
+### Dette laissée, nommée
+
+Les règles CSS `.vx-riskmatrix-*` (ancien composant `CorrelationMatrix`,
+supprimé) sont mortes mais dispersées dans `global.css` : elles ne sont pas
+retirées ici pour ne pas mêler un nettoyage large à ce lot.

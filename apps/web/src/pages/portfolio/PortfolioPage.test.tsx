@@ -198,13 +198,46 @@ describe('Page Portefeuille — état nominal', () => {
     expect(screen.getByText('DONNÉES SYNTHÉTIQUES')).toBeDefined();
 
     const summary = screen.getByTestId('pf-summary-grid');
-    expect(within(summary).getByText('55')).toBeDefined(); // P&L latent — chaîne serveur
-    expect(within(summary).getByText('49')).toBeDefined(); // P&L réalisé — chaîne serveur
-    expect(within(summary).getByText('555')).toBeDefined(); // valeur — chaîne serveur
+    // Bande de mesures (LOT P4) : chaque chiffre est la chaîne serveur, à sa
+    // place nommée, avec la DEVISE servie — jamais une unité sous-entendue.
+    const latent = within(summary).getByTestId('pf-value-unrealized');
+    expect(latent.textContent).toContain('55'); // P&L latent — chaîne serveur
+    expect(latent.textContent).toContain('SYN');
+    const realise = within(summary).getByTestId('pf-value-realized');
+    expect(realise.textContent).toContain('49'); // P&L réalisé — chaîne serveur
+    const valeur = within(summary).getByTestId('pf-value-total');
+    expect(valeur.textContent).toContain('555'); // valeur — chaîne serveur
+    // Le signe n'est porté QUE s'il est publié : « 55 » n'en porte aucun, et
+    // la mesure ne se colore donc pas. Déduire « positif » de l'absence de
+    // « - » serait publier un signe que le serveur n'a pas publié.
+    expect(latent.getAttribute('data-sign')).toBeNull();
     // Espèces : absence honnête, jamais un total local.
     expect(screen.getByTestId('pf-cash-absent')).toBeDefined();
     // Provenance du calcul (lignage, pas un recalcul).
     expect(within(summary).getByText('portfolio.unrealized_pnl')).toBeDefined();
+  });
+
+  it('compte d’événements de trésorerie NON publié → dit non publié, jamais « 0 »', async () => {
+    // Défaut mesuré sur capture : l'aveu sur les espèces écrivait
+    // « (0 événement(s) de trésorerie au journal) » quand le serveur ne
+    // publiait AUCUN compte. Un zéro fabriqué est un fait de journal inventé.
+    const base = makePortfolioResponse();
+    const content = makeValuationContent();
+    const coverage = { ...(content['coverage'] as Record<string, unknown>) };
+    delete coverage['cash_events'];
+    mockRoutes({
+      portfolio: () =>
+        jsonResponse({
+          ...base,
+          valuation: { ...base.valuation, content: { ...content, coverage } },
+        }),
+    });
+    await renderPortfolio();
+
+    const especes = await screen.findByTestId('pf-cash-absent');
+    expect(especes.textContent).toContain('non publié');
+    expect(especes.textContent).toContain('nombre d’événements de trésorerie non publié');
+    expect(especes.textContent).not.toMatch(/\d/);
   });
 
   it('lots exclus dans une section séparée avec raison — jamais un zéro dans la table valorisée', async () => {
@@ -230,7 +263,9 @@ describe('Page Portefeuille — état nominal', () => {
     await renderPortfolio();
     await screen.findByTestId('pf-bars-SYN');
     const bars = screen.getByTestId('pf-bars-SYN');
-    expect(within(bars).getByText('1')).toBeDefined(); // poids verbatim
+    // Poids VERBATIM dans la légende de la bande, suivi de l'unité déclarée
+    // par la page : la chaîne servie n'est ni arrondie ni convertie en %.
+    expect(within(bars).getByText('1 du registre SYN')).toBeDefined();
     expect(
       screen.getByRole('table', { name: 'Poids de concentration (SYN)' }),
     ).toBeDefined();

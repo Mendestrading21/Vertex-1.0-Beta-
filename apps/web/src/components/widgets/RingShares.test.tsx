@@ -87,6 +87,51 @@ describe('RingShares — anneau de parts servies à chiffre central', () => {
   });
 });
 
+describe('RingShares — le chiffre central tient DANS le creux de l’anneau', () => {
+  // Défaut mesuré sur capture (planche §7) : le Herfindahl servi fait 29
+  // caractères. Écrit à la taille d'affichage, il traversait l'anneau de part
+  // et d'autre et devenait illisible. L'arrondir aurait produit une valeur que
+  // le serveur n'a pas servie ; le tronquer aurait caché des décimales. La
+  // primitive DIT donc la densité du chiffre servi, et la feuille de style lui
+  // donne le cran typographique qui le fait tenir entier.
+  const UNE_PART = [{ key: 'a', label: 'A', ratio: '1' }];
+
+  it('un chiffre court garde la taille d’affichage', () => {
+    render(<RingShares parts={UNE_PART} centerValue="14" centerLabel="capacités" ariaLabel="A" />);
+    expect(screen.getByTestId('ring-center').getAttribute('data-density')).toBe('short');
+  });
+
+  it('un chiffre LONG est annoncé comme tel — et reste ENTIER', () => {
+    const servi = '0.5020890861513105581980366928';
+    render(
+      <RingShares parts={UNE_PART} centerValue={servi} centerLabel="Herfindahl servi" ariaLabel="A" />,
+    );
+    const centre = screen.getByTestId('ring-center');
+    expect(centre.getAttribute('data-density')).toBe('long');
+    expect(centre.textContent).toContain(servi);
+  });
+
+  it('l’unité servie compte dans la densité — elle occupe la même place', () => {
+    render(
+      <RingShares
+        parts={UNE_PART}
+        centerValue="1933.05"
+        centerUnit="SYN"
+        centerLabel="valeur marquée"
+        ariaLabel="A"
+      />,
+    );
+    expect(screen.getByTestId('ring-center').getAttribute('data-density')).toBe('medium');
+  });
+
+  it('une absence n’est pas un chiffre long', () => {
+    render(<RingShares parts={UNE_PART} centerValue={null} centerLabel="x" ariaLabel="A" />);
+    const centre = screen.getByTestId('ring-center');
+    expect(centre.getAttribute('data-density')).toBe('medium');
+    expect(centre.textContent).toContain('non publié');
+  });
+});
+
 describe('RingQuartet — quatre anneaux en rangée (référence 26)', () => {
   const anneau = {
     parts: PARTS,

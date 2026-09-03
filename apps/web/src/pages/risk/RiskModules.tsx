@@ -8,12 +8,11 @@ import { moduleStateOf } from '../../components/moduleState.ts';
 import type { ModuleState } from '../../components/moduleState.ts';
 import { DayBars } from '../../components/widgets/DayBars.tsx';
 import type { DayBarEntry } from '../../components/widgets/DayBars.tsx';
-import { SharesBand } from '../../components/widgets/SharesBand.tsx';
-import type { SharePart } from '../../components/widgets/SharesBand.tsx';
 import { SparkFigure } from '../../components/widgets/SparkFigure.tsx';
 import { StatusChip } from '../../components/widgets/StatusChip.tsx';
 import { Widget } from '../../components/widgets/Widget.tsx';
 import type { WidgetServed } from '../../components/widgets/Widget.tsx';
+import { ConcentrationBars } from '../portfolio/ConcentrationPanel.tsx';
 import { METRIC_LABELS, performanceContentOf } from '../portfolio/performance/performanceView.ts';
 import { valuationContentOf } from '../portfolio/portfolioView.ts';
 import type { ValuationContentView } from '../portfolio/portfolioView.ts';
@@ -439,18 +438,7 @@ export function RegisterConcentrationModule() {
                 testId={`risk-herfindahl-${block.currency}`}
                 size="compact"
               />
-              {block.concentrationStatus === 'OK' ? (
-                <div data-testid={`risk-bars-${block.currency}`}>
-                  <SharesBand
-                    parts={block.weights.map(
-                      (entry): SharePart => ({ key: entry.ticker, label: entry.ticker, ratio: entry.weight }),
-                    )}
-                    unit={`du registre ${block.currency}`}
-                    ariaLabel={`Poids normalisés servis en ${block.currency}`}
-                    emptyLabel="Aucun poids publié : aucune bande tracée."
-                  />
-                </div>
-              ) : null}
+              {block.concentrationStatus === 'OK' ? <ConcentrationBars block={block} testIdPrefix="risk-bars" /> : null}
             </div>
           ))}
         </div>
@@ -548,5 +536,7 @@ export function MatrixStateChip({ view }: { readonly view: RiskView }) {
   if (view.dataState === null) {
     return <StatusChip label="ÉTAT DES DONNÉES NON DÉCLARÉ" tone="warning" />;
   }
-  return <StatusChip label={view.dataState} tone={view.dataState === 'complete' ? 'neutral' : 'warning'} code={view.dataState} />;
+  // Le code SERVI est le libellé lui-même : le répéter en chasse fixe donnait
+  // « ok ok » sur la capture. Un code n'est montré que s'il DIT autre chose.
+  return <StatusChip label={`état des données : ${view.dataState}`} tone={view.dataState === 'complete' ? 'neutral' : 'warning'} />;
 }

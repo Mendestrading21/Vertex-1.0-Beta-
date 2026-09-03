@@ -7832,56 +7832,6 @@ label {
    déclaration, import) et le module Performance entier gardent leur corps ;
    la grille leur donne le matériau des cartes. */
 
-/* Le module Performance (courbe, métriques, heatmap, points, export,
-   conventions) est le plus haut de la page : il occupe une rangée entière,
-   sinon ses voisins s'étirent en cartes vides (mesuré sur capture 1280). */
-.vx-pf-grid {
-  grid-template-areas:
-    'value value dayperf totalperf'
-    'cash allocation benchmark country'
-    'performance performance performance performance'
-    'concentration concentration concentration currency'
-    'concentration concentration concentration sector'
-    'positions positions positions dividends'
-    'positions positions positions alerts'
-    'positions positions positions attribution'
-    'ledger ledger ledger ledger'
-    'record record import import';
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
-.vx-pf-grid > [data-module='value'] { grid-area: value; }
-.vx-pf-grid > [data-module='day-performance'] { grid-area: dayperf; }
-.vx-pf-grid > [data-module='total-performance'] { grid-area: totalperf; }
-.vx-pf-grid > [data-module='cash'] { grid-area: cash; }
-.vx-pf-grid > [data-module='performance'] { grid-area: performance; }
-.vx-pf-grid > [data-module='benchmark'] { grid-area: benchmark; }
-.vx-pf-grid > [data-module='allocation'] { grid-area: allocation; }
-.vx-pf-grid > [data-module='concentration'] { grid-area: concentration; }
-.vx-pf-grid > [data-module='sector-exposure'] { grid-area: sector; }
-.vx-pf-grid > [data-module='country-exposure'] { grid-area: country; }
-.vx-pf-grid > [data-module='currency-exposure'] { grid-area: currency; }
-.vx-pf-grid > [data-module='concentration-alerts'] { grid-area: alerts; }
-.vx-pf-grid > [data-module='positions'] { grid-area: positions; }
-.vx-pf-grid > [data-module='attribution'] { grid-area: attribution; }
-.vx-pf-grid > [data-module='dividends'] { grid-area: dividends; }
-.vx-pf-grid > [data-module='ledger'] { grid-area: ledger; }
-.vx-pf-grid > [data-module='record-transaction'] { grid-area: record; }
-.vx-pf-grid > [data-module='csv-import'] { grid-area: import; }
-
-@media (min-width: 1600px) {
-  .vx-pf-grid {
-    grid-template-areas:
-      'value value dayperf totalperf cash'
-      'allocation benchmark country attribution alerts'
-      'performance performance performance performance performance'
-      'concentration concentration concentration currency sector'
-      'positions positions positions dividends dividends'
-      'ledger ledger ledger ledger ledger'
-      'record record import import import';
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-  }
-}
 
 /* Les sections du registre gardent leur corps mais reçoivent le matériau des
    cartes de la grille : plus de double cadre, plus de marge de page. */

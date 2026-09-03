@@ -13,6 +13,8 @@ import { DataStateBoundary } from '../../components/DataStateBoundary.tsx';
 import type { DataState } from '../../components/DataStateBoundary.tsx';
 import type { ModuleState } from '../../components/moduleState.ts';
 import { SyntheticBanner } from '../../components/SyntheticBanner.tsx';
+import { StatusChip } from '../../components/widgets/StatusChip.tsx';
+import { Widget } from '../../components/widgets/Widget.tsx';
 import { ConcentrationPanel } from './ConcentrationPanel.tsx';
 import { CsvImportPanel } from './CsvImportPanel.tsx';
 import { LedgerPanel } from './LedgerPanel.tsx';
@@ -105,17 +107,20 @@ function ConcentrationModule({
 }) {
   const module = portfolioModule('concentration');
   return (
-    <Card
+    <Widget
+      id="concentration"
+      size={module.size}
       rank="dominant"
+      className="vx-pf-concentration"
       kicker="Calculée par le serveur"
       title={module.title}
       titleId="vx-pf-concentration-title"
-      className="vx-pf-concentration"
-      aside={view === null ? undefined : <>{view.blocks.length} devise(s) publiée(s)</>}
+      state={state}
+      action={view === null ? undefined : <StatusChip label={`${view.blocks.length} devise(s) publiée(s)`} tone="neutral" />}
       footer={<>poids normalisés et indice de Herfindahl publiés par le worker ; la barre n’est qu’une géométrie de la chaîne exacte</>}
     >
       {view === null ? <ValuationAbsence state={state} reason={reason} /> : <ConcentrationPanel blocks={view.blocks} />}
-    </Card>
+    </Widget>
   );
 }
 
@@ -184,9 +189,7 @@ function PortfolioBoard({
         <AbsentPortfolioModule id="benchmark" />
         <AbsentPortfolioModule id="allocation" />
 
-        <div data-module="concentration">
-          <ConcentrationModule view={view} state={moduleState} reason={reason} />
-        </div>
+        <ConcentrationModule view={view} state={moduleState} reason={reason} />
         <AbsentPortfolioModule id="sector-exposure" />
         <AbsentPortfolioModule id="country-exposure" />
         <div data-module="currency-exposure">

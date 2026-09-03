@@ -363,19 +363,26 @@
    chiffre central SERVI verbatim, légende obligatoire.
    -------------------------------------------------------------------------- */
 .vx-w2-ring {
+  /* Diamètre de l'anneau : une seule source pour la figure ET pour le creux
+     dans lequel le chiffre central doit tenir. */
+  --vx-w2-ring-size: 184px;
   display: grid;
   gap: var(--vx-space-8);
 }
 
+/* Le cadre de la figure ÉPOUSE l'anneau : sans cela, le chiffre central est
+   positionné dans une boîte aussi large que le module et déborde de l'anneau
+   par les deux côtés (défaut mesuré sur la planche §7 au LOT P4). */
 .vx-w2-ring-figure {
   position: relative;
+  width: min(100%, var(--vx-w2-ring-size));
+  margin-inline: auto;
   display: grid;
   justify-items: center;
 }
 
 .vx-w2-ring-svg {
   width: 100%;
-  max-width: 160px;
   height: auto;
 }
 
@@ -415,13 +422,28 @@
   display: grid;
   justify-items: center;
   text-align: center;
+  /* Le creux de l'anneau, jamais au-delà. */
+  max-width: 62%;
 }
 
 .vx-w2-ring-center-value {
   font-family: var(--vx-font-mono);
   font-size: var(--vx-font-size-display);
+  line-height: 1.15;
   color: var(--vx-text);
   font-variant-numeric: tabular-nums lining-nums;
+  /* Une chaîne servie longue se replie DANS le creux ; elle n'est jamais
+     coupée, jamais arrondie — seul son cran typographique change. */
+  overflow-wrap: anywhere;
+}
+
+.vx-w2-ring-center[data-density='medium'] .vx-w2-ring-center-value {
+  font-size: var(--vx-font-size-title);
+}
+
+.vx-w2-ring-center[data-density='long'] .vx-w2-ring-center-value {
+  font-size: var(--vx-font-size-meta);
+  letter-spacing: -0.02em;
 }
 
 .vx-w2-ring-center-label {
@@ -429,6 +451,8 @@
   color: var(--vx-text-muted);
 }
 
+/* Légende : pastille, part servie, chaîne exacte — trois colonnes alignées,
+   pour que l'œil descende une colonne de chiffres au lieu de la chercher. */
 .vx-w2-ring-legend {
   display: grid;
   gap: var(--vx-space-4);
@@ -441,10 +465,17 @@
 }
 
 .vx-w2-ring-legend li {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto minmax(0, auto) minmax(0, 1fr);
   align-items: baseline;
   gap: var(--vx-space-8);
-  justify-content: space-between;
+}
+
+.vx-w2-ring-legend li > :last-child {
+  font-family: var(--vx-font-mono);
+  text-align: right;
+  overflow-wrap: anywhere;
+  color: var(--vx-text);
 }
 
 .vx-w2-ring-swatch {
@@ -759,24 +790,37 @@
   white-space: nowrap;
 }
 
+/* ÉCHELLE DE BANDES — quatre crans de tension, deux sens.
+   `-soft` et `-faint` ne se distinguaient pas d'une cellule à l'autre : la
+   matrice se lisait comme un tableau de chiffres gris et la bande servie
+   n'apparaissait nulle part (mesuré sur capture 1440, planche §9). Chaque
+   cran a désormais un écart visible, et la teinte ne porte JAMAIS seule
+   l'information : le coefficient servi est écrit dans la cellule, la bande
+   est nommée dans la légende et répétée dans `data-band`. */
 .vx-w2-cell[data-band='self'] {
-  background-color: var(--vx-surface-2);
+  background-color: var(--vx-surface-3);
+  color: var(--vx-text-muted);
 }
 .vx-w2-cell[data-band='strong_positive'] {
-  background-color: var(--vx-signal-soft);
+  background-color: var(--vx-signal-strong);
+  border-color: var(--vx-signal);
+  color: var(--vx-text);
 }
 .vx-w2-cell[data-band='moderate_positive'] {
-  background-color: var(--vx-signal-faint);
+  background-color: var(--vx-signal-soft);
+  color: var(--vx-text);
 }
 .vx-w2-cell[data-band='weak'] {
   background-color: var(--vx-surface-1);
 }
 .vx-w2-cell[data-band='moderate_negative'] {
   background-color: var(--vx-macro-soft);
+  color: var(--vx-text);
 }
 .vx-w2-cell[data-band='strong_negative'] {
-  background-color: var(--vx-macro-soft);
+  background-color: var(--vx-macro-strong);
   border-color: var(--vx-macro);
+  color: var(--vx-text);
 }
 .vx-w2-cell[data-band='unknown'] {
   background-color: var(--vx-surface-0);
@@ -786,12 +830,29 @@
 .vx-w2-grid-legend {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--vx-space-12);
-  margin: var(--vx-space-8) 0 0;
+  gap: var(--vx-space-8) var(--vx-space-16);
+  margin: var(--vx-space-12) 0 0;
   padding: 0;
   list-style: none;
   font-size: var(--vx-font-size-meta);
   color: var(--vx-text-muted);
+}
+
+.vx-w2-grid-legend li {
+  display: flex;
+  align-items: center;
+  gap: var(--vx-space-8);
+}
+
+/* La pastille de légende porte la MÊME teinte que la cellule : sans taille,
+   elle était rendue à zéro pixel et la légende n'expliquait plus rien. */
+.vx-w2-grid-legend .vx-w2-cell {
+  display: inline-block;
+  width: var(--vx-space-24);
+  height: var(--vx-space-12);
+  padding: 0;
+  border: 1px solid var(--vx-border-soft);
+  border-radius: var(--vx-radius-6);
 }
 
 /* --------------------------------------------------------------------------
@@ -1017,4 +1078,196 @@
 
 .vx-risk-concentration-block + .vx-risk-concentration-block {
   margin-top: var(--vx-space-16);
+}
+
+/* Placement de la planche Portefeuille — même règle que Risques : les aires
+   nommées de la page arrivent APRÈS les spans de taille du socle, sinon
+   celui-ci gagne et la planche s'empile. */
+
+/* Le module Performance (courbe, métriques, heatmap, points, export,
+   conventions) est le plus haut de la page : il occupe une rangée entière,
+   sinon ses voisins s'étirent en cartes vides (mesuré sur capture 1280). */
+.vx-pf-grid {
+  /* LOT P4 — la DOMINANTE remonte, et la TABLE respire.
+     1. La concentration répond à la question de la page : elle était reléguée
+        sous huit modules et sous la performance, donc invisible à l'ouverture.
+        Elle suit désormais la bande de mesures de la valorisation.
+     2. La table des lots porte dix colonnes ; sur trois quarts de largeur,
+        « Valeur marquée » et « P&L latent » tombaient hors du cadre et ne se
+        lisaient qu'au défilement horizontal (mesuré sur capture 1440). Elle
+        prend la largeur entière.
+     Les absences déclarées ferment la planche. */
+  grid-template-areas:
+    'value value value totalperf'
+    'concentration concentration concentration currency'
+    'concentration concentration concentration dividends'
+    'positions positions positions positions'
+    'performance performance performance performance'
+    'ledger ledger ledger ledger'
+    'record record import import'
+    'dayperf cash benchmark allocation'
+    'sector country alerts attribution';
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.vx-pf-grid > [data-module='value'] { grid-area: value; }
+.vx-pf-grid > [data-module='day-performance'] { grid-area: dayperf; }
+.vx-pf-grid > [data-module='total-performance'] { grid-area: totalperf; }
+.vx-pf-grid > [data-module='cash'] { grid-area: cash; }
+.vx-pf-grid > [data-module='performance'] { grid-area: performance; }
+.vx-pf-grid > [data-module='benchmark'] { grid-area: benchmark; }
+.vx-pf-grid > [data-module='allocation'] { grid-area: allocation; }
+.vx-pf-grid > [data-module='concentration'] { grid-area: concentration; }
+.vx-pf-grid > [data-module='sector-exposure'] { grid-area: sector; }
+.vx-pf-grid > [data-module='country-exposure'] { grid-area: country; }
+.vx-pf-grid > [data-module='currency-exposure'] { grid-area: currency; }
+.vx-pf-grid > [data-module='concentration-alerts'] { grid-area: alerts; }
+.vx-pf-grid > [data-module='positions'] { grid-area: positions; }
+.vx-pf-grid > [data-module='attribution'] { grid-area: attribution; }
+.vx-pf-grid > [data-module='dividends'] { grid-area: dividends; }
+.vx-pf-grid > [data-module='ledger'] { grid-area: ledger; }
+.vx-pf-grid > [data-module='record-transaction'] { grid-area: record; }
+.vx-pf-grid > [data-module='csv-import'] { grid-area: import; }
+
+@media (min-width: 1600px) {
+  .vx-pf-grid {
+    grid-template-areas:
+      'value value value totalperf currency'
+      'concentration concentration concentration dividends dividends'
+      'positions positions positions positions positions'
+      'performance performance performance performance performance'
+      'ledger ledger ledger ledger ledger'
+      'record record record import import'
+      'dayperf cash benchmark allocation sector'
+      'country alerts attribution attribution attribution';
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+/* ===========================================================================
+   LOT P4 — MATIÈRE DES PLANCHES RECOMPOSÉES
+   ---------------------------------------------------------------------------
+   Les planches v2 portent des formes (anneaux, bandes, barres, aires) qui
+   demandent plus d'air et une surface plus nette que la carte plate d'origine.
+   Tout vient des jetons : aucun hex, aucune ombre inventée, aucune lumière
+   permanente. Le rayon large et le fond légèrement surélevé séparent les
+   modules sans multiplier les bordures.
+   =========================================================================== */
+
+.vx-risk-grid > [data-module] > .vx-card,
+.vx-pf-grid > [data-module] > .vx-card,
+.vx-risk-grid > .vx-w2 > .vx-card,
+.vx-pf-grid > .vx-w2 > .vx-card,
+.vx-risk-grid > [data-module] > .vx-absent,
+.vx-pf-grid > [data-module] > .vx-absent {
+  border-radius: var(--vx-radius-22);
+  background-color: var(--vx-surface-1);
+  border-color: var(--vx-border-soft);
+  box-shadow: var(--vx-shadow-panel), var(--vx-shadow-inset);
+}
+
+/* La dominante se distingue par sa SURFACE, pas par une lumière de plus. */
+.vx-risk-grid [data-rank='dominant'],
+.vx-pf-grid [data-rank='dominant'] {
+  background-color: var(--vx-surface-2);
+}
+
+/* Les chiffres clés d'une planche v2 se lisent de loin : ce sont eux que
+   l'œil cherche en premier, pas leur libellé. La taille reste celle de la
+   planche (`.vx-board`) — l'écraser ici la RÉDUISAIT, ce que la capture du
+   LOT P4 a montré. */
+.vx-risk-grid .vx-metric-value,
+.vx-pf-grid .vx-metric-value {
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+}
+
+.vx-risk-grid .vx-metric-label,
+.vx-pf-grid .vx-metric-label {
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+/* --------------------------------------------------------------------------
+   BANDE DE MESURES DE TÊTE — module « Valorisation publiée ».
+   La planche empile les mesures par défaut (`.vx-board`, cartes étroites).
+   Ce module-ci occupe deux colonnes sur quatre : ses trois chiffres se lisent
+   CÔTE À CÔTE, filetés, comme la bande de tête d'un tableau de bord — pas en
+   colonne, qui étirait la carte sur six hauteurs de ligne et laissait ses
+   voisines vides (mesuré sur capture 1440 au LOT P4).
+   -------------------------------------------------------------------------- */
+.vx-pf-grid .vx-pf-value .vx-metrics-row {
+  /* Une GRILLE, pas une rangée souple : la troisième mesure repliée par
+     `flex-wrap` retombait décalée, avec le filet de séparation à sa gauche
+     alors qu'elle ouvrait une ligne. Chaque mesure est une tuile, alignée
+     avec les autres quel que soit le nombre de colonnes. */
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--vx-space-12);
+}
+
+.vx-pf-grid .vx-pf-value .vx-metric {
+  padding: var(--vx-space-12);
+  border: 1px solid var(--vx-border-soft);
+  border-radius: var(--vx-radius-14);
+  background-color: var(--vx-surface-1);
+}
+
+.vx-pf-grid .vx-pf-value .vx-metric-value {
+  font-size: var(--vx-font-size-headline);
+}
+
+/* --------------------------------------------------------------------------
+   LA MATRICE EST LA DOMINANTE de la planche §9. Sur trois colonnes, sa table
+   n'occupait que sa largeur de contenu et flottait dans un grand cadre vide :
+   une dominante qui ne domine rien. Ses cases prennent la largeur du module.
+   -------------------------------------------------------------------------- */
+.vx-riskmatrix .vx-w2-grid {
+  width: 100%;
+}
+
+.vx-riskmatrix .vx-w2-grid td {
+  padding: var(--vx-space-12);
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-body);
+  text-align: right;
+}
+
+.vx-riskmatrix .vx-w2-grid th {
+  padding: var(--vx-space-8) var(--vx-space-12);
+  font-family: var(--vx-font-mono);
+}
+
+.vx-riskmatrix .vx-w2-grid th[scope='col'] {
+  text-align: right;
+}
+
+.vx-riskmatrix .vx-w2-grid th[scope='col']:first-child {
+  text-align: left;
+}
+
+/* L'aveu sur les espèces ferme la bande : une phrase, pas une mesure. */
+.vx-pf-cash {
+  margin: var(--vx-space-12) 0 0;
+  font-size: var(--vx-font-size-meta);
+  line-height: 1.5;
+  color: var(--vx-text-secondary);
+}
+
+/* Anneau et bande côte à côte tant qu'il y a la place, empilés sinon. */
+.vx-pf-concentration-figures {
+  display: grid;
+  grid-template-columns: minmax(0, 320px) minmax(0, 1fr);
+  gap: var(--vx-space-20);
+  align-items: center;
+}
+
+@media (max-width: 1100px) {
+  .vx-pf-concentration-figures {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.vx-pf-concentration-band {
+  min-width: 0;
 }

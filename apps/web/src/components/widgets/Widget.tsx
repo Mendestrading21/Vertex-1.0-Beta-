@@ -95,6 +95,9 @@ export interface WidgetProps {
   /** Cause servie de l'état (motif de refus, diagnostic). */
   readonly stateDetail?: string | null;
   readonly footer?: ReactNode;
+  /** Classe de la PAGE sur la carte — témoin de composition, jamais du style
+   *  de surface, qui reste celui de `Card`. */
+  readonly className?: string;
   readonly children: ReactNode;
 }
 
@@ -182,6 +185,7 @@ export function Widget({
   title,
   titleId,
   rank = 'default',
+  className,
   action,
   state,
   served,
@@ -207,6 +211,7 @@ export function Widget({
         {...(titleId === undefined ? {} : { titleId })}
         {...(action === undefined ? {} : { aside: action })}
         rank={rank}
+        {...(className === undefined ? {} : { className })}
         footer={
           <>
             {conclusion === undefined || conclusion === null || conclusion === '' ? null : (

@@ -25,6 +25,7 @@
   --vx-signal-deep: #765319;
   --vx-signal-soft: rgba(215, 169, 74, 0.15);
   --vx-signal-faint: rgba(215, 169, 74, 0.065);
+  --vx-signal-strong: rgba(215, 169, 74, 0.3);
   --vx-positive: #50c992;
   --vx-positive-soft: rgba(80, 201, 146, 0.12);
   --vx-negative: #ef6f6c;
@@ -35,6 +36,7 @@
   --vx-option-soft: rgba(168, 138, 232, 0.12);
   --vx-macro: #6bc5bc;
   --vx-macro-soft: rgba(107, 197, 188, 0.12);
+  --vx-macro-strong: rgba(107, 197, 188, 0.28);
   --vx-silver-gradient-start: rgba(216, 211, 199, 0.22);
   --vx-silver-gradient-end: rgba(216, 211, 199, 0);
   --vx-positive-gradient-start: rgba(80, 201, 146, 0.22);

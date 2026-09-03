@@ -39,8 +39,40 @@ export interface RingPart {
   readonly key: string;
   readonly label: string;
   /** Pourcentage SERVI. `null` = non publié. */
-  readonly pct: string | null;
+  readonly pct?: string | null;
+  /** Ratio SERVI (0–1) — l'identifiant DIT l'échelle de la chaîne servie. */
+  readonly ratio?: string | null;
   readonly tone?: RingTone;
+}
+
+/** Chaîne SERVIE d'une part, quelle que soit l'unité déclarée. */
+function servedTextOf(part: RingPart): string | null {
+  return part.ratio !== undefined ? (part.ratio ?? null) : (part.pct ?? null);
+}
+
+/**
+ * DENSITÉ du chiffre central — combien de place la chaîne servie demande.
+ *
+ * POURQUOI CETTE MESURE EXISTE. Un poids normalisé servi fait jusqu'à 29
+ * caractères (`0.5020890861513105581980366928`, mesuré sur la planche §7).
+ * Écrit à la taille d'affichage, il traverse l'anneau et devient illisible.
+ * Il n'est pas question de l'arrondir — ce serait afficher une valeur que le
+ * serveur n'a pas servie — ni de le tronquer — ce serait cacher des
+ * décimales. Reste le seul levier honnête : la TYPOGRAPHIE. La primitive
+ * mesure la LONGUEUR DU TEXTE (jamais sa valeur : aucune arithmétique
+ * financière ici) et laisse la feuille de style choisir le cran qui le fait
+ * tenir ENTIER dans le creux.
+ */
+const CENTER_SHORT = 8;
+const CENTER_MEDIUM = 16;
+
+export type CenterDensity = 'short' | 'medium' | 'long';
+
+export function centerDensityOf(text: string): CenterDensity {
+  if (text.length <= CENTER_SHORT) {
+    return 'short';
+  }
+  return text.length <= CENTER_MEDIUM ? 'medium' : 'long';
 }
 
 export interface RingSharesProps {
@@ -78,14 +110,26 @@ export function RingShares({
     );
   }
 
+  // Le texte RÉELLEMENT écrit au centre, unité comprise : c'est lui qui doit
+  // tenir dans le creux, pas la seule valeur.
+  const centerText =
+    centerValue === null
+      ? 'non publié'
+      : centerUnit === undefined
+        ? centerValue
+        : `${centerValue} ${centerUnit}`;
+
   const drawn: Array<{ part: RingPart; length: number; offset: number; tone: RingTone }> = [];
   let cursor = 0;
   for (const [index, part] of parts.entries()) {
-    const value = geometryValue(part.pct);
+    // Une part est servie en pourcentage OU en ratio : la géométrie ramène
+    // les deux à la même échelle d'arc, sans jamais écrire un nombre dérivé.
+    const enRatio = part.ratio !== undefined;
+    const value = geometryValue(enRatio ? (part.ratio ?? null) : (part.pct ?? null));
     if (value === null) {
       continue;
     }
-    const length = (RING_CIRCUMFERENCE * value) / 100;
+    const length = enRatio ? RING_CIRCUMFERENCE * value : (RING_CIRCUMFERENCE * value) / 100;
     drawn.push({
       part,
       length,
@@ -119,7 +163,11 @@ export function RingShares({
             />
           ))}
         </svg>
-        <span className="vx-w2-ring-center" data-testid="ring-center">
+        <span
+          className="vx-w2-ring-center"
+          data-density={centerDensityOf(centerText)}
+          data-testid="ring-center"
+        >
           <span className="vx-w2-ring-center-value">
             {centerValue === null ? (
               <span data-absent="true">non publié</span>
@@ -142,7 +190,7 @@ export function RingShares({
               aria-hidden="true"
             />
             <span>{part.label}</span>
-            <span>{part.pct === null ? 'non publié' : part.pct}</span>
+            <span>{servedTextOf(part) ?? 'non publié'}</span>
           </li>
         ))}
       </ul>
@@ -159,7 +207,7 @@ export function RingShares({
             {parts.map((part) => (
               <tr key={part.key}>
                 <th scope="row">{part.label}</th>
-                <td>{part.pct === null ? 'non publié' : part.pct}</td>
+                <td>{servedTextOf(part) ?? 'non publié'}</td>
               </tr>
             ))}
           </tbody>
