@@ -127,6 +127,7 @@ viewports desktop.
 | **A3** Aujourd'hui + Marchés sur leurs planches (§1, §2) | **PR ouverte** (`lot/a3-aujourdhui-marches-20260902`) | onze et douze modules composés, servis ou déclarés absents ; inspecteur toujours occupé ; mesures dans `NOW.md` |
 | **A4** Opportunités + Analyse sur leurs planches (§3, §4) | **PR ouverte** (`lot/a4-opportunites-analyse-20260903`, empilée sur A3) | quatorze et dix-neuf modules composés ; classement et chandeliers en dominantes ; premier relais client de la route SEC ; barres de dénombrement à la place des donuts ; mesures dans `NOW.md` |
 | **A5** Options + Simulateur sur leurs planches (§5, §6) | **PR ouverte** (`lot/a5-options-simulateur-20260903`, empilée sur A4) | quinze et quatorze modules composés ; chaîne et payoff en dominantes ; sourire d'IV et structure par échéance (géométrie des IV publiées) ; Simulateur sans dominante à vide, grille de scénarios rendue ; mesures dans `NOW.md` |
+| **A6** Portefeuille + Risques sur leurs planches (§7, §9) | **PR ouverte** (`lot/a6-portefeuille-risques-20260903`, empilée sur A5) | dix-huit et dix-neuf modules composés ; concentration et matrice de corrélation en dominantes ; dividendes servis depuis le journal, inspecteurs du lot et de l'instrument ; douze absences mesurées sur Risques, aucun score global ; mesures dans `NOW.md` |
 
 ### Hauteurs de page mesurées, 1600×1000, après les neuf lots
 

@@ -107,10 +107,12 @@ function mockAi(handlers: AiHandlers = {}): void {
 //
 // `/portfolio` est la page hôte par défaut ici : elle porte DEUX dossiers
 // explicables (valorisation et performance), donc elle exerce aussi le choix
-// entre dossiers.
+// entre dossiers. LOT-A6 : la page monte aussi son propre inspecteur
+// (« Valorisation publiée ») ; le panneau attendu ici est celui de
+// l'explication, nommé exactement.
 async function renderAi(path = '/portfolio'): Promise<void> {
   renderApp(path);
-  await screen.findByRole('heading', { level: 2, name: /^Inspecteur/ });
+  await screen.findByRole('heading', { level: 2, name: /^Inspecteur — explication/ });
 }
 
 describe('aiView — aides pures', () => {

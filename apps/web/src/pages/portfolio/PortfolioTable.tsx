@@ -2,23 +2,31 @@ import { exclusionReasonLabel } from './portfolioView.ts';
 import type { ExcludedLotRow, ValuedLotRow } from './portfolioView.ts';
 
 /**
- * Dominante de /portfolio : lots ouverts VALORISÉS (chaînes serveur
- * verbatim) puis, dans une section SÉPARÉE, les lots EXCLUS avec leur raison.
+ * Lots ouverts VALORISÉS (chaînes serveur verbatim) puis, dans une section
+ * SÉPARÉE, les lots EXCLUS avec leur raison.
  *
  * Un lot exclu n'apparaît JAMAIS à zéro dans la table des valorisés : les
  * deux populations de lignes restent disjointes et ne sont jamais sommées.
+ *
+ * LOT-A6 : ce composant est le CORPS du module « Lots ouverts valorisés » de
+ * la planche §7 (la carte est portée par la page) ; chaque ligne valorisée
+ * ouvre l'inspecteur du lot (« Inspecter {ticker} »), qui montre sa
+ * provenance manuelle, son poids publié et son journal.
  */
 
 export function PortfolioTable({
   lots,
   excluded,
+  selected = null,
+  onInspect,
 }: {
   readonly lots: readonly ValuedLotRow[];
   readonly excluded: readonly ExcludedLotRow[];
+  readonly selected?: string | null;
+  readonly onInspect?: (lotId: string) => void;
 }) {
   return (
-    <section className="vx-pf-table" aria-labelledby="vx-pf-table-title">
-      <h2 id="vx-pf-table-title">Lots ouverts valorisés</h2>
+    <div className="vx-pf-table-body">
       {lots.length === 0 ? (
         <p className="vx-cell-absent" data-testid="pf-lots-empty">
           Aucun lot ouvert valorisé — l'absence reste une absence, aucun zéro n'est fabriqué.
@@ -37,11 +45,12 @@ export function PortfolioTable({
                 <th scope="col">P&amp;L latent</th>
                 <th scope="col">Devise</th>
                 <th scope="col">Qualité de la marque</th>
+                {onInspect !== undefined ? <th scope="col">Inspecteur</th> : null}
               </tr>
             </thead>
             <tbody>
               {lots.map((lot) => (
-                <tr key={lot.lotId}>
+                <tr key={lot.lotId} {...(selected === lot.lotId ? { 'data-selected': 'true' } : {})}>
                   <th scope="row">
                     <code>{lot.ticker}</code>
                   </th>
@@ -61,6 +70,21 @@ export function PortfolioTable({
                   <td>
                     <span className="vx-badge vx-badge-synthetic">SYNTHÉTIQUE</span>
                   </td>
+                  {onInspect !== undefined ? (
+                    <td>
+                      <button
+                        type="button"
+                        className="vx-opp-inspect"
+                        aria-pressed={selected === lot.lotId}
+                        aria-label={`Inspecter ${lot.ticker} (lot ${lot.lotId})`}
+                        onClick={() => {
+                          onInspect(lot.lotId);
+                        }}
+                      >
+                        Détail
+                      </button>
+                    </td>
+                  ) : null}
                 </tr>
               ))}
             </tbody>
@@ -78,42 +102,37 @@ export function PortfolioTable({
               Ces lots ne sont PAS valorisés et n'entrent dans aucun total : un lot sans marque
               utilisable est écarté avec sa raison, jamais compté à zéro.
             </p>
-            <div
-              className="vx-pf-table-scroll"
-              tabIndex={0}
-              role="region"
-              aria-label="Lots exclus défilants"
-            >
-            <table className="vx-pf-excluded-table" aria-label="Lots exclus et raison d'exclusion">
-              <thead>
-                <tr>
-                  <th scope="col">Lot</th>
-                  <th scope="col">Ticker</th>
-                  <th scope="col">Devise</th>
-                  <th scope="col">Raison (code serveur)</th>
-                  <th scope="col">Explication</th>
-                </tr>
-              </thead>
-              <tbody>
-                {excluded.map((lot) => (
-                  <tr key={`${lot.lotId}-${lot.ticker ?? ''}-${lot.reason}`}>
-                    <th scope="row">
-                      <code>{lot.lotId}</code>
-                    </th>
-                    <td>{lot.ticker !== null ? <code>{lot.ticker}</code> : '—'}</td>
-                    <td>{lot.currency !== null ? <code>{lot.currency}</code> : '—'}</td>
-                    <td>
-                      <code>{lot.reason}</code>
-                    </td>
-                    <td>{exclusionReasonLabel(lot.reason)}</td>
+            <div className="vx-pf-table-scroll" tabIndex={0} role="region" aria-label="Lots exclus défilants">
+              <table className="vx-pf-excluded-table" aria-label="Lots exclus et raison d'exclusion">
+                <thead>
+                  <tr>
+                    <th scope="col">Lot</th>
+                    <th scope="col">Ticker</th>
+                    <th scope="col">Devise</th>
+                    <th scope="col">Raison (code serveur)</th>
+                    <th scope="col">Explication</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {excluded.map((lot) => (
+                    <tr key={`${lot.lotId}-${lot.ticker ?? ''}-${lot.reason}`}>
+                      <th scope="row">
+                        <code>{lot.lotId}</code>
+                      </th>
+                      <td>{lot.ticker !== null ? <code>{lot.ticker}</code> : '—'}</td>
+                      <td>{lot.currency !== null ? <code>{lot.currency}</code> : '—'}</td>
+                      <td>
+                        <code>{lot.reason}</code>
+                      </td>
+                      <td>{exclusionReasonLabel(lot.reason)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </>
         )}
       </section>
-    </section>
+    </div>
   );
 }

@@ -261,6 +261,46 @@ test.describe('Page Portefeuille — valorisation réelle', () => {
     expect(body).toContain('id,kind,ticker,quantity,price,amount,currency,fees,effective_at');
   });
 
+  test('LOT-A6 : les dix-huit modules de la planche, une seule dominante (la concentration), inspecteur du lot', async ({
+    page,
+  }) => {
+    const before = await apiPortfolio(page);
+    const lots = valuationLots(before);
+
+    await page.goto('/portfolio');
+    const grille = page.getByTestId('portfolio-grid');
+    await expect(grille).toBeVisible();
+    await expect(grille.locator('> [data-module]')).toHaveCount(18);
+    await expect(page.locator('.vx-main [data-rank="dominant"]')).toHaveCount(1);
+    await expect(page.locator('[data-module="concentration"] .vx-pf-concentration[data-rank="dominant"]')).toBeVisible();
+    await expect(grille.locator('.vx-absent')).toHaveCount(8);
+    for (const body of await grille.locator('[data-testid="absent-body"]').allTextContents()) {
+      expect(body).not.toMatch(/\d/);
+    }
+    // L'exposition par devise relaie la valeur totale publiée, verbatim.
+    const content = (before['valuation'] as Record<string, unknown>)['content'] as Record<string, unknown>;
+    for (const block of content['positions_by_currency'] as Record<string, unknown>[]) {
+      const concentration = block['concentration'] as Record<string, unknown>;
+      if (concentration['status'] === 'OK') {
+        await expect(page.getByTestId(`pf-currency-${String(block['currency'])}`)).toContainText(
+          String(concentration['total_value']),
+        );
+      }
+    }
+
+    // Inspecteur : la valorisation publiée par défaut, puis le lot ouvert.
+    await expect(page.getByRole('heading', { level: 2, name: 'Inspecteur — Valorisation publiée' })).toBeVisible();
+    test.skip(lots.length === 0, 'aucun lot valorisé dans le pipeline courant');
+    const lot = lots[0] as ValuationLot;
+    await page.getByRole('button', { name: `Inspecter ${lot.ticker} (lot ${lot.lot_id})` }).click();
+    const faits = page.getByTestId('pf-lot-facts');
+    await expect(faits).toBeVisible();
+    await expect(faits).toContainText(lot.market_value);
+    await expect(page.getByRole('heading', { level: 2, name: `Inspecteur — ${lot.ticker}` })).toBeVisible();
+    await page.getByRole('button', { name: 'Fermer' }).click();
+    await expect(page.getByTestId('pf-snapshot-facts')).toBeVisible();
+  });
+
   test('axe : zéro violation critique/sérieuse + capture', async ({ page }, testInfo) => {
     await page.goto('/portfolio');
     await expect(page.getByTestId('pf-summary-grid')).toBeVisible();

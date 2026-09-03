@@ -1138,3 +1138,135 @@ A4, à recibler après chaque fusion humaine. Aucune fusion par Claude.
 
 Prochaine commande recommandée : revue humaine de la PR LOT-A5, puis
 `EXÉCUTE A6` (Portefeuille, Risques — planches §7, §9).
+
+## SESSION 2026-09-03 — LOT-A6 : Portefeuille et Risques composés sur leurs planches (§7, §9)
+
+Consigne utilisateur : « Continue tout » après LOT-A5 — enchaîner A6, A7
+puis A8 sans attendre entre les lots, une PR brouillon par lot, aucune
+fusion. Branche `lot/a6-portefeuille-risques-20260903` EMPILÉE sur
+`lot/a5-options-simulateur-20260903` (`d56360f`) ; base de PR = branche A5,
+à recibler après chaque fusion humaine. Aucune fusion par Claude.
+
+### Ce qui est livré
+
+- **Portefeuille** : la planche §7 en entier — dix-huit modules. Dix SERVIS :
+  la valorisation publiée (carte, badge de marques, `as_of`, méthode,
+  moteur, espèces dites absentes à leur place), la performance totale (TWR
+  et XIRR brut/net du snapshot de performance), le module Performance entier
+  (absorbé au LOT-08, corps inchangé, matériau de carte par la grille), la
+  **concentration par ticker en DOMINANTE** — elle répond à la question de
+  la page (`REFONTE_TITANIUM_LEDGER.md` §4) —, l'exposition par devise
+  (valeur totale marquée par devise, verbatim, aucune conversion), les lots
+  valorisés et exclus (bouton « Détail » par lot), les **dividendes déclarés
+  au journal** (kind `DIVIDEND` : lignes listées, montants verbatim, jamais
+  sommés — la planche les mettait en widget ; le journal les publie déjà),
+  le journal, la déclaration d'un fait passé et l'import CSV (sections
+  conservées telles quelles dans leurs cellules). Huit ABSENTS : performance
+  du jour, benchmark, exposition par pays, attribution (`AUCUNE SOURCE`),
+  espèces, allocation, exposition par secteur (`CONTRAT SERVEUR ABSENT` —
+  le secteur existe par ticker dans Marchés, pas par lot ; sommer des poids
+  par secteur ici serait un calcul de concentration hors de son
+  propriétaire), alertes de concentration (`DÉCISION EN ATTENTE` : aucun
+  seuil déclaré). Inspecteur « Valorisation publiée » par défaut ; le lot
+  ouvert le remplace (provenance manuelle, poids publié, faits du journal
+  et corrections, catalyseurs publiés du ticker, lien Analyse).
+- **Risques** : la planche §9 en entier — dix-neuf modules. Sept SERVIS : la
+  matrice de corrélation en DOMINANTE (en-têtes de ligne devenus boutons
+  d'inspection, `aria-pressed`), les paires extrêmes et l'avertissement de
+  synchronicité, la couverture (périmètre déclaré et retenu, séances,
+  fenêtre, seuils, unité, retour en arrière — champs publiés jusqu'ici non
+  lus), le coût de l'alignement (séances perdues et séances par instrument),
+  les instruments écartés (et enregistrements rejetés), puis la
+  **concentration du registre** (poids et Herfindahl de la valorisation,
+  barres sans table) et le **drawdown** (snapshot de performance), lus par
+  les hooks des pages propriétaires — vues pures importées, jamais les
+  pages. Douze ABSENTS : score de risque, VaR, risque relatif, liquidité,
+  chocs, facteurs, budget de risque, radar, journal d'alertes (`AUCUNE
+  SOURCE`), volatilité, rotation, registre des risques (`CONTRAT SERVEUR
+  ABSENT` — `PAGE_ARBITRATION.md` : aucune source ne publie sévérité ni
+  horizon par risque). Aucun score global : le contrat l'interdit. En
+  `empty`, la planche reste composée et la dominante porte l'aveu.
+  Inspecteur « Matrice publiée » par défaut ; l'instrument ouvert le
+  remplace (coefficients avec chacun et bande publiée, séances, motif d'écart).
+- Primitives : `ConcentrationBars` (corps réutilisable des barres de poids),
+  `riskView.ts` étendu au contrat déjà publié (population, état des données,
+  moteur, schéma, unité, périmètre, rejetés, séances par instrument,
+  observations, retour en arrière).
+
+### Tests adaptés, jamais affaiblis
+
+- `PortfolioPage.test.tsx` : inchangé — tous les `pf-*`, la table des lots,
+  la section des exclus, les barres, le journal, les 422/409 verbatim
+  passent sur la page recomposée. Le cas « valorisation vide » exigeait une
+  seule occurrence de la raison serveur : elle n'est écrite qu'une fois
+  (module « Valorisation publiée »), les autres modules renvoient vers elle.
+- `RiskPage.test.tsx` : inchangé — ses seize cas exigent notamment
+  `queryByRole('table')` nul en refus et hors ligne, une seule `note`, une
+  seule occurrence de la conclusion et de « Aucun instantané publié » :
+  la concentration du registre est rendue en barres (aucune table sur
+  Risques hors la matrice), la conclusion n'est pas répétée dans
+  l'inspecteur, les modules non servis disent « Matrice non publiée ».
+- `shell-canonical.spec.ts` : témoin de dominante `/portfolio` →
+  `.vx-pf-concentration` (le résumé n'est plus la dominante).
+- Nouveaux : `portfolioModules.test.ts`, `riskModules.test.ts`,
+  `PortfolioComposition.test.tsx`, `RiskComposition.test.tsx`,
+  `e2e/risk.spec.ts` (première spec e2e de Risques : composition, matrice
+  = API, inspecteur au clavier, axe, capture, hors ligne), test de
+  composition dans `e2e/portfolio.spec.ts`.
+
+### Ce qui a été vu SUR CAPTURE, pas par un test
+
+1. Portefeuille à 1280 : le module Performance (courbe, métriques, heatmap,
+   points, export, conventions) occupait trois colonnes sur deux rangées ;
+   ses voisins « Benchmark » et « Exposition par devise » s'étiraient en
+   cartes vides de plusieurs écrans. Performance prend désormais une rangée
+   entière ; la valorisation ne s'étire plus sur deux rangées, les absents
+   de la première ligne se rangent sur la seconde. Deux passes de capture.
+2. Risques à 1280 : la matrice sur deux rangées se vidait sous sa légende.
+   Une rangée, les paires extrêmes à sa droite, la couverture (la plus
+   haute) sur deux rangées en bas. À 1600, le module des écartés s'étirait
+   seul sur deux rangées : le registre des risques prend sa place.
+3. Vu par un test, pas par une capture : `AiExplanationPanel.test.tsx`
+   attendait « le » titre `Inspecteur…` sur `/portfolio` ; la page en monte
+   désormais deux (explication IA, valorisation publiée). Locateur nommé
+   exactement (`Inspecteur — explication`), comme déjà fait pour Analyse au
+   LOT-A4. Aucune assertion retirée.
+
+### Mesuré sur cette machine (codes relus)
+
+- `tsc --noEmit` : 0 erreur ; `biome check src e2e` : 0 erreur (213 fichiers,
+  une information préexistante sur `OptionsModules.tsx`, hors lot).
+- `vitest run` : **59 fichiers, 647 tests, 0 échec** (622 sur A5 + 25) ;
+  portes de design incluses.
+- Playwright (portfolio, portfolio-performance, risk, shell-canonical,
+  accessibility ; 1280/1440/1600) : **252 passés / 252 déclarés** (`--list`),
+  code 0, 4,0 min — première passe, avant la correction des grilles ; puis
+  portfolio + risk rejoués deux fois après chaque passe CSS : 39 / 39 et
+  39 / 39, et Risques seul à 1600 après la dernière retouche : 5 / 5.
+- `tools/run_checks.sh` (racine, seul, après la fin des e2e) : toutes les
+  portes vertes — rôle du dépôt, blueprint, frontière financière, registre
+  des calculs, secrets, policy, traçabilité (entrée `NOT_YET_PROVEN` connue,
+  hors lot), notices, uv.lock, compilation, Worker Cloudflare, Biome,
+  performance, ruff et mypy ; puis le seul rouge déjà connu,
+  `test_denylist.py::test_adapter_satisfies_the_port_protocol` sur Python
+  3.11 — pas ce lot, aucun fichier Python touché, établi dans la PR #25.
+  Code de sortie 1 pour cette seule raison.
+
+### Transmis, non corrigé ici
+
+- Ordre utilisateur reçu en fin de lot : « pousse tout, fusionne tout et
+  continue » — la chaîne #25 → #26 → #27 → #28 → A6 est fusionnée en squash
+  dans cet ordre, chaque PR empilée reciblée sur `main` avant sa fusion ;
+  A7 et A8 partent ensuite de `main`.
+- Portefeuille reste la page la plus haute des douze : le module Performance
+  garde son corps entier (courbe, métriques, heatmap, points, export,
+  conventions) dans une rangée pleine ; le rendre plus compact serait un
+  autre lot, pas une composition.
+- La valeur exacte de l'indice de Herfindahl (jusqu'à vingt-huit décimales)
+  se replie sur deux lignes dans le module Risques : chaîne serveur
+  verbatim, jamais arrondie.
+- La matrice n'est pas rafraîchie pendant une session e2e
+  (`run_worker.py` sans `risk_config`) : `risk.spec.ts` lit la matrice semée.
+
+Prochaine commande recommandée : fusion de la chaîne A2 → A6 (ordre reçu),
+puis `EXÉCUTE A7` (Catalyseurs, Calendrier — planches §10, §11) depuis `main`.
