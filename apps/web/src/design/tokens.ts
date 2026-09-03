@@ -51,9 +51,44 @@ export const color = {
   'option-soft': 'rgba(168, 138, 232, 0.12)',
   'macro': '#6bc5bc',
   'macro-soft': 'rgba(107, 197, 188, 0.12)',
+  // Dégradés de série (ADR-017) : de la teinte sémantique vers SA transparence,
+  // UNIQUEMENT sous une série servie (`SparkFigure`, `MultiSeriesArea`), jamais
+  // un fond de carte. `-gradient-end` est le même triplet à alpha 0 : le fondu
+  // reste dans la famille, il ne va ni vers le noir ni vers une autre teinte.
+  // L'ambre (`signal`) n'a pas de dégradé : il n'est jamais la teinte d'une série.
+  'silver-gradient-start': 'rgba(216, 211, 199, 0.22)',
+  'silver-gradient-end': 'rgba(216, 211, 199, 0)',
+  'positive-gradient-start': 'rgba(80, 201, 146, 0.22)',
+  'positive-gradient-end': 'rgba(80, 201, 146, 0)',
+  'negative-gradient-start': 'rgba(239, 111, 108, 0.22)',
+  'negative-gradient-end': 'rgba(239, 111, 108, 0)',
+  'warning-gradient-start': 'rgba(240, 195, 106, 0.22)',
+  'warning-gradient-end': 'rgba(240, 195, 106, 0)',
+  'option-gradient-start': 'rgba(168, 138, 232, 0.22)',
+  'option-gradient-end': 'rgba(168, 138, 232, 0)',
+  'macro-gradient-start': 'rgba(107, 197, 188, 0.22)',
+  'macro-gradient-end': 'rgba(107, 197, 188, 0)',
   'overlay': 'rgba(3, 3, 2, 0.86)',
   'scrim': 'rgba(3, 3, 2, 0.56)',
 } as const satisfies Record<string, string>;
+
+/**
+ * Teinte sémantique SECONDAIRE par page (ADR-017). Une page déclare UNE famille
+ * dans son catalogue ; l'ambre (`signal`) reste la seule lumière de la
+ * dominante et n'est pas éligible. Chaque clé renvoie à une famille EXISTANTE —
+ * aucune couleur nouvelle : « une couleur = une signification » est préservé,
+ * la teinte garde le sens de sa famille (macro = contexte, option = domaine
+ * options, positive = signe financier, warning = prudence, retard, synthétique).
+ * Le CSS généré expose `[data-page-accent="<clé>"]` → `--vx-page-accent`,
+ * `--vx-page-accent-soft`, `--vx-page-accent-gradient-start/-end`. Aucune
+ * valeur par défaut : sans déclaration de page, il n'y a pas de teinte.
+ */
+export const pageAccent = {
+  macro: 'macro',
+  option: 'option',
+  positive: 'positive',
+  warning: 'warning',
+} as const satisfies Record<string, ColorToken>;
 
 /** Espacements — grille 4 px. Clé (valeur px) → `--vx-space-<clé>`. */
 export const space = {
@@ -95,6 +130,10 @@ export const motionDuration = {
   140: '140ms',
   180: '180ms',
   220: '220ms',
+  // ADR-017 : surbrillance UNIQUE d'une valeur dont `snapshot_version` a changé
+  // (`docs/05-design/MOTION_AND_MICROINTERACTIONS.md`, « Valeur mise à jour »,
+  // nom documentaire `--vx-motion-data`). Jamais une transition d'interface.
+  600: '600ms',
 } as const satisfies Record<number, string>;
 
 /** Courbes documentées (docs/05-design/MOTION_AND_MICROINTERACTIONS.md). */
@@ -142,4 +181,5 @@ export type SpaceToken = keyof typeof space;
 export type RadiusToken = keyof typeof radius;
 export type ShadowToken = keyof typeof shadow;
 export type MotionDurationToken = keyof typeof motionDuration;
+export type PageAccentToken = keyof typeof pageAccent;
 export type ZIndexToken = keyof typeof zIndex;
