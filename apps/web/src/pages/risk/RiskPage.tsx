@@ -4,10 +4,14 @@ import type { RiskMatrixResponse } from '../../api/client.ts';
 import { useRiskMatrix } from '../../api/decisionApi.ts';
 import { pageStateOf } from '../../api/hooks.ts';
 import { AuthRequiredNotice } from '../../components/AuthRequiredNotice.tsx';
-import { Card } from '../../components/Card.tsx';
 import { DataStateBoundary } from '../../components/DataStateBoundary.tsx';
 import { SyntheticBanner } from '../../components/SyntheticBanner.tsx';
-import { CorrelationMatrix } from './CorrelationMatrix.tsx';
+import { moduleStateOf } from '../../components/moduleState.ts';
+import type { ModuleState } from '../../components/moduleState.ts';
+import { CellGrid } from '../../components/widgets/CellGrid.tsx';
+import type { GridCell, GridLegendEntry } from '../../components/widgets/CellGrid.tsx';
+import { Widget } from '../../components/widgets/Widget.tsx';
+import type { WidgetServed } from '../../components/widgets/Widget.tsx';
 import { InstrumentInspector, MatrixInspector } from './RiskInspector.tsx';
 import {
   AbsentRiskModule,
@@ -16,10 +20,12 @@ import {
   DiscardsModule,
   DrawdownModule,
   ExtremesModule,
+  MatrixStateChip,
   RegisterConcentrationModule,
+  riskModuleState,
 } from './RiskModules.tsx';
 import { riskModule } from './riskModules.ts';
-import { riskViewOf } from './riskView.ts';
+import { BAND_LABELS, riskViewOf } from './riskView.ts';
 import type { RiskView } from './riskView.ts';
 
 /**
@@ -31,18 +37,16 @@ import type { RiskView } from './riskView.ts';
  * coefficient et ne reclasse aucune case : les nombres arrivent en chaînes
  * rendues, les bandes arrivent sous forme de noms.
  *
- * LOT-A6 — LA PLANCHE §9 EN ENTIER. `pages-09-10-risks-catalysts.png`
- * (moitié gauche) compose dix-neuf modules. Sept sont SERVIS : la matrice en
- * DOMINANTE (`REFONTE_TITANIUM_LEDGER.md` §4), les paires extrêmes et
- * l'avertissement de synchronicité, la couverture, le coût de l'alignement,
- * les instruments écartés — tous du même snapshot — puis la concentration du
- * registre manuel et le drawdown de sa performance, lus par les hooks des
- * pages propriétaires. Douze n'ont ni source ni contrat : score de risque,
- * VaR, risque relatif, volatilité, liquidité, rotation, chocs, facteurs,
- * budget de risque, radar, registre des risques, journal d'alertes.
- * `PAGE_ARBITRATION.md` le mesure : aucune source ne publie sévérité ni
- * horizon par risque — et le contrat interdit un score global dérivé de
- * mesures partielles. Ils tiennent leur place avec le motif de leur absence.
+ * LOT P4 — LA PLANCHE §9 SUR LES FORMES V2. La matrice devient une `CellGrid`
+ * (ADR-017) : la bande SERVIE passe verbatim dans `data-band`, une bande
+ * absente devient `unknown` VISIBLE, et une cellule non publiée se lit « non
+ * publié ». Le composant précédent remplaçait une bande manquante par `weak`,
+ * ce qui affirmait « peu liés » sur une case dont personne n'avait rien
+ * publié : un faux rassurant, corrigé ici.
+ *
+ * La page déclare sa teinte secondaire `macro` (`PAGE_ACCENTS`) : contexte de
+ * marché, jamais un verdict. Le vert et le rouge restent réservés au signe
+ * financier servi.
  *
  * TROIS ÉTATS DE MATRICE, JAMAIS CONFONDUS.
  *
@@ -66,133 +70,154 @@ import type { RiskView } from './riskView.ts';
  * vérité du snapshot.
  */
 
+/** Libellés des bandes SERVIES. Une bande inconnue reste visible et nommée. */
+const BAND_LEGEND: readonly GridLegendEntry[] = Object.entries(BAND_LABELS).map(([band, label]) => ({
+  band,
+  label,
+}));
+
+/** Cellules de la matrice, SERVIES : rien n'est complété ni reclassé. */
+function gridCells(view: RiskView): readonly GridCell[] {
+  const cells: GridCell[] = [];
+  view.instruments.forEach((row, rowIndex) => {
+    view.instruments.forEach((col, colIndex) => {
+      cells.push({
+        row: row.ticker,
+        col: col.ticker,
+        band: view.bands[rowIndex]?.[colIndex] ?? '',
+        text: view.matrix[rowIndex]?.[colIndex] ?? null,
+      });
+    });
+  });
+  return cells;
+}
+
+function thresholdLegend(view: RiskView): string {
+  const fort = view.coverage.strongThreshold;
+  const modere = view.coverage.moderateThreshold;
+  const dire = (valeur: string | null) => (valeur === null ? 'un seuil non publié' : valeur);
+  return `Coefficients servis sur les séances communes — fort dès ${dire(fort)}, modéré dès ${dire(modere)} en valeur absolue ; le signe donne le sens.`;
+}
+
 function MatrixModule({
   data,
   view,
+  state,
+  served,
   selected,
   onSelect,
 }: {
   readonly data: RiskMatrixResponse;
   readonly view: RiskView | null;
+  readonly state: ModuleState;
+  readonly served: WidgetServed;
   readonly selected: string | null;
   readonly onSelect: (ticker: string) => void;
 }) {
   const module = riskModule('correlations');
   return (
-    <Card
+    <Widget
+      id="correlations"
+      size={module.size}
       rank="dominant"
       kicker="Corrélations publiées"
       title={module.title}
       titleId="vx-risk-matrix-title"
-      className="vx-risk-matrix-card"
-      aside={view === null ? undefined : <>{view.instruments.length} instrument(s) · population {view.population}</>}
+      state={state}
+      served={served}
+      conclusion={view === null || view.serverState === 'empty' ? null : view.conclusion}
+      stateDetail={
+        view === null || view.serverState === 'empty'
+          ? `Aucun instantané publié — soit aucun périmètre n'est déclaré, soit aucune barre n'a encore été collectée (raison serveur : ${data.reason ?? 'non fournie'}). Rien n'est inventé à la place.`
+          : view.refusalReason
+      }
+      action={view === null ? undefined : <MatrixStateChip view={view} />}
       footer={<>rendements quotidiens sur les séances communes ; coefficients et bandes publiés par le worker, jamais recalculés</>}
     >
       {view === null || view.serverState === 'empty' ? (
-        <DataStateBoundary
-          state="empty"
-          detail={`Aucun instantané publié — soit aucun périmètre n'est déclaré, soit aucune barre n'a encore été collectée (raison serveur : ${
-            data.reason ?? 'non fournie'
-          }). Rien n'est inventé à la place.`}
-        />
+        <p className="vx-module-sentence" role="status">
+          Aucun instantané publié — soit aucun périmètre n'est déclaré, soit aucune barre n'a encore été collectée (raison
+          serveur&nbsp;: {data.reason ?? 'non fournie'}). Rien n'est inventé à la place.
+        </p>
+      ) : view.refusalReason !== null ? (
+        // La conclusion servie est déjà dans la tête du widget : le motif ne
+        // s'écrit qu'ici, jamais la même phrase deux fois.
+        <p className="vx-module-sentence" role="status">
+          Aucune matrice n'a pu être construite&nbsp;: {view.refusalReason}.
+        </p>
       ) : (
-        <>
-          <p className="vx-module-sentence" data-testid="risk-conclusion">
-            {view.conclusion}
-          </p>
-          {view.refusalReason !== null ? (
-            // La conclusion du serveur est DÉJÀ juste au-dessus : la répéter
-            // ici la ferait lire deux fois. Le bandeau porte le seul motif.
-            <DataStateBoundary state="empty" detail={`Aucune matrice n'a pu être construite : ${view.refusalReason}.`} />
-          ) : (
-            <CorrelationMatrix instruments={view.instruments} matrix={view.matrix} bands={view.bands} selected={selected} onSelect={onSelect} />
-          )}
-        </>
+        <div className="vx-riskmatrix">
+          <CellGrid
+            rows={view.instruments.map((entry) => ({ key: entry.ticker, label: entry.label }))}
+            cols={view.instruments.map((entry) => ({ key: entry.ticker, label: entry.ticker }))}
+            cells={gridCells(view)}
+            legend={BAND_LEGEND}
+            caption={thresholdLegend(view)}
+            onOpenRow={onSelect}
+            selectedRow={selected}
+            rowActionLabel={(row) => `Inspecter ${row.key} (${row.label})`}
+          />
+        </div>
       )}
-    </Card>
+    </Widget>
   );
 }
 
-function RiskBoard({ data, view }: { readonly data: RiskMatrixResponse; readonly view: RiskView | null }) {
+function RiskBoard({
+  data,
+  view,
+  pageState,
+}: {
+  readonly data: RiskMatrixResponse;
+  readonly view: RiskView | null;
+  readonly pageState: ModuleState;
+}) {
   const [selected, setSelected] = useState<string | null>(null);
   const opened = view !== null && selected !== null && view.instruments.some((entry) => entry.ticker === selected) ? selected : null;
+  // Un seul état pour tous les modules du snapshot : celui de la page, affiné
+  // par l'état des données SERVI (`data_state`) quand il annonce du partiel.
+  const state = riskModuleState(pageState, view?.dataState ?? null);
+  const served: WidgetServed = {
+    asOf: view?.asOf ?? data.as_of ?? null,
+    ageSeconds: data.age_seconds,
+    snapshotVersion: data.snapshot_version ?? null,
+    population: view?.population ?? null,
+    sourceLabel: 'instantané de matrice publié',
+  };
+
   return (
     <>
       <div className="vx-risk-grid vx-board" data-testid="risk-grid">
         <AbsentRiskModule id="risk-score" />
         <AbsentRiskModule id="var-cvar" />
-        <div data-module="max-drawdown">
-          <DrawdownModule />
-        </div>
+        <DrawdownModule />
         <AbsentRiskModule id="benchmark-relative" />
 
         <AbsentRiskModule id="volatility" />
-        <div data-module="concentration">
-          <RegisterConcentrationModule />
-        </div>
+        <RegisterConcentrationModule />
         <AbsentRiskModule id="liquidity" />
 
-        <div data-module="correlations">
-          <MatrixModule
-            data={data}
-            view={view}
-            selected={opened}
-            onSelect={(ticker) => {
-              setSelected((previous) => (previous === ticker ? null : ticker));
-            }}
-          />
-        </div>
+        <MatrixModule
+          data={data}
+          view={view}
+          state={state}
+          served={served}
+          selected={opened}
+          onSelect={(ticker) => {
+            setSelected((previous) => (previous === ticker ? null : ticker));
+          }}
+        />
         <AbsentRiskModule id="turnover" />
-        <div data-module="extremes">
-          {view === null ? (
-            <Card rank="quiet" kicker="Publiées avec la matrice" title={riskModule('extremes').title} titleId="vx-risk-extremes-title">
-              <p className="vx-module-sentence" role="status">
-                Matrice non publiée : aucune paire à nommer.
-              </p>
-            </Card>
-          ) : (
-            <ExtremesModule view={view} />
-          )}
-        </div>
+        <ExtremesModule view={view} state={state} />
 
         <AbsentRiskModule id="stress-loss" />
         <AbsentRiskModule id="factor-exposures" />
         <AbsentRiskModule id="risk-budget" />
         <AbsentRiskModule id="radar" />
 
-        <div data-module="coverage">
-          {view === null ? (
-            <Card rank="quiet" kicker="Périmètre déclaré" title={riskModule('coverage').title} titleId="vx-risk-coverage-title">
-              <p className="vx-module-sentence" role="status">
-                Matrice non publiée : aucune couverture à décrire.
-              </p>
-            </Card>
-          ) : (
-            <CoverageModule view={view} />
-          )}
-        </div>
-        <div data-module="alignment">
-          {view === null ? (
-            <Card rank="quiet" kicker="Séances perdues" title={riskModule('alignment').title} titleId="vx-risk-alignment-title">
-              <p className="vx-module-sentence" role="status">
-                Matrice non publiée.
-              </p>
-            </Card>
-          ) : (
-            <AlignmentModule view={view} />
-          )}
-        </div>
-        <div data-module="discards">
-          {view === null ? (
-            <Card rank="quiet" kicker="Écartés avec leur raison" title={riskModule('discards').title} titleId="vx-risk-discards-title">
-              <p className="vx-module-sentence" role="status">
-                Matrice non publiée.
-              </p>
-            </Card>
-          ) : (
-            <DiscardsModule view={view} />
-          )}
-        </div>
+        <CoverageModule view={view} state={state} />
+        <AlignmentModule view={view} state={state} />
+        <DiscardsModule view={view} state={state} />
         <AbsentRiskModule id="risk-register" />
         <AbsentRiskModule id="alert-log" />
       </div>
@@ -217,9 +242,10 @@ export function RiskPage() {
   const state = pageStateOf(query);
   const data = query.data;
   const view = data === undefined || data.state === 'empty' ? null : riskViewOf(data);
+  const moduleState = moduleStateOf(state, data);
 
   return (
-    <article className="vx-page" aria-labelledby="vx-page-title-risk">
+    <article className="vx-page" data-page-accent="macro" aria-labelledby="vx-page-title-risk">
       <div className="vx-page-header">
         <h1 id="vx-page-title-risk">Risques</h1>
         <p className="vx-page-question">
@@ -251,7 +277,7 @@ export function RiskPage() {
           {view !== null && view.serverState === 'stale' ? (
             <DataStateBoundary state="stale" {...(typeof data.reason === 'string' ? { detail: data.reason } : {})} />
           ) : null}
-          <RiskBoard data={data} view={view} />
+          <RiskBoard data={data} view={view} pageState={moduleState} />
         </>
       )}
     </article>

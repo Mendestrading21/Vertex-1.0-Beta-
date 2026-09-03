@@ -88,12 +88,22 @@ export function DayBars({
                 ? { 'aria-current': 'true' }
                 : {})}
             >
-              {value === null ? null : (
-                <span
-                  className="vx-w2-daybar-fill"
-                  style={{ height: `${round2(geometryShare(value, max) * 100)}%` }}
-                />
-              )}
+              {/* La valeur SERVIE est écrite au-dessus de sa barre et le
+                  libellé en dessous : sans eux, une colonne grise ne dit ni
+                  de qui elle parle ni combien elle vaut, et la table
+                  équivalente restait le seul endroit lisible. */}
+              <span className="vx-w2-daybar-value">{entry.value === null ? 'n. p.' : entry.value}</span>
+              <span className="vx-w2-daybar-track">
+                {value === null ? null : (
+                  <span
+                    className="vx-w2-daybar-fill"
+                    style={{ height: `${round2(geometryShare(value, max) * 100)}%` }}
+                  />
+                )}
+              </span>
+              <span className="vx-w2-daybar-label" title={entry.label}>
+                {entry.label}
+              </span>
             </span>
           );
         })}

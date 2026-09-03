@@ -52,7 +52,7 @@ test.describe('Page Risques — matrice réelle (LOT-A6)', () => {
       return;
     }
     // Matrice servie : chaque coefficient affiché est la chaîne API, avec sa bande.
-    const matrice = page.locator('.vx-riskmatrix-table');
+    const matrice = page.locator('[data-module="correlations"] table');
     await expect(matrice).toBeVisible();
     const instruments = content['instruments'] as Record<string, unknown>[];
     const matrix = content['matrix'] as string[][];
@@ -81,7 +81,7 @@ test.describe('Page Risques — matrice réelle (LOT-A6)', () => {
 
     const instruments = content?.['instruments'] as Record<string, unknown>[];
     const ticker = String(instruments[0]?.['ticker']);
-    const bouton = page.locator('.vx-riskmatrix-rowbtn').first();
+    const bouton = page.locator('[data-module="correlations"] tbody th button').first();
     await expect(bouton).toHaveText(ticker);
     await bouton.focus();
     await page.keyboard.press('Enter');
@@ -119,7 +119,7 @@ test.describe('Page Risques — matrice réelle (LOT-A6)', () => {
     await page.goto('/risks');
     const boundary = page.locator('[data-state="offline"]');
     await expect(boundary.first()).toBeVisible();
-    await expect(page.locator('.vx-riskmatrix-table')).toHaveCount(0);
+    await expect(page.locator('[data-module="correlations"] table')).toHaveCount(0);
     await expect(page.getByTestId('risk-grid')).toHaveCount(0);
   });
 });

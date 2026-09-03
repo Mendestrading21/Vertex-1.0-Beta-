@@ -2,6 +2,9 @@ import type { LedgerTransactionEntry } from '../../api/client.ts';
 import { pageStateOf } from '../../api/hooks.ts';
 import { usePerformance } from '../../api/portfolioApi.ts';
 import { AbsentModule } from '../../components/AbsentModule.tsx';
+import { ActivityFeed } from '../../components/widgets/ActivityFeed.tsx';
+import type { FeedGroup, FeedItem } from '../../components/widgets/ActivityFeed.tsx';
+import { Widget } from '../../components/widgets/Widget.tsx';
 import { Card } from '../../components/Card.tsx';
 import { Metric } from '../../components/Metric.tsx';
 import { ModuleStatus } from '../../components/ModuleStatus.tsx';
@@ -27,7 +30,7 @@ export function AbsentPortfolioModule({ id }: { readonly id: string }) {
     throw new Error(`Module ${id} is served, not absent`);
   }
   return (
-    <div data-module={id}>
+    <div data-module={id} data-size={module.size}>
       <AbsentModule title={module.title} question={module.question} reason={module.status.reason} note={module.status.note} />
     </div>
   );
@@ -209,33 +212,44 @@ function tickerOf(entry: LedgerTransactionEntry): string | null {
 export function DividendsModule({ transactions }: { readonly transactions: readonly LedgerTransactionEntry[] }) {
   const module = portfolioModule('dividends');
   const dividends = transactions.filter((entry) => entry.kind === 'DIVIDEND');
+  // Groupement sur le JOUR SERVI de l'effet (`effective_at`), jamais sur une
+  // horloge locale : le libellé de jour est la date servie elle-même, aucune
+  // formule relative (« aujourd'hui ») que la primitive refuserait.
+  const parJour = new Map<string, FeedItem[]>();
+  for (const entry of dividends) {
+    const jour = entry.effective_at.slice(0, 10);
+    const ticker = tickerOf(entry);
+    const item: FeedItem = {
+      id: String(entry.id),
+      timeIso: entry.effective_at,
+      timeLabel: entry.effective_at,
+      title: ticker ?? 'sans instrument',
+      amount: entry.amount,
+      ...(entry.compensated_by !== null ? { chips: [{ label: 'COMPENSÉE', tone: 'warning' as const }] } : {}),
+    };
+    parJour.set(jour, [...(parJour.get(jour) ?? []), item]);
+  }
+  const groupes: FeedGroup[] = [...parJour.entries()]
+    .sort((a, b) => b[0].localeCompare(a[0]))
+    .map(([jour, items]) => ({ dayIso: jour, dayLabel: jour, items }));
+
   return (
-    <Card
-      rank="quiet"
+    <Widget
+      id="dividends"
+      size={module.size}
       kicker="Faits déclarés au journal"
       title={module.title}
       titleId="vx-pf-dividends-title"
+      state="ready"
       footer={<>{dividends.length} ligne(s) de nature « {LEDGER_KIND_LABELS.DIVIDEND} » ; montants verbatim, jamais sommés</>}
     >
-      {dividends.length === 0 ? (
-        <p className="vx-module-sentence" role="status" data-testid="pf-dividends-empty">
-          Aucun dividende enregistré au journal.
-        </p>
-      ) : (
-        <ul className="vx-inspector-list vx-pf-dividends" data-testid="pf-dividends" aria-label="Dividendes enregistrés">
-          {dividends.map((entry) => {
-            const ticker = tickerOf(entry);
-            return (
-              <li key={entry.id} data-testid={`pf-dividend-${entry.id}`}>
-                <time dateTime={entry.effective_at}>{entry.effective_at}</time>{' '}
-                {ticker !== null ? <code>{ticker}</code> : <span className="vx-cell-absent">sans instrument</span>}{' '}
-                <code className="vx-num">{entry.amount}</code> {entry.currency}
-                {entry.compensated_by !== null ? <span className="vx-badge vx-badge-warning">compensée</span> : null}
-              </li>
-            );
-          })}
-        </ul>
-      )}
-    </Card>
+      <div data-testid={dividends.length === 0 ? 'pf-dividends-empty' : 'pf-dividends'}>
+        <ActivityFeed
+          groups={groupes}
+          ariaLabel="Dividendes enregistrés, groupés par jour servi"
+          emptyLabel="Aucun dividende enregistré au journal."
+        />
+      </div>
+    </Widget>
   );
 }

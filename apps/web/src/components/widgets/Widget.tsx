@@ -84,12 +84,20 @@ export interface WidgetProps {
   /** Action RÉELLE de la tête (lien, bouton, compte). Jamais un ornement. */
   readonly action?: ReactNode;
   readonly state: ModuleState;
+  /**
+   * Provenance SERVIE du module. Absente ⇒ AUCUNE ligne de méta : un module
+   * qui partage la source déjà datée par la dominante ne répète pas quatre
+   * « non publié », qui feraient lire une absence là où rien n'a été demandé.
+   */
   readonly served?: WidgetServed;
   /** Champ `conclusion` SERVI. `null`/absent ⇒ la ligne n'existe pas. */
   readonly conclusion?: string | null;
   /** Cause servie de l'état (motif de refus, diagnostic). */
   readonly stateDetail?: string | null;
   readonly footer?: ReactNode;
+  /** Classe de la PAGE sur la carte — témoin de composition, jamais du style
+   *  de surface, qui reste celui de `Card`. */
+  readonly className?: string;
   readonly children: ReactNode;
 }
 
@@ -177,6 +185,7 @@ export function Widget({
   title,
   titleId,
   rank = 'default',
+  className,
   action,
   state,
   served,
@@ -202,12 +211,13 @@ export function Widget({
         {...(titleId === undefined ? {} : { titleId })}
         {...(action === undefined ? {} : { aside: action })}
         rank={rank}
+        {...(className === undefined ? {} : { className })}
         footer={
           <>
             {conclusion === undefined || conclusion === null || conclusion === '' ? null : (
               <p className="vx-w2-conclusion">{conclusion}</p>
             )}
-            <WidgetMeta served={served} />
+            {served === undefined ? null : <WidgetMeta served={served} />}
             {footer}
           </>
         }

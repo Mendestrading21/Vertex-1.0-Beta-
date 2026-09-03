@@ -1,3 +1,7 @@
+import { RingShares } from '../../components/widgets/RingShares.tsx';
+import type { RingPart } from '../../components/widgets/RingShares.tsx';
+import { SharesBand } from '../../components/widgets/SharesBand.tsx';
+import type { SharePart } from '../../components/widgets/SharesBand.tsx';
 import type { CurrencyBlockView } from './portfolioView.ts';
 
 /**
@@ -28,15 +32,15 @@ import type { CurrencyBlockView } from './portfolioView.ts';
  * Risques (module « Concentration du registre »), en barres seules.
  */
 
-/** Largeur de barre en % (géométrie de rendu uniquement). */
-export function barWidthPct(weight: string): number {
-  const parsed = Number(weight);
-  if (!Number.isFinite(parsed) || parsed < 0) {
-    return 0;
-  }
-  return Math.min(100, parsed * 100);
-}
-
+/**
+ * Poids servis en bande de parts (LOT P4).
+ *
+ * Les poids publiés sont des RATIOS rendus, pas des pourcentages : la
+ * primitive les reçoit sous l'identifiant `ratio`, qui dit leur échelle, et
+ * la géométrie vit dans `geometry.ts`. La chaîne exacte — jusqu'à 28
+ * décimales — reste écrite dans la légende de la bande ET dans la table
+ * équivalente ci-dessous : rien n'est arrondi, rien n'est tronqué.
+ */
 export function ConcentrationBars({
   block,
   testIdPrefix = 'pf-bars',
@@ -45,28 +49,14 @@ export function ConcentrationBars({
   readonly testIdPrefix?: string;
 }) {
   return (
-    <ul className="vx-pf-bars" data-testid={`${testIdPrefix}-${block.currency}`}>
-      {block.weights.map((entry) => (
-        <li key={entry.ticker} className="vx-pf-bar-row" aria-label={`${entry.ticker} — poids normalisé ${entry.weight}`}>
-          <span className="vx-pf-bar-ticker">
-            <code>{entry.ticker}</code>
-          </span>
-          <span className="vx-pf-bar-track" aria-hidden="true">
-            <span className="vx-pf-bar-fill" style={{ width: `${barWidthPct(entry.weight)}%` }} />
-          </span>
-          {/*
-            `title` porte la chaîne exacte au survol ; le texte visible
-            est la MÊME chaîne, simplement bornée en largeur par le
-            style. Rien n'est réécrit : `text-overflow` coupe le rendu,
-            il ne fabrique pas un arrondi — la distinction compte, car
-            un arrondi ressemblerait à une valeur servie.
-          */}
-          <span className="vx-num vx-pf-bar-value" title={entry.weight}>
-            {entry.weight}
-          </span>
-        </li>
-      ))}
-    </ul>
+    <div data-testid={`${testIdPrefix}-${block.currency}`}>
+      <SharesBand
+        parts={block.weights.map((entry): SharePart => ({ key: entry.ticker, label: entry.ticker, ratio: entry.weight }))}
+        unit={`du registre ${block.currency}`}
+        ariaLabel={`Poids normalisés servis en ${block.currency}`}
+        emptyLabel="Aucun poids publié : aucune bande tracée."
+      />
+    </div>
   );
 }
 
@@ -91,7 +81,17 @@ export function ConcentrationPanel({ blocks }: { readonly blocks: readonly Curre
             </p>
           ) : (
             <>
-              <ConcentrationBars block={block} />
+              <div className="vx-pf-concentration-figures">
+                <RingShares
+                  parts={block.weights.map((entry): RingPart => ({ key: entry.ticker, label: entry.ticker, ratio: entry.weight }))}
+                  centerValue={block.herfindahl}
+                  centerLabel="Herfindahl servi"
+                  ariaLabel={`Poids normalisés servis en ${block.currency}, en anneau`}
+                />
+                <div className="vx-pf-concentration-band">
+                  <ConcentrationBars block={block} />
+                </div>
+              </div>
               <table className="vx-pf-concentration-table" aria-label={`Poids de concentration (${block.currency})`}>
                 <thead>
                   <tr>
@@ -111,13 +111,25 @@ export function ConcentrationPanel({ blocks }: { readonly blocks: readonly Curre
                 </tbody>
               </table>
               <p className="vx-pf-concentration-meta">
-                Indice de Herfindahl : <code className="vx-num">{block.herfindahl ?? '—'}</code>
+                Indice de Herfindahl :{' '}
+                {block.herfindahl === null ? (
+                  <span data-absent="true">non publié</span>
+                ) : (
+                  <code className="vx-num">{block.herfindahl}</code>
+                )}
                 {' · '}valeur totale marquée :{' '}
-                <code className="vx-num">{block.totalValue ?? '—'}</code> {block.currency}
+                {block.totalValue === null ? (
+                  <span data-absent="true">non publiée</span>
+                ) : (
+                  <>
+                    <code className="vx-num">{block.totalValue}</code> {block.currency}
+                  </>
+                )}
                 {block.concentrationCalculation !== null ? (
                   <>
-                    {' · '}calcul <code>{block.concentrationCalculation.calculationId ?? '—'}</code> (
-                    {block.concentrationCalculation.engineVersion ?? '—'})
+                    {' · '}calcul{' '}
+                    <code>{block.concentrationCalculation.calculationId ?? 'non publié'}</code> (
+                    {block.concentrationCalculation.engineVersion ?? 'version non publiée'})
                   </>
                 ) : null}
               </p>

@@ -41,6 +41,11 @@ export const color = {
   'signal-deep': '#765319',
   'signal-soft': 'rgba(215, 169, 74, 0.15)',
   'signal-faint': 'rgba(215, 169, 74, 0.065)',
+  // Deux crans de tension SUPPLÉMENTAIRES, pour les échelles à bandes servies
+  // (matrice de corrélation) : `-soft` et `-faint` ne se distinguaient pas à
+  // l'œil sur une cellule de tableau (mesuré sur capture, planche §9), et une
+  // bande invisible ne porte plus l'information qu'elle nomme.
+  'signal-strong': 'rgba(215, 169, 74, 0.3)',
   'positive': '#50c992',
   'positive-soft': 'rgba(80, 201, 146, 0.12)',
   'negative': '#ef6f6c',
@@ -51,6 +56,7 @@ export const color = {
   'option-soft': 'rgba(168, 138, 232, 0.12)',
   'macro': '#6bc5bc',
   'macro-soft': 'rgba(107, 197, 188, 0.12)',
+  'macro-strong': 'rgba(107, 197, 188, 0.28)',
   // Dégradés de série (ADR-017) : de la teinte sémantique vers SA transparence,
   // UNIQUEMENT sous une série servie (`SparkFigure`, `MultiSeriesArea`), jamais
   // un fond de carte. `-gradient-end` est le même triplet à alpha 0 : le fondu

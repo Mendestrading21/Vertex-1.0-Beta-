@@ -126,7 +126,7 @@ describe('Page Risques — composition (LOT-A6)', () => {
   it('une seule dominante : la matrice, qui garde son témoin', async () => {
     servir();
     await renderRisk();
-    await screen.findByRole('table');
+    await screen.findByTestId('risk-grid');
     const dominantes = document.querySelectorAll('.vx-main [data-rank="dominant"]');
     expect(dominantes).toHaveLength(1);
     expect(dominantes[0]?.closest('[data-module]')?.getAttribute('data-module')).toBe('correlations');
@@ -153,8 +153,22 @@ describe('Page Risques — composition (LOT-A6)', () => {
     expect(within(concentration).getByTestId('risk-herfindahl-SYN').textContent).toContain('1');
     const drawdown = await screen.findByTestId('risk-drawdown');
     expect(within(drawdown).getByTestId('risk-drawdown_gross')).toBeDefined();
-    // La seule table de la page reste la matrice.
-    expect(screen.getAllByRole('table')).toHaveLength(1);
+    // La seule table VISIBLE de la page reste la matrice. Les formes v2
+    // (barres sur rail, aire sous une série) portent chacune leur table
+    // ÉQUIVALENTE, exigée par `docs/05-design/CHART_STANDARD.md` pour les
+    // lecteurs d'écran : elle vit repliée dans un `<details>` fermé, et
+    // n'ajoute donc aucune grille de chiffres à l'écran. L'invariant est
+    // vérifié ici plus strictement qu'avant : on compte les tables visibles
+    // ET on exige que chacune des autres soit bien repliée.
+    const tables = screen.getAllByRole('table');
+    const visibles = tables.filter((table) => table.closest('details') === null);
+    expect(visibles).toHaveLength(1);
+    expect(visibles[0]?.closest('[data-module]')?.getAttribute('data-module')).toBe('correlations');
+    for (const table of tables) {
+      if (table.closest('details') !== null) {
+        expect(table.closest('details')?.hasAttribute('open')).toBe(false);
+      }
+    }
   });
 
   it('couverture, alignement et écarts sont servis avec le périmètre retenu', async () => {
@@ -194,5 +208,35 @@ describe('Page Risques — composition (LOT-A6)', () => {
     }
     expect(cellule('correlations').getByText(/no snapshot published/)).toBeDefined();
     expect(screen.queryByRole('table')).toBeNull();
+  });
+
+  it('une bande NON publiée reste « inconnue » et visible — jamais « peu liés »', async () => {
+    /**
+     * Le composant précédent remplaçait une bande absente par `weak`, ce qui
+     * affirmait « peu liés » sur une case dont le serveur n'avait rien publié.
+     * La grille v2 rend `data-band="unknown"`, visible et nommée, et la case
+     * sans coefficient se lit « non publié ».
+     */
+    const snapshot = makeRiskMatrix();
+    const contenu = snapshot.content as Record<string, unknown>;
+    const bandes = (contenu.matrix_bands as string[][]).map((ligne) => [...ligne]);
+    const valeurs = (contenu.matrix as string[][]).map((ligne) => [...ligne]);
+    // Une bande retirée par la source, et un coefficient publié dans une forme
+    // que l'interface ne sait pas lire.
+    bandes[0]![1] = '';
+    valeurs[0]![1] = null as unknown as string;
+    servir({ ...snapshot, content: { ...contenu, matrix_bands: bandes, matrix: valeurs } });
+    await renderRisk();
+
+    const grille = document.querySelector('[data-module="correlations"] table') as HTMLElement;
+    const inconnues = grille.querySelectorAll('[data-band="unknown"]');
+    expect(inconnues.length).toBeGreaterThan(0);
+    expect((inconnues[0] as HTMLElement).getAttribute('title')).toBe('bande non publiée par le serveur');
+    expect(inconnues[0]?.textContent).toBe('non publié');
+    expect(grille.querySelectorAll('[data-band="weak"]').length).toBe(
+      // Aucune case ne devient « peu liés » par défaut : seules celles que le
+      // serveur a réellement publiées en `weak` portent cette bande.
+      bandes.flat().filter((band) => band === 'weak').length,
+    );
   });
 });

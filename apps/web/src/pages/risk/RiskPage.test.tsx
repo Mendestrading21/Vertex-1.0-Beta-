@@ -20,8 +20,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { makeMarketsOverview } from '../../test/fixtures.ts';
 import { renderApp } from '../../test/render.tsx';
-import { BAND_LABELS, correlationRowsOf } from './CorrelationMatrix.tsx';
-import { DISCARD_LABELS, REFUSAL_LABELS, riskViewOf } from './riskView.ts';
+import { BAND_LABELS, DISCARD_LABELS, REFUSAL_LABELS, correlationRowsOf, riskViewOf } from './riskView.ts';
+import type { RiskView } from './riskView.ts';
 
 const fetchMock = vi.fn<typeof fetch>();
 
@@ -183,6 +183,8 @@ describe('riskViewOf — lecture du contrat, aucune arithmétique', () => {
 
 describe('correlationRowsOf — appariement ligne/colonne', () => {
   it('chaque cellule reçoit la bande de sa position, pas celle d’à côté', () => {
+    // `correlationRowsOf` ne lit que trois champs de la vue ; le reste n'a
+    // aucune influence sur l'appariement testé ici.
     const rows = correlationRowsOf({
       instruments: [
         { ticker: 'A', label: 'Alpha' },
@@ -196,7 +198,7 @@ describe('correlationRowsOf — appariement ligne/colonne', () => {
         ['self', 'strong_positive'],
         ['strong_positive', 'self'],
       ],
-    });
+    } as unknown as RiskView);
     expect(rows[0]?.cells[0]).toEqual({ value: '1.000', band: 'self' });
     expect(rows[0]?.cells[1]).toEqual({ value: '0.900', band: 'strong_positive' });
     expect(rows[1]?.cells[0]).toEqual({ value: '0.900', band: 'strong_positive' });
@@ -208,7 +210,11 @@ describe('Page Risques — état nominal', () => {
     mockRiskRoute(makeRiskMatrix());
     await renderRisk();
 
-    const grille = await screen.findByRole('table');
+    // Plusieurs tables coexistent (alternatives repliées des figures) : la
+    // matrice se cible par son module, jamais par un rôle seul.
+    await screen.findByTestId('risk-grid');
+    const grille = document.querySelector('[data-module="correlations"] table') as HTMLElement;
+    expect(grille).not.toBeNull();
     // Les valeurs affichées sont celles du serveur, au caractère près.
     expect(within(grille).getAllByText('-0.803').length).toBe(2);
     expect(within(grille).getAllByText('0.168').length).toBe(2);
@@ -230,15 +236,22 @@ describe('Page Risques — état nominal', () => {
   it('affiche les seuils déclarés — un seuil invisible ne se discute pas', async () => {
     mockRiskRoute(makeRiskMatrix());
     await renderRisk();
-    expect(await screen.findByText(/modéré à partir de/)).toBeDefined();
-    expect(screen.getByText(/0\.70/)).toBeDefined();
+    // Les seuils vivent DANS la légende de la matrice, à côté des bandes
+    // qu'ils définissent — un seul endroit, donc une seule lecture possible.
+    const legende = await screen.findByText(/fort dès/);
+    expect(legende.textContent).toContain('0.70');
+    expect(legende.textContent).toContain('modéré dès');
   });
 
   it('publie le coût de l’alignement séance par séance', async () => {
     mockRiskRoute(makeRiskMatrix());
     await renderRisk();
     expect(await screen.findByText("Ce que l'alignement a coûté")).toBeDefined();
-    expect(screen.getByText(/14 séances perdues/)).toBeDefined();
+    // Les pertes sont désormais des barres de DÉNOMBREMENT : la valeur
+    // servie et son unité restent lisibles, la comparaison devient visuelle.
+    const pertes = await screen.findByTestId('risk-alignment');
+    expect(pertes.textContent).toContain('14');
+    expect(pertes.textContent).toContain('séance(s)');
   });
 
   it('nomme les deux paires extrêmes', async () => {
@@ -317,7 +330,10 @@ describe('Page Risques — états honnêtes', () => {
     mockRiskRoute(makeRiskMatrix({ state: 'stale', reason: 'closed session budget exceeded' }));
     await renderRisk();
     // Périmé n'est pas absent : la grille reste lisible.
-    expect(await screen.findByRole('table')).toBeDefined();
+    // La matrice reste servie sous le bandeau de péremption : on la cible
+    // par son module, la page portant aussi les tables repliées des figures.
+    await screen.findByTestId('risk-grid');
+    expect(document.querySelector('[data-module="correlations"] table')).not.toBeNull();
   });
 
   it('API injoignable : le dit, sans matrice vide trompeuse', async () => {

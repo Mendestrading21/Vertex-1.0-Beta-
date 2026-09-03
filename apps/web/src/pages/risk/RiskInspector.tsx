@@ -4,7 +4,7 @@ import type { RiskMatrixResponse } from '../../api/client.ts';
 import { FreshnessBadge } from '../../components/FreshnessBadge.tsx';
 import { SnapshotFacts, publishedOr } from '../../components/inspector/SnapshotFacts.tsx';
 import { InspectorPanel } from '../../shell/inspector.tsx';
-import { BAND_LABELS, correlationRowsOf } from './CorrelationMatrix.tsx';
+import { BAND_LABELS, correlationRowsOf } from './riskView.ts';
 import type { RiskView } from './riskView.ts';
 
 /**
@@ -63,9 +63,19 @@ export function InstrumentInspector({
               return null;
             }
             return (
-              <li key={other.ticker} data-band={cell.band}>
-                <code>{other.ticker}</code> <code className="vx-num">{cell.value}</code>
-                <span className="vx-inspector-unit"> — {BAND_LABELS[cell.band] ?? cell.band}</span>
+              // Une bande ou un coefficient NON publié se dit ; la bande
+              // absente devient `unknown`, visible, jamais « peu liés ».
+              <li key={other.ticker} data-band={cell.band ?? 'unknown'}>
+                <code>{other.ticker}</code>{' '}
+                {cell.value === null ? (
+                  <span data-absent="true">coefficient non publié</span>
+                ) : (
+                  <code className="vx-num">{cell.value}</code>
+                )}
+                <span className="vx-inspector-unit">
+                  {' '}
+                  — {cell.band === null ? BAND_LABELS.unknown : (BAND_LABELS[cell.band] ?? cell.band)}
+                </span>
               </li>
             );
           })}
