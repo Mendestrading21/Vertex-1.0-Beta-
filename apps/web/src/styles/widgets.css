@@ -1145,6 +1145,106 @@
 }
 
 /* ===========================================================================
+   LOT P1 — PLACEMENT DE LA PLANCHE §2 (Marchés)
+   ---------------------------------------------------------------------------
+   Ici et pas dans `global.css` : les règles de span du socle
+   (`.vx-w2[data-size='M'] { grid-column: span 2 }`) ont la même spécificité
+   que `.vx-markets-grid [data-module='x']`, et cette feuille est importée en
+   dernier. Le placement doit donc la suivre pour gagner.
+
+   LA MESURE REMONTE. La breadth et la santé de la couverture répondent à la
+   question de la page ; elles étaient une colonne sur quatre au milieu de
+   trois absences déclarées. Elles ouvrent la planche ; les absences la
+   ferment.
+   =========================================================================== */
+.vx-markets-grid {
+  display: grid;
+  grid-template-areas:
+    'breadth breadth health health'
+    'focus focus focus focus'
+    'map map map map'
+    'sectors sectors sectors discards'
+    'sessions vol indices rates'
+    'fx correlation volstruct volstruct';
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--vx-space-12);
+  align-items: stretch;
+  margin-top: var(--vx-space-12);
+}
+
+.vx-markets-grid [data-module='sessions'] { grid-area: sessions; }
+.vx-markets-grid [data-module='volatility'] { grid-area: vol; }
+.vx-markets-grid [data-module='breadth'] { grid-area: breadth; }
+.vx-markets-grid [data-module='market-health'] { grid-area: health; }
+.vx-markets-grid [data-module='indices'] { grid-area: indices; }
+.vx-markets-grid [data-module='focus'] { grid-area: focus; }
+.vx-markets-grid [data-module='market-map'] { grid-area: map; }
+.vx-markets-grid [data-module='sectors'] { grid-area: sectors; }
+.vx-markets-grid [data-module='rates-curve'] { grid-area: rates; }
+.vx-markets-grid [data-module='fx'] { grid-area: fx; }
+.vx-markets-grid [data-module='correlation'] { grid-area: correlation; }
+.vx-markets-grid [data-module='vol-structure'] { grid-area: volstruct; }
+.vx-markets-grid [data-module='discards'] { grid-area: discards; }
+
+@media (min-width: 1600px) {
+  .vx-markets-grid {
+    grid-template-areas:
+      'breadth breadth breadth health health'
+      'focus focus focus focus focus'
+      'map map map map map'
+      'sectors sectors sectors discards discards'
+      'sessions vol indices rates fx'
+      'correlation correlation volstruct volstruct volstruct';
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
+
+/* Les bornes d'une jauge ne se touchent jamais : dans une colonne étroite,
+   « 0 » et « 100 » se lisaient « 0100 » (mesuré sur capture 1440). Le texte
+   servi, au milieu, prend sa propre ligne plutôt que de pousser les bornes
+   l'une contre l'autre. */
+.vx-w2-gauge-bounds {
+  flex-wrap: wrap;
+  gap: var(--vx-space-4) var(--vx-space-12);
+  align-items: baseline;
+}
+
+/* Une GRILLE nommée, pas un réagencement de flux : la valeur servie prend la
+   première ligne, les deux bornes la seconde, chacune à son bord. */
+.vx-w2-gauge .vx-w2-gauge-bounds {
+  display: grid;
+  grid-template-areas:
+    'value value'
+    'min max';
+  grid-template-columns: auto auto;
+  justify-content: space-between;
+}
+
+.vx-w2-gauge .vx-w2-gauge-bounds > :nth-child(1) {
+  grid-area: min;
+}
+
+.vx-w2-gauge .vx-w2-gauge-bounds > :nth-child(2) {
+  grid-area: value;
+  color: var(--vx-text);
+  font-size: var(--vx-font-size-title);
+}
+
+.vx-w2-gauge .vx-w2-gauge-bounds > :nth-child(3) {
+  grid-area: max;
+  text-align: right;
+}
+
+/* L'arc porte le chiffre de la page : il se lit de loin. */
+.vx-w2-arc-figure {
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-headline);
+  color: var(--vx-text);
+  font-variant-numeric: tabular-nums lining-nums;
+  margin: 0;
+}
+
+/* ===========================================================================
    LOT P4 — MATIÈRE DES PLANCHES RECOMPOSÉES
    ---------------------------------------------------------------------------
    Les planches v2 portent des formes (anneaux, bandes, barres, aires) qui
@@ -1156,10 +1256,16 @@
 
 .vx-risk-grid > [data-module] > .vx-card,
 .vx-pf-grid > [data-module] > .vx-card,
+.vx-markets-grid > [data-module] > .vx-card,
+.vx-today-grid > [data-module] > .vx-card,
 .vx-risk-grid > .vx-w2 > .vx-card,
 .vx-pf-grid > .vx-w2 > .vx-card,
+.vx-markets-grid > .vx-w2 > .vx-card,
+.vx-today-grid > .vx-w2 > .vx-card,
 .vx-risk-grid > [data-module] > .vx-absent,
-.vx-pf-grid > [data-module] > .vx-absent {
+.vx-pf-grid > [data-module] > .vx-absent,
+.vx-markets-grid > [data-module] > .vx-absent,
+.vx-today-grid > [data-module] > .vx-absent {
   border-radius: var(--vx-radius-22);
   background-color: var(--vx-surface-1);
   border-color: var(--vx-border-soft);
@@ -1168,7 +1274,9 @@
 
 /* La dominante se distingue par sa SURFACE, pas par une lumière de plus. */
 .vx-risk-grid [data-rank='dominant'],
-.vx-pf-grid [data-rank='dominant'] {
+.vx-pf-grid [data-rank='dominant'],
+.vx-markets-grid [data-rank='dominant'],
+.vx-today-grid [data-rank='dominant'] {
   background-color: var(--vx-surface-2);
 }
 
@@ -1177,15 +1285,36 @@
    planche (`.vx-board`) — l'écraser ici la RÉDUISAIT, ce que la capture du
    LOT P4 a montré. */
 .vx-risk-grid .vx-metric-value,
-.vx-pf-grid .vx-metric-value {
+.vx-pf-grid .vx-metric-value,
+.vx-markets-grid .vx-metric-value,
+.vx-today-grid .vx-metric-value {
   line-height: 1.05;
   letter-spacing: -0.02em;
 }
 
 .vx-risk-grid .vx-metric-label,
-.vx-pf-grid .vx-metric-label {
+.vx-pf-grid .vx-metric-label,
+.vx-markets-grid .vx-metric-label,
+.vx-today-grid .vx-metric-label {
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+/* --------------------------------------------------------------------------
+   LOT P1 — BREADTH : l'arc et la jauge côte à côte tant qu'il y a la place.
+   L'arc porte la part bornée servie, la jauge porte la couverture ET son
+   seuil : deux échelles distinctes, jamais superposées.
+   -------------------------------------------------------------------------- */
+/* `auto-fit` et non deux colonnes fixes : le même panneau vit dans une
+   colonne large (planche Marchés) et dans un quart de planche (Aujourd'hui).
+   Une largeur de VIEWPORT ne dit rien de la largeur de la CELLULE — mesuré
+   sur capture : la jauge de couverture y était coupée en plein texte. */
+.vx-breadth-figures {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: var(--vx-space-16) var(--vx-space-20);
+  align-items: center;
+  margin-bottom: var(--vx-space-16);
 }
 
 /* --------------------------------------------------------------------------

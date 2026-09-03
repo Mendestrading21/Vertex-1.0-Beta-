@@ -6,9 +6,10 @@ import { usePortfolio } from '../api/portfolioApi.ts';
 import { Card } from '../components/Card.tsx';
 import { FreshnessBadge } from '../components/FreshnessBadge.tsx';
 import { Metric } from '../components/Metric.tsx';
+import { CensusBars } from '../components/CensusBars.tsx';
 import { SectorGrid } from '../components/markets/SectorGrid.tsx';
-import { frDecimal } from '../components/markets/marketsView.ts';
-import { StatusBadge } from '../components/StatusBadge.tsx';
+import { KpiDelta, signGroupOfText } from '../components/widgets/KpiDelta.tsx';
+import { BreadthPanel } from './markets/BreadthPanel.tsx';
 import { AgendaLine, readableEventTime } from '../components/calendar/AgendaLine.tsx';
 import { ModuleStatus } from '../components/ModuleStatus.tsx';
 import { moduleShowsContent, moduleStateOf } from '../components/moduleState.ts';
@@ -35,19 +36,6 @@ function publie(value: string | number | null | undefined): string {
   return value === null || value === undefined || value === '' ? 'non publié' : String(value);
 }
 
-function signOf(value: string | null): 'up' | 'down' | 'flat' | null {
-  if (value === null) {
-    return null;
-  }
-  if (value.startsWith('-')) {
-    return 'down';
-  }
-  if (value.startsWith('+') || /^[1-9]/.test(value)) {
-    return 'up';
-  }
-  return 'flat';
-}
-
 // ---------------------------------------------------------------------------
 
 export function GlobalMarketModule() {
@@ -71,28 +59,28 @@ export function GlobalMarketModule() {
       <ModuleStatus state={state} raw={state === 'closed' ? data?.state : data?.reason} />
       {moduleShowsContent(state) && data !== undefined ? (
         <>
-          <div className="vx-metrics-row">
-            <Metric
-              label="Breadth"
-              value={breadth !== null && breadth.status === 'OK' ? frDecimal(breadth.value_pct ?? '') : null}
-              unit="%"
-              absentLabel={
-                breadth === null
-                  ? 'Breadth non publiée'
-                  : `Breadth non calculable : ${breadth.reason ?? 'raison non publiée'}`
-              }
-              {...(breadth !== null
-                ? {
-                    note: `${breadth.above_count} en hausse, ${breadth.down_count} en baisse, ${breadth.flat_count} stables sur ${breadth.covered_count} couverts`,
-                  }
-                : {})}
-            />
-            <Metric
-              label="Couverture"
-              value={coverage === null ? null : `${coverage.covered}/${coverage.expected}`}
-              {...(coverage !== null ? { note: `${coverage.discarded} écartés` } : {})}
-            />
-          </div>
+          {/*
+            LOT P1 — LA MÊME BREADTH, LA MÊME FORME. Ce module lisait le même
+            bloc servi que la page Marchés et le rendait autrement : deux
+            lectures de la même donnée, deux apparences. Il emprunte désormais
+            la forme de son PROPRIÉTAIRE (arc borné + jauge de couverture à
+            seuil + dénombrement des sens), sans la redéclarer.
+            La mesure « Couverture » locale a disparu avec ce partage : elle
+            répétait, en comptes, ce que la jauge et la phrase de comptes
+            disent déjà.
+          */}
+          {breadth === null ? (
+            <p className="vx-module-sentence" role="status">
+              Breadth non publiée par le worker — aucune valeur de remplacement.
+            </p>
+          ) : (
+            <BreadthPanel breadth={breadth} />
+          )}
+          {coverage === null ? null : (
+            <p className="vx-module-sentence">
+              couverture publiée : {coverage.covered}/{coverage.expected} · {coverage.discarded} écartés
+            </p>
+          )}
           <p className="vx-module-sentence" data-testid="today-market-conclusion">
             {data.conclusion ?? 'Aucune conclusion publiée.'}
           </p>
@@ -186,16 +174,23 @@ export function SourceHealthModule() {
               )}
             </span>
           </p>
-          <ul className="vx-status-census" aria-label="Capacités par statut testé">
-            {census === null
-              ? null
-              : [...census.entries()].map(([status, count]) => (
-                  <li key={status}>
-                    <StatusBadge status={status} />
-                    <span className="vx-status-census-count">{count}</span>
-                  </li>
-                ))}
-          </ul>
+          {/*
+            Des COMPTES, donc des barres de dénombrement — jamais un anneau :
+            aucun pourcentage de capacités n'est servi, et en fabriquer un
+            pour dessiner une part serait inventer une donnée.
+          */}
+          {census === null ? null : (
+            <CensusBars
+              entries={[...census.entries()].map(([status, count]) => ({
+                key: status,
+                label: status,
+                count,
+              }))}
+              ariaLabel="Dénombrement des capacités par statut testé"
+              testIdPrefix="today-capability-count"
+              emptyLabel="Aucune capacité déclarée."
+            />
+          )}
           <p className="vx-module-sentence">
             {data.total} capacités déclarées ·{' '}
             <Link to="/sources-reports">voir Sources &amp; Rapports</Link>
@@ -240,6 +235,18 @@ export function OpportunitiesModule() {
             <Metric label="Exclus" value={summary.excludedCount === null ? null : String(summary.excludedCount)} />
             <Metric label="Univers" value={summary.universeSize === null ? null : String(summary.universeSize)} />
           </div>
+          {summary.statusCounts.size === 0 ? null : (
+            <CensusBars
+              entries={[...summary.statusCounts.entries()].map(([status, count]) => ({
+                key: status,
+                label: status,
+                count,
+              }))}
+              ariaLabel="Dénombrement des candidats par statut de gate publié"
+              testIdPrefix="today-opportunity-count"
+              emptyLabel="Aucun statut publié."
+            />
+          )}
           {summary.qualified.length === 0 ? (
             <p className="vx-module-sentence" role="status">
               Aucun candidat qualifié : chaque candidat est fermé par une gate, avec sa raison publiée
@@ -348,13 +355,25 @@ export function ManualPortfolioModule() {
                   unit={block.currency}
                   absentLabel={`Valeur non publiée : ${block.concentrationReason ?? block.concentrationStatus ?? 'statut absent'}`}
                 />
-                <Metric
-                  label="Latent"
-                  value={block.unrealizedStatus === 'OK' ? block.totalUnrealized : null}
-                  unit={block.currency}
-                  sign={block.unrealizedStatus === 'OK' ? signOf(block.totalUnrealized) : null}
-                  absentLabel={`Latent non publié : ${block.unrealizedReason ?? block.unrealizedStatus ?? 'statut absent'}`}
-                />
+                <div className="vx-metric" data-size="display">
+                  <span className="vx-metric-label">Latent</span>
+                  {/*
+                    Le SIGNE vient du serveur : `signGroupOfText` ne colore que
+                    si la chaîne servie porte le sien. Déduire « positif » de
+                    l'absence de « - » publierait un signe que le serveur n'a
+                    pas publié — même règle que sur la planche Portefeuille.
+                  */}
+                  <KpiDelta
+                    value={block.unrealizedStatus === 'OK' ? block.totalUnrealized : null}
+                    sign={
+                      block.unrealizedStatus === 'OK' && block.totalUnrealized !== null
+                        ? signGroupOfText(block.totalUnrealized)
+                        : null
+                    }
+                    period={block.currency}
+                    absentLabel={`Latent non publié : ${block.unrealizedReason ?? block.unrealizedStatus ?? 'statut absent'}`}
+                  />
+                </div>
               </div>
             ))
           )}

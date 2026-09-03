@@ -222,11 +222,19 @@ describe('Page Marchés — état nominal', () => {
     expect(techRow?.textContent).toContain('70,97 %');
     expect(techRow?.textContent).toContain('SYNTHÉTIQUE');
 
-    // Breadth : barres linéaires (role meter), valeurs et couverture serveur.
+    // Breadth : arc gradué + jauge linéaire (deux `meter`), valeurs et
+    // couverture serveur. Le chiffre de l'arc est lu SUR la figure : la
+    // primitive sépare la valeur de son unité en deux nœuds, et le texte
+    // complet de la figure est comparé en entier.
     const meters = screen.getAllByRole('meter');
     expect(meters).toHaveLength(2);
-    expect(screen.getByText('50,0 %')).toBeDefined();
+    expect(screen.getByTestId('arc-figure').textContent).toBe('50,0 %');
     expect(screen.getByText('100,0 % (seuil 80,0 %)')).toBeDefined();
+    // Les trois comptes servis prennent aussi la forme de barres de
+    // dénombrement, chacune avec son compte publié.
+    expect(screen.getByTestId('markets-breadth-count-above').textContent).toContain('2');
+    expect(screen.getByTestId('markets-breadth-count-down').textContent).toContain('1');
+    expect(screen.getByTestId('markets-breadth-count-flat').textContent).toContain('1');
     // Les trois comptes servis (hausses, baisses, inchangés) sont relayés
     // avec le total couvert : aucun compte n'est déduit des deux autres.
     expect(
@@ -462,7 +470,11 @@ describe('Page Marchés — états dégradés et vides', () => {
     await renderMarkets();
     await screen.findByText('Breadth non calculable');
     expect(screen.getByText(/coverage_below_threshold/)).toBeDefined();
+    // Aucune forme de remplacement : ni arc, ni jauge de couverture. Une
+    // jauge servie à côté d'un refus donnerait un chiffre à regarder à la
+    // place de celui que le serveur refuse.
     expect(screen.queryByRole('meter')).toBeNull();
+    expect(screen.queryByTestId('arc-figure')).toBeNull();
     // Les comptes restent des faits publiés, même sans ratio.
     expect(
       screen.getByText('2 en hausse, 1 en baisse, 1 stables sur 4 couverts (univers 4)'),

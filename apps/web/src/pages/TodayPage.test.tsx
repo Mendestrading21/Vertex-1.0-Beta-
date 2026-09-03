@@ -186,10 +186,17 @@ describe("Page Aujourd'hui — la planche §1 est complète, servie ou déclaré
     expect(cellule('global-market').getByTestId('today-market-conclusion').textContent).toContain(
       'breadth 50.0 %',
     );
-    // Les trois comptes servis accompagnent la breadth, avec le total couvert.
+    // Les trois comptes servis accompagnent la breadth, avec le total couvert
+    // ET la taille de l'univers : le module emprunte désormais la forme de son
+    // propriétaire (`BreadthPanel`), une seule lecture pour une seule donnée.
     expect(
-      cellule('global-market').getByText('2 en hausse, 1 en baisse, 1 stables sur 4 couverts'),
+      cellule('global-market').getByText(
+        '2 en hausse, 1 en baisse, 1 stables sur 4 couverts (univers 4)',
+      ),
     ).toBeDefined();
+    // Les mêmes comptes, en barres de dénombrement, chacun à sa place nommée.
+    expect(cellule('global-market').getByTestId('markets-breadth-count-above').textContent).toContain('2');
+    expect(cellule('global-market').getByTestId('markets-breadth-count-flat').textContent).toContain('1');
     // Catalyseur suivant : le PREMIER de l'agenda publié, sans retri.
     expect(await cellule('next-catalyst').findByText('SYN-ENER-01')).toBeDefined();
     // Santé des sources : base, worker, et le recensement des statuts.

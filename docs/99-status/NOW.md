@@ -1890,3 +1890,82 @@ ne contient plus aucun chiffre.
 Les règles CSS `.vx-riskmatrix-*` (ancien composant `CorrelationMatrix`,
 supprimé) sont mortes mais dispersées dans `global.css` : elles ne sont pas
 retirées ici pour ne pas mêler un nettoyage large à ce lot.
+
+## SESSION 2026-09-03 — LOT P1 : Aujourd'hui et Marchés sur les formes v2
+
+Branche `lot/w2-today-markets-20260903`, partie de `main` à `cd7cb1a` (P4
+fusionné). Les deux planches passent aux primitives du socle v2 pour les
+familles de données qu'elles servent.
+
+### Ce qui change de forme
+
+- **Breadth** (Marchés et Aujourd'hui) : la part bornée servie prend l'ARC
+  gradué (`ArcGauge`), sa couverture prend la JAUGE LINÉAIRE avec son seuil
+  (`LinearGauge`), et les trois comptes de sens prennent les BARRES DE
+  DÉNOMBREMENT (`CensusBars`). Trois familles de donnée, trois formes.
+- **Où vit le seuil.** `coverage_threshold_pct` est un seuil de COUVERTURE.
+  Le plan v2 l'écrivait en raccourci sur l'arc de la breadth ; l'y poser
+  l'aurait placé sur une autre échelle que la sienne et aurait fait lire
+  « 80 % de breadth » là où le serveur dit « 80 % de couverture exigée ». Il
+  vit sur la jauge de couverture, à sa place.
+- **Une donnée, une forme.** Le module « Marché global » d'Aujourd'hui lisait
+  le même bloc servi que la page Marchés et le rendait autrement. Il emprunte
+  désormais la forme de son propriétaire (`BreadthPanel`) au lieu de la
+  redéclarer. La mesure « Couverture » locale disparaît avec ce partage :
+  elle répétait ce que la jauge et la phrase de comptes disent déjà.
+- **Santé de la couverture** (Marchés) : trois mesures servies + dénombrement
+  des reçus, couverts, écartés et rejetés. Aucun pourcentage n'est fabriqué —
+  le contrat publie des comptes, pas un taux de couverture.
+- **Capacités** et **statuts de gate** (Aujourd'hui) : recensements en barres.
+- **Latent du portefeuille manuel** (Aujourd'hui) : pastille `KpiDelta`, avec
+  la MÊME règle de signe que la planche Portefeuille (`signGroupOfText`) —
+  la couleur n'apparaît que si la chaîne servie porte son signe. L'ancien
+  `signOf` local, qui déduisait « positif » de l'absence de « - », est
+  supprimé : deux règles de signe sur deux pages se contredisaient.
+- **Écarts et rejets** (Marchés) : chaque raison servie devient une pastille
+  nommée (`StatusChip`), jamais un code nu.
+
+### Le piège de placement, une seconde fois
+
+Convertir les modules de Marchés en `Widget` leur donne `data-size`, donc les
+règles de span du socle (`.vx-w2[data-size='M'] { grid-column: span 2 }`). À
+spécificité égale, `widgets.css` étant importée en dernier, ces spans
+écrasaient les zones nommées de `.vx-markets-grid`. C'est exactement le défaut
+mesuré au LOT P4 sur les planches Portefeuille et Risques. Le placement de la
+planche §2 a donc DÉMÉNAGÉ dans `widgets.css`, après les spans — et la
+planche en profite pour remonter ses deux mesures servies en tête.
+
+### Vu sur capture, corrigé
+
+- La jauge de couverture était COUPÉE en plein texte dans la colonne étroite
+  d'Aujourd'hui : la grille des figures s'ouvrait sur une largeur de
+  VIEWPORT, qui ne dit rien de la largeur de la CELLULE. Elle est passée en
+  `auto-fit`, et se replie sur une colonne là où il n'y a pas la place.
+- Les bornes d'une jauge se lisaient « 0100 » : la valeur servie prend
+  désormais sa propre ligne, les bornes la suivante, chacune à son bord.
+- Le seuil était écrit deux fois sous la même jauge.
+
+### Nettoyage
+
+Les règles CSS de l'ancienne `BreadthPanel` (`.vx-breadth-row`, `-bar`,
+`-fill`, `-threshold`, `-label`, `-figure`) et de l'ancien recensement
+(`.vx-status-census*`) sont retirées : plus aucun fichier `.ts`/`.tsx` ne les
+porte. Vérifié par recherche avant retrait, et `pnpm build` repasse.
+
+### Mesuré sur cette machine
+
+- `npx tsc --noEmit` : code 0.
+- `npx biome check src` : 1 info préexistante, 0 erreur.
+- `npx vitest run` : 87 fichiers, 908 tests, tous verts.
+- Playwright `today`, `markets`, `shell-canonical`, `accessibility` aux trois
+  viewports desktop : **252 passés, code 0**.
+- `bash tools/run_checks.sh` : vert sauf le rouge PRÉEXISTANT
+  `test_denylist.py::test_adapter_satisfies_the_port_protocol` (rejoué à
+  l'identique sur `origin/main`, Python 3.11.15 local).
+
+### Reste à faire sur ces deux planches
+
+Le module `calendar` d'Aujourd'hui garde sa liste `AgendaLine` : le passage à
+`ActivityFeed` perdrait la lecture du temps servi par fuseau, et rien ne le
+justifie tant que la primitive ne la porte pas. Les anneaux de poids sectoriel
+(`weight_in_sector_pct`) attendent le lot Marchés suivant.

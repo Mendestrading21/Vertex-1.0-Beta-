@@ -1946,52 +1946,6 @@ body {
   font-weight: 600;
 }
 
-.vx-breadth-row {
-  display: grid;
-  grid-template-columns: 96px 1fr auto;
-  align-items: center;
-  gap: var(--vx-space-12);
-  margin-bottom: var(--vx-space-8);
-}
-
-.vx-breadth-label {
-  color: var(--vx-text-muted);
-  font-size: var(--vx-font-size-meta);
-}
-
-.vx-breadth-bar {
-  position: relative;
-  height: 10px;
-  border: 1px solid var(--vx-border-soft);
-  border-radius: var(--vx-radius-pill);
-  background: var(--vx-surface-2);
-  overflow: hidden;
-}
-
-.vx-breadth-fill {
-  height: 100%;
-  background: var(--vx-positive);
-}
-
-.vx-breadth-fill-coverage {
-  background: var(--vx-silver);
-}
-
-.vx-breadth-threshold {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 2px;
-  background: var(--vx-warning);
-}
-
-.vx-breadth-figure {
-  font-family: var(--vx-font-mono);
-  font-size: var(--vx-font-size-meta);
-  color: var(--vx-text);
-  white-space: nowrap;
-}
-
 .vx-breadth-counts {
   margin: var(--vx-space-8) 0 0;
   color: var(--vx-text-secondary);
@@ -5581,30 +5535,6 @@ label {
   margin-top: var(--vx-space-12);
 }
 
-/* ---- Recensement des capacités ------------------------------------- */
-
-.vx-status-census {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--vx-space-8);
-  margin: var(--vx-space-12) 0 0;
-  padding: 0;
-  list-style: none;
-}
-
-.vx-status-census li {
-  display: inline-flex;
-  align-items: center;
-  gap: var(--vx-space-4);
-}
-
-.vx-status-census-count {
-  color: var(--vx-silver);
-  font-family: var(--vx-font-mono);
-  font-size: var(--vx-font-size-meta);
-  font-variant-numeric: tabular-nums;
-}
-
 /* ---- Agenda compact ------------------------------------------------- */
 
 .vx-agenda-mini {
@@ -5889,34 +5819,10 @@ label {
 
 /* ---- Grille de Marchés (planche §2) --------------------------------- */
 
-.vx-markets-grid {
-  display: grid;
-  grid-template-areas:
-    'sessions vol indices breadth'
-    'focus focus focus focus'
-    'map map map map'
-    'sectors sectors rates fx'
-    'sectors sectors correlation volstruct'
-    'health health discards discards';
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: var(--vx-space-12);
-  align-items: stretch;
-  margin-top: var(--vx-space-12);
-}
-
-.vx-markets-grid [data-module='sessions'] { grid-area: sessions; }
-.vx-markets-grid [data-module='volatility'] { grid-area: vol; }
-.vx-markets-grid [data-module='breadth'] { grid-area: breadth; }
-.vx-markets-grid [data-module='market-health'] { grid-area: health; }
-.vx-markets-grid [data-module='indices'] { grid-area: indices; }
-.vx-markets-grid [data-module='focus'] { grid-area: focus; }
-.vx-markets-grid [data-module='market-map'] { grid-area: map; }
-.vx-markets-grid [data-module='sectors'] { grid-area: sectors; }
-.vx-markets-grid [data-module='rates-curve'] { grid-area: rates; }
-.vx-markets-grid [data-module='fx'] { grid-area: fx; }
-.vx-markets-grid [data-module='correlation'] { grid-area: correlation; }
-.vx-markets-grid [data-module='vol-structure'] { grid-area: volstruct; }
-.vx-markets-grid [data-module='discards'] { grid-area: discards; }
+/* LOT P1 — le placement de la planche §2 a DÉMÉNAGÉ dans `widgets.css`,
+   après les règles de span du socle (`.vx-w2[data-size]`). Motif mesuré au
+   LOT P4 : à spécificité égale, la feuille importée en dernier gagne, et un
+   `grid-column: span 2` écrasait silencieusement la zone nommée. */
 
 .vx-markets-grid > [data-module] {
   min-width: 0;
@@ -6025,15 +5931,6 @@ label {
   background: transparent;
 }
 
-.vx-markets-grid .vx-breadth-row {
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--vx-space-4);
-}
-
-.vx-markets-grid .vx-breadth-figure {
-  white-space: normal;
-}
-
 /* Sur Marchés la table équivalente vit SOUS une carte de 360 px : une borne
    plus courte, elle défile toujours, ne tronque jamais. */
 .vx-markets-grid .vx-markets-table-scroll[tabindex] {
@@ -6044,14 +5941,6 @@ label {
 .vx-today-grid .vx-sector-grid,
 .vx-markets-grid .vx-sector-grid {
   grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
-}
-
-/* Vu sur capture, deuxième passe : le recensement des statuts empilait six
-   pilules dans une carte de 175 px, et le badge de fraîcheur du worker se
-   cassait en colonnes. Chips compactes, et retour à la ligne autorisé. */
-.vx-status-census .vx-status-badge {
-  padding: 0 var(--vx-space-8);
-  font-size: 10px;
 }
 
 .vx-today-module .vx-freshness {
@@ -6250,12 +6139,6 @@ label {
   line-height: 1.5;
 }
 
-/* Recensement des capacités : chips alignées, compte en chasse fixe. */
-.vx-status-census {
-  gap: var(--vx-space-8) var(--vx-space-12);
-  margin-top: var(--vx-space-16);
-}
-
 .vx-today-module .vx-health-strip {
   gap: var(--vx-space-12);
 }
@@ -6359,10 +6242,6 @@ label {
   margin-top: var(--vx-space-16);
   padding-top: var(--vx-space-16);
   line-height: 1.55;
-}
-
-.vx-markets-grid .vx-breadth-row {
-  margin-bottom: var(--vx-space-12);
 }
 
 .vx-markets-grid .vx-breadth h3 {
