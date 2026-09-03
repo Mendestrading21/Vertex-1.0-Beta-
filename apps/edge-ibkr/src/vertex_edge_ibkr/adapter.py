@@ -246,18 +246,21 @@ def _halted(value: Any) -> bool | None:
     return numeric >= 1.0
 
 
-def _naive_or_none(value: Any) -> datetime | None:
-    """L'horodatage du fournisseur quand il arrive SANS fuseau.
+def _naive_iso_or_none(value: Any) -> str | None:
+    """L'horodatage du fournisseur quand il arrive SANS fuseau, en ISO 8601.
 
     Complement de `_aware_or_none` : celle-ci garde ce qui est certain,
-    celle-la garde ce qui est ambigu en le disant. Rien n'est converti — un
-    naif reste naif, et son interpretation appartient a qui declare le fuseau.
+    celle-la garde ce qui est ambigu en le disant. Rendu en CHAINE et non en
+    `datetime` : l'enveloppe est hachee, et le canonicaliseur refuse tout
+    datetime naif. Rien n'est converti — l'interpretation du fuseau appartient
+    a qui le declare.
     """
     if not isinstance(value, datetime):
         return None
     if value.tzinfo is not None and value.tzinfo.utcoffset(value) is not None:
         return None  # deja sans ambiguite : `_aware_or_none` s'en charge
-    return value
+    return value.isoformat()
+
 
 
 def _aware_or_none(value: Any) -> datetime | None:
@@ -714,7 +717,7 @@ class IbAsyncInformationAdapter:
                 # IBKR date ses depeches SANS fuseau : `_aware_or_none` les
                 # refuse a juste titre, mais l'information reste utile si son
                 # ambiguite est declaree.
-                time_unzoned=_naive_or_none(getattr(row, "time", None)),
+                time_unzoned=_naive_iso_or_none(getattr(row, "time", None)),
             )
             for row in rows
         )

@@ -98,6 +98,8 @@ def markets_content() -> dict:
             "value": "1",
             "value_pct": "100.0",
             "above_count": 2,
+            "down_count": 0,
+            "flat_count": 0,
             "covered_count": 2,
             "universe_size": 4,
             "coverage_pct": "50.0",
@@ -203,6 +205,11 @@ def test_relays_published_snapshot_verbatim(app: FastAPI) -> None:
     breadth = body["breadth"]
     assert breadth["status"] == "OK"
     assert breadth["value_pct"] == "100.0"
+    # Les trois comptes publiés par le worker, relayés tels quels.
+    assert breadth["above_count"] == 2
+    assert breadth["down_count"] == 0
+    assert breadth["flat_count"] == 0
+    assert breadth["covered_count"] == 2
     assert breadth["calculation"]["calculation_id"] == "market.breadth"
 
     coverage = body["coverage"]
@@ -223,6 +230,8 @@ def test_invalid_breadth_block_is_relayed_honestly(app: FastAPI) -> None:
         "value": None,
         "value_pct": None,
         "above_count": 1,
+        "down_count": 0,
+        "flat_count": 0,
         "covered_count": 1,
         "universe_size": 4,
         "coverage_pct": "25.0",
@@ -246,6 +255,81 @@ def test_invalid_breadth_block_is_relayed_honestly(app: FastAPI) -> None:
     assert body["breadth"]["status"] == "INVALID"
     assert body["breadth"]["value"] is None
     assert body["breadth"]["reason"] == "coverage_below_threshold"
+    # Un bloc INVALID garde ses comptes : ce sont des faits, pas une valeur.
+    assert body["breadth"]["above_count"] == 1
+    assert body["breadth"]["down_count"] == 0
+    assert body["breadth"]["flat_count"] == 0
+
+
+def test_breadth_counts_are_relayed_verbatim(app: FastAPI) -> None:
+    """Hausses, baisses et inchangés traversent le relais SANS être recomptés.
+
+    Le worker publie ``above_count``, ``down_count`` et ``flat_count`` qui
+    partitionnent ``covered_count`` ; l'API les relaie tels quels et n'en
+    dérive aucun (un ``flat_count`` déduit de ``covered - above - down``
+    serait un calcul côté relais, interdit).
+    """
+    content = markets_content()
+    content["breadth"].update(
+        value="0.25",
+        value_pct="25.0",
+        above_count=1,
+        down_count=2,
+        flat_count=1,
+        covered_count=4,
+        coverage_pct="100.0",
+    )
+    snapshot = CurrentSnapshot(
+        kind="markets_overview",
+        key="global",
+        version=2,
+        content=content,
+        content_hash="sha256:" + "1" * 64,
+        as_of=AS_OF,
+    )
+    override(app, FakeSnapshotReader({("markets_overview", "global"): snapshot}))
+    with TestClient(app) as client:
+        response = client.get("/api/v1/markets/overview")
+    assert response.status_code == 200
+    breadth = response.json()["breadth"]
+    assert breadth["above_count"] == 1
+    assert breadth["down_count"] == 2
+    assert breadth["flat_count"] == 1
+    assert breadth["covered_count"] == 4
+    assert breadth["value"] == "0.25"
+
+
+@pytest.mark.parametrize(
+    "mutate",
+    [
+        # Un compte ABSENT n'est jamais lu comme zéro : le relais refuse.
+        lambda c: c["breadth"].pop("down_count"),
+        lambda c: c["breadth"].pop("flat_count"),
+        # Un compte négatif n'est pas un compte.
+        lambda c: c["breadth"].update(down_count=-1),
+        lambda c: c["breadth"].update(flat_count=-1),
+        # Un booléen n'est pas un entier de comptage.
+        lambda c: c["breadth"].update(down_count=True),
+        # Des comptes qui ne partitionnent pas les couverts se contredisent :
+        # 2 + 0 + 1 != 2.
+        lambda c: c["breadth"].update(flat_count=1),
+        # 2 + 1 + 0 != 2.
+        lambda c: c["breadth"].update(down_count=1),
+    ],
+)
+def test_incoherent_breadth_counts_fail_closed(mutate) -> None:
+    content = markets_content()
+    mutate(content)
+    snapshot = CurrentSnapshot(
+        kind="markets_overview",
+        key="global",
+        version=1,
+        content=content,
+        content_hash="sha256:" + "2" * 64,
+        as_of=AS_OF,
+    )
+    with pytest.raises(SnapshotContentError):
+        build_markets_overview_response(snapshot, now=_NOW)
 
 
 @pytest.mark.parametrize(

@@ -184,11 +184,19 @@ def test_full_coverage_content() -> None:
     total = Decimal(t1["weight_global"]) + Decimal(t2["weight_global"])
     assert total < 1
 
-    # breadth: 2 up (AAA-01 +10%, BBB-02 +10%), covered 4, universe 4.
+    # breadth: 2 up (AAA-01 +10%, BBB-02 +10%), 1 down (AAA-02 -10%),
+    # 1 flat (BBB-01 0%), covered 4, universe 4. Les trois comptes sont
+    # PUBLIES et partitionnent exactement les couverts.
     breadth = content["breadth"]
     assert breadth["status"] == "OK"
     assert breadth["above_count"] == 2
+    assert breadth["down_count"] == 1
+    assert breadth["flat_count"] == 1
     assert breadth["covered_count"] == 4
+    assert (
+        breadth["above_count"] + breadth["down_count"] + breadth["flat_count"]
+        == breadth["covered_count"]
+    )
     assert breadth["universe_size"] == 4
     assert breadth["value"] == "0.5"
     assert breadth["value_pct"] == "50.0"
@@ -284,6 +292,57 @@ def test_breadth_fails_closed_below_coverage_threshold() -> None:
     assert breadth["value_pct"] is None
     assert breadth["calculation"] is None
     assert "breadth non calculable" in content["conclusion"]
+    # Le bloc INVALID ne publie AUCUNE valeur, mais les COMPTES restent des
+    # faits : un seul instrument couvert, en hausse, et rien d'autre.
+    assert breadth["above_count"] == 1
+    assert breadth["down_count"] == 0
+    assert breadth["flat_count"] == 0
+    assert breadth["covered_count"] == 1
+
+
+def test_breadth_counts_partition_the_covered_universe() -> None:
+    """Hausses + baisses + inchangés = couverts, et chaque compte se relit
+    sur les instruments publiés (signe de ``return_1d``), jamais ailleurs.
+
+    Un ticker attendu sans seconde clôture est ÉCARTÉ : il n'entre dans
+    aucun des trois comptes et ne fait pas de ``covered_count`` un zéro
+    inventé. La conclusion française et le bloc breadth disent les MÊMES
+    nombres — deux rendus, une seule vérité.
+    """
+    records = [
+        quote("SYN-AAA-01", "SYN-AAA", "2026-08-23", "100.00"),
+        quote("SYN-AAA-01", "SYN-AAA", "2026-08-24", "90.00"),  # baisse
+        quote("SYN-AAA-02", "SYN-AAA", "2026-08-23", "50.00"),
+        quote("SYN-AAA-02", "SYN-AAA", "2026-08-24", "50.00"),  # inchangé
+        quote("SYN-BBB-01", "SYN-BBB", "2026-08-23", "20.00"),
+        quote("SYN-BBB-01", "SYN-BBB", "2026-08-24", "19.00"),  # baisse
+        quote("SYN-BBB-02", "SYN-BBB", "2026-08-24", "88.00"),  # écarté
+    ]
+    content = build_markets_overview_content(records, now=NOW, config=SMALL_CONFIG)
+    breadth = content["breadth"]
+    published = [t for s in content["sectors"] for t in s["tickers"]]
+
+    assert breadth["status"] == "OK"  # couverture 3/4 >= 0.5
+    assert breadth["above_count"] == 0
+    assert breadth["down_count"] == 2
+    assert breadth["flat_count"] == 1
+    assert breadth["covered_count"] == 3 == content["coverage"]["covered"]
+    assert (
+        breadth["above_count"] + breadth["down_count"] + breadth["flat_count"]
+        == breadth["covered_count"]
+    )
+    assert breadth["above_count"] == sum(
+        1 for t in published if Decimal(t["return_1d"]) > 0
+    )
+    assert breadth["down_count"] == sum(
+        1 for t in published if Decimal(t["return_1d"]) < 0
+    )
+    assert breadth["flat_count"] == sum(
+        1 for t in published if Decimal(t["return_1d"]) == 0
+    )
+    assert breadth["value"] == "0.0"
+    assert breadth["value_pct"] == "0.0"
+    assert "0 en hausse, 2 en baisse, 1 stables" in content["conclusion"]
 
 
 def test_undeclared_source_rights_and_ticker_are_rejected() -> None:
@@ -359,7 +418,14 @@ def test_empty_records_yield_empty_population_and_invalid_breadth() -> None:
     assert content["population"] == "EMPTY"
     assert content["coverage"]["received"] == 0
     assert content["coverage"]["discarded"] == 4
-    assert content["breadth"]["status"] == "INVALID"
+    breadth = content["breadth"]
+    assert breadth["status"] == "INVALID"
+    # Rien de couvert : trois comptes à zéro parce qu'ils COMPTENT zéro
+    # instrument, et un `covered_count` qui le confirme.
+    assert breadth["above_count"] == 0
+    assert breadth["down_count"] == 0
+    assert breadth["flat_count"] == 0
+    assert breadth["covered_count"] == 0
 
 
 def test_records_present_but_all_rejected_yield_empty_population() -> None:
