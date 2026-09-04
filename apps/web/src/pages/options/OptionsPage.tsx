@@ -1,5 +1,8 @@
 import { useRef, useState } from 'react';
+import { useEffect } from 'react';
 import { Link, useParams } from 'react-router-dom';
+
+import { useWorkspace } from '../../app/workspace.tsx';
 
 import type { OptionChainContract, OptionChainExpiration, OptionChainResponse } from '../../api/client.ts';
 import { pageStateOf, useOptionChain } from '../../api/hooks.ts';
@@ -456,6 +459,11 @@ function ChainRoute({ underlying }: { readonly underlying: string }) {
 
 export function OptionsPage() {
   const { underlying } = useParams<{ underlying?: string }>();
+  // Même règle que sur Analyse : le contexte SUIT l'adresse.
+  const { adopter } = useWorkspace();
+  useEffect(() => {
+    adopter(underlying ?? null);
+  }, [adopter, underlying]);
 
   return (
     <article className="vx-page" {...pageAccentAttrs('options')} aria-labelledby="vx-page-title-options">

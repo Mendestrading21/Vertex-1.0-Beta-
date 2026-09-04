@@ -1,4 +1,7 @@
+import { useEffect } from 'react';
 import { Link, useParams } from 'react-router-dom';
+
+import { useWorkspace } from '../../app/workspace.tsx';
 
 import type { AnalysisResponse } from '../../api/client.ts';
 import { pageStateOf, useAnalysis } from '../../api/hooks.ts';
@@ -398,6 +401,13 @@ function AnalysisRoute({ instrument }: { readonly instrument: string }) {
 
 export function AnalysisPage() {
   const { instrument } = useParams<{ instrument?: string }>();
+  // L'URL reste PROPRIÉTAIRE : le contexte de travail la suit, il ne la
+  // contredit jamais. `adopter` est distinct de `selectInstrument` à dessein —
+  // ceci est l'écho d'une adresse, pas un choix de l'utilisateur.
+  const { adopter } = useWorkspace();
+  useEffect(() => {
+    adopter(instrument ?? null);
+  }, [adopter, instrument]);
 
   return (
     <article className="vx-page" aria-labelledby="vx-page-title-analysis">

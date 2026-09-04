@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 import type { MarketsOverview } from '../../api/client.ts';
 import { pageStateOf, useMarketsOverview } from '../../api/hooks.ts';
+import { useWorkspace } from '../../app/workspace.tsx';
 import { AbsentModule } from '../../components/AbsentModule.tsx';
 import { AuthRequiredNotice } from '../../components/AuthRequiredNotice.tsx';
 import { DataStateBoundary } from '../../components/DataStateBoundary.tsx';
@@ -390,6 +391,21 @@ function DiscardsModule({ data }: { readonly data: MarketsOverview }) {
 
 function MarketsBoard({ data, state }: { readonly data: MarketsOverview; readonly state: DataState }) {
   const [selected, setSelected] = useState<string | null>(null);
+  /*
+    La sélection reste LOCALE pour l'inspecteur de cette planche — c'est elle
+    qui décide quelle carte est mise en avant ici — et devient AUSSI un choix
+    d'espace de travail, de sorte que passer ensuite sur Analyse ou Options
+    retrouve l'instrument qu'on regardait. Sans cela, chaque page repartait de
+    zéro : c'est le défaut que le contexte corrige.
+  */
+  const { selectInstrument } = useWorkspace();
+  const choisir = useCallback(
+    (ticker: string | null) => {
+      setSelected(ticker);
+      selectInstrument(ticker);
+    },
+    [selectInstrument],
+  );
   const allEntries = useMemo(() => flattenTickers(data.sectors), [data.sectors]);
   const selectedEntry = allEntries.find((entry) => entry.ticker.ticker === selected) ?? null;
   const breadthModule = marketsModule('breadth');
@@ -457,7 +473,7 @@ function MarketsBoard({ data, state }: { readonly data: MarketsOverview; readonl
           entry={selectedEntry}
           data={data}
           onClose={() => {
-            setSelected(null);
+            choisir(null);
           }}
         />
       )}

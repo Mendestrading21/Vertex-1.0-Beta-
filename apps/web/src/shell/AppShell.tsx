@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react';
 import { Outlet, useMatches } from 'react-router-dom';
 
 import type { PageDef } from '../app/pages.ts';
+import { WorkspaceProvider } from '../app/workspace.tsx';
 import { CommandPalette, useCommandPalette } from './CommandPalette.tsx';
 import { ContextBar } from './ContextBar.tsx';
 import { INSPECTOR_SLOT_ID, useInspectorOccupied } from './inspector.tsx';
@@ -106,6 +107,14 @@ export function AppShell() {
   }, []);
 
   return (
+    /*
+      Le contexte de travail enveloppe la COQUILLE, sous le routeur : les pages
+      doivent pouvoir l'adopter depuis leurs paramètres d'URL, et le bandeau
+      doit pouvoir le lire. Le poser au-dessus du routeur l'aurait coupé des
+      paramètres de route ; le poser dans chaque page en aurait fait autant
+      d'états séparés — le défaut qu'il corrige.
+    */
+    <WorkspaceProvider>
     <div
       className="vx-shell"
       data-rail={collapsed ? 'collapsed' : 'open'}
@@ -196,5 +205,6 @@ export function AppShell() {
         </div>
       </div>
     </div>
+    </WorkspaceProvider>
   );
 }
