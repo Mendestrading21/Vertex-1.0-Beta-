@@ -93,7 +93,17 @@ test.describe('Page Calendrier — snapshot réel', () => {
     await expect(page.getByTestId('cal-agenda')).toBeVisible({ timeout: 20_000 });
     for (const event of revised) {
       const id = event['event_id'] as string;
+      // LOT P6a — L'ARCHIVE DES RÉVISIONS A DÉMÉNAGÉ DANS L'INSPECTEUR. La
+      // ligne d'agenda la répétait alors que le panneau la portait déjà ;
+      // c'est un fait qu'on ÉTUDIE, pas un fait qui aide à CHOISIR quel
+      // événement ouvrir. L'exigence est INCHANGÉE — chaque valeur antérieure
+      // reste lisible — seule sa PORTÉE change.
+      await page
+        .getByTestId(`cal-event-${id}`)
+        .getByRole('button', { name: /^Inspecter/ })
+        .click();
       const details = page.getByTestId(`cal-revision-${id}`);
+      await expect(details).toBeVisible();
       await details.locator('summary').click();
       const previousValues = event['previous_values'] as Record<string, unknown>[];
       for (const previous of previousValues) {

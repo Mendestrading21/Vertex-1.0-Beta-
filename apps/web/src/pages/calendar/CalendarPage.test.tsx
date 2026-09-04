@@ -169,6 +169,27 @@ describe('windowErrorOf — refus typés relayés, jamais inventés', () => {
   });
 });
 
+/**
+ * LOT P6a — OUVRE L'INSPECTEUR D'UN ÉVÉNEMENT.
+ *
+ * La ligne d'agenda écrivait DEUX FOIS ce que l'inspecteur portait déjà :
+ * description du statut, état de version détaillé, archive des révisions,
+ * contexte croisé. La ligne les a rendus ; ces assertions sont donc
+ * RELOCALISÉES, pas retirées — chacune exige toujours le même fait, à
+ * l'endroit qui en est désormais le propriétaire unique.
+ */
+async function ouvrirInspecteur(user: ReturnType<typeof userEvent.setup>, eventId: string) {
+  // Par l'IDENTIFIANT de l'événement, pas par son titre : deux fixtures
+  // partagent le même titre, et viser le titre ouvrirait la mauvaise ligne
+  // sans que le test s'en aperçoive.
+  const ligne = await screen.findByTestId(`cal-event-${eventId}`);
+  await user.click(within(ligne).getByRole('button', { name: /^Inspecter/ }));
+  return screen.findByTestId('cal-event-facts');
+}
+
+const ID_ENER = 'syn-ev-earnings-SYN-ENER-01';
+const ID_FINL = 'syn-ev-earnings-SYN-FINL-01';
+
 describe('page Calendrier — rendu', () => {
   it('estimé et confirmé ne partagent jamais le même libellé à l’écran', async () => {
     mockCalendar(() => jsonResponse(makeCalendarResponse()));
@@ -184,15 +205,26 @@ describe('page Calendrier — rendu', () => {
     const estimatedHead = screen.getByTestId('cal-head-syn-ev-earnings-SYN-FINL-01');
     expect(within(estimatedHead).getByText(ESTIMATED_STATUS_LABEL)).toBeDefined();
     expect(within(estimatedHead).queryByText(CONFIRMED_STATUS_LABEL)).toBeNull();
-    // La phrase de statut, elle aussi, ne peut pas se lire pareil.
-    expect(confirmed.textContent).toContain('Statut de la date : Confirmé');
-    expect(estimated.textContent).toContain('Statut de la date : Estimé');
-    expect(estimated.textContent).not.toContain('Statut de la date : Confirmé');
+    // LA PHRASE DE STATUT A DÉMÉNAGÉ DANS L'INSPECTEUR (lot P6a), et l'exigence
+    // est INCHANGÉE : les deux statuts ne peuvent pas se lire pareil. Elle est
+    // vérifiée là où elle vit maintenant, sur les DEUX événements.
+    const user = userEvent.setup();
+    await ouvrirInspecteur(user, ID_ENER);
+    const panneauConfirme = await screen.findByTestId('cal-event-status-note');
+    expect(panneauConfirme.textContent).toContain('Statut de la date : Confirmé');
+    expect(panneauConfirme.textContent).not.toContain('Statut de la date : Estimé');
+
+    await ouvrirInspecteur(user, ID_FINL);
+    const panneauEstime = await screen.findByTestId('cal-event-status-note');
+    expect(panneauEstime.textContent).toContain('Statut de la date : Estimé');
+    expect(panneauEstime.textContent).not.toContain('Statut de la date : Confirmé');
   });
 
   it('un événement révisé garde ses valeurs antérieures LISIBLES', async () => {
     mockCalendar(() => jsonResponse(makeCalendarResponse()));
     await renderCalendar();
+    const user = userEvent.setup();
+    await ouvrirInspecteur(user, ID_ENER);
     const details = await screen.findByTestId('cal-revision-syn-ev-earnings-SYN-ENER-01');
     // Le détail est dépliable ; son contenu existe dans le DOM et reste lisible.
     const previousStatus = within(details).getByTestId(
@@ -237,6 +269,8 @@ describe('page Calendrier — rendu', () => {
   it('montre le contexte croisé (position, thèse, liens) publié', async () => {
     mockCalendar(() => jsonResponse(makeCalendarResponse()));
     await renderCalendar();
+    const user = userEvent.setup();
+    await ouvrirInspecteur(user, ID_ENER);
     const context = await screen.findByTestId('cal-context-syn-ev-earnings-SYN-ENER-01');
     expect(context.textContent).toContain('#1');
     expect(context.textContent).toContain('[SYNTHETIC] These due');
@@ -349,6 +383,14 @@ describe('page Calendrier — rendu', () => {
       ),
     );
     await renderCalendar();
+    // LE CONFLIT SE VOIT SANS OUVRIR QUOI QUE CE SOIT — exception assumée du
+    // lot P6a : un lecteur qui parcourt la liste doit savoir que cet événement
+    // porte des versions contradictoires. Le DÉTAIL, lui, est dans le panneau.
+    expect(
+      (await screen.findByTestId('cal-conflict-flag-syn-ev-earnings-SYN-ENER-01')).textContent,
+    ).toContain('CONFLICTING_VERSIONS');
+    const user = userEvent.setup();
+    await ouvrirInspecteur(user, ID_ENER);
     const version = await screen.findByTestId('cal-version-syn-ev-earnings-SYN-ENER-01');
     expect(version.textContent).toContain('CONFLICTING_VERSIONS');
     expect(version.textContent).toContain('2026-09-04T15:30:00+00:00');
@@ -367,6 +409,11 @@ describe('page Calendrier — rendu', () => {
     );
     await renderCalendar();
     await screen.findByTestId('cal-agenda');
+    // Ni dans la liste — aucun drapeau de conflit…
+    expect(screen.queryByTestId('cal-conflict-flag-syn-ev-earnings-SYN-FINL-01')).toBeNull();
+    // …ni dans le panneau, où le bloc vit désormais.
+    const user = userEvent.setup();
+    await ouvrirInspecteur(user, ID_FINL);
     expect(screen.queryByTestId('cal-version-syn-ev-earnings-SYN-FINL-01')).toBeNull();
   });
 
