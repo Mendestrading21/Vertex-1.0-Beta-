@@ -35,10 +35,10 @@ const VIEW_HEIGHT = CENTER_Y + 16;
 
 const ARC_PATH = `M${LEFT_X},${CENTER_Y} A${RADIUS},${RADIUS} 0 0 1 ${RIGHT_X},${CENTER_Y}`;
 
-export const ARC_TONES = ['silver', 'macro', 'option', 'warning', 'positive', 'negative'] as const;
-export type ArcTone = (typeof ARC_TONES)[number];
+const ARC_TONES = ['silver', 'macro', 'option', 'warning', 'positive', 'negative'] as const;
+type ArcTone = (typeof ARC_TONES)[number];
 
-export interface ArcThreshold {
+interface ArcThreshold {
   /** Position SERVIE en pourcentage. */
   readonly pct: string;
   readonly label: string;

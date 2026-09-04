@@ -32,9 +32,9 @@ import type { SparkTone } from './SparkFigure.tsx';
  * volume, une couverture, un compte de lignes n'ont pas de direction.
  */
 export const KPI_TILE_TONES = ['neutral', 'silver', 'macro', 'option'] as const;
-export type KpiTileTone = (typeof KPI_TILE_TONES)[number];
+type KpiTileTone = (typeof KPI_TILE_TONES)[number];
 
-export interface KpiTileDelta {
+interface KpiTileDelta {
   /** Chaîne SERVIE de la variation. `null` = non publiée. */
   readonly value: string | null;
   /** Sens tiré du SIGNE de la chaîne servie, par l'appelant. */

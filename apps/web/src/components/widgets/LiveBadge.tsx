@@ -23,9 +23,9 @@ import type { StatusChipTone } from './StatusChip.tsx';
  * POPULATION. Une population `SYNTHETIC` ou `DEMO` interdit tout mot d'activité
  * et impose la pastille de nature à côté du badge.
  */
-export type LiveTone = 'neutral' | 'warning' | 'negative' | 'muted';
+type LiveTone = 'neutral' | 'warning' | 'negative' | 'muted';
 
-export type LiveState =
+type LiveState =
   | 'open'
   | 'retrying'
   | 'silent'

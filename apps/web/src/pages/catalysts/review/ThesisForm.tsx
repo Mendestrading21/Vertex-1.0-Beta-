@@ -44,7 +44,7 @@ type Outcome =
   | { readonly phase: 'rejected'; readonly status: number; readonly rejection: ServerRejectionView | null }
   | { readonly phase: 'offline' };
 
-export function buildThesisRequest(
+function buildThesisRequest(
   draft: Draft,
   idempotencyKey: string,
 ): { readonly request: CreateThesisRequest | null; readonly issues: readonly string[] } {
