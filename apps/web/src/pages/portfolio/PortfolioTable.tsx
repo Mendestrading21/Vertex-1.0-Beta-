@@ -1,3 +1,4 @@
+import { AbsentCell } from '../../components/absence.tsx';
 import { exclusionReasonLabel } from './portfolioView.ts';
 import type { ExcludedLotRow, ValuedLotRow } from './portfolioView.ts';
 
@@ -114,13 +115,45 @@ export function PortfolioTable({
                   </tr>
                 </thead>
                 <tbody>
-                  {excluded.map((lot) => (
-                    <tr key={`${lot.lotId}-${lot.ticker ?? ''}-${lot.reason}`}>
+                  {excluded.map((lot, index) => (
+                    /* LOT T4-2 — LA CLÉ NE SE FABRIQUE PLUS. `lotId` valait
+                       « — » par repli, et les positions invalides le
+                       recevaient EN DUR : deux d'entre elles de même ticker et
+                       même raison donnaient deux fois la même clé, cassant la
+                       réconciliation React. Une ligne SANS identifiant servi
+                       prend son rang de rendu — un index n'est pas une donnée,
+                       c'est une position, et c'est exactement ce qu'il est. */
+                    <tr
+                      key={
+                        lot.lotId === null
+                          ? `sans-lot-${index}-${lot.reason}`
+                          : `${lot.lotId}-${lot.reason}`
+                      }
+                    >
                       <th scope="row">
-                        <code>{lot.lotId}</code>
+                        {lot.lotId === null ? (
+                          /* Une position invalide n'a pas de lot : elle a été
+                             rejetée avant d'en devenir un. Le serveur n'a rien
+                             omis — « sans objet », jamais « non publié ». */
+                          <AbsentCell quoi="lot" nature="not_applicable" reason={lot.reason} />
+                        ) : (
+                          <code>{lot.lotId}</code>
+                        )}
                       </th>
-                      <td>{lot.ticker !== null ? <code>{lot.ticker}</code> : '—'}</td>
-                      <td>{lot.currency !== null ? <code>{lot.currency}</code> : '—'}</td>
+                      <td>
+                        {lot.ticker === null ? (
+                          <AbsentCell quoi="instrument" nature="not_published" reason={null} />
+                        ) : (
+                          <code>{lot.ticker}</code>
+                        )}
+                      </td>
+                      <td>
+                        {lot.currency === null ? (
+                          <AbsentCell quoi="devise" nature="not_published" reason={null} accord="f" />
+                        ) : (
+                          <code>{lot.currency}</code>
+                        )}
+                      </td>
                       <td>
                         <code>{lot.reason}</code>
                       </td>

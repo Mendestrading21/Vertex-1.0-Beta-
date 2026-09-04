@@ -2,6 +2,7 @@ import { useState } from 'react';
 
 import { isApiError } from '../../api/client.ts';
 import { postImportConfirm, postImportPreview } from '../../api/portfolioApi.ts';
+import { AbsentCell } from '../../components/absence.tsx';
 import type { ImportConfirmResponse, ImportPreviewResponse } from '../../api/client.ts';
 import { serverRejectionOf } from './portfolioView.ts';
 import type { ServerRejectionView } from './portfolioView.ts';
@@ -208,11 +209,39 @@ export function CsvImportPanel({ onImported }: { readonly onImported: () => void
                         <td>
                           <code>{row.kind}</code>
                         </td>
-                        <td>{row.ticker !== '' ? <code>{row.ticker}</code> : '—'}</td>
-                        <td className="vx-num">{row.quantity !== '' ? row.quantity : '—'}</td>
-                        <td className="vx-num">{row.price !== '' ? row.price : '—'}</td>
+                        {/* LOT T4-2 — L'ABSENCE VIENT DU FICHIER DE
+                            L'UTILISATEUR, pas du serveur. Écrire « non publié »
+                            ici accuserait le serveur d'un vide que l'humain a
+                            laissé : `not_entered` dit lequel des deux. */}
+                        <td>
+                          {row.ticker === '' ? (
+                            <AbsentCell quoi="instrument" nature="not_entered" reason={null} />
+                          ) : (
+                            <code>{row.ticker}</code>
+                          )}
+                        </td>
+                        <td className="vx-num">
+                          {row.quantity === '' ? (
+                            <AbsentCell quoi="quantité" nature="not_entered" reason={null} accord="f" />
+                          ) : (
+                            row.quantity
+                          )}
+                        </td>
+                        <td className="vx-num">
+                          {row.price === '' ? (
+                            <AbsentCell quoi="prix" nature="not_entered" reason={null} />
+                          ) : (
+                            row.price
+                          )}
+                        </td>
                         <td className="vx-num">{row.amount}</td>
-                        <td className="vx-num">{row.fees !== '' ? row.fees : '—'}</td>
+                        <td className="vx-num">
+                          {row.fees === '' ? (
+                            <AbsentCell quoi="frais" nature="not_entered" reason={null} />
+                          ) : (
+                            row.fees
+                          )}
+                        </td>
                         <td>
                           <code>{row.currency}</code>
                         </td>
@@ -267,7 +296,12 @@ export function CsvImportPanel({ onImported }: { readonly onImported: () => void
             </strong>
             {phase.rejection !== null ? (
               <p>
-                Raison exacte : <code>{phase.rejection.code ?? '—'}</code>
+                Raison exacte :{' '}
+                {phase.rejection.code === null ? (
+                  <span className="vx-cell-absent">code de refus non publié</span>
+                ) : (
+                  <code>{phase.rejection.code}</code>
+                )}
                 {phase.rejection.message !== null ? ` — ${phase.rejection.message}` : null}
                 {phase.rejection.wireIssues.length > 0
                   ? ` — ${phase.rejection.wireIssues.join(' ; ')}`

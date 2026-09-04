@@ -165,6 +165,48 @@ describe('portfolioView — lecture verbatim, jamais un calcul', () => {
     ]);
   });
 
+  it('DÉFAUT RÉEL — deux positions invalides ne partagent plus la même identité', () => {
+    // `lotId` était typé `string` avec `?? '—'` en repli, et les positions
+    // invalides recevaient `'—'` EN DUR. Deux positions invalides de même
+    // ticker et même raison produisaient donc deux fois la même clé React
+    // (`'—'-SYN-X-01-missing_price`) : la réconciliation cassait, et le
+    // tiret s'affichait comme s'il était un identifiant de lot servi.
+    //
+    // `lotId` devient `string | null`. Une position invalide n'a PAS de lot :
+    // elle a été rejetée avant d'en devenir un. C'est « sans objet », pas
+    // « non publié » — le serveur n'a rien omis.
+    const view = valuationContentOf({
+      state: 'ok',
+      snapshot_version: 3,
+      as_of: '2026-08-25T12:00:00+00:00',
+      age_seconds: 60,
+      freshness_policy: makeFreshnessPolicy({ kind: 'portfolio_mark', budget_seconds: 86400 }),
+      reason: null,
+      content: makeValuationContent({
+        coverage: {
+          events_considered: 5,
+          position_events: 3,
+          cash_events: 2,
+          compensation_pairs: 0,
+          invalid_events: [],
+          invalid_positions: [
+            { ticker: 'SYN-X-01', currency: 'SYN', reason: 'missing_price' },
+            { ticker: 'SYN-X-01', currency: 'SYN', reason: 'missing_price' },
+          ],
+          lots_open: 2,
+          lots_valued: 1,
+          lots_excluded: 1,
+        },
+      }),
+    });
+    expect(view).not.toBeNull();
+    const invalides = view!.coverage.invalidPositions;
+    expect(invalides).toHaveLength(2);
+    for (const lot of invalides) {
+      expect(lot.lotId).toBeNull();
+    }
+  });
+
   it('localDateTimeToUtcIso convertit l’heure locale en instant UTC (suffixe Z)', () => {
     const iso = localDateTimeToUtcIso('2026-08-20T11:30');
     expect(iso).not.toBeNull();

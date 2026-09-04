@@ -106,7 +106,7 @@ export function TotalPerformanceModule({ portfolioId }: { readonly portfolioId: 
           <>rendement pondéré par le temps et taux interne, publiés par le serveur</>
         ) : (
           <>
-            population <code>{view.population ?? 'non publiée'}</code> · devise <code>{view.currency ?? '—'}</code> · brut et net des frais déclarés
+            population <code>{view.population ?? 'non publiée'}</code> · devise <code>{view.currency ?? 'non publiée'}</code> · brut et net des frais déclarés
           </>
         )
       }

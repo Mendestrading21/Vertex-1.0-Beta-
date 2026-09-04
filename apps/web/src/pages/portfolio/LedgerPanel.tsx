@@ -2,6 +2,7 @@ import { useState } from 'react';
 
 import { isApiError } from '../../api/client.ts';
 import { saveTextAsFile } from '../../app/downloadFile.ts';
+import { AbsentCell } from '../../components/absence.tsx';
 import { getPortfolioExportCsv, postCompensation } from '../../api/portfolioApi.ts';
 import type { LedgerTransactionEntry } from '../../api/client.ts';
 import { serverRejectionOf } from './portfolioView.ts';
@@ -147,9 +148,33 @@ export function LedgerPanel({
                     <td>
                       <code>{entry.kind}</code>
                     </td>
-                    <td>{ticker !== null ? <code>{ticker}</code> : '—'}</td>
-                    <td className="vx-num">{entry.quantity ?? '—'}</td>
-                    <td className="vx-num">{entry.price ?? '—'}</td>
+                    {/* LOT T4-2 — TABLE DENSE (treize colonnes) : le glyphe
+                        reste, mais il porte désormais un NOM ACCESSIBLE qui dit
+                        ce qui manque. Écrire « non publié » dans chaque cellule
+                        d'un journal de treize colonnes le rendrait illisible —
+                        et une table qu'on ne peut plus lire ne dit rien du
+                        tout. */}
+                    <td>
+                      {ticker === null ? (
+                        <AbsentCell quoi="instrument" nature="not_published" reason={null} />
+                      ) : (
+                        <code>{ticker}</code>
+                      )}
+                    </td>
+                    <td className="vx-num">
+                      {entry.quantity === null ? (
+                        <AbsentCell quoi="quantité" nature="not_published" reason={null} accord="f" />
+                      ) : (
+                        entry.quantity
+                      )}
+                    </td>
+                    <td className="vx-num">
+                      {entry.price === null ? (
+                        <AbsentCell quoi="prix" nature="not_published" reason={null} />
+                      ) : (
+                        entry.price
+                      )}
+                    </td>
                     <td className="vx-num">{entry.amount}</td>
                     <td className="vx-num">{entry.fees}</td>
                     <td>
@@ -166,10 +191,20 @@ export function LedgerPanel({
                           compensée par n°{entry.compensated_by}
                         </span>
                       ) : (
-                        '—'
+                        /* Ni compensante ni compensée : il n'y a rien à dire,
+                           et le serveur n'a rien omis. « Sans objet ». */
+                        <AbsentCell quoi="compensation" nature="not_applicable" reason={null} accord="f" />
                       )}
                     </td>
-                    <td>{entry.note ?? '—'}</td>
+                    <td>
+                      {entry.note === null ? (
+                        /* La note vient de la SAISIE HUMAINE : son absence ne
+                           reproche rien au serveur. */
+                        <AbsentCell quoi="note" nature="not_entered" reason={null} accord="f" />
+                      ) : (
+                        entry.note
+                      )}
+                    </td>
                     <td>
                       {!isCompensatingRow && !alreadyCompensated ? (
                         <button
@@ -182,7 +217,11 @@ export function LedgerPanel({
                           Correction compensatoire
                         </button>
                       ) : (
-                        <span className="vx-cell-absent">—</span>
+                        /* LOT T4-2 — UNE CELLULE D'ACTION SANS ACTION N'A
+                           BESOIN D'AUCUN MOT. Le tiret y suggérait une valeur
+                           manquante ; il n'en manque aucune, il n'y a
+                           simplement rien à faire sur cette ligne. */
+                        null
                       )}
                     </td>
                   </tr>
@@ -241,7 +280,12 @@ export function LedgerPanel({
           </strong>
           {compensation.rejection !== null ? (
             <p>
-              Raison exacte : <code>{compensation.rejection.code ?? '—'}</code>
+              Raison exacte :{' '}
+              {compensation.rejection.code === null ? (
+                <span className="vx-cell-absent">code de refus non publié</span>
+              ) : (
+                <code>{compensation.rejection.code}</code>
+              )}
               {compensation.rejection.message !== null ? ` — ${compensation.rejection.message}` : null}
               {compensation.rejection.wireIssues.length > 0
                 ? ` — ${compensation.rejection.wireIssues.join(' ; ')}`

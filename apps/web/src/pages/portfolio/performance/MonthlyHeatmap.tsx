@@ -201,7 +201,7 @@ export function MonthlyHeatmap({ heatmap }: { readonly heatmap: HeatmapView }) {
       />
       <figcaption className="vx-perf-chart-caption">
         ◐ marque un mois incomplet (début/fin de série ou jour exclu). Méthode serveur :{' '}
-        {heatmap.method ?? '—'}.
+        {heatmap.method ?? 'méthode non publiée'}.
       </figcaption>
     </figure>
   );
