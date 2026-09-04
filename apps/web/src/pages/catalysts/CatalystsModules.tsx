@@ -324,13 +324,13 @@ export function WindowModule({
             <div>
               <dt>Snapshot d’agenda</dt>
               <dd>
-                v{data.snapshot_version ?? '—'} · {data.as_of !== null ? <time dateTime={data.as_of}>{data.as_of}</time> : 'as_of non publié'}
+                v{data.snapshot_version ?? 'non publiée'} · {data.as_of !== null ? <time dateTime={data.as_of}>{data.as_of}</time> : 'as_of non publié'}
               </dd>
             </div>
             <div>
               <dt>Fenêtre</dt>
               <dd>
-                {data.window.from_utc ?? '—'} → {data.window.to_utc ?? '—'} · {data.window.events_in_window} sur {data.window.events_total} événement(s)
+                {data.window.from_utc ?? 'début non publié'} → {data.window.to_utc ?? 'fin non publiée'} · {data.window.events_in_window} sur {data.window.events_total} événement(s)
               </dd>
             </div>
             <div>
@@ -342,8 +342,8 @@ export function WindowModule({
             </div>
           </dl>
           <p className="vx-cat-populations" role="note" data-testid="cat-populations">
-            Populations séparées, jamais additionnées — agenda : <code>{data.population ?? '—'}</code> · thèses :{' '}
-            <code>{populationTheses ?? '—'}</code>. Les deux snapshots sont indépendants ; leur croisement ne crée aucune donnée
+            Populations séparées, jamais additionnées — agenda : <code>{data.population ?? 'non publiée'}</code> · thèses :{' '}
+            <code>{populationTheses ?? 'non publiée'}</code>. Les deux snapshots sont indépendants ; leur croisement ne crée aucune donnée
             nouvelle.
           </p>
         </>
