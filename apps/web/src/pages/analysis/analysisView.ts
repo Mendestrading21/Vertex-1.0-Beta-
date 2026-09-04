@@ -118,12 +118,69 @@ export function geometryNumber(value: string): number {
 // AdviceResult (statut canonique — relayé, jamais recalculé)
 // ---------------------------------------------------------------------------
 
+/**
+ * Un couple `clé → valeur` de la PREUVE servie par une gate
+ * (`observed_values`, `thresholds`).
+ *
+ * `text === null` ne veut PAS dire « non publié » : la clé EST publiée, mais
+ * sa valeur n'est pas un scalaire que l'affichage sache relayer verbatim
+ * (objet, tableau, `null`). L'aveu correspondant est donc « non reconnu », pas
+ * « non publié » — nommer la mauvaise nature serait mentir sur le serveur.
+ */
+export interface GateEvidenceEntry {
+  readonly key: string;
+  readonly text: string | null;
+}
+
 export interface GateView {
   readonly gateId: string;
   readonly version: string | null;
   readonly status: string;
   readonly reasonCode: string;
   readonly message: string;
+  /** `observed_values` SERVI — ce que la gate a réellement vu. */
+  readonly observedValues: readonly GateEvidenceEntry[];
+  /** `thresholds` SERVI — la configuration que la gate a comparée. */
+  readonly thresholds: readonly GateEvidenceEntry[];
+}
+
+/**
+ * Relais VERBATIM d'un scalaire servi. Ce n'est pas un formatage : aucune
+ * unité n'est ajoutée, aucun arrondi n'est appliqué, aucun séparateur n'est
+ * inséré. Un nombre publié `60` s'écrit `60`, un booléen publié s'écrit
+ * `true` — ce sont des codes serveur, pas des mots français.
+ *
+ * Tout le reste (objet, tableau, `null`, `undefined`) rend `null` : le lecteur
+ * verra que la clé est publiée et que sa valeur n'entre pas dans le
+ * vocabulaire relayable, plutôt qu'un `[object Object]`.
+ */
+function evidenceText(value: unknown): string | null {
+  if (typeof value === 'string') {
+    return value;
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return String(value);
+  }
+  if (typeof value === 'boolean') {
+    return String(value);
+  }
+  return null;
+}
+
+/**
+ * Lit un dictionnaire de preuve servi. L'ORDRE des clés est celui du serveur :
+ * il n'est ni trié, ni filtré, ni complété — une clé absente du payload reste
+ * absente de l'affichage, elle n'est jamais inventée avec une valeur vide.
+ */
+function gateEvidenceOf(gate: Record<string, unknown>, key: string): GateEvidenceEntry[] {
+  const raw = gate[key];
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    return [];
+  }
+  return Object.entries(raw as Record<string, unknown>).map(([name, value]) => ({
+    key: name,
+    text: evidenceText(value),
+  }));
 }
 
 export interface AdviceView {
@@ -170,6 +227,8 @@ export function adviceViewOf(data: AnalysisResponse): AdviceView | null {
         status: gateStatus,
         reasonCode,
         message: blockString(gate, 'message') ?? '',
+        observedValues: gateEvidenceOf(gate, 'observed_values'),
+        thresholds: gateEvidenceOf(gate, 'thresholds'),
       });
     }
   }

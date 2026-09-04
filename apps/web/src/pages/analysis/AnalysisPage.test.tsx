@@ -238,6 +238,26 @@ describe('Page Analyse — état nominal', () => {
     expect(scoped.getByText('entitlements_sufficient')).toBeDefined();
     expect(scoped.getAllByText('UNEVALUABLE').length).toBeGreaterThanOrEqual(1);
     expect(scoped.getByText('RESOLVED_WITHOUT_CONID')).toBeDefined();
+
+    // LOT P2b — LA PREUVE SERVIE EST LUE. Le moteur publie `observed_values`
+    // et `thresholds` à chaque point de retour ; la page n'en lisait rien.
+    // Ce que la gate a REGARDÉ est désormais visible, verbatim.
+    const degradee = scoped.getByText('instrument_resolved').closest('li');
+    expect(degradee).not.toBeNull();
+    const preuve = within(degradee as HTMLElement);
+    expect(preuve.getByText('Observé')).toBeDefined();
+    expect(preuve.getByText('identity_status').tagName).toBe('CODE');
+    expect(preuve.getByText('RESOLVED').tagName).toBe('CODE');
+    expect(preuve.getByText('resolved_with_conid').tagName).toBe('CODE');
+    // Le booléen SERVI se lit `false` — jamais « non », jamais un vide, et
+    // surtout jamais confondu avec une absence de publication.
+    expect(preuve.getByText('false').tagName).toBe('CODE');
+
+    // `_unevaluable` (gates.py:62-69) ne publie NI observé NI seuil : la gate
+    // bloquée ne gagne donc AUCUNE rubrique vide.
+    const bloquee = scoped.getByText('entitlements_sufficient').closest('li');
+    expect(within(bloquee as HTMLElement).queryByText('Observé')).toBeNull();
+    expect(within(bloquee as HTMLElement).queryByText('Seuils')).toBeNull();
   });
 
   it('evidence vide honnête + scénarios absents avec raison typée', async () => {

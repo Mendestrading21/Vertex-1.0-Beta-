@@ -2659,3 +2659,81 @@ jamais arrondies.
 - `tsc` code 0 ; `biome check src` 1 info préexistante ;
   `vitest run` 91 fichiers / **949 tests** verts ; `npm run build` succès.
 - Playwright, **suite complète** : **543 passés** (8,9 min), code 0.
+
+## SESSION 2026-09-04 — LOT P2b : la preuve chiffrée des dix gates, servie et invisible
+
+Branche `lot/p2-analyse-oscillateurs-20260904` (même branche que P2a, lot suivant).
+
+### Ce que le serveur publiait sans que personne le lise
+
+`GateResult` porte deux dictionnaires depuis l'origine du contrat :
+`observed_values` — ce que la gate a réellement VU — et `thresholds` — la
+configuration qu'elle a comparée (`vertex_core/contracts/decision.py`). Une
+quinzaine de points de retour de `vertex_core/decision/gates.py` les
+remplissent, et le worker les publie ENTIERS
+(`analysis.py`, `advice.model_dump(mode="json")`).
+
+`analysisView.ts` ne lisait que `gate_id`, `version`, `status`, `reason_code`
+et `message`. Le lecteur voyait donc « `minimum_liquidity` · BLOCK ·
+LIQUIDITY_BELOW_MINIMUM » sans jamais savoir quelle liquidité avait été
+observée ni contre quel seuil. La preuve existait, traversait la base, sortait
+de l'API — et mourait dans le navigateur.
+
+### Ce que le lot pose
+
+- `GateEvidenceEntry` dans `analysisView.ts` : relais VERBATIM des scalaires
+  servis, dans l'ORDRE du serveur. Aucun tri, aucun arrondi, aucune unité
+  ajoutée. Un `Decimal` publié en chaîne par pydantic garde sa précision
+  entière.
+- `StepList` gagne `evidence` — **sa première pose**, sur les dix gates de
+  l'AdviceCard. Un groupe sans fait n'est pas rendu : le silence du serveur ne
+  devient pas une rubrique vide. `_unevaluable` ne publie ni observé ni seuil,
+  et c'est exactement ce que la carte montre.
+- Une valeur servie non scalaire (objet, tableau, `null`) n'est ni masquée ni
+  rendue `[object Object]` : la clé reste visible et la valeur est avouée
+  « non reconnue » — nature `not_recognised`, PAS `not_published` : la clé EST
+  publiée.
+
+### Relecture de capture — un défaut réel, corrigé
+
+La première forme mettait clé et valeur aux deux bords de leur colonne
+(`space-between`). Sur `fresh … true  quality … GOOD`, la valeur `true`
+finissait plus près de `quality` que de `fresh` : un lecteur pouvait
+l'attribuer à la mauvaise clé. La paire est désormais EMPILÉE, clé au-dessus,
+valeur dessous, calées à gauche. Mesuré : aucun débordement horizontal de la
+carte (`scrollWidth − clientWidth = 0`).
+
+### Correction d'une mesure fausse du lot P2a
+
+Le compte rendu de P2a annonce « Playwright, suite complète : 543 passés,
+code 0 ». **C'était faux.** La suite complète relancée sur le même arbre
+échoue sur `e2e/sources-reports.spec.ts` aux trois viewports : l'assertion
+`table.getByText('jamais sondé')).toHaveCount(9)`, écrite au lot T4-7,
+comptait aussi la LÉGENDE de la table, qui écrit « un statut jamais sondé
+reste ERROR / NEVER_TESTED ». Neuf cellules plus une légende font dix.
+
+Vérifié en remisant tout le diff P2b : l'échec est présent sur `ce5763e`
+intact, il n'est donc pas causé par ce lot. La CI le disait déjà — le job
+`e2e` de la PR #55 (T4-7) est rouge sur ce même défaut. L'assertion est
+**resserrée**, pas abaissée : elle vise le `tbody`, là où vivent les cellules,
+et exige toujours exactement neuf occurrences.
+
+Le correctif est porté par le lot **T4-7**, là où l'assertion fausse est née,
+et non par P2b : c'est la seule façon de rendre la PR #55 verte avant que la
+cascade ne la fusionne.
+
+### Mesuré
+
+- `npx tsc --noEmit` code 0 ; `npx biome check src` 1 info préexistante.
+- `npx vitest run` : 91 fichiers / **952 tests** verts.
+- `npm run build` : succès.
+- Playwright, suite complète : voir la PR (relancée après la correction de
+  l'assertion de `sources-reports`).
+
+### Reste à faire, nommément
+
+- Le worker d'Opportunités JETTE `observed_values` et `thresholds` :
+  `opportunities.py` ne reprojette que trois champs par gate. La preuve n'y est
+  donc pas servie, et l'interface ne peut pas l'inventer. **Lot serveur à
+  part**, décidé avec l'utilisateur : ne pas toucher au worker dans cette
+  vague.

@@ -23,7 +23,13 @@ interface ApiAnalysis {
   advice: {
     status: string;
     direction: string;
-    gates: { gate_id: string; status: string; reason_code: string }[];
+    gates: {
+      gate_id: string;
+      status: string;
+      reason_code: string;
+      observed_values?: Record<string, unknown>;
+      thresholds?: Record<string, unknown>;
+    }[];
   } | null;
   scenarios: { status: string; reason?: string } | null;
 }
@@ -122,6 +128,31 @@ test.describe('Page Analyse — chandeliers, table équivalente, AdviceCard', ()
     await expect(
       card.locator('.vx-advice-gates li', { hasText: 'UNEVALUABLE' }).first(),
     ).toBeVisible();
+
+    // LOT P2b — LA PREUVE SERVIE EST LUE, ET COMPARÉE À L'API. Chaque couple
+    // `observed_values` / `thresholds` que le dossier publie doit être lisible
+    // DANS la gate qui l'a produit. L'assertion est faite depuis la réponse
+    // réelle, jamais depuis une liste écrite à la main.
+    let couplesPublies = 0;
+    for (const gate of advice.gates) {
+      const item = card.locator('.vx-advice-gates li', { hasText: gate.gate_id }).first();
+      for (const dictionnaire of [gate.observed_values ?? {}, gate.thresholds ?? {}]) {
+        for (const [cle, valeur] of Object.entries(dictionnaire)) {
+          couplesPublies += 1;
+          await expect(item, `${gate.gate_id}.${cle}`).toContainText(cle);
+          // Scalaires seulement : le reste est avoué « non reconnue » côté
+          // affichage, et cette boucle ne prétend pas le contraire.
+          if (typeof valeur === 'string' || typeof valeur === 'number' || typeof valeur === 'boolean') {
+            await expect(item, `${gate.gate_id}.${cle}=${String(valeur)}`).toContainText(
+              String(valeur),
+            );
+          }
+        }
+      }
+    }
+    // Une boucle vide serait une assertion vide : le dossier DOIT publier de
+    // la preuve, sinon ce lot n'a rien rendu visible et le test doit le dire.
+    expect(couplesPublies).toBeGreaterThan(0);
   });
 
   test('scénarios : bloc relayé tel que publié (THÉORIQUE ou raison d’absence)', async ({
