@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react';
 import { Outlet, useMatches } from 'react-router-dom';
 
 import type { PageDef } from '../app/pages.ts';
+import { CommandPalette, useCommandPalette } from './CommandPalette.tsx';
 import { ContextBar } from './ContextBar.tsx';
 import { INSPECTOR_SLOT_ID, useInspectorOccupied } from './inspector.tsx';
 import { NavRail } from './NavRail.tsx';
@@ -94,6 +95,7 @@ export function AppShell() {
     pageMatch !== undefined && isPageHandle(pageMatch.handle) ? pageMatch.handle.page.key : 'unknown';
 
   const occupied = useInspectorOccupied();
+  const palette = useCommandPalette();
 
   const toggle = useCallback(() => {
     setCollapsed((previous) => {
@@ -124,8 +126,30 @@ export function AppShell() {
         */}
         <div className="vx-topbar">
           <ContextBar />
+          {/*
+            Le déclencheur est VISIBLE, et pas seulement un raccourci : un
+            raccourci que rien n'annonce n'existe que pour qui le connaît déjà.
+            Le bouton porte la combinaison, et il est atteignable à la
+            tabulation comme n'importe quel autre contrôle du bandeau.
+          */}
+          <button
+            type="button"
+            className="vx-palette-trigger"
+            onClick={() => {
+              palette.setOpen(true);
+            }}
+          >
+            <span className="vx-palette-trigger-label">Rechercher une destination ou un instrument</span>
+            <kbd className="vx-palette-kbd">⌘K</kbd>
+          </button>
           <ShellTicker />
         </div>
+        <CommandPalette
+          open={palette.open}
+          onClose={() => {
+            palette.setOpen(false);
+          }}
+        />
         <div className="vx-work">
           <main
             id="vx-main"

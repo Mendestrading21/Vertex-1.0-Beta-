@@ -2537,3 +2537,151 @@
   border: 1px dashed var(--vx-border);
   background-color: transparent;
 }
+
+/* ==========================================================================
+   PALETTE DE COMMANDES — ⌘K. Motif `combobox` + `listbox` en HTML natif :
+   la dépendance `cmdk` aurait apporté un thème à neutraliser et une surface
+   de bundle sur TOUTES les routes, pour un motif entièrement décrit par
+   WAI-ARIA APG.
+   ========================================================================== */
+
+.vx-palette-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--vx-space-8);
+  min-width: 0;
+  padding: var(--vx-space-4) var(--vx-space-12);
+  border: 1px solid var(--vx-border);
+  border-radius: var(--vx-radius-pill);
+  background-color: var(--vx-surface-1);
+  color: var(--vx-text-muted);
+  font-family: inherit;
+  font-size: var(--vx-font-size-meta);
+  cursor: pointer;
+}
+
+.vx-palette-trigger:hover {
+  border-color: var(--vx-border-strong);
+  color: var(--vx-text-secondary);
+}
+
+.vx-palette-trigger-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vx-palette-kbd {
+  padding: 0 var(--vx-space-4);
+  border: 1px solid var(--vx-border);
+  border-radius: var(--vx-radius-6);
+  color: var(--vx-text-muted);
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-palette-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: var(--vx-z-dialog);
+  display: flex;
+  justify-content: center;
+  /* Pas centré verticalement : une palette ancrée haut garde le regard là où
+     la frappe commence, et laisse voir la page derrière. */
+  padding-top: 12vh;
+  background-color: var(--vx-scrim);
+}
+
+.vx-palette {
+  display: flex;
+  flex-direction: column;
+  width: min(680px, calc(100vw - var(--vx-space-32)));
+  max-height: 60vh;
+  border: 1px solid var(--vx-border-strong);
+  border-radius: var(--vx-radius-14);
+  background-color: var(--vx-surface-2);
+  box-shadow: var(--vx-shadow-panel), var(--vx-shadow-inset);
+  overflow: hidden;
+}
+
+.vx-palette-field {
+  display: flex;
+  align-items: center;
+  gap: var(--vx-space-8);
+  padding: var(--vx-space-12) var(--vx-space-16);
+  border-bottom: 1px solid var(--vx-border);
+}
+
+.vx-palette-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: var(--vx-text);
+  font-family: inherit;
+  font-size: var(--vx-font-size-title);
+}
+
+.vx-palette-input:focus {
+  outline: none;
+}
+
+.vx-palette-list {
+  margin: 0;
+  padding: var(--vx-space-8) 0;
+  list-style: none;
+  overflow-y: auto;
+}
+
+.vx-palette-group-title {
+  margin: 0;
+  padding: var(--vx-space-8) var(--vx-space-16) var(--vx-space-4);
+  color: var(--vx-text-muted);
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-meta);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.vx-palette-group ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.vx-palette-item {
+  display: flex;
+  align-items: baseline;
+  gap: var(--vx-space-12);
+  padding: var(--vx-space-8) var(--vx-space-16);
+  cursor: pointer;
+}
+
+/* L'élément actif se distingue par une SURFACE, pas par un déplacement ni un
+   agrandissement : la liste ne doit pas bouger sous le curseur clavier. */
+.vx-palette-item[data-active='true'] {
+  background-color: var(--vx-hover);
+}
+
+.vx-palette-item-label {
+  color: var(--vx-text);
+  font-size: var(--vx-font-size-body);
+  white-space: nowrap;
+}
+
+.vx-palette-item-detail {
+  overflow: hidden;
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vx-palette-empty,
+.vx-palette-note {
+  margin: 0;
+  padding: var(--vx-space-12) var(--vx-space-16);
+  border-top: 1px solid var(--vx-border-soft);
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+}
