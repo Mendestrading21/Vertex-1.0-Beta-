@@ -93,45 +93,98 @@ test.describe('Page Options — chaîne, groupes jamais fusionnés, inspecteur',
     });
     await expect(table).toBeVisible();
 
-    // 12 strikes = 12 lignes (24 contrats appariés CALL/PUT).
+    // 12 strikes = 12 LIGNES DE STRIKE (24 contrats appariés CALL/PUT).
+    //
+    // L'assertion vise désormais `[data-row="strike"]` et non « toutes les
+    // lignes du tbody » : la chaîne insère aussi une ligne de repère portant le
+    // spot SERVI, et compter les deux ensemble mélangeait deux choses
+    // différentes. L'exigence n'est pas relâchée — elle est rendue précise, et
+    // le repère reçoit sa propre assertion juste en dessous.
     const strikes = [...new Set(group.contracts.map((entry) => entry.strike))].filter(
       (strike): strike is string => strike !== null,
     );
-    await expect(table.locator('tbody tr')).toHaveCount(strikes.length);
+    await expect(table.locator('tbody tr[data-row="strike"]')).toHaveCount(strikes.length);
 
-    // Vérification VALEUR PAR VALEUR d'au moins 5 cellules (bid/ask/IV/delta),
-    // sur 3 strikes distincts, contre les chaînes serveur verbatim.
+    // Le repère de spot existe, il est UNIQUE, et il porte une valeur servie.
+    const repere = table.locator('tbody tr.vx-chain-spot');
+    await expect(repere).toHaveCount(1);
+    await expect(repere).toContainText('spot servi');
+    // Et il ne classe AUCUN strike « à la monnaie » : ce rangement est un
+    // jugement du moteur, pas une décision d'affichage.
+    await expect(table).not.toContainText('ATM');
+
+    // Vérification VALEUR PAR VALEUR contre les chaînes serveur verbatim.
+    //
+    // Les cellules sont visées par `data-col`/`data-side`, plus par leur
+    // position : les colonnes sont désormais configurables, et un `nth(5)` ne
+    // désigne plus rien de stable. L'assertion devient indépendante de la
+    // sélection courante — donc plus forte, pas plus permissive.
     let checkedCells = 0;
     for (const strike of strikes.slice(0, 3)) {
       const call = group.contracts.find((c) => c.strike === strike && c.right === 'CALL')!;
       const put = group.contracts.find((c) => c.strike === strike && c.right === 'PUT')!;
-      const row = table.locator('tbody tr', {
+      const row = table.locator('tbody tr[data-row="strike"]', {
         has: page.locator('th', { hasText: strike }),
       });
-      const cells = row.locator('td');
-      // CALL : bid, ask, IV, delta (indices 0..3) ; PUT : 5..8.
-      for (const [index, contract, key] of [
-        [0, call, 'bid'],
-        [1, call, 'ask'],
-        [5, put, 'bid'],
-        [6, put, 'ask'],
+      for (const [contract, side, key] of [
+        [call, 'CALL', 'bid'],
+        [call, 'CALL', 'ask'],
+        [put, 'PUT', 'bid'],
+        [put, 'PUT', 'ask'],
       ] as const) {
         const value = contract.quote[key];
         if (value !== null) {
-          await expect(cells.nth(index)).toContainText(value);
+          await expect(row.locator(`td[data-side="${side}"][data-col="${key}"]`)).toContainText(value);
           checkedCells += 1;
         }
       }
       if (call.iv.status === 'OK') {
-        await expect(cells.nth(2)).toContainText(call.iv.value!);
+        await expect(row.locator('td[data-side="CALL"][data-col="iv"]')).toContainText(call.iv.value!);
         checkedCells += 1;
       }
       if (call.greeks.status === 'OK') {
-        await expect(cells.nth(3)).toContainText(call.greeks.delta!);
+        await expect(row.locator('td[data-side="CALL"][data-col="delta"]')).toContainText(
+          call.greeks.delta!,
+        );
         checkedCells += 1;
       }
     }
     expect(checkedCells).toBeGreaterThanOrEqual(5);
+
+    // VOLUME ET OPEN INTEREST — servis, jetés jusqu'ici, et désormais à un clic.
+    //
+    // Ils ne sont PAS dans la sélection par défaut : la mesure a montré qu'à
+    // 1440 px six colonnes par côté débordent et poussent le strike — l'axe de
+    // lecture — hors du champ. Le test ne se contente donc pas de les lire : il
+    // ouvre le sélecteur, les ACTIVE, et vérifie ensuite les valeurs contre le
+    // contrat. L'assertion couvre ainsi deux choses au lieu d'une — le
+    // sélecteur fonctionne, et ce qu'il révèle est exact.
+    await expect(table.locator('td[data-col="volume"]')).toHaveCount(0);
+    // Le sélecteur est un `<details>` : replié, ses cases ne sont pas
+    // atteignables — au clavier comme à la souris. On l'ouvre comme un
+    // utilisateur l'ouvrirait.
+    await page.getByText(/^Colonnes affichées/).click();
+    for (const libelle of ['Volume', 'Open interest']) {
+      await page.getByRole('checkbox', { name: libelle }).check();
+    }
+    for (const strike of strikes.slice(0, 3)) {
+      const call = group.contracts.find((c) => c.strike === strike && c.right === 'CALL')!;
+      const row = table.locator('tbody tr[data-row="strike"]', {
+        has: page.locator('th', { hasText: strike }),
+      });
+      for (const [key, value] of [
+        ['volume', call.volume],
+        ['open_interest', call.open_interest],
+      ] as const) {
+        if (value !== null) {
+          await expect(row.locator(`td[data-side="CALL"][data-col="${key}"]`)).toContainText(
+            String(value),
+          );
+          checkedCells += 1;
+        }
+      }
+    }
+    expect(checkedCells).toBeGreaterThanOrEqual(11);
   });
 
   test('IV absente : « — » avec la raison typée au survol, jamais 0', async ({ page }) => {

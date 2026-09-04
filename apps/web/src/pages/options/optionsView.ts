@@ -20,12 +20,12 @@ import type { DataState } from '../../components/DataStateBoundary.tsx';
 // Lecture défensive des blocs relayés verbatim (jamais un zéro fabriqué)
 // ---------------------------------------------------------------------------
 
-function blockString(block: Record<string, unknown>, key: string): string | null {
+export function blockString(block: Record<string, unknown>, key: string): string | null {
   const value = block[key];
   return typeof value === 'string' && value !== '' ? value : null;
 }
 
-function blockInt(block: Record<string, unknown>, key: string): number | null {
+export function blockInt(block: Record<string, unknown>, key: string): number | null {
   const value = block[key];
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }

@@ -216,7 +216,11 @@ export function SpotModule({ data }: { readonly data: OptionChainResponse }) {
       kicker="Observé"
       title={module.title}
       titleId="vx-options-spot-title"
-      footer={<>{spot === null || spot.observedAt === null ? 'instant d’observation non publié' : `observé ${spot.observedAt}`}</>}
+      footer={
+        spot === null || spot.observedAt === null
+          ? 'instant d’observation non publié'
+          : `observé ${spot.observedAt}`
+      }
     >
       <Metric
         label="Spot"

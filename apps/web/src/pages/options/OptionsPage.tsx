@@ -168,6 +168,7 @@ function ChainFrame({
   selected,
   onSelectGroup,
   onInspect,
+  selectedConId,
 }: {
   readonly data: OptionChainResponse;
   readonly state: DataState;
@@ -176,6 +177,8 @@ function ChainFrame({
   readonly selected: OptionChainExpiration | null;
   readonly onSelectGroup: (key: string) => void;
   readonly onInspect: (contract: OptionChainContract, trigger: HTMLElement | null) => void;
+  /** Contrat inspecté, pour que sa ligne se distingue dans la chaîne. */
+  readonly selectedConId: number | null;
 }) {
   const budget = rowBudgetOf(data);
   const asOf = data.as_of;
@@ -272,6 +275,9 @@ function ChainFrame({
             >
               <OptionChainTable
                 group={selected}
+                selectedConId={selectedConId}
+                spotValue={spotViewOf(data)?.value ?? null}
+                spotObservedAt={spotViewOf(data)?.observedAt ?? null}
                 onInspect={(contract) => {
                   onInspect(contract, pendingTrigger.current);
                 }}
@@ -388,6 +394,7 @@ function OptionsBoard({
             }
             setSelectedKey(key);
           }}
+          selectedConId={currentInspected?.con_id ?? null}
           onInspect={(contract, trigger) => {
             triggerRef.current = trigger;
             if (selected !== null) {

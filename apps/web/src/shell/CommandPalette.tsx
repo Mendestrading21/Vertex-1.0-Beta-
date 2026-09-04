@@ -80,6 +80,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
   const [saisie, setSaisie] = useState('');
   const [actif, setActif] = useState(0);
   const champRef = useRef<HTMLInputElement>(null);
+  const dialogueRef = useRef<HTMLDivElement>(null);
   const declencheurRef = useRef<Element | null>(null);
   const listeId = useId();
 
@@ -131,6 +132,31 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
     }
   }, [open]);
 
+  /**
+   * Fermeture au clic extérieur, posée sur le DOCUMENT et non sur le voile.
+   *
+   * Un voile qui porte un gestionnaire est un élément interactif sans rôle ni
+   * accès clavier : le lecteur d'écran ne l'annonce pas, la tabulation ne
+   * l'atteint pas, et l'utilisateur au clavier n'a aucun équivalent du clic
+   * dehors. L'équivalent clavier existe déjà — Échap — et il est traité par le
+   * dialogue. Le voile redevient donc purement décoratif.
+   */
+  useEffect(() => {
+    if (!open) {
+      return undefined;
+    }
+    function surPointeur(evenement: MouseEvent): void {
+      const dialogue = dialogueRef.current;
+      if (dialogue !== null && evenement.target instanceof Node && !dialogue.contains(evenement.target)) {
+        onClose();
+      }
+    }
+    document.addEventListener('mousedown', surPointeur);
+    return () => {
+      document.removeEventListener('mousedown', surPointeur);
+    };
+  }, [open, onClose]);
+
   const ouvrir = useCallback(
     (resultat: PaletteResult | undefined) => {
       if (resultat === undefined) {
@@ -152,16 +178,9 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
   ];
 
   return (
-    <div
-      className="vx-palette-scrim"
-      role="presentation"
-      onMouseDown={(evenement) => {
-        if (evenement.target === evenement.currentTarget) {
-          onClose();
-        }
-      }}
-    >
+    <div className="vx-palette-scrim" role="presentation">
       <div
+        ref={dialogueRef}
         className="vx-palette"
         role="dialog"
         aria-modal="true"
@@ -210,40 +229,51 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
           <kbd className="vx-palette-kbd">Échap</kbd>
         </div>
 
-        <ul className="vx-palette-list" id={listeId} role="listbox" aria-label="Résultats">
+        {/*
+          Listbox en `div`, PAS en `ul`/`li`.
+
+          Une liste HTML porte déjà une sémantique — « liste de N éléments » —
+          qu'il faudrait ensuite neutraliser au `role="presentation"` à chaque
+          niveau pour poser dessus la sémantique de listbox. Deux couches se
+          contredisent alors dans l'arbre d'accessibilité, et le linter le dit.
+          Les rôles ARIA portent ici toute la structure, sans rien à annuler.
+        */}
+        <div className="vx-palette-list" id={listeId} role="listbox" aria-label="Résultats">
           {parGroupe.map(([groupe, entrees]) =>
             entrees.length === 0 ? null : (
-              <li key={groupe} className="vx-palette-group" role="presentation">
+              <div key={groupe} className="vx-palette-group" role="group" aria-label={groupe}>
                 <p className="vx-palette-group-title">{groupe}</p>
-                <ul role="presentation">
-                  {entrees.map((resultat) => {
-                    const index = resultats.indexOf(resultat);
-                    return (
-                      <li
-                        key={resultat.id}
-                        id={`${listeId}-${index}`}
-                        className="vx-palette-item"
-                        role="option"
-                        aria-selected={index === actif}
-                        data-active={index === actif ? 'true' : 'false'}
-                        onMouseEnter={() => {
-                          setActif(index);
-                        }}
-                        onMouseDown={(evenement) => {
-                          evenement.preventDefault();
-                          ouvrir(resultat);
-                        }}
-                      >
-                        <span className="vx-palette-item-label">{resultat.label}</span>
-                        <span className="vx-palette-item-detail">{resultat.detail}</span>
-                      </li>
-                    );
-                  })}
-                </ul>
-              </li>
+                {entrees.map((resultat) => {
+                  const index = resultats.indexOf(resultat);
+                  return (
+                    <div
+                      key={resultat.id}
+                      id={`${listeId}-${index}`}
+                      className="vx-palette-item"
+                      role="option"
+                      // `aria-activedescendant` porte le focus virtuel depuis le
+                      // champ : l'option ne prend jamais le focus réel, et
+                      // `-1` la garde hors de l'ordre de tabulation.
+                      tabIndex={-1}
+                      aria-selected={index === actif}
+                      data-active={index === actif ? 'true' : 'false'}
+                      onMouseEnter={() => {
+                        setActif(index);
+                      }}
+                      onMouseDown={(evenement) => {
+                        evenement.preventDefault();
+                        ouvrir(resultat);
+                      }}
+                    >
+                      <span className="vx-palette-item-label">{resultat.label}</span>
+                      <span className="vx-palette-item-detail">{resultat.detail}</span>
+                    </div>
+                  );
+                })}
+              </div>
             ),
           )}
-        </ul>
+        </div>
 
         {/*
           Deux silences DIFFÉRENTS, et les confondre serait mentir : « aucun

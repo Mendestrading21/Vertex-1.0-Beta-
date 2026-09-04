@@ -501,4 +501,80 @@ describe('Page Options — états', () => {
     await renderOptions();
     await screen.findByText('Erreur de données');
   });
+
+  it('affiche le SPOT SERVI à sa place, et ne classe aucun strike « à la monnaie »', async () => {
+    repondre(jsonResponse(makeOptionChain()));
+    await renderOptions();
+    const repere = await screen.findByText('spot servi');
+    expect(repere).toBeTruthy();
+    // Aucun champ ne classe un strike ATM : ce rangement est un jugement du
+    // moteur. La table place une valeur PUBLIÉE sur un axe publié, elle
+    // n'invente pas une catégorie.
+    const table = screen.getByRole('table', { name: /Chaîne d’options|Chaîne d'options/ });
+    expect(table.textContent).not.toMatch(/\bATM\b/);
+    expect(table.textContent).not.toMatch(/à la monnaie/i);
+  });
+
+  it('propose les DOUZE colonnes servies, et en affiche six par défaut', async () => {
+    const user = userEvent.setup();
+    repondre(jsonResponse(makeOptionChain()));
+    await renderOptions();
+    const selecteur = await screen.findByText(/Colonnes affichées : 4 sur 12 servies/);
+    await user.click(selecteur);
+    // `volume` et `open_interest` étaient servis et jetés jusqu'ici.
+    expect(screen.getByRole('checkbox', { name: /Volume/ })).toBeTruthy();
+    expect(screen.getByRole('checkbox', { name: /Open interest/ })).toBeTruthy();
+    expect(screen.getByRole('checkbox', { name: /Gamma/ })).toBeTruthy();
+  });
+
+  it('DIT ce que le contrat ne publie pas, au lieu de laisser croire à un oubli', async () => {
+    const user = userEvent.setup();
+    repondre(jsonResponse(makeOptionChain()));
+    await renderOptions();
+    await user.click(await screen.findByText(/Colonnes affichées/));
+    expect(screen.getByText('Non publiées par le contrat')).toBeTruthy();
+    expect(screen.getByText('Spread')).toBeTruthy();
+    // Le motif nomme la règle, pas seulement l'absence.
+    expect(screen.getByText(/calcul financier dans le navigateur/)).toBeTruthy();
+  });
+
+  it('plafonne les colonnes sans jamais bloquer le RETRAIT', async () => {
+    const user = userEvent.setup();
+    repondre(jsonResponse(makeOptionChain()));
+    await renderOptions();
+    await user.click(await screen.findByText(/Colonnes affichées/));
+
+    // On ajoute jusqu'au plafond. Le test ne suppose PAS la taille du défaut :
+    // il coche des colonnes tant qu'il en reste à cocher, ce qui le rend
+    // insensible à un changement de sélection par défaut — c'est justement ce
+    // qui l'avait cassé la première fois.
+    const aAjouter = ['Volume', 'Open interest', 'Gamma', 'Vega', 'Rho / bp'];
+    const ajoutees: string[] = [];
+    for (const nom of aAjouter) {
+      const cocher = screen.getByRole('checkbox', { name: new RegExp(nom) }) as HTMLInputElement;
+      if (cocher.disabled) {
+        break;
+      }
+      await user.click(cocher);
+      ajoutees.push(nom);
+    }
+    expect(screen.getByText(/Colonnes affichées : 7 sur 12 servies/)).toBeTruthy();
+    expect(screen.getByText(/Sept colonnes par côté au maximum/)).toBeTruthy();
+
+    // Au plafond, on ne peut plus AJOUTER…
+    const restante = aAjouter.find((nom) => !ajoutees.includes(nom));
+    expect(restante, 'le plafond doit laisser au moins une colonne non cochée').toBeDefined();
+    expect(
+      (screen.getByRole('checkbox', { name: new RegExp(restante!) }) as HTMLInputElement).disabled,
+    ).toBe(true);
+
+    // …mais on peut toujours RETIRER : on ne piège pas l'utilisateur dans une
+    // sélection saturée.
+    const derniere = ajoutees[ajoutees.length - 1]!;
+    const cochee = screen.getByRole('checkbox', { name: new RegExp(derniere) }) as HTMLInputElement;
+    expect(cochee.disabled).toBe(false);
+    await user.click(cochee);
+    expect(screen.getByText(/Colonnes affichées : 6 sur 12 servies/)).toBeTruthy();
+  });
+
 });

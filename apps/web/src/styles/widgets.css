@@ -2984,3 +2984,369 @@
   color: var(--vx-text-secondary);
   font-size: var(--vx-font-size-meta);
 }
+
+/* ==========================================================================
+   CHAÎNE D'OPTIONS — colonnes servies, en-tête et strike collants, repère de
+   spot. Cette famille vit dans widgets.css, importé APRÈS global.css : les
+   règles héritées `.vx-chain-*` y sont encore, et à spécificité égale c'est
+   l'ordre source qui tranche.
+   ========================================================================== */
+
+.vx-chain {
+  display: flex;
+  flex-direction: column;
+  gap: var(--vx-space-12);
+  min-width: 0;
+}
+
+/* --- sélecteur de colonnes --- */
+
+.vx-chain-columns > summary {
+  color: var(--vx-text-secondary);
+  font-size: var(--vx-font-size-meta);
+  cursor: pointer;
+}
+
+.vx-chain-columns > summary:hover {
+  color: var(--vx-text);
+}
+
+.vx-chain-columns-body {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--vx-space-16);
+  margin-top: var(--vx-space-8);
+  padding: var(--vx-space-12);
+  border: 1px solid var(--vx-border-soft);
+  border-radius: var(--vx-radius-10);
+  background-color: var(--vx-surface-1);
+}
+
+.vx-chain-columns-group {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+.vx-chain-columns-group > legend {
+  padding: 0 0 var(--vx-space-4);
+  color: var(--vx-text-muted);
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-meta);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.vx-chain-column-option {
+  display: flex;
+  gap: var(--vx-space-8);
+  align-items: baseline;
+  padding: 2px 0;
+  color: var(--vx-text-secondary);
+  font-size: var(--vx-font-size-meta);
+  cursor: pointer;
+}
+
+.vx-chain-column-option:has(input:disabled) {
+  color: var(--vx-text-muted);
+  cursor: not-allowed;
+}
+
+.vx-chain-column-unit {
+  color: var(--vx-text-muted);
+}
+
+.vx-chain-columns-cap,
+.vx-chain-columns-absent {
+  flex: 1 0 100%;
+  margin: 0;
+  padding-top: var(--vx-space-8);
+  border-top: 1px solid var(--vx-border-soft);
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-chain-columns-absent-title {
+  margin: 0 0 var(--vx-space-4);
+  color: var(--vx-text-secondary);
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-meta);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.vx-chain-columns-absent dl {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 2px var(--vx-space-12);
+  margin: 0;
+}
+
+.vx-chain-columns-absent dl > div {
+  display: contents;
+}
+
+.vx-chain-columns-absent dt {
+  color: var(--vx-text-secondary);
+}
+
+.vx-chain-columns-absent dd {
+  margin: 0;
+}
+
+/* --- en-tête collant ET colonne de strike collante ---
+   La chaîne était la SEULE table dense du produit sans en-tête collant : au
+   douzième strike, on ne savait plus quelle colonne on lisait. Le strike colle
+   aussi horizontalement, parce que c'est l'axe : perdre le strike en défilant
+   vers les puts rend la ligne illisible. */
+
+.vx-chain-table-scroll {
+  max-height: 520px;
+  overflow: auto;
+  border: 1px solid var(--vx-border-soft);
+  border-radius: var(--vx-radius-10);
+}
+
+.vx-chain-table thead th {
+  position: sticky;
+  z-index: 2;
+  background-color: var(--vx-surface-1);
+}
+
+.vx-chain-table thead tr:first-child th {
+  top: 0;
+}
+
+/* La seconde rangée d'en-tête se cale SOUS la première : sans ce décalage
+   elles se superposeraient au défilement. */
+.vx-chain-table thead tr:nth-child(2) th {
+  top: var(--vx-space-24);
+}
+
+.vx-chain-table .vx-chain-strike,
+.vx-chain-table .vx-chain-strike-head {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background-color: var(--vx-surface-2);
+  border-left: 1px solid var(--vx-border);
+  border-right: 1px solid var(--vx-border);
+}
+
+.vx-chain-table .vx-chain-strike-head {
+  z-index: 3;
+}
+
+.vx-chain-head-unit {
+  display: block;
+  color: var(--vx-text-muted);
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-meta);
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.vx-chain-caption {
+  display: table-caption;
+  padding: var(--vx-space-8) var(--vx-space-16) var(--vx-space-12);
+  color: var(--vx-text);
+  font-size: var(--vx-font-size-title);
+  text-align: left;
+  caption-side: top;
+}
+
+.vx-chain-caption-detail {
+  display: block;
+  margin-top: 2px;
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+}
+
+/* --- ligne sélectionnée --- */
+
+.vx-chain-table tbody tr[data-selected='true'] > * {
+  background-color: var(--vx-signal-faint);
+}
+
+/* --- repère de spot SERVI ---
+   Ce n'est pas un badge « ATM » : aucun champ ne classe un strike à la monnaie,
+   et ce rangement est un jugement du moteur. C'est une valeur PUBLIÉE posée à
+   sa place sur un axe publié. D'où le trait plein et le libellé explicite. */
+
+.vx-chain-spot > td {
+  padding: var(--vx-space-4) var(--vx-space-16);
+  border-top: 2px solid var(--vx-signal);
+  border-bottom: 1px solid var(--vx-signal-soft);
+  background-color: var(--vx-signal-faint);
+}
+
+.vx-chain-spot-label {
+  margin-right: var(--vx-space-8);
+  color: var(--vx-signal);
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-meta);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.vx-chain-spot-unit {
+  margin-left: var(--vx-space-4);
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-chain-spot-when {
+  margin-left: var(--vx-space-12);
+  color: var(--vx-text-muted);
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-meta);
+}
+
+/* --- LARGEUR NATURELLE PLUTÔT QUE COMPRESSION ---
+   La chaîne était forcée à tenir dans son conteneur : avec douze colonnes
+   servies, chaque cellule tombait sous sa largeur utile et `text-overflow`
+   coupait les valeurs — une IV rendue « 0.18… » n'est plus une donnée, et la
+   pastille de statut se réduisait à sa bordure gauche, ce qui ressemblait à
+   une parenthèse égarée. La table prend donc sa largeur NATURELLE et le
+   conteneur défile horizontalement ; la colonne de strike reste collante, ce
+   qui rend ce défilement lisible — c'est la façon dont un desk d'options se
+   consulte. */
+.vx-chain-table {
+  width: max-content;
+  min-width: 100%;
+  /* `table-layout: fixed` (global.css) tirait la largeur des colonnes de la
+     PREMIÈRE rangée — or celle-ci ne contient que trois cellules : « Calls »
+     sur cinq colonnes, le strike, « Puts » sur cinq colonnes. Les colonnes
+     étaient donc dimensionnées sur des groupes, jamais sur leur contenu, et
+     l'en-tête ne tombait plus en face du corps. En chasse automatique, chaque
+     colonne prend la largeur de ce qu'elle contient — et le contenu est
+     désormais BORNÉ par le plafond posé sur `.vx-num`, qui agit enfin. La
+     raison d'être de la chasse fixe (« une IV à seize décimales élargit sa
+     colonne ») est donc traitée à la source, sur la valeur. */
+  table-layout: auto;
+}
+
+/* La valeur garde un plafond — une IV à seize décimales détruirait l'alignement
+   de la colonne — mais elle est maintenant assez large pour être LUE, et la
+   chaîne exacte reste dans l'infobulle et l'inspecteur. */
+.vx-chain-table .vx-num {
+  max-width: 14ch;
+}
+
+/* La pastille de statut ne se laisse jamais rogner : elle porte le seul mot qui
+   dit qu'une cotation n'est pas saine. Elle se place SOUS le nombre plutôt qu'à
+   côté : accolée, elle élargissait sa colonne de 117 px contre 94 pour les
+   autres — le nombre sortait de l'alignement de la colonne alors que
+   l'alignement EST ce qui rend une chaîne comparable. Dessous, la colonne
+   garde sa largeur de nombre et le statut reste entier. */
+.vx-chain-table .vx-quote-status {
+  display: block;
+  overflow: visible;
+  margin-top: 2px;
+  white-space: nowrap;
+}
+
+/* --- LARGEURS PAR NATURE DE COLONNE ---
+   Toutes les colonnes n'ont pas la même largeur utile. Une cotation tient en
+   huit caractères ; une IV servie sur seize décimales n'en tiendra jamais, et
+   lui donner la même place qu'aux autres poussait la table hors de son
+   conteneur — le strike se retrouvait alors hors du champ à l'ouverture, alors
+   qu'il est l'axe de lecture. Les sensibilités sont donc bornées plus court,
+   la valeur exacte restant dans l'infobulle et dans l'inspecteur. */
+.vx-chain-table td[data-col='bid'] .vx-num,
+.vx-chain-table td[data-col='ask'] .vx-num,
+.vx-chain-table td[data-col='bid_size'] .vx-num,
+.vx-chain-table td[data-col='ask_size'] .vx-num,
+.vx-chain-table td[data-col='volume'] .vx-num,
+.vx-chain-table td[data-col='open_interest'] .vx-num {
+  max-width: 9ch;
+}
+
+/* Huit caractères, MESURÉ. Le worker publie l'IV en flottant complet —
+   `0.1848147947607191`, dix-huit caractères. À onze, la chaîne mesurait 998 px
+   dans un conteneur de 879 : les puts s'ouvraient hors du champ. À huit, elle
+   tient, et « 0.184814… » porte cinq chiffres significatifs — de quoi comparer
+   deux strikes, ce qui est la fonction de cette table. La valeur EXACTE reste
+   au survol et dans l'inspecteur ; elle n'est jamais arrondie, seulement
+   bornée au rendu. */
+.vx-chain-table td[data-col='iv'] .vx-num,
+.vx-chain-table td[data-col='delta'] .vx-num,
+.vx-chain-table td[data-col='gamma'] .vx-num,
+.vx-chain-table td[data-col='vega'] .vx-num,
+.vx-chain-table td[data-col='theta_per_calendar_day'] .vx-num,
+.vx-chain-table td[data-col='rho_per_bp'] .vx-num {
+  max-width: 8ch;
+}
+
+/* --- LA LIGNE DE REPÈRE DU SPOT ---
+   Elle héritait de `text-align: right` comme toute cellule de la chaîne : son
+   contenu partait à l'extrémité droite d'une table de quinze colonnes, donc
+   hors du champ visible. Elle s'aligne à gauche et COLLE au bord gauche du
+   conteneur, de sorte que le spot reste lisible quel que soit le défilement
+   horizontal — c'est le repère, il ne doit jamais sortir de l'écran. */
+.vx-chain-spot > td {
+  text-align: left;
+}
+
+/* UN SEUL élément collant, qui porte les autres. Chaque morceau collant au
+   même `left` se superposait aux autres : le libellé et le nombre se
+   chevauchaient à l'écran — « spot servi366.08 ». Le conteneur colle, son
+   contenu s'aligne normalement à l'intérieur. */
+.vx-chain-spot-inner {
+  position: sticky;
+  left: var(--vx-space-16);
+  display: inline-flex;
+  gap: var(--vx-space-8);
+  align-items: baseline;
+}
+
+/* --- LE PLAFOND DE LARGEUR N'AGISSAIT PAS ---
+   `.vx-num` est un `<code>`, donc un élément INLINE non remplacé : `max-width`
+   ne s'y applique pas, et `text-overflow` non plus. La règle héritée
+   `max-width: 12ch` était donc inerte depuis toujours, et la troncature qu'on
+   observait venait de la COMPRESSION de la table, pas d'un plafond. Mesuré :
+   valeur d'IV rendue à 149 px pour un plafond calculé à 86 px, table à 1755 px
+   dans un conteneur de 879. `inline-block` rend le plafond effectif. */
+.vx-chain-table .vx-num {
+  display: inline-block;
+  vertical-align: bottom;
+}
+
+/* Les en-têtes se replient plutôt que d'imposer leur largeur à la colonne :
+   « par unité de spot » sur une seule ligne élargissait la colonne DELTA bien
+   au-delà de ce que ses valeurs demandent, et poussait les puts hors du champ.
+   La phrase complète reste dans la définition, accessible en infobulle. */
+.vx-chain-table thead th {
+  max-width: 12ch;
+  white-space: normal;
+}
+
+.vx-chain-table thead th.vx-chain-side-head {
+  max-width: none;
+}
+
+/* --- DENSITÉ DE DESK ---
+   Dix cellules par ligne à 8 px de marge de chaque côté, c'est 160 px de
+   respiration pure : les puts sortaient du champ pour du blanc. La chaîne est
+   la table la plus dense du produit et prend la densité qui va avec — les
+   valeurs restent alignées, c'est l'alignement qui porte la lisibilité, pas
+   l'espacement. */
+.vx-chain-table th,
+.vx-chain-table td {
+  padding: var(--vx-space-4);
+}
+
+.vx-chain-table .vx-chain-strike {
+  padding: var(--vx-space-4) var(--vx-space-8);
+}
+
+/* Le bouton de détail garde son nom accessible complet et rétrécit à l'écran :
+   son libellé visible est court, `aria-label` porte l'identité entière du
+   contrat. */
+.vx-chain-inspect {
+  padding: 0 var(--vx-space-4);
+  font-size: var(--vx-font-size-meta);
+  white-space: nowrap;
+}
