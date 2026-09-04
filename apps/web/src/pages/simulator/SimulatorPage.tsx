@@ -22,6 +22,7 @@ import {
   rejectionViewOf,
 } from './simulatorView.ts';
 import { parseSimulatorTransfer } from './transfer.ts';
+import { pageAccentAttrs } from '../../components/widgets/pageAccent.ts';
 
 /**
  * Page Simulateur (`TL / 06`) — question : « Comment une structure
@@ -187,7 +188,7 @@ export function SimulatorPage() {
   }
 
   return (
-    <article className="vx-page" aria-labelledby="vx-page-title-simulator">
+    <article className="vx-page" {...pageAccentAttrs('simulator')} aria-labelledby="vx-page-title-simulator">
       <div className="vx-page-header">
         <h1 id="vx-page-title-simulator">Simulateur</h1>
         <p className="vx-page-question">

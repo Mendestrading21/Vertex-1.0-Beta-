@@ -25,6 +25,7 @@ import {
 } from './ChartsModules.tsx';
 import { useDeclaredInstruments } from '../devUniverse.ts';
 import { absentModules, chartsModule, comparisonViewOf } from './chartsView.ts';
+import { pageAccentAttrs } from '../../components/widgets/pageAccent.ts';
 
 /**
  * Page Graphiques (`TL / 08`) — question : « Quelles relations puis-je
@@ -418,7 +419,7 @@ export function ChartsPage() {
   const { instrument } = useParams<{ instrument?: string }>();
 
   return (
-    <article className="vx-page" data-page-accent="macro" aria-labelledby="vx-page-title-charts">
+    <article className="vx-page" {...pageAccentAttrs('charts')} aria-labelledby="vx-page-title-charts">
       <div className="vx-page-header">
         <h1 id="vx-page-title-charts">Graphiques</h1>
         <p className="vx-page-question">

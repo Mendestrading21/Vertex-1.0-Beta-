@@ -27,6 +27,7 @@ import {
 import { riskModule } from './riskModules.ts';
 import { BAND_LABELS, riskViewOf } from './riskView.ts';
 import type { RiskView } from './riskView.ts';
+import { pageAccentAttrs } from '../../components/widgets/pageAccent.ts';
 
 /**
  * Page Risques (`TL / 09`) — question : « Qu'est-ce qui bouge ensemble dans
@@ -245,7 +246,7 @@ export function RiskPage() {
   const moduleState = moduleStateOf(state, data);
 
   return (
-    <article className="vx-page" data-page-accent="macro" aria-labelledby="vx-page-title-risk">
+    <article className="vx-page" {...pageAccentAttrs('risks')} aria-labelledby="vx-page-title-risk">
       <div className="vx-page-header">
         <h1 id="vx-page-title-risk">Risques</h1>
         <p className="vx-page-question">

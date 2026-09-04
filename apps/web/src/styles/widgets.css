@@ -1907,3 +1907,30 @@
     grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 }
+
+/* ===========================================================================
+   LOT P3a — LA TEINTE DE PAGE CESSE D'ÊTRE UNE DÉCLARATION MORTE
+   ---------------------------------------------------------------------------
+   `PAGE_ACCENTS` déclarait cinq teintes depuis l'ADR-017. UNE seule page
+   posait l'attribut, en dur, sans lien avec la table — et AUCUNE règle CSS ne
+   lisait `--vx-page-accent`. Un jeton que personne ne lit n'existe pas.
+
+   LE SEUL CONSOMMATEUR, ET C'EST VOULU. Le sourcil de la page — la petite
+   ligne capitale au-dessus du titre. Il ne porte aucune valeur, aucun signe,
+   aucun statut : le colorer ne rend donc RIEN dépendant de la couleur seule,
+   et le titre juste en dessous dit la même chose en toutes lettres.
+
+   MESURÉ, pas supposé : sur `--vx-surface-0`, la famille `macro` donne un
+   contraste de 9,58:1 et `option` de 6,92:1 — au-dessus du 4,5:1 exigé, et
+   au-dessus du `--vx-text-muted` (5,84:1) qu'elles remplacent. La teinte
+   AMÉLIORE le contraste du sourcil, elle ne le dégrade pas. Les valeurs
+   elles-mêmes vivent dans `src/design/tokens.ts` — les recopier ici en
+   hexadécimal serait une seconde source, et la porte `no-raw-colors` a
+   raison de le refuser : elle l'a refusé.
+
+   L'ambre reste la seule lumière de la dominante : cette règle ne touche ni
+   une carte, ni un fond, ni une figure.
+   =========================================================================== */
+.vx-page[data-page-accent] .vx-page-eyebrow {
+  color: var(--vx-page-accent);
+}
