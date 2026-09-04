@@ -1,5 +1,46 @@
-import type { AdviceView } from './analysisView.ts';
+import { StepList } from '../../components/widgets/StepList.tsx';
+import type { Step, StepEvidence } from '../../components/widgets/StepList.tsx';
+import type { StatusChipTone } from '../../components/widgets/StatusChip.tsx';
+import type { AdviceView, GateView } from './analysisView.ts';
 import { ADVICE_STATUS_FR, DIRECTION_FR } from './analysisView.ts';
+
+/**
+ * Teintes des trois statuts de gate SERVIS. Vocabulaire FERMÉ : un statut hors
+ * de ce dictionnaire reste neutre plutôt que d'emprunter une couleur au
+ * hasard. La correspondance reprend celle que `.vx-gate-status` applique
+ * depuis le LOT-A4 — une seule signification par couleur.
+ */
+const GATE_TONES: Readonly<Record<string, StatusChipTone>> = {
+  PASS: 'positive',
+  DEGRADE: 'warning',
+  BLOCK: 'negative',
+};
+
+/**
+ * LOT P2b — LA PREUVE ÉTAIT SERVIE ET INVISIBLE. `GateResult` publie
+ * `observed_values` et `thresholds` (`contracts/decision.py`), le moteur les
+ * remplit à chaque point de retour et le worker les publie entiers. La page
+ * n'en lisait rien : le lecteur voyait « BLOCK / UNEVALUABLE » sans jamais
+ * savoir CE QUE la gate avait regardé.
+ *
+ * Rien n'est calculé ici : les couples servis sont relayés dans l'ordre du
+ * serveur, à leur valeur publiée.
+ */
+function gateStep(gate: GateView): Step {
+  const evidence: StepEvidence[] = [
+    { title: 'Observé', facts: gate.observedValues },
+    { title: 'Seuils', facts: gate.thresholds },
+  ];
+  return {
+    id: gate.gateId,
+    label: gate.gateId,
+    status: gate.status,
+    tone: GATE_TONES[gate.status] ?? 'neutral',
+    code: gate.reasonCode,
+    evidence,
+    ...(gate.message === '' ? {} : { detail: gate.message }),
+  };
+}
 
 /**
  * Le verdict de l'unique `AdviceEngine`, relayé : statut canonique et
@@ -77,18 +118,12 @@ export function AdviceCard({ advice }: { readonly advice: AdviceView | null }) {
         <summary>
           Gates : {advice.gates.length} évaluées, {blockedGates.length} non passées (fail-closed)
         </summary>
-        <ul>
-          {advice.gates.map((gate) => (
-            <li key={gate.gateId} data-status={gate.status}>
-              <code>{gate.gateId}</code>{' '}
-              <span className="vx-gate-status" data-status={gate.status}>
-                {gate.status}
-              </span>{' '}
-              — <code>{gate.reasonCode}</code>
-              {gate.message !== '' ? ` : ${gate.message}` : null}
-            </li>
-          ))}
-        </ul>
+        <StepList
+          ordered
+          ariaLabel="Gates de décision publiées, avec leur preuve servie"
+          steps={advice.gates.map(gateStep)}
+          emptyLabel="Aucune gate publiée dans cet AdviceResult."
+        />
       </details>
 
       {advice.limitations.length > 0 ? (

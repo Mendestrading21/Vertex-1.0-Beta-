@@ -46,7 +46,13 @@ function jsonResponse(body: unknown, status = 200): Response {
   });
 }
 
-function servir(overrides: { readonly sec?: unknown; readonly calendar?: unknown } = {}): void {
+function servir(
+  overrides: {
+    readonly sec?: unknown;
+    readonly calendar?: unknown;
+    readonly analysis?: unknown;
+  } = {},
+): void {
   fetchMock.mockImplementation((entree: unknown) => {
     const url = typeof entree === 'string' ? entree : String((entree as Request).url);
     if (url.includes('/markets/overview')) {
@@ -66,7 +72,7 @@ function servir(overrides: { readonly sec?: unknown; readonly calendar?: unknown
     if (url.includes('/sources/sec/')) {
       return Promise.resolve(jsonResponse(overrides.sec ?? makeEmptySecFundamentals()));
     }
-    return Promise.resolve(jsonResponse(makeAnalysis()));
+    return Promise.resolve(jsonResponse(overrides.analysis ?? makeAnalysis()));
   });
 }
 
@@ -106,16 +112,90 @@ describe('Page Analyse — composition (LOT-A4)', () => {
     expect(dominantes[0]?.getAttribute('data-module')).toBe('chart');
   });
 
-  it('les huit modules absents portent leur motif fermé, sans chiffre dans le corps', async () => {
+  it('les SEPT modules absents portent leur motif fermé, sans chiffre dans le corps', async () => {
+    // LOT P2 — huit → sept : `oscillators` n'est plus absent, le worker les
+    // publie depuis le LOT-S6. Même assertion, sur un compte devenu juste.
     servir();
     await renderAnalysis();
-    expect(absentAnalysisModules()).toHaveLength(8);
+    expect(absentAnalysisModules()).toHaveLength(7);
     for (const module of absentAnalysisModules()) {
       const zone = cellule(module.id);
       expect(zone.getByRole('heading', { level: 3, name: module.title })).toBeDefined();
       expect(zone.getByText(ABSENCE_REASONS[module.status.reason].label)).toBeDefined();
       expect(zone.getByTestId('absent-body').textContent).not.toMatch(/\d/);
     }
+  });
+
+  it('LOT P2 — les oscillateurs SERVIS sont affichés, plus déclarés absents', async () => {
+    // L'ABSENCE AVAIT CESSÉ D'ÊTRE VRAIE. Le module affirmait « le registre des
+    // calculs ne publie aucun oscillateur » ; le worker publie RSI et MACD
+    // depuis le LOT-S6, et Graphiques les affiche déjà. Ce test sert le bloc
+    // exactement comme le worker le publie et exige qu'il atteigne l'écran.
+    const base = makeAnalysis() as Record<string, unknown>;
+    const contenu = base as { indicators?: Record<string, unknown> };
+    servir({
+      analysis: {
+        ...base,
+        indicators: {
+          ...(contenu.indicators ?? {}),
+          oscillators: {
+            rsi: {
+              status: 'OK',
+              unit: 'index_0_100',
+              calculation: {
+                calculation_id: 'market.rsi',
+                method: 'Wilder smoothing over 14 sessions',
+                engine_version: 'vertex_core@0.1.0',
+                status: 'OK',
+              },
+              parameters: { window: 14 },
+              points: [
+                { trading_day: '2026-09-03', value: '52.1' },
+                { trading_day: '2026-09-04', value: '58.4' },
+              ],
+            },
+            macd: {
+              status: 'OK',
+              unit: 'price',
+              calculation: {
+                calculation_id: 'market.macd',
+                method: 'EMA(12) − EMA(26), signal EMA(9)',
+                engine_version: 'vertex_core@0.1.0',
+                status: 'OK',
+              },
+              parameters: { fast: 12, slow: 26, signal: 9 },
+              // Forme RÉELLE du worker (`analysis.py:1127`) : `lines` déclare
+              // les NOMS, `series` porte les données. La deviner autrement
+              // aurait fait passer un test sur une forme que personne ne sert.
+              lines: ['macd', 'signal'],
+              series: {
+                macd: [
+                  { trading_day: '2026-09-03', value: '1.10' },
+                  { trading_day: '2026-09-04', value: '1.35' },
+                ],
+                signal: [
+                  { trading_day: '2026-09-03', value: '0.90' },
+                  { trading_day: '2026-09-04', value: '1.05' },
+                ],
+              },
+            },
+          },
+        },
+      },
+    });
+    await renderAnalysis();
+
+    const zone = cellule('oscillators');
+    // Le module n'est plus une carte d'absence.
+    expect(zone.queryByTestId('absent-body')).toBeNull();
+    // Le RSI prend l'arc PARCE QUE le serveur déclare l'échelle bornée.
+    expect(zone.getByTestId('analysis-rsi')).toBeDefined();
+    expect(zone.getByRole('meter')).toBeDefined();
+    // Le MACD n'a pas d'échelle déclarée : ses dernières valeurs servies se
+    // lisent telles quelles, sans forme inventée.
+    expect(zone.getByTestId('analysis-macd')).toBeDefined();
+    expect(zone.getByText('1.35')).toBeDefined();
+    expect(zone.getByText('1.05')).toBeDefined();
   });
 
   it('l’en-tête porte la clôture PUBLIÉE du dossier, la variation 1 j de Marchés et une série tracée', async () => {

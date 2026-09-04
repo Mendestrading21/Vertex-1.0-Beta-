@@ -18,6 +18,7 @@ import {
   IdentityModule,
   InstrumentHeaderModule,
   KeyRisksModule,
+  OscillatorsModule,
   PeersModule,
 } from './AnalysisModules.tsx';
 import { CandleChart } from './CandleChart.tsx';
@@ -285,7 +286,12 @@ function AnalysisBoard({
             <IndicatorsPanel indicators={data.indicators} currency={currency} />
           )}
         </div>
-        <AbsentAnalysisModule id="oscillators" />
+        {/* LOT P2 — L'AVEU DEVENU FAUX. Ce module déclarait « le registre des
+            calculs ne publie aucun oscillateur » ; le worker en publie deux
+            depuis le LOT-S6, et Graphiques les affiche déjà. */}
+        <div data-module="oscillators">
+          <OscillatorsModule indicators={data.indicators} />
+        </div>
         <AbsentAnalysisModule id="analyst-revisions" />
 
         <div data-module="verdict">

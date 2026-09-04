@@ -560,6 +560,17 @@ export function makeAnalysisAdvice(overrides: Record<string, unknown> = {}): Rec
     direction: 'UNKNOWN',
     horizon: '1d',
     risk_summary: 'SYNTHETIC development data; deterministic fixtures',
+    // LOT P2b — LA PREUVE SERVIE, AUX FORMES EXACTES DU MOTEUR.
+    // `observed_values` et `thresholds` sont recopiés des points de retour de
+    // `vertex_core/decision/gates.py`, pas devinés :
+    //   · `instrument_resolved` DEGRADE publie `identity_status` + un BOOLÉEN
+    //     `resolved_with_conid: false` (gates.py:126-136) ;
+    //   · `_unevaluable` (gates.py:62-69) ne publie NI observé NI seuil —
+    //     c'est le cas qui prouve qu'un groupe vide n'est pas rendu ;
+    //   · `snapshot_fresh_and_coherent` publie `quality` + `fresh`
+    //     (gates.py:238).
+    // Un `false` deviné en chaîne `'false'` aurait fait passer le test sur une
+    // forme que le serveur ne publie pas.
     gates: [
       {
         gate_id: 'instrument_resolved',
@@ -567,6 +578,8 @@ export function makeAnalysisAdvice(overrides: Record<string, unknown> = {}): Rec
         status: 'DEGRADE',
         reason_code: 'RESOLVED_WITHOUT_CONID',
         message: 'identity resolved without an IBKR con_id confirmation',
+        observed_values: { identity_status: 'RESOLVED', resolved_with_conid: false },
+        thresholds: {},
       },
       {
         gate_id: 'entitlements_sufficient',
@@ -574,6 +587,8 @@ export function makeAnalysisAdvice(overrides: Record<string, unknown> = {}): Rec
         status: 'BLOCK',
         reason_code: 'UNEVALUABLE',
         message: 'capability_status is missing or invalid',
+        observed_values: {},
+        thresholds: {},
       },
       {
         gate_id: 'snapshot_fresh_and_coherent',
@@ -581,6 +596,8 @@ export function makeAnalysisAdvice(overrides: Record<string, unknown> = {}): Rec
         status: 'PASS',
         reason_code: 'FRESH_AND_COHERENT',
         message: 'snapshot is fresh and coherent',
+        observed_values: { quality: 'GOOD', fresh: true },
+        thresholds: {},
       },
     ],
     limitations: ['SYNTHETIC development population'],

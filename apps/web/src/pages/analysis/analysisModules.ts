@@ -71,12 +71,19 @@ export const ANALYSIS_MODULES: readonly AnalysisModule[] = [
     size: 'S',
     variant: 'support',
     title: 'Oscillateurs',
-    question: 'RSI, MACD, stochastique : que disent-ils ?',
-    status: {
-      kind: 'absent',
-      reason: 'NO_SOURCE',
-      note: 'Le registre des calculs ne publie aucun oscillateur ; en dériver un dans le navigateur serait le calcul financier interdit en TypeScript.',
-    },
+    question: 'RSI et MACD : que disent les oscillateurs publiés ?',
+    /**
+     * LOT P2 — CETTE ABSENCE A CESSÉ D'ÊTRE VRAIE. Elle affirmait « le
+     * registre des calculs ne publie aucun oscillateur ». C'était exact avant
+     * le LOT-S6 ; depuis, le worker publie `indicators.oscillators` avec le
+     * RSI et le MACD, chacun portant sa série rendue en chaînes, sa méthode,
+     * ses paramètres et sa lignée. La page Graphiques les affiche déjà.
+     *
+     * Le stochastique, lui, reste non publié — et c'est pourquoi la question
+     * du module ne le nomme plus : elle promettait une mesure que personne ne
+     * sert.
+     */
+    status: { kind: 'served', contract: `${DOSSIER} — indicators.oscillators (rsi, macd)` },
   },
   {
     id: 'regime',

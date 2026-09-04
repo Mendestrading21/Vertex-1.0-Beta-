@@ -316,6 +316,16 @@
   height: auto;
 }
 
+/* LOT P2 — LES BORNES TIENNENT LES BORDS DE L'ARC. `.vx-w2-arc` est une
+   grille en `justify-items: center` : la ligne des bornes s'y réduisait à son
+   contenu (44 px mesurés dans un arc de 220), et son `space-between` n'avait
+   plus d'espace à répartir — « 0 » et « 100 » se retrouvaient collés au
+   milieu, sous le centre de l'arc plutôt qu'à ses extrémités. */
+.vx-w2-arc .vx-w2-gauge-bounds {
+  justify-self: stretch;
+  width: 100%;
+}
+
 .vx-w2-arc-rail {
   fill: none;
   stroke: var(--vx-titanium-soft);
@@ -908,6 +918,63 @@
   margin: 0;
   font-size: var(--vx-font-size-meta);
   color: var(--vx-text-muted);
+}
+
+/* LOT P2b — LA PREUVE D'UNE ÉTAPE. `observed_values` et `thresholds` sont
+   servis par chaque gate ; ils se lisent en couples serrés, en chasse fixe,
+   sous le statut. Deux colonnes tant que la largeur le permet, une seule
+   ensuite : une preuve tronquée serait pire qu'une preuve empilée. */
+.vx-w2-step-evidence {
+  display: grid;
+  gap: var(--vx-space-4);
+  padding-left: var(--vx-space-8);
+  border-left: 1px solid var(--vx-border-soft);
+}
+
+.vx-w2-step-evidence-title {
+  margin: 0;
+  font-size: var(--vx-font-size-meta);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--vx-text-muted);
+}
+
+.vx-w2-step-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--vx-space-8) var(--vx-space-16);
+  margin: 0;
+}
+
+/* RELECTURE DE CAPTURE — LA PREMIÈRE FORME ÉTAIT AMBIGUË. Clé et valeur
+   séparées par un `space-between` s'éloignaient jusqu'aux bords de la colonne :
+   sur `fresh … true  quality … GOOD`, la valeur `true` finissait plus près de
+   `quality` que de `fresh`, et un lecteur pouvait la lire sur la mauvaise clé.
+   La paire est donc EMPILÉE : la clé au-dessus, la valeur dessous, toutes deux
+   calées à gauche. Aucun doute d'appariement possible. */
+.vx-w2-step-fact {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.vx-w2-step-fact dt,
+.vx-w2-step-fact dd {
+  margin: 0;
+  min-width: 0;
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-w2-step-fact dt {
+  color: var(--vx-text-muted);
+}
+
+/* La valeur servie n'est jamais coupée : elle passe à la ligne. Un `ellipsis`
+   ferait lire un chiffre tronqué comme un chiffre publié. */
+.vx-w2-step-fact dd {
+  color: var(--vx-text-primary);
+  overflow-wrap: anywhere;
 }
 
 /* --------------------------------------------------------------------------
@@ -1745,4 +1812,34 @@
 .vx-markets-grid > [data-module][data-size='L'],
 .vx-markets-grid > [data-module][data-size='XL'] {
   align-self: stretch;
+}
+
+
+/* ==========================================================================
+   LOT P2 — OSCILLATEURS SUR LE DOSSIER
+   --------------------------------------------------------------------------
+   Le MACD n'a pas d'échelle bornée déclarée : ses lignes servies se lisent
+   telles quelles, sans forme inventée. Une liste de faits, pas des puces de
+   navigateur — et la valeur en chasse fixe garde ses décimales servies, qui
+   ne sont JAMAIS arrondies.
+   ========================================================================== */
+.vx-analysis-osc-lines {
+  margin: var(--vx-space-4) 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--vx-space-4);
+}
+
+.vx-analysis-osc-lines li {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.vx-analysis-osc-lines code {
+  overflow-wrap: anywhere;
+  color: var(--vx-silver);
 }

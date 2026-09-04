@@ -2614,3 +2614,134 @@ resserrés — aucun affaibli.
 
 Le compte de tests passe de 950 à 948 : les deux tests de gouvernance de la
 dette disparaissent avec elle. Aucun test de comportement n'a été retiré.
+
+## SESSION 2026-09-04 — LOT P2a : les oscillateurs servis, enfin affichés sur le dossier
+
+Branche `lot/p2-analyse-oscillateurs-20260904`.
+
+### La deuxième absence devenue fausse
+
+Le module `oscillators` d'Analyse déclarait : « Le registre des calculs ne
+publie aucun oscillateur ; en dériver un dans le navigateur serait le calcul
+financier interdit en TypeScript. »
+
+C'était exact avant le LOT-S6. Depuis, le worker publie
+`indicators.oscillators = {rsi, macd}` — série rendue en chaînes, méthode,
+paramètres, lignée (`analysis.py:972-977`) — et la page Graphiques les affiche
+depuis le LOT P5. **Une absence qui a cessé d'être vraie n'est plus une
+prudence : c'est un mensonge**, et c'est le même défaut que P5 a corrigé sur
+Graphiques.
+
+Compte devenu juste : douze modules servis, sept absents (au lieu de onze et
+huit). L'e2e attendait huit badges d'absence, elle en attend sept.
+
+### Le lecteur est réutilisé, pas recopié
+
+`indicatorFamilyOf` vit dans `pages/charts/chartsView.ts` et consomme le MÊME
+`AnalysisResponse`. Le dupliquer aurait ouvert **deux vérités sur la même
+donnée servie**. Ce que le module écrit lui est propre : sa colonne fait un
+quart de planche, là où Graphiques dispose d'une largeur entière.
+
+### Ce que le module refuse
+
+L'arc n'est posé QUE si le serveur déclare l'échelle (`unit === 'index_0_100'`).
+Toute autre unité refuse la forme et affiche les dernières valeurs servies —
+même règle qu'au LOT P5. Le MACD, dont l'unité est un prix, n'a jamais d'arc :
+ses trois lignes servies se lisent telles quelles, à leur précision publiée,
+jamais arrondies.
+
+### Deux vérifications de capture, dont une qui m'a détrompé
+
+- **Un défaut réel** : les bornes de l'arc faisaient 44 px dans un arc de
+  220 px. `.vx-w2-arc` est une grille en `justify-items: center` ; la ligne des
+  bornes s'y réduisait à son contenu, et son `space-between` n'avait plus
+  d'espace à répartir — « 0 » et « 100 » se retrouvaient collés sous le centre
+  de l'arc au lieu de tenir ses extrémités. Corrigé, mesuré : 179 px.
+- **Un faux défaut** : j'avais lu « méthodeWilder » sur une capture réduite et
+  ajouté un espace explicite. La sonde DOM a montré `méthode <code>Wilder…` —
+  l'espace était là. Correctif retiré : un commentaire qui décrit un défaut
+  inexistant est pire que la coquille qu'il prétend corriger.
+
+### Mesuré
+
+- `tsc` code 0 ; `biome check src` 1 info préexistante ;
+  `vitest run` 91 fichiers / **949 tests** verts ; `npm run build` succès.
+- Playwright, **suite complète** : **543 passés** (8,9 min), code 0.
+
+## SESSION 2026-09-04 — LOT P2b : la preuve chiffrée des dix gates, servie et invisible
+
+Branche `lot/p2-analyse-oscillateurs-20260904` (même branche que P2a, lot suivant).
+
+### Ce que le serveur publiait sans que personne le lise
+
+`GateResult` porte deux dictionnaires depuis l'origine du contrat :
+`observed_values` — ce que la gate a réellement VU — et `thresholds` — la
+configuration qu'elle a comparée (`vertex_core/contracts/decision.py`). Une
+quinzaine de points de retour de `vertex_core/decision/gates.py` les
+remplissent, et le worker les publie ENTIERS
+(`analysis.py`, `advice.model_dump(mode="json")`).
+
+`analysisView.ts` ne lisait que `gate_id`, `version`, `status`, `reason_code`
+et `message`. Le lecteur voyait donc « `minimum_liquidity` · BLOCK ·
+LIQUIDITY_BELOW_MINIMUM » sans jamais savoir quelle liquidité avait été
+observée ni contre quel seuil. La preuve existait, traversait la base, sortait
+de l'API — et mourait dans le navigateur.
+
+### Ce que le lot pose
+
+- `GateEvidenceEntry` dans `analysisView.ts` : relais VERBATIM des scalaires
+  servis, dans l'ORDRE du serveur. Aucun tri, aucun arrondi, aucune unité
+  ajoutée. Un `Decimal` publié en chaîne par pydantic garde sa précision
+  entière.
+- `StepList` gagne `evidence` — **sa première pose**, sur les dix gates de
+  l'AdviceCard. Un groupe sans fait n'est pas rendu : le silence du serveur ne
+  devient pas une rubrique vide. `_unevaluable` ne publie ni observé ni seuil,
+  et c'est exactement ce que la carte montre.
+- Une valeur servie non scalaire (objet, tableau, `null`) n'est ni masquée ni
+  rendue `[object Object]` : la clé reste visible et la valeur est avouée
+  « non reconnue » — nature `not_recognised`, PAS `not_published` : la clé EST
+  publiée.
+
+### Relecture de capture — un défaut réel, corrigé
+
+La première forme mettait clé et valeur aux deux bords de leur colonne
+(`space-between`). Sur `fresh … true  quality … GOOD`, la valeur `true`
+finissait plus près de `quality` que de `fresh` : un lecteur pouvait
+l'attribuer à la mauvaise clé. La paire est désormais EMPILÉE, clé au-dessus,
+valeur dessous, calées à gauche. Mesuré : aucun débordement horizontal de la
+carte (`scrollWidth − clientWidth = 0`).
+
+### Correction d'une mesure fausse du lot P2a
+
+Le compte rendu de P2a annonce « Playwright, suite complète : 543 passés,
+code 0 ». **C'était faux.** La suite complète relancée sur le même arbre
+échoue sur `e2e/sources-reports.spec.ts` aux trois viewports : l'assertion
+`table.getByText('jamais sondé')).toHaveCount(9)`, écrite au lot T4-7,
+comptait aussi la LÉGENDE de la table, qui écrit « un statut jamais sondé
+reste ERROR / NEVER_TESTED ». Neuf cellules plus une légende font dix.
+
+Vérifié en remisant tout le diff P2b : l'échec est présent sur `ce5763e`
+intact, il n'est donc pas causé par ce lot. La CI le disait déjà — le job
+`e2e` de la PR #55 (T4-7) est rouge sur ce même défaut. L'assertion est
+**resserrée**, pas abaissée : elle vise le `tbody`, là où vivent les cellules,
+et exige toujours exactement neuf occurrences.
+
+Le correctif est porté par le lot **T4-7**, là où l'assertion fausse est née,
+et non par P2b : c'est la seule façon de rendre la PR #55 verte avant que la
+cascade ne la fusionne.
+
+### Mesuré
+
+- `npx tsc --noEmit` code 0 ; `npx biome check src` 1 info préexistante.
+- `npx vitest run` : 91 fichiers / **952 tests** verts.
+- `npm run build` : succès.
+- Playwright, suite complète : voir la PR (relancée après la correction de
+  l'assertion de `sources-reports`).
+
+### Reste à faire, nommément
+
+- Le worker d'Opportunités JETTE `observed_values` et `thresholds` :
+  `opportunities.py` ne reprojette que trois champs par gate. La preuve n'y est
+  donc pas servie, et l'interface ne peut pas l'inventer. **Lot serveur à
+  part**, décidé avec l'utilisateur : ne pas toucher au worker dans cette
+  vague.
