@@ -1973,21 +1973,31 @@
   table-layout: auto;
 }
 
+/* LA LÉGENDE RESTE `table-caption`, ET C'EST UNE RÈGLE, PAS UN DÉTAIL.
+   La première version posait `display: flex` sur le `<caption>`. Un affichage
+   non tabulaire à l'intérieur d'une `<table>` est enveloppé par le navigateur
+   dans des boîtes de tableau ANONYMES : la légende cessait d'être une légende
+   et se rendait comme une cellule, repliée dans une colonne de cent pixels au
+   flanc de la table. Les tests unitaires la trouvaient — elle était bien dans
+   le DOM — et seule la capture l'a montrée. L'empilement se fait donc par des
+   enfants `block`, jamais en changeant le `display` de la légende. */
 .vx-dt-caption {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
+  display: table-caption;
   padding: var(--vx-space-8) 0 var(--vx-space-12);
   text-align: left;
+  caption-side: top;
 }
 
 .vx-dt-caption-main {
+  display: block;
   color: var(--vx-text);
   font-size: var(--vx-font-size-title);
   font-weight: 500;
 }
 
 .vx-dt-caption-detail {
+  display: block;
+  margin-top: 2px;
   color: var(--vx-text-muted);
   font-size: var(--vx-font-size-meta);
 }
@@ -2545,7 +2555,13 @@
    WAI-ARIA APG.
    ========================================================================== */
 
+/* Le déclencheur occupe l'espace LIBRE entre le titre et les états, borné :
+   sans `max-width` il aurait écarté les badges d'état vers le bord, et sans
+   `flex: 1` il se serait collé au titre en laissant un vide au milieu. */
 .vx-palette-trigger {
+  flex: 0 1 320px;
+  justify-content: space-between;
+  max-width: 320px;
   display: inline-flex;
   align-items: center;
   gap: var(--vx-space-8);

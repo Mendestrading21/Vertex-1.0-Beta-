@@ -134,23 +134,18 @@ export function AppShell() {
           et une bordure entre les deux aurait cassé la continuité.
         */}
         <div className="vx-topbar">
-          <ContextBar />
           {/*
-            Le déclencheur est VISIBLE, et pas seulement un raccourci : un
-            raccourci que rien n'annonce n'existe que pour qui le connaît déjà.
-            Le bouton porte la combinaison, et il est atteignable à la
-            tabulation comme n'importe quel autre contrôle du bandeau.
+            Le déclencheur de recherche vit DANS la barre de contexte, pas à
+            côté : le point 4 de l'anatomie canonique décrit « une surface
+            vitrée continue », et un troisième rang l'aurait coupée en deux.
+            La première version le posait ici, entre la barre et le ticker —
+            la capture l'a montré flottant, désaligné, visiblement rapporté.
           */}
-          <button
-            type="button"
-            className="vx-palette-trigger"
-            onClick={() => {
+          <ContextBar
+            onOpenSearch={() => {
               palette.setOpen(true);
             }}
-          >
-            <span className="vx-palette-trigger-label">Rechercher une destination ou un instrument</span>
-            <kbd className="vx-palette-kbd">⌘K</kbd>
-          </button>
+          />
           <ShellTicker />
         </div>
         <CommandPalette

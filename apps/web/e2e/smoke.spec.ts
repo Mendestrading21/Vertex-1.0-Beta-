@@ -87,7 +87,7 @@ test.describe('Dégradation 1024×768', () => {
     });
     await expect(page.getByRole('link', { name: 'TradingView' }).first()).toBeVisible();
     await expect(
-      page.getByRole('table', { name: 'Table OHLCV équivalente des chandeliers' }).locator('tbody tr'),
+      page.getByRole('table', { name: /Table OHLCV — équivalent exact des chandeliers/ }).locator('tbody tr'),
     ).toHaveCount(60);
     await expectNoHorizontalPageScroll(page);
     await page.screenshot({
