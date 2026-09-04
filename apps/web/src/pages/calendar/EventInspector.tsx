@@ -4,8 +4,14 @@ import type { CalendarResponse } from '../../api/client.ts';
 import { FreshnessBadge } from '../../components/FreshnessBadge.tsx';
 import { SnapshotFacts, publishedOr } from '../../components/inspector/SnapshotFacts.tsx';
 import { InspectorPanel } from '../../shell/inspector.tsx';
-import { EventStatusBadge } from './EventAgenda.tsx';
-import { VERSION_STATE_CONFLICTING, categoryLabelOf, formatInTimeZone } from './calendarView.ts';
+import {
+  EventContext,
+  EventStatusBadge,
+  RevisionDetails,
+  STATUS_DESCRIPTIONS,
+  VersionState,
+} from './EventAgenda.tsx';
+import { VERSION_STATE_CONFLICTING, categoryLabelOf, formatInTimeZone, statusLabelOf } from './calendarView.ts';
 import type { CalendarEventView } from './calendarView.ts';
 
 /**
@@ -123,6 +129,20 @@ export function EventInspector({
           ...(event.expiration !== null ? [{ label: 'Expiration publiée', value: <code>{event.expiration}</code> }] : []),
         ]}
       />
+
+      {/* LOT P6a — CE QUE LA LIGNE D'AGENDA RÉPÉTAIT. La description du statut,
+          l'état de version détaillé, l'archive des révisions et le contexte
+          croisé étaient écrits DEUX FOIS : une fois dans chaque ligne de
+          l'agenda, une fois ici. La ligne les a rendus ; c'est ici leur place,
+          parce que ce sont des faits qu'on ÉTUDIE, pas des faits qui aident à
+          CHOISIR quel événement ouvrir. Aucun n'est perdu. */}
+      <p className="vx-cal-event-status-note" data-testid="cal-event-status-note">
+        Statut de la date : {statusLabelOf(event.status)} —{' '}
+        {STATUS_DESCRIPTIONS[event.status] ?? 'statut relayé tel quel par la source'}.
+      </p>
+      <VersionState event={event} />
+      <RevisionDetails event={event} />
+      <EventContext event={event} />
 
       {event.context.links.length > 0 ? (
         <ul className="vx-inspector-list" data-testid="cal-event-links">

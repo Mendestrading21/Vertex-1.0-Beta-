@@ -3047,3 +3047,56 @@ se lirait comme une sélection oubliée.
 - `npx vitest run` : 92 fichiers / **957 tests** verts.
 - `npm run build` : succès.
 - Sonde : 15 modules à leur aire, débordement horizontal **0**.
+
+## SESSION 2026-09-04 — LOT P6a : Calendrier, la ligne d'agenda répétait l'inspecteur
+
+Branche `lot/p6a-calendrier-densite-20260904`, empilée sur P3b.
+
+### Le constat
+
+Chaque ligne d'agenda écrivait **dix blocs** : titre, statut, méta, phrase de
+statut, trois lectures du temps, fraîcheur avec péremption/retard/qualité/droits,
+montant et expiration, état de version, archive des révisions, contexte croisé.
+Dix-sept événements, dix blocs chacun.
+
+Or l'inspecteur d'événement portait **déjà** : catégorie, statut, importance,
+instant UTC, heure de place, fuseau d'affichage, fraîcheur avec péremption et
+retard, source, droits, qualité, instrument, positions, thèses, versions,
+montant, expiration, liens. La ligne était une **répétition**.
+
+### Ce qui reste dans la ligne, et pourquoi
+
+Les **trois lectures du temps** restent : elles sont l'essence d'un calendrier,
+et les déplacer obligerait à ouvrir chaque événement pour savoir QUAND il a
+lieu. Restent aussi le titre, la pastille de statut, la catégorie, l'instrument
+et le rang d'importance — ce qui aide à CHOISIR quel événement ouvrir.
+
+**Une exception assumée** : un événement dont les versions se contredisent
+porte son drapeau dans la liste. Un lecteur qui parcourt l'agenda doit le
+savoir sans ouvrir un panneau. Le détail du conflit, lui, est dans
+l'inspecteur.
+
+### Ce qui déménage
+
+Phrase de statut, état de version détaillé, archive des révisions (valeurs
+antérieures et révisions déclarées), contexte croisé. Aucun fait n'est perdu :
+tous rejoignent le panneau qui en est désormais le propriétaire unique.
+
+### Cinq assertions RELOCALISÉES, aucune retirée
+
+Les tests qui visaient ces blocs dans la ligne les visent maintenant dans
+l'inspecteur, après ouverture. Chacune exige toujours le même fait. L'e2e des
+révisions ouvre l'inspecteur de chaque événement révisé plutôt que de déplier
+un `<details>` dans la ligne.
+
+Le helper d'ouverture vise l'**identifiant** de l'événement, pas son titre :
+deux fixtures partagent le même titre, et viser le titre ouvrirait la mauvaise
+ligne sans que le test s'en aperçoive.
+
+### Mesuré
+
+- `npx tsc --noEmit` code 0 ; `npx biome check src` 1 info préexistante.
+- `npx vitest run` : 92 fichiers / **957 tests** verts.
+- `npm run build` : succès.
+- `e2e/calendar.spec.ts` + `e2e/accessibility.spec.ts` : **213 passés**.
+- Hauteur de ligne mesurée après : 208–228 px, contre une pile de dix blocs.
