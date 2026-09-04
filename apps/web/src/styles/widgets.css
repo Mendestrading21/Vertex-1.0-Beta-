@@ -1516,7 +1516,7 @@
 .vx-markets-grid > [data-module] > .vx-absent,
 .vx-today-grid > [data-module] > .vx-absent,
 .vx-charts-grid > [data-module] > .vx-absent {
-  border-radius: var(--vx-radius-22);
+  border-radius: var(--vx-radius-20);
   background-color: var(--vx-surface-1);
   border-color: var(--vx-border-soft);
   box-shadow: var(--vx-shadow-panel), var(--vx-shadow-inset);
