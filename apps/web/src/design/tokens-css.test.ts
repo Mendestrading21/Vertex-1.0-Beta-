@@ -66,25 +66,61 @@ describe('tokens.css généré', () => {
     }
   });
 
-  it('déclare la grille 4 px complète (4..48)', () => {
-    expect(Object.keys(space).map(Number)).toEqual([4, 8, 12, 16, 20, 24, 32, 40, 48]);
+  it('déclare la grille 4 px complète (4..32)', () => {
+    // LOT V1 — `40` et `48` retirés de l'énumération, PAS de l'exigence : ce
+    // test veut que chaque cran DÉCLARÉ soit émis, et il le veut toujours. Il
+    // exigeait deux crans que personne ne lisait, et figeait ainsi leur mort.
+    expect(Object.keys(space).map(Number)).toEqual([4, 8, 12, 16, 20, 24, 32]);
     for (const [key, value] of Object.entries(space)) {
       expect(committed).toContain(`--vx-space-${key}: ${value};`);
     }
   });
 
-  it('déclare les rayons 6/10/14/18/22', () => {
-    expect(Object.keys(radius)).toEqual(['6', '10', '14', '18', '22', 'pill']);
+  it('une clé numérique VAUT sa valeur — aucun jeton ne ment sur son nom', () => {
+    /**
+     * LOT V1 — LA PORTE QUI MANQUAIT, ET QUI FIGEAIT SON CONTRAIRE.
+     *
+     * `radius[18]` valait `'16px'` et `radius[22]` valait `'20px'`. La clé
+     * mentait, et l'assertion voisine — qui exigeait littéralement les clés
+     * `18` et `22` — PROTÉGEAIT le mensonge : deux documents normatifs se
+     * contredisaient déjà sur ce point (« 18 px pour les grandes surfaces »
+     * contre « grande surface : rayon 16 px »), et le jeton donnait raison au
+     * second tout en portant le nom du premier.
+     *
+     * Une échelle dont les clés sont des nombres n'a qu'un seul contrat
+     * possible : la clé EST la valeur en pixels. Sinon il faut lire le fichier
+     * source pour écrire une règle CSS, et le nom ne sert plus à rien.
+     */
+    const echelles = { space, radius, motionDuration } as const;
+    const unites = { space: 'px', radius: 'px', motionDuration: 'ms' } as const;
+    const menteurs: string[] = [];
+    for (const [nom, echelle] of Object.entries(echelles)) {
+      for (const [cle, valeur] of Object.entries(echelle)) {
+        if (!/^\d+$/.test(cle)) {
+          continue; // `pill` n'est pas une échelle numérique : c'est un rôle.
+        }
+        const attendu = `${cle}${unites[nom as keyof typeof unites]}`;
+        if (valeur !== attendu) {
+          menteurs.push(`${nom}[${cle}] = ${valeur} au lieu de ${attendu}`);
+        }
+      }
+    }
+    expect(menteurs, `Clés qui ne valent pas leur valeur :\n  ${menteurs.join('\n  ')}`).toEqual([]);
+  });
+
+  it('déclare les rayons 6/10/14/16/20', () => {
+    expect(Object.keys(radius)).toEqual(['6', '10', '14', '16', '20', 'pill']);
     for (const [key, value] of Object.entries(radius)) {
       expect(committed).toContain(`--vx-radius-${key}: ${value};`);
     }
   });
 
-  it('déclare les quatre ombres sobres du système Titanium Ledger', () => {
+  it('déclare les trois ombres sobres du système Titanium Ledger', () => {
     // `glass` (LOT T1) est la profondeur de la carte ORDINAIRE : plus courte
     // et plus proche que `panel`, qui reste celle d'une planche entière.
     // Aucune n'est un halo : ce sont des ombres portées et une arête.
-    expect(Object.keys(shadow)).toEqual(['panel', 'glass', 'floating', 'inset']);
+    // LOT V1 — `floating` retiré : zéro lecture dans le produit.
+    expect(Object.keys(shadow)).toEqual(['panel', 'glass', 'inset']);
     for (const [key, value] of Object.entries(shadow)) {
       expect(committed).toContain(`--vx-shadow-${key}: ${value};`);
     }

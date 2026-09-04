@@ -3100,3 +3100,42 @@ ligne sans que le test s'en aperçoive.
 - `npm run build` : succès.
 - `e2e/calendar.spec.ts` + `e2e/accessibility.spec.ts` : **213 passés**.
 - Hauteur de ligne mesurée après : 208–228 px, contre une pile de dix blocs.
+
+## LOT V1 — les quatre portes de vérité (2026-09-04)
+
+Quatre portes neuves, chacune ROUGE avant d'être verte. Une porte qui naît verte
+n'a rien prouvé.
+
+1. **`contrast.test.ts`** — ratio WCAG 2.2 de chaque paire texte/fond déclarée.
+   `docs/05-design/TOKENS.md` affirmait « une paire texte/fond vérifiée AA »
+   depuis l'origine ; rien ne le vérifiait. Rouge sur `text-muted` à **4,35:1**
+   sur `hover`, là où il porte les métadonnées à l'intérieur des cartes. Corrigé
+   à `#978f80` (**4,52:1**) : +3 par canal, même teinte, 1,49 d'écart conservé
+   avec `text-secondary`. Trois exemptions nommées et motivées, chacune
+   surveillée par un test qui échoue si elle devient inutile.
+
+2. **Clé ↔ valeur** — `radius[18]` valait `16px`, `radius[22]` valait `20px`.
+   La clé mentait, et l'assertion voisine PROTÉGEAIT le mensonge en exigeant
+   littéralement ces clés. Deux documents normatifs se contredisaient déjà
+   dessus. Clés corrigées, quatre consommateurs CSS suivis, **aucun pixel ne
+   change**.
+
+3. **`no-dead-token.test.ts`** — toute variable `--vx-*` émise doit être lue.
+   Rouge sur **onze** variables, contre trois annoncées par l'audit. Quatre
+   retirées (`space-40`, `space-48`, `shadow-floating`, `ease-decelerate`), sept
+   inscrites en dette à cliquet avec le lot qui les ferme : les plans z, dont le
+   défaut réel est ailleurs — le CSS écrit encore des `z-index` bruts — et les
+   dégradés de teinte de page, qui attendent leurs consommateurs.
+
+4. **Périmètre `src/shell`** — ajouté à `no-ambiguous-dash` et
+   `no-fabricated-values`, qui ne le balayaient ni l'un ni l'autre. Rouge
+   immédiatement sur un défaut réel : `ShellTicker.tsx` écrivait
+   « instantané v— », un tiret tenant lieu de numéro de version, **sur les douze
+   destinations**. Remplacé par « instantané, version non publiée ».
+
+Deux assertions existantes ont changé d'énumération — celles qui exigeaient
+`space[40]`, `space[48]` et `shadow.floating`. Leur objet est préservé : chaque
+jeton DÉCLARÉ doit être émis, et il l'est toujours. Elles figeaient trois jetons
+que personne ne lisait.
+
+Preuves : `tsc` 0 · Biome 1 info préexistante · **968 tests** · build OK.

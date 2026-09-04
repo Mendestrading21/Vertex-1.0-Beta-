@@ -41,6 +41,24 @@ function isTokenSource(file: string): boolean {
   return basename(file).startsWith('tokens.') && file.includes(join('src', 'design'));
 }
 
+/**
+ * EXEMPTIONS NOMMÉES — une seule, et elle porte sa raison.
+ *
+ * Le motif est celui déjà employé par `no-ambiguous-dash.test.ts` : une
+ * exemption explicite, motivée, et surveillée par un test qui échoue si elle
+ * devient inutile. Élargir `isTokenSource` aurait ouvert la porte à tout
+ * fichier nommé `tokens.*` ; nommer un fichier ne coûte rien et se voit.
+ */
+const EXEMPTIONS: ReadonlyArray<{ readonly path: string; readonly reason: string }> = [
+  {
+    path: join('src', 'design', 'contrast.test.ts'),
+    reason:
+      "C'est la porte qui MESURE les couleurs. Ses seuls littéraux sont le noir pur et le blanc pur, les deux bornes par lesquelles WCAG 2.2 définit le ratio maximal de 21:1 : ils servent à prouver que la fonction de mesure est juste, sans quoi tout le reste passerait pour de mauvaises raisons. Ce fichier ne rend rien à l'écran et n'est donc pas une seconde source de couleur du produit.",
+  },
+];
+
+const EXEMPTED: ReadonlySet<string> = new Set(EXEMPTIONS.map((entry) => entry.path));
+
 describe('interdiction des couleurs brutes hors tokens.*', () => {
   const hexPattern = /#[0-9a-fA-F]{3,8}\b/;
   const functionalPattern = /\b(?:rgb|rgba|hsl|hsla)\(/;
@@ -48,7 +66,7 @@ describe('interdiction des couleurs brutes hors tokens.*', () => {
   it('aucun hex ni rgb()/hsl() hors src/design/tokens.*', () => {
     const offenders: string[] = [];
     for (const file of scannedFiles()) {
-      if (isTokenSource(file)) {
+      if (isTokenSource(file) || EXEMPTED.has(relative(APP_ROOT, file))) {
         continue;
       }
       const content = readFileSync(file, 'utf8');
@@ -60,6 +78,20 @@ describe('interdiction des couleurs brutes hors tokens.*', () => {
       }
     }
     expect(offenders, `Couleurs brutes hors tokens : ${offenders.join(', ')}`).toEqual([]);
+  });
+
+  it('chaque exemption porte un motif écrit, un fichier réel, et reste utile', () => {
+    for (const { path, reason } of EXEMPTIONS) {
+      expect(reason.length, `motif trop court : ${path}`).toBeGreaterThan(80);
+      const absolu = join(APP_ROOT, path);
+      expect(() => readFileSync(absolu, 'utf8'), `fichier exempté absent : ${path}`).not.toThrow();
+      // Une exemption qui ne couvre plus rien est une exemption MORTE : elle
+      // laisserait passer une vraie couleur brute sans que personne le sache.
+      const contenu = readFileSync(absolu, 'utf8');
+      const porteVraimentUneCouleur =
+        hexPattern.exec(contenu) !== null || functionalPattern.exec(contenu) !== null;
+      expect(porteVraimentUneCouleur, `exemption sans objet, à retirer : ${path}`).toBe(true);
+    }
   });
 });
 

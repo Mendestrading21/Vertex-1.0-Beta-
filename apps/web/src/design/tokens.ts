@@ -27,7 +27,12 @@ export const color = {
   'grid-line': 'rgba(231, 224, 207, 0.045)',
   'text': '#f6f2e8',
   'text-secondary': '#b8b0a0',
-  'text-muted': '#948c7d',
+  // LOT V1 — relevé de `#948c7d`, qui donnait 4,35:1 sur `hover` : SOUS le
+  // seuil AA, et précisément là où il compte. Ce jeton porte les métadonnées À
+  // L'INTÉRIEUR des cartes, donc sur leur état de survol. +3 par canal suffit
+  // (4,52:1), garde la teinte, et laisse 1,49 d'écart avec `text-secondary` :
+  // les deux rôles restent distincts. Mesuré par `contrast.test.ts`.
+  'text-muted': '#978f80',
   'silver': '#d8d3c7',
   'titanium': '#aaa497',
   'titanium-soft': 'rgba(216, 211, 199, 0.1)',
@@ -106,17 +111,27 @@ export const space = {
   20: '20px',
   24: '24px',
   32: '32px',
-  40: '40px',
-  48: '48px',
+  // LOT V1 — `40` et `48` sont retirés : zéro lecture dans tout le produit,
+  // et `tokens-css.test.ts` les EXIGEAIT, figeant deux jetons que personne
+  // n'employait. Un cran s'ajoute le jour où il sert, pas avant.
 } as const satisfies Record<number, string>;
 
-/** Rayons. `pill` est réservé aux badges (docs/05-design/TOKENS.md). */
+/**
+ * Rayons. `pill` est réservé aux badges (docs/05-design/TOKENS.md).
+ *
+ * LOT V1 — `18` valait `'16px'` et `22` valait `'20px'` : la clé mentait, et
+ * l'assertion qui exigeait ces clés protégeait le mensonge. Deux documents
+ * normatifs se contredisaient déjà — « 18 px pour les grandes surfaces »
+ * contre « grande surface : rayon 16 px » — et le jeton donnait raison au
+ * second en portant le nom du premier. Les clés valent maintenant leurs
+ * valeurs ; les quatre consommateurs CSS ont suivi. AUCUN pixel ne change.
+ */
 export const radius = {
   6: '6px',
   10: '10px',
   14: '14px',
-  18: '16px',
-  22: '20px',
+  16: '16px',
+  20: '20px',
   pill: '999px',
 } as const satisfies Record<string | number, string>;
 
@@ -130,9 +145,10 @@ export const radius = {
  * une lumière.
  */
 export const shadow = {
+  // LOT V1 — `floating` retiré : zéro lecture. Aucune surface flottante du
+  // produit ne l'employait, et il était pourtant figé par une assertion.
   panel: '0 20px 52px rgba(0, 0, 0, 0.28)',
   glass: '0 10px 28px rgba(0, 0, 0, 0.34)',
-  floating: '0 32px 80px rgba(0, 0, 0, 0.48)',
   inset: 'inset 0 1px 0 rgba(255, 255, 255, 0.045)',
 } as const satisfies Record<string, string>;
 
@@ -152,10 +168,14 @@ export const motionDuration = {
   600: '600ms',
 } as const satisfies Record<number, string>;
 
-/** Courbes documentées (docs/05-design/MOTION_AND_MICROINTERACTIONS.md). */
+/**
+ * Courbes documentées (docs/05-design/MOTION_AND_MICROINTERACTIONS.md).
+ *
+ * LOT V1 — `decelerate` retiré : zéro lecture. La courbe reste documentée ;
+ * elle reviendra dans le lot qui l'emploie réellement.
+ */
 export const motionEase = {
   standard: 'cubic-bezier(0.2, 0, 0, 1)',
-  decelerate: 'cubic-bezier(0, 0, 0.2, 1)',
 } as const satisfies Record<string, string>;
 
 /** Plans z nommés — aucune valeur locale arbitraire. */
