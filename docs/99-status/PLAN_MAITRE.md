@@ -477,3 +477,22 @@ prochaine commande recommandée.
 
 L'avancement réel est tenu dans `docs/99-status/NOW.md`, réduit à un état, à partir
 du lot 1.
+
+---
+
+## Annexe — registre de cette branche
+
+`docs/09-adr/018-titan-ledger-institutional-signal.md` est présent sur cette
+branche. Il y est arrivé par mégarde : le commit `4b48284`, dont le message ne
+parle que des chantiers de LOT-00, l'a embarqué parce que la commande de mise en
+index balayait tout le répertoire de travail au lieu des seuls fichiers voulus.
+
+Le message de ce commit ne peut plus être corrigé sans réécrire une branche déjà
+poussée, ce que le protocole du dépôt interdit. La note ci-dessous fait donc foi :
+**`4b48284` contient deux choses, l'amendement du plan et l'ADR-018.**
+
+L'ADR reste ici plutôt que d'être déplacé, parce que cette branche porte la
+doctrine et qu'un déplacement de plus ajouterait du bruit sans rien clarifier. Il
+est le livrable du **lot 3**, et le lot 3 le tiendra pour acquis : son travail
+restant est le contrat de style écrit, la réécriture du canon et l'extension de la
+porte documentaire, pas la rédaction de l'ADR.
