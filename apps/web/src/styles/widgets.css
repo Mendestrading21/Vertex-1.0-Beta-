@@ -2685,3 +2685,286 @@
   color: var(--vx-text-muted);
   font-size: var(--vx-font-size-meta);
 }
+
+/* ==========================================================================
+   SQUELETTES — un par FORME. Le rôle d'un squelette est de RÉSERVER LA PLACE
+   de ce qui arrive : un rectangle universel laisse la carte changer de hauteur
+   au moment du rendu, et toute la rangée se réorganise sous les yeux.
+   ========================================================================== */
+
+.vx-skel {
+  display: block;
+  min-width: 0;
+}
+
+/* Un seul balayage lent, partagé par toutes les formes. Pas de pulsation :
+   plusieurs squelettes qui clignotent transforment l'attente en agitation. */
+@keyframes vx-skel-sweep {
+  from {
+    background-position: -140% 0;
+  }
+  to {
+    background-position: 240% 0;
+  }
+}
+
+.vx-skel-plot,
+.vx-skel-axis,
+.vx-skel-line,
+.vx-skel-cell,
+.vx-skel-day,
+.vx-skel-tile {
+  display: block;
+  border-radius: var(--vx-radius-6);
+  background-color: var(--vx-surface-2);
+  background-image: linear-gradient(
+    90deg,
+    var(--vx-surface-2) 0%,
+    var(--vx-surface-3) 50%,
+    var(--vx-surface-2) 100%
+  );
+  background-size: 240% 100%;
+  animation: vx-skel-sweep 1800ms ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vx-skel-plot,
+  .vx-skel-axis,
+  .vx-skel-line,
+  .vx-skel-cell,
+  .vx-skel-day,
+  .vx-skel-tile {
+    animation: none;
+  }
+}
+
+/* --- graphique : une surface, puis une bande d'axe --- */
+
+.vx-skel-chart {
+  display: flex;
+  flex-direction: column;
+  gap: var(--vx-space-8);
+}
+
+.vx-skel-chart[data-height='small'] .vx-skel-plot {
+  height: 80px;
+}
+
+.vx-skel-chart[data-height='medium'] .vx-skel-plot {
+  height: 200px;
+}
+
+.vx-skel-chart[data-height='large'] .vx-skel-plot {
+  height: 360px;
+}
+
+.vx-skel-axis {
+  height: var(--vx-space-8);
+}
+
+/* --- métrique : une légende courte, un chiffre --- */
+
+.vx-skel-metric,
+.vx-skel-fact {
+  display: flex;
+  flex-direction: column;
+  gap: var(--vx-space-4);
+}
+
+.vx-skel-line {
+  height: var(--vx-space-12);
+}
+
+.vx-skel-line[data-width='short'] {
+  width: 40%;
+}
+
+.vx-skel-line[data-width='number'] {
+  width: 60%;
+  height: var(--vx-space-20);
+}
+
+.vx-skel-line[data-width='title'] {
+  width: 70%;
+  height: var(--vx-space-16);
+}
+
+/* --- table : autant de lignes que la page en attend --- */
+
+.vx-skel-table {
+  display: flex;
+  flex-direction: column;
+  gap: var(--vx-space-8);
+}
+
+.vx-skel-row {
+  display: flex;
+  gap: var(--vx-space-12);
+}
+
+.vx-skel-cell {
+  flex: 1 1 0;
+  height: var(--vx-space-12);
+}
+
+/* --- calendrier : une grille de sept jours --- */
+
+.vx-skel-calendar {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: var(--vx-space-4);
+}
+
+.vx-skel-day {
+  aspect-ratio: 1;
+}
+
+/* --- heatmap : une mosaïque --- */
+
+.vx-skel-heatmap {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 2px;
+}
+
+.vx-skel-tile {
+  aspect-ratio: 4 / 3;
+}
+
+/* --- inspecteur : un titre, des paires --- */
+
+.vx-skel-inspector {
+  display: flex;
+  flex-direction: column;
+  gap: var(--vx-space-16);
+}
+
+/* ==========================================================================
+   CHARTFRAME — l'anatomie commune de toute visualisation.
+   Elle remplace `vx-chartframe`, dont l'en-tête, la liste de métadonnées et
+   le pied étaient RECOPIÉS dans quatre pages : rien n'obligeait une figure
+   nouvelle à les porter, rien ne signalait qu'il en manquait un.
+   ========================================================================== */
+
+.vx-cf {
+  display: flex;
+  flex-direction: column;
+  gap: var(--vx-space-12);
+  min-width: 0;
+  padding: var(--vx-space-20) var(--vx-space-24) var(--vx-space-16);
+  border: 1px solid var(--vx-border);
+  border-top-color: var(--vx-border-strong);
+  border-radius: var(--vx-radius-14);
+  background-color: var(--vx-surface-0);
+  box-shadow: var(--vx-shadow-glass), var(--vx-shadow-inset);
+}
+
+/* La dominante se distingue par sa PROFONDEUR et son liseré, jamais par un
+   halo : « aucun glow permanent » (canonical-visual.md). */
+.vx-cf[data-rank='dominant'] {
+  border-top-color: var(--vx-signal-deep);
+  box-shadow: var(--vx-shadow-panel), var(--vx-shadow-inset);
+}
+
+.vx-cf-head {
+  display: flex;
+  gap: var(--vx-space-16);
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.vx-cf-head-text {
+  min-width: 0;
+}
+
+.vx-cf-question {
+  margin: 0 0 2px;
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-cf-title {
+  margin: 0;
+  color: var(--vx-text);
+  font-size: var(--vx-font-size-display);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+.vx-cf-head-side {
+  display: flex;
+  flex: 0 0 auto;
+  gap: var(--vx-space-12);
+  align-items: center;
+}
+
+.vx-cf-toolbar {
+  display: flex;
+  gap: var(--vx-space-8);
+  align-items: center;
+}
+
+/* Unité, période, fuseau : les trois choses sans lesquelles l'axe ne se lit
+   pas. Au-dessus de la figure, jamais en note de bas de page. */
+.vx-cf-scale {
+  display: flex;
+  gap: var(--vx-space-12);
+  margin: 0;
+  color: var(--vx-text-secondary);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-cf-unit {
+  color: var(--vx-text);
+}
+
+.vx-cf-tz {
+  font-family: var(--vx-font-mono);
+}
+
+.vx-cf-plot {
+  min-width: 0;
+}
+
+.vx-cf-equivalent > summary {
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+  cursor: pointer;
+}
+
+.vx-cf-equivalent > summary:hover {
+  color: var(--vx-text-secondary);
+}
+
+.vx-cf-foot {
+  border-top: 1px solid var(--vx-border-soft);
+  padding-top: var(--vx-space-8);
+}
+
+.vx-cf-provenance {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--vx-space-4) var(--vx-space-20);
+  margin: 0;
+}
+
+.vx-cf-provenance > div {
+  display: flex;
+  gap: var(--vx-space-4);
+  align-items: baseline;
+  min-width: 0;
+}
+
+.vx-cf-provenance dt {
+  color: var(--vx-text-muted);
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-meta);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.vx-cf-provenance dd {
+  margin: 0;
+  color: var(--vx-text-secondary);
+  font-size: var(--vx-font-size-meta);
+}
