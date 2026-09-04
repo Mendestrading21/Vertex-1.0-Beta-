@@ -907,11 +907,24 @@
   border-bottom: 1px solid var(--vx-border-soft);
 }
 
+/* LOT P2c — MESURÉ DANS L'INSPECTEUR D'OPPORTUNITÉS. Le rail fait 317 px ;
+   la pastille « DEGRADE RESOLVED_WITHOUT_CONID » n'y tient pas sur la même
+   ligne que `instrument_resolved`, et le panneau débordait de 118 px à
+   l'horizontale. Le libellé de l'étape et sa pastille passent donc à la ligne
+   plutôt que de pousser le conteneur, et le code serveur se coupe entre
+   caractères plutôt que d'être tronqué : un `reason_code` amputé se lirait
+   comme un autre code. */
 .vx-w2-step-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--vx-space-8);
+  flex-wrap: wrap;
+}
+
+.vx-w2-step-head > .vx-w2-chip {
+  max-width: 100%;
+  overflow-wrap: anywhere;
 }
 
 .vx-w2-step-detail {

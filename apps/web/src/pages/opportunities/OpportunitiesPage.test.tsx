@@ -307,7 +307,7 @@ describe('page Opportunités — rendu', () => {
     );
   });
 
-  it('affiche la répartition des raisons d’exclusion en tableau', async () => {
+  it('affiche la répartition des raisons d’exclusion en barres de dénombrement', async () => {
     mockOpportunities(
       makeOpportunities({
         content: makeOpportunitiesContent({
@@ -327,7 +327,14 @@ describe('page Opportunités — rendu', () => {
     await renderOpportunities();
     const reasons = await screen.findByTestId('opp-exclusion-reasons');
     const row = within(reasons).getByTestId('opp-reason-entitlements_sufficient:UNEVALUABLE');
-    expect(within(row).getByRole('cell').textContent).toBe('24');
+    // LOT P2c — la table de deux colonnes est devenue des barres. Même
+    // exigence : le compte SERVI, exact, dans la ligne portant la clé exacte.
+    // Et la clé reste écrite en toutes lettres, en chasse fixe.
+    expect(row.querySelector('.vx-census-count')?.textContent).toBe('24');
+    expect(within(row).getByText('entitlements_sufficient:UNEVALUABLE').tagName).toBe('CODE');
+    // Aucun pourcentage n'est écrit : il n'est pas publié, l'écrire serait le
+    // calculer.
+    expect(row.textContent).not.toContain('%');
     // LOT-A4 : les statuts sur l'univers vivent dans leur propre module, en
     // barres de dénombrement — le compte publié reste lisible tel quel.
     const statusRow = screen.getByTestId('opp-status-count-INSUFFICIENT_DATA');

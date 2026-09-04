@@ -3,9 +3,22 @@ import { Link } from 'react-router-dom';
 import type { OpportunitiesResponse } from '../../api/client.ts';
 import { FreshnessBadge } from '../../components/FreshnessBadge.tsx';
 import { SnapshotFacts, publishedOr } from '../../components/inspector/SnapshotFacts.tsx';
+import { StepList } from '../../components/widgets/StepList.tsx';
+import type { StatusChipTone } from '../../components/widgets/StatusChip.tsx';
 import { InspectorPanel } from '../../shell/inspector.tsx';
 import { EXCLUSION_KIND_LABELS, disqualifyingFacts } from './opportunitiesView.ts';
 import type { CandidateView, OpportunitiesContentView } from './opportunitiesView.ts';
+
+/**
+ * Teintes des trois statuts de gate SERVIS. Vocabulaire FERMÉ : un statut
+ * inconnu reste neutre plutôt que d'emprunter une couleur au hasard. Même
+ * correspondance que le verdict d'Analyse — une couleur, une signification.
+ */
+const OPP_GATE_TONES: Readonly<Record<string, StatusChipTone>> = {
+  PASS: 'positive',
+  DEGRADE: 'warning',
+  BLOCK: 'negative',
+};
 
 /**
  * Inspecteur de la page Opportunités (planche §3 : « candidat sélectionné,
@@ -101,22 +114,26 @@ export function CandidateInspector({
       {candidate.gates.length === 0 ? (
         <p className="vx-inspector-note">Aucune gate publiée.</p>
       ) : (
-        <ul className="vx-inspector-list" data-testid="opp-candidate-gates">
-          {candidate.gates.map((gate) => (
-            <li key={gate.gateId} data-status={gate.status}>
-              <code>{gate.gateId}</code>{' '}
-              <span className="vx-gate-status" data-status={gate.status}>
-                {gate.status}
-              </span>
-              {gate.reasonCode === null ? null : (
-                <>
-                  {' '}
-                  — <code>{gate.reasonCode}</code>
-                </>
-              )}
-            </li>
-          ))}
-        </ul>
+        // LOT P2c — MÊME FORME QUE LE VERDICT D'ANALYSE, SANS LA PREUVE, ET
+        // C'EST VOLONTAIRE. Le worker d'Opportunités ne reprojette que trois
+        // champs par gate (`opportunities.py`) : `observed_values` et
+        // `thresholds`, pourtant remplis par le moteur, sont JETÉS avant la
+        // publication du snapshot. `StepList` n'affiche donc AUCUNE preuve
+        // ici — l'interface ne peut pas inventer ce que le serveur n'envoie
+        // pas, et remonter le contrat est un lot serveur à part.
+        <div data-testid="opp-candidate-gates">
+          <StepList
+            ariaLabel="Gates publiées du candidat"
+            emptyLabel="Aucune gate publiée."
+            steps={candidate.gates.map((gate) => ({
+              id: gate.gateId,
+              label: gate.gateId,
+              status: gate.status,
+              tone: OPP_GATE_TONES[gate.status] ?? 'neutral',
+              ...(gate.reasonCode === null ? {} : { code: gate.reasonCode }),
+            }))}
+          />
+        </div>
       )}
 
       <h3 className="vx-snapshot-block-title">Preuves requises</h3>

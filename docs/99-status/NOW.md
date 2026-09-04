@@ -2745,3 +2745,59 @@ cascade ne la fusionne.
   donc pas servie, et l'interface ne peut pas l'inventer. **Lot serveur à
   part**, décidé avec l'utilisateur : ne pas toucher au worker dans cette
   vague.
+
+## SESSION 2026-09-04 — LOT P2c : Opportunités, une table de deux colonnes et des gates muettes
+
+Branche `lot/p2c-opportunites-20260904`, empilée sur P2b.
+
+### Une table qui n'avait pas besoin d'être une table
+
+Les raisons d'exclusion se lisaient dans un tableau de deux colonnes, avec
+en-têtes, `scope`, région défilante focusable — pour porter une clé et un
+entier. La carte voisine, « Statuts sur l'univers », montre exactement la même
+nature de donnée en BARRES DE DÉNOMBREMENT depuis le LOT-A4.
+
+`CensusBars` remplace donc la table : la clé servie reste écrite en toutes
+lettres, en chasse fixe, et le compte SERVI vit à côté de sa barre. Aucun
+pourcentage n'est écrit — il n'est pas publié, et l'écrire serait le calculer.
+L'ordre passe de l'alphabétique au compte décroissant, comme la carte voisine :
+une liste de raisons se lit pour savoir CE QUI bloque le plus.
+
+Les deux assertions qui gelaient la table (`td`, `getByRole('cell')`) sont
+**réécrites sur la nouvelle structure, pas affaiblies** : elles exigent
+toujours le compte exact dans la ligne portant la clé exacte, et l'unitaire
+gagne deux exigences — la clé écrite en `<code>`, et l'absence de tout `%`.
+
+### Les gates du candidat prennent la forme du verdict
+
+L'inspecteur d'Opportunités rendait ses gates en une ligne de texte gris.
+Elles passent à `StepList`, comme le verdict d'Analyse : un libellé, une
+pastille teintée par le statut servi, le `reason_code` en chasse fixe.
+
+**Sans preuve, et c'est volontaire.** Le worker d'Opportunités ne reprojette
+que trois champs par gate : `observed_values` et `thresholds`, pourtant
+remplis par le moteur, sont JETÉS avant la publication du snapshot. Aucune
+preuve n'est donc affichée ici — l'interface ne peut pas inventer ce que le
+serveur n'envoie pas. Remonter le contrat reste un lot serveur à part.
+
+### Relecture de capture — un défaut réel, mesuré
+
+Le rail de l'inspecteur fait 317 px. La pastille
+`DEGRADE RESOLVED_WITHOUT_CONID` n'y tenait pas sur la même ligne que
+`instrument_resolved` : le panneau débordait de **118 px** à l'horizontale.
+Libellé et pastille passent désormais à la ligne plutôt que de pousser le
+conteneur, et le code serveur se coupe entre caractères plutôt que d'être
+tronqué — un `reason_code` amputé se lirait comme un autre code. Mesuré après
+correction : **0**.
+
+### Mesuré
+
+- `npx tsc --noEmit` code 0 ; `npx biome check src` 1 info préexistante.
+- `npx vitest run` : 91 fichiers / **952 tests** verts.
+- `npm run build` : succès.
+- `e2e/opportunities.spec.ts` + `e2e/accessibility.spec.ts` : **204 passés**.
+
+**Un signal observé une fois, non reproduit.** Une exécution de `vitest run` a
+rapporté « Errors 7 errors » à côté de 952 tests verts. Quatre exécutions
+consécutives n'ont rien reproduit. Ce n'est pas classé résolu : c'est noté
+comme observé, sans cause établie.

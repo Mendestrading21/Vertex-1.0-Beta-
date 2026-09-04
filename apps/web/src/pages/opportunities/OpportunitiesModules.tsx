@@ -189,8 +189,12 @@ export function ProfileModule({ view }: { readonly view: OpportunitiesContentVie
 
 export function ExclusionsModule({ view }: { readonly view: OpportunitiesContentView }) {
   const module = opportunitiesModule('exclusions');
-  const entries = [...view.exclusionReasons.entries()].sort((left, right) =>
-    left[0].localeCompare(right[0]),
+  // LOT P2c — MÊME ORDRE QUE LES STATUTS SUR L'UNIVERS : le compte le plus
+  // gros d'abord, la clé servie pour départager. Une liste de raisons se lit
+  // pour savoir CE QUI bloque le plus ; l'ordre alphabétique le cachait
+  // derrière la première lettre.
+  const entries = [...view.exclusionReasons.entries()].sort(
+    (left, right) => right[1] - left[1] || left[0].localeCompare(right[0]),
   );
   return (
     <Card
@@ -206,38 +210,20 @@ export function ExclusionsModule({ view }: { readonly view: OpportunitiesContent
         </>
       }
     >
+      {/* LOT P2c — UNE TABLE DE DEUX COLONNES DEVIENT DES BARRES. Deux colonnes
+          dont l'une ne porte qu'un entier n'avaient pas besoin d'un en-tête,
+          d'une région défilante et d'un `scope`. `CensusBars` dit la même
+          chose en montrant les proportions, avec le compte SERVI écrit à côté
+          de sa barre — jamais un pourcentage, qui serait un calcul. C'est la
+          forme que portent déjà les statuts sur l'univers, dans la carte
+          voisine : une répartition, une seule façon de la lire. */}
       <div data-testid="opp-exclusion-reasons">
-        {entries.length === 0 ? (
-          <p className="vx-module-sentence" role="status">
-            Aucune raison d’exclusion publiée.
-          </p>
-        ) : (
-          <div
-            className="vx-cal-scroll"
-            tabIndex={0}
-            role="region"
-            aria-label="Répartition publiée des raisons d’exclusion"
-          >
-            <table className="vx-matrix-table">
-              <thead>
-                <tr>
-                  <th scope="col">Raison publiée</th>
-                  <th scope="col">Candidats</th>
-                </tr>
-              </thead>
-              <tbody>
-                {entries.map(([reason, count]) => (
-                  <tr key={reason} data-testid={`opp-reason-${reason}`}>
-                    <th scope="row">
-                      <code>{reason}</code>
-                    </th>
-                    <td className="vx-num">{count}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+        <CensusBars
+          entries={entries.map(([reason, count]) => ({ key: reason, count }))}
+          ariaLabel="Répartition publiée des raisons d’exclusion"
+          testIdPrefix="opp-reason"
+          emptyLabel="Aucune raison d’exclusion publiée."
+        />
       </div>
     </Card>
   );
