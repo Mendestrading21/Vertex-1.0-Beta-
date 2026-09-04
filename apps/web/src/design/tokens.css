@@ -30,8 +30,8 @@
   --vx-positive-soft: rgba(80, 201, 146, 0.12);
   --vx-negative: #ef6f6c;
   --vx-negative-soft: rgba(239, 111, 108, 0.12);
-  --vx-warning: #f0c36a;
-  --vx-warning-soft: rgba(240, 195, 106, 0.12);
+  --vx-warning: #e8843a;
+  --vx-warning-soft: rgba(232, 132, 58, 0.12);
   --vx-option: #a88ae8;
   --vx-option-soft: rgba(168, 138, 232, 0.12);
   --vx-macro: #6bc5bc;
@@ -43,8 +43,8 @@
   --vx-positive-gradient-end: rgba(80, 201, 146, 0);
   --vx-negative-gradient-start: rgba(239, 111, 108, 0.22);
   --vx-negative-gradient-end: rgba(239, 111, 108, 0);
-  --vx-warning-gradient-start: rgba(240, 195, 106, 0.22);
-  --vx-warning-gradient-end: rgba(240, 195, 106, 0);
+  --vx-warning-gradient-start: rgba(232, 132, 58, 0.22);
+  --vx-warning-gradient-end: rgba(232, 132, 58, 0);
   --vx-option-gradient-start: rgba(168, 138, 232, 0.22);
   --vx-option-gradient-end: rgba(168, 138, 232, 0);
   --vx-macro-gradient-start: rgba(107, 197, 188, 0.22);
@@ -95,7 +95,6 @@
   --vx-font-mono: 'Geist Mono', ui-monospace, 'SFMono-Regular', Menlo, Consolas, monospace;
   --vx-font-size-meta: 13px;
   --vx-font-size-body: 14px;
-  --vx-font-size-label: 13px;
   --vx-font-size-title: 16px;
   --vx-font-size-display: 22px;
   --vx-font-size-headline: 28px;
