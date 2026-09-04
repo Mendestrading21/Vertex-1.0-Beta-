@@ -35,7 +35,7 @@ import type {
 } from './client.ts';
 import { queryKeyForResource } from './hooks.ts';
 
-export function getPortfolio(): Promise<PortfolioResponse> {
+function getPortfolio(): Promise<PortfolioResponse> {
   return request({ method: 'GET', path: '/v1/portfolio', protectedRoute: true });
 }
 
@@ -94,7 +94,7 @@ export function postImportConfirm(body: ImportConfirmRequest): Promise<ImportCon
   return request({ method: 'POST', path: '/v1/portfolio/import/confirm', body, protectedRoute: true });
 }
 
-export function getFollowUpQueue(): Promise<FollowUpQueueResponse> {
+function getFollowUpQueue(): Promise<FollowUpQueueResponse> {
   return request({ method: 'GET', path: '/v1/follow-up/queue', protectedRoute: true });
 }
 
@@ -116,7 +116,7 @@ export function postThesisRevision(
   });
 }
 
-export function getPerformance(portfolioId: number): Promise<PerformanceSnapshotResponse> {
+function getPerformance(portfolioId: number): Promise<PerformanceSnapshotResponse> {
   return request({
     method: 'GET',
     path: `/v1/performance/${encodeURIComponent(String(portfolioId))}`,

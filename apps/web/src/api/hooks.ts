@@ -167,7 +167,7 @@ export function pageStateOf(query: UseQueryResult<unknown>): PageDataState {
 // Métadonnées SERVIES d'un snapshot, lues dans le cache — lot L0.
 // ---------------------------------------------------------------------------
 
-export type SnapshotMetaError = 'AUTH_REQUIRED' | 'NETWORK' | 'OTHER';
+type SnapshotMetaError = 'AUTH_REQUIRED' | 'NETWORK' | 'OTHER';
 
 /**
  * Ce que le SERVEUR a publié avec la réponse, plus l'état de la requête.
