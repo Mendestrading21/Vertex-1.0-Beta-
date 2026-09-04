@@ -33,7 +33,7 @@ Conventions : **[F]** fait vérifié par ces passes ; **[I]** inférence ou déc
 | P3 | Options + Simulateur | `lot/w2-options-simulator-20260903` | L0 | §4.5, §4.6 |
 | P4 | Portefeuille + Risques | `lot/w2-portfolio-risks-20260903` | L0 | §4.7, §4.9 |
 | P5 | Graphiques | `lot/w2-charts-20260903` | L0 (+ S2, S6 pour les emplacements B) | §4.8 |
-| P6 | Catalyseurs + Calendrier + Sources & Rapports | `lot/w2-catalysts-calendar-sources-20260903` | L0 | §4.10–4.12 |
+| P6 | Catalyseurs + Calendrier + Sources & Rapports | **fait** — `claude/syncfusion-flutter-widgets-btl182` (`96aff7d` Calendrier, `5889f37` Catalyseurs + Sources) | L0 | §4.10–4.12 — conteneur `Widget` posé sur les 24 modules servis des trois planches ; dominantes laissées sur `Card` + `DataStateBoundary` ; formes v2 : `DayBars` sur densité et exposition du Calendrier |
 | B | Bilan : tableau des lots, portes, écarts, ordre de fusion, passation | — | tout | — |
 
 Ordre de fusion recommandé (humain) : #32 → S0 → S4 → S3 → S1 → S5 → S2 → S6 → C0 → L0 → P1…P6. Les lots P sont indépendants entre eux (base L0). Chaque lot part de `origin/main` à jour (`git fetch && git worktree add ../vertex-<lot> -b lot/<slug> origin/main`).
