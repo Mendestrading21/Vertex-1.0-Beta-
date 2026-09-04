@@ -181,6 +181,78 @@ describe('Widget — surbrillance d’une valeur mise à jour', () => {
     expect(container.querySelector('.vx-w2')?.hasAttribute('data-updated')).toBe(false);
   });
 
+  // LOT T6 — LES DEUX DURÉES, DISTINGUÉES. Le test existant avançait de
+  // 1200 ms : il couvrait les deux cas sans jamais les séparer, donc la durée
+  // longue n'était vérifiée par rien. Ces deux tests les distinguent.
+  //
+  // PRÉCISION QUI COMPTE : ils ne dépendent PAS du double `matchMedia` posé
+  // dans `src/test/setup.ts` — le second pose le sien. Ce que le double
+  // change, c'est le chemin par DÉFAUT, qui passait toujours par la trappe
+  // `typeof !== 'function'`, et surtout les erreurs non capturées de
+  // `fancy-canvas`. Ne pas confondre les deux preuves.
+  it('mouvement normal : la surbrillance dure 600 ms, pas davantage', () => {
+    const { container, rerender } = render(
+      <Widget id="m" size="S" title="T" state="ready" served={{ ...SERVED, snapshotVersion: 1 }}>
+        <p>x</p>
+      </Widget>,
+    );
+    rerender(
+      <Widget id="m" size="S" title="T" state="ready" served={{ ...SERVED, snapshotVersion: 2 }}>
+        <p>x</p>
+      </Widget>,
+    );
+    act(() => {
+      vi.advanceTimersByTime(599);
+    });
+    expect(container.querySelector('.vx-w2')?.getAttribute('data-updated')).toBe('true');
+    act(() => {
+      vi.advanceTimersByTime(1);
+    });
+    expect(container.querySelector('.vx-w2')?.hasAttribute('data-updated')).toBe(false);
+  });
+
+  it('mouvement réduit : l’attribut TIENT PLUS LONGTEMPS, parce que la durée CSS tombe à zéro', () => {
+    // Sous `prefers-reduced-motion`, la transition CSS ne dure plus rien : si
+    // l'attribut partait au même instant, la mise à jour ne se verrait pas du
+    // tout. Il reste donc posé plus longtemps et se lit comme un contour
+    // statique (`docs/05-design/MOTION_AND_MICROINTERACTIONS.md`).
+    const reel = window.matchMedia;
+    window.matchMedia = ((requete: string) =>
+      ({
+        media: requete,
+        matches: requete.includes('prefers-reduced-motion'),
+        onchange: null,
+        addEventListener: () => undefined,
+        removeEventListener: () => undefined,
+        addListener: () => undefined,
+        removeListener: () => undefined,
+        dispatchEvent: () => false,
+      }) as MediaQueryList) as typeof window.matchMedia;
+    try {
+      const { container, rerender } = render(
+        <Widget id="m" size="S" title="T" state="ready" served={{ ...SERVED, snapshotVersion: 1 }}>
+          <p>x</p>
+        </Widget>,
+      );
+      rerender(
+        <Widget id="m" size="S" title="T" state="ready" served={{ ...SERVED, snapshotVersion: 2 }}>
+          <p>x</p>
+        </Widget>,
+      );
+      act(() => {
+        vi.advanceTimersByTime(600);
+      });
+      // Durée normale écoulée : sous mouvement réduit, l'attribut TIENT.
+      expect(container.querySelector('.vx-w2')?.getAttribute('data-updated')).toBe('true');
+      act(() => {
+        vi.advanceTimersByTime(400);
+      });
+      expect(container.querySelector('.vx-w2')?.hasAttribute('data-updated')).toBe(false);
+    } finally {
+      window.matchMedia = reel;
+    }
+  });
+
   it('aucune animation infinie : un seul minuteur, pas d’intervalle', () => {
     const spy = vi.spyOn(globalThis, 'setInterval');
     const { rerender } = render(
