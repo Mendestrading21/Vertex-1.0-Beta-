@@ -5,12 +5,12 @@ import { useOpportunities } from '../../api/decisionApi.ts';
 import { pageStateOf } from '../../api/hooks.ts';
 import { AbsentModule } from '../../components/AbsentModule.tsx';
 import { AuthRequiredNotice } from '../../components/AuthRequiredNotice.tsx';
-import { Card } from '../../components/Card.tsx';
 import { DataStateBoundary } from '../../components/DataStateBoundary.tsx';
 import type { DataState } from '../../components/DataStateBoundary.tsx';
 import { FreshnessBadge } from '../../components/FreshnessBadge.tsx';
 import { Metric } from '../../components/Metric.tsx';
 import { ProvenanceLine } from '../../components/widgets/ProvenanceLine.tsx';
+import { Widget } from '../../components/widgets/Widget.tsx';
 import { SyntheticBanner } from '../../components/SyntheticBanner.tsx';
 import { CandidateInspector, OpportunitiesSnapshotInspector } from './CandidateInspector.tsx';
 import {
@@ -71,7 +71,10 @@ function AbsentOpportunitiesModule({ id }: { readonly id: string }) {
     throw new Error(`Module ${id} is served, not absent`);
   }
   return (
-    <div data-module={id}>
+    // LOT P2d — LA TAILLE VIENT DU CATALOGUE, PAS DE LA MISE EN PAGE. Une
+    // absence occupe l'aire que la planche lui a réservée ; sans `data-size`
+    // elle prendrait la taille par défaut et déplacerait ses voisines.
+    <div data-module={id} data-size={module.size}>
       <AbsentModule
         title={module.title}
         question={module.question}
@@ -127,12 +130,15 @@ function RankingModule({
   }
 
   return (
-    <Card
+    <Widget
+      id={module.id}
+      size={module.size}
+      state="ready"
       rank="dominant"
       kicker="Ordre publié"
       title={module.title}
       titleId="vx-opp-ranking-title"
-      aside={<>{view.candidates.qualified.length + view.candidates.contradictory.length + view.candidates.excluded.length} candidats publiés</>}
+      action={<>{view.candidates.qualified.length + view.candidates.contradictory.length + view.candidates.excluded.length} candidats publiés</>}
       footer={
         <>
           Classement :{' '}
@@ -236,7 +242,7 @@ function RankingModule({
         onInspect={onInspect}
         emptyMessage="Aucun candidat exclu publié."
       />
-    </Card>
+    </Widget>
   );
 }
 
@@ -265,39 +271,23 @@ function OpportunitiesBoard({
   return (
     <>
       <div className="vx-opp-grid vx-board" data-testid="opportunities-grid">
-        <div data-module="active-ideas">
-          <ActiveIdeasModule view={view} />
-        </div>
+        <ActiveIdeasModule view={view} />
         <AbsentOpportunitiesModule id="mean-score" />
         <AbsentOpportunitiesModule id="global-bias" />
         <AbsentOpportunitiesModule id="expected-return" />
 
-        <div data-module="ranking">
-          <RankingModule data={data} view={view} selected={selected} onInspect={setSelected} />
-        </div>
+        <RankingModule data={data} view={view} selected={selected} onInspect={setSelected} />
 
-        <div data-module="bias-split">
-          <BiasSplitModule view={view} />
-        </div>
+        <BiasSplitModule view={view} />
         <AbsentOpportunitiesModule id="score-return-scatter" />
         <AbsentOpportunitiesModule id="factor-contribution" />
         <AbsentOpportunitiesModule id="recent-activity" />
 
-        <div data-module="opportunity-health">
-          <OpportunityHealthModule view={view} />
-        </div>
-        <div data-module="profile">
-          <ProfileModule view={view} />
-        </div>
-        <div data-module="exclusions">
-          <ExclusionsModule view={view} />
-        </div>
-        <div data-module="catalysts-provenance">
-          <CalendarRefModule view={view} />
-        </div>
-        <div data-module="quality">
-          <LimitationsModule view={view} />
-        </div>
+        <OpportunityHealthModule view={view} />
+        <ProfileModule view={view} />
+        <ExclusionsModule view={view} />
+        <CalendarRefModule view={view} />
+        <LimitationsModule view={view} />
       </div>
 
       {picked === null ? (
