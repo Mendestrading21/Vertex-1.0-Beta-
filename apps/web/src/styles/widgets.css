@@ -2268,3 +2268,272 @@
     animation: none;
   }
 }
+
+/* ==========================================================================
+   BULLETMETRIC — mesure quantitative sur un axe linéaire.
+   Préférée à la jauge partout où plusieurs mesures doivent se comparer : des
+   barres alignées verticalement se lisent, une rangée de cadrans non.
+   ========================================================================== */
+
+.vx-bullet {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'label value'
+    'track track'
+    'bounds bounds';
+  gap: var(--vx-space-4) var(--vx-space-12);
+  align-items: baseline;
+}
+
+.vx-bullet-label {
+  grid-area: label;
+  color: var(--vx-text-secondary);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-bullet-value {
+  display: inline-flex;
+  gap: var(--vx-space-4);
+  grid-area: value;
+  align-items: baseline;
+}
+
+.vx-bullet-number {
+  color: var(--vx-text);
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-title);
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.vx-bullet-unit {
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-bullet-track {
+  position: relative;
+  grid-area: track;
+  height: var(--vx-space-12);
+  border-radius: var(--vx-radius-pill);
+  background-color: var(--vx-titanium-soft);
+  overflow: hidden;
+}
+
+/* Les paliers sont un FOND, jamais une couleur de sens : ils situent, ils ne
+   jugent pas. Leur nom vit dans la légende accessible. */
+.vx-bullet-band {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  background-color: var(--vx-signal-faint);
+  border-right: 1px solid var(--vx-border-soft);
+}
+
+.vx-bullet-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  border-radius: var(--vx-radius-pill);
+  background-color: var(--vx-silver);
+}
+
+.vx-bullet[data-tone='positive'] .vx-bullet-fill {
+  background-color: var(--vx-positive);
+}
+
+.vx-bullet[data-tone='negative'] .vx-bullet-fill {
+  background-color: var(--vx-negative);
+}
+
+.vx-bullet[data-tone='warning'] .vx-bullet-fill {
+  background-color: var(--vx-warning);
+}
+
+/* La cible est un TRAIT, pas une pastille : elle marque une position exacte
+   sur l'axe, et un disque en aurait masqué une partie. */
+.vx-bullet-target {
+  position: absolute;
+  top: -2px;
+  width: 2px;
+  height: calc(100% + 4px);
+  background-color: var(--vx-text);
+}
+
+.vx-bullet-bounds {
+  display: flex;
+  grid-area: bounds;
+  justify-content: space-between;
+  color: var(--vx-text-muted);
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-bullet[data-absent='true'] {
+  grid-template-areas:
+    'label label'
+    'track track';
+}
+
+.vx-bullet-reason {
+  grid-area: track;
+  margin: 0;
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+}
+
+/* ==========================================================================
+   MICRO-GRAPHIQUES — MicroBars, MicroRange, MiniHeatStrip.
+   Aucun axe, aucune légende, aucun tooltip lourd : une forme lue en moins
+   d'une seconde, à côté du chiffre qu'elle contextualise. Dès qu'une valeur
+   précise doit être lue, c'est une table qu'il faut, pas ces formes.
+   ========================================================================== */
+
+.vx-micro-absent {
+  margin: 0;
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+}
+
+/* --- MicroBars --- */
+
+.vx-micro-bars {
+  display: flex;
+  gap: 1px;
+  align-items: flex-end;
+  height: var(--vx-space-24);
+  min-width: 0;
+}
+
+.vx-micro-bar {
+  flex: 1 1 0;
+  min-width: 2px;
+  border-radius: 1px;
+  background-color: var(--vx-silver);
+}
+
+.vx-micro-bar[data-sign='up'] {
+  background-color: var(--vx-positive);
+}
+
+.vx-micro-bar[data-sign='down'] {
+  background-color: var(--vx-negative);
+}
+
+.vx-micro-bar[data-sign='flat'] {
+  background-color: var(--vx-text-muted);
+}
+
+/* Une hauteur non publiée est un TROU, pas une barre basse : elle occupe toute
+   la piste en creux, et son motif est nommé dans la légende accessible. */
+.vx-micro-bar[data-absent='true'] {
+  border: 1px dashed var(--vx-border);
+  background-color: transparent;
+}
+
+/* --- MicroRange --- */
+
+.vx-range {
+  display: flex;
+  flex-direction: column;
+  gap: var(--vx-space-4);
+  min-width: 0;
+}
+
+.vx-range-label {
+  color: var(--vx-text-secondary);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-range-track {
+  position: relative;
+  height: var(--vx-space-4);
+  border-radius: var(--vx-radius-pill);
+  background: linear-gradient(
+    to right,
+    var(--vx-titanium-soft),
+    var(--vx-titanium-soft)
+  );
+}
+
+.vx-range-cursor {
+  position: absolute;
+  top: -4px;
+  width: 2px;
+  height: calc(100% + 8px);
+  background-color: var(--vx-signal);
+}
+
+.vx-range-bounds {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-meta);
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.vx-range-low,
+.vx-range-high {
+  color: var(--vx-text-muted);
+}
+
+.vx-range-current {
+  color: var(--vx-text);
+}
+
+.vx-range-window {
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-range-reason {
+  margin: 0;
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+}
+
+/* --- MiniHeatStrip --- */
+
+.vx-heatstrip {
+  display: flex;
+  gap: 2px;
+  min-width: 0;
+}
+
+.vx-heatstrip-cell {
+  flex: 1 1 0;
+  min-width: 4px;
+  height: var(--vx-space-16);
+  border-radius: 2px;
+}
+
+/* Cinq bandes NOMMÉES plutôt qu'un dégradé continu : un dégradé suppose une
+   normalisation — donc un calcul — et l'œil compare mal deux nuances voisines. */
+.vx-heatstrip-cell[data-band='none'] {
+  background-color: var(--vx-signal-faint);
+}
+
+.vx-heatstrip-cell[data-band='low'] {
+  background-color: var(--vx-signal-soft);
+}
+
+.vx-heatstrip-cell[data-band='medium'] {
+  background-color: var(--vx-signal-strong);
+}
+
+.vx-heatstrip-cell[data-band='high'] {
+  background-color: var(--vx-signal);
+}
+
+.vx-heatstrip-cell[data-band='extreme'] {
+  background-color: var(--vx-signal-bright);
+}
+
+/* `unknown` n'est PAS la bande la plus basse : c'est un creux, visuellement
+   d'une autre nature. Une cellule vide traitée comme « faible » inventerait
+   une mesure. */
+.vx-heatstrip-cell[data-band='unknown'] {
+  border: 1px dashed var(--vx-border);
+  background-color: transparent;
+}
