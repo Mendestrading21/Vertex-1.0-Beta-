@@ -208,18 +208,12 @@ function CatalystsBoard({
   return (
     <>
       <div className="vx-cat-grid vx-board" data-testid="catalysts-grid">
-        <div data-module="upcoming-count">
-          <UpcomingCountModule selection={selection} state={moduleState} reason={data?.reason ?? null} />
-        </div>
+        <UpcomingCountModule selection={selection} state={moduleState} reason={data?.reason ?? null} />
         <AbsentCatalystsModule id="mean-impact" />
         <AbsentCatalystsModule id="confidence" />
-        <div data-module="revisions">
-          <RevisionsModule selection={selection} state={moduleState} />
-        </div>
+        <RevisionsModule selection={selection} state={moduleState} />
 
-        <div data-module="filters">
-          <FiltersModule selection={selection} state={moduleState} filters={filters} onToggleCategory={toggleCategory} onToggleLink={toggleLink} shown={shown.length} />
-        </div>
+        <FiltersModule selection={selection} state={moduleState} filters={filters} onToggleCategory={toggleCategory} onToggleLink={toggleLink} shown={shown.length} />
         <AbsentCatalystsModule id="surprises" />
         <AbsentCatalystsModule id="consensus" />
 
@@ -235,28 +229,16 @@ function CatalystsBoard({
             }}
           />
         </div>
-        <div data-module="category-split">
-          <CategorySplitModule selection={selection} state={moduleState} />
-        </div>
+        <CategorySplitModule selection={selection} state={moduleState} />
         <AbsentCatalystsModule id="surprise-history" />
 
-        <div data-module="portfolio-exposure">
-          <PortfolioExposureModule selection={selection} state={moduleState} />
-        </div>
+        <PortfolioExposureModule selection={selection} state={moduleState} />
         <AbsentCatalystsModule id="event-alerts" />
-        <div data-module="sources-freshness">
-          <SourcesFreshnessModule selection={selection} state={moduleState} />
-        </div>
+        <SourcesFreshnessModule selection={selection} state={moduleState} />
 
-        <div data-module="window">
-          <WindowModule data={data} populationTheses={queueView?.populationTheses ?? null} state={moduleState} />
-        </div>
-        <div data-module="conflicts">
-          <ConflictsModule selection={selection} state={moduleState} />
-        </div>
-        <div data-module="orphan-theses">
-          <OrphanThesesModule theses={selection === null ? null : selection.thesesWithoutCatalyst} state={moduleState} />
-        </div>
+        <WindowModule data={data} populationTheses={queueView?.populationTheses ?? null} state={moduleState} />
+        <ConflictsModule selection={selection} state={moduleState} />
+        <OrphanThesesModule theses={selection === null ? null : selection.thesesWithoutCatalyst} state={moduleState} />
 
         <div data-module="review">
           <ReviewQueueSection />

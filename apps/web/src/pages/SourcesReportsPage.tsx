@@ -5,6 +5,7 @@ import { pageStateOf, useAttention, useCapabilities } from '../api/hooks.ts';
 import { AuthRequiredNotice } from '../components/AuthRequiredNotice.tsx';
 import { Card } from '../components/Card.tsx';
 import { DataStateBoundary } from '../components/DataStateBoundary.tsx';
+import type { ModuleState } from '../components/moduleState.ts';
 import { SyntheticBanner } from '../components/SyntheticBanner.tsx';
 import { SourceHealthMatrix } from './SourceHealthMatrix.tsx';
 import { CapabilityInspector } from './sources/CapabilityInspector.tsx';
@@ -73,7 +74,14 @@ function RegistryModule({
   );
 }
 
-function SourcesBoard({ data }: { readonly data: SystemCapabilities }) {
+/**
+ * La planche §12. L'état passé aux widgets est celui de la PAGE, et il ne
+ * vaut ici que `ready` ou `refreshing` : la frontière de `SourcesReportsPage`
+ * ne rend cette planche que dans ces deux états, avec `data` défini. Les
+ * autres états (hors ligne, erreur, session requise) sont dits par la
+ * frontière, une fois, au-dessus — jamais répétés dix-sept fois.
+ */
+function SourcesBoard({ data, state }: { readonly data: SystemCapabilities; readonly state: ModuleState }) {
   const attention = useAttention();
   // La nature vient d'une SECONDE requête. Tant qu'elle n'a pas répondu, on ne
   // sait pas encore — ce n'est pas la même chose qu'une nature non déclarée.
@@ -93,22 +101,14 @@ function SourcesBoard({ data }: { readonly data: SystemCapabilities }) {
 
       <div className="vx-sources-grid vx-board" data-testid="sources-grid">
         <AbsentSourcesModule id="global-health" />
-        <div data-module="status-census">
-          <StatusCensusModule data={data} />
-        </div>
-        <div data-module="freshness">
-          <FreshnessModule health={data.health} />
-        </div>
+        <StatusCensusModule data={data} state={state} />
+        <FreshnessModule health={data.health} state={state} />
         <AbsentSourcesModule id="field-coverage" />
 
         <AbsentSourcesModule id="error-rate" />
         <AbsentSourcesModule id="incidents" />
-        <div data-module="last-sync">
-          <LastSyncModule data={data} />
-        </div>
-        <div data-module="versions">
-          <VersionsModule health={data.health} />
-        </div>
+        <LastSyncModule data={data} state={state} />
+        <VersionsModule health={data.health} state={state} />
 
         <div data-module="registry">
           <RegistryModule
@@ -124,17 +124,13 @@ function SourcesBoard({ data }: { readonly data: SystemCapabilities }) {
 
         <AbsentSourcesModule id="audit-log" />
         <AbsentSourcesModule id="reports" />
-        <div data-module="exports">
-          <ExportsModule />
-        </div>
+        <ExportsModule state={state} />
         <AbsentSourcesModule id="backups" />
 
         <div data-module="components-health">
           <HealthPanel health={data.health} />
         </div>
-        <div data-module="unknown-probes">
-          <UnknownProbesModule data={data} />
-        </div>
+        <UnknownProbesModule data={data} state={state} />
       </div>
 
       {opened !== null ? (
@@ -169,7 +165,7 @@ export function SourcesReportsPage() {
           state={state}
           {...(capabilities.data !== undefined ? { asOfLabel: `vérifié à ${capabilities.data.checked_at}` } : {})}
         >
-          {capabilities.data !== undefined ? <SourcesBoard data={capabilities.data} /> : null}
+          {capabilities.data !== undefined ? <SourcesBoard data={capabilities.data} state={state} /> : null}
         </DataStateBoundary>
       ) : (
         <DataStateBoundary
