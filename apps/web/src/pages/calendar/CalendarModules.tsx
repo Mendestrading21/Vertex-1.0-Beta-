@@ -165,12 +165,16 @@ export function ImportanceRuleModule({ served, state }: { readonly served: Calen
                 {view.ranks.map((entry) => (
                   <tr key={`${entry.rank}-${entry.code}`}>
                     <th scope="row" className="vx-num">
-                      {entry.rank ?? '—'}
+                      {entry.rank ?? <span className="vx-cell-absent">non publié</span>}
                     </th>
                     <td>
-                      <code>{entry.code ?? '—'}</code>
+                      <code>{entry.code ?? 'non publié'}</code>
                     </td>
-                    <td>{entry.description ?? '—'}</td>
+                    <td>
+                      {entry.description ?? (
+                        <span className="vx-cell-absent">description non publiée</span>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -264,13 +268,13 @@ export function ProvenanceModule({ served, state }: { readonly served: CalendarR
             <div>
               <dt>Snapshot</dt>
               <dd>
-                v{served.snapshot_version ?? '—'} · {served.as_of !== null ? <time dateTime={served.as_of}>{served.as_of}</time> : 'as_of non publié'}
+                v{served.snapshot_version ?? 'non publiée'} · {served.as_of !== null ? <time dateTime={served.as_of}>{served.as_of}</time> : 'as_of non publié'}
               </dd>
             </div>
             <div>
               <dt>Population</dt>
               <dd>
-                <code>{served.population ?? '—'}</code>
+                <code>{served.population ?? 'non publiée'}</code>
               </dd>
             </div>
             <div>
@@ -281,12 +285,32 @@ export function ProvenanceModule({ served, state }: { readonly served: CalendarR
             </div>
           </dl>
           <p className="vx-cal-provenance" data-testid="cal-provenance">
-            Snapshot version <code>{served.snapshot_version ?? '—'}</code> — publié{' '}
-            {served.as_of !== null ? <time dateTime={served.as_of}>{served.as_of}</time> : '—'} — population{' '}
-            <code>{served.population ?? '—'}</code> — fenêtre bornée à <span className="vx-num">{served.window.max_days}</span> jours —
-            observations considérées <span className="vx-num">{typeof considered === 'number' ? considered : '—'}</span> —
-            enregistrements supplantés <span className="vx-num">{typeof superseded === 'number' ? superseded : '—'}</span> —
-            événements périmés <span className="vx-num">{typeof stale === 'number' ? stale : '—'}</span>
+            Snapshot version <code>{served.snapshot_version ?? 'non publiée'}</code> — publié{' '}
+            {served.as_of === null ? (
+              <span className="vx-cell-absent">instant non publié</span>
+            ) : (
+              <time dateTime={served.as_of}>{served.as_of}</time>
+            )}{' '}
+            — population <code>{served.population ?? 'non publiée'}</code> — fenêtre bornée à{' '}
+            <span className="vx-num">{served.window.max_days}</span> jours — observations
+            considérées{' '}
+            {typeof considered === 'number' ? (
+              <span className="vx-num">{considered}</span>
+            ) : (
+              <span className="vx-cell-absent">nombre non publié</span>
+            )}{' '}
+            — enregistrements supplantés{' '}
+            {typeof superseded === 'number' ? (
+              <span className="vx-num">{superseded}</span>
+            ) : (
+              <span className="vx-cell-absent">nombre non publié</span>
+            )}{' '}
+            — événements périmés{' '}
+            {typeof stale === 'number' ? (
+              <span className="vx-num">{stale}</span>
+            ) : (
+              <span className="vx-cell-absent">nombre non publié</span>
+            )}
           </p>
         </>
       )}
@@ -430,7 +454,8 @@ export function NextEventModule({
           </ul>
           <p className="vx-module-sentence">
             Dans le fuseau <code>{displayTimeZone}</code> : {reading !== null ? <span className="vx-num">{reading}</span> : <span className="vx-cell-absent">conversion impossible</span>}
-            {' · '}importance rang {first.importance.rank ?? '—'} (<code>{first.importance.code ?? '—'}</code>)
+            {' · '}importance rang {first.importance.rank ?? 'non publié'} (
+            <code>{first.importance.code ?? 'non publié'}</code>)
           </p>
         </div>
       )}
