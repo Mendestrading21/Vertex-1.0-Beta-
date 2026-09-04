@@ -63,14 +63,44 @@ dépendances de production :
 | `react-animated-numbers` | Une transition de chiffre est une interpolation et un `requestAnimationFrame`. Le paquet n'apporte ni format monétaire ni respect de `prefers-reduced-motion` conformes à nos règles. |
 | `react-gauge-component` et alternatives | Les jauges Vertex sont servies : la position vient du serveur, le composant ne calcule rien. Une bibliothèque de jauges apporte surtout de la normalisation locale — exactement ce qui est interdit. |
 
-### En attente de mesure
+### TanStack Table et TanStack Virtual — tranché par la mesure
 
-`@tanstack/react-table` et `@tanstack/react-virtual` sont demandés par le
-programme pour la chaîne d'options. La décision attend la VOLUMÉTRIE RÉELLE :
-la documentation du composant actuel annonce ~12 strikes par échéance et un
-budget serveur de 240 lignes toutes échéances confondues. Sous ce volume, la
-virtualisation coûte plus qu'elle ne rapporte, et casse la sémantique de table
-native que l'accessibilité exige. Le chiffre sera relevé avant de trancher.
+Le programme les demande en priorité pour la chaîne d'options. La volumétrie
+réelle a été relevée dans le code serveur, pas estimée :
+
+| Mesure | Valeur | Preuve |
+|---|---:|---|
+| Strikes par échéance, données synthétiques | **12** | `packages/python/vertex_core/src/vertex_core/synthetic/options.py:108` (`_STRIKE_COUNT = 12`) |
+| Contrats par échéance | **24** (12 × CALL/PUT) | même fichier, ligne 183 |
+| Échéances par sous-jacent | **2** | même fichier, ligne 7 |
+| Plafond serveur, toutes échéances | **240 lignes de contrat** | `apps/worker/src/vertex_worker/options.py:184` (`max_chain_rows: int = 240`) |
+| Comportement au-delà | tronqué, et la troncature est PUBLIÉE | même fichier, lignes 723-725 et 767-772 (`truncated_rows`) |
+
+**Décision : les deux sont REFUSÉS.**
+
+*Virtualisation.* La chaîne rend **12 lignes de strike par groupe d'échéance**, et
+ne peut structurellement pas dépasser **120 lignes** au total puisque le serveur
+tronque à 240 contrats. Virtualiser 120 lignes ne fait rien gagner et coûte cher :
+elle casse la sémantique de `<table>` native, donc la lecture par lecteur d'écran,
+la recherche du navigateur (Ctrl+F), et la copie de la chaîne. Le composant actuel
+porte déjà `content-visibility: auto` comme fenêtrage CSS léger si un instantané
+approchait du budget.
+
+*Table headless.* Ce qu'elle apporterait ici, c'est le tri et la visibilité des
+colonnes. Le tri est la propriété du SERVEUR — le client ne réordonne pas une
+priorité canonique, c'est une règle du produit, pas une préférence. Reste la
+visibilité des colonnes, soit un état local d'une trentaine de lignes.
+
+*Ce qui est fait à la place.* Les capacités demandées — sélection de colonnes,
+colonne de strike collante, en-tête collant, navigation clavier, ligne
+sélectionnée, mise en avant de l'ATM — sont implémentées sur `DataTable` et sur
+la chaîne, avec les primitives Vertex. Le motif est repris ; le paquet ne l'est
+pas, conformément au §29 du programme.
+
+*Ce qui rouvrirait la décision.* Une configuration serveur portant
+`max_chain_rows` au-delà de quelques milliers, ou une chaîne réelle IBKR non
+tronquée. La mesure ci-dessus serait alors refaite avant d'ajouter quoi que ce
+soit.
 
 ---
 
