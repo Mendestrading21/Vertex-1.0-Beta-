@@ -572,6 +572,36 @@ test.describe('Shell — anatomie canonique', () => {
     await expect(inspecteur).toBeHidden();
   });
 
+  // LOT T5 — CE QUE LE CSS DU PRODUIT NE PEUT PAS ATTEINDRE. Le menu qui
+  // s'ouvre au clic d'un `<select>`, les barres de défilement des régions
+  // denses et le calendrier des champs de date sont dessinés par le
+  // navigateur, hors de toute feuille de style. Une seule déclaration décide
+  // de leur thème. Mesuré AVANT ce lot : `normal` partout, donc des panneaux
+  // BLANCS sur un produit noir. L'assertion porte sur la valeur CALCULÉE,
+  // parce que c'est le comportement qui compte, pas la ligne de CSS.
+  test('le thème natif du navigateur est celui du produit, sur toutes les destinations', async ({
+    page,
+  }) => {
+    for (const route of ['/today', '/calendar', '/simulator', '/sources-reports']) {
+      await page.goto(route);
+      await expect(page.locator('article.vx-page')).toBeVisible({ timeout: 20_000 });
+      const scheme = await page.evaluate(
+        () => getComputedStyle(document.documentElement).colorScheme,
+      );
+      expect(scheme, route).toBe('dark');
+    }
+    // Et le texte d'exemple d'un champ n'est pas laissé au gris du navigateur :
+    // il porte le jeton du produit, donc un contraste mesuré.
+    await page.goto('/simulator');
+    const exemple = page.locator('input[placeholder]').first();
+    await expect(exemple).toBeVisible();
+    const couleur = await exemple.evaluate((n) => {
+      const cs = getComputedStyle(n, '::placeholder');
+      return `${cs.color} ${cs.opacity}`;
+    });
+    expect(couleur).not.toBe('');
+  });
+
   test('le shell reste identique d’une destination à l’autre', async ({ page }) => {
     // « Le shell reste identique sur les douze destinations. Seuls l'item
     // actif, le titre, la dominante, les modules secondaires et l'inspecteur
