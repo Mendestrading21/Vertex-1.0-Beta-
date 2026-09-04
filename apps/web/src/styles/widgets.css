@@ -2166,3 +2166,105 @@
   color: var(--vx-text-muted);
   font-size: var(--vx-font-size-meta);
 }
+
+/* ==========================================================================
+   LIVEDATAINDICATOR — statut canonique d'un jeu de données.
+   La couleur ne code JAMAIS seule : le mot est toujours présent, et la forme
+   de la pastille (pleine / creuse) porte une seconde fois la distinction
+   « décrit l'instant » / « ne le décrit plus ».
+   ========================================================================== */
+
+.vx-live {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--vx-space-8);
+  min-width: 0;
+}
+
+.vx-live-dot {
+  flex: 0 0 auto;
+  width: var(--vx-space-8);
+  height: var(--vx-space-8);
+  border: 1px solid currentcolor;
+  border-radius: var(--vx-radius-pill);
+  /* Alignée sur la ligne de base du texte, pas centrée sur la boîte : une
+     pastille qui flotte au-dessus du mot désaligne toute la barre. */
+  transform: translateY(-1px);
+}
+
+.vx-live-dot[data-filled='true'] {
+  background-color: currentcolor;
+}
+
+.vx-live-label {
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-meta);
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
+.vx-live[data-tone='positive'] {
+  color: var(--vx-positive);
+}
+
+.vx-live[data-tone='warning'] {
+  color: var(--vx-warning);
+}
+
+.vx-live[data-tone='negative'] {
+  color: var(--vx-negative);
+}
+
+.vx-live[data-tone='neutral'] {
+  color: var(--vx-text-secondary);
+}
+
+.vx-live[data-tone='muted'] {
+  color: var(--vx-text-muted);
+}
+
+/* Le contexte reste SILENCIEUX : c'est l'état qui doit se lire en premier. */
+.vx-live-context {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--vx-space-8);
+  min-width: 0;
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-live-source,
+.vx-live-entitlement {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vx-live-age,
+.vx-live-asof {
+  font-family: var(--vx-font-mono);
+  white-space: nowrap;
+}
+
+/* UNE seule pulsation dans tout le produit, réservée à `live`, et très faible :
+   elle dit « ceci se rafraîchit », pas « regardez-moi ». Tout le reste est
+   immobile — un tableau de bord qui clignote ne se lit plus. */
+@keyframes vx-live-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+.vx-live[data-state='live'] .vx-live-dot {
+  animation: vx-live-pulse 2400ms ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vx-live[data-state='live'] .vx-live-dot {
+    animation: none;
+  }
+}
