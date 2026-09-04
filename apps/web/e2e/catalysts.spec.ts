@@ -183,9 +183,15 @@ test.describe('Catalyseurs — module de revue (ex-page /follow-up)', () => {
     // deux est indisponible.
     // Borné aux FRONTIÈRES d'état (`DataStateBoundary`) : depuis le lot P6b,
     // chaque widget servi de la planche porte aussi son propre `data-state`,
-    // et un sélecteur non borné compterait la planche entière au lieu des
-    // deux bandeaux qui nomment la source manquante.
-    const boundaries = page.locator('.vx-dsb-message[data-state="offline"]');
+    // et un sélecteur non borné en compte DIX-HUIT — huit conteneurs `.vx-w2`,
+    // huit `.vx-module-state`, et les deux frontières — au lieu des deux
+    // bandeaux qui nomment la source manquante.
+    //
+    // La frontière se reconnaît à son BANDEAU, pas à `.vx-dsb-message` : cette
+    // classe n'existe que sur les branches `loading`, `empty` et `error sans
+    // enfants`. `offline` tombe dans la branche qui garde le contenu daté sous
+    // un bandeau explicite, et ce conteneur-là ne porte aucune classe.
+    const boundaries = page.locator('[data-state="offline"]:has(.vx-dsb-banner)');
     await expect(boundaries).toHaveCount(2);
 
     // Les deux disent laquelle des deux sources manque : jamais deux fois le
