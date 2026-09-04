@@ -448,7 +448,8 @@ racines situées dans un même intervalle ne produisent aucun changement de sign
 à ses bornes : elles sont invisibles.** S'il en existe une troisième ailleurs,
 la grille voit exactement un encadrement et la fonction conclut à l'unicité.
 
-Reproducteur exécuté sur `main`, flux à trois racines réelles — 15 %, 45 %, 55 % :
+Reproducteur exécuté sur la source de `origin/main` de **ce dépôt**, flux à
+trois racines réelles — 15 %, 45 %, 55 % :
 
 ```
 flux : -38 690,33 / +160 564,88 / -220 438,17 / +100 000,00 sur quatre ans
@@ -461,6 +462,13 @@ Le produit affiche **15,00 %** comme le rendement, sans réserve, alors que 45 %
 et 55 % sont des réponses tout aussi valides. La limitation est écrite dans la
 docstring, mais **une docstring n'est pas une porte** : l'écran, lui, ne dit
 rien.
+
+> **Correction de provenance.** La première exécution de cette sonde importait
+> `vertex_core` depuis `/home/user/Vertex-1.0-Beta-`, l'autre checkout, et non
+> depuis la cible d'écriture : l'environnement virtuel y résout le paquet
+> installé. Le chiffre était juste mais ne prouvait pas ce que j'en disais. La
+> mesure ci-dessus est refaite en pointant explicitement la source de
+> `origin/main` de ce dépôt. Le défaut est présent dans les deux checkouts.
 
 Le test existant `test_multiple_roots_return_invalid` ne l'attrape pas : ses
 deux racines (7,2 % et 27,8 %) tombent dans des intervalles différents, donc la
