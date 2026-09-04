@@ -1708,3 +1708,41 @@
   margin-top: var(--vx-space-4);
   min-width: 0;
 }
+
+
+/* ==========================================================================
+   LOT T3 — PLANCHES BENTO : les cartes cessent de faire la même taille
+   --------------------------------------------------------------------------
+   LE DÉFAUT, MESURÉ SUR CAPTURE. `.vx-board`, `.vx-today-grid` et
+   `.vx-markets-grid` posent `align-items: stretch`, et la carte prend
+   `height: 100%`. Une rangée fait donc partout la hauteur de son module le
+   plus haut : un module de trois lignes se retrouve dans un cadre de 400 px
+   dont 340 sont vides. Vu sur Aujourd'hui, rangée 1 — quatre cartes de même
+   hauteur, trois presque vides. C'est exactement « entre les cartes c'est
+   toujours la même ».
+
+   LE REMÈDE, ET SA LIMITE. Une carte prend désormais la HAUTEUR DE SON
+   CONTENU (`align-items: start`). L'espace restant redevient du fond, pas un
+   cadre vide : c'est la composition en pavés des tableaux de bord de
+   référence. Ce qui NE change pas : les aires nommées, l'ordre de lecture, la
+   dominante. Une planche reste une composition déclarée, jamais un flux.
+
+   L'EXCEPTION EST DÉCLARÉE, PAS DEVINÉE. Un module `XL` ou `L` porte une
+   figure qui a besoin de sa hauteur (courbe, matrice, file). Ceux-là gardent
+   `stretch` — c'est `data-size`, publié par le catalogue de la page, qui le
+   dit ; jamais une classe écrite à la main sur une carte.
+   ========================================================================== */
+.vx-board,
+.vx-today-grid,
+.vx-markets-grid {
+  align-items: start;
+}
+
+.vx-board > [data-module][data-size='L'],
+.vx-board > [data-module][data-size='XL'],
+.vx-today-grid > [data-module][data-size='L'],
+.vx-today-grid > [data-module][data-size='XL'],
+.vx-markets-grid > [data-module][data-size='L'],
+.vx-markets-grid > [data-module][data-size='XL'] {
+  align-self: stretch;
+}
