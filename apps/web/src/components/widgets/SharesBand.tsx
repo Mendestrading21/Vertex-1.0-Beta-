@@ -13,8 +13,8 @@ import { geometryValue, ratioWidth, servedWidth } from './geometry.ts';
  * serveur), le rail reste visible. Aucune part n'est étirée, aucun « autres »
  * n'est fabriqué : additionner les parts serait produire une valeur.
  */
-export const SHARE_TONES = ['silver', 'titanium', 'macro', 'option'] as const;
-export type ShareTone = (typeof SHARE_TONES)[number];
+const SHARE_TONES = ['silver', 'titanium', 'macro', 'option'] as const;
+type ShareTone = (typeof SHARE_TONES)[number];
 
 const PATTERNS = ['a', 'b', 'c', 'd', 'e', 'f'] as const;
 

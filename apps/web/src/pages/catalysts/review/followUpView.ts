@@ -41,14 +41,14 @@ function bool(record: UnknownRecord | null, key: string): boolean {
 
 // -- vues -------------------------------------------------------------------
 
-export interface UrgencyReasonView {
+interface UrgencyReasonView {
   readonly code: string;
   readonly clusterId: string | null;
   readonly lastReceivedAt: string | null;
   readonly referenceInstant: string | null;
 }
 
-export interface ClusterContextView {
+interface ClusterContextView {
   readonly clusterId: string;
   readonly title: string | null;
   readonly synthetic: boolean;
@@ -235,7 +235,7 @@ export function queueContentOf(content: unknown): QueueContentView | null {
 }
 
 /** Statuts projetés → libellé français (le code machine reste affiché). */
-export const THESIS_STATUS_LABELS: Readonly<Record<string, string>> = {
+const THESIS_STATUS_LABELS: Readonly<Record<string, string>> = {
   ACTIVE: 'active',
   SNOOZED: 'reportée',
   ARCHIVED: 'archivée',

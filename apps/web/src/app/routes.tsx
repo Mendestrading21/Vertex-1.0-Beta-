@@ -181,7 +181,7 @@ const INSTALLED_PAGES: Readonly<Record<string, () => React.JSX.Element>> = {
 };
 
 /** Définition de la page d'accès (hors navigation, hors blueprint des 12). */
-export const AUTH_PAGE: PageDef = {
+const AUTH_PAGE: PageDef = {
   key: 'auth',
   title: 'Accès',
   navPath: '/auth',

@@ -274,7 +274,7 @@ export const DIRECTION_FR: Readonly<Record<string, string>> = {
 // Evidence (clusters de fusion)
 // ---------------------------------------------------------------------------
 
-export interface EvidenceClusterView {
+interface EvidenceClusterView {
   readonly clusterId: string;
   readonly title: string;
   readonly sources: readonly string[];
@@ -411,7 +411,7 @@ export function scenariosViewOf(data: AnalysisResponse): ScenariosView | null {
 }
 
 /** Raisons typées d'absence de scénarios → phrase française. */
-export const SCENARIO_ABSENT_REASONS_FR: Readonly<Record<string, string>> = {
+const SCENARIO_ABSENT_REASONS_FR: Readonly<Record<string, string>> = {
   no_option_chain: 'aucune chaîne d’options publiée pour cet instrument',
   no_healthy_contract: 'aucun contrat sain (quote saine ET IV résolue) dans la chaîne publiée',
 };

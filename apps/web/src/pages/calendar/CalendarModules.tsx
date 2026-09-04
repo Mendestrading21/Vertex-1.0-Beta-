@@ -48,7 +48,7 @@ export function AbsentCalendarModule({ id }: { readonly id: string }) {
  * DIT en clair, sans `data-state` : la seule frontière `data-state` de la
  * page est celle de l'agenda (dominante), que le témoin e2e hors ligne lit.
  */
-export function AgendaAbsence({ state }: { readonly state: ModuleState }) {
+function AgendaAbsence({ state }: { readonly state: ModuleState }) {
   if (state === 'empty') {
     return (
       <p className="vx-module-sentence" role="status">

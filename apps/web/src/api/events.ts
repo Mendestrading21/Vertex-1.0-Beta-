@@ -64,7 +64,7 @@ export interface SnapshotEventsHandle {
   readonly stop: () => void;
 }
 
-export const EVENTS_STREAM_URL = '/api/v1/events/stream';
+const EVENTS_STREAM_URL = '/api/v1/events/stream';
 
 function defaultCreateEventSource(url: string): EventSourceLike {
   return new EventSource(url, { withCredentials: true });

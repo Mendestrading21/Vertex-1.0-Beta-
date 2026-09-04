@@ -38,7 +38,7 @@ export interface CalendarWindowQuery {
 }
 
 /** Chaîne de requête de la fenêtre : seules les bornes RÉELLEMENT saisies. */
-export function calendarWindowQueryString(window: CalendarWindowQuery | null): string {
+function calendarWindowQueryString(window: CalendarWindowQuery | null): string {
   if (window === null) {
     return '';
   }
@@ -58,7 +58,7 @@ export function calendarWindowQueryString(window: CalendarWindowQuery | null): s
  * qui la valide (fenêtre incomplète, naïve, inversée ou trop large — 4 refus
  * typés 422) et l'interface n'en corrige aucune.
  */
-export function getCalendar(window: CalendarWindowQuery | null): Promise<CalendarResponse> {
+function getCalendar(window: CalendarWindowQuery | null): Promise<CalendarResponse> {
   return request({
     method: 'GET',
     path: `/v1/calendar${calendarWindowQueryString(window)}`,
@@ -66,16 +66,16 @@ export function getCalendar(window: CalendarWindowQuery | null): Promise<Calenda
   });
 }
 
-export function getOpportunities(): Promise<OpportunitiesResponse> {
+function getOpportunities(): Promise<OpportunitiesResponse> {
   return request({ method: 'GET', path: '/v1/opportunities', protectedRoute: true });
 }
 
 /** Matrice de correlation du perimetre DECLARE (cle globale, pas un portefeuille). */
-export function getRiskMatrix(): Promise<RiskMatrixResponse> {
+function getRiskMatrix(): Promise<RiskMatrixResponse> {
   return request({ method: 'GET', path: '/v1/risk/matrix', protectedRoute: true });
 }
 
-export function getAiStatus(): Promise<AiStatusResponse> {
+function getAiStatus(): Promise<AiStatusResponse> {
   return request({ method: 'GET', path: '/v1/ai/status', protectedRoute: true });
 }
 

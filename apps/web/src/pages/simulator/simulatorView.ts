@@ -17,8 +17,8 @@ import type { SimulatorTransfer } from './transfer.ts';
 // Modèle de formulaire (brouillon local, jamais persisté)
 // ---------------------------------------------------------------------------
 
-export type LegSide = 'LONG' | 'SHORT';
-export type LegRight = 'CALL' | 'PUT' | 'STOCK';
+type LegSide = 'LONG' | 'SHORT';
+type LegRight = 'CALL' | 'PUT' | 'STOCK';
 
 export interface LegDraft {
   readonly id: number;
