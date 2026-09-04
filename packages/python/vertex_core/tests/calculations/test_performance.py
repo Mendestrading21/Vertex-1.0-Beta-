@@ -227,14 +227,89 @@ class TestXirr:
         with pytest.raises(PerformanceCalculationError, match="at least two"):
             xirr([flow(0, "-100")])
 
-    def test_no_bracket_returns_invalid_not_a_number(self):
-        # NPV(x) = -100 + 235 x - 139 x^2 (x = 1/(1+r)) has negative
-        # discriminant (235^2 - 4*139*100 = -375): no real root exists.
+    def test_no_real_root_returns_invalid_not_a_number(self):
+        """NPV(x) = -100 + 235 x - 139 x² : discriminant négatif, aucune racine réelle.
+
+        LOT 2 bis — CE TEST N'EST PAS AFFAIBLI, IL EST DÉPLACÉ SUR SON SENS.
+        Il exigeait `"bracket" in reason`, ce qui figeait le CHEMIN emprunté
+        plutôt que le fait constaté. Ce flux change deux fois de signe : la
+        preuve d'unicité le refuse maintenant AVANT que la grille soit
+        consultée, et le motif parle donc d'unicité, pas d'encadrement.
+
+        Ce qui est protégé — INVALID, aucun chiffre, un motif écrit — reste
+        exigé mot pour mot. Le chemin « aucun encadrement » garde son propre
+        test juste en dessous, sur un flux conventionnel : la couverture ne
+        recule pas.
+        """
         result = xirr([flow(0, "-100"), flow(365, "235"), flow(730, "-139")])
         assert result.status is CalculationStatus.INVALID
         assert result.rate is None
         assert result.npv_at_rate is None
+        assert result.reason is not None and len(result.reason) > 20
+
+    def test_conventional_flow_out_of_grid_range_returns_invalid(self):
+        """Le chemin « aucun encadrement », préservé sur un flux conventionnel.
+
+        Un seul changement de signe : l'unicité EST prouvée, la grille est donc
+        consultée — et le taux réel (+9 999 900 %) sort de sa borne supérieure
+        de 1000. Aucun encadrement n'existe, et la fonction doit le dire sans
+        inventer de nombre.
+        """
+        result = xirr([flow(0, "-1"), flow(365, "100000")])
+        assert result.status is CalculationStatus.INVALID
+        assert result.rate is None
+        assert result.npv_at_rate is None
         assert "bracket" in result.reason
+
+    def test_three_roots_two_inside_one_grid_cell_return_invalid(self):
+        """LOT 2 bis — LE TROU DE LA GRILLE, MESURÉ AVANT D'ÊTRE BOUCHÉ.
+
+        `XIRR_BRACKET_GRID` cherche l'unicité par changement de signe entre
+        points consécutifs. Ses intervalles sont larges : 0,4 → 0,7 → 1,0 →
+        2,0 → 5,0. DEUX racines situées dans un MÊME intervalle ne changent
+        pas le signe à ses bornes — elles sont invisibles. S'il en existe une
+        troisième ailleurs, la grille voit exactement un encadrement et la
+        fonction conclut à tort à l'unicité.
+
+        Ce flux a trois racines réelles : 15 %, 45 % et 55 %. Les deux
+        dernières tombent toutes deux dans l'intervalle (0,4 ; 0,7).
+
+        Avant correction, `xirr` renvoyait OK au taux 0,15000057 — un rendement
+        présenté comme LE rendement, alors que 45 % et 55 % sont des réponses
+        tout aussi valides. C'est un chiffre faux affiché comme valide, ce que
+        l'article de vérité financière interdit sans réserve.
+
+        Le test ne vérifie donc PAS que la grille voit les trois racines : il
+        vérifie que la fonction REFUSE de certifier une unicité qu'elle ne peut
+        pas prouver.
+        """
+        # P(x) = (x - 1/1,15)(x - 1/1,45)(x - 1/1,55) mis à l'échelle, avec
+        # x = 1/(1+r) et un flux annuel exact — les montants sont donc les
+        # coefficients du polynôme développé.
+        result = xirr(
+            [
+                flow(0, "-38690.33"),
+                flow(365, "160564.88"),
+                flow(730, "-220438.17"),
+                flow(1095, "100000.00"),
+            ]
+        )
+        assert result.status is CalculationStatus.INVALID
+        assert result.rate is None
+        assert result.npv_at_rate is None
+
+    def test_two_close_roots_inside_one_grid_cell_return_invalid(self):
+        """Le même trou, sans troisième racine pour le masquer.
+
+        Deux racines à 45 % et 55 % vivent dans l'intervalle (0,4 ; 0,7). La
+        grille ne voit aucun encadrement et renvoyait déjà INVALID — mais pour
+        la MAUVAISE raison (« pas d'encadrement » au lieu de « unicité non
+        prouvée »). Le test gèle le refus, qui doit rester vrai quelle que
+        soit la formulation retenue.
+        """
+        result = xirr([flow(0, "100000"), flow(365, "-244655.10"), flow(730, "149625.30")])
+        assert result.status is CalculationStatus.INVALID
+        assert result.rate is None
 
     def test_multiple_roots_return_invalid(self):
         # NPV(x) = -100 + 235 x - 137 x^2 has two real roots
@@ -242,7 +317,12 @@ class TestXirr:
         result = xirr([flow(0, "-100"), flow(365, "235"), flow(730, "-137")])
         assert result.status is CalculationStatus.INVALID
         assert result.rate is None
-        assert "not unique" in result.reason
+        assert result.npv_at_rate is None
+        # LOT 2 bis — l'exigence passe de « la grille a vu plusieurs
+        # encadrements » à « l'unicité n'est pas prouvée ». C'est la même
+        # protection, énoncée sur le fait plutôt que sur le chemin, et elle
+        # couvre désormais AUSSI les racines que la grille ne voyait pas.
+        assert "not proven" in result.reason
 
     @pytest.mark.property
     @settings(max_examples=100, deadline=None)
