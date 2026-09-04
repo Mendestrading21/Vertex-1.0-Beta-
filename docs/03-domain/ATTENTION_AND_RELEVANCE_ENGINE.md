@@ -110,6 +110,27 @@ en profil réel). Le contrat de cette fenêtre, mesuré et testé
    (`load_recent_observation_records_by_instrument`, borne PAR
    instrument) ; un instrument sans barre garde la fenêtre globale, et un
    ticker absent de la table n'a aucune preuve — jamais celles d'un autre.
+6. **La déclaration publiée n'est PAS une provenance** —
+   `coverage.content_schema_prefixes` dit ce que le consommateur SAIT LIRE ;
+   elle ne dit rien de l'origine des observations RETENUES. Mesuré sur la
+   pile vivante (base réelle, 2026-09-04 11:43 UTC) : le garde de provenance
+   du relais (`vertex_api.snapshot_views.checked_relayed_content`) lisait le
+   préfixe `synthetic-news/` de cette déclaration comme la preuve que la
+   donnée servie était générée, et refusait la tête `population = "REAL"`
+   pour contradiction — `GET /api/v1/today/attention` et
+   `GET /api/v1/follow-up/queue` répondaient 500
+   `SNAPSHOT_CONTENT_INVALID`. En CI la population est `SYNTHETIC` : aucune
+   contradiction, aucun signal. Le garde exclut désormais du balayage de
+   provenance les **chemins nommés** de
+   `vertex_api.snapshot_views.CAPABILITY_DECLARATION_PATHS` — aujourd'hui le
+   seul `coverage.content_schema_prefixes` — sans toucher au motif de
+   détection ni au reste du document : la même chaîne publiée ailleurs (une
+   `schema_version` d'élément servi, une `source`, un identifiant
+   d'événement) reste un marqueur. Ajouter une déclaration publiée dans une
+   couverture impose d'ajouter son chemin à cette liste ; le témoin
+   `apps/api/tests/test_capability_declaration_is_not_provenance.py`
+   reconstruit les deux contenus par leurs vrais constructeurs et échoue si
+   une déclaration non déclarée apparaît.
 
 ### Pourquoi (mesuré)
 
