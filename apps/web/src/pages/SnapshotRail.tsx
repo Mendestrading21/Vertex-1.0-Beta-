@@ -11,6 +11,7 @@
  * ce sont les preuves de la file elle-même). Il n'est donc plus une carte :
  * deux blocs de faits, au format de l'inspecteur.
  */
+import { AbsentCell } from '../components/absence.tsx';
 
 export interface SnapshotRailProps {
   readonly snapshotVersion: number | null;
@@ -41,11 +42,10 @@ const COVERAGE_FIELDS: readonly CoverageField[] = [
 ];
 
 function AbsentCoverageValue() {
-  return (
-    <span className="vx-cell-absent" role="img" aria-label="Non publié">
-      —
-    </span>
-  );
+  // LOT T4-7 — « Non publié » seul ne disait pas CE QUI manquait. Ces cellules
+  // vivent dans une grille de dénombrements ; le libellé nomme désormais la
+  // mesure absente, et le glyphe reste parce que la grille est dense.
+  return <AbsentCell quoi="dénombrement de couverture" nature="not_published" reason={null} />;
 }
 
 /**

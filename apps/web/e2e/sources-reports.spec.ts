@@ -38,12 +38,30 @@ test.describe('Page Sources & Rapports — SourceHealthMatrix', () => {
     await expect(table.locator('.vx-status-badge[data-status="ERROR"]')).toHaveCount(9);
     await expect(table.getByRole('cell', { name: 'NEVER_TESTED' })).toHaveCount(9);
 
-    // ZÉRO cellule vide ; « — » porte l'aria-label « jamais sondé ».
+    // ZÉRO cellule vide.
     const emptyCells = await table
       .locator('tbody td, tbody th')
       .evaluateAll((cells) => cells.filter((cell) => cell.textContent?.trim() === '').length);
     expect(emptyCells).toBe(0);
-    await expect(table.locator('[aria-label="jamais sondé"]')).toHaveCount(9);
+    // LOT T4-7 — « jamais sondé » se lit EN TOUTES LETTRES, sans glyphe à
+    // expliquer. `tested_at === null` signifie qu'aucune sonde n'a jamais
+    // tourné : c'est un FAIT servi, pas une absence de publication, et un
+    // tiret + `aria-label` le réservait au lecteur d'écran. Même compte,
+    // même exigence, sur du texte réellement visible.
+    await expect(table.getByText('jamais sondé')).toHaveCount(9);
+    // Et TOUT glyphe restant porte un nom accessible qui NOMME le champ
+    // manquant — c'est l'invariant du lot T4, et il ne dépend d'aucun compte
+    // de fixture : quel que soit le nombre de raisons non publiées, aucune
+    // n'est un tiret muet.
+    const glyphes = table.locator('[data-absent="true"]');
+    const nombreGlyphes = await glyphes.count();
+    expect(nombreGlyphes).toBeGreaterThan(0);
+    for (let index = 0; index < nombreGlyphes; index += 1) {
+      const cellule = glyphes.nth(index);
+      await expect(cellule).toHaveAttribute('role', 'img');
+      const nom = await cellule.getAttribute('aria-label');
+      expect(nom).toContain('non publiée');
+    }
 
     // Bandeau population SYNTHETIC (le pipeline E2E est 100 % synthétique).
     await expect(page.locator('main').getByText('DONNÉES SYNTHÉTIQUES')).toBeVisible();

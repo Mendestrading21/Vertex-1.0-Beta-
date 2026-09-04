@@ -43,8 +43,13 @@ describe('SourceHealthMatrix', () => {
     for (const cell of table.querySelectorAll('tbody td, tbody th')) {
       expect(cell.textContent?.trim()).not.toBe('');
     }
-    expect(screen.getAllByLabelText('jamais sondé').length).toBeGreaterThan(0);
-    expect(screen.getAllByLabelText('aucune raison fournie').length).toBeGreaterThan(0);
+    // LOT T4-7 — « jamais sondé » est un FAIT servi (`tested_at === null`
+    // signifie qu'aucune sonde n'a tourné), pas une absence de publication :
+    // il se lit en toutes lettres, sans glyphe à expliquer.
+    expect(screen.getAllByText('jamais sondé').length).toBeGreaterThan(0);
+    // La raison, elle, EST une absence de publication : glyphe dense + nom
+    // accessible qui nomme le champ manquant.
+    expect(screen.getAllByLabelText('raison non publiée').length).toBeGreaterThan(0);
   });
 
   it('badges de statut : icône aria-hidden + texte visible du contrat', () => {

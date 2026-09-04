@@ -83,7 +83,14 @@ describe('SnapshotRail', () => {
     expect(screen.queryByText('0')).toBeNull();
 
     for (const element of document.querySelectorAll('[data-vx-coverage-field]')) {
-      expect(within(element as HTMLElement).getByRole('img', { name: 'Non publié' })).toBeDefined();
+      // LOT T4-7 — le nom accessible NOMME désormais la mesure absente :
+      // « Non publié » seul ne disait pas de quoi il parlait. Assertion
+      // RESSERRÉE sur un libellé plus précis, jamais relâchée.
+      expect(
+        within(element as HTMLElement).getByRole('img', {
+          name: 'dénombrement de couverture non publié',
+        }),
+      ).toBeDefined();
     }
   });
 
@@ -109,8 +116,11 @@ describe('SnapshotRail', () => {
     expect(document.querySelectorAll('[data-vx-coverage-field]')).toHaveLength(5);
     expect(within(coverageField('observations_considered')).getByText('21')).toBeDefined();
     expect(within(coverageField('clusters')).getByText('3')).toBeDefined();
-    expect(within(coverageField('ranked')).getByRole('img', { name: 'Non publié' })).toBeDefined();
-    expect(within(coverageField('published_items')).getByRole('img', { name: 'Non publié' })).toBeDefined();
+    const nomAbsence = 'dénombrement de couverture non publié';
+    expect(within(coverageField('ranked')).getByRole('img', { name: nomAbsence })).toBeDefined();
+    expect(
+      within(coverageField('published_items')).getByRole('img', { name: nomAbsence }),
+    ).toBeDefined();
     expect(screen.queryByText('999')).toBeNull();
     expect(screen.queryByText('123456')).toBeNull();
     expect(screen.queryByText('private_unknown_metric')).toBeNull();
