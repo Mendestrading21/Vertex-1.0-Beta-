@@ -4730,6 +4730,33 @@ textarea {
   font-family: inherit;
 }
 
+/* LOT T5 — LE THÈME NATIF DU NAVIGATEUR, DÉCLARÉ.
+   MESURÉ À LA SONDE avant ce lot : `getComputedStyle(document.documentElement)
+   .colorScheme` valait `normal` sur toutes les pages. Conséquence invisible
+   aux tests et bien visible à l'usage — le navigateur dessine en thème CLAIR
+   tout ce que le CSS du produit ne peut pas atteindre :
+
+     · le menu déroulant qui s'ouvre au clic d'un `<select>` (dix dans le
+       produit) — un panneau blanc sur un produit noir ;
+     · les barres de défilement des régions denses (matrice des capacités,
+       classement d'Opportunités, chaîne d'options) ;
+     · le calendrier et les boutons pas-à-pas des trois champs de date.
+
+   Une seule déclaration les met tous au thème du produit. Elle ne change
+   AUCUNE couleur écrite par le produit : tous les fonds et textes des
+   contrôles sont déjà posés en jetons juste en dessous. */
+:root {
+  color-scheme: dark;
+}
+
+/* Le texte d'exemple d'un champ n'est pas une valeur : il doit se distinguer
+   d'une saisie réelle. Le laisser au défaut du navigateur, c'était un gris
+   inconnu, hors jetons et hors mesure de contraste. */
+::placeholder {
+  color: var(--vx-text-muted);
+  opacity: 1;
+}
+
 /* V11 — LES CONTRÔLES DE SAISIE, UNE FOIS POUR TOUTES.
    Ils héritaient de la boîte du navigateur, avec pour seul habillage une
    couleur de bordure et un fond. Résultat mesuré à l'écran : hauteurs

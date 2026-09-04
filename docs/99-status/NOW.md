@@ -2898,3 +2898,48 @@ L'ambre reste la seule lumière de la dominante.
 - `npx vitest run` : 92 fichiers / **955 tests** verts.
 - `npm run build` : succès.
 - Porte `page-accent-applied.test.ts` vérifiée ROUGE d'abord (3 assertions sur 3).
+
+## SESSION 2026-09-04 — LOT T5 : le thème natif du navigateur, déclaré
+
+Branche `lot/t5-controles-natifs-20260904`, empilée sur P3a.
+
+### Ce que le CSS du produit ne peut pas atteindre
+
+Sondé à `getComputedStyle(document.documentElement).colorScheme` avant le lot :
+**`normal`**, sur toutes les pages. Le navigateur dessinait donc en thème
+CLAIR tout ce qu'aucune feuille de style ne peut atteindre :
+
+- le menu déroulant qui s'ouvre au clic d'un `<select>` — dix dans le produit,
+  soit un panneau blanc sur un produit noir ;
+- les barres de défilement des régions denses : matrice des capacités,
+  classement d'Opportunités, chaîne d'options ;
+- le calendrier et les boutons pas-à-pas des trois champs de date.
+
+Une seule déclaration, `:root { color-scheme: dark }`, les met tous au thème du
+produit. Elle ne change aucune couleur écrite par le produit : fonds et textes
+des contrôles sont déjà posés en jetons.
+
+Le texte d'exemple d'un champ passe au jeton `--vx-text-muted` : le laisser au
+défaut du navigateur, c'était un gris inconnu, hors jetons et hors mesure.
+
+### La preuve porte sur la valeur calculée
+
+L'assertion e2e lit `colorScheme` sur quatre destinations, pas la ligne de CSS :
+c'est le comportement qui compte. Vérifiée ROUGE d'abord — `Received: "normal"`.
+
+### Mesuré
+
+- `npx tsc --noEmit` code 0 ; `npx biome check src` 1 info préexistante.
+- `npx vitest run` : 92 fichiers / **955 tests** verts.
+- `npm run build` : succès.
+- `e2e/shell-canonical.spec.ts` : 13 passés.
+
+### Un signal enfin diagnostiqué, et non corrigé ici
+
+Le « Errors 7 errors » noté au lot P2c est reproduit et compris :
+`fancy-canvas`, dépendance de Lightweight Charts, appelle
+`this._window.matchMedia` dans une micro-tâche qui s'exécute APRÈS la
+destruction de la fenêtre jsdom. Vitest le signale explicitement — « This might
+cause false positive tests ». Ce n'est pas une conséquence de T5 : c'est une
+fuite de nettoyage préexistante, dans les fichiers de test qui rendent un
+graphique sans doubler le chargeur. **Lot dédié**, pas un correctif glissé ici.
