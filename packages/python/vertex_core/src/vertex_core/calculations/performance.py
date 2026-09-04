@@ -106,10 +106,13 @@ XIRR_BRACKET_GRID: tuple[float, ...] = (
     100.0,
     1000.0,
 )
-"""Documented deterministic rate grid used to bracket the NPV root.
+"""Documented deterministic rate grid used to LOCATE the NPV root.
 
-Root existence and uniqueness are checked on this grid only (documented
-limitation); zero or several sign changes yield an INVALID result.
+Elle ne prouve rien : deux racines logées entre deux points consécutifs n'y
+changent aucun signe. L'unicité est établie AVANT, par la règle des signes de
+Descartes sur les montants ordonnés dans le temps (LOT 2 bis). Cette grille
+n'est employée que lorsque l'unicité est déjà démontrée ; zéro ou plusieurs
+encadrements donnent alors un résultat INVALID.
 """
 
 _ZERO = Decimal("0")
@@ -314,10 +317,15 @@ def xirr(dated_cashflows: Sequence[CashflowEvent]) -> XirrResult:
     - ``sign_change``: at least one strictly positive and one strictly
       negative amount, otherwise :class:`SignChangeError`;
     - all flows at one single instant are rejected (no time dimension);
-    - ``unique_valid_root``: the NPV sign must change exactly once across
-      ``XIRR_BRACKET_GRID`` (documented limitation: uniqueness is checked on
-      that grid). No bracket, or several brackets, returns an explicit
-      ``INVALID`` result — never a number.
+    - ``unique_valid_root``: uniqueness is PROVEN, not searched. Descartes'
+      rule of signs — in its form for real exponents — bounds the number of
+      strictly positive roots of ``sum(cf * x**t)`` by the number of sign
+      changes of the time-ordered amounts. More than one sign change proves
+      nothing, and returns ``INVALID``: several rates may satisfy NPV = 0 and
+      the money-weighted return is not uniquely defined. Exactly one sign
+      change bounds the roots to one; ``XIRR_BRACKET_GRID`` then only has to
+      LOCATE it. No bracket, or several brackets, also returns ``INVALID``
+      — never a number.
 
     Method: ACT/365F year fractions from the earliest flow (fractional days
     kept via seconds); float64 NPV ``sum(cf * (1+r)**-t)``;
@@ -366,6 +374,58 @@ def xirr(dated_cashflows: Sequence[CashflowEvent]) -> XirrResult:
                 f"NPV overflowed during root refinement at rate {rate!r}"
             )
         return value
+
+    # ------------------------------------------------------------------
+    # LOT 2 bis — L'UNICITÉ EST PROUVÉE, PLUS SEULEMENT CHERCHÉE.
+    #
+    # La grille ne peut PAS prouver l'unicité, et le croire était un défaut
+    # mesuré : elle teste le signe de la NPV en vingt-cinq points seulement,
+    # et deux racines logées dans un même intervalle n'y changent aucun signe.
+    # Un flux dont les racines sont 15 %, 45 % et 55 % — les deux dernières
+    # dans (0,4 ; 0,7) — présentait UN seul encadrement, et la fonction
+    # renvoyait 15,00 % comme LE rendement. Un chiffre faux affiché comme
+    # valide.
+    #
+    # La borne employée ici est la règle des signes de Descartes, dans sa forme
+    # généralisée aux exposants réels : le nombre de racines strictement
+    # positives de `sum(a_i * x**t_i)`, avec `t_0 < t_1 < ...`, est au plus le
+    # nombre de changements de signe de la suite `(a_i)`. La NPV vue en
+    # `x = 1/(1+r)` est exactement de cette forme, et `r > -1` équivaut à
+    # `x > 0` : la borne s'applique telle quelle, y compris pour des dates
+    # fractionnaires, ce qu'une décomposition polynomiale n'aurait pas permis.
+    #
+    # UN changement de signe borne donc le nombre de racines à une seule :
+    # l'unicité est alors DÉMONTRÉE, et un encadrement trouvé la localise.
+    # Au-delà, la borne ne prouve plus rien — le nombre de racines vaut le
+    # nombre de changements de signe MOINS un multiple de deux, donc trois
+    # racines et une seule sont indiscernables sans preuve supplémentaire.
+    # Dans ce cas la fonction refuse, au lieu d'affirmer.
+    #
+    # CE QUE CE REFUS COÛTE, DIT SANS ATTÉNUATION : un portefeuille dont les
+    # apports et les retraits alternent produit un flux non conventionnel, et
+    # son XIRR devient INVALID au lieu d'un nombre. Ce n'est pas une perte de
+    # capacité : c'est la fin d'une capacité qui n'existait pas. Pour un tel
+    # flux le rendement pondéré par l'argent n'est pas défini de façon unique,
+    # et en afficher une racine parmi plusieurs était l'erreur.
+    # ------------------------------------------------------------------
+    changements_de_signe = 0
+    signe_precedent = 0
+    for amount in amounts:
+        signe = 1 if amount > 0.0 else -1 if amount < 0.0 else 0
+        if signe == 0:
+            continue
+        if signe_precedent != 0 and signe != signe_precedent:
+            changements_de_signe += 1
+        signe_precedent = signe
+    if changements_de_signe > 1:
+        return XirrResult(
+            status=CalculationStatus.INVALID,
+            reason=(
+                "uniqueness of the XIRR root is not proven: the time-ordered cashflow signs "
+                f"change {changements_de_signe} times, so Descartes' rule bounds the number of "
+                "roots above one and several rates may satisfy NPV = 0"
+            ),
+        )
 
     grid_values = [npv_or_none(rate) for rate in XIRR_BRACKET_GRID]
     roots_at_grid = [
