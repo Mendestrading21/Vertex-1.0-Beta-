@@ -141,7 +141,7 @@ function NoUnderlyingBoard() {
             size={module.size}
             title={module.title}
             state="empty"
-            footer={<>{SANS_SELECTION}</>}
+            footer={SANS_SELECTION}
           >
             {null}
           </Widget>
