@@ -2481,3 +2481,26 @@ appelée. Il renvoie « statut non publié ».
 - `tsc` code 0 ; `biome check src` 1 info préexistante ;
   `vitest run` 91 fichiers / **950 tests** verts ; `npm run build` succès.
 - Playwright `catalysts`, `accessibility` : **210 passés**, code 0.
+
+## SESSION 2026-09-04 — LOT T4-4 : Calendrier, et un point d'interrogation qui ne disait rien
+
+Branche `lot/t4-4-calendrier-20260904`. Dette T4 : **21 → 17**.
+
+Vingt-trois glyphes sur quatre fichiers.
+
+**Le plus instructif : `statusMarkOf` renvoyait `'?'`** pour un statut hors
+contrat. Ce marqueur est TOUJOURS posé à côté de `statusLabelOf`, qui relaie
+le statut servi verbatim — et sur `AgendaLine`, il est même `aria-hidden`. Le
+point d'interrogation n'ajoutait donc rien à une information déjà complète,
+et n'atteignait pas le lecteur d'écran. Il renvoie désormais une chaîne vide :
+un statut hors contrat n'a pas de marqueur, et c'est juste.
+
+Le reste suit les familles établies : identifiants et versions nommés,
+dénombrements en `vx-cell-absent`, instants « non publié ».
+
+### Mesuré
+
+- `tsc` code 0 ; `biome check src` 1 info préexistante ;
+  `vitest run` 91 fichiers / **950 tests** verts ; `npm run build` succès.
+- Playwright `calendar`, `catalysts`, `today`, `accessibility` :
+  **261 passés**, code 0.

@@ -108,7 +108,12 @@ export function EventInspector({
             value:
               event.context.theses.length === 0
                 ? 'aucune'
-                : event.context.theses.map((thesis) => `#${thesis.thesisId ?? '—'} ${thesis.title ?? 'sans titre'} (${thesis.status ?? '—'})`).join(' ; '),
+                : event.context.theses.map(
+                    (thesis) =>
+                      `#${thesis.thesisId ?? 'identifiant non publié'} ${
+                        thesis.title ?? 'sans titre'
+                      } (${thesis.status ?? 'statut non publié'})`,
+                  ).join(' ; '),
           },
           {
             label: 'Versions et révisions',

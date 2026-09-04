@@ -222,7 +222,7 @@ function RevisionDetails({ event }: { readonly event: CalendarEventView }) {
                   )}
                 </td>
                 <td>
-                  <code>{previous.source ?? '—'}</code>
+                  <code>{previous.source ?? 'source non publiée'}</code>
                   {previous.sourceEventId !== null ? (
                     <>
                       {' '}
@@ -321,8 +321,9 @@ function EventContext({ event }: { readonly event: CalendarEventView }) {
         {theses.length > 0 ? (
           theses.map((thesis) => (
             <li key={thesis.thesisId ?? thesis.title}>
-              Thèse <code>#{thesis.thesisId ?? '—'}</code> « {thesis.title ?? 'sans titre'} » —
-              statut <code>{thesis.status ?? '—'}</code>{' '}
+              Thèse <code>#{thesis.thesisId ?? 'identifiant non publié'}</code> «{' '}
+              {thesis.title ?? 'sans titre'} » — statut{' '}
+              <code>{thesis.status ?? 'non publié'}</code>{' '}
               <Link to="/follow-up">ouvrir le suivi</Link>
             </li>
           ))
@@ -398,9 +399,9 @@ export function EventCard({
         )}
         {' · '}
         <span data-testid={`cal-importance-${event.eventId}`}>
-          Importance rang {event.importance.rank ?? '—'} — code{' '}
-          <code>{event.importance.code ?? '—'}</code> (règle{' '}
-          <code>{event.importance.ruleVersion ?? '—'}</code>)
+          Importance rang {event.importance.rank ?? 'non publié'} — code{' '}
+          <code>{event.importance.code ?? 'non publié'}</code> (règle{' '}
+          <code>{event.importance.ruleVersion ?? 'non publiée'}</code>)
         </span>
       </p>
       <p className="vx-cal-event-status-note">
@@ -425,11 +426,11 @@ export function EventCard({
           <span className="vx-cell-absent">non publiée</span>
         )}
         {' — retard '}
-        <code>{event.delayStatus ?? '—'}</code>
+        <code>{event.delayStatus ?? 'non publié'}</code>
         {' — qualité '}
-        <code>{event.quality ?? '—'}</code>
+        <code>{event.quality ?? 'non publiée'}</code>
         {' — droits '}
-        <code>{event.rights ?? '—'}</code>
+        <code>{event.rights ?? 'non publié'}</code>
       </p>
       {event.amount !== null || event.expiration !== null ? (
         <p className="vx-cal-event-extra">
