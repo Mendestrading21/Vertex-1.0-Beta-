@@ -16,6 +16,7 @@ import {
   makeOptionChain,
 } from '../../test/fixtures.ts';
 import { renderApp } from '../../test/render.tsx';
+import { OPTIONS_MODULES } from './optionsModules.ts';
 
 const fetchMock = vi.fn<typeof fetch>();
 
@@ -262,17 +263,41 @@ describe('Page Options — état nominal', () => {
 });
 
 describe('Page Options — états', () => {
-  it('sans sous-jacent : état vide explicite + sélecteur, aucun défaut implicite', async () => {
+  it('sans sous-jacent : la PLANCHE ENTIÈRE tient sa place, chaque carte dit pourquoi elle est vide', async () => {
     await renderOptions('/options');
-    expect(screen.getByText('Aucune donnée')).toBeDefined();
-    expect(screen.getByText(/Aucun sous-jacent sélectionné/)).toBeDefined();
+    // LOT P3b — RESSERRÉ, PAS ASSOUPLI. La page rendait une carte isolée dans
+    // un écran aux deux tiers vide ; elle rend maintenant les quinze modules
+    // du catalogue. L'assertion passe donc d'« une carte vide existe » à « la
+    // planche est complète et chaque module dit sa propre cause ».
+    const planche = screen.getByTestId('options-grid');
+    expect(planche.querySelectorAll(':scope > [data-module]')).toHaveLength(15);
+
+    // LA DISTINCTION QUI COMPTE, et que ce lot ne doit surtout pas brouiller :
+    // un module SANS SOURCE garde le motif de son absence permanente ; un
+    // module SERVI dit qu'aucun sous-jacent n'est choisi. Confondre les deux
+    // ferait croire qu'une source manquante n'est qu'une sélection oubliée.
+    for (const module of OPTIONS_MODULES) {
+      const carte = planche.querySelector(`:scope > [data-module="${module.id}"]`);
+      expect(carte, module.id).not.toBeNull();
+      const texte = carte?.textContent ?? '';
+      if (module.status.kind === 'absent') {
+        expect(texte, module.id).toContain(module.status.note.slice(0, 30));
+        expect(texte, module.id).not.toContain('Aucun sous-jacent sélectionné');
+      } else {
+        expect(texte, module.id).toContain('Aucun sous-jacent sélectionné');
+      }
+    }
+
     expect(
       screen.getByRole('navigation', { name: 'Sous-jacents disponibles' }),
     ).toBeDefined();
-    // Le sélecteur lit la vue Marchés ; ce qui ne doit PAS être
-    // demandé, c'est la ressource d'instrument elle-même.
+    // AUCUN DÉFAUT IMPLICITE — l'exigence d'origine, conservée telle quelle.
+    // Le sélecteur lit la vue Marchés ; ce qui ne doit PAS être demandé, c'est
+    // la ressource d'instrument elle-même.
     const demandes = fetchMock.mock.calls.map(([entree]) => String(entree));
     expect(demandes.some((url) => url.includes('/v1/options/'))).toBe(false);
+    // Et rien n'est inventé pour remplir : aucune table, aucun chiffre.
+    expect(screen.queryByRole('table')).toBeNull();
   });
 
   it('empty honnête : aucun snapshot publié, raison serveur affichée', async () => {

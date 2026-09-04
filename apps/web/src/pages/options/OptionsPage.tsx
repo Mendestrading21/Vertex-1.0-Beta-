@@ -22,7 +22,7 @@ import {
   UnderlyingSeriesModule,
   VolStructureModule,
 } from './OptionsModules.tsx';
-import { optionsModule } from './optionsModules.ts';
+import { OPTIONS_MODULES, optionsModule } from './optionsModules.ts';
 import {
   chainStateOf,
   chainTransferBlockReasonOf,
@@ -33,6 +33,7 @@ import {
   spotViewOf,
 } from './optionsView.ts';
 import { pageAccentAttrs } from '../../components/widgets/pageAccent.ts';
+import { Widget } from '../../components/widgets/Widget.tsx';
 
 /**
  * Page Options (`TL / 05`) — question : « Quels contrats sont réellement
@@ -92,8 +93,60 @@ function AbsentOptionsModule({ id }: { readonly id: string }) {
     throw new Error(`Module ${id} is served, not absent`);
   }
   return (
-    <div data-module={id}>
+    // LOT P3b — la taille vient du catalogue : sans elle, une absence prend la
+    // taille par défaut et déplace ses voisines dans la planche.
+    <div data-module={id} data-size={module.size}>
       <AbsentModule title={module.title} question={module.question} reason={module.status.reason} note={module.status.note} />
+    </div>
+  );
+}
+
+/**
+ * LOT P3b — LA PLANCHE §5 SANS SOUS-JACENT CHOISI.
+ *
+ * CE QUE LA PAGE FAISAIT. Elle rendait le sélecteur, une seule carte
+ * « Aucune donnée », et laissait les deux tiers de l'écran vides. Un lecteur
+ * ne pouvait pas savoir ce que cette destination sait faire : la planche
+ * n'existait qu'une fois un instrument ouvert.
+ *
+ * CE QU'ELLE FAIT MAINTENANT. La planche entière tient sa place. Les six
+ * modules SANS SOURCE gardent le motif exact de leur absence — inchangé. Les
+ * neuf modules SERVIS déclarent l'état `empty` avec sa cause : aucun
+ * sous-jacent n'est sélectionné.
+ *
+ * CE QU'ELLE N'INVENTE PAS. Aucune valeur, aucun exemple, aucun instrument par
+ * défaut. `empty` est un état DÉCLARÉ de `ModuleState`, et `Widget` ne rend
+ * aucun enfant dans cet état : il n'y a rien à remplir, donc rien n'est
+ * rempli.
+ *
+ * POURQUOI LA PHRASE VIT DANS LE PIED, ET NON DANS `stateDetail`. La capture
+ * l'a montré : `stateDetail` est rendu en `<code>` par `ModuleStatus`, parce
+ * que c'est le canal des CAUSES SERVEUR — un `reason_code`, un diagnostic
+ * verbatim. Y écrire une phrase française la faisait passer en chasse fixe et
+ * la faisait lire comme un code du serveur. La prose va au pied ; le canal du
+ * serveur reste au serveur.
+ */
+const SANS_SELECTION = 'Aucun sous-jacent sélectionné — en choisir un ci-dessus.';
+
+function NoUnderlyingBoard() {
+  return (
+    <div className="vx-options-grid vx-board" data-testid="options-grid">
+      {OPTIONS_MODULES.map((module) =>
+        module.status.kind === 'absent' ? (
+          <AbsentOptionsModule key={module.id} id={module.id} />
+        ) : (
+          <Widget
+            key={module.id}
+            id={module.id}
+            size={module.size}
+            title={module.title}
+            state="empty"
+            footer={SANS_SELECTION}
+          >
+            {null}
+          </Widget>
+        ),
+      )}
     </div>
   );
 }
@@ -416,10 +469,7 @@ export function OptionsPage() {
       {underlying === undefined || underlying === '' ? (
         <>
           <UnderlyingPicker current={null} />
-          <DataStateBoundary
-            state="empty"
-            detail="Aucun sous-jacent sélectionné — en choisir un ci-dessus. Aucun instrument n'est ouvert par défaut."
-          />
+          <NoUnderlyingBoard />
         </>
       ) : (
         <ChainRoute underlying={underlying} />
