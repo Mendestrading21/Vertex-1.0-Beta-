@@ -1123,7 +1123,7 @@ body {
   flex-direction: column;
   gap: var(--vx-space-4);
   color: var(--vx-text-secondary);
-  font-size: var(--vx-font-size-label);
+  font-size: var(--vx-font-size-meta);
 }
 
 .vx-matrix-filters select {
@@ -1600,7 +1600,7 @@ body {
 .vx-sheet-facts dt {
   margin-bottom: var(--vx-space-4);
   color: var(--vx-text-secondary);
-  font-size: var(--vx-font-size-label);
+  font-size: var(--vx-font-size-meta);
 }
 
 .vx-sheet-facts dd {
@@ -1775,7 +1775,7 @@ body {
   background: var(--vx-surface-1);
   color: var(--vx-text-secondary);
   font: inherit;
-  font-size: var(--vx-font-size-label);
+  font-size: var(--vx-font-size-meta);
   cursor: pointer;
 }
 
@@ -1863,7 +1863,7 @@ body {
   background: var(--vx-surface-1);
   color: var(--vx-text-secondary);
   font: inherit;
-  font-size: var(--vx-font-size-label);
+  font-size: var(--vx-font-size-meta);
   cursor: pointer;
 }
 
@@ -2109,7 +2109,7 @@ body {
 
 .vx-underlying-picker-label {
   color: var(--vx-text-secondary);
-  font-size: var(--vx-font-size-label);
+  font-size: var(--vx-font-size-meta);
 }
 
 .vx-underlying-link {
@@ -3916,7 +3916,7 @@ body {
 .vx-opp-profile h3,
 .vx-opp-reasons h3 {
   margin: var(--vx-space-16) 0 var(--vx-space-8);
-  font-size: var(--vx-font-size-label);
+  font-size: var(--vx-font-size-meta);
   font-weight: 600;
 }
 

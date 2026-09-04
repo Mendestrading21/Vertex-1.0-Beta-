@@ -3139,3 +3139,96 @@ jeton DÉCLARÉ doit être émis, et il l'est toujours. Elles figeaient trois je
 que personne ne lisait.
 
 Preuves : `tsc` 0 · Biome 1 info préexistante · **968 tests** · build OK.
+
+## LOT V2 — jetons, couleur, typographie (2026-09-04)
+
+Branche `refonte/v2-jetons-couleur-20260904`, depuis `main` = `a9c515b` (V1).
+**Premier lot de la refonte qui change des pixels.**
+
+### 1. La réserve 3 d'ADR-017, enfin tranchée
+
+`warning` et `signal-bright` étaient **la même couleur** : ΔE 1,9. Le même jaune
+disait « attention à ceci » et « voici la lumière de la page » — l'exact
+contraire de « une couleur = une signification ». ADR-017 demandait de trancher
+« au lot L0, avant toute page P » ; ce ne l'avait jamais été, et
+`catalog.test.ts` tenait la ligne en INTERDISANT à toute page de déclarer
+`warning`.
+
+La prudence quitte l'ambre de marque pour une **orange franche** : ΔE **26,9**
+de `signal`, **33,3** de `negative`, contraste minimal **5,38:1** sur les six
+fonds de lecture. Elle ne peut plus être confondue ni avec la dominante, ni avec
+le signe négatif — ce qui, dans un produit financier, était le vrai danger.
+
+La première candidate mesurée a été **rejetée** : elle passait le seuil face à
+l'ambre mais tombait à ΔE 8 de `negative`. Une recherche contrainte contre
+l'ambre seule ne suffit pas ; elle doit l'être contre **toute** la palette.
+
+L'interdiction de `catalog.test.ts` n'a PAS été supprimée : elle devient
+**conditionnelle et se réarme seule**. Elle mesure l'écart par canal entre les
+deux jetons et réinterdit `warning` à toute page s'ils repassent sous le seuil
+de 4/255 que la réserve nommait. Lever un blocage n'est pas une raison de
+peindre : Opportunités, Catalyseurs et Sources & Rapports restent sans teinte
+jusqu'à leur propre lot de composition.
+
+### 2. Trois portes nouvelles, chacune rouge d'abord
+
+- **`token-distinctness.test.ts`** — ΔE en CIE Lab (D65, forme 1976), seuil 10,
+  sur les douze jetons qui portent un sens. Rouge sur les **trois** collisions
+  réelles. Correction méthodologique en cours de route : j'ai d'abord employé le
+  **ratio de contraste** pour juger que deux jetons se distinguent. C'est faux —
+  le ratio mesure la LISIBILITÉ d'un texte sur un fond, il est aveugle à la
+  teinte, et deux couleurs opposées de même clarté ont un ratio de 1,0.
+- **`tokens-doc.test.ts`** — `docs/05-design/TOKENS.md` doit énumérer ce que la
+  source contient. Rouge sur **quatre** assertions : le document annonçait
+  encore les espaces `40/48` et les rayons `18/22` retirés au lot V1, une ombre
+  « flottant » supprimée, une taille `mono-number` qui n'a jamais existé, et
+  taisait `headline` et `metric`. Première version de la porte écrite avec
+  `toContain` : elle passait au VERT sur le document faux, puisque
+  `4/8/12/16/20/24/32/40/48` contient la suite correcte. Une énumération se
+  compare par ÉGALITÉ.
+- **`typography.test.ts`** — les chiffres tabulaires. Mesure faite : ils sont
+  **déjà** universels, posés sur `body` et hérités ; les 19 redéclarations plus
+  bas ne font que répéter l'héritage. Rien à ajouter, donc — mais rien
+  n'empêchait qu'une refonte de `body` l'emporte sans que personne le voie.
+
+### 3. L'alias que personne ne voyait
+
+`fontSize.meta` et `fontSize.label` valaient tous deux `13px` : deux noms, une
+taille, **199 lectures contre 6**, et aucune règle disant lequel employer.
+ADR-017 interdit pourtant l'alias de même valeur. `label` retiré, ses six
+lectures rejoignent `meta` : **aucun pixel ne change**. Une porte générale
+interdit désormais à toute échelle — couleurs, espaces, rayons, durées, ombres,
+tailles — de porter deux noms pour la même valeur.
+
+### 4. Ce que V2 n'a PAS fait, et pourquoi
+
+Le plan prévoyait de poser les **échelles continues** des formes 6, 7 et 8
+(heatmap, matrice, treemap). Elles n'ont aucun consommateur avant le lot V4 :
+les poser maintenant créerait exactement ce que la porte anti-jeton-mort de V1
+interdit. Elles arriveront avec la forme qui les emploie.
+
+La collision `titanium` / `text-secondary` (ΔE 4,9) reste en **dette V2b** : la
+vraie question n'est pas sa valeur mais son EXISTENCE, les micro-libellés se
+distinguant déjà par la casse, la graisse et l'interlettrage.
+
+L'échelle de surfaces reste plate (ΔE 1,4 à 4,9 entre crans voisins) et **ne
+peut pas être étirée** : `text-muted` doit tenir 4,5:1 sur `hover` et n'a plus
+que **1,6 % de marge de luminance**. La séparation des cartes viendra de
+l'élévation, de la gouttière et du liseré — dette **V3b**, avec la coquille.
+
+### Preuves
+
+`tsc` 0 · Biome 1 info préexistante · **981 tests, 97 fichiers** · build OK ·
+e2e Chromium 1440×900 sur Aujourd'hui et Sources & Rapports : 10 passés,
+captures relues.
+
+### Observations de capture, transmises aux lots qui les possèdent
+
+- Le **trou** d'Aujourd'hui persiste : `global-market` déclaré `S` porte ~1 080 px
+  face à des voisines de ~350 px. Porte anti-trou en **V3a**.
+- La **file d'attention** et le **registre des sources** débordent leur carte
+  (badge et horodatage coupés). Porte de débordement en **V3a**, `DataTable` en
+  **V4**.
+- Sur Sources & Rapports, la nouvelle orange rend les **neuf absences très
+  sonores**. C'est le symptôme du paragraphe d'absence, pas du jeton : la
+  désaturation du texte (**V5**) le ramène à une ligne.

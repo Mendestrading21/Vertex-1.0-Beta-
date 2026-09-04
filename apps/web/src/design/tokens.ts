@@ -55,8 +55,22 @@ export const color = {
   'positive-soft': 'rgba(80, 201, 146, 0.12)',
   'negative': '#ef6f6c',
   'negative-soft': 'rgba(239, 111, 108, 0.12)',
-  'warning': '#f0c36a',
-  'warning-soft': 'rgba(240, 195, 106, 0.12)',
+  // LOT V2 — RÉSERVE 3 D'ADR-017, ENFIN TRANCHÉE.
+  //
+  // `warning` valait `#f0c36a` et `signal-bright` vaut `#f2c76b` : ΔE = 1,9,
+  // soit la MÊME couleur. Le même jaune disait « attention à ceci » et « voici
+  // la lumière de la page » — l'exact contraire de « une couleur = une
+  // signification ». La réserve demandait de trancher « avant toute page P » ;
+  // elle ne l'avait jamais été, et `catalog.test.ts` tenait la ligne en
+  // INTERDISANT à toute page de déclarer `warning` comme teinte.
+  //
+  // La prudence quitte donc l'ambre de marque pour une orange franche :
+  // ΔE 26,9 de `signal`, 33,3 de `negative`. Elle ne peut plus être confondue
+  // ni avec la dominante, ni avec le signe négatif — ce qui, dans un produit
+  // financier, était le vrai danger. Contraste minimal mesuré sur les six
+  // fonds de lecture : 5,38:1, au-dessus du seuil AA.
+  'warning': '#e8843a',
+  'warning-soft': 'rgba(232, 132, 58, 0.12)',
   'option': '#a88ae8',
   'option-soft': 'rgba(168, 138, 232, 0.12)',
   'macro': '#6bc5bc',
@@ -73,8 +87,8 @@ export const color = {
   'positive-gradient-end': 'rgba(80, 201, 146, 0)',
   'negative-gradient-start': 'rgba(239, 111, 108, 0.22)',
   'negative-gradient-end': 'rgba(239, 111, 108, 0)',
-  'warning-gradient-start': 'rgba(240, 195, 106, 0.22)',
-  'warning-gradient-end': 'rgba(240, 195, 106, 0)',
+  'warning-gradient-start': 'rgba(232, 132, 58, 0.22)',
+  'warning-gradient-end': 'rgba(232, 132, 58, 0)',
   'option-gradient-start': 'rgba(168, 138, 232, 0.22)',
   'option-gradient-end': 'rgba(168, 138, 232, 0)',
   'macro-gradient-start': 'rgba(107, 197, 188, 0.22)',
@@ -205,7 +219,12 @@ export const fontFamily = {
 export const fontSize = {
   meta: '13px',
   body: '14px',
-  label: '13px',
+  // LOT V2 — `label` retiré : il valait `'13px'`, exactement comme `meta`, et
+  // ADR-017 interdit l'alias de même valeur. Aucune règle ne permettait de
+  // savoir lequel employer — 199 lectures pour `meta` contre 6 pour `label`,
+  // sur les mêmes pixels. Les six lectures ont rejoint `meta` : AUCUN pixel ne
+  // change. Le jour où un libellé de formulaire mérite sa propre taille, il
+  // reviendra avec une VALEUR à lui, pas avec un second nom pour la même.
   title: '16px',
   display: '22px',
   headline: '28px',

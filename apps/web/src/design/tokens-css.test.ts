@@ -11,7 +11,16 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 import { GENERATED_HEADER, renderTokensCss } from './generate-css.ts';
-import { color, motionDuration, pageAccent, radius, shadow, space, zIndex } from './tokens.ts';
+import {
+  color,
+  fontSize,
+  motionDuration,
+  pageAccent,
+  radius,
+  shadow,
+  space,
+  zIndex,
+} from './tokens.ts';
 
 const tokensCssPath = fileURLToPath(new URL('./tokens.css', import.meta.url));
 
@@ -106,6 +115,40 @@ describe('tokens.css généré', () => {
       }
     }
     expect(menteurs, `Clés qui ne valent pas leur valeur :\n  ${menteurs.join('\n  ')}`).toEqual([]);
+  });
+
+  it('aucune échelle ne porte DEUX noms pour la même valeur', () => {
+    /**
+     * LOT V2 — L'ALIAS QUE PERSONNE NE VOYAIT.
+     *
+     * `fontSize.meta` et `fontSize.label` valaient tous deux `'13px'`. Deux
+     * noms, une seule taille, et aucune règle permettant de savoir lequel
+     * employer : 199 lectures CSS pour l'un, 6 pour l'autre, sur les mêmes
+     * pixels. ADR-017 interdit pourtant « l'alias de même valeur » — la règle
+     * existait, rien ne la vérifiait.
+     *
+     * Un alias n'est pas seulement inutile : il DIVISE le produit. Le jour où
+     * la taille des métadonnées bouge, la moitié des lectures suit et l'autre
+     * non, sans qu'aucun test ne le dise. C'est exactement la forme du défaut
+     * de `radius[18]` corrigé au lot V1, avec un déguisement différent.
+     *
+     * La règle vaut pour TOUTE échelle : deux crans ne peuvent pas valoir la
+     * même chose. Si un rôle mérite un nom, il mérite une valeur.
+     */
+    const echelles = { color, space, radius, motionDuration, shadow, fontSize } as const;
+    const doublons: string[] = [];
+    for (const [nom, echelle] of Object.entries(echelles)) {
+      const vus = new Map<string, string>();
+      for (const [cle, valeur] of Object.entries(echelle)) {
+        const premier = vus.get(valeur);
+        if (premier !== undefined) {
+          doublons.push(`${nom} : ${premier} et ${cle} valent tous deux ${valeur}`);
+          continue;
+        }
+        vus.set(valeur, cle);
+      }
+    }
+    expect(doublons, `Alias de même valeur :\n  ${doublons.join('\n  ')}`).toEqual([]);
   });
 
   it('déclare les rayons 6/10/14/16/20', () => {

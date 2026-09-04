@@ -19,13 +19,18 @@ import type { PageAccentToken } from '../../design/tokens.ts';
  * `null` = la page n'a PAS de teinte secondaire. C'est une décision, pas un
  * oubli : les douze destinations figurent toutes ici.
  *
- * `warning` est ÉLIGIBLE dans les tokens mais N'EST DÉCLARÉ PAR AUCUNE PAGE
- * tant que la réserve 3 de la revue C0 n'est pas tranchée : les valeurs de
- * `warning` et de `signal-bright` (lisibles dans `src/design/tokens.ts`)
- * diffèrent d'au plus 4/255 par canal, et des surfaces pleines de `warning`
- * rendraient « l'ambre est la seule lumière » invérifiable à l'œil. Les trois
- * pages qui l'auraient reçu (Opportunités, Catalyseurs, Sources & Rapports)
- * restent donc sans teinte.
+ * `warning` est ÉLIGIBLE dans les tokens et le RESTE : la réserve 3 de la revue
+ * C0 a été tranchée au lot V2. `warning` et `signal-bright` ne diffèrent plus
+ * d'au plus 4/255 par canal — la prudence a quitté l'ambre de marque pour une
+ * orange franche, mesurée à ΔE 26,9 de `signal`. La porte de `catalog.test.ts`
+ * ne l'interdit donc plus ; elle mesure l'écart et se RÉARME d'elle-même si
+ * quelqu'un ramenait un jour les deux jetons l'un vers l'autre.
+ *
+ * Les trois pages qui l'auraient reçu — Opportunités, Catalyseurs, Sources &
+ * Rapports — restent néanmoins SANS TEINTE aujourd'hui. C'est une décision
+ * distincte : donner une teinte à une page relève de son propre lot de refonte,
+ * qui compose sa planche et sait ce que la couleur doit y signifier. Lever un
+ * blocage n'est pas une raison de peindre.
  */
 export const PAGE_ACCENTS: Readonly<Record<string, PageAccentToken | null>> = {
   // `macro` = contexte : la page décrit un environnement, jamais un verdict.

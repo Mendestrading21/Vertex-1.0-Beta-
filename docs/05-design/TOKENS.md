@@ -7,11 +7,12 @@ déclare une couleur brute.
 ## Familles
 
 - couleur : surface, texte, bordure, état, option, macro et, depuis ADR-017, un couple de dégradé `<famille>-gradient-start/-end` par famille de série (`silver`, `positive`, `negative`, `warning`, `option`, `macro`) ;
-- espace : grille de 4 px, valeurs 4/8/12/16/20/24/32/40/48 ;
-- rayon : clés 6/10/14/18/22, valeurs resserrées pour le registre métallique ;
-- ombre : panneau, flottant et reflet interne sobres, jamais utilisés comme
+- espace : grille de 4 px, valeurs 4/8/12/16/20/24/32 ;
+- rayon : clés 6/10/14/16/20, chacune valant ses pixels, plus `pill` réservé aux
+  badges ;
+- ombre : `panel`, `glass` et `inset` sobres, jamais utilisés comme
   seule séparation ni comme halo lumineux ;
-- typographie : `body`, `meta`, `label`, `title`, `display`, `mono-number` ;
+- typographie : `meta`, `body`, `title`, `display`, `headline`, `metric` ;
 - motion : 90/140/180/220 ms et 600 ms (`--vx-motion-600`, surbrillance unique d'une valeur mise à jour ; nom documentaire `--vx-motion-data`, ADR-017), courbes documentées et variante reduced-motion ;
 - z-index : base, sticky, popover, sheet, dialog, toast ; aucune valeur locale arbitraire ;
 - densité : confortable par défaut, compacte uniquement dans tables analytiques.
