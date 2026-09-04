@@ -142,8 +142,22 @@ contenu utile ait été relogé ; chaque déplacement laisse une note de renvoi.
 - Les cinq documents d'identité fusionnés en trois.
 - `.claude/lots/` remplacé par les 25 fiches de ce plan.
 
+**Trois chantiers ouverts depuis LOT-00 y sont rapatriés**, parce qu'ils portent sur
+la vérité des données et qu'aucun plan récent ne les portait plus :
+
+- **porte de provenance des fixtures** — une fixture doit déclarer son statut
+  `SYNTHETIC` / `DEMO` et ne peut franchir aucune frontière de production ;
+- **quarantaine des données réelles** — aucune donnée IBKR ou TradingView réelle,
+  capture personnelle ou charge de production dans Git ;
+- **registre et gouvernance** des fixtures.
+
+Ce sont des règles déjà écrites dans `.claude/rules/testing.md` mais **non tenues par
+une porte automatique**. Tant qu'aucune porte ne les vérifie, la règle est une
+intention.
+
 *Fini quand :* un lecteur qui arrive sur le dépôt trouve l'état courant en une page
-et ne peut plus tomber sur deux documents qui se contredisent.
+et ne peut plus tomber sur deux documents qui se contredisent ; et trois portes
+neuves refusent une fixture sans provenance.
 
 ---
 
