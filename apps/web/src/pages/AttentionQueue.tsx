@@ -2,6 +2,7 @@ import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 
 import type { AttentionItem } from '../api/client.ts';
+import { AbsentCell } from '../components/absence.tsx';
 import { FreshnessBadge } from '../components/FreshnessBadge.tsx';
 import { InspectorPanel } from '../shell/inspector.tsx';
 
@@ -53,18 +54,6 @@ export function snapshotAgeSeconds(asOf: string | null, eventTime: string | null
 }
 
 // -- panneau latéral de détail ----------------------------------------------
-
-function AbsentValue({ label }: { readonly label: string }) {
-  return (
-    // `role="img"` obligatoire : sur un <span> sans rôle (rôle implicite
-    // `generic`), ARIA INTERDIT `aria-label` et les lecteurs d'écran
-    // ignorent le libellé — le motif de l'absence ne serait pas annoncé.
-    // Aligné sur OptionChainTable.tsx, qui portait déjà le rôle correct.
-    <span className="vx-cell-absent" role="img" aria-label={label}>
-      —
-    </span>
-  );
-}
 
 interface SideSheetProps {
   readonly item: AttentionItem;
@@ -163,13 +152,13 @@ function SideSheet({ item, asOf, onClose }: SideSheetProps) {
         </div>
         <div>
           <dt>Cluster</dt>
-          <dd>{clusterId === null ? <AbsentValue label="cluster inconnu" /> : <code>{clusterId}</code>}</dd>
+          <dd>{clusterId === null ? <AbsentCell quoi="cluster" nature="not_published" reason={null} /> : <code>{clusterId}</code>}</dd>
         </div>
         <div>
           <dt>Événements membres</dt>
           <dd>
             {memberIds.length === 0 ? (
-              <AbsentValue label="aucun événement membre publié" />
+              <AbsentCell quoi="événements membres" nature="not_published" reason={null} />
             ) : (
               <ul className="vx-sheet-list">
                 {memberIds.map((memberId) => (
@@ -193,7 +182,7 @@ function SideSheet({ item, asOf, onClose }: SideSheetProps) {
           <dt>Première publication (UTC)</dt>
           <dd>
             {firstPublishedAt === null ? (
-              <AbsentValue label="première publication inconnue" />
+              <AbsentCell quoi="première publication" nature="not_published" reason={null} accord="f" />
             ) : (
               <time dateTime={firstPublishedAt}>{firstPublishedAt}</time>
             )}
@@ -203,7 +192,7 @@ function SideSheet({ item, asOf, onClose }: SideSheetProps) {
           <dt>Dernière réception (UTC)</dt>
           <dd>
             {lastReceivedAt === null ? (
-              <AbsentValue label="dernière réception inconnue" />
+              <AbsentCell quoi="dernière réception" nature="not_published" reason={null} accord="f" />
             ) : (
               <time dateTime={lastReceivedAt}>{lastReceivedAt}</time>
             )}
@@ -213,7 +202,7 @@ function SideSheet({ item, asOf, onClose }: SideSheetProps) {
           <dt>Instrument</dt>
           <dd>
             {instrumentRef === null ? (
-              <AbsentValue label="aucun instrument associé" />
+              <AbsentCell quoi="instrument" nature="not_applicable" reason={null} />
             ) : (
               <code>{instrumentRef}</code>
             )}
@@ -222,7 +211,7 @@ function SideSheet({ item, asOf, onClose }: SideSheetProps) {
         <div>
           <dt>Snapshot as_of (UTC)</dt>
           <dd>
-            {asOf === null ? <AbsentValue label="as_of absent" /> : <time dateTime={asOf}>{asOf}</time>}
+            {asOf === null ? <AbsentCell quoi="as_of" nature="not_published" reason={null} /> : <time dateTime={asOf}>{asOf}</time>}
           </dd>
         </div>
         </dl>

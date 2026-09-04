@@ -2558,3 +2558,59 @@ au lot T4-7.
   `vitest run` 91 fichiers / **950 tests** verts ; `npm run build` succès.
 - Playwright `options`, `markets`, `simulator`, `sources-reports`,
   `accessibility`, `smoke` : **261 passés**, code 0.
+
+## SESSION 2026-09-04 — LOT T4-7 : la dette est remboursée
+
+Branche `lot/t4-7-fin-dette-20260904`. Dette T4 : **3 → 0**.
+
+Les trois dernières copies du composant d'absence (`AttentionQueue`,
+`SnapshotRail`, `SourceHealthMatrix`) fusionnent sur le socle. **`DETTE_T4` et
+les deux tests qui en faisaient un cliquet sont supprimés** : ils n'avaient
+d'autre raison d'être que la campagne, et une dette qui survit à son
+remboursement devient une exemption déguisée.
+
+### Le test qui m'a rattrapé
+
+`SourceHealthMatrix` rendait « jamais sondé ». Je l'avais converti en
+`AbsentCell` avec `nature="not_applicable"`, ce qui écrit « sonde sans
+objet » — **c'est faux**. `tested_at === null` signifie qu'aucune sonde n'a
+jamais tourné sur cette source : c'est un FAIT servi, pas une absence de
+publication. Le test unitaire existant a refusé le changement, et il avait
+raison.
+
+C'est exactement la limite n° 3 déclarée dans l'en-tête de la porte : elle ne
+juge pas si la NATURE choisie est la bonne. Écrire cette limite plutôt que la
+masquer est ce qui a permis de la voir quand elle s'est manifestée.
+
+Le fait se lit désormais en toutes lettres, sans glyphe à expliquer. L'e2e
+correspondante passe de `[aria-label="jamais sondé"]` à un compte de texte
+VISIBLE, plus une boucle qui vérifie que **tout** glyphe restant de la table
+porte un `role="img"` et un nom qui NOMME le champ manquant — un invariant qui
+ne dépend d'aucune arithmétique de fixture.
+
+### Bilan de la campagne T4
+
+| Lot | Destinations | Dette |
+|---|---|---|
+| T4-0 | socle + porte | 39 |
+| T4-1 | Opportunités | 36 |
+| T4-2 | Portefeuille, Performance | 28 |
+| T4-3 | Catalyseurs | 21 |
+| T4-4 | Calendrier | 17 |
+| T4-5 | Analyse | 11 |
+| T4-6 | Options, Marchés, Simulateur, Sources | 3 |
+| T4-7 | shell et matrices | **0** |
+
+163 glyphes substitutifs éliminés sur 33 fichiers. Cinq copies du composant
+d'absence fusionnées en une. Un défaut de clé React corrigé. Une devise qui se
+lisait comme un symbole monétaire. Deux tests qui gelaient un défaut,
+resserrés — aucun affaibli.
+
+### Mesuré
+
+- `tsc` code 0 ; `biome check src` 1 info préexistante ;
+  `vitest run` 91 fichiers / **948 tests** verts ; `npm run build` succès.
+- Playwright, **suite complète** : **543 passés** (8,9 min), code 0.
+
+Le compte de tests passe de 950 à 948 : les deux tests de gouvernance de la
+dette disparaissent avec elle. Aucun test de comportement n'a été retiré.

@@ -2,6 +2,7 @@ import { useSearchParams } from 'react-router-dom';
 
 import type { CapabilityEntry, SourceCapabilityStatus } from '../api/client.ts';
 import { StatusBadge } from '../components/StatusBadge.tsx';
+import { AbsentCell } from '../components/absence.tsx';
 
 /**
  * Visuel dominant de la page Sources & Rapports : matrice de santé des sources.
@@ -38,17 +39,6 @@ function countBy<K extends string>(entries: readonly CapabilityEntry[], key: (en
     counts.set(value, (counts.get(value) ?? 0) + 1);
   }
   return counts;
-}
-
-function AbsentCell({ label }: { readonly label: string }) {
-  return (
-    // Voir AttentionQueue.tsx : `aria-label` est interdit sur le rôle
-    // implicite `generic` d'un <span> ; sans `role="img"` le libellé
-    // d'absence est ignoré par les lecteurs d'écran.
-    <span className="vx-cell-absent" role="img" aria-label={label}>
-      —
-    </span>
-  );
 }
 
 export interface SourceHealthMatrixProps {
@@ -158,8 +148,20 @@ export function SourceHealthMatrix({ entries, total, selected = null, onInspect 
                 <td>
                   <StatusBadge status={entry.tested_status} />
                 </td>
-                <td>{entry.reason === null ? <AbsentCell label="aucune raison fournie" /> : entry.reason}</td>
-                <td>{entry.tested_at === null ? <AbsentCell label="jamais sondé" /> : <time dateTime={entry.tested_at}>{entry.tested_at}</time>}</td>
+                <td>{entry.reason === null ? <AbsentCell quoi="raison" nature="not_published" reason={null} accord="f" /> : entry.reason}</td>
+                {/* LOT T4-7 — « JAMAIS SONDÉ » N'EST PAS UNE ABSENCE, c'est un FAIT :
+                    `tested_at === null` signifie qu'aucune sonde n'a jamais tourné sur
+                    cette source. Le passer en `AbsentCell` aurait écrit « sonde sans
+                    objet », ce qui est faux — et c'est exactement la limite n° 3 de la
+                    porte : elle ne juge pas si la NATURE choisie est la bonne. Le test
+                    existant l'a rattrapée. */}
+                <td>
+                  {entry.tested_at === null ? (
+                    <span className="vx-cell-absent">jamais sondé</span>
+                  ) : (
+                    <time dateTime={entry.tested_at}>{entry.tested_at}</time>
+                  )}
+                </td>
               </tr>
             ))}
           </tbody>

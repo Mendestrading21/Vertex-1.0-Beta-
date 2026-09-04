@@ -61,6 +61,15 @@
  *
  * Même limite assumée que `no-authoritative-calculation.test.ts` : elle relève
  * le plancher, elle ne ferme pas le sujet.
+ *
+ * ─────────────────────────────────────────────────────────────────────────
+ * LA DETTE EST REMBOURSÉE. Cette porte a vécu huit lots avec une liste
+ * `DETTE_T4` de 39 fichiers non encore convertis, et deux tests qui en
+ * faisaient un CLIQUET : une exemption devenue inutile devait être supprimée,
+ * un fichier devenu propre devait sortir de la liste. La liste et son
+ * mécanisme ont disparu avec le dernier fichier converti — c'était leur seule
+ * raison d'être. Ne les réintroduisez pas : une dette qui revient est une
+ * exemption qui se déguise.
  */
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
@@ -122,26 +131,6 @@ const ALLOWLIST: ReadonlyArray<{ readonly path: string; readonly reason: string 
       'pas par cette porte.',
   },
 ];
-
-/**
- * DETTE T4 — TEMPORAIRE, et elle ne peut que RÉTRÉCIR.
- *
- * Fichiers non encore convertis, avec le lot qui les clôt. La séparation
- * d'avec `ALLOWLIST` est le point de conception : une dette qui se déguise en
- * exemption ne se rembourse jamais — piège déjà payé dans `check_secrets.py`.
- * Le test « la dette ne peut que rétrécir » plus bas est le cliquet : dès ce
- * lot, aucun NOUVEAU fichier ne peut entrer.
- *
- * Cette liste, et le mécanisme qui la porte, disparaissent au dernier lot T4.
- */
-const DETTE_T4: ReadonlyArray<{ readonly path: string; readonly lot: string }> = [
-  { path: 'src/pages/AttentionQueue.tsx', lot: 'T4-7' },
-  { path: 'src/pages/SnapshotRail.tsx', lot: 'T4-7' },
-  { path: 'src/pages/SourceHealthMatrix.tsx', lot: 'T4-7' },
-];
-
-/** Plafond de la dette. Il est ABAISSÉ à chaque lot, jamais relevé. */
-const DETTE_MAX = 3;
 
 interface Finding {
   readonly path: string;
@@ -281,13 +270,10 @@ function scanFile(path: string, contents?: string): Finding[] {
   return findings;
 }
 
-const EXEMPTED: ReadonlySet<string> = new Set([
-  ...ALLOWLIST.map((entry) => entry.path),
-  ...DETTE_T4.map((entry) => entry.path),
-]);
+const EXEMPTED: ReadonlySet<string> = new Set(ALLOWLIST.map((entry) => entry.path));
 
 describe('Aucune valeur absente remplacée par un glyphe muet', () => {
-  it('aucun fichier converti n’écrit un glyphe substitutif', () => {
+  it('AUCUN fichier n’écrit un glyphe substitutif', () => {
     const findings = SCANNED_ROOTS.flatMap((root) => collectFiles(root, []))
       .flatMap((file) => scanFile(file))
       .filter((finding) => !EXEMPTED.has(finding.path));
@@ -325,21 +311,7 @@ describe('Gouvernance des exemptions', () => {
     }
   });
 
-  it('la dette ne peut que RÉTRÉCIR — cliquet du lot T4', () => {
-    expect(DETTE_T4.length).toBeLessThanOrEqual(DETTE_MAX);
-    expect(new Set(DETTE_T4.map((e) => e.path)).size).toBe(DETTE_T4.length);
-    for (const entry of DETTE_T4) {
-      expect(() => statSync(join(APP_ROOT, entry.path)), `dette fantôme : ${entry.path}`).not.toThrow();
-      expect(entry.lot, `lot manquant : ${entry.path}`).toMatch(/^T4-\d$/);
-    }
-  });
 
-  it('un fichier en dette porte RÉELLEMENT au moins un glyphe', () => {
-    // Sinon il est déjà converti et doit sortir de la liste — c'est ce qui
-    // fait avancer le cliquet à chaque lot.
-    const inutiles = DETTE_T4.filter((entry) => scanFile(join(APP_ROOT, entry.path)).length === 0);
-    expect(inutiles.map((e) => e.path), 'dette à retirer : ces fichiers sont propres').toEqual([]);
-  });
 });
 
 describe('La garde voit ce qu’elle annonce', () => {
