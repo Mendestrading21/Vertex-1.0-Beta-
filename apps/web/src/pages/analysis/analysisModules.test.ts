@@ -15,10 +15,16 @@ describe('ANALYSIS_MODULES — la planche §4', () => {
     expect(new Set(ANALYSIS_MODULES.map((module) => module.id)).size).toBe(19);
   });
 
-  it('onze servis, huit absents ; chaque servi nomme son contrat', () => {
+  it('DOUZE servis, sept absents ; chaque servi nomme son contrat', () => {
+    // LOT P2 — UNE ABSENCE QUI A CESSÉ D'ÊTRE VRAIE. Le module `oscillators`
+    // affirmait « le registre des calculs ne publie aucun oscillateur ».
+    // C'était exact avant le LOT-S6 ; depuis, le worker publie
+    // `indicators.oscillators = {rsi, macd}` avec leurs séries rendues, leur
+    // méthode, leurs paramètres et leur lignée. Une absence qui a cessé d'être
+    // vraie n'est plus une prudence : c'est un mensonge.
     const served = ANALYSIS_MODULES.filter((module) => module.status.kind === 'served');
-    expect(served).toHaveLength(11);
-    expect(absentAnalysisModules()).toHaveLength(8);
+    expect(served).toHaveLength(12);
+    expect(absentAnalysisModules()).toHaveLength(7);
     for (const module of served) {
       expect(module.status.kind === 'served' && module.status.contract).toMatch(/GET \/api\/v1\//);
     }
@@ -26,12 +32,16 @@ describe('ANALYSIS_MODULES — la planche §4', () => {
 
   it('la dominante est le graphique ; les faits SEC sont servis par leur propre route', () => {
     expect(analysisModule('chart').status.kind).toBe('served');
+    // Les oscillateurs sont servis par le MÊME dossier que les indicateurs.
+    expect(analysisModule('oscillators').status.kind).toBe('served');
     const financials = analysisModule('financials');
     expect(financials.status.kind === 'served' && financials.status.contract).toContain('/sources/sec/');
   });
 
-  it('aucun oscillateur, régime, confiance ni valorisation : aucune source ne les publie', () => {
-    for (const id of ['oscillators', 'regime', 'model-confidence', 'valuation', 'fundamental-quality', 'analyst-revisions']) {
+  it('ni régime, ni confiance, ni valorisation : aucune source ne les publie', () => {
+    // LOT P2 — `oscillators` a QUITTÉ cette liste : le worker les publie
+    // depuis le LOT-S6. Les cinq autres restent réellement sans source.
+    for (const id of ['regime', 'model-confidence', 'valuation', 'fundamental-quality', 'analyst-revisions']) {
       const module = analysisModule(id);
       expect(module.status.kind === 'absent' && module.status.reason).toBe('NO_SOURCE');
     }

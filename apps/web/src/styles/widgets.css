@@ -316,6 +316,16 @@
   height: auto;
 }
 
+/* LOT P2 — LES BORNES TIENNENT LES BORDS DE L'ARC. `.vx-w2-arc` est une
+   grille en `justify-items: center` : la ligne des bornes s'y réduisait à son
+   contenu (44 px mesurés dans un arc de 220), et son `space-between` n'avait
+   plus d'espace à répartir — « 0 » et « 100 » se retrouvaient collés au
+   milieu, sous le centre de l'arc plutôt qu'à ses extrémités. */
+.vx-w2-arc .vx-w2-gauge-bounds {
+  justify-self: stretch;
+  width: 100%;
+}
+
 .vx-w2-arc-rail {
   fill: none;
   stroke: var(--vx-titanium-soft);
@@ -1745,4 +1755,34 @@
 .vx-markets-grid > [data-module][data-size='L'],
 .vx-markets-grid > [data-module][data-size='XL'] {
   align-self: stretch;
+}
+
+
+/* ==========================================================================
+   LOT P2 — OSCILLATEURS SUR LE DOSSIER
+   --------------------------------------------------------------------------
+   Le MACD n'a pas d'échelle bornée déclarée : ses lignes servies se lisent
+   telles quelles, sans forme inventée. Une liste de faits, pas des puces de
+   navigateur — et la valeur en chasse fixe garde ses décimales servies, qui
+   ne sont JAMAIS arrondies.
+   ========================================================================== */
+.vx-analysis-osc-lines {
+  margin: var(--vx-space-4) 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--vx-space-4);
+}
+
+.vx-analysis-osc-lines li {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.vx-analysis-osc-lines code {
+  overflow-wrap: anywhere;
+  color: var(--vx-silver);
 }

@@ -173,7 +173,13 @@ test.describe('Page Analyse — chandeliers, table équivalente, AdviceCard', ()
       await expect(page.locator(`[data-module="${module}"]`).first(), module).toBeVisible();
     }
     await expect(page.locator('.vx-main [data-rank="dominant"]')).toHaveCount(1);
-    await expect(page.locator('.vx-absent-badge')).toHaveCount(8);
+    // LOT P2 — huit → SEPT. Le module « Oscillateurs » déclarait « le
+    // registre des calculs ne publie aucun oscillateur » ; le worker publie
+    // RSI et MACD depuis le LOT-S6. Même assertion, sur un compte devenu
+    // juste — et le module rend désormais ce qui est servi.
+    await expect(page.locator('.vx-absent-badge')).toHaveCount(7);
+    await expect(page.getByTestId('analysis-rsi')).toBeVisible();
+    await expect(page.getByTestId('analysis-macd')).toBeVisible();
     for (const corps of await page.locator('.vx-absent-body').allTextContents()) {
       expect(corps).not.toMatch(/\d/);
     }

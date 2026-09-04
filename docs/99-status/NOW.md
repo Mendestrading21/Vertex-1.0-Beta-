@@ -2606,3 +2606,56 @@ resserrés — aucun affaibli.
 
 Le compte de tests passe de 950 à 948 : les deux tests de gouvernance de la
 dette disparaissent avec elle. Aucun test de comportement n'a été retiré.
+
+## SESSION 2026-09-04 — LOT P2a : les oscillateurs servis, enfin affichés sur le dossier
+
+Branche `lot/p2-analyse-oscillateurs-20260904`.
+
+### La deuxième absence devenue fausse
+
+Le module `oscillators` d'Analyse déclarait : « Le registre des calculs ne
+publie aucun oscillateur ; en dériver un dans le navigateur serait le calcul
+financier interdit en TypeScript. »
+
+C'était exact avant le LOT-S6. Depuis, le worker publie
+`indicators.oscillators = {rsi, macd}` — série rendue en chaînes, méthode,
+paramètres, lignée (`analysis.py:972-977`) — et la page Graphiques les affiche
+depuis le LOT P5. **Une absence qui a cessé d'être vraie n'est plus une
+prudence : c'est un mensonge**, et c'est le même défaut que P5 a corrigé sur
+Graphiques.
+
+Compte devenu juste : douze modules servis, sept absents (au lieu de onze et
+huit). L'e2e attendait huit badges d'absence, elle en attend sept.
+
+### Le lecteur est réutilisé, pas recopié
+
+`indicatorFamilyOf` vit dans `pages/charts/chartsView.ts` et consomme le MÊME
+`AnalysisResponse`. Le dupliquer aurait ouvert **deux vérités sur la même
+donnée servie**. Ce que le module écrit lui est propre : sa colonne fait un
+quart de planche, là où Graphiques dispose d'une largeur entière.
+
+### Ce que le module refuse
+
+L'arc n'est posé QUE si le serveur déclare l'échelle (`unit === 'index_0_100'`).
+Toute autre unité refuse la forme et affiche les dernières valeurs servies —
+même règle qu'au LOT P5. Le MACD, dont l'unité est un prix, n'a jamais d'arc :
+ses trois lignes servies se lisent telles quelles, à leur précision publiée,
+jamais arrondies.
+
+### Deux vérifications de capture, dont une qui m'a détrompé
+
+- **Un défaut réel** : les bornes de l'arc faisaient 44 px dans un arc de
+  220 px. `.vx-w2-arc` est une grille en `justify-items: center` ; la ligne des
+  bornes s'y réduisait à son contenu, et son `space-between` n'avait plus
+  d'espace à répartir — « 0 » et « 100 » se retrouvaient collés sous le centre
+  de l'arc au lieu de tenir ses extrémités. Corrigé, mesuré : 179 px.
+- **Un faux défaut** : j'avais lu « méthodeWilder » sur une capture réduite et
+  ajouté un espace explicite. La sonde DOM a montré `méthode <code>Wilder…` —
+  l'espace était là. Correctif retiré : un commentaire qui décrit un défaut
+  inexistant est pire que la coquille qu'il prétend corriger.
+
+### Mesuré
+
+- `tsc` code 0 ; `biome check src` 1 info préexistante ;
+  `vitest run` 91 fichiers / **949 tests** verts ; `npm run build` succès.
+- Playwright, **suite complète** : **543 passés** (8,9 min), code 0.

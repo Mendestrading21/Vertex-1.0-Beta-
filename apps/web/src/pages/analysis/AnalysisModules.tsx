@@ -14,7 +14,15 @@ import type { FlatTicker } from '../../components/markets/marketsView.ts';
 import { GROUP_LABELS_FR, flattenTickers, frDecimal, signSymbolOf } from '../../components/markets/marketsView.ts';
 import { moduleShowsContent, moduleStateOf } from '../../components/moduleState.ts';
 import type { ModuleState } from '../../components/moduleState.ts';
+import { ArcGauge } from '../../components/widgets/ArcGauge.tsx';
 import { calendarEventsOf } from '../calendar/calendarView.ts';
+/**
+ * LOT P2 — LECTEUR PARTAGÉ, PAS RECOPIÉ. `indicatorFamilyOf` consomme le MÊME
+ * `AnalysisResponse` que cette page ; le dupliquer ouvrirait deux vérités sur
+ * la même donnée servie.
+ */
+import { indicatorFamilyOf } from '../charts/chartsView.ts';
+import type { IndicatorBlockView } from '../charts/chartsView.ts';
 import { analysisModule } from './analysisModules.ts';
 import type { AdviceView, BarsView } from './analysisView.ts';
 import { IDENTITY_STATE_FR, secFundamentalsViewOf } from './secView.ts';
@@ -434,6 +442,138 @@ export function PeersModule({ instrument }: { readonly instrument: string }) {
           </ul>
         )
       ) : null}
+    </Card>
+  );
+}
+
+/**
+ * LOT P2 — LES OSCILLATEURS PUBLIÉS, ENFIN AFFICHÉS SUR LE DOSSIER.
+ *
+ * Ce module déclarait « le registre des calculs ne publie aucun oscillateur ».
+ * C'était exact avant le LOT-S6. Depuis, le worker publie
+ * `indicators.oscillators` avec le RSI et le MACD — série rendue en chaînes,
+ * méthode, paramètres et lignée — et la page Graphiques les affiche déjà.
+ *
+ * LE LECTEUR EST RÉUTILISÉ, PAS RECOPIÉ. `indicatorFamilyOf` vit dans
+ * `pages/charts/chartsView.ts` et consomme le MÊME `AnalysisResponse` :
+ * dupliquer une lecture de données financières ouvrirait deux vérités sur la
+ * même donnée. Ce que ce module écrit lui est propre : sa colonne fait un
+ * quart de planche, là où Graphiques dispose d'une largeur entière.
+ *
+ * L'ARC N'EST POSÉ QUE SI LE SERVEUR DÉCLARE L'ÉCHELLE. `unit === 'index_0_100'`
+ * signifie que la valeur servie EST sa position sur l'échelle ; toute autre
+ * unité refuse la forme au lieu de la réinterpréter — même règle qu'au LOT P5.
+ */
+const OSCILLATOR_INDEX_UNIT = 'index_0_100';
+const OSCILLATOR_INDEX_BOUNDS = { min: '0', max: '100' } as const;
+
+function OscillatorLastValues({ block }: { readonly block: IndicatorBlockView }) {
+  if (block.kind !== 'served') {
+    return null;
+  }
+  return (
+    <ul className="vx-analysis-osc-lines">
+      {block.lines.map((ligne) => (
+        <li key={ligne.key}>
+          <span className="vx-metric-label">{ligne.label}</span>{' '}
+          <code className="vx-num">{ligne.last}</code>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function OscillatorRefusal({ block }: { readonly block: IndicatorBlockView }) {
+  if (block.kind === 'refused') {
+    return (
+      <p className="vx-cell-absent" role="status">
+        <code>{block.id}</code> — <code>{block.status}</code>
+        {block.detail === null ? null : ` : ${block.detail}`}
+      </p>
+    );
+  }
+  if (block.kind === 'unreadable') {
+    return (
+      <p className="vx-cell-absent" role="status">
+        <code>{block.id}</code> — bloc publié mais illisible : aucune valeur n’en est tirée.
+      </p>
+    );
+  }
+  return (
+    <p className="vx-cell-absent" role="status">
+      <code>{block.id}</code> — non publié dans ce dossier.
+    </p>
+  );
+}
+
+export function OscillatorsModule({
+  indicators,
+}: {
+  readonly indicators: Readonly<Record<string, unknown>> | null | undefined;
+}) {
+  const module = analysisModule('oscillators');
+  const [rsi, macd] = indicatorFamilyOf(indicators, 'oscillators', ['rsi', 'macd']);
+  const ligneRsi = rsi?.kind === 'served' ? rsi.lines[0] : undefined;
+  const surEchelle = rsi?.kind === 'served' && rsi.unit === OSCILLATOR_INDEX_UNIT;
+
+  return (
+    <Card
+      rank="quiet"
+      kicker="Moteur serveur (S6)"
+      title={module.title}
+      titleId="vx-analysis-oscillators-title"
+      className="vx-analysis-oscillators"
+      footer={
+        rsi?.kind === 'served' || macd?.kind === 'served' ? (
+          <>
+            oscillateurs publiés par le worker · voir <Link to="/charts">Graphiques</Link> pour les
+            séries complètes
+          </>
+        ) : (
+          <>aucun oscillateur publié dans ce dossier</>
+        )
+      }
+    >
+      {rsi === undefined || rsi.kind !== 'served' ? (
+        rsi === undefined ? null : (
+          <OscillatorRefusal block={rsi} />
+        )
+      ) : (
+        <div data-testid="analysis-rsi">
+          {surEchelle && ligneRsi !== undefined ? (
+            <ArcGauge
+              label={`RSI · ${rsi.lastTradingDay ?? 'séance non publiée'}`}
+              valuePct={ligneRsi.last}
+              valueText={ligneRsi.last}
+              unit={rsi.unit}
+              boundsText={OSCILLATOR_INDEX_BOUNDS}
+              thresholds={[]}
+              tone="macro"
+              status="OK"
+              {...(rsi.method === null ? {} : { method: rsi.method })}
+            />
+          ) : (
+            <>
+              <p className="vx-module-sentence" role="status">
+                Unité servie <code>{rsi.unit}</code> : l’échelle n’est pas déclarée bornée, aucun
+                arc n’est tracé.
+              </p>
+              <OscillatorLastValues block={rsi} />
+            </>
+          )}
+        </div>
+      )}
+
+      {macd === undefined ? null : macd.kind === 'served' ? (
+        <div data-testid="analysis-macd">
+          <p className="vx-module-sentence">
+            MACD · dernières valeurs servies du {macd.lastTradingDay ?? 'jour non publié'}
+          </p>
+          <OscillatorLastValues block={macd} />
+        </div>
+      ) : (
+        <OscillatorRefusal block={macd} />
+      )}
     </Card>
   );
 }
