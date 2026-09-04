@@ -2951,3 +2951,48 @@ destruction de la fenêtre jsdom. Vitest le signale explicitement — « This mi
 cause false positive tests ». Ce n'est pas une conséquence de T5 : c'est une
 fuite de nettoyage préexistante, dans les fichiers de test qui rendent un
 graphique sans doubler le chargeur. **Lot dédié**, pas un correctif glissé ici.
+
+## SESSION 2026-09-04 — LOT T6 : `matchMedia` manquait à l'environnement de test
+
+Branche `lot/t6-matchmedia-jsdom-20260904`, empilée sur T5.
+
+### Le diagnostic
+
+jsdom n'implémente pas `window.matchMedia`. `fancy-canvas`, dépendance de
+Lightweight Charts, l'appelle sans se protéger, et le fait dans une
+MICRO-TÂCHE : l'appel s'exécute donc APRÈS que le fichier de test a rendu la
+main et que la fenêtre a été détruite.
+
+Mesuré avant le lot : `vitest run` rapportait « 7 unhandled errors » à côté de
+955 tests verts, sur **quatre exécutions sur six**. Vitest le dit lui-même —
+« This might cause false positive tests ». Une suite verte accompagnée
+d'erreurs non capturées n'est pas une preuve.
+
+### Ce que le double est, et ce qu'il n'est pas
+
+Un comblement de TROU D'ENVIRONNEMENT, pas un contournement de test : dans tout
+navigateur réel, `matchMedia` existe toujours. Il répond `matches: false` à
+chaque requête — exactement ce que répond un navigateur sans préférence
+déclarée. Aucune requête n'est interprétée, aucune n'est privilégiée : le
+double ne simule pas un état de média, il rend la fonction appelable.
+
+Mesuré après : **zéro erreur non capturée sur cinq exécutions consécutives**.
+
+### Deux durées enfin distinguées
+
+Le test existant de la surbrillance avançait de 1200 ms : il couvrait les deux
+cas sans jamais les séparer, donc la durée longue du mouvement réduit n'était
+vérifiée par rien. Deux tests les distinguent maintenant — 600 ms en mouvement
+normal, 1000 ms sous `prefers-reduced-motion`.
+
+**Précision qui compte** : ces deux tests ne dépendent PAS du double
+d'environnement — le second pose le sien. Ce que le double change, c'est le
+chemin par défaut et les erreurs non capturées. Ne pas confondre les deux
+preuves.
+
+### Mesuré
+
+- `npx tsc --noEmit` code 0 ; `npx biome check src` 1 info préexistante.
+- `npx vitest run` : 92 fichiers / **957 tests** verts, **0 erreur non capturée**,
+  cinq exécutions consécutives.
+- `npm run build` : succès.
