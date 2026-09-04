@@ -25,6 +25,7 @@ import {
   provenanceSentence,
 } from '../../components/markets/marketsView.ts';
 import { marketsModule } from './marketsModules.ts';
+import { pageAccentAttrs } from '../../components/widgets/pageAccent.ts';
 
 /**
  * Page Marchés (`TL / 02`) — question : « Dans quel contexte de marché
@@ -471,7 +472,7 @@ export function MarketsPage() {
   const state = frameStateOf(queryState, data);
 
   return (
-    <article className="vx-page" data-page-accent="macro" aria-labelledby="vx-page-title-markets">
+    <article className="vx-page" {...pageAccentAttrs('markets')} aria-labelledby="vx-page-title-markets">
       <div className="vx-page-header">
         <h1 id="vx-page-title-markets">Marchés</h1>
         <p className="vx-page-question">

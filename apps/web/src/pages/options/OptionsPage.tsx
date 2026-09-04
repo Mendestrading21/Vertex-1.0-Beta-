@@ -32,6 +32,7 @@ import {
   rowBudgetOf,
   spotViewOf,
 } from './optionsView.ts';
+import { pageAccentAttrs } from '../../components/widgets/pageAccent.ts';
 
 /**
  * Page Options (`TL / 05`) — question : « Quels contrats sont réellement
@@ -404,7 +405,7 @@ export function OptionsPage() {
   const { underlying } = useParams<{ underlying?: string }>();
 
   return (
-    <article className="vx-page" aria-labelledby="vx-page-title-options">
+    <article className="vx-page" {...pageAccentAttrs('options')} aria-labelledby="vx-page-title-options">
       <div className="vx-page-header">
         <h1 id="vx-page-title-options">Options</h1>
         <p className="vx-page-question">

@@ -2860,3 +2860,49 @@ P2c ; c'est ce résultat-là qui fait foi.
 - `npx vitest run` : 91 fichiers / **952 tests** verts.
 - `npm run build` : succès.
 - Captures et géométrie aux trois viewports desktop : débordement 0.
+
+## SESSION 2026-09-04 — LOT P3a : la teinte de page cessait d'être une décision
+
+Branche `lot/p3a-teinte-de-page-20260904`, empilée sur P2d.
+
+### Le constat, mesuré
+
+`PAGE_ACCENTS` (ADR-017) déclare cinq teintes de page. UNE seule page posait
+l'attribut, et elle l'écrivait EN DUR, donc sans lien avec la table. AUCUNE
+règle CSS ne lisait `--vx-page-accent`. Le mécanisme entier était inerte.
+
+`catalog.test.ts` vérifiait la cohérence interne de la table — famille connue,
+aucune couleur de signe, douze destinations décidées. Il ne pouvait pas voir
+qu'elle ne servait à rien.
+
+### Un consommateur choisi, puis rejeté par la sonde
+
+J'avais d'abord coloré `.vx-page-eyebrow`. La sonde DOM a répondu `ABSENT` sur
+Marchés : ce sourcil n'est rendu que par UNE page du produit — Aujourd'hui —
+et elle ne déclare aucune teinte. Ma règle était morte, exactement comme la
+table qu'elle devait réparer. C'est la capture qui l'a dit, pas les tests.
+
+Le consommateur réel est un filet de deux pixels au bord gauche de l'en-tête
+de page. `.vx-page-header` existe sur les douze destinations, vérifié fichier
+par fichier.
+
+### Ce que le filet ne fait pas
+
+Il ne porte AUCUNE information : ni valeur, ni signe, ni statut. C'est un
+marqueur de famille, et le titre juste à côté dit la page en toutes lettres.
+L'ambre reste la seule lumière de la dominante.
+
+### Vérifié à la sonde, sur sept pages
+
+| Page | teinte déclarée | filet mesuré |
+|---|---|---|
+| Marchés, Graphiques, Risques | `macro` | 2 px, turquoise |
+| Options, Simulateur | `option` | 2 px, violet |
+| Aujourd'hui, Opportunités | aucune | **0 px** |
+
+### Mesuré
+
+- `npx tsc --noEmit` code 0 ; `npx biome check src` 1 info préexistante.
+- `npx vitest run` : 92 fichiers / **955 tests** verts.
+- `npm run build` : succès.
+- Porte `page-accent-applied.test.ts` vérifiée ROUGE d'abord (3 assertions sur 3).

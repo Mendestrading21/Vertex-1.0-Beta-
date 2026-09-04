@@ -47,3 +47,21 @@ export const PAGE_ACCENTS: Readonly<Record<string, PageAccentToken | null>> = {
   catalysts: null,
   'sources-reports': null,
 };
+
+/**
+ * Attributs à poser sur le `<article className="vx-page">` d'une destination.
+ *
+ * POURQUOI UN HELPER PLUTÔT QU'UN ATTRIBUT ÉCRIT À LA MAIN. Avant le lot P3a,
+ * la table déclarait cinq teintes et UNE SEULE page posait l'attribut — et
+ * elle l'écrivait en dur (`data-page-accent="macro"`), donc sans lien avec la
+ * table. Une déclaration que personne ne lit n'est pas une décision, c'est un
+ * commentaire. Le catalogue redevient le propriétaire unique.
+ *
+ * Une page sans teinte ne pose RIEN : `--vx-page-accent` n'a aucune valeur par
+ * défaut, et un attribut posé à vide rendrait la variable invalide à la valeur
+ * calculée.
+ */
+export function pageAccentAttrs(page: string): Record<string, string> {
+  const famille = PAGE_ACCENTS[page];
+  return famille === null || famille === undefined ? {} : { 'data-page-accent': famille };
+}
