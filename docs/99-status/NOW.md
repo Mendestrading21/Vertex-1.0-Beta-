@@ -2100,6 +2100,7 @@ présence de chaque valeur dans le CSS commité.
 - Playwright, **suite complète** aux trois viewports desktop : **546 passés**
   (11,6 min), code 0.
 
+**T1 bloquée à la fusion, pour une raison externe.** PR #45 : six checks requis
 **T1 a été bloquée à la fusion, pour une raison externe — résolu depuis.** PR #45 : six checks requis
 verts sur `353e1fa`, le septième — `supply-chain — audit des dépendances,
 SBOM` — meurt sur `ERR_SOCKET_TIMEOUT` vers
