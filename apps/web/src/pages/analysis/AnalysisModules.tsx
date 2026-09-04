@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 
 import type { AnalysisResponse } from '../../api/client.ts';
 import { useCalendar } from '../../api/decisionApi.ts';
+import { AbsentCell } from '../../components/absence.tsx';
 import { pageStateOf, useMarketsOverview, useSecFundamentals } from '../../api/hooks.ts';
 import { Card } from '../../components/Card.tsx';
 import { FreshnessBadge } from '../../components/FreshnessBadge.tsx';
@@ -265,8 +266,22 @@ export function FinancialsModule({ instrument }: { readonly instrument: string }
                         {fact.taxonomy === null ? null : <span className="vx-inspector-unit"> {fact.taxonomy}</span>}
                       </th>
                       <td className="vx-num">{fact.value ?? 'non publiée'}</td>
-                      <td>{fact.unit ?? '—'}</td>
-                      <td>{fact.periodEnd ?? '—'}</td>
+                      {/* Table dense de faits XBRL : le glyphe garde sa
+                           place, son sens passe par le nom accessible. */}
+                      <td>
+                        {fact.unit === null ? (
+                          <AbsentCell quoi="unité" nature="not_published" reason={null} accord="f" />
+                        ) : (
+                          fact.unit
+                        )}
+                      </td>
+                      <td>
+                        {fact.periodEnd === null ? (
+                          <AbsentCell quoi="fin de période" nature="not_published" reason={null} accord="f" />
+                        ) : (
+                          fact.periodEnd
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>

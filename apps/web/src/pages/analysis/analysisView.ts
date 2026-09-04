@@ -318,9 +318,11 @@ export function scenariosViewOf(data: AnalysisResponse): ScenariosView | null {
     const tradingClass = blockString(record, 'trading_class');
     const premium = blockString(record, 'premium');
     const premiumSide = blockString(record, 'premium_side');
-    basisLabel = `jambe longue 1 x ${right ?? '?'} ${strike ?? '?'} · ${expiration ?? '?'} · ${
-      tradingClass ?? '?'
-    } — prime déclarée ${premium ?? '?'} (côté ${premiumSide ?? '?'})`;
+    basisLabel = `jambe longue 1 x ${right ?? 'sens non publié'} ${
+      strike ?? 'strike non publié'
+    } · ${expiration ?? 'échéance non publiée'} · ${
+      tradingClass ?? 'classe non publiée'
+    } — prime déclarée ${premium ?? 'non publiée'} (côté ${premiumSide ?? 'non publié'})`;
   }
   const rawGrid = block['grid'];
   const grid: string[][][] = [];

@@ -116,25 +116,31 @@ function AnalysisFrame({
   readonly instrument: string;
 }) {
   const asOf = data.as_of;
-  const currency = bars?.currency ?? '—';
+  // LOT T4-5 — UNE DEVISE NE SE REMPLACE PAS PAR UN TIRET. Elle était collée
+  // juste après la dernière clôture : « dernière clôture 366.08 — ». Un lecteur
+  // pouvait la prendre pour un symbole monétaire, et un prix sans son unité
+  // n'est pas une mesure.
+  const currency = bars?.currency ?? 'devise non publiée';
   const population = data.population ?? 'NON_DÉCLARÉE';
 
   const detail =
     state === 'partial'
       ? bars === null || bars.status !== 'OK'
         ? 'Dossier publié sans série de barres exploitable.'
-        : `Série publiée avec dégradation : qualité ${bars.quality ?? '—'}, ${bars.discardedCount} barre(s) écartée(s) par le worker.`
+        : `Série publiée avec dégradation : qualité ${bars.quality ?? 'non publiée'}, ${bars.discardedCount} barre(s) écartée(s) par le worker.`
       : state === 'stale'
         ? data.state === 'stale'
-          ? `Dossier publié périmé par le relais : ${data.reason ?? 'raison non publiée'} ; âge publié ${data.age_seconds ?? '—'} s.`
-          : `Le worker a publié la série comme non fraîche (fresh = false) ; âge publié ${data.age_seconds ?? '—'} s.`
+          ? `Dossier publié périmé par le relais : ${data.reason ?? 'raison non publiée'} ; âge publié ${data.age_seconds ?? 'non'} s.`
+          : `Le worker a publié la série comme non fraîche (fresh = false) ; âge publié ${data.age_seconds ?? 'non'} s.`
         : state === 'delayed'
           ? 'Population DELAYED publiée par le worker : le dossier est conservé, mais ne décrit pas le marché à cet instant.'
           : undefined;
 
   const description =
     bars !== null && bars.status === 'OK'
-      ? `${bars.count ?? bars.bars.length} barres journalières publiées de ${bars.firstTradingDay ?? '?'} à ${bars.lastTradingDay ?? '?'}, dernière clôture ${bars.lastClose ?? '?'} ${currency}.`
+      ? `${bars.count ?? bars.bars.length} barres journalières publiées de ${bars.firstTradingDay ?? 'séance non publiée'} à ${
+            bars.lastTradingDay ?? 'séance non publiée'
+          }, dernière clôture ${bars.lastClose ?? 'non publiée'} ${currency}.`
       : 'Aucune série de barres exploitable publiée.';
 
   return (
@@ -167,20 +173,31 @@ function AnalysisFrame({
         <div>
           <dt>Référence d’observation publiée</dt>
           <dd>
-            <code>{bars?.sourceEventId ?? '—'}</code> via snapshot worker v
-            {data.snapshot_version ?? '—'} (moteur <code>{data.engine_version ?? '—'}</code>)
+            <code>{bars?.sourceEventId ?? 'référence non publiée'}</code> via snapshot worker v
+            {data.snapshot_version ?? 'non publiée'} (moteur{' '}
+            <code>{data.engine_version ?? 'non publié'}</code>)
           </dd>
         </div>
         <div>
           <dt>as_of</dt>
-          <dd>{asOf === null ? '—' : <time dateTime={asOf}>{asOf}</time>}</dd>
+          <dd>
+            {asOf === null ? (
+              <span className="vx-cell-absent">instant non publié</span>
+            ) : (
+              <time dateTime={asOf}>{asOf}</time>
+            )}
+          </dd>
         </div>
         <div>
           <dt>Couverture</dt>
           <dd>
             {bars === null
-              ? '—'
-              : `${bars.count ?? 0} barre(s) valides (${bars.firstTradingDay ?? '—'} → ${bars.lastTradingDay ?? '—'}), ${bars.discardedCount} écartée(s), base ${bars.adjustmentBasis ?? '—'}`}
+              ? 'aucune série publiée'
+              : `${bars.count ?? 0} barre(s) valides (${
+                  bars.firstTradingDay ?? 'séance non publiée'
+                } → ${bars.lastTradingDay ?? 'séance non publiée'}), ${
+                  bars.discardedCount
+                } écartée(s), base ${bars.adjustmentBasis ?? 'non publiée'}`}
           </dd>
         </div>
       </dl>
@@ -211,7 +228,8 @@ function AnalysisFrame({
         <p>
           Méthode : barres OHLCV validées barre à barre par le worker (une barre invalide est
           écartée avec sa raison, jamais réparée) ; verdict par l'unique <code>AdviceEngine</code>{' '}
-          (<code>{data.engine_version ?? '—'}</code>) ; clusters par la fusion déterministe. Rendu :
+          (<code>{data.engine_version ?? 'non publié'}</code>) ; clusters par la fusion
+          déterministe. Rendu :
           Lightweight Charts™ —{' '}
           <a href="https://www.tradingview.com/" rel="noopener noreferrer" target="_blank">
             TradingView

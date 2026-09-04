@@ -2496,3 +2496,28 @@ dénombrements en `vx-cell-absent`, instants « non publié ».
   `vitest run` 91 fichiers / **950 tests** verts ; `npm run build` succès.
 - Playwright `calendar`, `catalysts`, `today`, `accessibility` :
   **261 passés**, code 0.
+
+## SESSION 2026-09-04 — LOT T4-5 : Analyse, et une devise remplacée par un tiret
+
+Branche `lot/t4-5-analyse-20260904`. Dette T4 : **17 → 11**.
+
+Vingt-cinq glyphes sur six fichiers, et un cas qui va plus loin qu'une
+ambiguïté.
+
+**`AnalysisPage.tsx:119` — `const currency = bars?.currency ?? '—'`.** Cette
+devise était ensuite collée juste après la dernière clôture :
+« dernière clôture 366.08 — ». Un lecteur pouvait prendre le tiret pour un
+symbole monétaire, et **un prix sans son unité n'est pas une mesure**. Les
+règles du dépôt exigent l'unité et la devise aux frontières ; le repli les
+effaçait en silence.
+
+Le reste : `?? '?'` dans quatre phrases assemblées (`analysisView.ts` et le
+résumé de barres), instants « non publié », faits XBRL en table dense sur
+`AbsentCell`, et deux `'—'` de branche (`bars === null`, `validUntil === null`)
+que la porte a trouvés après la première passe.
+
+### Mesuré
+
+- `tsc` code 0 ; `biome check src` 1 info préexistante ;
+  `vitest run` 91 fichiers / **950 tests** verts ; `npm run build` succès.
+- Playwright `analysis`, `simulator`, `accessibility` : **219 passés**, code 0.

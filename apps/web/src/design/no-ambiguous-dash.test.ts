@@ -135,12 +135,6 @@ const ALLOWLIST: ReadonlyArray<{ readonly path: string; readonly reason: string 
  * Cette liste, et le mécanisme qui la porte, disparaissent au dernier lot T4.
  */
 const DETTE_T4: ReadonlyArray<{ readonly path: string; readonly lot: string }> = [
-  { path: 'src/pages/analysis/AdviceCard.tsx', lot: 'T4-5' },
-  { path: 'src/pages/analysis/AnalysisModules.tsx', lot: 'T4-5' },
-  { path: 'src/pages/analysis/AnalysisPage.tsx', lot: 'T4-5' },
-  { path: 'src/pages/analysis/EvidenceRail.tsx', lot: 'T4-5' },
-  { path: 'src/pages/analysis/ScenarioPanel.tsx', lot: 'T4-5' },
-  { path: 'src/pages/analysis/analysisView.ts', lot: 'T4-5' },
   { path: 'src/pages/AttentionQueue.tsx', lot: 'T4-7' },
   { path: 'src/pages/SnapshotRail.tsx', lot: 'T4-7' },
   { path: 'src/pages/SourceHealthMatrix.tsx', lot: 'T4-7' },
@@ -155,7 +149,7 @@ const DETTE_T4: ReadonlyArray<{ readonly path: string; readonly lot: string }> =
 ];
 
 /** Plafond de la dette. Il est ABAISSÉ à chaque lot, jamais relevé. */
-const DETTE_MAX = 17;
+const DETTE_MAX = 11;
 
 interface Finding {
   readonly path: string;
