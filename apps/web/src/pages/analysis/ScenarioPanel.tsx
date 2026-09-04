@@ -28,8 +28,9 @@ export function ScenarioPanel({ scenarios }: { readonly scenarios: ScenariosView
         Scénarios <span className="vx-badge vx-badge-theoretical">THÉORIQUE</span>
       </h3>
       <p className="vx-scenarios-basis">
-        Base : {scenarios.basisLabel ?? '—'} — grille P&amp;L (avant coûts déclarés) repricée par le
-        worker (<code>{scenarios.calculationId ?? '—'}</code>), IV inchangée.
+        Base : {scenarios.basisLabel ?? 'non publiée'} — grille P&amp;L (avant coûts déclarés)
+        repricée par le worker (<code>{scenarios.calculationId ?? 'calcul non publié'}</code>), IV
+        inchangée.
       </p>
       <div
         className="vx-ohlcv-scroll"

@@ -10,7 +10,8 @@ export function EvidenceRail({ evidence }: { readonly evidence: EvidenceView | n
       ) : evidence.clusters.length === 0 ? (
         <p role="status">
           Aucun cluster pertinent pour cet instrument ({evidence.considered ?? 0} observation(s)
-          considérée(s), ruleset {evidence.rulesetVersion ?? '—'}). L'absence reste une absence.
+          considérée(s), ruleset {evidence.rulesetVersion ?? 'non publié'}). L'absence reste une
+          absence.
         </p>
       ) : (
         <ul className="vx-evidence-list">
@@ -23,8 +24,8 @@ export function EvidenceRail({ evidence }: { readonly evidence: EvidenceView | n
                 ) : null}
               </p>
               <p className="vx-evidence-meta">
-                {cluster.sources.join(', ')} · {cluster.memberCount ?? '—'} événement(s) · reçu{' '}
-                {cluster.lastReceivedAt ?? '—'}
+                {cluster.sources.join(', ')} · {cluster.memberCount ?? 'nombre non publié d’'}{' '}
+                événement(s) · reçu {cluster.lastReceivedAt ?? 'à un instant non publié'}
               </p>
             </li>
           ))}

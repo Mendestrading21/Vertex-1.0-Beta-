@@ -43,25 +43,33 @@ export function AdviceCard({ advice }: { readonly advice: AdviceView | null }) {
         <div>
           <dt>Validité</dt>
           <dd>
-            {advice.asOf !== null ? <time dateTime={advice.asOf}>{advice.asOf}</time> : '—'}
-            {' → '}
-            {advice.validUntil !== null ? (
-              <time dateTime={advice.validUntil}>{advice.validUntil}</time>
+            {advice.asOf === null ? (
+              <span className="vx-cell-absent">instant non publié</span>
             ) : (
-              '—'
+              <time dateTime={advice.asOf}>{advice.asOf}</time>
+            )}
+            {' → '}
+            {advice.validUntil === null ? (
+              <span className="vx-cell-absent">échéance de validité non publiée</span>
+            ) : (
+              <time dateTime={advice.validUntil}>{advice.validUntil}</time>
             )}{' '}
-            (horizon {advice.horizon ?? '—'})
+            (horizon {advice.horizon ?? 'non publié'})
           </dd>
         </div>
         <div>
           <dt>Moteur</dt>
           <dd>
-            <code>{advice.engineVersion ?? '—'}</code>
+            <code>{advice.engineVersion ?? 'non publié'}</code>
           </dd>
         </div>
         <div>
           <dt>Résumé de risque</dt>
-          <dd>{advice.riskSummary ?? '—'}</dd>
+          <dd>
+            {advice.riskSummary ?? (
+              <span className="vx-cell-absent">résumé de risque non publié</span>
+            )}
+          </dd>
         </div>
       </dl>
 
