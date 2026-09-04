@@ -118,6 +118,7 @@ from vertex_persistence.repository.snapshots import CurrentSnapshot
 
 __all__ = [
     "BARS_STATUS_LABELS",
+    "CAPABILITY_DECLARATION_PATHS",
     "DATA_STATE_LABELS",
     "DELAY_STATUS_LABELS",
     "GENERATED_NATURE_LABELS",
@@ -676,6 +677,67 @@ these exact shapes, a genuine ``REAL`` snapshot naming it would be REFUSED.
 That direction is fail-closed — an honest error state instead of a synthetic
 value shown as an observation — which is the direction
 ``financial-safety.md`` requires.
+"""
+
+CAPABILITY_DECLARATION_PATHS: frozenset[str] = frozenset(
+    {
+        "coverage.content_schema_prefixes",
+    }
+)
+"""CHEMINS EXACTS dont la valeur DÉCLARE UNE CAPACITÉ DE LECTURE.
+
+Une déclaration de capacité dit ce que le consommateur SAIT LIRE. Elle ne dit
+RIEN de la provenance des observations RETENUES : les deux vivent dans le même
+document, elles n'ont pas le même sens, et le balayage de provenance les
+confondait.
+
+CE QUE LE DÉFAUT A COÛTÉ, mesuré sur la pile vivante (base ``vertex_live``,
+2026-09-04 11:43 UTC) : ``GET /api/v1/today/attention`` et
+``GET /api/v1/follow-up/queue`` répondaient 500 ``SNAPSHOT_CONTENT_INVALID``.
+Depuis le lot S0, ``vertex_worker.handlers.build_attention_content`` et
+``vertex_worker.follow_up.build_review_queue_content`` publient dans leur
+couverture ``content_schema_prefixes = ["synthetic-news/",
+"ibkr.news-headline/"]`` — la liste des familles de dépêches que la file
+accepte de lire, ``vertex_worker.handlers.CONTENT_SCHEMA_PREFIXES``. Le
+balayage y lisait le préfixe ``synthetic-`` de
+:data:`SYNTHETIC_VALUE_PREFIXES`, le comptait comme marqueur, et refusait la
+tête ``population = "REAL"`` pour contradiction avec elle-même. En CI la
+population est ``SYNTHETIC`` : aucune contradiction, aucun signal — le défaut
+n'existait que sur données réelles.
+
+POURQUOI UNE LISTE DE CHEMINS, ET RIEN DE PLUS LARGE. Trois remèdes étaient
+possibles ; deux désarment le garde :
+
+1. assouplir :data:`SYNTHETIC_VALUE_PREFIXES` (par exemple n'accepter
+   ``synthetic-`` que suivi d'une version) : le motif cesserait de voir une
+   VRAIE ``schema_version`` générée servie sous une tête ``REAL`` — c'est
+   exactement le trou que le 6e audit avait fermé ;
+2. exclure la CLÉ FEUILLE ``content_schema_prefixes`` où qu'elle soit : un
+   producteur qui publierait un jour cette clé ailleurs — dans un élément
+   servi, dans une provenance — sortirait du balayage sans décision ;
+3. exclure des CHEMINS NOMMÉS, ancrés à la racine du document. Le balayage
+   reste intact partout ailleurs, et étendre l'exclusion demande d'écrire un
+   chemin de plus ici, sous revue.
+
+C'est le troisième. UN SEUL chemin le mérite aujourd'hui,
+``coverage.content_schema_prefixes`` — publié par DEUX contenus, la file
+d'attention et la file de revue, au même endroit, donc une seule entrée. Ce
+sont aussi les deux seuls endroits où un worker publie une déclaration de
+familles de schéma dans un contenu relayé. Les autres déclarations de familles
+(``DAILY_QUOTE_SCHEMA_PREFIXES``, ``DAILY_BARS_SCHEMA_PREFIXES``,
+``CALENDAR_EVENT_SCHEMA_PREFIXES``, ``EVIDENCE_SCHEMA_PREFIXES``) ne servent
+qu'au FILTRAGE en base : elles ne sont jamais publiées, donc jamais balayées.
+
+CE QUE L'EXCLUSION NE FAIT PAS. Elle ne retire aucune VÉRIFICATION : la
+valeur reste soumise au contrôle de forme de sa classe de champ
+(:func:`_check_relayed_string`), une déclaration vide ou porteuse d'un
+caractère de contrôle est toujours refusée. Elle retire une INTERPRÉTATION :
+cette valeur cesse d'être lue comme la provenance d'une observation. Partout
+ailleurs — ``source``, ``sources``, ``rights``, ``schema_version``,
+``generator``, ``source_system``, identifiants d'événements, titres — le
+balayage est inchangé, et les témoins de
+``apps/api/tests/test_capability_declaration_is_not_provenance.py`` le tiennent
+dans les deux sens.
 """
 
 NATURE_LEAF_KEYS: frozenset[str] = frozenset({"population", "mark_population"})
@@ -1260,6 +1322,22 @@ def _parent_path(path: str) -> str:
     return head if sep else ""
 
 
+_LIST_INDEX_RE = re.compile(r"\[[0-9]+\]")
+"""Les index de liste d'un chemin de marche (``prefixes[0]`` -> ``prefixes``)."""
+
+
+def _declares_a_read_capability(path: str) -> bool:
+    """Whether ``path`` holds a READ-CAPABILITY declaration, not a provenance.
+
+    Compares the path INDEX-FREE against :data:`CAPABILITY_DECLARATION_PATHS`,
+    so a declaration published as a list (``coverage.content_schema_prefixes[0]``)
+    and the same declaration published as a lone string are the same location.
+    The match is on the FULL path from the document root: the same leaf key
+    elsewhere keeps being read as a provenance.
+    """
+    return _LIST_INDEX_RE.sub("", path) in CAPABILITY_DECLARATION_PATHS
+
+
 def _nature_scope(path: str) -> str | None:
     """The SUBTREE a nature label at ``path`` governs, or ``None``.
 
@@ -1307,6 +1385,13 @@ def is_synthetic_marker(value: str, path: str) -> bool:
     It proves nothing about content that carries NO marker: a producer that
     scrubs every tell is still relayed as it declares itself. That limit is
     pinned by ``test_residue_a_fully_scrubbed_payload_still_passes``.
+
+    IT JUDGES A VALUE, NOT A LOCATION'S MEANING. The one location whose value
+    announces a READ CAPABILITY rather than a provenance is excluded by the
+    CALLER (:data:`CAPABILITY_DECLARATION_PATHS`), never by weakening the
+    tells above: this function keeps answering "this string announces
+    generated content", which stays true of ``synthetic-news/`` wherever it
+    appears.
     """
     if value in SYNTHETIC_MARKER_VALUES:
         return True
@@ -1368,6 +1453,17 @@ def checked_relayed_content(
     being :func:`is_synthetic_marker`, an explicit ``synthetic: true``, or a
     generated nature (:data:`GENERATED_NATURE_LABELS`) declared at another
     nature-bearing location inside that subtree.
+
+    A CAPABILITY DECLARATION IS NOT A PROVENANCE (9th audit). A handful of
+    NAMED PATHS (:data:`CAPABILITY_DECLARATION_PATHS`) carry the families of
+    schema a consumer DECLARES IT CAN READ, not the origin of the
+    observations it kept. Their values are still form-checked; they are
+    simply not read as provenance markers. Before this wave, the attention
+    queue and the review queue published ``coverage.content_schema_prefixes =
+    ["synthetic-news/", ...]`` and the walk counted that declaration as proof
+    that the served data was generated: on the live database both routes
+    answered 500 under an honest ``REAL`` head, while CI — where the
+    population is ``SYNTHETIC`` — saw no contradiction at all.
 
     THE CENSUS CONSTRAINS THE CLAIM ABOVE IT (7th audit). A nature census
     (:data:`NATURE_CENSUS_KEYS`) DESCRIBES the members of the container it
@@ -1462,8 +1558,15 @@ def checked_relayed_content(
             scope = _nature_scope(path)
             if scope is not None and node in OBSERVATION_CLAIM_LABELS:
                 claims.append((path, scope))
-            elif is_synthetic_marker(node, path) or (
-                scope is not None and node in GENERATED_NATURE_LABELS
+            # Une DÉCLARATION DE CAPACITÉ DE LECTURE n'est pas une PROVENANCE :
+            # elle nomme les familles que le consommateur sait lire, jamais
+            # l'origine des observations retenues. Sa FORME reste vérifiée
+            # juste au-dessus ; seule sa lecture comme marqueur est retirée,
+            # et seulement aux chemins nommés dans
+            # CAPABILITY_DECLARATION_PATHS.
+            elif not _declares_a_read_capability(path) and (
+                is_synthetic_marker(node, path)
+                or (scope is not None and node in GENERATED_NATURE_LABELS)
             ):
                 markers.append(path)
         elif isinstance(node, (int, float)):

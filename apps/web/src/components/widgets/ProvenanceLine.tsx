@@ -64,6 +64,14 @@ export function ProvenanceLine({
         </span>
       )}
       {' · '}
+      {schemaVersion === null ? (
+        <Absent what="schéma" />
+      ) : (
+        <span>
+          schéma <code>{schemaVersion}</code>
+        </span>
+      )}
+      {' · '}
       {engineVersion === null || engineVersion === '' ? (
         <Absent what="moteur" />
       ) : (
