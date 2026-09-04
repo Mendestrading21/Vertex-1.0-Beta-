@@ -5484,6 +5484,13 @@ label {
 .vx-metrics-row {
   display: flex;
   flex-wrap: wrap;
+  /* LOT T2 — LES LIGNES REPLIÉES NE S'ÉTIRENT PAS. `align-content` vaut
+     `stretch` par défaut : dans une carte plus haute que son contenu (une
+     colonne étroite de planche), l'espace restant était DISTRIBUÉ entre les
+     lignes repliées, et trois dénombrements se retrouvaient séparés par
+     soixante pixels de vide. Mesuré sur capture d'Aujourd'hui. Les mesures
+     se serrent en haut ; le vide reste en bas, où il ne dit rien. */
+  align-content: flex-start;
   gap: var(--vx-space-12) var(--vx-space-16);
 }
 

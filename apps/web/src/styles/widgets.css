@@ -136,6 +136,13 @@
 .vx-w2-delta {
   display: inline-flex;
   align-items: baseline;
+  /* LOT T2 — mesuré sur capture (Aujourd'hui, colonne de 180 px) : « 74.75 |
+     signe non publié | SYN » débordait la pastille et se centrait sur deux
+     lignes bancales. Elle se replie désormais À GAUCHE, alignée sur son
+     texte, et ne dépasse jamais sa carte. */
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  max-width: 100%;
   gap: var(--vx-space-4);
   padding: 2px var(--vx-space-8);
   border-radius: var(--vx-radius-pill);
@@ -1558,5 +1565,146 @@
 }
 
 .vx-pf-concentration-band {
+  min-width: 0;
+}
+
+/* ==========================================================================
+   LOT T2 — TUILE DE MESURE (`KpiTile`)
+   --------------------------------------------------------------------------
+   La forme la plus répétée des tableaux de bord de référence : une pastille
+   d'icône, un libellé en capitales, un GRAND chiffre, son unité, sa variation.
+
+   Trois choix, chacun contraint par le canon :
+     - la pastille est un carré arrondi de surface, pas un disque coloré vif :
+       elle situe la mesure, elle ne la qualifie pas ;
+     - sa teinte n'emprunte JAMAIS au vert ni au rouge — ceux-là appartiennent
+       au signe financier servi, que porte `KpiDelta` seul ;
+     - une tuile sans valeur servie (`data-absent='true'`) perd sa teinte et
+       son chiffre : il ne reste que le libellé et la phrase d'absence.
+   ========================================================================== */
+.vx-w2-kpi {
+  display: flex;
+  min-width: 0;
+  /* Même base que `.vx-metric` : la tuile prend sa part d'une bande et se
+     replie sous 160 px plutôt que d'écraser le chiffre. */
+  flex: 1 1 160px;
+  flex-direction: column;
+  gap: var(--vx-space-8);
+}
+
+/* LES BANDES EMPILÉES DES CARTES ÉTROITES. `.vx-board`, `.vx-today-grid` et
+   `.vx-markets-grid` posent `flex-direction: column` sur `.vx-metrics-row` :
+   la bande devient une PILE. Une tuile doit y prendre la hauteur de son
+   contenu comme `.vx-metric`, sinon `flex: 1 1 160px` fait de 160 px une
+   HAUTEUR — mesuré en navigateur : chaque dénombrement occupait 160 px dont
+   105 de vide, et trois dénombrements 480 px pour 165 px de texte. */
+.vx-board .vx-w2-kpi,
+.vx-today-grid .vx-w2-kpi,
+.vx-markets-grid .vx-w2-kpi {
+  flex: 0 0 auto;
+  padding: var(--vx-space-12) 0;
+}
+
+.vx-board .vx-metrics-row > :first-child,
+.vx-today-grid .vx-metrics-row > :first-child,
+.vx-markets-grid .vx-metrics-row > :first-child {
+  padding-top: 0;
+}
+
+/* Le filet est HORIZONTAL dans une pile, et il vaut pour tout voisinage —
+   une tuile suivie d'une mesure, comme deux tuiles. */
+.vx-board .vx-metrics-row > * + *,
+.vx-today-grid .vx-metrics-row > * + *,
+.vx-markets-grid .vx-metrics-row > * + * {
+  padding-left: 0;
+  border-top: 1px solid var(--vx-border-soft);
+  border-left: 0;
+}
+
+/* PAS DE FILET ENTRE DEUX TUILES dans une bande HORIZONTALE, contrairement à
+   `.vx-metric`. Mesuré sur
+   capture (Aujourd'hui, colonne étroite) : dès que la bande se replie, un
+   `border-left` sépare deux mesures EMPILÉES — un trait vertical à gauche
+   d'une colonne, qui ne sépare plus rien. La pastille d'icône fait déjà le
+   cadrage que le filet assurait sur `.vx-metric`. */
+
+.vx-w2-kpi-head {
+  display: flex;
+  align-items: center;
+  gap: var(--vx-space-8);
+  margin: 0;
+  min-width: 0;
+}
+
+.vx-w2-kpi-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--vx-space-24);
+  height: var(--vx-space-24);
+  flex: 0 0 auto;
+  border: 1px solid var(--vx-border-soft);
+  border-radius: var(--vx-radius-10);
+  background-color: var(--vx-surface-2);
+  color: var(--vx-text-secondary);
+}
+
+.vx-w2-kpi[data-tone='macro'] .vx-w2-kpi-badge {
+  color: var(--vx-macro);
+  background-color: var(--vx-macro-soft);
+  border-color: transparent;
+}
+
+.vx-w2-kpi[data-tone='option'] .vx-w2-kpi-badge {
+  color: var(--vx-option);
+  background-color: var(--vx-option-soft);
+  border-color: transparent;
+}
+
+.vx-w2-kpi[data-tone='silver'] .vx-w2-kpi-badge {
+  color: var(--vx-silver);
+}
+
+/* Une absence ne prend aucune teinte : la pastille redevient un contour. */
+.vx-w2-kpi[data-tone='neutral'] .vx-w2-kpi-badge {
+  color: var(--vx-text-muted);
+  background-color: var(--vx-surface-2);
+}
+
+/* Le chiffre et son unité sur la même ligne de base : l'unité est un
+   qualificatif, pas une seconde mesure — elle reste plus petite et sourde. */
+.vx-w2-kpi-figure {
+  display: flex;
+  align-items: baseline;
+  gap: var(--vx-space-4);
+  margin: 0;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+/* Le chiffre garde EXACTEMENT la typographie de mesure du produit
+   (`.vx-metric-value`, global.css) : la redéfinir ici ouvrirait une seconde
+   échelle de chiffres et la tuile lirait plus petit que la mesure voisine. */
+
+.vx-w2-kpi-unit {
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-meta);
+  color: var(--vx-text-muted);
+}
+
+/* Le sens financier : couleur ET signe dans la chaîne servie — jamais la
+   couleur seule, et jamais sur la pastille d'icône, qui n'a rien à qualifier.
+   La même règle que `.vx-metric[data-sign]`, sur la même famille de jetons. */
+.vx-w2-kpi[data-sign='up'] .vx-metric-value {
+  color: var(--vx-positive);
+}
+
+.vx-w2-kpi[data-sign='down'] .vx-metric-value {
+  color: var(--vx-negative);
+}
+
+/* La série reste un CONTEXTE sous la mesure : elle ne lui dispute pas l'œil. */
+.vx-w2-kpi-spark {
+  margin-top: var(--vx-space-4);
   min-width: 0;
 }
