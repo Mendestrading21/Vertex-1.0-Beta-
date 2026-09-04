@@ -173,10 +173,14 @@
   display: inline-flex;
   align-items: center;
   gap: var(--vx-space-4);
-  padding: 2px var(--vx-space-8);
+  min-height: 22px;
+  padding: 0 var(--vx-space-8);
   border: 1px solid var(--vx-border-soft);
   border-radius: var(--vx-radius-pill);
   font-size: var(--vx-font-size-meta);
+  font-variant-numeric: tabular-nums lining-nums;
+  line-height: 1;
+  white-space: nowrap;
   color: var(--vx-text-secondary);
   background-color: var(--vx-surface-2);
 }
@@ -903,27 +907,45 @@
    Fenêtres d'affichage (onglets de période) — un CHOIX EXPLICITE de vue sur
    des barres servies, jamais un fenêtrage de calcul.
    -------------------------------------------------------------------------- */
+/* LOT T1 — UN CONTRÔLE SEGMENTÉ, pas une rangée de boutons.
+   Une piste creuse, des pastilles sans bordure, et la seule fenêtre choisie
+   remplie dans la famille `signal` : c'est la règle « gradients et lumière :
+   sélection / action principale » du design system, et la forme que prennent
+   les sélecteurs de période des tableaux de bord de référence. */
 .vx-w2-periods {
-  display: flex;
+  display: inline-flex;
   flex-wrap: wrap;
-  gap: var(--vx-space-4);
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--vx-border-soft);
+  border-radius: var(--vx-radius-pill);
+  background-color: var(--vx-surface-0);
 }
 
 .vx-w2-period {
-  padding: var(--vx-space-4) var(--vx-space-12);
-  border: 1px solid var(--vx-border-soft);
-  border-radius: var(--vx-radius-6);
-  background-color: var(--vx-surface-2);
+  padding: 0 var(--vx-space-12);
+  border: 1px solid transparent;
+  border-radius: var(--vx-radius-pill);
+  background-color: transparent;
   color: var(--vx-text-secondary);
+  font-family: var(--vx-font-mono);
   font-size: var(--vx-font-size-meta);
-  min-height: 32px;
+  min-height: 30px;
   cursor: pointer;
+  transition:
+    background-color var(--vx-motion-140) var(--vx-ease-standard),
+    color var(--vx-motion-140) var(--vx-ease-standard);
+}
+
+.vx-w2-period:hover:not([disabled]):not([aria-pressed='true']) {
+  background-color: var(--vx-surface-2);
+  color: var(--vx-text);
 }
 
 .vx-w2-period[aria-pressed='true'] {
   background-color: var(--vx-signal-soft);
   border-color: var(--vx-signal);
-  color: var(--vx-signal);
+  color: var(--vx-signal-bright);
 }
 
 .vx-w2-period[disabled] {
@@ -1426,20 +1448,14 @@
    l'œil cherche en premier, pas leur libellé. La taille reste celle de la
    planche (`.vx-board`) — l'écraser ici la RÉDUISAIT, ce que la capture du
    LOT P4 a montré. */
-.vx-risk-grid .vx-metric-value,
-.vx-pf-grid .vx-metric-value,
-.vx-markets-grid .vx-metric-value,
-.vx-today-grid .vx-metric-value,
-.vx-charts-grid .vx-metric-value {
+/* LOT T1 — la typographie des mesures n'est plus réservée à cinq planches :
+   un chiffre servi se lit de la même façon partout dans le produit. */
+.vx-metric-value {
   line-height: 1.05;
   letter-spacing: -0.02em;
 }
 
-.vx-risk-grid .vx-metric-label,
-.vx-pf-grid .vx-metric-label,
-.vx-markets-grid .vx-metric-label,
-.vx-today-grid .vx-metric-label,
-.vx-charts-grid .vx-metric-label {
+.vx-metric-label {
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }

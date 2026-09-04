@@ -2371,7 +2371,7 @@ body {
   padding: var(--vx-space-8) var(--vx-space-20);
   background: var(--vx-signal);
   border: 1px solid var(--vx-signal);
-  border-radius: var(--vx-radius-10);
+  border-radius: var(--vx-radius-pill);
   box-shadow: var(--vx-shadow-inset);
   color: var(--vx-black);
   font-family: var(--vx-font-sans);
@@ -5197,6 +5197,12 @@ label {
    de l'espérer. Les espaces suivent le contrat canonique — « gouttières
    principales : 12–16 px ; espace interne courant : 14–18 px ». */
 
+/* LOT T1 — LE VERRE NOIR DE CHAQUE CARTE.
+   Trois choses font l'épaisseur, et aucune n'est une lumière : un rayon large,
+   une ARÊTE claire d'un pixel en haut (`shadow-inset`) et une ombre portée
+   courte (`shadow-glass`). La bordure reste presque invisible. Pas de flou de
+   fond, pas de halo, pas de dégradé de fond plein — ADR-017 les interdit, et
+   c'est justement ce qui distingue un verre noir sobre d'un template SaaS. */
 .vx-card {
   display: flex;
   min-width: 0;
@@ -5204,8 +5210,9 @@ label {
   gap: var(--vx-space-12);
   padding: var(--vx-space-16);
   border: 1px solid var(--vx-border-soft);
-  border-radius: var(--vx-radius-10);
+  border-radius: var(--vx-radius-18);
   background: var(--vx-surface-1);
+  box-shadow: var(--vx-shadow-glass), var(--vx-shadow-inset);
 }
 
 /* La tête : kicker, titre, et ce que la page aligne à droite. `flex-end`

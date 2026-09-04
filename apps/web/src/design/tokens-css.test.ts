@@ -80,8 +80,11 @@ describe('tokens.css généré', () => {
     }
   });
 
-  it('déclare les trois ombres sobres du système Titanium Ledger', () => {
-    expect(Object.keys(shadow)).toEqual(['panel', 'floating', 'inset']);
+  it('déclare les quatre ombres sobres du système Titanium Ledger', () => {
+    // `glass` (LOT T1) est la profondeur de la carte ORDINAIRE : plus courte
+    // et plus proche que `panel`, qui reste celle d'une planche entière.
+    // Aucune n'est un halo : ce sont des ombres portées et une arête.
+    expect(Object.keys(shadow)).toEqual(['panel', 'glass', 'floating', 'inset']);
     for (const [key, value] of Object.entries(shadow)) {
       expect(committed).toContain(`--vx-shadow-${key}: ${value};`);
     }

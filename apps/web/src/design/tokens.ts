@@ -120,9 +120,18 @@ export const radius = {
   pill: '999px',
 } as const satisfies Record<string | number, string>;
 
-/** Ombres sobres : profondeur, jamais halo lumineux. */
+/**
+ * Ombres sobres : profondeur, jamais halo lumineux.
+ *
+ * `glass` est la profondeur de la CARTE ORDINAIRE (LOT T1) : plus courte et
+ * plus proche que `panel`, qui reste la profondeur d'une planche entière.
+ * Avec `inset` — le liseré clair d'un pixel en haut — elle donne au verre
+ * noir son épaisseur sans aucun halo : une ombre portée et une arête, jamais
+ * une lumière.
+ */
 export const shadow = {
   panel: '0 20px 52px rgba(0, 0, 0, 0.28)',
+  glass: '0 10px 28px rgba(0, 0, 0, 0.34)',
   floating: '0 32px 80px rgba(0, 0, 0, 0.48)',
   inset: 'inset 0 1px 0 rgba(255, 255, 255, 0.045)',
 } as const satisfies Record<string, string>;
