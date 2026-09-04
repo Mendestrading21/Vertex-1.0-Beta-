@@ -229,7 +229,14 @@ describe('Page Marchés — état nominal', () => {
     const meters = screen.getAllByRole('meter');
     expect(meters).toHaveLength(2);
     expect(screen.getByTestId('arc-figure').textContent).toBe('50,0 %');
-    expect(screen.getByText('100,0 % (seuil 80,0 %)')).toBeDefined();
+    // LOT T3 — LA MESURE ET SON SEUIL SONT DEUX TEXTES. Réunis dans le
+    // libellé de la jauge, « 100,0 % (seuil 80,0 %) » se coupait en deux
+    // lignes dont la seconde ne portait que « %) » — mesuré sur capture
+    // d'Aujourd'hui, carte de 200 px. La couverture SERVIE se lit seule ; le
+    // seuil SERVI vit sur son marqueur, à sa place sur la même échelle.
+    expect(screen.getByText('100,0 %')).toBeDefined();
+    expect(screen.getByText('seuil exigé 80,0 %')).toBeDefined();
+    expect(screen.queryByText('100,0 % (seuil 80,0 %)')).toBeNull();
     // Les trois comptes servis prennent aussi la forme de barres de
     // dénombrement, chacune avec son compte publié.
     expect(screen.getByTestId('markets-breadth-count-above').textContent).toContain('2');

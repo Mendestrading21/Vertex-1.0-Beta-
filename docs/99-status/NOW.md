@@ -2170,3 +2170,47 @@ dénombrements d'Opportunités, la valeur du portefeuille manuel).
 - `npm run build` : succès.
 - Playwright `today`, `portfolio`, `markets`, `shell-canonical`,
   `accessibility` aux trois viewports desktop : **276 passés**, code 0.
+
+## SESSION 2026-09-04 — LOT T3 : les cartes cessent de faire la même taille
+
+Branche `lot/t3-planches-bento-20260904`, empilée sur T2.
+
+### Le défaut, et pourquoi il était partout
+
+`.vx-board`, `.vx-today-grid` et `.vx-markets-grid` posaient
+`align-items: stretch`, et la carte prenait `height: 100%`. Une rangée faisait
+donc partout la hauteur de son module le plus haut : un module de trois lignes
+se retrouvait dans un cadre de 400 px dont 340 étaient vides. Mesuré sur
+capture d'Aujourd'hui, rangée 1 — quatre cartes de hauteur identique, trois
+presque vides. C'est exactement la remarque « entre les cartes c'est toujours
+la même ».
+
+### Le remède, et sa limite
+
+Une carte prend désormais la HAUTEUR DE SON CONTENU (`align-items: start`).
+L'espace restant redevient du fond, pas un cadre vide : c'est la composition
+en pavés des tableaux de bord de référence.
+
+Ce qui NE change pas : les aires nommées, l'ordre de lecture, la dominante.
+Une planche reste une composition déclarée, jamais un flux.
+
+L'exception est DÉCLARÉE, pas devinée : un module `L` ou `XL` porte une figure
+qui a besoin de sa hauteur (courbe, matrice, file). Ceux-là gardent `stretch`,
+et c'est `data-size` — publié par le catalogue de la page — qui le dit, jamais
+une classe écrite à la main sur une carte.
+
+### Un chiffre coupé en deux, corrigé au passage
+
+La jauge de couverture écrivait « 91,7 % (seuil 80,0 %) » en un seul texte :
+dans une carte de 200 px il se coupait, et la seconde ligne ne portait que
+« %) ». Deux mesures servies méritent deux textes : la couverture se lit
+seule, le seuil vit sur son marqueur, à sa place sur la même échelle. Le
+chiffre du seuil n'est ni répété ni perdu. Test rouge d'abord.
+
+### Mesuré sur cette machine
+
+- `npx tsc --noEmit` : code 0.
+- `npx biome check src` : 1 info préexistante, 0 erreur.
+- `npx vitest run` : 89 fichiers, **929 tests**, tous verts.
+- `npm run build` : succès.
+- Playwright, **suite complète** : **546 passés** (8,5 min), code 0.

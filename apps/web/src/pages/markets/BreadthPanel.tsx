@@ -85,14 +85,18 @@ export function BreadthPanel({ breadth }: { readonly breadth: MarketsBreadth }) 
         <LinearGauge
           label="Couverture"
           valuePct={breadth.coverage_pct}
-          valueText={`${frDecimal(breadth.coverage_pct)} % (seuil ${frDecimal(breadth.coverage_threshold_pct)} %)`}
+          valueText={`${frDecimal(breadth.coverage_pct)} %`}
           boundsText={PCT_BOUNDS}
           markers={[
             {
               pct: breadth.coverage_threshold_pct,
-              // Le chiffre du seuil est DÉJÀ dans le texte de la jauge : le
-              // répéter sous le rail donnait deux fois la même mesure.
-              label: 'seuil de couverture exigé',
+              // LOT T3 — LE SEUIL VIT SUR SON MARQUEUR, PAS DANS LA MESURE.
+              // Réunis, « 91,7 % (seuil 80,0 %) » se coupait en deux lignes
+              // dont la seconde ne portait que « %) » — mesuré sur capture
+              // d'Aujourd'hui, carte de 200 px. Deux mesures servies, deux
+              // textes, chacun à sa place sur la même échelle : le chiffre
+              // n'est ni répété ni perdu.
+              label: `seuil exigé ${frDecimal(breadth.coverage_threshold_pct)} %`,
             },
           ]}
         />
