@@ -48,7 +48,12 @@ test.describe('Page Sources & Rapports — SourceHealthMatrix', () => {
     // tourné : c'est un FAIT servi, pas une absence de publication, et un
     // tiret + `aria-label` le réservait au lecteur d'écran. Même compte,
     // même exigence, sur du texte réellement visible.
-    await expect(table.getByText('jamais sondé')).toHaveCount(9);
+    // LA PORTÉE COMPTE : la LÉGENDE de la table écrit elle aussi « un statut
+    // jamais sondé reste ERROR / NEVER_TESTED ». Un `getByText` sur la table
+    // entière la comptait comme une dixième occurrence — l'assertion était
+    // fausse d'un cran, et rouge. Elle vise désormais le CORPS de la table,
+    // là où vivent les cellules. Même exigence, même compte, portée juste.
+    await expect(table.locator('tbody').getByText('jamais sondé')).toHaveCount(9);
     // Et TOUT glyphe restant porte un nom accessible qui NOMME le champ
     // manquant — c'est l'invariant du lot T4, et il ne dépend d'aucun compte
     // de fixture : quel que soit le nombre de raisons non publiées, aucune
