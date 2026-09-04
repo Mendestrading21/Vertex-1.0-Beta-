@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 
 import { POPULATION_NATURES, resolvePopulationNature } from '../../components/SyntheticBanner.tsx';
+import { AbsentCell } from '../../components/absence.tsx';
 import type { PopulationTone } from '../../components/SyntheticBanner.tsx';
 import { EXCLUSION_KIND_LABELS, disqualifyingFacts } from './opportunitiesView.ts';
 import type { CandidateView } from './opportunitiesView.ts';
@@ -112,7 +113,13 @@ function ExclusionCell({ candidate }: { readonly candidate: CandidateView }) {
               ? (EXCLUSION_KIND_LABELS[exclusion.kind] ?? exclusion.kind)
               : 'Nature d’exclusion non publiée'}
           </strong>{' '}
-          (<code>{exclusion.kind ?? '—'}</code>)
+          (
+          {exclusion.kind === null ? (
+            <span className="vx-cell-absent">type non publié</span>
+          ) : (
+            <code>{exclusion.kind}</code>
+          )}
+          )
         </p>
       ) : null}
       {primaryExclusionReason !== null ? (
@@ -259,7 +266,16 @@ export function OpportunityTable({
                   data-testid={`opp-contradictory-${candidate.ticker}`}
                   className="vx-opp-contradictory"
                 >
-                  {isQualified ? <td className="vx-num">—</td> : null}
+                  {/* LOT T4-1 — « SANS OBJET », ET SURTOUT PAS « NON PUBLIÉ ».
+                      Un candidat contradictoire n'a pas de rang parce qu'il
+                      n'entre PAS dans le classement : le serveur n'a rien omis.
+                      Écrire ici « non publié » lui adresserait un reproche
+                      injustifié — un mensonge neuf à la place d'une ambiguïté. */}
+                  {isQualified ? (
+                    <td>
+                      <AbsentCell quoi="rang" nature="not_applicable" reason={null} />
+                    </td>
+                  ) : null}
                   <th scope="row">
                     <code>{candidate.ticker}</code>
                     <span className="vx-badge vx-badge-warning">SNAPSHOT INCOHÉRENT</span>
@@ -269,7 +285,11 @@ export function OpportunityTable({
                     <StatusCell candidate={candidate} />
                   </td>
                   <td>
-                    <code>{candidate.advice.direction ?? '—'}</code>
+                    {candidate.advice.direction === null ? (
+                      <span className="vx-cell-absent">direction non publiée</span>
+                    ) : (
+                      <code>{candidate.advice.direction}</code>
+                    )}
                   </td>
                   <td>
                     <p>
@@ -293,7 +313,13 @@ export function OpportunityTable({
               {candidates.map((candidate) => (
                 <tr key={candidate.ticker} data-testid={`opp-row-${group}-${candidate.ticker}`}>
                   {isQualified ? (
-                    <td className="vx-num">{candidate.rank ?? '—'}</td>
+                    candidate.rank === null ? (
+                      <td>
+                        <AbsentCell quoi="rang" nature="not_published" reason={null} />
+                      </td>
+                    ) : (
+                      <td className="vx-num">{candidate.rank}</td>
+                    )
                   ) : null}
                   <th scope="row">
                     <Link to={`/analysis/${encodeURIComponent(candidate.ticker)}`}>
@@ -308,7 +334,11 @@ export function OpportunityTable({
                     <StatusCell candidate={candidate} />
                   </td>
                   <td>
-                    <code>{candidate.advice.direction ?? '—'}</code>
+                    {candidate.advice.direction === null ? (
+                      <span className="vx-cell-absent">direction non publiée</span>
+                    ) : (
+                      <code>{candidate.advice.direction}</code>
+                    )}
                   </td>
                   <td>
                     <ExclusionCell candidate={candidate} />

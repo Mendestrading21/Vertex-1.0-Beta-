@@ -9,6 +9,8 @@ import { Card } from '../../components/Card.tsx';
 import { DataStateBoundary } from '../../components/DataStateBoundary.tsx';
 import type { DataState } from '../../components/DataStateBoundary.tsx';
 import { FreshnessBadge } from '../../components/FreshnessBadge.tsx';
+import { Metric } from '../../components/Metric.tsx';
+import { ProvenanceLine } from '../../components/widgets/ProvenanceLine.tsx';
 import { SyntheticBanner } from '../../components/SyntheticBanner.tsx';
 import { CandidateInspector, OpportunitiesSnapshotInspector } from './CandidateInspector.tsx';
 import {
@@ -133,25 +135,64 @@ function RankingModule({
       aside={<>{view.candidates.qualified.length + view.candidates.contradictory.length + view.candidates.excluded.length} candidats publiés</>}
       footer={
         <>
-          Classement : <code>{view.ordering.method ?? '—'}</code> —{' '}
+          Classement :{' '}
+          {view.ordering.method === null ? (
+            <span className="vx-cell-absent">méthode de classement non publiée</span>
+          ) : (
+            <code>{view.ordering.method}</code>
+          )}
+          {' — '}
           {view.ordering.keys.join(' → ') || 'aucune clé publiée'}.{' '}
           {view.ordering.note ?? ''} Aucun reclassement local.
         </>
       }
     >
-      <p className="vx-opp-provenance" data-testid="opp-provenance">
+      {/* LOT T4-1 — SIX TIRETS MUETS DANS UNE SEULE LIGNE. Chacun remplaçait
+          un fait de provenance différent, et aucun ne disait lequel manquait.
+          `ProvenanceLine` (première pose du produit) dit chaque champ ABSENT à
+          sa place ; les deux DÉNOMBREMENTS, qui ne sont pas de la provenance,
+          passent en `Metric`, qui rend nativement « non publié ».
+
+          Le conteneur devient un <div> : `ProvenanceLine` rend un <p>, et un
+          <p> dans un <p> est du HTML invalide. Le testid reste sur le
+          conteneur — il porte l'assertion de fraîcheur.
+
+          `sources={[]}` est un FAIT : le contrat Opportunités ne publie aucune
+          liste de sources, et la primitive le dira plutôt que de laisser
+          croire qu'on ne l'a pas demandée. */}
+      <div className="vx-opp-provenance" data-testid="opp-provenance">
         <FreshnessBadge
           ageSeconds={data.age_seconds}
           sourceLabel="âge publié par le serveur"
         />
-        {' — '}
-        Snapshot version <code>{data.snapshot_version ?? '—'}</code> — publié{' '}
-        {view.asOf !== null ? <time dateTime={view.asOf}>{view.asOf}</time> : '—'} — moteur{' '}
-        <code>{view.engineVersion ?? '—'}</code> — schéma <code>{view.schemaVersion ?? '—'}</code>{' '}
-        — univers déclaré <span className="vx-num">{view.coverage.universeSize ?? '—'}</span> —
-        observations considérées{' '}
-        <span className="vx-num">{view.coverage.observationsConsidered ?? '—'}</span>
-      </p>
+        <ProvenanceLine
+          asOf={view.asOf}
+          snapshotVersion={data.snapshot_version ?? null}
+          schemaVersion={view.schemaVersion}
+          engineVersion={view.engineVersion}
+          sources={[]}
+          method={view.ordering.method}
+          population={view.population}
+        />
+        <div className="vx-metrics-row">
+          <Metric
+            label="Univers déclaré"
+            size="compact"
+            value={view.coverage.universeSize === null ? null : String(view.coverage.universeSize)}
+            absentLabel="Univers déclaré : non publié par le snapshot"
+          />
+          <Metric
+            label="Observations considérées"
+            size="compact"
+            value={
+              view.coverage.observationsConsidered === null
+                ? null
+                : String(view.coverage.observationsConsidered)
+            }
+            absentLabel="Observations considérées : non publiées par le snapshot"
+          />
+        </div>
+      </div>
 
       {statuses.length > 1 ? (
         <div className="vx-matrix-filters vx-opp-filters" role="group" aria-label="Statuts affichés">

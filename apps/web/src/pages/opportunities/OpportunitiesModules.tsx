@@ -139,8 +139,10 @@ export function ProfileModule({ view }: { readonly view: OpportunitiesContentVie
     >
       <div data-testid="opp-profile">
         <p className="vx-opp-profile-id">
-          Identifiant <code data-testid="opp-profile-id">{profile.id ?? '—'}</code> — version{' '}
-          <code data-testid="opp-profile-version">{profile.version ?? '—'}</code>
+          Identifiant{' '}
+          <code data-testid="opp-profile-id">{profile.id ?? 'identifiant non publié'}</code> —
+          version{' '}
+          <code data-testid="opp-profile-version">{profile.version ?? 'version non publiée'}</code>
         </p>
         <p className="vx-opp-profile-note">
           Le profil n’est appliqué qu’EN PARTIE, et le snapshot le publie : les deux listes sont
@@ -243,6 +245,23 @@ export function ExclusionsModule({ view }: { readonly view: OpportunitiesContent
 
 // ---------------------------------------------------------------------------
 
+/**
+ * UN DÉNOMBREMENT SERVI, OU L'AVEU. Jamais un tiret : dans une liste où les
+ * voisins portent de vrais comptes, « — » est indiscernable d'un zéro publié —
+ * et le zéro, lui, est une DONNÉE. Le `<dt>` voisin nomme déjà la mesure, donc
+ * « non publié » y suffit sans le répéter.
+ *
+ * La classe suit l'état : un texte d'absence n'est ni chassé ni aligné comme
+ * un chiffre.
+ */
+function CountCell({ value }: { readonly value: number | null }) {
+  return value === null ? (
+    <dd className="vx-cell-absent">non publié</dd>
+  ) : (
+    <dd className="vx-num">{value}</dd>
+  );
+}
+
 export function CalendarRefModule({ view }: { readonly view: OpportunitiesContentView }) {
   const module = opportunitiesModule('catalysts-provenance');
   const reference = view.calendarRef;
@@ -259,16 +278,23 @@ export function CalendarRefModule({ view }: { readonly view: OpportunitiesConten
       <div data-testid="opp-calendar-ref" data-status={status}>
         <p className="vx-opp-calref-status">
           <span aria-hidden="true">{status === 'USED' ? '●' : '⊘'}</span> Statut{' '}
-          <code data-testid="opp-calref-status">{status === '' ? '—' : status}</code> —{' '}
+          <code data-testid="opp-calref-status">
+            {status === '' ? 'statut non publié' : status}
+          </code>{' '}
+          —{' '}
           {CALENDAR_REF_STATUS_LABELS[status] ?? 'statut relayé tel quel par le serveur'}
         </p>
         <p className="vx-opp-calref-status">
           Ressource{' '}
           <code>
-            {reference.kind ?? '—'}/{reference.key ?? '—'}
+            {reference.kind ?? 'type non publié'}/{reference.key ?? 'clé non publiée'}
           </code>{' '}
-          version <code data-testid="opp-calref-version">{reference.version ?? '—'}</code> · schéma{' '}
-          <code>{reference.contentSchemaVersion ?? '—'}</code>
+          version{' '}
+          <code data-testid="opp-calref-version">
+            {reference.version ?? 'version non publiée'}
+          </code>{' '}
+          · schéma{' '}
+          <code>{reference.contentSchemaVersion ?? 'schéma non publié'}</code>
         </p>
         <dl className="vx-opp-calref-facts">
           <div>
@@ -293,23 +319,23 @@ export function CalendarRefModule({ view }: { readonly view: OpportunitiesConten
           </div>
           <div>
             <dt>Âge maximal admis (s)</dt>
-            <dd className="vx-num">{reference.maxAgeSeconds ?? '—'}</dd>
+            <CountCell value={reference.maxAgeSeconds} />
           </div>
           <div>
             <dt>Événements à venir comptés</dt>
-            <dd className="vx-num">{reference.eventsUpcoming ?? '—'}</dd>
+            <CountCell value={reference.eventsUpcoming} />
           </div>
           <div>
             <dt>Événements passés ignorés</dt>
-            <dd className="vx-num">{reference.eventsIgnoredPast ?? '—'}</dd>
+            <CountCell value={reference.eventsIgnoredPast} />
           </div>
           <div>
             <dt>Événements sans instrument</dt>
-            <dd className="vx-num">{reference.eventsWithoutTicker ?? '—'}</dd>
+            <CountCell value={reference.eventsWithoutTicker} />
           </div>
           <div>
             <dt>Événements refusés</dt>
-            <dd className="vx-num">{reference.eventsRejected ?? '—'}</dd>
+            <CountCell value={reference.eventsRejected} />
           </div>
         </dl>
       </div>
@@ -328,7 +354,12 @@ export function LimitationsModule({ view }: { readonly view: OpportunitiesConten
       title={module.title}
       titleId="vx-opp-limitations-title"
       className="vx-opp-limitations"
-      footer={<>schéma <code>{view.schemaVersion ?? '—'}</code> · moteur <code>{view.engineVersion ?? '—'}</code></>}
+      footer={
+        <>
+          schéma <code>{view.schemaVersion ?? 'non publié'}</code> · moteur{' '}
+          <code>{view.engineVersion ?? 'non publié'}</code>
+        </>
+      }
     >
       {view.limitations.length === 0 ? (
         <p className="vx-module-sentence" role="status">
