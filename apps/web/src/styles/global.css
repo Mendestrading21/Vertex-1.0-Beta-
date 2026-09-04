@@ -6980,42 +6980,12 @@ label {
 
 /* ---- Grille d'Opportunités (planche §3) ------------------------------ */
 
-.vx-opp-grid {
-  grid-template-areas:
-    'ideas score bias return'
-    'ranking ranking ranking ranking'
-    'biassplit health scatter factors'
-    'profile profile exclusions exclusions'
-    'provenance provenance quality activity';
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
-.vx-opp-grid [data-module='active-ideas'] { grid-area: ideas; }
-.vx-opp-grid [data-module='mean-score'] { grid-area: score; }
-.vx-opp-grid [data-module='global-bias'] { grid-area: bias; }
-.vx-opp-grid [data-module='expected-return'] { grid-area: return; }
-.vx-opp-grid [data-module='ranking'] { grid-area: ranking; }
-.vx-opp-grid [data-module='bias-split'] { grid-area: biassplit; }
-.vx-opp-grid [data-module='opportunity-health'] { grid-area: health; }
-.vx-opp-grid [data-module='score-return-scatter'] { grid-area: scatter; }
-.vx-opp-grid [data-module='factor-contribution'] { grid-area: factors; }
-.vx-opp-grid [data-module='profile'] { grid-area: profile; }
-.vx-opp-grid [data-module='exclusions'] { grid-area: exclusions; }
-.vx-opp-grid [data-module='recent-activity'] { grid-area: activity; }
-.vx-opp-grid [data-module='catalysts-provenance'] { grid-area: provenance; }
-.vx-opp-grid [data-module='quality'] { grid-area: quality; }
-
-@media (min-width: 1600px) {
-  .vx-opp-grid {
-    grid-template-areas:
-      'ideas ideas score bias return'
-      'ranking ranking ranking ranking ranking'
-      'biassplit health health scatter factors'
-      'profile profile exclusions exclusions activity'
-      'provenance provenance provenance quality quality';
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-  }
-}
+/* LOT P2d — LES AIRES DE CETTE PLANCHE ONT DÉMÉNAGÉ DANS `widgets.css`.
+   Voir la note qui les accompagne : depuis que la page rend des `Widget`, les
+   règles de span du socle (`.vx-w2[data-size='M']`) ont EXACTEMENT la même
+   spécificité que `.vx-opp-grid [data-module='x']`, et `widgets.css` est
+   importée après ce fichier. Laisser les aires ici les ferait perdre.
+   Ne rien réintroduire ici : la planche se place dans une seule feuille. */
 
 /* Dans la dominante, les deux groupes gardent leur tranche verte / ambre
    et perdent leur second cadre. La provenance devient une ligne fine. */

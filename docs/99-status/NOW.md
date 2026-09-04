@@ -2801,3 +2801,62 @@ correction : **0**.
 rapporté « Errors 7 errors » à côté de 952 tests verts. Quatre exécutions
 consécutives n'ont rien reproduit. Ce n'est pas classé résolu : c'est noté
 comme observé, sans cause établie.
+
+## SESSION 2026-09-04 — LOT P2d : Opportunités aux widgets v2, et ses aires changent de feuille
+
+Branche `lot/p2d-opportunites-widgets-20260904`, empilée sur P2c.
+
+### La dernière planche à empiler des cartes nues
+
+Sept modules et la dominante deviennent des `Widget`. La taille de composition
+vient du CATALOGUE de la page (`opportunitiesModules.ts`, champ `size`),
+déclaré depuis le LOT-A4 et jamais lu jusqu'ici.
+
+Huit `<div data-module="x">` disparaissent : `Widget` porte lui-même
+`data-module`, `data-size` et `data-state`. Un seul propriétaire de l'identité
+du module.
+
+`AbsentOpportunitiesModule` ne posait pas `data-size` : une absence prenait la
+taille par défaut et déplaçait ses voisines. Elle occupe désormais l'aire que
+la planche lui a réservée.
+
+### Le piège CSS, quatrième et dernière fois
+
+`.vx-w2[data-size]` (0,2,0) et `.vx-opp-grid [data-module='x']` (0,2,0) sont à
+égalité de spécificité, et `widgets.css` est importée APRÈS `global.css`.
+Laisser les aires dans `global.css` les ferait perdre contre le span du socle :
+la planche se déferait en silence, sans erreur, juste des cartes au mauvais
+endroit. Les aires ont donc déménagé, comme aux lots P1, P4 et P5.
+
+Le combinateur passe à `>` : une aire ne s'applique qu'aux enfants DIRECTS de
+la planche, jamais à un `[data-module]` imbriqué plus bas.
+
+### Relecture de captures — la preuve que le déménagement a marché
+
+Géométrie mesurée aux trois viewports, débordement horizontal **0** partout.
+
+La preuve tient en un chiffre : à 1600 px, le gabarit de la planche donne DEUX
+colonnes à `active-ideas`, alors que son `data-size` vaut `S`, donc UNE. Mesuré :
+**418 px**, soit deux colonnes. C'est l'AIRE qui gagne, pas le span — exactement
+ce que le déménagement devait produire.
+
+Aucun défaut visuel nouveau relevé. Les hauteurs de rangée diffèrent
+franchement (260 px contre 469 px sur la même rangée) : c'est l'effet du lot
+T3, conservé.
+
+### Une mesure que je dois retirer
+
+Le compte rendu de P2c annonçait la suite Playwright complète comme preuve.
+**Cette exécution est inexploitable** : j'ai lancé `npm run build` pour P2d
+pendant qu'elle tournait, et `vite preview` sert `dist/` — j'ai changé
+l'application sous les tests. Le seul échec observé
+(`analysis.spec.ts` — 60 lignes OHLCV attendues) s'explique par là et n'a pas
+été reproduit. La suite est relancée proprement sur l'arbre P2d, qui contient
+P2c ; c'est ce résultat-là qui fait foi.
+
+### Mesuré
+
+- `npx tsc --noEmit` code 0 ; `npx biome check src` 1 info préexistante.
+- `npx vitest run` : 91 fichiers / **952 tests** verts.
+- `npm run build` : succès.
+- Captures et géométrie aux trois viewports desktop : débordement 0.

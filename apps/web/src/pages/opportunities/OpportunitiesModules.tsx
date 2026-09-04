@@ -1,6 +1,6 @@
-import { Card } from '../../components/Card.tsx';
 import { CensusBars } from '../../components/CensusBars.tsx';
 import { Metric } from '../../components/Metric.tsx';
+import { Widget } from '../../components/widgets/Widget.tsx';
 import { CALENDAR_REF_STATUS_LABELS } from './opportunitiesView.ts';
 import type { CandidateView, OpportunitiesContentView } from './opportunitiesView.ts';
 import { opportunitiesModule } from './opportunitiesModules.ts';
@@ -45,7 +45,10 @@ export function ActiveIdeasModule({ view }: { readonly view: OpportunitiesConten
   const module = opportunitiesModule('active-ideas');
   const coverage = view.coverage;
   return (
-    <Card
+    <Widget
+      id={module.id}
+      size={module.size}
+      state="ready"
       rank="quiet"
       kicker="Couverture publiée"
       title={module.title}
@@ -72,7 +75,7 @@ export function ActiveIdeasModule({ view }: { readonly view: OpportunitiesConten
           testId="opp-ideas-universe"
         />
       </div>
-    </Card>
+    </Widget>
   );
 }
 
@@ -81,7 +84,10 @@ export function ActiveIdeasModule({ view }: { readonly view: OpportunitiesConten
 export function BiasSplitModule({ view }: { readonly view: OpportunitiesContentView }) {
   const module = opportunitiesModule('bias-split');
   return (
-    <Card
+    <Widget
+      id={module.id}
+      size={module.size}
+      state="ready"
       rank="quiet"
       kicker="Directions publiées"
       title={module.title}
@@ -94,7 +100,7 @@ export function BiasSplitModule({ view }: { readonly view: OpportunitiesContentV
         testIdPrefix="opp-direction"
         emptyLabel="Aucun candidat publié : aucune direction à compter."
       />
-    </Card>
+    </Widget>
   );
 }
 
@@ -106,7 +112,10 @@ export function OpportunityHealthModule({ view }: { readonly view: Opportunities
     .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
     .map(([key, count]) => ({ key, count }));
   return (
-    <Card
+    <Widget
+      id={module.id}
+      size={module.size}
+      state="ready"
       rank="quiet"
       kicker="Moteur fail-closed"
       title={module.title}
@@ -119,7 +128,7 @@ export function OpportunityHealthModule({ view }: { readonly view: Opportunities
         testIdPrefix="opp-status-count"
         emptyLabel="Aucun statut compté sur l’univers."
       />
-    </Card>
+    </Widget>
   );
 }
 
@@ -129,7 +138,10 @@ export function ProfileModule({ view }: { readonly view: OpportunitiesContentVie
   const module = opportunitiesModule('profile');
   const profile = view.profileRef;
   return (
-    <Card
+    <Widget
+      id={module.id}
+      size={module.size}
+      state="ready"
       rank="quiet"
       kicker="Profil appliqué en partie"
       title={module.title}
@@ -181,7 +193,7 @@ export function ProfileModule({ view }: { readonly view: OpportunitiesContentVie
           </div>
         </div>
       </div>
-    </Card>
+    </Widget>
   );
 }
 
@@ -197,7 +209,10 @@ export function ExclusionsModule({ view }: { readonly view: OpportunitiesContent
     (left, right) => right[1] - left[1] || left[0].localeCompare(right[0]),
   );
   return (
-    <Card
+    <Widget
+      id={module.id}
+      size={module.size}
+      state="ready"
       rank="quiet"
       kicker="Compteurs publiés"
       title={module.title}
@@ -225,7 +240,7 @@ export function ExclusionsModule({ view }: { readonly view: OpportunitiesContent
           emptyLabel="Aucune raison d’exclusion publiée."
         />
       </div>
-    </Card>
+    </Widget>
   );
 }
 
@@ -253,7 +268,10 @@ export function CalendarRefModule({ view }: { readonly view: OpportunitiesConten
   const reference = view.calendarRef;
   const status = reference.status ?? '';
   return (
-    <Card
+    <Widget
+      id={module.id}
+      size={module.size}
+      state="ready"
       rank="quiet"
       kicker="Snapshot calendrier"
       title={module.title}
@@ -325,7 +343,7 @@ export function CalendarRefModule({ view }: { readonly view: OpportunitiesConten
           </div>
         </dl>
       </div>
-    </Card>
+    </Widget>
   );
 }
 
@@ -334,7 +352,10 @@ export function CalendarRefModule({ view }: { readonly view: OpportunitiesConten
 export function LimitationsModule({ view }: { readonly view: OpportunitiesContentView }) {
   const module = opportunitiesModule('quality');
   return (
-    <Card
+    <Widget
+      id={module.id}
+      size={module.size}
+      state="ready"
       rank="quiet"
       kicker="Déclaré par le moteur"
       title={module.title}
@@ -358,6 +379,6 @@ export function LimitationsModule({ view }: { readonly view: OpportunitiesConten
           ))}
         </ul>
       )}
-    </Card>
+    </Widget>
   );
 }

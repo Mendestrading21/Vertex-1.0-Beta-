@@ -1856,3 +1856,54 @@
   overflow-wrap: anywhere;
   color: var(--vx-silver);
 }
+
+/* ===========================================================================
+   LOT P2d — PLACEMENT DE LA PLANCHE §3 (Opportunités)
+   ---------------------------------------------------------------------------
+   Déplacé depuis `global.css`, pour la QUATRIÈME fois de cette campagne et
+   pour la même raison qu'aux lots P1, P4 et P5 : `.vx-w2[data-size='M']`
+   (0,2,0) et `.vx-opp-grid > [data-module='x']` (0,2,0) ont la même
+   spécificité, et cette feuille est importée en dernier. Une aire nommée
+   restée dans `global.css` perd contre le span du socle, et la planche se
+   défait en silence — aucune erreur, juste des cartes au mauvais endroit.
+
+   Le combinateur est `>` : les aires ne s'appliquent qu'aux enfants DIRECTS
+   de la planche. Un `[data-module]` imbriqué plus bas — il en existe dans
+   l'inspecteur — ne doit jamais hériter d'une aire de la grille.
+   =========================================================================== */
+.vx-opp-grid {
+  grid-template-areas:
+    'ideas score bias return'
+    'ranking ranking ranking ranking'
+    'biassplit health scatter factors'
+    'profile profile exclusions exclusions'
+    'provenance provenance quality activity';
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.vx-opp-grid > [data-module='active-ideas'] { grid-area: ideas; }
+.vx-opp-grid > [data-module='mean-score'] { grid-area: score; }
+.vx-opp-grid > [data-module='global-bias'] { grid-area: bias; }
+.vx-opp-grid > [data-module='expected-return'] { grid-area: return; }
+.vx-opp-grid > [data-module='ranking'] { grid-area: ranking; }
+.vx-opp-grid > [data-module='bias-split'] { grid-area: biassplit; }
+.vx-opp-grid > [data-module='opportunity-health'] { grid-area: health; }
+.vx-opp-grid > [data-module='score-return-scatter'] { grid-area: scatter; }
+.vx-opp-grid > [data-module='factor-contribution'] { grid-area: factors; }
+.vx-opp-grid > [data-module='profile'] { grid-area: profile; }
+.vx-opp-grid > [data-module='exclusions'] { grid-area: exclusions; }
+.vx-opp-grid > [data-module='recent-activity'] { grid-area: activity; }
+.vx-opp-grid > [data-module='catalysts-provenance'] { grid-area: provenance; }
+.vx-opp-grid > [data-module='quality'] { grid-area: quality; }
+
+@media (min-width: 1600px) {
+  .vx-opp-grid {
+    grid-template-areas:
+      'ideas ideas score bias return'
+      'ranking ranking ranking ranking ranking'
+      'biassplit health health scatter factors'
+      'profile profile exclusions exclusions activity'
+      'provenance provenance provenance quality quality';
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+}
