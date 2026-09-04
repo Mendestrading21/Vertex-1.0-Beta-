@@ -91,7 +91,7 @@ export interface AdviceView {
   readonly engineVersion: string | null;
 }
 
-export interface EvidenceCheckView {
+interface EvidenceCheckView {
   readonly name: string;
   readonly present: boolean;
   readonly detail: string | null;
@@ -276,7 +276,7 @@ export function partitionCandidates(content: unknown): PartitionedCandidates {
 
 // -- références de provenance ------------------------------------------------
 
-export interface ProfileRefView {
+interface ProfileRefView {
   readonly id: string | null;
   readonly version: string | null;
   readonly source: string | null;
@@ -284,7 +284,7 @@ export interface ProfileRefView {
   readonly notApplied: readonly { readonly field: string; readonly reason: string | null }[];
 }
 
-export function profileRefOf(value: unknown): ProfileRefView {
+function profileRefOf(value: unknown): ProfileRefView {
   const record = asRecord(value);
   const notApplied: { field: string; reason: string | null }[] = [];
   for (const raw of asArray(record?.['not_applied'])) {
@@ -310,7 +310,7 @@ export const CALENDAR_REF_STATUS_LABELS: Readonly<Record<string, string>> = {
   REJECTED_FUTURE_AS_OF: 'Refusé — snapshot daté dans le futur, aucun catalyseur prouvé',
 };
 
-export interface CalendarRefView {
+interface CalendarRefView {
   readonly kind: string | null;
   readonly key: string | null;
   readonly version: number | null;
@@ -325,7 +325,7 @@ export interface CalendarRefView {
   readonly eventsRejected: number | null;
 }
 
-export function calendarRefOf(value: unknown): CalendarRefView {
+function calendarRefOf(value: unknown): CalendarRefView {
   const record = asRecord(value);
   return {
     kind: str(record, 'kind'),
@@ -343,13 +343,13 @@ export function calendarRefOf(value: unknown): CalendarRefView {
   };
 }
 
-export interface OrderingView {
+interface OrderingView {
   readonly method: string | null;
   readonly keys: readonly string[];
   readonly note: string | null;
 }
 
-export function orderingOf(value: unknown): OrderingView {
+function orderingOf(value: unknown): OrderingView {
   const record = asRecord(value);
   return {
     method: str(record, 'method'),

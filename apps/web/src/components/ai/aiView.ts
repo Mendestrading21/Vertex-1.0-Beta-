@@ -9,7 +9,7 @@
 import type { AiAnswer, AiEvidenceCatalogEntry } from '../../api/client.ts';
 
 /** Les trois sujets explicables du contrat, avec leur libellé français. */
-export const AI_SUBJECT_KINDS = ['analysis', 'portfolio_valuation', 'performance'] as const;
+const AI_SUBJECT_KINDS = ['analysis', 'portfolio_valuation', 'performance'] as const;
 
 export type AiSubjectKind = (typeof AI_SUBJECT_KINDS)[number];
 

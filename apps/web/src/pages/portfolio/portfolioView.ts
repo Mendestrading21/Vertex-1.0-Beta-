@@ -93,7 +93,7 @@ export interface ExcludedLotRow {
   readonly reason: string;
 }
 
-export interface ConcentrationEntry {
+interface ConcentrationEntry {
   readonly ticker: string;
   readonly weight: string;
 }
@@ -117,7 +117,7 @@ export interface CurrencyBlockView {
   readonly concentrationCalculation: CalculationMetaView | null;
 }
 
-export interface MarksSourceView {
+interface MarksSourceView {
   readonly status: string | null;
   readonly reason: string | null;
   readonly snapshotVersion: number | null;
@@ -125,7 +125,7 @@ export interface MarksSourceView {
   readonly tickersMarked: number | null;
 }
 
-export interface CoverageView {
+interface CoverageView {
   readonly eventsConsidered: number | null;
   readonly positionEvents: number | null;
   readonly cashEvents: number | null;
@@ -314,7 +314,7 @@ export function valuationContentOf(valuation: PortfolioValuationView): Valuation
  * Raisons machine d'exclusion → explication française. Une raison inconnue
  * est affichée telle quelle (code machine), jamais masquée.
  */
-export const EXCLUSION_REASON_LABELS: Readonly<Record<string, string>> = {
+const EXCLUSION_REASON_LABELS: Readonly<Record<string, string>> = {
   missing_mark: 'aucune clôture synthétique publiée pour ce ticker',
   invalid_mark: 'clôture publiée illisible ou non positive — refusée',
   mark_currency_mismatch: 'devise de la clôture différente de celle du lot',
