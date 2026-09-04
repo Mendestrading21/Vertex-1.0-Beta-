@@ -183,9 +183,10 @@ function ChainFrame({
                 >
                   <span className="vx-chain-group-name">{groupLabelOf(group)}</span>
                   <span className="vx-chain-group-meta">
-                    qualité {group.quality} · {coverage.expected ?? '—'} contrats attendus ·{' '}
-                    {coverage.quotesValid ?? '—'} quotes saines · {coverage.ivResolved ?? '—'} IV
-                    résolues · {coverage.discardedCount ?? '—'} écarté(s) du calcul
+                    qualité {group.quality} · {coverage.expected ?? 'nombre non publié de'}{' '}
+                    contrats attendus · {coverage.quotesValid ?? 'nombre non publié de'} quotes
+                    saines · {coverage.ivResolved ?? 'nombre non publié d’'} IV résolues ·{' '}
+                    {coverage.discardedCount ?? 'nombre non publié d’'} écarté(s) du calcul
                   </span>
                 </button>
               );

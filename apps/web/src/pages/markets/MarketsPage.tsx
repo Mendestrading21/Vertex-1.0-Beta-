@@ -136,7 +136,11 @@ function MarketsFrame({
 
   const detail =
     state === 'partial'
-      ? `Couverture incomplète publiée par le worker : ${coverage?.covered ?? '?'} instruments couverts sur ${coverage?.expected ?? '?'} attendus, ${coverage?.discarded ?? '?'} écartés.`
+      ? `Couverture incomplète publiée par le worker : ${
+          coverage?.covered ?? 'nombre non publié d’'
+        } instruments couverts sur ${coverage?.expected ?? 'un nombre non publié'} attendus, ${
+          coverage?.discarded ?? 'un nombre non publié'
+        } écartés.`
       : state === 'stale'
         ? data.state === 'stale'
           ? `Snapshot publié périmé par le relais : ${data.reason ?? 'raison non publiée'} ; âge publié ${data.age_seconds ?? 'non publié'} s.`

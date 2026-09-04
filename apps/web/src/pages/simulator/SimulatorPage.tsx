@@ -66,7 +66,12 @@ function RejectionNotice({ rejection }: { readonly rejection: RejectionView | nu
       ) : rejection.kind === 'refusal' ? (
         <>
           <p>
-            Raison exacte : <code>{rejection.code ?? '—'}</code>
+            Raison exacte :{' '}
+            {rejection.code === null ? (
+              <span className="vx-cell-absent">code de refus non publié</span>
+            ) : (
+              <code>{rejection.code}</code>
+            )}
             {rejection.message !== null ? (
               <>
                 {' — '}

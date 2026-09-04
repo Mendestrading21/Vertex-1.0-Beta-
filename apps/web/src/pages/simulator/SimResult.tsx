@@ -211,13 +211,22 @@ export function ScenarioGridModule({ result }: { readonly result: SimulationPrev
 export function EchoModule({ result }: { readonly result: SimulationPreviewResponse | null }) {
   const module = simulatorModule('key-assumptions');
   const assumptions = result?.assumptions ?? null;
+  // LOT T4-6 — CE MODULE MONTRE CE QUE LE SERVEUR A RÉELLEMENT APPLIQUÉ. Un
+  // tiret y était le pire endroit possible pour une ambiguïté : le lecteur ne
+  // pouvait pas distinguer « le serveur n'a pas renvoyé cette hypothèse » de
+  // « il l'a renvoyée vide ».
   const text = (key: string): string => {
     const value = assumptions?.[key];
-    return typeof value === 'string' ? value : '—';
+    return typeof value === 'string' ? value : 'non renvoyée par le serveur';
   };
   const list = (key: string): string => {
     const value = assumptions?.[key];
-    return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string').join(', ') : '—';
+    if (!Array.isArray(value)) {
+      return 'non renvoyée par le serveur';
+    }
+    const entries = value.filter((entry): entry is string => typeof entry === 'string');
+    // Une liste renvoyée VIDE est une réponse, pas une absence.
+    return entries.length === 0 ? 'aucune' : entries.join(', ');
   };
   return (
     <Card rank="quiet" kicker="Renvoyées par le serveur" title={module.title} titleId="vx-sim-echo-title" footer={<>ce que le serveur a réellement appliqué, pas ce que le formulaire contenait</>}>
