@@ -2100,7 +2100,7 @@ présence de chaque valeur dans le CSS commité.
 - Playwright, **suite complète** aux trois viewports desktop : **546 passés**
   (11,6 min), code 0.
 
-**T1 bloquée à la fusion, pour une raison externe.** PR #45 : six checks requis
+**T1 a été bloquée à la fusion, pour une raison externe — résolu depuis.** PR #45 : six checks requis
 verts sur `353e1fa`, le septième — `supply-chain — audit des dépendances,
 SBOM` — meurt sur `ERR_SOCKET_TIMEOUT` vers
 `registry.npmjs.org/-/npm/v1/security/audits/quick`, avant tout résultat
@@ -2109,6 +2109,13 @@ d'audit. Le même job est rouge sur `main` au commit `700355c` (run
 c'est le point de terminaison d'audit qui ne répond pas, pas le dépôt. Un seul
 rejeu tenté, même timeout. La porte n'est PAS assouplie : un `|| true` ou un
 `--audit-level` abaissé transformerait une panne passagère en trou permanent.
+
+**Suite.** Le point d'audit s'est révélé INTERMITTENT et non durablement en
+panne : vert à 06 h 36 et 06 h 50, de nouveau en timeout à 07 h 17, vert
+ensuite. T1 est fusionnée en squash (`cd7399f`) dès qu'un rejeu a attrapé une
+fenêtre verte. Deux runs coexistaient sur le même SHA — celui du `push` et
+celui de la `pull_request` — et la règle de branche exige les DEUX : ne
+relancer que celui de la PR laissait la porte rouge sans que rien ne le dise.
 
 ## SESSION 2026-09-04 — LOT T2 : la tuile de mesure, et le catalogue d'icônes partagé
 
