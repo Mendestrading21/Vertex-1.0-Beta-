@@ -2099,3 +2099,74 @@ présence de chaque valeur dans le CSS commité.
 - `npm run build` : succès.
 - Playwright, **suite complète** aux trois viewports desktop : **546 passés**
   (11,6 min), code 0.
+
+**T1 bloquée à la fusion, pour une raison externe.** PR #45 : six checks requis
+verts sur `353e1fa`, le septième — `supply-chain — audit des dépendances,
+SBOM` — meurt sur `ERR_SOCKET_TIMEOUT` vers
+`registry.npmjs.org/-/npm/v1/security/audits/quick`, avant tout résultat
+d'audit. Le même job est rouge sur `main` au commit `700355c` (run
+33839118821), et `pnpm install --frozen-lockfile` réussit dans le même job :
+c'est le point de terminaison d'audit qui ne répond pas, pas le dépôt. Un seul
+rejeu tenté, même timeout. La porte n'est PAS assouplie : un `|| true` ou un
+`--audit-level` abaissé transformerait une panne passagère en trou permanent.
+
+## SESSION 2026-09-04 — LOT T2 : la tuile de mesure, et le catalogue d'icônes partagé
+
+Branche `lot/t2-kpi-tile-20260904`, empilée sur T1 tant que #45 ne peut pas
+fusionner.
+
+### Deux primitives
+
+- **`Glyph`** — le catalogue SVG approuvé (21 icônes de
+  `design-assets/icons/custom/`), extrait de `NavGlyph` qui en masquait dix
+  pour le seul rail. Masque en `currentColor` : aucune couleur n'est encodée
+  dans l'icône. `aria-hidden`, jamais porteuse seule d'une information.
+  `satisfies Record<GlyphName, string>` : ajouter un nom sans son fichier
+  casse la COMPILATION, jamais l'écran. `NavGlyph` ne décide plus que d'une
+  chose — quelle icône appartient à quelle destination.
+- **`KpiTile`** — pastille d'icône, libellé, GRAND chiffre servi, unité,
+  variation servie, série optionnelle. C'est la forme la plus répétée des
+  tableaux de bord de référence, et Vertex l'assemblait jusqu'ici à la main,
+  différemment sur chaque page.
+
+### Ce que la tuile REFUSE, et c'est tout son objet
+
+1. **Sans valeur servie, elle se dépouille** : pas de teinte (teinter, c'est
+   qualifier un vide), pas de pastille de variation, pas de figure de série,
+   pas même l'unité — une unité seule n'est pas une donnée, c'est le décor
+   d'une donnée qui manque. Elle DIT l'absence à la place.
+2. **Le signe ne vient jamais de la tuile.** `valueSign` est tiré par
+   l'appelant du signe TEXTUEL de la chaîne servie ; sans lui, aucun attribut,
+   donc aucune couleur. Le vocabulaire de teintes EXCLUT `positive` et
+   `negative` : ils appartiennent au signe financier servi, jamais à une
+   pastille d'icône, qui n'a rien à qualifier.
+
+Sept cas de test, dont quatre refus, tous **rouges d'abord**.
+
+### Trois défauts de géométrie, vus seulement en navigateur
+
+1. **Une tuile faisait 160 px de haut pour 55 px de texte.** `.vx-board`,
+   `.vx-today-grid` et `.vx-markets-grid` posent `flex-direction: column` sur
+   `.vx-metrics-row` : dans cette pile, le `flex: 1 1 160px` de la tuile
+   devient une HAUTEUR. Trois dénombrements occupaient 480 px pour 165 px de
+   texte. Mesuré par sonde en navigateur, jamais par un test.
+2. **Les lignes repliées s'étiraient.** `align-content` vaut `stretch` par
+   défaut : dans une carte plus haute que son contenu, l'espace restant était
+   distribué ENTRE les lignes. Les mesures se serrent désormais en haut.
+3. **La pastille de variation débordait** en colonne étroite : « 74.75 | signe
+   non publié | SYN » se centrait sur deux lignes bancales. Elle se replie
+   maintenant à gauche et ne dépasse plus sa carte.
+
+### Consommateurs posés
+
+Portefeuille (bande de valorisation, trois devises), Aujourd'hui (les trois
+dénombrements d'Opportunités, la valeur du portefeuille manuel).
+
+### Mesuré sur cette machine
+
+- `npx tsc --noEmit` : code 0.
+- `npx biome check src` : 1 info préexistante, 0 erreur.
+- `npx vitest run` : 89 fichiers, **929 tests**, tous verts.
+- `npm run build` : succès.
+- Playwright `today`, `portfolio`, `markets`, `shell-canonical`,
+  `accessibility` aux trois viewports desktop : **276 passés**, code 0.

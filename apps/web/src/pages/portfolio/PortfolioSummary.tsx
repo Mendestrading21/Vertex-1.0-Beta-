@@ -1,6 +1,7 @@
 import { Card } from '../../components/Card.tsx';
-import { Metric } from '../../components/Metric.tsx';
+import type { GlyphName } from '../../components/widgets/Glyph.tsx';
 import { signGroupOfText } from '../../components/widgets/KpiDelta.tsx';
+import { KpiTile } from '../../components/widgets/KpiTile.tsx';
 import { portfolioModule } from './portfolioModules.ts';
 import type { CurrencyBlockView, ValuationContentView } from './portfolioView.ts';
 
@@ -15,6 +16,13 @@ import type { CurrencyBlockView, ValuationContentView } from './portfolioView.ts
  * prennent la forme `Metric` du socle (libellé en capitales, valeur en taille
  * d'affichage, unité servie à côté). Rien n'est ajouté ni retiré : les mêmes
  * chaînes serveur, la même provenance, le même aveu sur les espèces.
+ *
+ * LOT T2 — LA BANDE PREND LA FORME DE LA TUILE DE MESURE. `Metric` disait
+ * déjà la vérité ; il lui manquait la pastille d'icône qui SITUE la mesure
+ * avant qu'on la lise. Rien d'autre ne change : mêmes chaînes serveur, même
+ * devise servie, même provenance, même aveu, même règle de signe. L'icône
+ * vient du catalogue approuvé, elle est `aria-hidden`, et elle ne porte
+ * jamais seule une information — le libellé la dit en toutes lettres.
  *
  * LE SIGNE VIENT DU SERVEUR, PAS D'UNE DÉDUCTION. La couleur de sens n'est
  * portée que si la chaîne servie porte elle-même son signe
@@ -33,6 +41,7 @@ import type { CurrencyBlockView, ValuationContentView } from './portfolioView.ts
 
 function ValueMetric({
   label,
+  glyph,
   status,
   reason,
   value,
@@ -40,6 +49,7 @@ function ValueMetric({
   testId,
 }: {
   readonly label: string;
+  readonly glyph: GlyphName;
   readonly status: string | null;
   readonly reason: string | null;
   readonly value: string | null;
@@ -49,12 +59,13 @@ function ValueMetric({
   const served = status === 'OK' ? value : null;
   const raison = `${status ?? 'ABSENT'}${reason !== null ? ` — ${reason}` : ''}`;
   return (
-    <Metric
+    <KpiTile
+      glyph={glyph}
       label={label}
       value={served}
-      {...(served === null ? {} : { unit: currency, sign: signGroupOfText(served) })}
-      absentLabel={`${label} : ${raison}`}
-      {...(served === null ? { note: <span className="vx-cell-absent">{raison}</span> } : {})}
+      valueSign={served === null ? null : signGroupOfText(served)}
+      unit={served === null ? null : currency}
+      absentNote={`${label} : ${raison}`}
       testId={testId}
     />
   );
@@ -97,6 +108,7 @@ function ValueBlock({
       <div className="vx-metrics-row">
         <ValueMetric
           label="Valeur marquée des lots ouverts"
+          glyph="manual-ledger"
           status={block.concentrationStatus}
           reason={block.concentrationReason}
           value={block.totalValue}
@@ -105,6 +117,7 @@ function ValueBlock({
         />
         <ValueMetric
           label="P&L latent (marques synthétiques)"
+          glyph="market-regime"
           status={block.unrealizedStatus}
           reason={block.unrealizedReason}
           value={block.totalUnrealized}
@@ -113,6 +126,7 @@ function ValueBlock({
         />
         <ValueMetric
           label={`P&L réalisé (journal, ${lotMethod ?? 'méthode non publiée'})`}
+          glyph="audit-trace"
           status={block.realizedStatus}
           reason={block.realizedReason}
           value={block.totalRealized}

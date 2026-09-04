@@ -9,6 +9,7 @@ import { Metric } from '../components/Metric.tsx';
 import { CensusBars } from '../components/CensusBars.tsx';
 import { SectorGrid } from '../components/markets/SectorGrid.tsx';
 import { KpiDelta, signGroupOfText } from '../components/widgets/KpiDelta.tsx';
+import { KpiTile } from '../components/widgets/KpiTile.tsx';
 import { BreadthPanel } from './markets/BreadthPanel.tsx';
 import { AgendaLine, readableEventTime } from '../components/calendar/AgendaLine.tsx';
 import { ModuleStatus } from '../components/ModuleStatus.tsx';
@@ -231,9 +232,30 @@ export function OpportunitiesModule() {
       {summary !== null ? (
         <>
           <div className="vx-metrics-row">
-            <Metric label="Qualifiés" value={summary.qualifiedCount === null ? null : String(summary.qualifiedCount)} />
-            <Metric label="Exclus" value={summary.excludedCount === null ? null : String(summary.excludedCount)} />
-            <Metric label="Univers" value={summary.universeSize === null ? null : String(summary.universeSize)} />
+            {/* LOT T2 — trois DÉNOMBREMENTS servis : ni unité, ni signe, ni
+                direction. Le glyphe dit lequel des trois on lit ; il ne
+                qualifie rien et reste `aria-hidden`. */}
+            <KpiTile
+              glyph="gate-pass"
+              label="Qualifiés"
+              value={summary.qualifiedCount === null ? null : String(summary.qualifiedCount)}
+              unit={null}
+              absentNote="Nombre de candidats qualifiés non publié."
+            />
+            <KpiTile
+              glyph="gate-block"
+              label="Exclus"
+              value={summary.excludedCount === null ? null : String(summary.excludedCount)}
+              unit={null}
+              absentNote="Nombre de candidats exclus non publié."
+            />
+            <KpiTile
+              glyph="source-coverage"
+              label="Univers"
+              value={summary.universeSize === null ? null : String(summary.universeSize)}
+              unit={null}
+              absentNote="Taille de l’univers non publiée."
+            />
           </div>
           {summary.statusCounts.size === 0 ? null : (
             <CensusBars
@@ -349,11 +371,14 @@ export function ManualPortfolioModule() {
           ) : (
             summary.blocks.map((block) => (
               <div key={block.currency} className="vx-metrics-row">
-                <Metric
+                {/* LOT T2 — la tuile de mesure : l'icône SITUE le chiffre avant
+                    qu'on le lise. Même chaîne servie, même devise, même aveu. */}
+                <KpiTile
+                  glyph="manual-ledger"
                   label={`Valeur (${block.currency})`}
                   value={block.concentrationStatus === 'OK' ? block.totalValue : null}
                   unit={block.currency}
-                  absentLabel={`Valeur non publiée : ${block.concentrationReason ?? block.concentrationStatus ?? 'statut absent'}`}
+                  absentNote={`Valeur non publiée : ${block.concentrationReason ?? block.concentrationStatus ?? 'statut absent'}`}
                 />
                 <div className="vx-metric" data-size="display">
                   <span className="vx-metric-label">Latent</span>
