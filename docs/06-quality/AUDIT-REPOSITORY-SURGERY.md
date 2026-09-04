@@ -162,3 +162,109 @@ demandée ; l'écart est signalé, pas dissimulé.
 - Il porte sur des **fichiers, exports et dépendances**, jamais sur la
   justesse des calculs financiers.
 - Les 112 candidats TypeScript sont **comptés**, pas jugés.
+
+---
+
+# Phases 7 à 14 — exécution
+
+## Baseline mesurée (`75f14d5`)
+
+| Contrôle | Résultat | Temps |
+|---|---|---|
+| `pnpm typecheck` | 0 erreur | 9,8 s |
+| `pnpm lint` (Biome) | 0 erreur, 1 info préexistante | 0,7 s |
+| `pnpm test` (Vitest) | **97 fichiers, 981 tests, tout vert** | 57,1 s |
+| `pnpm build` (Vite) | OK | 1,76 s |
+| `uv run mypy` (strict) | **0 issue, 143 fichiers** | 14,8 s |
+| `uv run pytest` | 1 échec — voir ci-dessous | 96,3 s |
+| `ruff check .` | `All checks passed!` | — |
+| Bundle | 2,0 Mo · 1 688 ko de JS | — |
+
+**L'échec pytest n'est pas un défaut produit.**
+`apps/edge-ibkr/tests/test_denylist.py::test_adapter_satisfies_the_port_protocol`
+échoue sur `isinstance(fake, IbkrInformationPort)`. L'environnement local
+fournit Python 3.11 ; la cible est 3.13, et `pyproject.toml` documente cet
+écart. Preuve indépendante : la CI du dépôt est **verte sur `75f14d5`**, le SHA
+exact de cette base ([run 422](https://github.com/Mendestrading21/Vertex-1.0-Beta-/actions/runs/33917758251)).
+Le comportement d'`isinstance` sur les protocoles `runtime_checkable` a changé
+en 3.12.
+
+## Ce qui a été fait
+
+### Lot 1 — huit symboles morts supprimés
+
+Prouvés par recherche du nom dans **tout le monorepo** : une seule occurrence
+chacun, leur propre déclaration. Cinq alias de jetons (`SpaceToken`,
+`RadiusToken`, `ShadowToken`, `MotionDurationToken`, `ZIndexToken`),
+`CalendarWindowEcho`, `CenterDensity`, `subjectOf`.
+
+Le typecheck a pris la cascade : deux imports (`AiSubject`, `TextDensity`)
+devenus orphelins, retirés à leur tour. `AiSubject` reste exporté par
+`client.ts` — il appartient au contrat OpenAPI.
+
+### Lots 2 à 4 — soixante-dix symboles rendus privés
+
+Utilisés dans leur propre module, jamais importés ailleurs. Seul le mot-clé
+`export` part ; aucun code n'est supprimé.
+
+Le cas le plus net : `decisionApi.ts` et `portfolioApi.ts` exposaient des
+fetchers bruts **et** les hooks React Query qui les enveloppent. Seuls les hooks
+sont consommés ; les fetchers ne servaient que de `queryFn` sur place. La
+couche publique dit désormais ce qu'elle est.
+
+## Avant / après
+
+| Mesure | Avant | Après | Δ |
+|---|---:|---:|---:|
+| Candidats Knip | 112 | **35** | **−77** |
+| — exports inutilisés | 46 | 14 | −32 |
+| — types exportés inutilisés | 66 | 21 | −45 |
+| Symboles supprimés | — | 8 | — |
+| Symboles rendus privés | — | 70 | — |
+| Lignes `.ts` | 25 244 | 25 234 | −10 |
+| Lignes `.tsx` | 35 265 | 35 262 | −3 |
+| Cycles de dépendances | 0 | 0 | = |
+| Tests Vitest | 981 verts | **981 verts** | = |
+| Bundle JS | 1 688 ko | 1 688 ko | = |
+| Build | 1,76 s | ~1,0 s | — |
+
+**Le bundle ne bouge pas, et c'est attendu :** 77 des 78 symboles traités sont
+des types ou des symboles restés en place. Les types sont effacés à la
+compilation. Ce chantier réduit la surface publique et la charge de lecture,
+pas le poids livré. Annoncer un gain de bundle ici aurait été faux.
+
+## Ce qui reste, et pourquoi
+
+**35 candidats Knip conservés délibérément.**
+
+- **~10 types de `src/api/client.ts`** — `SimulationAssumptions`,
+  `PortfolioInfo`, `PortfolioLotEntry`, `ImportRowEcho`, `ImportRowError`,
+  `AiClaim`, `AiSubject`… Ce sont les miroirs TypeScript du contrat OpenAPI.
+  Chacun existe aussi dans `apps/api/openapi.json` et les schémas Python.
+  Classe **RISKY** : le contrat commun n'est pas du code mort.
+- **Interfaces de vue** (`GateView`, `AdviceView`, `SecCoverageView`,
+  `RevisionView`…) — plusieurs sont nommées dans `docs/05-design/refonte/*.md`.
+  Elles documentent une forme attendue.
+
+**Knip est aveugle au monorepo.** Lancé sur `apps/web` seul, il a produit
+**34 faux positifs sur 112** — des symboles bel et bien référencés par le
+Python, l'OpenAPI ou les documents de conception. Et son unique « dépendance
+inutilisée », `geist`, est chargée par `fonts.css` depuis `node_modules` :
+la supprimer aurait cassé les polices.
+
+**Python : rien à nettoyer.** Ruff passe sans une violation, mypy `--strict`
+sans une issue, et les 271 candidats de Vulture sont intégralement des faux
+positifs — y compris les 19 à 100 % de confiance, relus un par un.
+
+## Ce que ce chantier n'a pas fait
+
+- **Aucun déplacement de fichier.** La structure existante est cohérente ;
+  déplacer aurait été du bruit.
+- **Aucun découpage** des 71 fichiers de plus de 500 lignes. Le plus gros
+  (`schema.d.ts`, 4 180 lignes) est généré. Les autres demandent une analyse de
+  responsabilités qui n'a pas été faite.
+- **Aucune dépendance retirée** — les 7 runtime et 16 dev sont toutes
+  employées, `echarts` et `lightweight-charts` compris (usages disjoints).
+- **Aucun test e2e exécuté** : ils demandent PostgreSQL et un navigateur servi.
+- **Aucun test d'intégration Python** (`tests_integration/`) : PostgreSQL réel
+  requis.
