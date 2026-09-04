@@ -2377,3 +2377,68 @@ nombre — le français l'exige, et le deviner depuis le mot serait faux.
   **204 passés**, code 0.
 - Sonde navigateur : la ligne rend « … · sources non publiées · méthode
   lexicographic · nature SYNTHETIC », aucun tiret.
+
+## SESSION 2026-09-04 — LOT T4-2 : Portefeuille, et un défaut de clé React
+
+Branche `lot/t4-2-portefeuille-20260904`. Dette T4 : **36 → 28**.
+
+### Le tiret n'était pas qu'ambigu : il cassait React
+
+`portfolioView.ts:216` typait `lotId: string` avec `?? '—'` en repli, et le
+constructeur des positions invalides posait `lotId: '—'` **EN DUR** — donc
+TOUTES les positions invalides partageaient le même identifiant.
+
+Cette valeur servait de clé React (`PortfolioTable.tsx:118`,
+`` `${lot.lotId}-${lot.ticker ?? ''}-${lot.reason}` ``). Deux positions
+invalides de même ticker et même raison produisaient **deux fois la même clé** :
+la réconciliation cassait. Et le tiret s'affichait dans la colonne
+« identifiant de lot » comme s'il en était un.
+
+`lotId` devient `string | null`. Une ligne sans identifiant servi prend son
+**rang de rendu** dans la clé — un index n'est pas une donnée, c'est une
+position, et c'est exactement ce qu'il est.
+
+Test écrit ROUGE d'abord (`expected '—' to be null`).
+
+### Quatre natures d'absence sur une seule page
+
+Le Portefeuille est la destination qui les distingue toutes :
+
+- **`not_published`** — le serveur n'a pas envoyé le champ (quantité, prix,
+  instrument d'une écriture du journal).
+- **`not_applicable`** — une position INVALIDE n'a pas de lot : elle a été
+  rejetée avant d'en devenir un. Une ligne ni compensante ni compensée n'a
+  rien à dire sur la compensation. Le serveur n'a rien omis.
+- **`not_entered`** — l'aperçu d'import CSV : la case vide vient du fichier de
+  l'HUMAIN. Écrire « non publié » y accuserait le serveur d'un vide qu'il n'a
+  pas laissé.
+- **Liste servie vide** — `incompleteReasons.length === 0` sur un mois
+  complet : ce n'est pas une absence, c'est un FAIT. Elle devient « aucune ».
+  Confondre les deux est la même faute que T4 corrige, dans l'autre sens.
+
+### Une cellule d'action sans action ne dit rien
+
+`LedgerPanel.tsx` rendait `<span className="vx-cell-absent">—</span>` dans la
+colonne d'action des lignes non compensables. Il ne manque aucune valeur : il
+n'y a simplement rien à faire sur cette ligne. La cellule est vide.
+
+### Les tables denses gardent leur glyphe, et gagnent son sens
+
+Journal (treize colonnes) et série quotidienne de performance (sept colonnes
+numériques) : écrire « non publié » dans chaque cellule les rendrait
+illisibles, et une table qu'on ne peut plus lire ne dit rien du tout. Elles
+passent par `AbsentCell`, qui garde le tiret mais lui donne un `role="img"`,
+un nom accessible qui NOMME le champ manquant, et un souligné pointillé.
+
+Le risque mesuré était le plancher de reflow à 200 % de zoom
+(`accessibility.spec.ts`) : il est vert, et `smoke.spec.ts` confirme l'absence
+de défilement horizontal à 1024×768.
+
+### Mesuré sur cette machine
+
+- `npx tsc --noEmit` : code 0.
+- `npx biome check src` : 1 info préexistante, 0 erreur.
+- `npx vitest run` : 91 fichiers, **950 tests**, tous verts.
+- `npm run build` : succès.
+- Playwright `portfolio`, `portfolio-performance`, `accessibility`, `smoke` :
+  **237 passés**, code 0.

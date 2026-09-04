@@ -159,14 +159,6 @@ const DETTE_T4: ReadonlyArray<{ readonly path: string; readonly lot: string }> =
   { path: 'src/pages/options/OptionInspector.tsx', lot: 'T4-6' },
   { path: 'src/pages/options/OptionsModules.tsx', lot: 'T4-6' },
   { path: 'src/pages/options/OptionsPage.tsx', lot: 'T4-6' },
-  { path: 'src/pages/portfolio/CsvImportPanel.tsx', lot: 'T4-2' },
-  { path: 'src/pages/portfolio/LedgerPanel.tsx', lot: 'T4-2' },
-  { path: 'src/pages/portfolio/PortfolioModules.tsx', lot: 'T4-2' },
-  { path: 'src/pages/portfolio/PortfolioTable.tsx', lot: 'T4-2' },
-  { path: 'src/pages/portfolio/TransactionForm.tsx', lot: 'T4-2' },
-  { path: 'src/pages/portfolio/performance/MonthlyHeatmap.tsx', lot: 'T4-2' },
-  { path: 'src/pages/portfolio/performance/PerformanceSection.tsx', lot: 'T4-2' },
-  { path: 'src/pages/portfolio/portfolioView.ts', lot: 'T4-2' },
   { path: 'src/pages/simulator/SimResult.tsx', lot: 'T4-7' },
   { path: 'src/pages/simulator/SimulatorModules.tsx', lot: 'T4-7' },
   { path: 'src/pages/simulator/SimulatorPage.tsx', lot: 'T4-7' },
@@ -174,7 +166,7 @@ const DETTE_T4: ReadonlyArray<{ readonly path: string; readonly lot: string }> =
 ];
 
 /** Plafond de la dette. Il est ABAISSÉ à chaque lot, jamais relevé. */
-const DETTE_MAX = 36;
+const DETTE_MAX = 28;
 
 interface Finding {
   readonly path: string;
