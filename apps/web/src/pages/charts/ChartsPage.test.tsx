@@ -116,7 +116,11 @@ describe('Graphiques — la planche §8 est complète, servie ou déclarée', ()
     await renderCharts();
     await screen.findByRole('heading', { level: 2, name: /Graphiques — SYN-TECH-01/ });
     const zone = within(document.querySelector('[data-module="comparison"]') as HTMLElement);
-    expect(zone.getByRole('heading', { level: 3, name: /Comparaison base 100/ })).toBeDefined();
+    // LOT P5 : le titre du module est celui de sa carte (`Widget` → `Card`,
+    // niveau 2). Il n'est plus répété dans le corps : deux fois le même titre
+    // l'un sous l'autre, c'était une redondance, pas une hiérarchie.
+    expect(zone.getByRole('heading', { level: 2, name: 'Comparaison base 100' })).toBeDefined();
+    expect(zone.getAllByRole('heading', { name: /Comparaison base 100/ })).toHaveLength(1);
     // Les valeurs sont celles du serveur, rendues telles quelles.
     const table = zone.getByTestId('charts-comparison-table');
     expect(within(table).getByText('96.07843137254902')).toBeDefined();

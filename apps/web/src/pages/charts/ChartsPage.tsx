@@ -1,3 +1,4 @@
+import { useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 
 import type { AnalysisResponse } from '../../api/client.ts';
@@ -12,9 +13,18 @@ import { IndicatorsPanel, OhlcvTable } from '../analysis/AnalysisPage.tsx';
 import { CandleChart } from '../analysis/CandleChart.tsx';
 import type { BarsView } from '../analysis/analysisView.ts';
 import { analysisStateOf, barsViewOf } from '../analysis/analysisView.ts';
-import { RebasedComparison } from './RebasedComparison.tsx';
+import { PeriodTabs } from '../../components/widgets/PeriodTabs.tsx';
+import type { PeriodOption } from '../../components/widgets/PeriodTabs.tsx';
+import { Widget } from '../../components/widgets/Widget.tsx';
+import {
+  ComparisonModule,
+  MacdModule,
+  OverlaysModule,
+  RsiModule,
+  VolumeModule,
+} from './ChartsModules.tsx';
 import { useDeclaredInstruments } from '../devUniverse.ts';
-import { absentModules, comparisonViewOf } from './chartsView.ts';
+import { absentModules, chartsModule, comparisonViewOf } from './chartsView.ts';
 
 /**
  * Page Graphiques (`TL / 08`) — question : « Quelles relations puis-je
@@ -69,6 +79,36 @@ function ChartsInstrumentPicker({ current }: { readonly current: string | null }
   );
 }
 
+/**
+ * FENÊTRES D'AFFICHAGE de la série servie — un choix de VUE, jamais un
+ * fenêtrage de calcul.
+ *
+ * Chaque fenêtre découpe les barres DÉJÀ publiées ; une fenêtre plus large que
+ * la série servie est DÉSACTIVÉE avec son motif visible, jamais masquée et
+ * jamais complétée. Le compte de référence est `bars.count` SERVI, pas la
+ * longueur du tableau que la page a reçu.
+ */
+const WINDOWS: readonly { readonly key: string; readonly label: string; readonly sessions: number | null }[] = [
+  { key: 'w20', label: '20 séances', sessions: 20 },
+  { key: 'w60', label: '60 séances', sessions: 60 },
+  { key: 'w120', label: '120 séances', sessions: 120 },
+  { key: 'all', label: 'Tout le servi', sessions: null },
+];
+
+function windowOptions(count: number): readonly PeriodOption[] {
+  return WINDOWS.map((fenetre): PeriodOption => {
+    if (fenetre.sessions === null || fenetre.sessions <= count) {
+      return { key: fenetre.key, label: fenetre.label, available: true };
+    }
+    return {
+      key: fenetre.key,
+      label: fenetre.label,
+      available: false,
+      reason: `${count} barres servies seulement`,
+    };
+  });
+}
+
 /** Une valeur absente est DITE absente — jamais un tiret ambigu. */
 function publie(valeur: string | number | null | undefined): string {
   if (valeur === null || valeur === undefined || valeur === '') {
@@ -82,11 +122,15 @@ function ChartsFrame({
   bars,
   state,
   instrument,
+  window: fenetre,
+  onWindow,
 }: {
   readonly data: AnalysisResponse;
   readonly bars: BarsView | null;
   readonly state: DataState;
   readonly instrument: string;
+  readonly window: string;
+  readonly onWindow: (key: string) => void;
 }) {
   const currency = bars?.currency ?? 'devise non publiée';
   const asOf = data.as_of ?? null;
@@ -99,9 +143,17 @@ function ChartsFrame({
           ? 'Population DELAYED publiée par le worker : la série est conservée, mais ne décrit pas le marché à cet instant.'
           : undefined;
 
+  // DÉCOUPE DE VUE. `slice` ne produit aucune valeur : elle choisit combien de
+  // barres SERVIES sont dessinées. La description dit toujours le compte
+  // publié ET le compte affiché — sans quoi la figure prétendrait montrer
+  // toute la série.
+  const sessions = WINDOWS.find((option) => option.key === fenetre)?.sessions ?? null;
+  const toutes = bars === null ? [] : bars.bars;
+  const affichees = sessions === null ? toutes : toutes.slice(-sessions);
+
   const description =
     bars !== null && bars.status === 'OK'
-      ? `${publie(bars.count ?? bars.bars.length)} barres journalières publiées de ${publie(bars.firstTradingDay)} à ${publie(bars.lastTradingDay)}, dernière clôture ${publie(bars.lastClose)} ${currency}.`
+      ? `${publie(bars.count ?? bars.bars.length)} barres journalières publiées de ${publie(bars.firstTradingDay)} à ${publie(bars.lastTradingDay)}, dont ${affichees.length} affichées ; dernière clôture ${publie(bars.lastClose)} ${currency}.`
       : 'Aucune série de barres exploitable publiée.';
 
   return (
@@ -123,10 +175,6 @@ function ChartsFrame({
           <dt>Unité</dt>
           <dd>prix OHLC en {currency} ; volume en titres (entiers serveur)</dd>
         </div>
-        <div data-module="volume">
-          <dt>Volume</dt>
-          <dd>histogramme sous les chandeliers, publié barre à barre par le worker</dd>
-        </div>
         <div>
           <dt>Timezone</dt>
           <dd>UTC (stockage) — jours de bourse affichés tels que publiés</dd>
@@ -147,14 +195,21 @@ function ChartsFrame({
 
       <SyntheticBanner population={data.population} />
 
+      <PeriodTabs
+        options={windowOptions(bars?.count ?? toutes.length)}
+        value={fenetre}
+        onChange={onWindow}
+        legend="Fenêtre d’affichage de la série servie — aucun calcul n’est refait"
+      />
+
       <DataStateBoundary
         state={state}
         {...(detail !== undefined ? { detail } : {})}
         {...(asOf !== null ? { asOfLabel: `as_of ${asOf}` } : {})}
       >
-        {bars !== null && bars.bars.length > 0 ? (
+        {bars !== null && affichees.length > 0 ? (
           <>
-            <CandleChart bars={bars.bars} description={description} />
+            <CandleChart bars={affichees} description={description} />
             <OhlcvTable bars={bars} currency={currency} />
           </>
         ) : (
@@ -247,12 +302,12 @@ function SeriesInspector({
   );
 }
 
-/** Les neuf modules de la planche sans source : présents, à leur place, motivés. */
-function AbsentModulesGrid() {
+/** Les modules de la planche sans source : présents, à leur place, motivés. */
+function AbsentChartsModules() {
   return (
-    <section className="vx-charts-modules" aria-label="Modules de la planche sans source publiée">
+    <>
       {absentModules().map((module) => (
-        <div key={module.id} data-module={module.id}>
+        <div key={module.id} data-module={module.id} data-size={module.size}>
           <AbsentModule
             title={module.title}
             question={module.question}
@@ -261,7 +316,16 @@ function AbsentModulesGrid() {
           />
         </div>
       ))}
-    </section>
+    </>
+  );
+}
+
+/** La planche §8 hors instrument : les absences seules, à leur géométrie. */
+function AbsentOnlyBoard() {
+  return (
+    <div className="vx-charts-grid vx-board" data-testid="charts-grid">
+      <AbsentChartsModules />
+    </div>
   );
 }
 
@@ -270,6 +334,8 @@ function ChartsRoute({ instrument }: { readonly instrument: string }) {
   const queryState = pageStateOf(analysis);
   const data = analysis.data;
   const state = analysisStateOf(queryState, data);
+  const bars = useMemo(() => (data === undefined ? null : barsViewOf(data)), [data]);
+  const [fenetre, setFenetre] = useState<string>('all');
 
   return (
     <>
@@ -295,35 +361,53 @@ function ChartsRoute({ instrument }: { readonly instrument: string }) {
         />
       ) : data !== undefined ? (
         <>
-          <ChartsFrame
-            key={instrument}
-            data={data}
-            bars={barsViewOf(data)}
-            state={state}
-            instrument={instrument}
-          />
+          <div className="vx-charts-grid vx-board" data-testid="charts-grid">
+            <ChartsFrame
+              key={instrument}
+              data={data}
+              bars={bars}
+              state={state}
+              instrument={instrument}
+              window={fenetre}
+              onWindow={setFenetre}
+            />
 
-          <div data-module="comparison">
-            <RebasedComparison
+            <VolumeModule bars={bars} />
+
+            <Widget
+              id="served-indicators"
+              size={chartsModule('served-indicators').size}
+              kicker="Moteur serveur"
+              title={chartsModule('served-indicators').title}
+              titleId="vx-charts-indicators-title"
+              state="ready"
+              footer={<>mesures ponctuelles publiées par le worker, relayées verbatim</>}
+            >
+              {data.indicators === null || data.indicators === undefined ? (
+                <p className="vx-w2-absent" role="status">
+                  Aucun indicateur publié par le moteur serveur pour cette série.
+                </p>
+              ) : (
+                <IndicatorsPanel
+                  indicators={data.indicators}
+                  currency={typeof data.bars?.currency === 'string' ? data.bars.currency : ''}
+                />
+              )}
+            </Widget>
+
+            <OverlaysModule indicators={data.indicators} />
+            <RsiModule indicators={data.indicators} />
+            <MacdModule indicators={data.indicators} />
+
+            <ComparisonModule
               comparison={comparisonViewOf(data.indicators)}
               instrument={instrument}
             />
+
+            <AbsentChartsModules />
           </div>
 
-          <div data-module="served-indicators">
-            {data.indicators === null || data.indicators === undefined ? (
-              <p role="status">Aucun indicateur publié par le moteur serveur pour cette série.</p>
-            ) : (
-              <IndicatorsPanel
-                indicators={data.indicators}
-                currency={typeof data.bars?.currency === 'string' ? data.bars.currency : ''}
-              />
-            )}
-          </div>
-
-          <AbsentModulesGrid />
-
-          <SeriesInspector data={data} bars={barsViewOf(data)} instrument={instrument} />
+          <SeriesInspector data={data} bars={bars} instrument={instrument} />
         </>
       ) : null}
     </>
@@ -334,7 +418,7 @@ export function ChartsPage() {
   const { instrument } = useParams<{ instrument?: string }>();
 
   return (
-    <article className="vx-page" aria-labelledby="vx-page-title-charts">
+    <article className="vx-page" data-page-accent="macro" aria-labelledby="vx-page-title-charts">
       <div className="vx-page-header">
         <h1 id="vx-page-title-charts">Graphiques</h1>
         <p className="vx-page-question">
@@ -349,7 +433,7 @@ export function ChartsPage() {
             state="empty"
             detail="Aucun instrument sélectionné — en choisir un ci-dessus. Aucun instrument n'est ouvert par défaut."
           />
-          <AbsentModulesGrid />
+          <AbsentOnlyBoard />
         </>
       ) : (
         <ChartsRoute instrument={instrument} />

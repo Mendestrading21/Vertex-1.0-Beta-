@@ -2,10 +2,10 @@
  * Parcours /charts/:instrument — Graphiques (LOT-A2, `TL / 08`).
  *
  * La planche §8 rendue sur données SYNTHETIC : dominante Lightweight Charts
- * (canvas réel, attribution TradingView), les DOUZE modules présents — quatre
- * servis par le contrat Analyse (LOT-S2 : la comparaison base 100 l'est
- * désormais), huit déclarés absents avec leur motif —, une seule dominante,
- * axe, et capture pleine page.
+ * (canvas réel, attribution TradingView), les DOUZE modules présents — SEPT
+ * servis par le contrat Analyse (LOT-S2 : la comparaison base 100 ; LOT-S6 :
+ * les overlays, le RSI et le MACD), cinq déclarés absents avec leur motif —,
+ * une seule dominante, axe, et capture pleine page.
  */
 import { expect, expectNoSeriousAxeViolations, screenshotPath, test } from './fixtures.ts';
 
@@ -63,8 +63,11 @@ test.describe('Page Graphiques — planche complète, servie ou déclarée absen
     // Chaque absence porte un motif du vocabulaire FERMÉ — jamais un rectangle muet.
     // LOT-S2 : la comparaison base 100 est SERVIE, huit modules restent
     // declares absents.
+    // LOT-S6 puis P5 : overlays, RSI et MACD sont SERVIS depuis que le worker
+    // publie `indicators.overlays` et `indicators.oscillators`. Trois absences
+    // ont donc cessé d'exister — elles n'étaient plus vraies.
     const badges = page.locator('.vx-absent-badge');
-    await expect(badges).toHaveCount(8);
+    await expect(badges).toHaveCount(5);
     for (const texte of await badges.allTextContents()) {
       expect(ABSENCE_LABELS).toContain(texte);
     }
@@ -90,7 +93,7 @@ test.describe('Page Graphiques — planche complète, servie ou déclarée absen
     await page.goto('/charts');
     await expect(page.getByRole('heading', { level: 1, name: 'Graphiques' })).toBeVisible();
     await expect(page.getByText(/Aucun instrument sélectionné/)).toBeVisible();
-    await expect(page.locator('.vx-absent-badge')).toHaveCount(8);
+    await expect(page.locator('.vx-absent-badge')).toHaveCount(5);
   });
 
   test('axe : zéro violation sérieuse ou critique, puis capture pleine page', async ({

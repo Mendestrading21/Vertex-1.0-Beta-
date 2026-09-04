@@ -25,20 +25,22 @@ export function RebasedComparison({
   readonly comparison: ComparisonView;
   readonly instrument: string;
 }) {
-  const titre =
+  // LOT P5 — le TITRE vit désormais sur le widget qui porte ce corps ; le
+  // répéter ici donnait deux fois « Comparaison base 100 » l'un sous l'autre.
+  const sujet =
     comparison.kind === 'served'
-      ? `Comparaison base 100 — ${instrument} contre ${comparison.benchmark}`
-      : 'Comparaison base 100';
+      ? `${instrument} contre ${comparison.benchmark}`
+      : 'aucun indice de référence retenu';
 
   return (
     <section
       className="vx-comparison"
-      aria-labelledby="vx-comparison-title"
+      aria-label={`Comparaison base 100 — ${sujet}`}
       data-testid="charts-comparison"
     >
-      <h3 id="vx-comparison-title">{titre}</h3>
       <p className="vx-comparison-question">
-        Comment cette série se compare-t-elle à d’autres, ramenées à une base commune ?
+        Comment cette série se compare-t-elle à d’autres, ramenées à une base commune ?{' '}
+        <strong>{sujet}</strong>
       </p>
 
       {comparison.kind === 'none' ? (
