@@ -2988,3 +2988,54 @@ preuves.
 - `npx vitest run` : 92 fichiers / **957 tests** verts, **0 erreur non capturée**,
   cinq exécutions consécutives.
 - `npm run build` : succès.
+
+## SESSION 2026-09-04 — LOT P3b : Options ne se vide plus quand rien n'est choisi
+
+Branche `lot/p3b-options-planche-vide-20260904`, empilée sur T6.
+
+### Ce que la page faisait
+
+Sans sous-jacent sélectionné, elle rendait le sélecteur, **une seule carte**
+« Aucune donnée », et laissait les deux tiers de l'écran vides. Un lecteur ne
+pouvait pas savoir ce que cette destination sait faire : la planche n'existait
+qu'une fois un instrument ouvert. Vu sur le tour visuel des douze destinations.
+
+### Ce qu'elle fait maintenant
+
+La planche §5 entière tient sa place, quinze modules à leur aire déclarée :
+
+- les **six** modules sans source gardent le motif exact de leur absence,
+  inchangé ;
+- les **neuf** modules servis déclarent l'état `empty` et disent, en pied,
+  qu'aucun sous-jacent n'est choisi.
+
+Rien n'est inventé : aucune valeur, aucun exemple, aucun instrument par défaut.
+`empty` est un état déclaré de `ModuleState`, et `Widget` ne rend aucun enfant
+dans cet état.
+
+### Un défaut de canal, vu sur capture
+
+La première version passait la phrase en `stateDetail`. Or `ModuleStatus` rend
+`stateDetail` en `<code>` — c'est le canal des **causes serveur**, un
+`reason_code` ou un diagnostic verbatim. Une phrase française y passait en
+chasse fixe et se lisait comme un code du serveur. La prose est allée au pied ;
+le canal du serveur reste au serveur. Vérifié : **zéro** `<code>` dans les
+lignes d'état de la planche.
+
+Les absences portent aussi enfin leur `data-size` : sans lui, une absence
+prenait la taille par défaut et déplaçait ses voisines.
+
+### Le test est resserré, pas assoupli
+
+L'assertion passait de « une carte vide existe » à « la planche compte quinze
+modules, et chacun dit **sa propre** cause ». La distinction que ce lot ne doit
+surtout pas brouiller est vérifiée explicitement : un module sans source ne
+doit jamais dire « aucun sous-jacent sélectionné », sinon une source manquante
+se lirait comme une sélection oubliée.
+
+### Mesuré
+
+- `npx tsc --noEmit` code 0 ; `npx biome check src` 1 info préexistante.
+- `npx vitest run` : 92 fichiers / **957 tests** verts.
+- `npm run build` : succès.
+- Sonde : 15 modules à leur aire, débordement horizontal **0**.
