@@ -427,6 +427,91 @@ te revient.
 
 ---
 
+## 5 bis. Défauts hérités de l'audit #9, vérifiés aujourd'hui
+
+La PR #9 (audit du 2026-08-31, jamais évaluée) portait deux `P0` et onze `P1`.
+Chacun a été **rejoué sur le `main` du 2026-09-04**, pas cru sur parole.
+
+### Les deux P0 sont corrigés
+
+| ID | Constat de l'audit | État vérifié |
+|---|---|---|
+| B-P0-01 | Le service IBKR continu n'atteignait jamais `connectAsync` : deux autorités rejouaient la même transition. | **Corrigé.** `tools/run_edge_ibkr.py` construit l'adaptateur avec `manage_connection_state=False` ; le runner est seul maître des transitions, et le commentaire le dit. |
+| B-P0-02 | Des valeurs réellement issues d'IBKR étaient commitées dans un dépôt public. | **Corrigé.** La fixture de `apps/edge-ibkr/tests/test_normalize_bars.py` est un instrument inventé, `con_id` hors plage réelle, et porte la mention explicite qu'aucune observation réelle ne doit entrer dans l'historique Git. |
+
+### B-P1-11 est RÉEL et VIVANT — un rendement faux affiché comme valide
+
+**Le seul défaut de vérité financière ouvert du produit.** `xirr` vérifie
+l'unicité de la racine par changement de signe sur une grille fixe de 25 taux,
+dont les intervalles sont larges (0,4 → 0,7 → 1,0 → 2,0 → 5,0 → …). **Deux
+racines situées dans un même intervalle ne produisent aucun changement de signe
+à ses bornes : elles sont invisibles.** S'il en existe une troisième ailleurs,
+la grille voit exactement un encadrement et la fonction conclut à l'unicité.
+
+Reproducteur exécuté sur `main`, flux à trois racines réelles — 15 %, 45 %, 55 % :
+
+```
+flux : -38 690,33 / +160 564,88 / -220 438,17 / +100 000,00 sur quatre ans
+statut : CalculationStatus.OK
+taux   : 0.15000057319753943
+raison : None
+```
+
+Le produit affiche **15,00 %** comme le rendement, sans réserve, alors que 45 %
+et 55 % sont des réponses tout aussi valides. La limitation est écrite dans la
+docstring, mais **une docstring n'est pas une porte** : l'écran, lui, ne dit
+rien.
+
+Le test existant `test_multiple_roots_return_invalid` ne l'attrape pas : ses
+deux racines (7,2 % et 27,8 %) tombent dans des intervalles différents, donc la
+grille les sépare. Aucun test ne couvre le cas rapproché.
+
+**Traitement : LOT 2 bis, avant toute refonte visuelle.** Un chiffre faux
+présenté comme valide passe devant l'apparence.
+
+### Les dix autres P1 sont repris dans le plan
+
+| ID | Sujet | Lot |
+|---|---|---|
+| B-P1-01 | Une top-of-book brute étiquetée `ibkr.daily-quote/1` : chaque cotation live devient `invalid_payload`. | LOT 7 |
+| B-P1-02 | Les cotations brutes invalides peuvent évincer les cotations quotidiennes valides — Marchés peut se vider. | LOT 7 |
+| B-P1-03 | Une observation peut être persistée après un code IBKR 1100/1300. | LOT 7 |
+| B-P1-04 | L'intégration edge PostgreSQL n'est pas dans la CI. | LOT 13 |
+| B-P1-05 | L'outbox reste `IN_PROGRESS` après un crash. | LOT 13 |
+| B-P1-06 | Le démarrage local n'est pas un démarrage coordonné. | LOT 13 |
+| B-P1-07 | Compose web non fonctionnel. | LOT 13 |
+| B-P1-08 | Univers réel et fenêtre Marchés incompatibles. | LOT 9 |
+| B-P1-09 | Le backfill amplifie l'outbox. | LOT 7 |
+| B-P1-10 | TradingView n'est pas un runtime durable. | LOT 7 |
+
+---
+
+## 5 ter. LOT 2 bis — prouver l'unicité de la racine du XIRR
+
+Inséré entre le lot 2 et le lot 3. Il ne touche à aucun pixel.
+
+1. **Écrire le test rouge d'abord** : le flux à trois racines ci-dessus doit
+   rendre `INVALID`, pas `OK`. Ajouter aussi le cas à deux racines rapprochées
+   dans un même intervalle.
+2. **Rendre le contrôle d'unicité solide**, au choix argumenté par ADR :
+   raffinement adaptatif de la grille jusqu'à une résolution prouvée, comptage
+   des changements de signe des coefficients (règle de Descartes) pour borner le
+   nombre de racines, ou refus explicite des flux non conventionnels dont
+   l'unicité n'est pas démontrée. Jamais un élargissement silencieux de la
+   grille.
+3. **`INVALID` ne porte jamais de chiffre** — la règle existe déjà et son test
+   aussi ; le lot doit la laisser vraie.
+4. **Tests de propriétés** sur des flux non conventionnels générés, avec un
+   oracle indépendant du nombre de racines.
+5. Vérifier les consommateurs : `/performance/{portfolio_id}`, le worker de
+   performance, la page Portefeuille et l'explication IA doivent tous rendre
+   l'absence, pas un chiffre de repli.
+
+*Fini quand :* aucun flux ne peut produire un taux présenté comme unique sans
+que l'unicité soit démontrée, et le reproducteur ci-dessus est vert en `INVALID`.
+
+---
+
 ## 6. Ce que ce plan ne fera pas
 
 - Afficher un chiffre qu'aucun calcul Python n'a produit, versionné et signé.
@@ -469,7 +554,7 @@ prochaine commande recommandée.
 
 | Phase | Lots | État |
 |---|---|---|
-| I — Assainir | 0, 1, 2 | **en cours au lot 0** |
+| I — Assainir | 0, 1, 2, **2 bis** | **lot 0 terminé** — 14 PR fusionnées, #9 instruite |
 | II — Socle visuel | 3, 4, 5, 6 | lot 3 amorcé (ADR-018 rédigé) |
 | III — Intelligence | 7 → 13 | à faire |
 | IV — Les douze pages | 14 → 21 | à faire |
