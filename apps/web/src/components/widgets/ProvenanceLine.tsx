@@ -21,8 +21,18 @@ export interface ProvenanceLineProps {
   readonly population?: string | null;
 }
 
-function Absent({ what }: { readonly what: string }) {
-  return <span data-absent="true">{what} non publié</span>;
+/**
+ * LOT T4 — L'ACCORD EN GENRE ET EN NOMBRE. « sources non publié » se lisait
+ * comme une faute de frappe, et une faute de frappe fait douter du reste de la
+ * ligne. Le français l'exige ; le deviner depuis le mot serait faux.
+ */
+function Absent({ what, accord = 'm' }: { readonly what: string; readonly accord?: 'm' | 'f' | 'fp' }) {
+  const forme = accord === 'f' ? 'non publiée' : accord === 'fp' ? 'non publiées' : 'non publié';
+  return (
+    <span data-absent="true">
+      {what} {forme}
+    </span>
+  );
 }
 
 export function ProvenanceLine({
@@ -44,7 +54,7 @@ export function ProvenanceLine({
         </>
       )}
       {' · '}
-      {snapshotVersion === null ? <Absent what="version" /> : <span>v{snapshotVersion}</span>}
+      {snapshotVersion === null ? <Absent what="version" accord="f" /> : <span>v{snapshotVersion}</span>}
       {' · '}
       {schemaVersion === null ? (
         <Absent what="schéma" />
@@ -61,14 +71,14 @@ export function ProvenanceLine({
       )}
       {' · '}
       {sources.length === 0 ? (
-        <Absent what="sources" />
+        <Absent what="sources" accord="fp" />
       ) : (
         <span>sources : {sources.join(', ')}</span>
       )}
       {method === undefined || method === null || method === '' ? (
         <>
           {' · '}
-          <Absent what="méthode" />
+          <Absent what="méthode" accord="f" />
         </>
       ) : (
         <>
@@ -79,7 +89,7 @@ export function ProvenanceLine({
       {population === undefined || population === null || population === '' ? (
         <>
           {' · '}
-          <Absent what="nature" />
+          <Absent what="nature" accord="f" />
         </>
       ) : (
         <>

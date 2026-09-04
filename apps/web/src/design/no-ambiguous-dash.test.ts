@@ -156,9 +156,6 @@ const DETTE_T4: ReadonlyArray<{ readonly path: string; readonly lot: string }> =
   { path: 'src/pages/catalysts/review/ThesisSheet.tsx', lot: 'T4-3' },
   { path: 'src/pages/catalysts/review/followUpView.ts', lot: 'T4-3' },
   { path: 'src/pages/markets/MarketsPage.tsx', lot: 'T4-6' },
-  { path: 'src/pages/opportunities/OpportunitiesModules.tsx', lot: 'T4-1' },
-  { path: 'src/pages/opportunities/OpportunitiesPage.tsx', lot: 'T4-1' },
-  { path: 'src/pages/opportunities/OpportunityTable.tsx', lot: 'T4-1' },
   { path: 'src/pages/options/OptionInspector.tsx', lot: 'T4-6' },
   { path: 'src/pages/options/OptionsModules.tsx', lot: 'T4-6' },
   { path: 'src/pages/options/OptionsPage.tsx', lot: 'T4-6' },
@@ -177,7 +174,7 @@ const DETTE_T4: ReadonlyArray<{ readonly path: string; readonly lot: string }> =
 ];
 
 /** Plafond de la dette. Il est ABAISSÉ à chaque lot, jamais relevé. */
-const DETTE_MAX = 39;
+const DETTE_MAX = 36;
 
 interface Finding {
   readonly path: string;

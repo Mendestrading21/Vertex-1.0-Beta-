@@ -2315,3 +2315,65 @@ peut entrer.
   **237 passés**, code 0.
 - Sonde navigateur sur la chaîne : 14 cellules d'absence, `role="img"`,
   `data-reason="price_outside_no_arbitrage_bounds"`, souligné effectif.
+
+## SESSION 2026-09-04 — LOT T4-1 : Opportunités, et la ligne à six tirets
+
+Branche `lot/t4-1-opportunites-20260904`, empilée sur T4-0. Dette T4 : **39 → 36**.
+
+### Six tirets dans une seule ligne
+
+`OpportunitiesPage.tsx` rendait la provenance ainsi : `snapshot_version ?? '—'`,
+`as_of` → `'—'`, `engineVersion ?? '—'`, `schemaVersion ?? '—'`,
+`universeSize ?? '—'`, `observationsConsidered ?? '—'`. Six faits différents,
+six glyphes identiques, et aucun ne disait lequel manquait.
+
+**Première pose de `ProvenanceLine`** — la primitive existait depuis le LOT-C0
+sans aucun consommateur. Chaque champ absent y est dit à sa place. Les deux
+DÉNOMBREMENTS sortent de la ligne : ce ne sont pas des faits de provenance, ils
+prennent la forme `Metric`, qui rend nativement « non publié ».
+
+Le conteneur passe de `<p>` à `<div>` : `ProvenanceLine` rend un `<p>`, et un
+`<p>` dans un `<p>` est du HTML invalide. Le `data-testid` reste sur le
+conteneur, qui porte l'assertion de fraîcheur.
+
+`sources={[]}` est un FAIT, pas un oubli : le contrat Opportunités ne publie
+aucune liste de sources, et la primitive le DIT.
+
+### Le pire cas du lot : cinq compteurs
+
+`<dd className="vx-num">{reference.eventsUpcoming ?? '—'}</dd>` — un tiret muet
+dans une cellule numérique, **à côté de vrais comptes**. Un lecteur ne pouvait
+pas distinguer « zéro événement à venir » — une DONNÉE — de « compteur non
+publié ». Les cinq passent par `CountCell`, qui change aussi de classe : un
+texte d'absence n'est ni chassé ni aligné comme un chiffre.
+
+**La branche nulle n'avait jamais été exercée.** Test ajouté, et vérifié ROUGE
+sur l'ancien code (`git show HEAD:… > fichier`, test rejoué, échec constaté,
+fichier restauré) : il exige le mot, refuse le tiret, et vérifie qu'un ZÉRO
+SERVI voisin survit — l'aveu ne l'absorbe pas.
+
+### Le piège du lot : « sans objet » n'est pas « non publié »
+
+`OpportunityTable.tsx:262` rendait `<td className="vx-num">—</td>` pour le rang
+d'un candidat CONTRADICTOIRE. Ce candidat n'a pas de rang parce qu'il n'entre
+pas dans le classement : **le serveur n'a rien omis**. Y écrire « non publié »
+lui adresserait un reproche injustifié — un mensonge neuf à la place d'une
+ambiguïté. Il prend `nature="not_applicable"`. Le rang d'un qualifié, lui,
+peut réellement être non publié, et prend `not_published`.
+
+### Un accord corrigé au passage
+
+`ProvenanceLine` écrivait « sources non publié ». Une faute d'accord fait
+douter du reste de la ligne. Le helper `Absent` prend désormais le genre et le
+nombre — le français l'exige, et le deviner depuis le mot serait faux.
+
+### Mesuré sur cette machine
+
+- `npx tsc --noEmit` : code 0.
+- `npx biome check src` : 1 info préexistante, 0 erreur.
+- `npx vitest run` : 91 fichiers, **949 tests**, tous verts.
+- `npm run build` : succès.
+- Playwright `opportunities`, `accessibility` aux trois viewports :
+  **204 passés**, code 0.
+- Sonde navigateur : la ligne rend « … · sources non publiées · méthode
+  lexicographic · nature SYNTHETIC », aucun tiret.
