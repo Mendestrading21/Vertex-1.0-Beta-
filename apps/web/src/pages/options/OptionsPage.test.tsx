@@ -112,6 +112,18 @@ describe('Page Options — état nominal', () => {
     expect(absent.length).toBeGreaterThan(0);
     expect(absent[0]?.textContent).toBe('—');
     expect(absent[0]?.getAttribute('title')).toContain('quote croisée');
+    // LOT T4 — assertions AJOUTÉES, aucune retirée. La cellule dense reste le
+    // seul endroit du produit qui a le droit d'écrire « — », et elle le paie
+    // en preuve : un nom accessible RÉEL (`role="img"` — sur un <span> nu,
+    // ARIA ignore `aria-label`), le motif SERVI exposé en donnée, et le code
+    // serveur verbatim dans le libellé.
+    expect(absent[0]?.getAttribute('role')).toBe('img');
+    expect(absent[0]?.getAttribute('data-absent')).toBe('true');
+    expect(absent[0]?.getAttribute('data-reason')).toBe('crossed_quote');
+    expect(absent[0]?.getAttribute('aria-label')).toContain('crossed_quote');
+    // « non calculée » et non « absente » : le moteur a refusé, il n'a pas
+    // manqué de données. Les deux appellent des actions différentes.
+    expect(absent[0]?.getAttribute('aria-label')).toContain('non calculée');
     // Aucun zéro fabriqué à la place d'une IV absente.
     const row = absent[0]!.closest('tr');
     expect(row?.textContent).not.toContain('0.00000');

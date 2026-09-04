@@ -8,6 +8,13 @@
 export interface ProvenanceLineProps {
   readonly asOf: string | null;
   readonly snapshotVersion: number | string | null;
+  /**
+   * Version de SCHÉMA servie (LOT T4). Obligatoire et nullable comme les
+   * autres : Opportunités la publiait et la rendait en tiret muet. En faire
+   * une prop optionnelle aurait permis à un futur consommateur de la laisser
+   * tomber en silence — ce que la primitive existe précisément pour empêcher.
+   */
+  readonly schemaVersion: number | string | null;
   readonly engineVersion: string | null;
   readonly sources: readonly string[];
   readonly method?: string | null;
@@ -21,6 +28,7 @@ function Absent({ what }: { readonly what: string }) {
 export function ProvenanceLine({
   asOf,
   snapshotVersion,
+  schemaVersion,
   engineVersion,
   sources,
   method,
@@ -37,6 +45,14 @@ export function ProvenanceLine({
       )}
       {' · '}
       {snapshotVersion === null ? <Absent what="version" /> : <span>v{snapshotVersion}</span>}
+      {' · '}
+      {schemaVersion === null ? (
+        <Absent what="schéma" />
+      ) : (
+        <span>
+          schéma <code>{schemaVersion}</code>
+        </span>
+      )}
       {' · '}
       {engineVersion === null || engineVersion === '' ? (
         <Absent what="moteur" />

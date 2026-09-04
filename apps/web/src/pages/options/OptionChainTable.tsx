@@ -1,5 +1,6 @@
 import type { OptionChainContract, OptionChainExpiration } from '../../api/client.ts';
-import { buildStrikeRows, deltaOf, ivAbsentLabel, ivViewOf, quoteViewOf } from './optionsView.ts';
+import { AbsentCell } from '../../components/absence.tsx';
+import { IV_ABSENT_REASONS_FR, buildStrikeRows, deltaOf, ivViewOf, quoteViewOf } from './optionsView.ts';
 
 /**
  * Table de chaîne Calls | Strike | Puts — dominante de la page Options.
@@ -25,14 +26,6 @@ export interface OptionChainTableProps {
   readonly onInspect: (contract: OptionChainContract) => void;
 }
 
-function AbsentCell({ label }: { readonly label: string }) {
-  return (
-    <span className="vx-cell-absent" role="img" aria-label={label} title={label}>
-      —
-    </span>
-  );
-}
-
 function QuoteCell({
   value,
   status,
@@ -45,7 +38,8 @@ function QuoteCell({
   readonly side: string;
 }) {
   if (value === null) {
-    return <AbsentCell label={`${side} absent (statut de quote ${status ?? 'inconnu'})`} />;
+    // Le statut de quote SERVI est le motif : « bid non publié (CROSSED) ».
+    return <AbsentCell quoi={side} nature="not_published" reason={status} />;
   }
   const provenance = `${side} verbatim — statut de quote ${status ?? 'inconnu'}, observé ${
     observedAt ?? 'à un instant non publié'
@@ -65,7 +59,18 @@ function QuoteCell({
 function IvCell({ contract }: { readonly contract: OptionChainContract }) {
   const iv = ivViewOf(contract);
   if (iv.status !== 'OK' || iv.value === null) {
-    return <AbsentCell label={ivAbsentLabel(iv.reason)} />;
+    // L'IV n'est pas « absente » : le moteur a REFUSÉ de la calculer, avec sa
+    // raison typée. `not_computed` dit lequel des deux, et le code serveur
+    // reste verbatim dans le nom accessible — deux assertions le cherchent.
+    return (
+      <AbsentCell
+        quoi="IV"
+        nature="not_computed"
+        reason={iv.reason}
+        {...(iv.reason === null ? {} : { explained: IV_ABSENT_REASONS_FR[iv.reason] })}
+        accord="f"
+      />
+    );
   }
   // La chaîne EXACTE est dans le `title` avec sa provenance : rien n'est perdu.
   // Le rendu, lui, est borné par la colonne (voir `.vx-chain-table .vx-num` dans
@@ -73,7 +78,7 @@ function IvCell({ contract }: { readonly contract: OptionChainContract }) {
   // et une colonne désalignée est une chaîne d'options qu'on ne peut pas
   // comparer d'un strike à l'autre. La valeur n'est PAS arrondie : arrondir
   // fabriquerait un nombre que le worker n'a pas publié.
-  const provenance = `${iv.value} — IV Vertex THÉORIQUE (côté ${iv.quoteSide ?? '?'}) — ${
+  const provenance = `${iv.value} — IV Vertex THÉORIQUE (côté ${iv.quoteSide ?? 'non publié'}) — ${
     iv.calculation?.calculationId ?? 'lignée non publiée'
   }`;
   return (
@@ -86,7 +91,16 @@ function IvCell({ contract }: { readonly contract: OptionChainContract }) {
 function DeltaCell({ contract }: { readonly contract: OptionChainContract }) {
   const delta = deltaOf(contract);
   if (delta === null) {
-    return <AbsentCell label="delta absent : IV non résolue, aucun Greek calculé" />;
+    // Le delta n'est pas calculé PARCE QUE l'IV ne l'est pas : la cause est
+    // servie, elle est donc dite.
+    return (
+      <AbsentCell
+        quoi="delta"
+        nature="not_computed"
+        reason={ivViewOf(contract).reason}
+        explained="IV non résolue, aucun Greek calculé"
+      />
+    );
   }
   // Même règle que l'IV : la chaîne exacte au survol, le rendu borné par la
   // colonne. Le delta n'est jamais arrondi ici.
@@ -109,21 +123,13 @@ function SideCells({
   readonly onInspect: (contract: OptionChainContract) => void;
 }) {
   if (contract === null) {
-    const label = `aucun contrat ${side} publié à ce strike`;
+    const absent = <AbsentCell quoi={`contrat ${side} à ce strike`} nature="not_published" reason={null} />;
     return (
       <>
-        <td className="vx-num">
-          <AbsentCell label={label} />
-        </td>
-        <td className="vx-num">
-          <AbsentCell label={label} />
-        </td>
-        <td className="vx-num">
-          <AbsentCell label={label} />
-        </td>
-        <td className="vx-num">
-          <AbsentCell label={label} />
-        </td>
+        <td className="vx-num">{absent}</td>
+        <td className="vx-num">{absent}</td>
+        <td className="vx-num">{absent}</td>
+        <td className="vx-num">{absent}</td>
         <td />
       </>
     );
@@ -151,7 +157,7 @@ function SideCells({
           onClick={() => {
             onInspect(contract);
           }}
-          aria-label={`Inspecter ${side} strike ${contract.strike ?? '?'} ${contract.expiration} ${contract.trading_class}`}
+          aria-label={`Inspecter ${side} strike ${contract.strike ?? 'non publié'} ${contract.expiration} ${contract.trading_class}`}
         >
           Détail
         </button>

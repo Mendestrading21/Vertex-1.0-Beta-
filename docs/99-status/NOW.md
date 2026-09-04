@@ -2214,3 +2214,104 @@ chiffre du seuil n'est ni répété ni perdu. Test rouge d'abord.
 - `npx vitest run` : 89 fichiers, **929 tests**, tous verts.
 - `npm run build` : succès.
 - Playwright, **suite complète** : **546 passés** (8,5 min), code 0.
+
+## SESSION 2026-09-04 — LOT T4-0 : le socle de l'absence, et sa porte
+
+Branche `lot/t4a-tiret-ambigu-20260904`, empilée sur T3.
+
+### Le défaut, mesuré
+
+`.claude/rules/frontend.md:21` l'écrit noir sur blanc — « ne jamais remplacer
+une donnée absente par `0`, `—` ambigu, une fixture ou une ancienne valeur non
+datée ». L'interface le violait **163 fois, sur 33 fichiers**.
+
+Le pire cas :
+`<dd className="vx-num">{reference.eventsUpcoming ?? '—'}</dd>`, dans une liste
+où les voisins affichent de VRAIS comptes. Un lecteur ne peut pas distinguer
+« zéro événement servi » de « compteur non publié ». Ce n'est pas de la
+cosmétique : c'est exactement le fait financier que l'invariant protège.
+
+Fait qui donne la stratégie : les quatre planches déjà converties aux
+primitives v2 (Aujourd'hui, Marchés, Risques, Graphiques) en portent **zéro**.
+Le tiret survit exactement là où la page écrit encore son JSX à la main.
+
+### La règle, et pourquoi ce n'est PAS « aria-label + title »
+
+Première hypothèse : tolérer le tiret s'il porte `aria-label` ET `title`.
+Écartée, pour quatre raisons dont une bloquante :
+
+1. **Trivialement satisfaisable** — `aria-label="valeur" title="valeur"` la
+   passe. Une porte qui certifie un mensonge finit désactivée.
+2. Elle ne vérifie pas que le libellé vient du **serveur**.
+3. **Elle bénissait une régression d'accessibilité** : c'est `role="img"` qui
+   donne le nom accessible ; sur un `<span>` au rôle implicite `generic`, ARIA
+   ignore `aria-label`. Le dépôt le savait déjà — le commentaire d'
+   `OptionInspector.tsx` le disait — la porte l'aurait défait.
+4. Inapplicable à 95 % des sites : `<code>{x ?? '—'}</code>` naît d'un `??`,
+   pas d'un élément portant des attributs.
+
+**La tolérance n'est donc pas une liste d'attributs : c'est un composant
+NOMMÉ.** `src/components/absence.tsx` est le seul fichier du dépôt autorisé à
+écrire le glyphe, et `AbsentCell` ne peut être posé sans `quoi`, `nature` ET
+`reason`. Il n'y a pas de manière astucieuse de passer : il faut regarder ce
+qui manque.
+
+### La porte
+
+`src/design/no-ambiguous-dash.test.ts`, trois règles AST :
+
+- **A — égalité EXACTE, sans `trim`.** L'absence de `trim` est le cœur de la
+  règle : le dépôt écrit `{' — '}` comme séparateur de prose, avec ses espaces.
+  Un substitut n'en a pas. **Les espaces portent l'intention.**
+- **B — position de repli, avec `trim`** : anti-contournement de A.
+- **C — texte JSX enfant unique** : `<td>—</td>` est un substitut,
+  `— <code>{x}</code>` est de la ponctuation.
+
+Jeu de glyphes : cinq variantes de tiret, `?`, `N/A`, `s.o.` — `?` était le
+MÊME défaut avec un autre caractère, et le dépôt en portait dix.
+
+**Quatre exclusions, chacune découverte par un faux positif de la première
+version** — donc mesurées, pas supposées : littéral comparé
+(`pct.startsWith('-')` LIT le signe servi), argument d'appel, élément de
+tableau, `import`/`case`. Les points de suspension ont été RETIRÉS du jeu :
+leur seul site les ajoute après un libellé tronqué, ils marquent une
+troncature, pas une absence.
+
+**La dette est écrite, comptée et décroissante.** `DETTE_T4` liste les 39
+fichiers restants avec leur lot ; `ALLOWLIST` ne contient qu'une entrée
+permanente. La séparation est le point de conception : une dette déguisée en
+exemption ne se rembourse jamais. Cliquet dès ce lot — aucun NOUVEAU tiret ne
+peut entrer.
+
+### Ce que la porte a trouvé que je n'avais pas vu
+
+- **Cinq copies** du même composant d'absence, pas deux
+  (`OptionChainTable`, `OptionInspector`, `AttentionQueue`, `SnapshotRail`,
+  `SourceHealthMatrix`).
+- Deux `?? '?'` de plus dans `OptionChainTable` (un `aria-label`, un `title`).
+- `calendarView.ts` renvoyant `'?'` comme marqueur de statut inconnu.
+
+### Livré
+
+- `absence.tsx` : `ABSENCE_NATURES` (cinq natures — `not_published`,
+  `not_computed`, `not_applicable`, `not_entered`, `not_recognised`),
+  `absenceLabel` avec accord en genre, `AbsentCell`. Le code SERVEUR reste
+  verbatim dans le libellé : c'est lui la preuve, la traduction est un confort.
+- `ProvenanceLine` gagne `schemaVersion`, **obligatoire et nullable** comme ses
+  voisines — Opportunités la publiait et la rendait en tiret muet.
+- Marquage CSS non-couleur : `.vx-cell-absent[data-absent='true']` prend un
+  souligné pointillé. WCAG 1.4.1 — un gris sourd sur fond sombre EST une
+  couleur seule.
+- `OptionChainTable` migré sur le socle : le cas dense canonique, qui prouve
+  le socle de bout en bout et sort de la dette.
+
+### Mesuré sur cette machine
+
+- `npx tsc --noEmit` : code 0.
+- `npx biome check src` : 1 info préexistante, 0 erreur.
+- `npx vitest run` : 91 fichiers, **948 tests**, tous verts.
+- `npm run build` : succès.
+- Playwright `options`, `accessibility`, `shell-canonical` aux trois viewports :
+  **237 passés**, code 0.
+- Sonde navigateur sur la chaîne : 14 cellules d'absence, `role="img"`,
+  `data-reason="price_outside_no_arbitrage_bounds"`, souligné effectif.

@@ -1197,6 +1197,19 @@ body {
   color: var(--vx-text-muted);
 }
 
+/* LOT T4 — LE TIRET D'ABSENCE NE SE DISTINGUE PAS PAR LA SEULE COULEUR.
+   `AbsentCell` (src/components/absence.tsx) est le seul rendu du dépôt
+   autorisé à écrire « — », et il pose `data-absent`. Un souligné pointillé
+   le marque comme MARQUEUR et non comme contenu : WCAG 1.4.1 interdit que la
+   couleur porte seule l'information, et un gris sourd sur fond sombre est
+   précisément une couleur seule. Le nom accessible (`role="img"`) dit le
+   reste. */
+.vx-cell-absent[data-absent='true'] {
+  text-decoration: underline dotted;
+  text-underline-offset: 0.25em;
+  text-decoration-color: var(--vx-border);
+}
+
 .vx-matrix-empty {
   margin: var(--vx-space-12) 0 0;
   color: var(--vx-text-muted);
