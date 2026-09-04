@@ -102,8 +102,12 @@ test.describe('Page Opportunités — snapshot réel', () => {
     await page.goto('/opportunities');
     await expect(page.getByTestId('opp-exclusion-reasons')).toBeVisible({ timeout: 20_000 });
     for (const [reason, count] of Object.entries(reasons)) {
+      // LOT P2c — les raisons se lisent en BARRES, comme les statuts sur
+      // l'univers dix lignes plus bas. Même exigence, même sélecteur : le
+      // compte SERVI, exact, dans la ligne portant la clé exacte.
       const row = page.getByTestId(`opp-reason-${reason}`);
-      await expect(row.locator('td')).toHaveText(String(count));
+      await expect(row.locator('.vx-census-count')).toHaveText(String(count));
+      await expect(row).toContainText(reason);
     }
     for (const [status, count] of Object.entries(statusCounts)) {
       // LOT-A4 : barres de dénombrement dans le module « Statuts sur l'univers ».
