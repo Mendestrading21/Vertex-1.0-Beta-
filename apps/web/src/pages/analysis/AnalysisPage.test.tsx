@@ -204,9 +204,15 @@ describe('Page Analyse — état nominal', () => {
     const analysis = makeAnalysis();
     repondre(jsonResponse(analysis));
     await renderAnalysis();
+    // La table est passée sur la primitive `DataTable` : son nom accessible
+    // vient désormais de son `<caption>` VISIBLE, et non plus d'un `aria-label`
+    // invisible à l'écran. L'assertion reste la même — la table doit avoir un
+    // nom — mais elle porte maintenant sur un nom que l'utilisateur voit aussi.
     const table = await screen.findByRole('table', {
-      name: 'Table OHLCV équivalente des chandeliers',
+      name: /Table OHLCV — équivalent exact des chandeliers/,
     });
+    // Et la légende est bien RENDUE, pas seulement annoncée.
+    expect(table.querySelector('caption')?.textContent).toContain('équivalent exact des chandeliers');
     const bars = barsViewOf(analysis);
     expect(bars).not.toBeNull();
     expect(within(table).getAllByRole('row')).toHaveLength(1 + bars!.bars.length);

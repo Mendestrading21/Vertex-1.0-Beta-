@@ -1944,3 +1944,225 @@
   padding-left: var(--vx-space-12);
   border-left: 2px solid var(--vx-page-accent);
 }
+
+/* ==========================================================================
+   DATATABLE — la famille UNIQUE des tableaux Vertex.
+   Elle remplace les 21 familles de classes mesurées dans
+   docs/05-design/refonte/00-systeme-visuel.md §3, et les 7 enveloppes de
+   défilement qui les accompagnaient.
+
+   Elle vit dans widgets.css et NON dans global.css : widgets.css est importé
+   APRÈS, et à spécificité égale c'est l'ordre source qui tranche. Une règle de
+   table posée dans global.css serait silencieusement écrasée par les familles
+   héritées tant qu'elles existent encore.
+   ========================================================================== */
+
+.vx-dt-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--vx-space-8);
+  min-width: 0;
+}
+
+.vx-dt {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--vx-font-size-body);
+  /* Les colonnes gardent leur largeur déclarée : une table financière se lit
+     en colonnes, pas en paragraphes. */
+  table-layout: auto;
+}
+
+.vx-dt-caption {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--vx-space-8) 0 var(--vx-space-12);
+  text-align: left;
+}
+
+.vx-dt-caption-main {
+  color: var(--vx-text);
+  font-size: var(--vx-font-size-title);
+  font-weight: 500;
+}
+
+.vx-dt-caption-detail {
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-dt th,
+.vx-dt td {
+  padding: var(--vx-space-8) var(--vx-space-16);
+  border-top: 1px solid var(--vx-border-soft);
+  vertical-align: top;
+}
+
+.vx-dt[data-density='standard'] th,
+.vx-dt[data-density='standard'] td {
+  padding: var(--vx-space-8) var(--vx-space-12);
+}
+
+/* `dense` sert la chaîne d'options et les registres longs : c'est la densité
+   d'un desk, pas un réglage d'utilisateur. */
+.vx-dt[data-density='dense'] th,
+.vx-dt[data-density='dense'] td {
+  padding: var(--vx-space-4) var(--vx-space-8);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-dt thead th {
+  position: relative;
+  border-top: none;
+  border-bottom: 1px solid var(--vx-border);
+  color: var(--vx-text-secondary);
+  font-size: var(--vx-font-size-meta);
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.vx-dt-head-label {
+  display: block;
+}
+
+/* L'unité est DANS l'en-tête, sous le nom : jamais un tooltip, qui la rendrait
+   inatteignable au clavier et absente des captures. */
+.vx-dt-head-unit {
+  display: block;
+  color: var(--vx-text-muted);
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-meta);
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+.vx-dt tbody th {
+  color: var(--vx-text);
+  font-weight: 500;
+  text-align: left;
+}
+
+/* Alignement dérivé du TYPE. `num` porte la mono tabulaire et va à droite :
+   c'est ce qui rend une colonne de prix comparable d'une ligne à l'autre. */
+.vx-dt [data-align='text'] {
+  text-align: left;
+}
+
+.vx-dt [data-align='num'] {
+  font-family: var(--vx-font-mono);
+  font-variant-numeric: tabular-nums lining-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.vx-dt [data-align='status'] {
+  text-align: left;
+  white-space: nowrap;
+}
+
+.vx-dt [data-width='min'] {
+  width: 1%;
+}
+
+.vx-dt [data-width='ch8'] {
+  width: 8ch;
+}
+
+.vx-dt [data-width='ch12'] {
+  width: 12ch;
+}
+
+.vx-dt [data-width='ch16'] {
+  width: 16ch;
+}
+
+/* Signe SERVI. La couleur DOUBLE le signe déjà présent dans le texte servi ;
+   elle ne le remplace jamais (règle : jamais la couleur seule). */
+.vx-dt [data-sign='up'] {
+  color: var(--vx-positive);
+}
+
+.vx-dt [data-sign='down'] {
+  color: var(--vx-negative);
+}
+
+.vx-dt [data-sign='flat'] {
+  color: var(--vx-text-secondary);
+}
+
+.vx-dt tbody tr[data-selected='true'] > * {
+  background-color: var(--vx-signal-faint);
+}
+
+/* Survol PERCEPTIF : il ne déplace rien et ne change aucun rang. */
+.vx-dt tbody tr:hover > * {
+  background-color: var(--vx-hover);
+}
+
+.vx-dt-open {
+  padding: 2px var(--vx-space-8);
+  border: 1px solid var(--vx-border);
+  border-radius: var(--vx-radius-6);
+  background: transparent;
+  color: var(--vx-text-secondary);
+  font-family: inherit;
+  font-size: var(--vx-font-size-meta);
+  cursor: pointer;
+}
+
+.vx-dt-open:hover {
+  border-color: var(--vx-border-strong);
+  color: var(--vx-text);
+}
+
+/* Enveloppe défilante : UNE implémentation pour les 7 familles remplacées.
+   L'en-tête colle, y compris sur la chaîne d'options — qui en était la seule
+   table dépourvue alors qu'elle est la plus dense du produit. */
+.vx-dt-scroll[data-overflow='panel'] {
+  max-height: 420px;
+  overflow: auto;
+  border: 1px solid var(--vx-border-soft);
+  border-radius: var(--vx-radius-10);
+}
+
+.vx-dt-scroll[data-overflow='panel'] thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background-color: var(--vx-surface-1);
+}
+
+.vx-dt-scroll[data-overflow='panel'] .vx-dt-caption {
+  padding-left: var(--vx-space-16);
+  padding-right: var(--vx-space-16);
+}
+
+/* État vide NOMMÉ. Ni table sans ligne, ni tiret : une phrase. */
+.vx-dt-empty {
+  display: flex;
+  flex-direction: column;
+  gap: var(--vx-space-4);
+  padding: var(--vx-space-16);
+  border: 1px dashed var(--vx-border);
+  border-radius: var(--vx-radius-10);
+}
+
+.vx-dt-empty-label {
+  margin: 0;
+  color: var(--vx-text);
+  font-size: var(--vx-font-size-title);
+  font-weight: 500;
+}
+
+.vx-dt-empty-reason {
+  margin: 0;
+  color: var(--vx-text-secondary);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-dt-foot {
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+}
