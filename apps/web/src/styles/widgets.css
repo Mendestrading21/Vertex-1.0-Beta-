@@ -1915,22 +1915,32 @@
    posait l'attribut, en dur, sans lien avec la table — et AUCUNE règle CSS ne
    lisait `--vx-page-accent`. Un jeton que personne ne lit n'existe pas.
 
-   LE SEUL CONSOMMATEUR, ET C'EST VOULU. Le sourcil de la page — la petite
-   ligne capitale au-dessus du titre. Il ne porte aucune valeur, aucun signe,
-   aucun statut : le colorer ne rend donc RIEN dépendant de la couleur seule,
-   et le titre juste en dessous dit la même chose en toutes lettres.
+   PREMIER CONSOMMATEUR CHOISI, PUIS REJETÉ PAR LA SONDE. J'avais d'abord
+   coloré `.vx-page-eyebrow`, le petit libellé capital au-dessus du titre. La
+   sonde DOM a répondu `ABSENT` sur Marchés : ce sourcil n'est rendu que par
+   UNE page du produit — Aujourd'hui — et elle ne déclare aucune teinte. La
+   règle était morte à l'écrit comme la table qu'elle devait réparer.
+
+   LE CONSOMMATEUR RÉEL. Un filet de deux pixels au bord gauche de l'en-tête
+   de page. `.vx-page-header` existe sur les DOUZE destinations, vérifié
+   fichier par fichier, donc la règle s'applique partout où une teinte est
+   déclarée et nulle part ailleurs.
+
+   IL NE PORTE AUCUNE INFORMATION, et c'est ce qui le rend acceptable : ce
+   n'est pas une couleur qui dit une valeur, un signe ou un statut — c'est un
+   marqueur de famille, et le titre juste à côté dit la page en toutes
+   lettres. L'ambre reste la seule lumière de la dominante : la règle ne
+   touche ni une carte, ni un fond, ni une figure.
 
    MESURÉ, pas supposé : sur `--vx-surface-0`, la famille `macro` donne un
-   contraste de 9,58:1 et `option` de 6,92:1 — au-dessus du 4,5:1 exigé, et
-   au-dessus du `--vx-text-muted` (5,84:1) qu'elles remplacent. La teinte
-   AMÉLIORE le contraste du sourcil, elle ne le dégrade pas. Les valeurs
-   elles-mêmes vivent dans `src/design/tokens.ts` — les recopier ici en
-   hexadécimal serait une seconde source, et la porte `no-raw-colors` a
+   contraste de 9,58:1 et `option` de 6,92:1. Le filet n'est pas du texte et
+   n'a donc pas de seuil à tenir, mais les deux familles restent largement
+   au-dessus du 4,5:1 si un futur consommateur textuel les reprend. Les
+   valeurs elles-mêmes vivent dans `src/design/tokens.ts` — les recopier ici
+   en hexadécimal serait une seconde source, et la porte `no-raw-colors` a
    raison de le refuser : elle l'a refusé.
-
-   L'ambre reste la seule lumière de la dominante : cette règle ne touche ni
-   une carte, ni un fond, ni une figure.
    =========================================================================== */
-.vx-page[data-page-accent] .vx-page-eyebrow {
-  color: var(--vx-page-accent);
+.vx-page[data-page-accent] .vx-page-header {
+  padding-left: var(--vx-space-12);
+  border-left: 2px solid var(--vx-page-accent);
 }
