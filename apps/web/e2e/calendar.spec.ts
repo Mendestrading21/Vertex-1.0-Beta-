@@ -181,7 +181,9 @@ test.describe('Page Calendrier — snapshot réel', () => {
     expect(body.agenda.length).toBe(0);
 
     await page.goto(`/calendar${query}`);
-    const boundary = page.locator('[data-state="empty"]');
+    // Bornée à la DOMINANTE : depuis le lot P6a chaque widget servi porte son
+    // propre `data-state`, et seule la frontière de l'agenda porte la raison.
+    const boundary = page.locator('[data-module="agenda"] [data-state="empty"]');
     await expect(boundary).toBeVisible({ timeout: 20_000 });
     await expect(boundary).toContainText('Fenêtre demandée');
     await expect(page.getByTestId('cal-agenda')).toHaveCount(0);
@@ -249,7 +251,7 @@ test.describe('Page Calendrier — snapshot réel', () => {
   test('hors ligne simulé → état offline honnête, aucun agenda affiché', async ({ page }) => {
     await page.route('**/api/**', (route) => route.abort());
     await page.goto('/calendar');
-    const boundary = page.locator('[data-state="offline"]');
+    const boundary = page.locator('[data-module="agenda"] [data-state="offline"]');
     await expect(boundary).toBeVisible();
     await expect(boundary).toContainText('Hors ligne');
     await expect(page.getByTestId('cal-agenda')).toHaveCount(0);

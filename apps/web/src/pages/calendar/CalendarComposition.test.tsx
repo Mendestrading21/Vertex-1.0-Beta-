@@ -94,8 +94,16 @@ describe('Page Calendrier — composition (LOT-A7)', () => {
   it('densité et exposition sont des dénombrements par journée UTC ; révisions et conflits, des comptes', async () => {
     servir();
     await renderCalendar();
-    expect(await cellule('density').findByRole('list')).toBeDefined();
-    expect(cellule('daily-exposure').getByRole('list')).toBeDefined();
+    // Forme v2 (ADR-017, §4.11 du plan) : barres par jour SUR RAIL, nommées,
+    // doublées d'une table équivalente — plus une liste à puces.
+    expect(
+      await cellule('density').findByRole('img', { name: 'Événements servis par journée UTC' }),
+    ).toBeDefined();
+    expect(
+      cellule('daily-exposure').getByRole('img', {
+        name: 'Événements liés à une position déclarée, par journée UTC',
+      }),
+    ).toBeDefined();
     expect(screen.getByTestId('cal-revisions-count')).toBeDefined();
     expect(screen.getByTestId('cal-conflicts')).toBeDefined();
     expect(screen.getByTestId('cal-provenance')).toBeDefined();
