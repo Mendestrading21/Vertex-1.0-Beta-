@@ -243,7 +243,9 @@ export const THESIS_STATUS_LABELS: Readonly<Record<string, string>> = {
 
 export function thesisStatusLabel(status: string | null): string {
   if (status === null) {
-    return '—';
+    // LOT T4-3 — un statut non publié se DIT. Le tiret laissait le lecteur
+    // deviner s'il s'agissait d'un statut vide, inconnu ou non servi.
+    return 'statut non publié';
   }
   return THESIS_STATUS_LABELS[status] ?? status;
 }

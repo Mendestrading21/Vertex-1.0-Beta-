@@ -2450,3 +2450,34 @@ de défilement horizontal à 1024×768.
 - `npm run build` : succès.
 - Playwright `portfolio`, `portfolio-performance`, `accessibility`, `smoke` :
   **237 passés**, code 0.
+
+## SESSION 2026-09-04 — LOT T4-3 : Catalyseurs, et la thèse écrite par l'humain
+
+Branche `lot/t4-3-catalyseurs-20260904`. Dette T4 : **28 → 21**.
+
+Vingt-cinq tirets sur sept fichiers. La distinction qui structure ce lot :
+
+**Une thèse est RÉDIGÉE PAR L'UTILISATEUR.** `hypotheses`, `invalidation`,
+`horizon`, `title` : leur absence ne reproche rien au serveur — c'est une case
+du formulaire que personne n'a remplie. `not_entered`, jamais « non publié ».
+`{thesis.hypotheses ?? '—'}` remplaçait tout un raisonnement d'investissement
+par un glyphe ; il dit maintenant « hypothèses non renseignées ».
+
+**Trois listes servies VIDES** cessent d'être des absences : les clés d'ordre,
+les sources et les droits d'un cluster. Une liste vide est un FAIT publié.
+
+**Un booléen servi `false` n'est pas une absence** :
+`hasNewInformation === false` signifie « aucune », pas « on ne sait pas ».
+
+**Une thèse peut ne viser AUCUN instrument** — elle porte alors sur un thème.
+`not_applicable`, et le serveur n'a rien omis.
+
+`thesisStatusLabel(null)` renvoyait `'—'` depuis la couche vue : le tiret
+naissait donc AVANT le rendu, et se propageait partout où la fonction était
+appelée. Il renvoie « statut non publié ».
+
+### Mesuré
+
+- `tsc` code 0 ; `biome check src` 1 info préexistante ;
+  `vitest run` 91 fichiers / **950 tests** verts ; `npm run build` succès.
+- Playwright `catalysts`, `accessibility` : **210 passés**, code 0.

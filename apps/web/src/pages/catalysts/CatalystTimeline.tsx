@@ -141,7 +141,11 @@ export function CatalystTimeline({
                   <ul className="vx-cat-theses">
                     {theses.map((thesis, index) => (
                       <li key={`${event.eventId}-${thesis.thesisId ?? index}`}>
-                        <span className="vx-cat-thesis-title">{thesis.title ?? '—'}</span>
+                        <span className="vx-cat-thesis-title">
+                          {thesis.title ?? (
+                            <span className="vx-cell-absent">titre non renseigné</span>
+                          )}
+                        </span>
                         {thesis.status !== null ? <code>{thesis.status}</code> : null}
                         {thesis.knownInQueue ? (
                           <>
@@ -224,9 +228,9 @@ export function CatalystTimeline({
                   </span>
                 ) : null}
                 <span className="vx-cat-provenance">
-                  source {event.source !== null ? <code>{event.source}</code> : '—'} · droit{' '}
-                  {event.rights !== null ? <code>{event.rights}</code> : '—'} · qualité{' '}
-                  {event.quality !== null ? <code>{event.quality}</code> : '—'}
+                  source <code>{event.source ?? 'non publiée'}</code> · droit{' '}
+                  <code>{event.rights ?? 'non publié'}</code> · qualité{' '}
+                  <code>{event.quality ?? 'non publiée'}</code>
                 </span>
               </div>
             </li>

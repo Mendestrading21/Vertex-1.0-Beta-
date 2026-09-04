@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 
 import { pageStateOf, queryKeyForResource } from '../../../api/hooks.ts';
 import { useFollowUpQueue } from '../../../api/portfolioApi.ts';
+import { AbsentCell } from '../../../components/absence.tsx';
 import type { PageDataState } from '../../../api/hooks.ts';
 import type { FollowUpQueueResponse } from '../../../api/client.ts';
 import { AuthRequiredNotice } from '../../../components/AuthRequiredNotice.tsx';
@@ -127,9 +128,15 @@ export function ReviewQueueSection() {
         >
           <p className="vx-fu-populations" role="note" data-testid="fu-populations">
             Populations séparées, jamais additionnées — thèses :{' '}
-            <code>{frame.view.populationTheses ?? '—'}</code> · contexte d'information :{' '}
-            <code>{frame.view.populationInformation ?? '—'}</code>. Snapshot du{' '}
-            {frame.view.asOf !== null ? <time dateTime={frame.view.asOf}>{frame.view.asOf}</time> : '—'}.
+            <code>{frame.view.populationTheses ?? 'non publiée'}</code> · contexte
+            d'information : <code>{frame.view.populationInformation ?? 'non publiée'}</code>.
+            Snapshot du{' '}
+            {frame.view.asOf === null ? (
+              <span className="vx-cell-absent">instant non publié</span>
+            ) : (
+              <time dateTime={frame.view.asOf}>{frame.view.asOf}</time>
+            )}
+            .
           </p>
 
           <section className="vx-fu-queue" aria-labelledby="vx-fu-queue-title">
@@ -137,7 +144,11 @@ export function ReviewQueueSection() {
               File de revues — {frame.view.due.length} thèse(s) à revoir
             </h3>
             <p className="vx-fu-ordering">
-              Ordre du serveur (lexicographique) : {frame.view.orderingKeys.join(' ; ') || '—'}.
+              Ordre du serveur (lexicographique) :{' '}
+              {frame.view.orderingKeys.length === 0
+                ? 'aucune clé publiée'
+                : frame.view.orderingKeys.join(' ; ')}
+              .
             </p>
             {frame.view.due.length === 0 ? (
               <p className="vx-cell-absent" data-testid="fu-due-empty">
@@ -160,10 +171,10 @@ export function ReviewQueueSection() {
                     </button>
                     <span className="vx-fu-due-meta">
                       échéance :{' '}
-                      {entry.reviewDueAt !== null ? (
-                        <time dateTime={entry.reviewDueAt}>{entry.reviewDueAt}</time>
+                      {entry.reviewDueAt === null ? (
+                        <span className="vx-cell-absent">aucune échéance fixée</span>
                       ) : (
-                        '—'
+                        <time dateTime={entry.reviewDueAt}>{entry.reviewDueAt}</time>
                       )}
                       {entry.overdueSeconds !== null && entry.overdueSeconds > 0 ? (
                         <span className="vx-badge vx-badge-warning">
@@ -227,25 +238,47 @@ export function ReviewQueueSection() {
                         </button>
                       </th>
                       <td>
-                        {entry.instrumentTicker !== null ? <code>{entry.instrumentTicker}</code> : '—'}
+                        {entry.instrumentTicker === null ? (
+                          /* Une thèse peut ne viser AUCUN instrument : elle
+                             porte alors sur un thème. Le serveur n'a rien omis. */
+                          <AbsentCell quoi="instrument" nature="not_applicable" reason={null} />
+                        ) : (
+                          <code>{entry.instrumentTicker}</code>
+                        )}
                       </td>
                       <td>
-                        <code>{entry.status ?? '—'}</code> ({thesisStatusLabel(entry.status)})
+                        {entry.status === null ? (
+                          <span className="vx-cell-absent">{thesisStatusLabel(null)}</span>
+                        ) : (
+                          <>
+                            <code>{entry.status}</code> ({thesisStatusLabel(entry.status)})
+                          </>
+                        )}
                         {entry.isDue ? <span className="vx-badge vx-badge-warning"> à revoir</span> : null}
                       </td>
                       <td>
-                        {entry.effectiveReviewDueAt !== null ? (
-                          <time dateTime={entry.effectiveReviewDueAt}>{entry.effectiveReviewDueAt}</time>
+                        {entry.effectiveReviewDueAt === null ? (
+                          <span className="vx-cell-absent">aucune échéance fixée</span>
                         ) : (
-                          '—'
+                          <time dateTime={entry.effectiveReviewDueAt}>
+                            {entry.effectiveReviewDueAt}
+                          </time>
                         )}
                       </td>
-                      <td className="vx-num">{entry.revisionCount ?? '—'}</td>
+                      <td className="vx-num">
+                        {entry.revisionCount === null ? (
+                          <AbsentCell quoi="nombre de révisions" nature="not_published" reason={null} />
+                        ) : (
+                          entry.revisionCount
+                        )}
+                      </td>
                       <td>
                         {entry.hasNewInformation ? (
                           <span className="vx-badge vx-badge-warning">nouvelle information</span>
                         ) : (
-                          '—'
+                          /* `hasNewInformation` est un booléen SERVI : `false`
+                             est une réponse, pas une absence. */
+                          'aucune'
                         )}
                       </td>
                     </tr>
