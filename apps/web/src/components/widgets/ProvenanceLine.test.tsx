@@ -9,6 +9,7 @@ describe('ProvenanceLine', () => {
       <ProvenanceLine
         asOf="2026-09-03T08:40:00Z"
         snapshotVersion={42290}
+        schemaVersion="markets.overview.v3"
         engineVersion="vertex_worker 0.9.1"
         sources={['ibkr', 'sec']}
         method="market.breadth"
@@ -19,6 +20,7 @@ describe('ProvenanceLine', () => {
     expect(time?.getAttribute('dateTime')).toBe('2026-09-03T08:40:00Z');
     const texte = container.textContent ?? '';
     expect(texte).toContain('v42290');
+    expect(texte).toContain('markets.overview.v3');
     expect(texte).toContain('vertex_worker 0.9.1');
     expect(texte).toContain('ibkr');
     expect(texte).toContain('sec');
@@ -31,6 +33,7 @@ describe('ProvenanceLine', () => {
       <ProvenanceLine
         asOf={null}
         snapshotVersion={null}
+        schemaVersion={null}
         engineVersion={null}
         sources={[]}
         method={null}
@@ -38,7 +41,11 @@ describe('ProvenanceLine', () => {
       />,
     );
     const ligne = screen.getByTestId('provenance-line');
-    expect(ligne.querySelectorAll('[data-absent="true"]').length).toBeGreaterThanOrEqual(4);
+    // LOT T4 — CINQ champs obligatoires depuis l'ajout de `schemaVersion` :
+    // Opportunités publiait sa version de schéma et la rendait en tiret muet.
+    // Le seuil est RESSERRÉ, jamais abaissé.
+    expect(ligne.querySelectorAll('[data-absent="true"]').length).toBeGreaterThanOrEqual(5);
+    expect(ligne.textContent).toContain('schéma non publié');
     expect(ligne.textContent).toContain('non publié');
     expect(ligne.textContent).not.toContain('—');
     expect(ligne.querySelector('time')).toBeNull();
