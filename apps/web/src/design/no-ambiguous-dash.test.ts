@@ -86,7 +86,16 @@ const PAGES_ROOT = join(APP_ROOT, 'src', 'pages');
  * et `components/calendar/AgendaLine.tsx` rendent tous des valeurs servies.
  */
 const COMPONENTS_ROOT = join(APP_ROOT, 'src', 'components');
-const SCANNED_ROOTS: readonly string[] = [PAGES_ROOT, COMPONENTS_ROOT];
+/**
+ * LOT V1 — `src/shell` ENTRE DANS LE PÉRIMÈTRE.
+ *
+ * `ShellTicker.tsx`, `ContextBar.tsx` et `NavRail.tsx` rendent des valeurs
+ * SERVIES — prix, fraîcheur, instrument actif — et échappaient à cette porte
+ * comme à `no-fabricated-values`. Un tiret muet y était donc parfaitement
+ * autorisé, dans la partie de l'écran visible sur les douze destinations.
+ */
+const SHELL_ROOT = join(APP_ROOT, 'src', 'shell');
+const SCANNED_ROOTS: readonly string[] = [PAGES_ROOT, COMPONENTS_ROOT, SHELL_ROOT];
 
 /**
  * Les glyphes qui se substituent à une valeur. Les variantes de tiret ferment

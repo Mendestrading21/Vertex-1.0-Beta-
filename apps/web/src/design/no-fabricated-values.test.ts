@@ -49,7 +49,13 @@ const PAGES_ROOT = join(APP_ROOT, 'src', 'pages');
  * devienne vide.
  */
 const WIDGETS_ROOT = join(APP_ROOT, 'src', 'components', 'widgets');
-const SCANNED_ROOTS: readonly string[] = [PAGES_ROOT, WIDGETS_ROOT];
+/**
+ * LOT V1 — `src/shell` ENTRE DANS LE PÉRIMÈTRE, pour la même raison que dans
+ * `no-ambiguous-dash` : il rend des valeurs servies sur les douze
+ * destinations, et une valeur fabriquée y aurait été invisible à cette porte.
+ */
+const SHELL_ROOT = join(APP_ROOT, 'src', 'shell');
+const SCANNED_ROOTS: readonly string[] = [PAGES_ROOT, WIDGETS_ROOT, SHELL_ROOT];
 
 /**
  * Formes REFUSÉES. Chacune est celle d'une valeur qu'un lecteur lirait comme

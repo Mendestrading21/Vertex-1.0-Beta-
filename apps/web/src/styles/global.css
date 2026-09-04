@@ -5250,7 +5250,7 @@ label {
   gap: var(--vx-space-12);
   padding: var(--vx-space-16);
   border: 1px solid var(--vx-border-soft);
-  border-radius: var(--vx-radius-18);
+  border-radius: var(--vx-radius-16);
   background: var(--vx-surface-1);
   box-shadow: var(--vx-shadow-glass), var(--vx-shadow-inset);
 }
@@ -6475,7 +6475,7 @@ label {
   padding: var(--vx-space-16) var(--vx-space-20);
   border: 1px solid var(--vx-border-soft);
   border-top-color: var(--vx-border-strong);
-  border-radius: var(--vx-radius-18);
+  border-radius: var(--vx-radius-16);
   background:
     linear-gradient(180deg, var(--vx-titanium-ghost), transparent 38%),
     var(--vx-surface-1);
@@ -7287,7 +7287,7 @@ label {
   padding: var(--vx-space-20) var(--vx-space-24) var(--vx-space-16);
   border: 1px solid var(--vx-border-soft);
   border-top-color: var(--vx-border-strong);
-  border-radius: var(--vx-radius-18);
+  border-radius: var(--vx-radius-16);
   background:
     linear-gradient(180deg, var(--vx-titanium-ghost), transparent 38%),
     var(--vx-surface-1);
