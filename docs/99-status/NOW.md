@@ -2048,3 +2048,54 @@ plus écrit deux fois l'un sous l'autre.
   aux trois viewports desktop : **267 passés, code 0**.
 - `bash tools/run_checks.sh` : vert sauf le rouge PRÉEXISTANT
   `test_denylist.py::test_adapter_satisfies_the_port_protocol`.
+
+P5 fusionnée en squash (`700355c`, PR #44).
+
+## SESSION 2026-09-03 — LOT T1 : le verre noir de CHAQUE carte
+
+Branche `lot/t1-black-glass-20260903`, base `main` à `700355c` (P5 fusionné).
+
+Ce lot ne touche à aucune donnée, aucune vue, aucun contrat : il ne change que
+le SOCLE visuel, et il le change pour tout le produit d'un coup — c'est
+précisément la demande « le côté glass black de CHAQUE carte ».
+
+### Ce qui change
+
+- **Jeton `shadow.glass`** (`0 10px 28px rgba(0, 0, 0, 0.34)`) : la profondeur
+  de la carte ORDINAIRE, plus courte et plus proche que `panel`, qui reste
+  celle d'une planche entière. `tokens.css` régénéré par `npm run tokens:css`.
+- **`.vx-card`** : rayon 18 au lieu de 10, et `box-shadow: glass, inset`. Trois
+  choses font l'épaisseur du verre et AUCUNE n'est une lumière — un rayon
+  large, une arête claire d'un pixel en haut, une ombre portée courte. Pas de
+  flou de fond, pas de halo, pas de dégradé de fond plein : ADR-017 les
+  interdit, et c'est ce qui sépare un verre noir sobre d'un template SaaS.
+- **`.vx-primary-action`** en pilule : l'action principale prend la forme des
+  boutons des tableaux de bord de référence, sans changer sa couleur ni son
+  unicité par page.
+- **`PeriodTabs` en contrôle segmenté** : une piste creuse, des pastilles sans
+  bordure, chiffres en `font-mono`, et la seule fenêtre choisie remplie dans la
+  famille `signal`. C'est la règle « gradients et lumière : sélection / action
+  principale » du design system, appliquée à la seule commande de vue du
+  produit.
+- **`StatusChip` à hauteur unique** (22 px, `tabular-nums`, `nowrap`) : deux
+  chips voisines ne sautent plus d'un pixel selon leur texte.
+- **Typographie des mesures généralisée** : `.vx-metric-value` et
+  `.vx-metric-label` ne sont plus réservées à cinq planches nommées. Un chiffre
+  servi se lit de la même façon partout.
+
+### Ce que ce lot ne fait PAS
+
+Aucune valeur, aucun signe, aucune unité n'est ajoutée, retirée ou reformatée.
+Aucune forme n'est posée sur une donnée non servie. Le test
+`tokens-css.test.ts` passe de trois à quatre ombres — assertion élargie au fait
+nouveau, jamais affaiblie : elle vérifie toujours l'ordre exact des clés ET la
+présence de chaque valeur dans le CSS commité.
+
+### Mesuré sur cette machine
+
+- `npx tsc --noEmit` : code 0.
+- `npx biome check src` : 1 info préexistante, 0 erreur.
+- `npx vitest run` : 87 fichiers, **919 tests**, tous verts.
+- `npm run build` : succès.
+- Playwright, **suite complète** aux trois viewports desktop : **546 passés**
+  (11,6 min), code 0.
