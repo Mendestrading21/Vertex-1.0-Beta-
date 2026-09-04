@@ -142,18 +142,29 @@ export function IdentityStripModule({ data }: { readonly data: OptionChainRespon
         <div>
           <dt>Références d’observation</dt>
           <dd data-testid="chain-source-references">
-            {sourceEventIds.length === 0 ? '—' : <code>{sourceEventIds.join(' · ')}</code>}
+            {sourceEventIds.length === 0 ? (
+              'aucune référence publiée'
+            ) : (
+              <code>{sourceEventIds.join(' · ')}</code>
+            )}
           </dd>
         </div>
         <div>
           <dt>Snapshot</dt>
           <dd>
-            version {data.snapshot_version ?? '—'} · moteur <code>{data.engine_version ?? '—'}</code>
+            version {data.snapshot_version ?? 'non publiée'} · moteur{' '}
+            <code>{data.engine_version ?? 'non publié'}</code>
           </dd>
         </div>
         <div>
           <dt>as_of</dt>
-          <dd>{data.as_of === null ? '—' : <time dateTime={data.as_of}>{data.as_of}</time>}</dd>
+          <dd>
+            {data.as_of === null ? (
+              <span className="vx-cell-absent">instant non publié</span>
+            ) : (
+              <time dateTime={data.as_of}>{data.as_of}</time>
+            )}
+          </dd>
         </div>
         <div>
           <dt>Âge publié</dt>
@@ -165,9 +176,9 @@ export function IdentityStripModule({ data }: { readonly data: OptionChainRespon
           <dt>Couverture</dt>
           <dd>
             {data.coverage === null
-              ? '—'
-              : `${String(data.coverage['groups_published'] ?? '—')} groupe(s) publié(s) sur ${String(
-                  data.coverage['observations_considered'] ?? '—',
+              ? 'couverture non publiée'
+              : `${String(data.coverage['groups_published'] ?? 'nombre non publié de')} groupe(s) publié(s) sur ${String(
+                  data.coverage['observations_considered'] ?? 'un nombre non publié d’',
                 )} observation(s) considérée(s)`}
           </dd>
         </div>
@@ -175,8 +186,12 @@ export function IdentityStripModule({ data }: { readonly data: OptionChainRespon
           <dt>Budget de lignes</dt>
           <dd data-testid="chain-row-budget">
             {budget === null
-              ? '—'
-              : `${budget.publishedRows ?? '—'} publiée(s) / ${budget.totalRows ?? '—'} construite(s), plafond ${budget.maxRows ?? '—'}, ${budget.truncatedRows ?? '—'} tronquée(s)`}
+              ? 'budget de lignes non publié'
+              : `${budget.publishedRows ?? 'nombre non publié de'} publiée(s) / ${
+                  budget.totalRows ?? 'nombre non publié'
+                } construite(s), plafond ${budget.maxRows ?? 'non publié'}, ${
+                  budget.truncatedRows ?? 'nombre non publié de'
+                } tronquée(s)`}
           </dd>
         </div>
         <div>

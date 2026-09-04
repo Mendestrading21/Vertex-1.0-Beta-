@@ -113,7 +113,7 @@ export function LastSyncModule({ data }: { readonly data: SystemCapabilities }) 
         <div>
           <dt>Snapshot de capacités</dt>
           <dd>
-            v{data.snapshot_version ?? '—'} · {data.as_of !== null ? <time dateTime={data.as_of}>{data.as_of}</time> : 'as_of non publié'}
+            v{data.snapshot_version ?? 'non publiée'} · {data.as_of !== null ? <time dateTime={data.as_of}>{data.as_of}</time> : 'as_of non publié'}
           </dd>
         </div>
         <div>

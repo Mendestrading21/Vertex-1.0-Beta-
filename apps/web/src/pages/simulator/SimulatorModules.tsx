@@ -96,7 +96,8 @@ export function SourcesModule({ transfer }: { readonly transfer: SimulatorTransf
               , con_id <code>{transfer.conId}</code>
             </>
           ) : null}
-          ) — prime suggérée côté {transfer.premiumSide ?? '—'}, spot et IV du snapshot ; tout reste éditable.{' '}
+          ) — prime suggérée côté {transfer.premiumSide ?? 'non publié'}, spot et IV du snapshot ;
+          tout reste éditable.{' '}
           {transfer.population === 'SYNTHETIC' ? <span className="vx-badge vx-badge-synthetic">SYNTHÉTIQUE</span> : null}
         </p>
       ) : (

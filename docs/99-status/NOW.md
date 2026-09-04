@@ -2521,3 +2521,32 @@ que la porte a trouvés après la première passe.
 - `tsc` code 0 ; `biome check src` 1 info préexistante ;
   `vitest run` 91 fichiers / **950 tests** verts ; `npm run build` succès.
 - Playwright `analysis`, `simulator`, `accessibility` : **219 passés**, code 0.
+
+## SESSION 2026-09-04 — LOT T4-6 : Options, Marchés, Simulateur, Sources
+
+Branche `lot/t4-6-options-marches-20260904`. Dette T4 : **11 → 3**.
+
+Vingt-cinq glyphes sur huit fichiers, et la **dernière copie** du composant
+d'absence (`OptionInspector`) fusionnée sur le socle : ses dix appels passent
+de libellés libres à la signature structurée, ce qui force à choisir la nature
+de chaque absence. Deux d'entre elles se révèlent `not_recognised` — un `right`
+ou un `strike` ILLISIBLE n'est pas un champ manquant, c'est une valeur servie
+hors vocabulaire.
+
+**Le cas le plus délicat : `SimResult.EchoModule`.** Ce module montre ce que le
+serveur a RÉELLEMENT appliqué, par opposition à ce que le formulaire
+contenait. Un tiret y était le pire endroit possible pour une ambiguïté : le
+lecteur ne pouvait pas distinguer « le serveur n'a pas renvoyé cette
+hypothèse » de « il l'a renvoyée vide ». Les deux sont maintenant distincts,
+et une liste renvoyée vide dit « aucune ».
+
+Restent trois fichiers en dette (`AttentionQueue`, `SnapshotRail`,
+`SourceHealthMatrix`) : leurs trois copies du composant d'absence, à fusionner
+au lot T4-7.
+
+### Mesuré
+
+- `tsc` code 0 ; `biome check src` 1 info préexistante ;
+  `vitest run` 91 fichiers / **950 tests** verts ; `npm run build` succès.
+- Playwright `options`, `markets`, `simulator`, `sources-reports`,
+  `accessibility`, `smoke` : **261 passés**, code 0.
