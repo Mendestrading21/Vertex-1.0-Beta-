@@ -242,3 +242,40 @@ Reporté, avec sa mesure, pour un lot dédié :
 - **30 tailles de police sous le plancher AA de 13 px**, et la frontière d'un
   champ de saisie à 1,14:1 contre les 3:1 de WCAG 1.4.11.
 - **93 champs servis ne sont affichés nulle part.**
+
+### La date américaine dans un produit français
+
+Le champ `<input type="datetime-local">` de Catalyseurs affichait
+`mm/dd/yyyy, --:-- --`. Dans une page dont chaque libellé est français, la
+lecture évidente était un défaut de produit.
+
+Elle était fausse. `index.html` déclare bien `lang="fr"`, mais **`lang` ne
+gouverne pas le formatage des contrôles natifs** : ceux-ci suivent la locale du
+NAVIGATEUR, qu'aucune feuille de style et aucun attribut HTML n'atteint. Une
+sonde autonome l'a mesuré directement :
+
+| Locale du contexte | `new Date(…).toLocaleString()` |
+|---|---|
+| défaut de l'environnement (`en-US@posix`) | `9/5/2026, 2:30:00 PM` |
+| `fr-FR` | `05/09/2026 14:30:00` |
+
+Le produit, lui, était innocent : ses deux seuls formateurs épinglent déjà
+`fr-CH` (`SnapshotRail`) et `fr-CA` (`calendarView`), et le seul appel qui
+interroge le poste — `resolveViewerTimeZone()` — ne formate rien, il LIT un nom
+de fuseau qui est ensuite affiché en toutes lettres.
+
+Le défaut était donc dans la PHOTO, pas dans l'objet photographié. C'est un
+piège méthodologique à retenir : la relecture des captures est l'outil qui a
+trouvé presque tous les défauts de cette nuit, et il fallait ici lui refuser sa
+première conclusion. `playwright.config.ts` fixe désormais `locale: 'fr-FR'` ;
+les 672 tests des quatre projets restent verts. `timezoneId` reste
+VOLONTAIREMENT non fixé : les instants servis sont en UTC et plusieurs
+assertions lisent des heures rendues — déplacer le fuseau du navigateur
+changerait ces heures sans rien prouver sur l'identité visuelle.
+
+L'autre moitié du remède est une porte, `src/design/pinned-locale.test.ts` :
+aucune source ne peut désormais appeler `toLocale…String()` ni construire un
+`Intl.DateTimeFormat`/`NumberFormat` sans épingler sa langue. Prouvée rouge par
+mutation sur ses deux motifs à la fois. L'enjeu n'est pas cosmétique :
+`05/09/2026` et `09/05/2026` désignent deux jours différents, et une échéance
+d'option lue à l'envers est une décision prise sur un fait faux.
