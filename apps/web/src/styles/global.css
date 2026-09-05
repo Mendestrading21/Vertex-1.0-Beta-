@@ -5797,8 +5797,22 @@ label {
    gauche à côté de la file, comme sur la planche. */
 .vx-today-grid {
   display: grid;
+  /* LA DOMINANTE EST LARGE, PAS HAUTE.
+     Mesuré sur capture à 1440 px : « Marché global » déclarait une colonne et
+     rendait six blocs — arc de breadth, jauge de couverture, trois barres de
+     dénombrement, conclusion, provenance. La carte montait à ~1 000 px face à
+     des voisines de ~300, et CSS Grid dimensionnant la rangée sur son élément
+     le plus haut, un tiers d'écran restait vide à droite. La cause n'était pas
+     un manque de colonnes : c'était un DÉSACCORD entre la taille déclarée et
+     le contenu réel.
+     Sur deux colonnes, les figures de la breadth se posent côte à côte
+     (`auto-fit minmax(190px)`) au lieu de s'empiler, et la carte retombe à
+     hauteur de rangée. L'ordre visuel reste celui du DOM — global, volatilité,
+     catalyseur, santé — pour ne pas séparer la lecture à l'écran de la lecture
+     au clavier. */
   grid-template-areas:
-    'global vol catalyst health'
+    'global global vol catalyst'
+    'global global health health'
     'focus focus focus focus'
     'regime attention attention attention'
     'risks attention attention attention'
@@ -5836,7 +5850,8 @@ label {
 @media (min-width: 1600px) {
   .vx-today-grid {
     grid-template-areas:
-      'global global vol catalyst health'
+      'global global global vol catalyst'
+      'global global global health health'
       'focus focus focus focus focus'
       'regime attention attention attention attention'
       'risks attention attention attention attention'

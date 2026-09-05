@@ -245,8 +245,21 @@ describe('Page Marchés — état nominal', () => {
     // Les trois comptes servis (hausses, baisses, inchangés) sont relayés
     // avec le total couvert : aucun compte n'est déduit des deux autres.
     expect(
-      screen.getByText('2 en hausse, 1 en baisse, 1 stables sur 4 couverts (univers 4)'),
+      screen.getByText('4 couverts sur un univers de 4'),
     ).toBeDefined();
+    // ET LA MÊME DONNÉE N'EST PAS RENDUE DEUX FOIS. La phrase répétait mot
+    // pour mot les trois comptes que les barres portent dix pixels plus haut :
+    // elle n'informait pas deux fois, elle occupait deux fois la place et
+    // faisait douter de laquelle fait foi. Ce qu'elle garde — la population —
+    // est justement ce que les barres ne disent pas.
+    const phrasePopulation = document.querySelector('.vx-breadth-counts');
+    expect(phrasePopulation, 'la phrase de population doit exister').not.toBeNull();
+    for (const mot of ['en hausse', 'en baisse', 'stables']) {
+      expect(
+        phrasePopulation?.textContent ?? '',
+        `« ${mot} » répété hors des barres de dénombrement`,
+      ).not.toContain(mot);
+    }
 
     // Pied : méthode, version moteur et limites — dans la PAGE (l'inspecteur
     // du shell relaie aussi la version du moteur depuis le LOT-A3).
@@ -484,7 +497,7 @@ describe('Page Marchés — états dégradés et vides', () => {
     expect(screen.queryByTestId('arc-figure')).toBeNull();
     // Les comptes restent des faits publiés, même sans ratio.
     expect(
-      screen.getByText('2 en hausse, 1 en baisse, 1 stables sur 4 couverts (univers 4)'),
+      screen.getByText('4 couverts sur un univers de 4'),
     ).toBeDefined();
   });
 

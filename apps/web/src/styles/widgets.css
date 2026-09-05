@@ -1561,9 +1561,15 @@
    colonne large (planche Marchés) et dans un quart de planche (Aujourd'hui).
    Une largeur de VIEWPORT ne dit rien de la largeur de la CELLULE — mesuré
    sur capture : la jauge de couverture y était coupée en plein texte. */
+/* 168 px, MESURÉ — pas un chiffre rond choisi à l'œil.
+   À 1440 px, la carte « Marché global » élargie à deux colonnes offre 392 px
+   utiles à ce bloc ; deux pistes plus leur gouttière de 20 px en demandent
+   186 chacune. Le plancher était à 190 : `auto-fit` retombait donc à UNE
+   colonne pour quatre pixels, l'arc et la jauge restaient empilés, et la carte
+   redevenait la tour qu'on venait d'élargir. */
 .vx-breadth-figures {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
   gap: var(--vx-space-16) var(--vx-space-20);
   align-items: center;
   margin-bottom: var(--vx-space-16);

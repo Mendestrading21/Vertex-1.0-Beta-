@@ -65,7 +65,12 @@ test.describe('Dégradation 1024×768', () => {
     await page.goto('/options/SYN-TECH-01');
     const table = page.getByRole('table', { name: /Chaîne d'options/ });
     await expect(table).toBeVisible();
-    await expect(table.locator('tbody tr')).toHaveCount(12); // 12 strikes appariés
+    // 12 strikes = 12 LIGNES DE STRIKE. Le corps en contient une treizième : la
+    // ligne de repère qui porte le SPOT SERVI à sa place dans l'échelle. Les
+    // compter ensemble mélangeait deux choses différentes ; l'assertion vise
+    // donc les lignes de strike, et le repère reçoit la sienne juste après.
+    await expect(table.locator('tbody tr[data-row="strike"]')).toHaveCount(12);
+    await expect(table.locator('tbody tr.vx-chain-spot')).toHaveCount(1);
     await expect(page.locator('main').getByText('DONNÉES SYNTHÉTIQUES', { exact: true })).toBeVisible();
     await expectNoHorizontalPageScroll(page);
     const scrollMode = await page

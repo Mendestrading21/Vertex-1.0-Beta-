@@ -45,7 +45,6 @@ export function GlobalMarketModule() {
   const data = query.data;
   const module = todayModule('global-market');
   const breadth = data?.breadth ?? null;
-  const coverage = data?.coverage ?? null;
   return (
     <Card
       rank="quiet"
@@ -77,11 +76,15 @@ export function GlobalMarketModule() {
           ) : (
             <BreadthPanel breadth={breadth} />
           )}
-          {coverage === null ? null : (
-            <p className="vx-module-sentence">
-              couverture publiée : {coverage.covered}/{coverage.expected} · {coverage.discarded} écartés
-            </p>
-          )}
+          {/*
+            LA COUVERTURE ÉTAIT DITE TROIS FOIS DANS LA MÊME CARTE : par la
+            jauge (« 91,7 % », avec son seuil), par la ligne de population du
+            panneau de breadth (« 22 couverts sur un univers de 24 »), et par
+            une phrase locale (« couverture publiée : 22/24 · 2 écartés »). La
+            CONCLUSION SERVIE la dit une quatrième fois, et c'est elle qui fait
+            autorité. La phrase locale disparaît : elle n'ajoutait rien qu'une
+            quatrième formulation du même fait.
+          */}
           <p className="vx-module-sentence" data-testid="today-market-conclusion">
             {data.conclusion ?? 'Aucune conclusion publiée.'}
           </p>
