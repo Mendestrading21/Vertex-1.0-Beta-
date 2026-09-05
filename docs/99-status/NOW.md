@@ -3267,3 +3267,62 @@ captures relues.
 - Sur Sources & Rapports, la nouvelle orange rend les **neuf absences très
   sonores**. C'est le symptôme du paragraphe d'absence, pas du jeton : la
   désaturation du texte (**V5**) le ramène à une ligne.
+
+## LOT V3a — trois portes de mise en page (2026-09-04)
+
+Branche `refonte/v3a-portes-mise-en-page-20260904`, depuis `main` = `75f14d5`.
+**Aucun pixel.** Un seul fichier : `apps/web/e2e/layout-gates.spec.ts`, exécuté
+sur les trois projets desktop — 132 tests.
+
+### Ce que la mesure a trouvé AVANT toute assertion
+
+- **Aucun débordement horizontal de PAGE**, aux trois largeurs. L'hypothèse du
+  plan était fausse à ce niveau : la planche tient. Le défaut est un cran plus
+  bas, dans les cartes.
+- **Vingt cartes dont le contenu ne tient pas.** La pire : `market-map` sur
+  Marchés. `table.vx-markets-table` mesure **1 613 px** dans une carte qui coupe
+  à 1 365 px, aux trois largeurs — environ **treize lignes de marché peintes
+  hors de la carte et effacées** par `.vx-chartframe { overflow: hidden }`. Sans
+  défilement, sans indicateur. La donnée n'est pas illisible : elle est absente
+  de l'écran.
+- **Zéro module privé de son aire nommée** : porte de non-régression.
+- **Dix-neuf rangées vides à plus d'un tiers**, sur sept pages.
+
+### Trois fois où ce lot m'a repris
+
+1. **La porte de non-régression ne pouvait pas échouer.** Elle comparait
+   `getComputedStyle(el).gridArea` à `'auto / auto / auto / auto'`. Chromium
+   sérialise ce cas en **`'auto'`** tout court : la comparaison ne correspondait
+   jamais. Sous une mutation qui retirait délibérément l'aire du module dominant
+   de Marchés, elle est restée **verte**. Corrigée en lisant les longhands
+   `gridRowStart` / `gridColumnStart`, elle nomme le module perdu. Une porte
+   verte qu'on n'a pas su faire rougir ne mesure rien.
+2. **Mes premiers plafonds de dette étaient 2,5 fois trop larges** : je les
+   avais dimensionnés sur la somme des trois largeurs alors que la porte tourne
+   par largeur. Une dette trop large est une porte qui ment sur ce qu'elle garde.
+3. **La mesure était non déterministe.** `/risks` basculait d'un run à l'autre
+   autour du seuil. Je l'ai d'abord retiré comme dette morte, puis remis en le
+   croyant réel. La cause n'était ni l'un ni l'autre : les graphiques se
+   dessinent après le premier rendu et les hauteurs changent. `attendreStabilite`
+   lit les hauteurs jusqu'à deux relevés identiques ; deux exécutions complètes
+   donnent alors exactement le même résultat, et `/risks` n'a aucune violation.
+
+### Dettes, chacune avec le lot qui la ferme
+
+- **Cartes** (10) : `market-map` → V4 ; `global-market`, `calendar` → V6 ;
+  `next-event` → V10 ; `indicators`, `upcoming-catalysts`, `key-risks`,
+  `evidence` → V7 ; `total-performance`, `coverage` → V9.
+- **Rangées trouées** : `/catalysts` 2 → V10 ; `/today`, `/portfolio`,
+  `/simulator`, `/analysis`, `/options` 1 chacune → V6, V9, V8, V7, V8.
+
+### Preuves
+
+`tsc` 0 · Biome OK · **132 tests e2e verts**, deux exécutions identiques ·
+dettes vidées : **27 échecs** sur les trois largeurs, relevé reproduit à
+l'identique · mutation CSS : la porte d'aire nommée rougit et nomme `market-map`.
+
+### Limite déclarée
+
+Ces portes lisent la mise en page, pas le sens. Une carte qui tient dans sa
+carte peut rester illisible ; une rangée équilibrée peut être vide de contenu.
+C'est la relecture des captures qui le dit, et elle reste obligatoire.
