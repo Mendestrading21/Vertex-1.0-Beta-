@@ -121,10 +121,19 @@ l'historique.
 ```bash
 export VERTEX_IBKR_UNIVERSE="$HOME/.vertex/univers.json"
 export VERTEX_IBKR_PORT=<le port CONFIRMÉ dans TWS>
-export VERTEX_IBKR_CLIENT_ID=71          # facultatif, 71 par défaut
+
+# Reprise : nouvelle passe 15 min après la fin de la précédente.
+# SANS cette variable, la commande fait UNE passe et sort — et comme Vertex
+# n'a aucun ordonnanceur, plus rien ne rafraîchirait les pages ensuite.
+export VERTEX_IBKR_REPEAT_SECONDS=900
 
 .venv/bin/python tools/run_edge_history.py
 ```
+
+Laissez ce terminal ouvert : c'est lui qui tient vos pages à jour. `Ctrl-C`
+arrête proprement — la requête en cours se termine, et aucune nouvelle passe
+n'est lancée. Le plancher est de 300 s : IBKR n'accorde que 60 requêtes par
+fenêtre de dix minutes, donc repartir plus vite ne collecte rien de plus.
 
 **C'est le piège principal de Vertex aujourd'hui, alors il est dit deux fois.**
 Chaque page est fermée par défaut sur le préfixe de schéma : elle déclare les
@@ -209,7 +218,7 @@ serveur).
 | **Aucune IA** | blocage B-05 : `/api/v1/ai/status` répond `DISABLED`. L'inspecteur produit une explication déterministe, traçable, sans modèle |
 | **Aucune alerte TradingView** | blocage B-03 : l'ingress Cloudflare n'est pas déployé |
 | Le **Simulateur** ne sauvegarde rien | capacité déclarée `NON_IMPLÉMENTÉ` |
-| **Rien ne se rafraîchit tout seul** | il n'existe aucun ordonnanceur. Un instantané reste figé tant qu'une ingestion ne remet pas de travail en file : relancez `run_edge_history.py` pour rafraîchir |
+| **Aucun ordonnanceur** | rien ne se déclenche à une heure donnée. Le remède de ce soir est `VERTEX_IBKR_REPEAT_SECONDS` (étape 6) : le collecteur repasse tout seul, et le worker republie. En dehors de ce terminal, rien ne bouge |
 
 Une page qui n'a pas sa donnée le **dit** — elle ne fabrique ni zéro, ni
 moyenne, ni valeur d'exemple. Un module vide n'est pas une panne d'affichage.

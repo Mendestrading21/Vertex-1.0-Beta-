@@ -218,7 +218,10 @@ export VERTEX_DATABASE_URL='postgresql+psycopg://vertex:…@127.0.0.1:5432/verte
 export VERTEX_IBKR_UNIVERSE="$HOME/.vertex/univers.json"
 export VERTEX_IBKR_PORT=7497          # le port CONFIRMÉ dans TWS, jamais supposé
 
-# 1. remplir la base — c'est CE processus qui alimente les pages
+# 1. remplir la base — c'est CE processus qui alimente les pages.
+#    VERTEX_IBKR_REPEAT_SECONDS enchaîne les passes : sans lui, une seule, et
+#    plus rien ne rafraîchit ensuite (Vertex n'a aucun ordonnanceur).
+export VERTEX_IBKR_REPEAT_SECONDS=900
 .venv/bin/python tools/run_edge_history.py
 
 # 2. puis servir, en profil réel, dans le MÊME shell

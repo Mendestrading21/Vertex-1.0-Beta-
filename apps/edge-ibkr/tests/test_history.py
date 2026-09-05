@@ -156,9 +156,7 @@ def test_un_doublon_n_est_pas_compte_comme_insere() -> None:
 def test_la_fenetre_pleine_declenche_une_attente_exacte() -> None:
     """Quand la fenêtre est saturée, on ATTEND — on ne force jamais le passage."""
     port = FauxPort()
-    b, _, sommeil, _ = monter(
-        port, universe=(SPEC_A, SPEC_B), window_max=1, window=100.0
-    )
+    b, _, sommeil, _ = monter(port, universe=(SPEC_A, SPEC_B), window_max=1, window=100.0)
     stats = asyncio.run(b.run())
     assert stats.requested == 2
     assert stats.deferred == 1
@@ -169,9 +167,7 @@ def test_la_fenetre_pleine_declenche_une_attente_exacte() -> None:
 
 def test_le_delai_entre_requetes_identiques_est_respecte() -> None:
     port = FauxPort()
-    b, _, sommeil, _ = monter(
-        port, universe=(SPEC_A, SPEC_A), window_max=60, cooldown=15.0
-    )
+    b, _, sommeil, _ = monter(port, universe=(SPEC_A, SPEC_A), window_max=60, cooldown=15.0)
     stats = asyncio.run(b.run())
     assert stats.requested == 2
     assert sommeil.delais == [pytest.approx(15.0)]
@@ -292,3 +288,18 @@ def test_mille_titres_prennent_bien_environ_deux_heures_cinquante() -> None:
     # 60 immédiates, puis 6/min : ~2 h 37 simulées. On vérifie l'ordre de
     # grandeur annoncé, pas une valeur au centième.
     assert 2.4 <= heures <= 3.0, f"{heures:.2f} h"
+
+
+def test_stop_requested_est_lisible_par_l_appelant() -> None:
+    """L'arrêt doit être LISIBLE, pas seulement demandable.
+
+    `tools/run_edge_history.py` enchaîne plusieurs passes quand
+    `VERTEX_IBKR_REPEAT_SECONDS` est posé. Sans cet accesseur, un Ctrl-C reçu
+    pendant une passe arrêtait cette passe — puis l'appelant en relançait une
+    autre, indéfiniment : le signal était honoré une fois et ignoré ensuite.
+    L'attribut existait déjà ; seule sa lecture manquait.
+    """
+    backfiller, _, _, _ = monter(FauxPort())
+    assert backfiller.stop_requested is False
+    backfiller.request_stop()
+    assert backfiller.stop_requested is True

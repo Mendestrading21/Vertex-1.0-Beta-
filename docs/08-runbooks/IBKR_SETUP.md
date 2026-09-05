@@ -86,6 +86,36 @@ Options utiles :
 - aucun appel interdit dans trace/log/code.
 
 
+## Reprise périodique
+
+`tools/run_edge_history.py` fait UNE passe sur l'univers, puis sort. C'est le
+bon défaut pour un premier remplissage, et le mauvais pour une session : Vertex
+n'a aucun ordonnanceur, donc plus rien ne remet de travail en file une fois la
+passe finie, et les pages restent figées.
+
+`VERTEX_IBKR_REPEAT_SECONDS` enchaîne les passes :
+
+```bash
+export VERTEX_IBKR_REPEAT_SECONDS=900   # nouvelle passe 15 min après la fin
+```
+
+- **opt-in** : sans la variable, le comportement d'origine est exactement
+  conservé ;
+- **plancher 300 s**, refusé en dessous — jamais corrigé en silence. IBKR
+  n'accorde que 60 requêtes par fenêtre glissante de dix minutes : une passe de
+  K instruments ne peut pas durer moins de K/6 minutes, et repartir plus vite
+  ne produit que des reconnexions ;
+- `Ctrl-C` (ou SIGTERM) arrête proprement : la requête en cours se termine et
+  aucune passe supplémentaire n'est lancée, y compris si le signal arrive
+  PENDANT l'attente ;
+- une passe qui échoue REMONTE l'erreur au lieu d'être avalée pour « continuer
+  quand même » : un transport perdu doit être lu, pas masqué ;
+- les compteurs du journal final sont CUMULÉS sur toutes les passes, et la
+  ligne le dit.
+
+Ce n'est pas un ordonnanceur, ni un service, ni une dépendance : c'est un
+paramètre du même outil, qui refait la même passe.
+
 ## Ingestion continue (après la sonde)
 
 La sonde répond « quels droits ai-je », une fois. Elle ne remplit pas les pages.
