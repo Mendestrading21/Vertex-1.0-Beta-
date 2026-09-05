@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { analyser, composer, contraste, deltaE } from './colorMetrics.ts';
-import { SIGNED_STEPS } from './signedScale.ts';
+import { SIGNED_SCALES } from './signedScale.ts';
 import { color } from './tokens.ts';
 
 /**
@@ -133,7 +133,7 @@ describe('Contraste des jetons — WCAG 2.2', () => {
     // Le cran le plus dense est celui qui décide : plus la teinte couvre, plus
     // le fond s'éclaircit, et plus le texte clair s'en rapproche.
     const echecs: string[] = [];
-    for (const cran of SIGNED_STEPS) {
+    for (const cran of SIGNED_SCALES.quotidien.steps) {
       for (const fond of FONDS) {
         const pose = composer(analyser(color[cran.token as keyof typeof color]), analyser(color[fond]));
         const mesure = ratio(color.text, pose);
@@ -159,7 +159,7 @@ describe('Contraste des jetons — WCAG 2.2', () => {
     // question est différente : là-bas, deux SENS ne doivent pas se confondre ;
     // ici, deux crans d'une même échelle sont voisins par construction et il
     // suffit qu'un pas se voie.
-    const poses = SIGNED_STEPS.map((cran) => ({
+    const poses = SIGNED_SCALES.quotidien.steps.map((cran) => ({
       cle: cran.key,
       couleur: composer(
         analyser(color[cran.token as keyof typeof color]),

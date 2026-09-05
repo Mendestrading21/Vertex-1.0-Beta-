@@ -1,25 +1,32 @@
 /**
- * ÉCHELLE DIVERGENTE À BORNES DÉCLARÉES — pour une valeur SIGNÉE en pourcent.
+ * ÉCHELLES DIVERGENTES À BORNES DÉCLARÉES — pour une valeur SIGNÉE en pourcent.
  *
- * CE QU'ELLE REMPLACE. Trois couleurs plates : vert plein si positif, rouge
- * plein si négatif, gris si nul. Un +0,09 % et un +2,42 % recevaient le même
- * vert. La couleur couvrait donc toute la surface de la carte des marchés sans
- * mesurer quoi que ce soit — l'inverse exact de la loi « la couleur est une
- * mesure » — et une planche de blocs saturés relève de l'esthétique que
- * l'identité proscrit nommément.
+ * CE QU'ELLES REMPLACENT. Deux façons de peindre un signe, toutes deux
+ * fautives pour la même raison de fond : la couleur ne mesurait rien.
  *
- * CE QU'ELLE N'EST PAS. Ce n'est pas une normalisation. Une normalisation
- * regarde l'ensemble des valeurs affichées pour en déduire un minimum et un
- * maximum ; la même valeur changerait alors de couleur selon ses voisines, deux
- * captures ne seraient plus comparables, et la teinte deviendrait un calcul
- * local sur des données servies — ce que `.claude/rules/frontend.md` interdit.
+ *   - La carte des marchés posait la teinte PLEINE selon le seul signe. Un
+ *     +0,09 % et un +2,42 % recevaient exactement le même vert.
+ *   - La carte mensuelle de performance passait par une rampe continue bornée
+ *     au MAXIMUM ABSOLU des mois affichés. Le même mois à +3 % changeait donc
+ *     de couleur selon les autres mois de la grille : ajouter une année
+ *     exceptionnelle délavait tout le reste, et deux captures n'étaient plus
+ *     comparables. C'est une normalisation locale sur des données servies,
+ *     exactement ce que `.claude/rules/frontend.md` interdit.
  *
- * CE QU'ELLE EST. Une table de correspondance FIXE, écrite ici une fois pour
+ * CE QUE C'EST. Des tables de correspondance FIXES, écrites ici une fois pour
  * toutes : une valeur servie tombe dans un intervalle nommé, et cet intervalle
  * a une teinte. La même valeur donne toujours la même couleur, sur toutes les
- * pages, dans toutes les sessions. Les bornes sont PUBLIÉES dans la légende,
- * et la valeur elle-même reste écrite en toutes lettres à côté de sa couleur :
- * la teinte accompagne le nombre, elle ne le remplace jamais.
+ * pages et dans toutes les sessions. Les bornes sont PUBLIÉES dans la légende,
+ * et la valeur reste écrite en toutes lettres à côté de sa couleur : la teinte
+ * accompagne le nombre, elle ne le remplace jamais.
+ *
+ * POURQUOI PLUSIEURS ÉCHELLES. Un rendement quotidien et un rendement mensuel
+ * n'ont pas la même amplitude usuelle. Peindre les deux avec les mêmes bornes
+ * saturerait la grille mensuelle — tout au dernier cran — et la couleur
+ * cesserait à nouveau de mesurer. Chaque échelle porte donc ses propres seuils,
+ * et son nom dit à quelle grandeur elle s'applique. Ce n'est PAS un réglage
+ * automatique : le choix d'échelle est fait par le composant, une fois, et il
+ * ne dépend d'aucune donnée.
  *
  * POURQUOI SEPT CRANS. Trois par signe plus le zéro exact. Au-delà, l'œil ne
  * distingue plus deux crans voisins sur une petite surface ; en deçà, on
@@ -27,9 +34,9 @@
  * propre cran parce que « exactement zéro » est une observation, pas une
  * absence — et qu'il ne doit ressembler ni à l'un ni à l'autre signe.
  *
- * CE QU'ELLE REFUSE. Une valeur absente ne reçoit AUCUNE couleur : elle rend
- * `null`, et l'appelant doit alors la traiter comme une absence. Peindre une
- * absence en gris neutre la rendrait indiscernable d'un zéro servi.
+ * CE QU'ELLES REFUSENT. Une valeur absente ne reçoit AUCUNE couleur : la
+ * fonction rend `null`, et l'appelant doit alors la traiter comme une absence.
+ * Peindre une absence en gris neutre la rendrait indiscernable d'un zéro servi.
  */
 
 /** Un cran de l'échelle : ses bornes, son nom, son jeton. */
@@ -46,39 +53,91 @@ export interface SignedStep {
   readonly token: string;
 }
 
-/**
- * Les bornes, en POURCENT, telles qu'elles apparaissent dans la légende.
- *
- * Elles sont volontairement rondes : un lecteur doit pouvoir se dire « ce
- * bloc est au-dessus de deux pour cent » sans consulter une table. Elles ne
- * dépendent d'aucune donnée, donc elles ne bougent pas d'un instantané à
- * l'autre.
- */
-export const SIGNED_STEPS: readonly SignedStep[] = [
-  { key: 'down-3', from: null, to: -2, label: 'sous −2 %', token: 'negative-band-3' },
-  { key: 'down-2', from: -2, to: -1, label: '−2 % à −1 %', token: 'negative-band-2' },
-  { key: 'down-1', from: -1, to: 0, label: '−1 % à 0 %', token: 'negative-band-1' },
-  { key: 'flat', from: 0, to: 0, label: 'exactement 0 %', token: 'titanium-soft' },
-  { key: 'up-1', from: 0, to: 1, label: '0 % à +1 %', token: 'positive-band-1' },
-  { key: 'up-2', from: 1, to: 2, label: '+1 % à +2 %', token: 'positive-band-2' },
-  { key: 'up-3', from: 2, to: null, label: 'au-dessus de +2 %', token: 'positive-band-3' },
-];
+export interface SignedScale {
+  /** Identifiant de l'échelle, employé dans les attributs de données. */
+  readonly key: string;
+  /** Ce que l'échelle mesure, pour le nom accessible de la légende. */
+  readonly mesure: string;
+  readonly steps: readonly SignedStep[];
+}
+
+/** Écriture française d'un seuil : virgule décimale, signe explicite. */
+function seuil(valeur: number): string {
+  const texte = Math.abs(valeur).toString().replace('.', ',');
+  return `${valeur < 0 ? '−' : '+'}${texte} %`;
+}
 
 /**
- * Range une valeur servie dans son cran.
+ * Construit les sept crans depuis DEUX seuils.
  *
- * `valeur` est le NOMBRE déjà extrait de la chaîne servie par l'appelant —
- * cette fonction ne parse rien et n'arrondit rien. Une valeur non finie rend
- * `null` : une absence ne se peint pas.
+ * Les crans sont engendrés, jamais recopiés : une table écrite à la main peut
+ * contenir un trou (une valeur sans couleur) ou un recouvrement (un rangement
+ * qui dépend de l'ordre des lignes), et ces deux défauts sont silencieux —
+ * la carte s'afficherait quand même.
  */
-export function signedStep(valeur: number | null): SignedStep | null {
+function construire(key: string, mesure: string, proche: number, loin: number): SignedScale {
+  return {
+    key,
+    mesure,
+    steps: [
+      { key: 'down-3', from: null, to: -loin, label: `sous ${seuil(-loin)}`, token: 'negative-band-3' },
+      {
+        key: 'down-2',
+        from: -loin,
+        to: -proche,
+        label: `${seuil(-loin)} à ${seuil(-proche)}`,
+        token: 'negative-band-2',
+      },
+      {
+        key: 'down-1',
+        from: -proche,
+        to: 0,
+        label: `${seuil(-proche)} à 0 %`,
+        token: 'negative-band-1',
+      },
+      { key: 'flat', from: 0, to: 0, label: 'exactement 0 %', token: 'titanium-soft' },
+      { key: 'up-1', from: 0, to: proche, label: `0 % à ${seuil(proche)}`, token: 'positive-band-1' },
+      {
+        key: 'up-2',
+        from: proche,
+        to: loin,
+        label: `${seuil(proche)} à ${seuil(loin)}`,
+        token: 'positive-band-2',
+      },
+      { key: 'up-3', from: loin, to: null, label: `au-dessus de ${seuil(loin)}`, token: 'positive-band-3' },
+    ],
+  };
+}
+
+/**
+ * Les échelles du produit, avec leurs seuils en POURCENT.
+ *
+ * Ils sont volontairement ronds : un lecteur doit pouvoir se dire « ce bloc est
+ * au-dessus de deux pour cent » sans consulter une table. Ils ne dépendent
+ * d'aucune donnée, donc ils ne bougent pas d'un instantané à l'autre.
+ */
+export const SIGNED_SCALES = {
+  /** Variation d'une séance : l'ordre de grandeur usuel est le point de pourcent. */
+  quotidien: construire('quotidien', 'rendement 1 jour', 1, 2),
+  /** Variation d'un mois : quelques points de pourcent, donc des seuils plus larges. */
+  mensuel: construire('mensuel', 'rendement mensuel', 2, 5),
+} as const satisfies Record<string, SignedScale>;
+
+/**
+ * Range une valeur servie dans son cran, sur une échelle DONNÉE.
+ *
+ * `valeur` est le nombre déjà extrait de la chaîne servie par l'appelant :
+ * cette fonction ne parse rien et n'arrondit rien. Une valeur non finie rend
+ * `null` — une absence ne se peint pas.
+ */
+export function signedStep(valeur: number | null, echelle: SignedScale): SignedStep | null {
   if (valeur === null || !Number.isFinite(valeur)) {
     return null;
   }
   if (valeur === 0) {
-    return SIGNED_STEPS.find((cran) => cran.key === 'flat') ?? null;
+    return echelle.steps.find((cran) => cran.key === 'flat') ?? null;
   }
-  for (const cran of SIGNED_STEPS) {
+  for (const cran of echelle.steps) {
     if (cran.key === 'flat') {
       continue;
     }

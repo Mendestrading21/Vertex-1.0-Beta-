@@ -4,7 +4,7 @@ import type { MarketsSector } from '../../api/client.ts';
 import type { EChartsInstance } from '../../charts/echartsLoader.ts';
 import type { SignGroup } from '../../components/markets/marketsView.ts';
 import { flattenTickers, frDecimal, geometryNumber } from '../../components/markets/marketsView.ts';
-import { SIGNED_STEPS, signedStep } from '../../design/signedScale.ts';
+import { SIGNED_SCALES, signedStep } from '../../design/signedScale.ts';
 
 /**
  * MarketMap — treemap ECharts secteurs → tickers (dominante de /markets).
@@ -61,7 +61,7 @@ function buildTreemapData(
         .filter((entry) => visibleGroups.has(entry.group))
         .map((entry) => {
           const rendement = geometryNumber(entry.ticker.return_1d_pct);
-          const cran = signedStep(Number.isFinite(rendement) ? rendement : null);
+          const cran = signedStep(Number.isFinite(rendement) ? rendement : null, SIGNED_SCALES.quotidien);
           return {
           name: entry.ticker.ticker,
           value: geometryNumber(entry.ticker.weight_global_pct),
@@ -248,8 +248,11 @@ export function MarketMap({ sectors, visibleGroups, description, onSelect }: Mar
         bloc soutenu est au-dessus de deux pour cent, et il peut le vérifier
         sur la tuile, qui porte le chiffre.
       */}
-      <ul className="vx-marketmap-scale" aria-label="Échelle de couleur du rendement 1 jour">
-        {SIGNED_STEPS.map((cran) => (
+      <ul
+        className="vx-marketmap-scale"
+        aria-label={`Échelle de couleur — ${SIGNED_SCALES.quotidien.mesure}`}
+      >
+        {SIGNED_SCALES.quotidien.steps.map((cran) => (
           <li key={cran.key}>
             <span className="vx-marketmap-swatch" data-step={cran.key} aria-hidden="true" />
             {cran.label}

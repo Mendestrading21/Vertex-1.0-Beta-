@@ -3526,3 +3526,24 @@
 .vx-marketmap-swatch[data-step='up-3'] {
   background-color: var(--vx-positive-band-3);
 }
+
+/* ==================================================================== */
+/* VALEUR EXACTE SERVIE — une note de bas de mesure, pas un concurrent  */
+/*                                                                      */
+/* La valeur exacte suivait le chiffre SUR LA MÊME LIGNE. Mesuré à      */
+/* l'écran : « −0.34 % (exact : −0.0034193193797471775973762693) » —    */
+/* vingt-huit chiffres qui coupaient au milieu du nombre et prenaient   */
+/* trois fois la place de la mesure qu'ils précisent. Le lecteur ne     */
+/* voyait plus la valeur, et la précision exacte n'était pas lisible    */
+/* non plus : les deux perdaient.                                       */
+/*                                                                      */
+/* Elle reste INTÉGRALE et visible — c'est la preuve, on ne la tronque  */
+/* pas — mais elle passe sous le chiffre, en corps de méta.             */
+/* ==================================================================== */
+
+.vx-perf-metric-raw {
+  display: block;
+  margin-top: 2px;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
+}

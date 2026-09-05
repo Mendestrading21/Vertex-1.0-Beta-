@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
-import { SIGNED_STEPS, signedStep } from './signedScale.ts';
+import { SIGNED_SCALES, signedStep } from './signedScale.ts';
 import { color } from './tokens.ts';
 
 /**
@@ -12,7 +12,38 @@ import { color } from './tokens.ts';
  * normalisation. Une valeur donne toujours le même cran, quelles que soient
  * les autres valeurs de la planche.
  */
+const QUOTIDIEN = SIGNED_SCALES.quotidien;
+const SIGNED_STEPS = QUOTIDIEN.steps;
+
 describe('Échelle divergente — bornes fixes, jamais normalisées', () => {
+  it('couvre la droite réelle sans trou ni recouvrement, sur CHAQUE échelle', () => {
+    for (const echelle of Object.values(SIGNED_SCALES)) {
+      const crans = echelle.steps.filter((cran) => cran.key !== 'flat');
+      expect(crans[0]?.from, `${echelle.key} : première borne`).toBeNull();
+      expect(crans.at(-1)?.to, `${echelle.key} : dernière borne`).toBeNull();
+      for (let i = 1; i < crans.length; i += 1) {
+        expect(crans[i]?.from, `${echelle.key} : discontinuité avant ${crans[i]?.key}`).toBe(
+          crans[i - 1]?.to,
+        );
+      }
+    }
+  });
+
+  it('donne à chaque échelle ses PROPRES seuils', () => {
+    // Un rendement quotidien et un rendement mensuel n'ont pas la même
+    // amplitude usuelle. Peindre les deux avec les mêmes bornes saturerait la
+    // grille mensuelle — tout au dernier cran — et la couleur cesserait de
+    // mesurer, ce qui est exactement le défaut qu'on vient de corriger.
+    const bornesQuotidien = SIGNED_SCALES.quotidien.steps.map((c) => c.to);
+    const bornesMensuel = SIGNED_SCALES.mensuel.steps.map((c) => c.to);
+    expect(bornesQuotidien).not.toEqual(bornesMensuel);
+    // Et chaque échelle DIT ce qu'elle mesure : une légende sans grandeur
+    // nommée laisse croire qu'une seule échelle existe.
+    for (const echelle of Object.values(SIGNED_SCALES)) {
+      expect(echelle.mesure.length, `${echelle.key} : grandeur non nommée`).toBeGreaterThan(8);
+    }
+  });
+
   it('couvre la droite réelle sans trou ni recouvrement', () => {
     // Un trou laisserait une valeur sans couleur ; un recouvrement rendrait le
     // rangement dépendant de l'ordre de la table. Les deux sont des défauts
@@ -26,46 +57,48 @@ describe('Échelle divergente — bornes fixes, jamais normalisées', () => {
   });
 
   it('range chaque valeur dans un seul cran, bornes comprises', () => {
-    expect(signedStep(-9.9)?.key).toBe('down-3');
-    expect(signedStep(-2)?.key).toBe('down-2'); // borne basse INCLUSE
-    expect(signedStep(-2.0001)?.key).toBe('down-3');
-    expect(signedStep(-1)?.key).toBe('down-1');
-    expect(signedStep(-0.01)?.key).toBe('down-1');
-    expect(signedStep(0)?.key).toBe('flat');
-    expect(signedStep(0.01)?.key).toBe('up-1');
-    expect(signedStep(1)?.key).toBe('up-2');
-    expect(signedStep(2)?.key).toBe('up-3');
-    expect(signedStep(48)?.key).toBe('up-3');
+    expect(signedStep(-9.9, QUOTIDIEN)?.key).toBe('down-3');
+    expect(signedStep(-2, QUOTIDIEN)?.key).toBe('down-2'); // borne basse INCLUSE
+    expect(signedStep(-2.0001, QUOTIDIEN)?.key).toBe('down-3');
+    expect(signedStep(-1, QUOTIDIEN)?.key).toBe('down-1');
+    expect(signedStep(-0.01, QUOTIDIEN)?.key).toBe('down-1');
+    expect(signedStep(0, QUOTIDIEN)?.key).toBe('flat');
+    expect(signedStep(0.01, QUOTIDIEN)?.key).toBe('up-1');
+    expect(signedStep(1, QUOTIDIEN)?.key).toBe('up-2');
+    expect(signedStep(2, QUOTIDIEN)?.key).toBe('up-3');
+    expect(signedStep(48, QUOTIDIEN)?.key).toBe('up-3');
   });
 
   it('donne au ZÉRO EXACT son propre cran', () => {
     // « Exactement zéro » est une OBSERVATION, pas une absence, et pas non plus
     // une petite hausse : il ne doit ressembler à aucun des deux signes.
-    const zero = signedStep(0);
+    const zero = signedStep(0, QUOTIDIEN);
     expect(zero?.key).toBe('flat');
-    expect(zero?.token).not.toBe(signedStep(0.01)?.token);
-    expect(zero?.token).not.toBe(signedStep(-0.01)?.token);
+    expect(zero?.token).not.toBe(signedStep(0.01, QUOTIDIEN)?.token);
+    expect(zero?.token).not.toBe(signedStep(-0.01, QUOTIDIEN)?.token);
   });
 
   it('ne peint AUCUNE absence', () => {
-    expect(signedStep(null)).toBeNull();
-    expect(signedStep(Number.NaN)).toBeNull();
-    expect(signedStep(Number.POSITIVE_INFINITY)).toBeNull();
+    expect(signedStep(null, QUOTIDIEN)).toBeNull();
+    expect(signedStep(Number.NaN, QUOTIDIEN)).toBeNull();
+    expect(signedStep(Number.POSITIVE_INFINITY, QUOTIDIEN)).toBeNull();
   });
 
   it('ne dépend pas des autres valeurs — c’est ce qui la distingue d’une normalisation', () => {
     // La même entrée, seule ou au milieu d'une planche entière, rend le même
     // cran. Une normalisation locale échouerait ici.
-    const isolee = signedStep(1.5);
+    const isolee = signedStep(1.5, QUOTIDIEN);
     for (const bruit of [-100, -3, 0, 0.2, 7, 250]) {
-      signedStep(bruit);
+      signedStep(bruit, QUOTIDIEN);
     }
-    expect(signedStep(1.5)).toEqual(isolee);
+    expect(signedStep(1.5, QUOTIDIEN)).toEqual(isolee);
   });
 
-  it('nomme des jetons qui EXISTENT', () => {
-    for (const cran of SIGNED_STEPS) {
-      expect(Object.keys(color), `jeton inconnu : ${cran.token}`).toContain(cran.token);
+  it('nomme des jetons qui EXISTENT, sur chaque échelle', () => {
+    for (const echelle of Object.values(SIGNED_SCALES)) {
+      for (const cran of echelle.steps) {
+        expect(Object.keys(color), `jeton inconnu : ${cran.token}`).toContain(cran.token);
+      }
     }
   });
 
@@ -83,11 +116,13 @@ describe('Échelle divergente — bornes fixes, jamais normalisées', () => {
     }
   });
 
-  it('publie une légende chiffrée pour chaque cran', () => {
-    for (const cran of SIGNED_STEPS) {
-      expect(cran.label, `libellé sans chiffre : ${cran.key}`).toMatch(/\d/);
-      expect(cran.label).toContain('%');
+  it('publie une légende chiffrée pour chaque cran de chaque échelle', () => {
+    for (const echelle of Object.values(SIGNED_SCALES)) {
+      for (const cran of echelle.steps) {
+        expect(cran.label, `libellé sans chiffre : ${echelle.key}/${cran.key}`).toMatch(/\d/);
+        expect(cran.label).toContain('%');
+      }
+      expect(new Set(echelle.steps.map((c) => c.token)).size).toBe(echelle.steps.length);
     }
-    expect(new Set(SIGNED_STEPS.map((c) => c.token)).size).toBe(SIGNED_STEPS.length);
   });
 });
