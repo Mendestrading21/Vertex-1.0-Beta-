@@ -19,8 +19,8 @@ import { AbsentCell } from '../components/absence.tsx';
  * (« Détail »).
  */
 
-export const FAMILY_PARAM = 'famille';
-export const STATUS_PARAM = 'statut';
+const FAMILY_PARAM = 'famille';
+const STATUS_PARAM = 'statut';
 const ALL = 'toutes';
 
 const STATUS_VALUES: readonly SourceCapabilityStatus[] = [

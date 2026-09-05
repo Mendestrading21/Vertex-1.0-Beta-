@@ -71,7 +71,7 @@ import type { PageDataState } from '../api/hooks.ts';
  */
 
 /** Ce que la bande a le droit d'afficher, dérivé du seul état observé. */
-export type TickerMode = 'values' | 'notice';
+type TickerMode = 'values' | 'notice';
 
 export interface TickerFrame {
   readonly mode: TickerMode;

@@ -219,7 +219,7 @@ export function absentModules(): readonly (ChartsModule & {
  * la page les apparier, donc les désaligner d'un décalage d'indice ; ici la
  * structure l'interdit.
  */
-export interface ComparisonPoint {
+interface ComparisonPoint {
   readonly tradingDay: string;
   readonly instrument: string;
   readonly benchmark: string;
@@ -352,7 +352,7 @@ export function comparisonViewOf(
  * la FIN des séances (première fenêtre complète). Cette vue ne fait que la
  * nommer : aucune moyenne, aucun lissage, aucun remplissage de trou.
  */
-export interface IndicatorLineView {
+interface IndicatorLineView {
   readonly key: string;
   /** Nom SERVI de la ligne ou de la bande (`lower`, `macd`, `value`…). */
   readonly label: string;

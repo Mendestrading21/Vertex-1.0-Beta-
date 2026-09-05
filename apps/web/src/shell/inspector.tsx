@@ -38,7 +38,7 @@ function notify(): void {
   }
 }
 
-export const inspectorStore = {
+const inspectorStore = {
   getState(): number {
     return mountedPanels;
   },

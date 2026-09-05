@@ -23,7 +23,7 @@ const HEIGHT = 180;
 const TOP = 8;
 const BOTTOM = 156;
 
-export const MULTI_TONES = ['silver', 'macro', 'option', 'warning'] as const;
+const MULTI_TONES = ['silver', 'macro', 'option', 'warning'] as const;
 export type MultiTone = (typeof MULTI_TONES)[number];
 
 /** Motifs de trait, un par série. Le premier est plein. */

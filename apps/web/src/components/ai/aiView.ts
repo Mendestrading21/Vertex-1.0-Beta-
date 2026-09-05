@@ -6,10 +6,10 @@
  * une citation vers son entrée de catalogue et fabriquer des ancres HTML
  * stables — il ne complète, ne devine et ne traduit rien.
  */
-import type { AiAnswer, AiEvidenceCatalogEntry, AiSubject } from '../../api/client.ts';
+import type { AiAnswer, AiEvidenceCatalogEntry } from '../../api/client.ts';
 
 /** Les trois sujets explicables du contrat, avec leur libellé français. */
-export const AI_SUBJECT_KINDS = ['analysis', 'portfolio_valuation', 'performance'] as const;
+const AI_SUBJECT_KINDS = ['analysis', 'portfolio_valuation', 'performance'] as const;
 
 export type AiSubjectKind = (typeof AI_SUBJECT_KINDS)[number];
 
@@ -66,10 +66,6 @@ export function evidenceLabelOf(
 /** `true` quand la réponse est un REFUS structuré (jamais une explication vide). */
 export function isRefusal(answer: AiAnswer): boolean {
   return answer.state === 'refused';
-}
-
-export function subjectOf(kind: AiSubjectKind, key: string): AiSubject {
-  return { kind, key };
 }
 
 /**

@@ -1,5 +1,4 @@
 import { geometryValue, textDensityOf } from './geometry.ts';
-import type { TextDensity } from './geometry.ts';
 
 /**
  * Anneau de parts SERVIES à chiffre central — forme admise par ADR-017.
@@ -30,8 +29,8 @@ export const RING_CIRCUMFERENCE = 2 * Math.PI * RADIUS;
  */
 const VIEW_SIZE = CENTER * 2;
 
-export const RING_TONES = ['silver', 'titanium', 'macro', 'option', 'warning'] as const;
-export type RingTone = (typeof RING_TONES)[number];
+const RING_TONES = ['silver', 'titanium', 'macro', 'option', 'warning'] as const;
+type RingTone = (typeof RING_TONES)[number];
 
 /** Au-delà, la teinte porterait seule l'information. */
 const MAX_PARTS = 5;
@@ -64,10 +63,8 @@ function servedTextOf(part: RingPart): string | null {
  * financière ici) et laisse la feuille de style choisir le cran qui le fait
  * tenir ENTIER dans le creux.
  */
-export type CenterDensity = TextDensity;
-
 /** La mesure vit dans `geometry.ts` : l'arc en a besoin autant que l'anneau. */
-export const centerDensityOf = textDensityOf;
+const centerDensityOf = textDensityOf;
 
 export interface RingSharesProps {
   readonly parts: readonly RingPart[];

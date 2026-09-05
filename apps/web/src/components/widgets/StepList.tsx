@@ -18,7 +18,7 @@ import type { StatusChipTone } from './StatusChip.tsx';
  * relayable verbatim ; la cellule l'AVOUE (« non reconnu »), elle ne la
  * remplace ni par un vide, ni par un zéro, ni par un tiret nu.
  */
-export interface StepFact {
+interface StepFact {
   readonly key: string;
   readonly text: string | null;
 }
