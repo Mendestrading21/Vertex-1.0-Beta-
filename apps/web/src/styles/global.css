@@ -5409,7 +5409,27 @@ label {
 /* Le pied de PROVENANCE. Il est près de la donnée qu'il qualifie, jamais
    relégué en bas de page : c'est la règle « microcopie et provenance proches
    de la donnée » du contrat canonique. */
+/*
+  LA PROVENANCE SE COUPE OÙ ELLE PEUT — C'ÉTAIT ELLE, LES HUIT PIXELS.
+
+  Sept hypothèses ont été réfutées avant celle-ci, toutes parce que je cherchais
+  la faute dans la MESURE ou dans la COQUILLE. La sonde décisive posait enfin la
+  question directe — quel descendant a son propre `scrollWidth` supérieur à son
+  `clientWidth` ? — et la réponse était nette : ce pied, `clientWidth` 142 pour
+  `scrollWidth` 171, sur les DEUX cartes fautives et sur elles seules.
+
+  Il porte un horodatage ISO : `2026-09-05T11:12:34.567Z` est un seul jeton
+  insécable, plus large que la colonne étroite. Sa largeur min-content
+  débordait la carte, et le débordement remontait jusqu'au module.
+
+  `anywhere` et non `break-word` : le dépôt l'a déjà écrit pour ses tables —
+  les deux coupent un mot trop long au rendu, mais SEUL `anywhere` réduit la
+  largeur min-content, donc seul lui laisse la carte rétrécir. Un horodatage
+  technique se coupe n'importe où sans mentir ; c'est l'inverse d'une mesure,
+  dont le nombre et l'unité doivent rester soudés.
+*/
 .vx-card-foot {
+  overflow-wrap: anywhere;
   padding-top: var(--vx-space-12);
   border-top: 1px solid var(--vx-border-soft);
   color: var(--vx-text-muted);

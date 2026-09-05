@@ -60,17 +60,32 @@ const DESTINATIONS: ReadonlyArray<{ readonly route: string; readonly minimum: nu
  * Les pages chargent leurs instantanés après le premier rendu : mesurer trop
  * tôt, c'est mesurer une page vide et conclure qu'elle est saine.
  */
+/**
+ * Attend que les tableaux soient rendus ET que leur nombre se stabilise.
+ *
+ * LA PREMIÈRE VERSION SE CONTENTAIT DE DEUX RELEVÉS ÉGAUX — `0 === 0` compris.
+ * Sur une route lente (la chaîne d'options est la plus lourde du produit),
+ * elle déclarait donc « stable » l'état VIDE, avant tout rendu, et la porte
+ * échouait sur « 0 tableau » alors que la page en portait un. Vu une fois sur
+ * `/options/SYN-TECH-01` à 1440, vert au même instant à 1280 : un test
+ * instable, c'est-à-dire un échec, pas un aléa.
+ *
+ * La stabilité ne compte désormais qu'À PARTIR d'un rendu non vide. Si rien ne
+ * se rend dans le budget, on rend `0` et l'assertion échoue — ce qui est le
+ * bon comportement : une page qui ne rend aucun tableau est une vraie faute,
+ * pas une lenteur à masquer.
+ */
 async function attendreLesTables(page: import('@playwright/test').Page): Promise<number> {
   let precedent = -1;
-  for (let essai = 0; essai < 25; essai += 1) {
+  for (let essai = 0; essai < 40; essai += 1) {
     await page.waitForTimeout(200);
     const courant = await page.locator('table').count();
-    if (courant === precedent) {
+    if (courant > 0 && courant === precedent) {
       return courant;
     }
     precedent = courant;
   }
-  return precedent;
+  return precedent > 0 ? precedent : 0;
 }
 
 /** `display` admissible par nature d'élément de tableau. */
