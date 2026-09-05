@@ -181,6 +181,28 @@ describe('Contraste des jetons — WCAG 2.2', () => {
     expect(trop_proches, `Crans indiscernables :\n  ${trop_proches.join('\n  ')}`).toEqual([]);
   });
 
+  it('les repères d’interface NON TEXTUELS tiennent 3:1', () => {
+    // WCAG 1.4.11 : un repère qui porte SEUL une information — contour de
+    // focus, filet de sélection, bordure d'un champ actif — doit atteindre
+    // 3:1 sur son fond. Mesuré avant correction : l'option active de la
+    // palette de commandes se distinguait par `hover` sur le fond du panneau,
+    // soit 1,21:1, et c'était le SEUL indicateur de la position du curseur
+    // clavier. Un utilisateur qui navigue aux flèches ne voyait pas où il
+    // était.
+    const echecs: string[] = [];
+    for (const repere of ['signal', 'signal-bright', 'silver'] as const) {
+      for (const fond of FONDS) {
+        const mesure = ratio(color[repere], color[fond]);
+        if (mesure < 3) {
+          echecs.push(`${repere} sur ${fond} : ${arrondi(mesure)}:1`);
+        }
+      }
+    }
+    expect(echecs, `Repères d’interface sous le seuil de 3:1 :\n  ${echecs.join('\n  ')}`).toEqual(
+      [],
+    );
+  });
+
   it('chaque exemption porte une raison écrite et un jeton réel', () => {
     for (const { jeton, raison } of JAMAIS_TEXTE) {
       expect(Object.keys(color), `jeton exempté inexistant : ${jeton}`).toContain(jeton);

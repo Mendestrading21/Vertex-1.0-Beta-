@@ -48,6 +48,18 @@ import type { RiskView } from './riskView.ts';
  */
 
 /** État de module dérivé d'un état de page, sans jamais l'inventer. */
+/**
+ * Un compte SERVI, ou son absence NOMMÉE.
+ *
+ * Ces comptes passaient par une conversion qui rendait `0` sur une valeur non
+ * publiée : le rapport annonçait « 0 retenu sur 0 déclaré », c'est-à-dire un
+ * périmètre vide MESURÉ, là où le serveur n'avait rien envoyé. « Je ne sais
+ * pas » et « j'ai regardé, il n'y a rien » appellent des lectures opposées.
+ */
+function compteServi(valeur: number | null): string {
+  return valeur === null ? 'non publié' : String(valeur);
+}
+
 export function riskModuleState(pageState: ModuleState, dataState: string | null): ModuleState {
   // `data_state` est SERVI par le contenu de la matrice ; quand il annonce une
   // couverture partielle, le module le dit au lieu de rester « prêt ».
@@ -188,7 +200,7 @@ export function CoverageModule({
         <div>
           <dt>Instruments retenus</dt>
           <dd>
-            {coverage.retained} sur {coverage.perimeterSize} déclarés
+            {compteServi(coverage.retained)} sur {compteServi(coverage.perimeterSize)} déclarés
             {coverage.retainedTickers.length > 0 ? (
               <>
                 {' '}
@@ -200,7 +212,8 @@ export function CoverageModule({
         <div>
           <dt>Séances communes</dt>
           <dd>
-            {coverage.commonDays} (minimum déclaré&nbsp;: {coverage.minimumDays})
+            {compteServi(coverage.commonDays)} (minimum déclaré&nbsp;:{' '}
+            {compteServi(coverage.minimumDays)})
           </dd>
         </div>
         <div>

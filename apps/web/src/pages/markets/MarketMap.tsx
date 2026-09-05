@@ -59,12 +59,21 @@ function buildTreemapData(
       name: sector.label,
       children: flattenTickers([sector])
         .filter((entry) => visibleGroups.has(entry.group))
+        // Une tuile dont le POIDS ne se lit pas n'a pas de surface : la
+        // dessiner à zéro la rendrait invisible tout en la comptant, et
+        // l'écarter en silence changerait la population sans le dire. Elle est
+        // donc retirée de la carte, et la table équivalente rendue sous la
+        // figure — qui, elle, porte la chaîne servie telle quelle — reste la
+        // référence complète.
         .map((entry) => {
-          const rendement = geometryNumber(entry.ticker.return_1d_pct);
-          const cran = signedStep(Number.isFinite(rendement) ? rendement : null, SIGNED_SCALES.quotidien);
+          const poids = geometryNumber(entry.ticker.weight_global_pct);
+          if (poids === null) {
+            return null;
+          }
+          const cran = signedStep(geometryNumber(entry.ticker.return_1d_pct), SIGNED_SCALES.quotidien);
           return {
           name: entry.ticker.ticker,
-          value: geometryNumber(entry.ticker.weight_global_pct),
+          value: poids,
           itemStyle: {
             color: cran === null ? absente : cssToken(`--vx-${cran.token}`),
           },
@@ -72,7 +81,8 @@ function buildTreemapData(
             formatter: `${entry.ticker.ticker}\n${frDecimal(entry.ticker.return_1d_pct)} %`,
           },
           };
-        }),
+        })
+        .filter((feuille): feuille is TreemapLeaf => feuille !== null),
     }))
     .filter((node) => node.children.length > 0);
 }

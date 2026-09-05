@@ -65,10 +65,20 @@ export interface RiskView {
   readonly coverage: {
     readonly perimeter: readonly string[];
     readonly retainedTickers: readonly string[];
-    readonly perimeterSize: number;
-    readonly retained: number;
-    readonly commonDays: number;
-    readonly minimumDays: number;
+    /**
+     * COMPTES DE COUVERTURE — NULLABLES, ET C'EST UN CORRECTIF.
+     *
+     * Ils passaient par une conversion qui rendait `0` sur une valeur non
+     * publiée : un rapport de couverture annonçait alors « 0 retenu sur 0
+     * déclaré », c'est-à-dire un périmètre vide MESURÉ, là où le serveur
+     * n'avait simplement rien envoyé. Un compte absent et un compte nul
+     * appellent des lectures opposées — l'un dit « je ne sais pas », l'autre
+     * « j'ai regardé, il n'y a rien ».
+     */
+    readonly perimeterSize: number | null;
+    readonly retained: number | null;
+    readonly commonDays: number | null;
+    readonly minimumDays: number | null;
     /** Seuils PUBLIÉS. `null` = non publié — la page le dit, aucun tiret. */
     readonly moderateThreshold: string | null;
     readonly strongThreshold: string | null;
@@ -95,10 +105,6 @@ export interface RiskView {
 
 function stringOf(value: unknown): string | null {
   return typeof value === 'string' && value.length > 0 ? value : null;
-}
-
-function numberOf(value: unknown): number {
-  return typeof value === 'number' && Number.isFinite(value) ? value : 0;
 }
 
 function optionalNumberOf(value: unknown): number | null {
@@ -203,10 +209,10 @@ export function riskViewOf(response: RiskMatrixResponse): RiskView {
     coverage: {
       perimeter: stringListOf(coverage.perimeter),
       retainedTickers: stringListOf(coverage.retained),
-      perimeterSize: numberOf(coverage.perimeter_size),
-      retained: numberOf(coverage.retained_count),
-      commonDays: numberOf(coverage.common_trading_days),
-      minimumDays: numberOf(coverage.minimum_common_days),
+      perimeterSize: optionalNumberOf(coverage.perimeter_size),
+      retained: optionalNumberOf(coverage.retained_count),
+      commonDays: optionalNumberOf(coverage.common_trading_days),
+      minimumDays: optionalNumberOf(coverage.minimum_common_days),
       moderateThreshold: stringOf(coverage.moderate_threshold),
       strongThreshold: stringOf(coverage.strong_threshold),
       window: windowStart !== null && windowEnd !== null ? `${windowStart} → ${windowEnd}` : null,

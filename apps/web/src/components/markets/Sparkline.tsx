@@ -44,9 +44,26 @@ function scaleY(values: readonly number[]): (value: number) => number {
   return (value) => LINE_BOTTOM - ((value - min) / span) * drawable;
 }
 
-/** Points « x,y » du tracé — exportée pour être testée sans DOM. */
+/**
+ * Points « x,y » du tracé — exportée pour être testée sans DOM.
+ *
+ * UNE CLÔTURE ILLISIBLE N'EST PAS UNE CLÔTURE À ZÉRO. La conversion rendait
+ * `0` sur une chaîne non finie : la courbe plongeait alors sur l'axe, et ce
+ * creux se lisait comme un effondrement du cours. La série entière est refusée
+ * dès qu'un point est illisible — mieux vaut ne rien tracer qu'une forme
+ * fausse, et l'appelant affiche alors son état d'absence. Le pas de l'axe des
+ * abscisses reste celui des clôtures SERVIES : écarter silencieusement un
+ * point déformerait le temps.
+ */
 export function sparklinePoints(closes: readonly string[]): readonly (readonly [number, number])[] {
-  const values = closes.map((raw) => geometryNumber(raw));
+  const values: number[] = [];
+  for (const raw of closes) {
+    const valeur = geometryNumber(raw);
+    if (valeur === null) {
+      return [];
+    }
+    values.push(valeur);
+  }
   if (values.length === 0) {
     return [];
   }

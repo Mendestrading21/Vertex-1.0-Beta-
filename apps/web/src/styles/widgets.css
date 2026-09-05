@@ -2649,8 +2649,17 @@
   font-size: var(--vx-font-size-title);
 }
 
+/* LE CHAMP NE PERD PLUS SON REPÈRE DE FOCUS.
+   `outline: none` supprimait purement et simplement l'indication de focus —
+   WCAG 2.4.7. Le repère n'a pas disparu : il a DÉMÉNAGÉ sur le champ entier,
+   qui est bordé, où il se voit mieux qu'un liseré collé au texte. */
 .vx-palette-input:focus {
   outline: none;
+}
+
+.vx-palette-field:focus-within {
+  border-color: var(--vx-signal);
+  box-shadow: inset 0 -1px 0 var(--vx-signal);
 }
 
 .vx-palette-list {
@@ -2681,12 +2690,27 @@
   align-items: baseline;
   gap: var(--vx-space-12);
   padding: var(--vx-space-8) var(--vx-space-16);
+  /* Le filet est TOUJOURS là, transparent au repos : sans lui, l'élément actif
+     se décalerait de trois pixels au moment où il le devient, et la liste
+     bougerait sous le curseur clavier. */
+  border-left: 3px solid transparent;
   cursor: pointer;
 }
 
 /* L'élément actif se distingue par une SURFACE, pas par un déplacement ni un
-   agrandissement : la liste ne doit pas bouger sous le curseur clavier. */
+   agrandissement : la liste ne doit pas bouger sous le curseur clavier.
+ *
+ * MAIS UNE SURFACE SEULE NE SUFFISAIT PAS. `--vx-hover` sur le fond du
+ * panneau donne 1,21:1 — très en dessous des 3:1 qu'exige WCAG 1.4.11 pour un
+ * repère d'interface non textuel. Comme c'est le SEUL indicateur de la
+ * position du curseur clavier dans la palette, un utilisateur qui navigue aux
+ * flèches ne voyait pas où il était.
+ *
+ * Un filet d'ambre pleine s'ajoute donc à gauche : `signal` sur `surface-1`
+ * mesure 8,6:1. La surface reste, parce qu'elle porte la ligne entière ; le
+ * filet porte le seuil. */
 .vx-palette-item[data-active='true'] {
+  border-left-color: var(--vx-signal);
   background-color: var(--vx-hover);
 }
 

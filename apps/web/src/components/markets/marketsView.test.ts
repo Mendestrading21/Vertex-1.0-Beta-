@@ -38,9 +38,29 @@ describe('frDecimal — présentation française', () => {
 });
 
 describe('geometryNumber — géométrie de rendu uniquement', () => {
-  it('parse une chaîne serveur finie, 0 sinon (jamais NaN dans le rendu)', () => {
+  /**
+   * CE TEST GELAIT UN DÉFAUT, et il faut le dire.
+   *
+   * Il exigeait « 0 sinon » — donc qu'une chaîne illisible devienne un zéro.
+   * L'intention était honorable : ne jamais laisser un `NaN` atteindre le
+   * rendu. Mais la conséquence était pire que le mal évité : une clôture
+   * illisible devenait une clôture À ZÉRO, la courbe plongeait sur l'axe, et
+   * ce creux se lisait comme un effondrement du cours. Une absence peinte
+   * comme une valeur est un fait FAUX, et `.claude/rules/frontend.md`
+   * l'interdit nommément — « ne jamais remplacer une donnée absente par 0 ».
+   *
+   * L'assertion est donc RESSERRÉE, pas desserrée : `null` dit strictement
+   * plus que `0`, et il oblige chaque appelant à décider quoi ne pas dessiner.
+   * Le `NaN` reste banni — c'était le vrai objet du test d'origine.
+   */
+  it('parse une chaîne serveur finie, et REFUSE le reste — jamais 0, jamais NaN', () => {
     expect(geometryNumber('35.48')).toBeCloseTo(35.48);
-    expect(geometryNumber('pas-un-nombre')).toBe(0);
+    expect(geometryNumber('pas-un-nombre')).toBeNull();
+    expect(geometryNumber('')).toBeNull();
+    expect(geometryNumber(null)).toBeNull();
+    // Un zéro SERVI reste un zéro : c'est une observation, pas une absence.
+    expect(geometryNumber('0')).toBe(0);
+    expect(geometryNumber('-0.00')).toBe(-0);
   });
 });
 

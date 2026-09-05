@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Outlet, useMatches } from 'react-router-dom';
 
 import type { PageDef } from '../app/pages.ts';
@@ -97,6 +97,24 @@ export function AppShell() {
 
   const occupied = useInspectorOccupied();
   const palette = useCommandPalette();
+
+  /**
+   * LE TITRE DU DOCUMENT SUIT LA DESTINATION.
+   *
+   * Les treize routes partageaient un unique « Vertex » : dans une fenêtre à
+   * plusieurs onglets, aucun ne se distinguait, l'historique du navigateur
+   * n'était qu'une colonne de doublons, et un signet ne disait pas ce qu'il
+   * pointait. Le titre d'un document EST une information de navigation
+   * (WCAG 2.4.2), pas une décoration.
+   *
+   * La page vient de son `handle` de route, donc du catalogue — jamais d'une
+   * table de correspondance parallèle qui pourrait diverger de lui.
+   */
+  const pageTitle =
+    pageMatch !== undefined && isPageHandle(pageMatch.handle) ? pageMatch.handle.page.title : null;
+  useEffect(() => {
+    document.title = pageTitle === null ? 'Vertex' : `${pageTitle} · Vertex`;
+  }, [pageTitle]);
 
   const toggle = useCallback(() => {
     setCollapsed((previous) => {

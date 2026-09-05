@@ -117,7 +117,9 @@ export function MatrixInspector({ data, view }: { readonly data: RiskMatrixRespo
             value:
               view === null || view.coverage.perimeter.length === 0
                 ? 'non publié'
-                : `${view.coverage.perimeter.join(', ')} — ${view.coverage.retained} retenu(s)`,
+                : `${view.coverage.perimeter.join(', ')} — ${
+                    view.coverage.retained === null ? 'nombre de retenus non publié' : `${view.coverage.retained} retenu(s)`
+                  }`,
           },
           {
             label: 'Fenêtre',

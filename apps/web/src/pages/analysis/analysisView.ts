@@ -11,6 +11,7 @@
  */
 import type { AnalysisResponse } from '../../api/client.ts';
 import type { DataState } from '../../components/DataStateBoundary.tsx';
+import { geometryValue } from '../../components/widgets/geometry.ts';
 
 function blockString(block: Record<string, unknown>, key: string): string | null {
   const value = block[key];
@@ -109,9 +110,22 @@ export function barsViewOf(data: AnalysisResponse): BarsView | null {
 }
 
 /** Valeur numérique d'une chaîne serveur pour la GÉOMÉTRIE du rendu. */
-export function geometryNumber(value: string): number {
-  const parsed = Number.parseFloat(value);
-  return Number.isFinite(parsed) ? parsed : 0;
+/**
+ * Valeur numérique d'une chaîne servie, POUR LA GÉOMÉTRIE SEULE — ou `null`.
+ *
+ * ELLE RENDAIT `0`. Une chaîne illisible devenait donc un point tracé à zéro :
+ * une bougie qui plonge sur l'axe, une étincelle qui touche le fond, un P&L
+ * posé sur la ligne des zéros. Une absence peinte comme une valeur est un FAIT
+ * FAUX, et `.claude/rules/frontend.md` l'interdit nommément — « ne jamais
+ * remplacer une donnée absente par 0 ». Le module de géométrie du socle avait
+ * déjà nommé ce piège et écrit le remède ; les copies ne l'avaient jamais
+ * adopté.
+ *
+ * L'appelant DOIT désormais traiter `null` : ne rien dessiner, écarter le
+ * point, ou refuser la figure — jamais lui substituer une valeur.
+ */
+export function geometryNumber(value: string | null | undefined): number | null {
+  return geometryValue(value);
 }
 
 // ---------------------------------------------------------------------------

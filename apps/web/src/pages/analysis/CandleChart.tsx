@@ -92,15 +92,27 @@ export function CandleChart({ bars, description }: CandleChartProps) {
           wickUpColor: cssToken('--vx-positive'),
           wickDownColor: cssToken('--vx-negative'),
         });
-        candles.setData(
-          bars.map((bar) => ({
-            time: bar.tradingDay,
-            open: geometryNumber(bar.open),
-            high: geometryNumber(bar.high),
-            low: geometryNumber(bar.low),
-            close: geometryNumber(bar.close),
-          })),
-        );
+        /*
+          UNE BARRE DONT UN PRIX NE SE LIT PAS N'EST PAS UNE BARRE À ZÉRO.
+          La conversion rendait `0` sur une chaîne non finie : la bougie
+          plongeait alors sur l'axe, et ce plongeon se lisait comme un
+          effondrement du cours — une donnée FAUSSE, indiscernable d'une
+          séance réelle. La barre est désormais ÉCARTÉE, jamais réparée ; la
+          table OHLCV rendue sous le graphique porte les chaînes servies telles
+          quelles et reste la référence complète.
+        */
+        const bougies: { time: string; open: number; high: number; low: number; close: number }[] = [];
+        for (const bar of bars) {
+          const open = geometryNumber(bar.open);
+          const high = geometryNumber(bar.high);
+          const low = geometryNumber(bar.low);
+          const close = geometryNumber(bar.close);
+          if (open === null || high === null || low === null || close === null) {
+            continue;
+          }
+          bougies.push({ time: bar.tradingDay, open, high, low, close });
+        }
+        candles.setData(bougies);
 
         const volume = chart.addSeries(HistogramSeries, {
           priceScaleId: 'volume',

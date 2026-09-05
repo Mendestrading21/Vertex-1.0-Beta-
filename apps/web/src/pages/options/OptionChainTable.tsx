@@ -286,10 +286,17 @@ export function OptionChainTable({
       return null;
     }
     const spot = geometryNumber(spotValue);
-    if (!Number.isFinite(spot)) {
+    if (spot === null) {
       return null;
     }
-    const index = rows.findIndex((ligne) => geometryNumber(ligne.strike) > spot);
+    // Un strike ILLISIBLE ne peut pas être comparé au spot : le convertir en
+    // zéro l'aurait placé sous n'importe quel spot, et le repère serait tombé
+    // au mauvais endroit de l'échelle. Il est simplement sauté — la ligne
+    // reste rendue, seul le placement du repère l'ignore.
+    const index = rows.findIndex((ligne) => {
+      const strike = geometryNumber(ligne.strike);
+      return strike !== null && strike > spot;
+    });
     return index === -1 ? rows.length : index;
   }, [rows, spotValue]);
 

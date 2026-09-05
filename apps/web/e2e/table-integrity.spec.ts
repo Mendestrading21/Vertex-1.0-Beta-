@@ -166,3 +166,39 @@ test.describe('Intégrité des tableaux — une cellule reste une cellule', () =
     });
   }
 });
+
+/**
+ * PORTE — CHAQUE DESTINATION A SON PROPRE TITRE DE DOCUMENT.
+ *
+ * Les treize routes partageaient un unique « Vertex » : dans une fenêtre à
+ * plusieurs onglets, aucun ne se distinguait, l'historique du navigateur
+ * n'était qu'une colonne de doublons, et un signet ne disait pas ce qu'il
+ * pointait. Le titre d'un document EST une information de navigation
+ * (WCAG 2.4.2), pas une décoration.
+ */
+test.describe('Titre du document — une destination, un titre', () => {
+  test('les douze destinations portent des titres DISTINCTS', async ({ page }) => {
+    const vus = new Map<string, string>();
+    for (const { route } of DESTINATIONS) {
+      await page.goto(route);
+      await expect(page.locator('main')).toBeVisible();
+      const titre = await page.title();
+      expect(titre, `${route} : titre vide`).not.toBe('');
+      expect(titre, `${route} : titre générique`).not.toBe('Vertex');
+      const deja = vus.get(titre);
+      // Deux ADRESSES peuvent partager un titre quand elles montrent la même
+      // destination (« /options » et « /options/SYN-TECH-01 ») : c'est la
+      // DESTINATION qui doit se distinguer, pas l'URL.
+      if (deja !== undefined && !route.startsWith(`${deja}`)) {
+        expect(
+          deja.split('/')[1],
+          `${route} porte le même titre que ${deja} : « ${titre} »`,
+        ).toBe(route.split('/')[1]);
+      }
+      vus.set(titre, route);
+    }
+    // Au moins dix titres différents pour treize adresses : sans ce plancher,
+    // la porte passerait au vert sur un titre unique mal découpé.
+    expect(new Set([...vus.keys()]).size).toBeGreaterThanOrEqual(10);
+  });
+});

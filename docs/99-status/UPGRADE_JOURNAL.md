@@ -128,3 +128,113 @@ soit.
 
 Les tests unitaires passaient dans les deux cas : ils vérifiaient que l'élément
 EXISTE et qu'il est nommé, jamais sa place.
+
+---
+
+## Nuit du 4 au 5 septembre — ce qui a été livré
+
+Neuf lots commités sur `agent/vertex-1-0-dashboard-system-upgrade-v2`. Chacun
+est vérifié par `tsc`, Biome, la suite unitaire complète et la suite Playwright
+sur les quatre projets (1280×800, 1440×900, 1600×1000, 1024×768).
+
+### Ce que seule la CAPTURE a montré
+
+Le fil rouge de la nuit. Aucun de ces défauts n'était visible dans un test :
+tous les tests passaient, et tous les DOM étaient corrects.
+
+| Défaut | Cause exacte |
+|---|---|
+| Quatre valeurs de la chaîne d'options dans UNE colonne, en-tête décalé de 400 px | `.vx-num` posée sur le `<td>`. La classe a reçu `display: inline-block` pour rendre effectif un plafond de largeur — et l'a retiré aux cellules leur `display: table-cell`. Un `<td>` qui n'est plus une cellule est enveloppé par le navigateur dans des boîtes de tableau ANONYMES. |
+| Colonnes de la chaîne dimensionnées sur des groupes, pas sur leur contenu | `table-layout: fixed` tire les largeurs de la PREMIÈRE rangée — qui ne contient que « Calls », le strike et « Puts ». |
+| « spot servi366.08 » | Chaque morceau du repère était `position: sticky` au MÊME décalage gauche : ils se superposaient. |
+| Un tiers d'écran vide sur Aujourd'hui | « Marché global » déclarait une colonne et rendait six blocs. CSS Grid dimensionne la rangée sur son élément le plus haut : ~1 000 px contre ~300 aux voisines. |
+| Deux colonnes invisibles sur Opportunités | Listes en puces : la largeur minimale de la colonne valait celle du plus long code, `entitlements_sufficient`. |
+| « 4.413571428571428 SYN » écrasant son libellé | Le moteur publie ses flottants entiers. Personne ne lit la seizième décimale d'un ATR à l'écran. |
+| « SYN » disparu derrière l'ellipse | Valeur et unité formaient une seule chaîne. Un nombre sans son unité n'est pas une information abrégée, c'est une information fausse. |
+| Registre des sources coupé au milieu d'une fraction de seconde | Un horodatage est un mot de trente-deux caractères sans occasion de coupure, et une table ne descend jamais sous sa largeur min-content. |
+
+### Deux pièges CSS qui se repaieront, donc écrits à côté de leur règle
+
+1. **`max-width` est INERTE sur un élément inline non remplacé.** Sur un
+   `<code>` inline, le plafond ne s'applique pas, et `text-overflow` non plus.
+   Mesuré : valeur rendue à 149 px pour un plafond calculé à 86.
+   `inline-block` le rend effectif — et interdit du même coup de poser la
+   classe sur une cellule de tableau.
+2. **`overflow-wrap: break-word` ne réduit PAS la largeur min-content ;
+   `anywhere` si.** Les deux coupent un mot trop long à la mise en page, mais
+   seul `anywhere` laisse une table rétrécir. Posé d'abord en `break-word`, le
+   correctif du registre des sources n'a strictement rien changé.
+
+### Portes ajoutées
+
+| Porte | Ce qu'elle attrape, et pourquoi rien d'autre ne le pouvait |
+|---|---|
+| `e2e/table-integrity.spec.ts` | Un élément de tableau qui perd son `display` tabulaire, et un corps désaligné de son en-tête. jsdom ne fait pas de mise en page : ces défauts ne sont visibles qu'en navigateur. Une première version est passée au VERT sur `/options` alors que la chaîne y était cassée — la table n'était pas encore rendue, et une boucle sur zéro élément ne trouve jamais rien. Un minimum de tableaux par destination rend cette vacuité bruyante. |
+| `e2e/served-number.spec.ts` | Un nombre visuellement rogné dont la valeur complète n'est atteignable nulle part. Rogner au rendu est légitime ; rogner SANS RECOURS ne l'est pas. |
+| `src/design/css-var-defined.test.ts` | Une variable CSS référencée mais jamais définie — la déclaration est ignorée en silence. Elle en a trouvé une à sa première exécution : `--vx-text-primary` colorait la preuve chiffrée des dix gates d'Analyse, qui héritait donc du gris de son propre libellé. |
+| `src/design/no-zero-fallback.test.ts` | Une conversion qui se replie sur `0`. Elle a trouvé une CINQUIÈME copie que l'audit des 33 agents n'avait pas listée : `riskView.ts`, où un compte de couverture non publié devenait « 0 retenu sur 0 déclaré ». |
+| `src/design/signedScale.test.ts` | Une légende qui peint autre chose que ce que la carte peint. Vérifiée rouge par mutation délibérée avant d'être verte. |
+| `contrast.test.ts` (deux ajouts) | Le texte sur chaque cran de l'échelle divergente, et les repères d'interface NON TEXTUELS à 3:1 (WCAG 1.4.11). L'option active de la palette de commandes tenait 1,21:1, et c'était le seul indicateur de la position du curseur clavier. |
+
+### Décisions de conception
+
+**La couleur est une mesure.** La carte des marchés peignait la teinte pleine
+selon le seul signe : un +0,09 % et un +2,42 % recevaient le même vert. Sept
+crans à bornes DÉCLARÉES et publiées dans la légende. Ce n'est pas une
+normalisation : les bornes sont fixes, donc la même valeur donne toujours la
+même couleur, d'un instantané à l'autre. La carte mensuelle de performance,
+elle, normalisait bel et bien sur le maximum absolu des mois affichés — un mois
+changeait de couleur selon ses voisins.
+
+**Les opacités des deux familles diffèrent, et c'est mesuré.** Le vert est plus
+clair que le rouge : à opacité égale il éclaircit davantage son fond et approche
+plus vite le texte clair. `positive` à 0,55 tombait à 4,15:1 sur le fond de
+survol. Les opacités sont réglées pour une LISIBILITÉ égale, pas pour une
+transparence égale.
+
+**La divulgation progressive n'est jamais une suppression.** Onze modules
+absents mettaient près de 3 500 caractères de prose grise sous des cartes sans
+données. Le motif court reste ; question, explication et note se replient. Tout
+le texte demeure dans le document — clavier, technologies d'assistance,
+recherche du navigateur, impression. Ce qui ne se replie JAMAIS : l'attribution
+de licence (Apache-2.0 exige que la mention accompagne l'œuvre), l'unité, la
+période, le fuseau, la source, la fraîcheur, l'état de la donnée, le motif d'une
+absence.
+
+**Une valeur illisible n'est jamais zéro.** Cinq copies d'un utilitaire de
+géométrie rendaient `0` sur une chaîne non analysable : une clôture illisible
+plongeait la courbe sur l'axe, une bougie OHLC tombait sur l'axe des prix, un
+P&L se posait à l'origine du repère. Le module de géométrie du socle avait
+NOMMÉ ce piège dans son en-tête et écrit le remède ; les copies ne l'avaient
+jamais adopté. Un test unitaire gelait même le défaut (« 0 sinon ») : il est
+RESSERRÉ, pas desserré — `null` dit strictement plus que `0`.
+
+### Trois tentatives refusées par les tests, et elles avaient raison
+
+1. Remplacer la phrase française de la nature de population par son code
+   rouvrait le défaut P1-8, « la nature imprimée en ANGLAIS SEUL ».
+2. Retirer le code servi de la même cellule cassait l'assertion qui exige que
+   la valeur SERVIE apparaisse dans la ligne.
+3. Replier l'attribution TradingView avec la méthode : le test e2e d'Analyse
+   l'a rattrapée en une exécution.
+
+### Ce que l'audit des 33 agents laisse ouvert
+
+Reporté, avec sa mesure, pour un lot dédié :
+
+- **`freshness_policy` est servi par 12 routes et lu par ZÉRO fichier
+  d'interface.** Un contrat de fraîcheur existe et n'est pas branché.
+- **38 modules servis figés à `state="ready"`** : un instantané périmé,
+  différé ou partiel s'affiche comme frais sur Marchés (4), Analyse (11),
+  Graphiques (6), Catalyseurs (7) et Calendrier (10).
+- **Trois règles de signe concurrentes sur Portefeuille**, dont un
+  `startsWith('-')` qui peint un P&L servi `0.00` en vert.
+- **Sept composants sans consommateur de production** (1 408 lignes),
+  `ChartFrame`, `LiveDataIndicator` et `Skeleton` compris : écrits et testés
+  cette nuit, ils restent à poser sur leurs pages.
+- **29 tables écrites à la main** contre une seule sur `DataTable`.
+- **64 sélecteurs déclarés deux fois, 60 surcharges silencieuses**, 51 règles
+  CSS mortes, 52 classes posées sans règle.
+- **30 tailles de police sous le plancher AA de 13 px**, et la frontière d'un
+  champ de saisie à 1,14:1 contre les 3:1 de WCAG 1.4.11.
+- **93 champs servis ne sont affichés nulle part.**

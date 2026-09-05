@@ -15,6 +15,7 @@ import type {
   OptionChainResponse,
 } from '../../api/client.ts';
 import type { DataState } from '../../components/DataStateBoundary.tsx';
+import { geometryValue } from '../../components/widgets/geometry.ts';
 
 // ---------------------------------------------------------------------------
 // Lecture défensive des blocs relayés verbatim (jamais un zéro fabriqué)
@@ -236,9 +237,22 @@ export interface StrikeRow {
 }
 
 /** Valeur numérique d'une chaîne serveur pour la géométrie/tri UNIQUEMENT. */
-export function geometryNumber(value: string): number {
-  const parsed = Number.parseFloat(value);
-  return Number.isFinite(parsed) ? parsed : 0;
+/**
+ * Valeur numérique d'une chaîne servie, POUR LA GÉOMÉTRIE SEULE — ou `null`.
+ *
+ * ELLE RENDAIT `0`. Une chaîne illisible devenait donc un point tracé à zéro :
+ * une bougie qui plonge sur l'axe, une étincelle qui touche le fond, un P&L
+ * posé sur la ligne des zéros. Une absence peinte comme une valeur est un FAIT
+ * FAUX, et `.claude/rules/frontend.md` l'interdit nommément — « ne jamais
+ * remplacer une donnée absente par 0 ». Le module de géométrie du socle avait
+ * déjà nommé ce piège et écrit le remède ; les copies ne l'avaient jamais
+ * adopté.
+ *
+ * L'appelant DOIT désormais traiter `null` : ne rien dessiner, écarter le
+ * point, ou refuser la figure — jamais lui substituer une valeur.
+ */
+export function geometryNumber(value: string | null | undefined): number | null {
+  return geometryValue(value);
 }
 
 /**
@@ -266,8 +280,26 @@ export function buildStrikeRows(group: OptionChainExpiration): {
     }
     byStrike.set(contract.strike, slot);
   }
+  // Un strike ILLISIBLE ne vaut pas zéro : converti ainsi, il se serait rangé
+  // sous tous les autres comme s'il valait le plus bas de l'échelle. Il va au
+  // bout du tri, où « on ne sait pas » se lit comme tel — la ligne reste
+  // rendue, seule sa position dans l'ordre change.
+  const cle = (entree: readonly [string, unknown]): number | null => geometryNumber(entree[0]);
   const rows = [...byStrike.entries()]
-    .sort((a, b) => geometryNumber(a[0]) - geometryNumber(b[0]))
+    .sort((a, b) => {
+      const gauche = cle(a);
+      const droite = cle(b);
+      if (gauche === null && droite === null) {
+        return 0;
+      }
+      if (gauche === null) {
+        return 1;
+      }
+      if (droite === null) {
+        return -1;
+      }
+      return gauche - droite;
+    })
     .map(([strike, slot]) => ({ strike, call: slot.call, put: slot.put }));
   return { rows, unpairable };
 }

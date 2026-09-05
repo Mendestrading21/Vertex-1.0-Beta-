@@ -15,6 +15,18 @@ export interface IvPoint {
   readonly strike: string;
   readonly iv: string;
   readonly right: 'CALL' | 'PUT';
+  /**
+   * Les mêmes valeurs, LUES UNE FOIS pour la géométrie.
+   *
+   * Elles étaient relues à chaque usage par une conversion qui rendait `0` sur
+   * une chaîne illisible : un strike ou une IV non analysable devenait alors un
+   * point posé à l'origine du graphique — une donnée FAUSSE, indiscernable
+   * d'une mesure réelle. Un contrat dont l'une des deux ne se lit pas est
+   * désormais compté ABSENT, au même titre qu'une IV non résolue, et il n'entre
+   * pas dans la série.
+   */
+  readonly strikeValue: number;
+  readonly ivValue: number;
 }
 
 export interface IvSmileSeries {
@@ -38,7 +50,19 @@ export function ivSmileSeriesOf(group: OptionChainExpiration): IvSmileSeries {
       absentCount += 1;
       continue;
     }
-    const point: IvPoint = { strike: contract.strike, iv: iv.value, right: contract.right };
+    const strikeValue = geometryNumber(contract.strike);
+    const ivValue = geometryNumber(iv.value);
+    if (strikeValue === null || ivValue === null) {
+      absentCount += 1;
+      continue;
+    }
+    const point: IvPoint = {
+      strike: contract.strike,
+      iv: iv.value,
+      right: contract.right,
+      strikeValue,
+      ivValue,
+    };
     if (contract.right === 'CALL') {
       calls.push(point);
     } else {
@@ -49,11 +73,7 @@ export function ivSmileSeriesOf(group: OptionChainExpiration): IvSmileSeries {
   // comparaison, comme `Sparkline` pour les clôtures — aucune arithmétique
   // sur une propriété financière relayée.
   const orderOf = (points: IvPoint[]): IvPoint[] => {
-    const keys: number[] = points.map((point) => geometryNumber(point.strike));
-    return points
-      .map((point, index) => ({ point, key: keys[index] ?? 0 }))
-      .sort((left, right) => left.key - right.key)
-      .map((entry) => entry.point);
+    return [...points].sort((left, right) => left.strikeValue - right.strikeValue);
   };
   const sortedCalls = orderOf(calls);
   const sortedPuts = orderOf(puts);
@@ -62,8 +82,9 @@ export function ivSmileSeriesOf(group: OptionChainExpiration): IvSmileSeries {
     if (all.length === 0) {
       return null;
     }
-    const target = pick(all.map((point) => geometryNumber(point[key])));
-    return all.find((point) => geometryNumber(point[key]) === target)?.[key] ?? null;
+    const lu = (point: IvPoint): number => (key === 'strike' ? point.strikeValue : point.ivValue);
+    const target = pick(all.map(lu));
+    return all.find((point) => lu(point) === target)?.[key] ?? null;
   };
   return {
     calls: sortedCalls,
@@ -112,10 +133,10 @@ export function IvSmile({ group, label, compact = false }: IvSmileProps) {
       </p>
     );
   }
-  const x = scale(all.map((point) => geometryNumber(point.strike)), WIDTH, PAD_X, false);
-  const y = scale(all.map((point) => geometryNumber(point.iv)), HEIGHT, PAD_Y, true);
+  const x = scale(all.map((point) => point.strikeValue), WIDTH, PAD_X, false);
+  const y = scale(all.map((point) => point.ivValue), HEIGHT, PAD_Y, true);
   const path = (points: readonly IvPoint[]): string =>
-    points.map((point) => `${x(geometryNumber(point.strike)).toFixed(2)},${y(geometryNumber(point.iv)).toFixed(2)}`).join(' ');
+    points.map((point) => `${x(point.strikeValue).toFixed(2)},${y(point.ivValue).toFixed(2)}`).join(' ');
   return (
     <figure className="vx-smile" data-compact={compact ? 'true' : 'false'} data-testid="iv-smile">
       <svg
@@ -132,8 +153,8 @@ export function IvSmile({ group, label, compact = false }: IvSmileProps) {
             key={`${point.right}-${point.strike}`}
             className="vx-smile-dot"
             data-right={point.right}
-            cx={x(geometryNumber(point.strike))}
-            cy={y(geometryNumber(point.iv))}
+            cx={x(point.strikeValue)}
+            cy={y(point.ivValue)}
             r={compact ? 1.4 : 2}
           />
         ))}
