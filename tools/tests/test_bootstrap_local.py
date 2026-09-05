@@ -129,9 +129,7 @@ def test_le_demarreur_ne_detruit_aucun_schema() -> None:
     code = _lignes_de_code(_START) + _lignes_de_code(_BOOTSTRAP)
     assert len(code) > 40, "le découpage ne voit presque rien : balayage aveugle"
     for interdit in ("DROP SCHEMA", "DROP DATABASE", "TRUNCATE"):
-        coupables = [
-            ligne for ligne in code if re.search(interdit, ligne, re.IGNORECASE)
-        ]
+        coupables = [ligne for ligne in code if re.search(interdit, ligne, re.IGNORECASE)]
         assert coupables == [], (
             f"une instruction {interdit} exécutable existe dans le chemin de "
             f"démarrage : {coupables}"
@@ -173,9 +171,7 @@ def base_jetable() -> Any:
         admin = create_engine(url.set(database="postgres"), isolation_level="AUTOCOMMIT")
         try:
             with admin.connect() as connection:
-                connection.execute(
-                    text(f'DROP DATABASE IF EXISTS "{nom}" WITH (FORCE)')
-                )
+                connection.execute(text(f'DROP DATABASE IF EXISTS "{nom}" WITH (FORCE)'))
         finally:
             admin.dispose()
 
@@ -202,10 +198,7 @@ def test_une_base_vide_devient_migree(base_jetable: str) -> None:
     try:
         with engine.connect() as connection:
             tables = connection.execute(
-                text(
-                    "SELECT count(*) FROM information_schema.tables "
-                    "WHERE table_schema = 'public'"
-                )
+                text("SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public'")
             ).scalar_one()
     finally:
         engine.dispose()
@@ -255,9 +248,9 @@ def test_le_semis_publie_une_population_synthetic(base_jetable: str) -> None:
     engine = create_engine(base_jetable)
     try:
         with engine.connect() as connection:
-            kinds = connection.execute(
-                text("SELECT DISTINCT kind FROM snapshot_heads")
-            ).scalars().all()
+            kinds = (
+                connection.execute(text("SELECT DISTINCT kind FROM snapshot_heads")).scalars().all()
+            )
     finally:
         engine.dispose()
     # Les DIX familles publiées par le semis : si l'une manque, une page
@@ -317,9 +310,7 @@ def test_aucun_runbook_n_envoie_le_navigateur_sur_l_adresse_ip() -> None:
 
     # L'ancre : la campagne qui exerce la passkey vise `localhost` pour le
     # navigateur et l'IP pour l'API. Les runbooks doivent dire la même chose.
-    config_e2e = (_REPO_ROOT / "apps" / "web" / "playwright.config.ts").read_text(
-        encoding="utf-8"
-    )
+    config_e2e = (_REPO_ROOT / "apps" / "web" / "playwright.config.ts").read_text(encoding="utf-8")
     assert "WEB_BASE_URL = 'http://localhost:" in config_e2e, (
         "la campagne e2e ne vise plus `localhost` pour le navigateur : cette "
         "garde et les runbooks reposent sur cet ancrage, le revérifier"
@@ -327,9 +318,7 @@ def test_aucun_runbook_n_envoie_le_navigateur_sur_l_adresse_ip() -> None:
 
     coupables: list[str] = []
     for runbook in _RUNBOOKS:
-        for ligne_no, ligne in enumerate(
-            runbook.read_text(encoding="utf-8").splitlines(), start=1
-        ):
+        for ligne_no, ligne in enumerate(runbook.read_text(encoding="utf-8").splitlines(), start=1):
             for url in _URL_A_OUVRIR.findall(ligne):
                 coupables.append(f"{runbook.name}:{ligne_no} → {url}")
     assert coupables == [], (
@@ -354,8 +343,7 @@ def test_la_passation_nomme_le_demarreur_au_lieu_de_le_reinventer() -> None:
         "suivante ne saurait pas comment lancer et regarder le logiciel"
     )
     assert "START_LOCAL.md" in texte, (
-        "REPRENDRE_ICI.md doit DÉLÉGUER le démarrage à START_LOCAL.md plutôt "
-        "que de le dupliquer"
+        "REPRENDRE_ICI.md doit DÉLÉGUER le démarrage à START_LOCAL.md plutôt que de le dupliquer"
     )
 
 
@@ -369,9 +357,7 @@ def test_aucun_runbook_n_appelle_le_bootstrap_avec_le_python_systeme() -> None:
     motif = re.compile(r"(?<![\w/])python3?\s+tools/(bootstrap_local\.py|start_local)")
     coupables: list[str] = []
     for runbook in _RUNBOOKS:
-        for ligne_no, ligne in enumerate(
-            runbook.read_text(encoding="utf-8").splitlines(), start=1
-        ):
+        for ligne_no, ligne in enumerate(runbook.read_text(encoding="utf-8").splitlines(), start=1):
             if motif.search(ligne):
                 coupables.append(f"{runbook.name}:{ligne_no} → {ligne.strip()}")
     assert coupables == [], (
@@ -410,9 +396,7 @@ def test_aucun_runbook_ne_pretend_que_l_api_n_est_pas_appelee() -> None:
     assert _RUNBOOKS, "aucun runbook trouvé : le balayage est devenu aveugle"
     coupables: list[str] = []
     for runbook in _RUNBOOKS:
-        for ligne_no, ligne in enumerate(
-            runbook.read_text(encoding="utf-8").splitlines(), start=1
-        ):
+        for ligne_no, ligne in enumerate(runbook.read_text(encoding="utf-8").splitlines(), start=1):
             for motif in _FORMULATIONS_FAUSSES_WEBAUTHN:
                 for trouve in motif.findall(ligne):
                     coupables.append(f"{runbook.name}:{ligne_no} → « {trouve} »")
@@ -442,10 +426,121 @@ def test_les_trois_runbooks_ordonnent_la_ceremonie_webauthn() -> None:
             texte.find(marker) for marker in (options_path, browser_step, verify_path)
         )
         assert all(position >= 0 for position in positions), (
-            f"{runbook.name} ne nomme pas la séquence HTTP/WebAuthn complète : "
-            f"{positions}"
+            f"{runbook.name} ne nomme pas la séquence HTTP/WebAuthn complète : {positions}"
         )
         assert positions == tuple(sorted(positions)), (
-            f"{runbook.name} n'ordonne pas options → navigateur → verify : "
-            f"{positions}"
+            f"{runbook.name} n'ordonne pas options → navigateur → verify : {positions}"
         )
+
+
+#: Le commutateur RÉEL du worker. `profiles.resolve_profile` le lit, défaut
+#: `synthetic`. Le démarreur hérite l'environnement du shell : il ne le pose
+#: jamais lui-même, mais il l'ANNONCE, et son annonce doit suivre la valeur.
+_PROFIL_ENV = "VERTEX_FUSION_PROFILE"
+
+
+def test_la_banniere_du_demarreur_n_affirme_pas_synthetic_en_dur() -> None:
+    """La bannière affirmait SYNTHETIC quel que soit le profil.
+
+    `tools/start_local.sh` n'exporte jamais `VERTEX_FUSION_PROFILE` : il hérite
+    l'environnement du shell (`python -m vertex_worker` en hérite à son tour).
+    Un utilisateur qui exporte `VERTEX_FUSION_PROFILE=real` et lance le
+    démarreur obtient donc un worker RÉEL — pendant que la bannière lui écrit
+    « Aucune source réelle n'est connectée : tout porte SYNTHETIC ».
+
+    C'est le réel présenté comme synthétique. `financial-safety.md` interdit
+    que réel, simulé et démonstration partagent le même statut sémantique ;
+    l'interdiction vaut dans les deux sens, et un utilisateur qui croit sa pile
+    synthétique ne fait pas confiance au chiffre qu'il regarde.
+
+    La garde : la phrase inconditionnelle ne peut pas revenir. Le démarreur
+    doit lire le profil et dire ce qui est vrai dans les DEUX cas.
+    """
+    texte = _START.read_text(encoding="utf-8")
+
+    assert _PROFIL_ENV in texte, (
+        f"`tools/start_local.sh` ne lit pas {_PROFIL_ENV} : sa bannière ne peut "
+        "donc pas dire quel profil le worker vient de prendre."
+    )
+
+    # Le corps de la bannière ne contient plus la phrase : il interpole la
+    # variable calculée. Sans cela, la condition existerait sans servir.
+    debut = texte.index("cat <<INFO")
+    banniere = texte[debut:]
+    assert "${LIGNE_PROFIL}" in banniere, (
+        "La bannière n'interpole pas LIGNE_PROFIL : elle ne peut donc pas suivre le profil."
+    )
+    assert "SYNTHETIC" not in banniere, (
+        "La bannière affirme encore SYNTHETIC littéralement, après le calcul "
+        "du profil : la condition ne sert à rien."
+    )
+
+    # Et la phrase n'existe que dans la branche NON réelle.
+    avant = texte[:debut]
+    marque = 'if [[ "${PROFIL}" == "real" ]]; then'
+    assert marque in avant, (
+        f"`tools/start_local.sh` ne branche pas sur {_PROFIL_ENV} avant la bannière."
+    )
+    branche_reelle, _, branche_defaut = avant.partition(marque)[2].partition("else")
+    assert "SYNTHETIC" not in branche_reelle, (
+        "La branche du profil RÉEL parle encore de SYNTHETIC : c'est le "
+        "mensonge que ce test interdit."
+    )
+    assert "SYNTHETIC" in branche_defaut, (
+        "La branche par défaut ne dit plus SYNTHETIC : le synthétique doit "
+        "rester nommé quand il est en place."
+    )
+
+
+def test_les_runbooks_nomment_le_collecteur_qui_alimente_les_pages() -> None:
+    """`run_edge_ibkr.py` produit `ibkr.quote/1`, qu'AUCUNE page ne lit.
+
+    Le seul consommateur de cotation est `vertex_worker.markets`
+    (`DAILY_QUOTE_SCHEMA_PREFIXES`), qui admet `synthetic-daily-quote/` et
+    `ibkr.daily-quote/`. Ce dernier est produit par `run_edge_history.py`
+    (`vertex_edge_ibkr.normalize.DAILY_QUOTE_SCHEMA_VERSION`), jamais par le
+    collecteur temps réel.
+
+    Un runbook qui promet « alimenter les pages avec du marché réel » puis
+    nomme `run_edge_ibkr.py` envoie l'utilisateur remplir sa base sans jamais
+    rien voir à l'écran. La garde : là où le démarrage promet de peupler les
+    pages, `run_edge_history.py` est nommé.
+    """
+    from vertex_worker.markets import DAILY_QUOTE_SCHEMA_PREFIXES
+
+    assert "ibkr.daily-quote/" in DAILY_QUOTE_SCHEMA_PREFIXES, (
+        "La page Marchés n'admet plus `ibkr.daily-quote/` : ce test ancre le "
+        "runbook sur le consommateur réel, il doit suivre le code."
+    )
+    assert "ibkr.quote/" not in DAILY_QUOTE_SCHEMA_PREFIXES, (
+        "`ibkr.quote/` est devenu consommable : le runbook peut alors nommer "
+        "`run_edge_ibkr.py`, et cette garde doit être revue, pas contournée."
+    )
+
+    texte = (_REPO_ROOT / "docs" / "08-runbooks" / "START_LOCAL.md").read_text(encoding="utf-8")
+    assert "tools/run_edge_history.py" in texte, (
+        "START_LOCAL.md ne nomme pas `tools/run_edge_history.py`, le seul "
+        "collecteur dont le schéma atteigne un écran."
+    )
+
+
+def test_env_example_ne_declare_que_des_variables_lues() -> None:
+    """`.env.example` nommait trois variables qu'aucun code ne lit.
+
+    `VERTEX_TWS_HOST`, `VERTEX_TWS_PORT` et `VERTEX_TWS_CLIENT_ID` n'ont jamais
+    eu de lecteur : les vraies sont `VERTEX_IBKR_PORT` et
+    `VERTEX_IBKR_CLIENT_ID`, et l'hôte n'est pas configurable du tout
+    (`adapter.py` refuse tout hôte autre que `127.0.0.1`). Un exemple qui nomme
+    une variable morte fait régler la mauvaise, puis chercher la panne ailleurs.
+
+    Cette garde est bornée aux trois noms prouvés morts : elle ne prétend pas
+    vérifier tout le fichier, ce qui demanderait un inventaire des lecteurs.
+    """
+    texte = (_REPO_ROOT / ".env.example").read_text(encoding="utf-8")
+    mortes = ("VERTEX_TWS_HOST", "VERTEX_TWS_PORT", "VERTEX_TWS_CLIENT_ID")
+    presentes = [nom for nom in mortes if nom in texte]
+    assert not presentes, (
+        f".env.example déclare {presentes}, qu'aucun code ne lit. Les vraies "
+        "variables sont VERTEX_IBKR_PORT et VERTEX_IBKR_CLIENT_ID ; l'hôte est "
+        "loopback en dur."
+    )

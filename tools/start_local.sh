@@ -138,6 +138,25 @@ WEB_PID="$!"
 PIDS+=("${WEB_PID}")
 attendre_http "http://127.0.0.1:${PORT_WEB}/" "${WEB_PID}"
 
+# ── 7. Ce que le worker vient RÉELLEMENT de prendre ─────────────────────────
+# Le démarreur n'exporte JAMAIS VERTEX_FUSION_PROFILE : `python -m vertex_worker`
+# hérite l'environnement de ce shell, et `profiles.resolve_profile` y lit le
+# commutateur (défaut `synthetic`). La bannière affirmait SYNTHETIC en dur : sur
+# une pile lancée en profil réel, elle présentait du réel comme de la
+# démonstration. Elle suit désormais la valeur, dans les deux sens.
+PROFIL="$(printf '%s' "${VERTEX_FUSION_PROFILE:-}" | tr '[:upper:]' '[:lower:]' \
+  | tr -d '[:space:]')"
+if [[ "${PROFIL}" == "real" ]]; then
+  LIGNE_PROFIL="Profil de fusion RÉEL demandé (VERTEX_FUSION_PROFILE=real).
+  Le worker l'accepte s'il a AUSSI un univers déclaré ; son journal de
+  démarrage fait foi, pas cette ligne. Rien n'est collecté par ce
+  démarreur : lancer tools/run_edge_history.py à côté, TWS allumé."
+else
+  LIGNE_PROFIL="Aucune source réelle n'est connectée : tout porte SYNTHETIC.
+  Pour peupler une base vide :
+      .venv/bin/python tools/bootstrap_local.py --with-demo-data"
+fi
+
 cat <<INFO
 
 ════════════════════════════════════════════════════════════════════
@@ -155,9 +174,7 @@ cat <<INFO
   horloge, sauvegarde, et l'état RÉEL de chaque capacité. Une capacité
   non sondée y reste NEVER_TESTED — ce n'est pas un défaut d'affichage.
 
-  Aucune source réelle n'est connectée : tout porte SYNTHETIC.
-  Pour peupler une base vide :
-      .venv/bin/python tools/bootstrap_local.py --with-demo-data
+  ${LIGNE_PROFIL}
 
   Ctrl-C pour arrêter les trois processus.
 ════════════════════════════════════════════════════════════════════
