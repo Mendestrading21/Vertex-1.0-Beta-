@@ -5927,12 +5927,24 @@ label {
      hauteur de rangée. L'ordre visuel reste celui du DOM — global, volatilité,
      catalyseur, santé — pour ne pas séparer la lecture à l'écran de la lecture
      au clavier. */
+  /*
+    COMPOSITION PAR HAUTEURS VOISINES. Deux rangées creusaient un trou,
+    mesurées à 1440 : `global-market` (735 px) partageait sa ligne avec
+    `volatility` (173) et `next-catalyst` (372) — 42 % de vide ; et `regime`
+    (173) avec `attention` (855) — 40 %.
+
+    La dominante et la file d'attention prennent chacune leur bande. Les
+    cartes qui les accompagnaient descendent en colonne : chacune ouvre sa
+    propre ligne, et une ligne d'une seule carte n'a pas de voisine à laisser
+    vide. `regime` et `risks`, de hauteurs voisines, s'apparient.
+  */
   grid-template-areas:
-    'global global vol catalyst'
-    'global global health health'
+    'global global global catalyst'
+    'global global global vol'
+    'global global global health'
     'focus focus focus focus'
-    'regime attention attention attention'
-    'risks attention attention attention'
+    'regime regime risks risks'
+    'attention attention attention attention'
     'opp sectors sectors calendar'
     'portfolio sectors sectors calendar';
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -5966,12 +5978,18 @@ label {
 
 @media (min-width: 1600px) {
   .vx-today-grid {
+    /* Même règle qu'à 1280/1440 : la dominante et la file d'attention prennent
+       chacune leur bande ; leurs voisines descendent en colonne, une par
+       ligne. Sans cela, `global-market` (739 px) partageait sa ligne avec
+       `volatility` (193) et `next-catalyst` (411) — 39 % de vide — et
+       `regime` (193) avec `attention` (838) — 38 %. */
     grid-template-areas:
-      'global global global vol catalyst'
-      'global global global health health'
+      'global global global global catalyst'
+      'global global global global vol'
+      'global global global global health'
       'focus focus focus focus focus'
-      'regime attention attention attention attention'
-      'risks attention attention attention attention'
+      'regime regime regime risks risks'
+      'attention attention attention attention attention'
       'opp sectors sectors sectors calendar'
       'portfolio sectors sectors sectors calendar';
     grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -8055,11 +8073,22 @@ label {
 
 @media (min-width: 1600px) {
   .vx-cat-grid {
+    /*
+      COMPOSITION PAR HAUTEURS VOISINES. Mesuré à 1600 sur l'ancienne
+      disposition : trois rangées à 46 %, 45 % et 52 % de vide, et une
+      quatrième à 30 % qui frôlait le seuil.
+
+      La planche porte SIX cartes de 173 px exactement — les mesures de
+      synthèse et les absences réduites à une ligne. Elles tiennent une bande à
+      elles cinq, sans un pixel de vide. Les deux grandes figures (`timeline`
+      852 px, `portfolio-exposure` 871 px) se répondent sur la même ligne.
+    */
     grid-template-areas:
-      'count impact confidence revisions conflicts'
-      'filters filters surprises consensus window'
-      'timeline timeline timeline catsplit history'
-      'exposure exposure alerts sources orphans'
+      'count count revisions revisions conflicts'
+      'impact confidence surprises consensus alerts'
+      'timeline timeline timeline exposure exposure'
+      'catsplit catsplit orphans orphans window'
+      'filters filters sources sources history'
       'review review review review review';
     grid-template-columns: repeat(5, minmax(0, 1fr));
   }
@@ -8133,14 +8162,34 @@ label {
 
 /* ---- Calendrier ---------------------------------------------------- */
 
+/*
+  COMPOSITION PAR HAUTEURS VOISINES.
+
+  La rangée `'revisions reminders changes provenance'` mesurait 765 / 212 / 236
+  / 589 px : deux cartes hautes et deux très courtes sur la même ligne, donc
+  41 % de la surface en vide. La porte anti-trou de V3a l'a chiffré ; la
+  capture le montrait sans le nommer.
+
+  La cause n'est pas une règle CSS fausse : c'est la conséquence de la
+  désaturation du texte, qui a réduit les cartes d'absence d'un paragraphe à
+  une ligne. Le remède n'est donc pas de relever le plafond de dette — ce
+  serait affaiblir la porte — mais de COMPOSER : une carte haute ne partage
+  plus sa ligne qu'avec une autre carte haute.
+
+  Le regroupement est aussi plus juste à la lecture. `revisions` et
+  `provenance` répondent tous deux à « d'où vient ce que je lis, et qu'a-t-il
+  changé ». `reminders` et `changes-since-visit` répondent à « qu'est-ce qui
+  m'attend ». La règle d'importance devient une bande de pied, pleine largeur.
+*/
 .vx-cal-grid {
   grid-template-areas:
     'controls controls controls tz'
     'agenda agenda agenda next'
     'agenda agenda agenda conflicts'
     'exposure density counters counters'
-    'revisions reminders changes provenance'
-    'rule rule rule provenance';
+    'revisions revisions provenance provenance'
+    'reminders reminders changes changes'
+    'rule rule rule rule';
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
@@ -8160,12 +8209,15 @@ label {
 
 @media (min-width: 1600px) {
   .vx-cal-grid {
+    /* Même règle à 1600 : `counters` (571 px) ne partage plus sa ligne avec
+       `reminders` (212) et `changes` (260) — mesuré à 39 % de vide. */
     grid-template-areas:
       'controls controls controls tz next'
       'agenda agenda agenda conflicts revisions'
       'agenda agenda agenda exposure density'
-      'counters counters counters reminders changes'
-      'rule rule rule provenance provenance';
+      'counters counters counters provenance provenance'
+      'reminders reminders reminders changes changes'
+      'rule rule rule rule rule';
     grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 }
@@ -8264,13 +8316,30 @@ label {
    compose dix-sept modules autour du registre des sources ; la santé des
    composants garde son corps, la grille lui donne le matériau des cartes. */
 
+/*
+  MÊME RÈGLE QU'À CALENDRIER : une carte haute ne partage plus sa ligne
+  qu'avec une autre carte haute.
+
+  Mesuré à 1440 sur l'ancienne composition : `health census freshness fields`
+  valait 145 / 548 / 419 / 173 px, soit 41 % de vide ; `exports backups probes`
+  valait 404 / 173 / 194, soit 36 %. Et `errors incidents lastsync versions`
+  était à 32 %, à un cheveu du seuil — corrigée aussi, une porte qu'on frôle
+  finit par la franchir.
+
+  Les paires COURTES restent en tête de bande et les hautes dessous : le
+  chiffre de synthèse (`global-health`) garde sa place en haut à gauche, là où
+  l'œil arrive.
+*/
 .vx-sources-grid {
   grid-template-areas:
-    'health census freshness fields'
-    'errors incidents lastsync versions'
+    'health health fields fields'
+    'census census freshness freshness'
+    'errors errors incidents incidents'
+    'lastsync lastsync versions versions'
     'registry registry registry registry'
     'lineage quality audit reports'
-    'exports backups probes probes'
+    'exports exports exports exports'
+    'backups backups probes probes'
     'components components components components';
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
@@ -8295,11 +8364,16 @@ label {
 
 @media (min-width: 1600px) {
   .vx-sources-grid {
+    /* À 1600 les cinq colonnes accueillent les courtes ensemble et les
+       hautes ensemble, selon la même règle. */
     grid-template-areas:
-      'health census freshness fields errors'
-      'incidents lastsync versions lineage quality'
+      'health health fields errors errors'
+      'census census census freshness freshness'
+      'incidents incidents lineage quality quality'
+      'lastsync lastsync lastsync versions versions'
       'registry registry registry registry registry'
-      'audit reports exports backups probes'
+      'audit audit reports backups probes'
+      'exports exports exports exports exports'
       'components components components components components';
     grid-template-columns: repeat(5, minmax(0, 1fr));
   }

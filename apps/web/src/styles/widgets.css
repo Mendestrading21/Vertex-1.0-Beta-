@@ -1882,13 +1882,28 @@
    de la planche. Un `[data-module]` imbriqué plus bas — il en existe dans
    l'inspecteur — ne doit jamais hériter d'une aire de la grille.
    =========================================================================== */
+/*
+  COMPOSITION PAR HAUTEURS VOISINES (même règle qu'à Calendrier et Sources).
+
+  Mesuré à 1440 : `'ideas score bias return'` valait 457 / 173 / 173 / 173 px,
+  soit 47 % de vide — une carte haute contre TROIS courtes. L'arithmétique de
+  la porte est instructive : la même carte haute face à UNE seule courte donne
+  31 %, sous le seuil. Ce n'est donc pas la différence de hauteur qui creuse le
+  trou, c'est le NOMBRE de courtes qui la subissent.
+
+  Les trois mesures de synthèse passent donc en tête, ensemble et de même
+  hauteur ; la file des idées actives prend sa bande. Les deux dernières
+  rangées étaient à 30 %, à trois points du seuil : appariées elles aussi, une
+  porte qu'on frôle finit par la franchir.
+*/
 .vx-opp-grid {
   grid-template-areas:
-    'ideas score bias return'
+    'score bias return return'
+    'ideas ideas ideas ideas'
     'ranking ranking ranking ranking'
     'biassplit health scatter factors'
-    'profile profile exclusions exclusions'
-    'provenance provenance quality activity';
+    'profile profile provenance provenance'
+    'exclusions exclusions quality activity';
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
@@ -1910,11 +1925,12 @@
 @media (min-width: 1600px) {
   .vx-opp-grid {
     grid-template-areas:
-      'ideas ideas score bias return'
+      'score score bias bias return'
+      'ideas ideas ideas ideas ideas'
       'ranking ranking ranking ranking ranking'
       'biassplit health health scatter factors'
-      'profile profile exclusions exclusions activity'
-      'provenance provenance provenance quality quality';
+      'profile profile profile provenance provenance'
+      'exclusions exclusions activity quality quality';
     grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 }
