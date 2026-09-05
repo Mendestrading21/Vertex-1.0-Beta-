@@ -26,6 +26,7 @@ import type { IndicatorBlockView } from '../charts/chartsView.ts';
 import { analysisModule } from './analysisModules.ts';
 import type { AdviceView, BarsView } from './analysisView.ts';
 import { IDENTITY_STATE_FR, secFundamentalsViewOf } from './secView.ts';
+import { ServedNumber } from '../../components/widgets/ServedNumber.tsx';
 
 /**
  * Les modules SERVIS de la planche §4, hors la dominante (le cadre des
@@ -476,7 +477,10 @@ function OscillatorLastValues({ block }: { readonly block: IndicatorBlockView })
       {block.lines.map((ligne) => (
         <li key={ligne.key}>
           <span className="vx-metric-label">{ligne.label}</span>{' '}
-          <code className="vx-num">{ligne.last}</code>
+          {/* Le MACD est publié en flottant entier — « 1.1490960023212681 ».
+              Rendu tel quel, il écrasait son propre libellé. Il est borné au
+              rendu, jamais arrondi, et reste entier au survol. */}
+          <ServedNumber value={ligne.last} maxChars={10} />
         </li>
       ))}
     </ul>

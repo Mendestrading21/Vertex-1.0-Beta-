@@ -35,8 +35,22 @@ import { frDecimal } from '../../components/markets/marketsView.ts';
 /** Bornes de l'échelle de pourcentage, DÉCLARÉES par l'unité, pas mesurées. */
 const PCT_BOUNDS = { min: '0', max: '100' } as const;
 
-function counts(breadth: MarketsBreadth): string {
-  return `${breadth.above_count} en hausse, ${breadth.down_count} en baisse, ${breadth.flat_count} stables sur ${breadth.covered_count} couverts (univers ${breadth.universe_size})`;
+/**
+ * LA POPULATION, ET RIEN QUE LA POPULATION.
+ *
+ * La phrase disait « 10 en hausse, 12 en baisse, 0 stables sur 22 couverts
+ * (univers 24) » — or les trois premiers nombres sont exactement ceux que les
+ * barres de dénombrement affichent JUSTE AU-DESSUS, avec leur libellé et leur
+ * longueur. Une même donnée rendue deux fois à dix pixels d'écart n'informe
+ * pas deux fois : elle occupe deux fois la place et fait douter de laquelle
+ * fait foi.
+ *
+ * Ce que les barres ne disent PAS, en revanche, c'est sur combien
+ * d'instruments ces comptes portent, ni combien l'univers en contient. Cette
+ * information-là reste, seule.
+ */
+function population(breadth: MarketsBreadth): string {
+  return `${breadth.covered_count} couverts sur un univers de ${breadth.universe_size}`;
 }
 
 function CountBars({ breadth }: { readonly breadth: MarketsBreadth }) {
@@ -104,7 +118,7 @@ export function BreadthPanel({ breadth }: { readonly breadth: MarketsBreadth }) 
       )}
 
       <CountBars breadth={breadth} />
-      <p className="vx-breadth-counts">{counts(breadth)}</p>
+      <p className="vx-breadth-counts">{population(breadth)}</p>
     </section>
   );
 }

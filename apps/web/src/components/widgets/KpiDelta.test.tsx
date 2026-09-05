@@ -1,7 +1,8 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 
-import { KpiDelta, signGroupOfText } from './KpiDelta.tsx';
+import { KpiDelta } from './KpiDelta.tsx';
+import { signGroupOfText } from './sign.ts';
 
 /**
  * La pastille de variation. Le SIGNE se lit sur la chaîne servie — jamais par

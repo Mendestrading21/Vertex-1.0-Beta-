@@ -181,6 +181,12 @@ function RiskBoard({
   const served: WidgetServed = {
     asOf: view?.asOf ?? data.as_of ?? null,
     ageSeconds: data.age_seconds,
+    // L'ÉCHELLE SERVIE. `freshness_policy` traverse douze routes depuis le
+    // début ; aucun fichier d'interface ne la lisait. Sans elle, « il y a 3 j »
+    // ne dit pas de quoi il est l'âge.
+    budgetSeconds: data.freshness_policy?.budget_seconds ?? null,
+    policyKind: data.freshness_policy?.kind ?? null,
+    policyVersion: data.freshness_policy?.version ?? null,
     snapshotVersion: data.snapshot_version ?? null,
     population: view?.population ?? null,
     sourceLabel: 'instantané de matrice publié',

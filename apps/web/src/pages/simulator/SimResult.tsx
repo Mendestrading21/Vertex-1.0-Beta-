@@ -4,6 +4,7 @@ import { Metric } from '../../components/Metric.tsx';
 import { frDecimal } from '../../components/markets/marketsView.ts';
 import { PayoffChart } from './PayoffChart.tsx';
 import { simulatorModule } from './simulatorModules.ts';
+import { signGroupOfText } from '../../components/widgets/sign.ts';
 
 /**
  * Les modules de RÉSULTAT du Simulateur — tous lisent la même réponse
@@ -26,12 +27,13 @@ function NoResult({ testId }: { readonly testId: string }) {
   );
 }
 
-function signOf(value: string): 'up' | 'down' | 'flat' {
-  if (value.startsWith('-')) {
-    return 'down';
-  }
-  return /^[+]?0*(\.0+)?$/.test(value) ? 'flat' : 'up';
-}
+/*
+  Même copie divergente qu'à Portefeuille, mêmes deux fautes : `-0.00` lu comme
+  une perte, et une chaîne positive non signée lue comme un gain. `sign.ts` est
+  l'autorité ; ici elle peut rendre `null` — le signe n'est alors pas publié et
+  la valeur ne prend aucune couleur de sens.
+*/
+const signOf = signGroupOfText;
 
 // ---------------------------------------------------------------------------
 

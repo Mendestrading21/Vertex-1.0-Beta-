@@ -103,14 +103,16 @@ const DETTE_V1: ReadonlyArray<{ readonly variable: string; readonly lot: string 
   { variable: '--vx-z-base', lot: 'V3b' },
   { variable: '--vx-z-popover', lot: 'V3b' },
   { variable: '--vx-z-sheet', lot: 'V3b' },
-  { variable: '--vx-z-dialog', lot: 'V3b' },
   { variable: '--vx-page-accent-soft', lot: 'V6' },
   { variable: '--vx-page-accent-gradient-start', lot: 'V6' },
   { variable: '--vx-page-accent-gradient-end', lot: 'V6' },
 ];
 
 /** Plafond de la dette. ABAISSÉ à chaque lot, jamais relevé. */
-const DETTE_MAX = 7;
+// LOT V3a+ — ABAISSÉ de 7 à 6 : la palette de commandes consomme désormais
+// `--vx-z-dialog`, qui attendait son consommateur depuis le lot V1. Le cliquet
+// ne se relève jamais ; il vient de descendre d'un cran.
+const DETTE_MAX = 6;
 
 const EN_DETTE: ReadonlySet<string> = new Set(DETTE_V1.map((entree) => entree.variable));
 

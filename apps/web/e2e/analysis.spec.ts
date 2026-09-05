@@ -78,7 +78,7 @@ test.describe('Page Analyse — chandeliers, table équivalente, AdviceCard', ()
     expect(bars).toHaveLength(60);
 
     await page.goto(`/analysis/${INSTRUMENT}`);
-    const table = page.getByRole('table', { name: 'Table OHLCV équivalente des chandeliers' });
+    const table = page.getByRole('table', { name: /Table OHLCV — équivalent exact des chandeliers/ });
     await expect(table).toBeVisible();
     await expect(table.locator('tbody tr')).toHaveCount(60);
 

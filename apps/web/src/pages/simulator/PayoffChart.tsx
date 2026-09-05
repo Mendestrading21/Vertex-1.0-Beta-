@@ -7,6 +7,7 @@ import type {
 } from '../../api/client.ts';
 import type { EChartsInstance } from '../../charts/echartsLoader.ts';
 import { chartAxis, chartBase } from '../../charts/theme.ts';
+import { geometryValue } from '../../components/widgets/geometry.ts';
 
 /**
  * PayoffChart — courbe de P&L à l'expiration (dominante du résultat du
@@ -28,9 +29,22 @@ function cssToken(name: string): string {
   return window.getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
 
-function geometryNumber(value: string): number {
-  const parsed = Number.parseFloat(value);
-  return Number.isFinite(parsed) ? parsed : 0;
+/**
+ * Valeur numérique d'une chaîne servie, POUR LA GÉOMÉTRIE SEULE — ou `null`.
+ *
+ * ELLE RENDAIT `0`. Une chaîne illisible devenait donc un point tracé à zéro :
+ * une bougie qui plonge sur l'axe, une étincelle qui touche le fond, un P&L
+ * posé sur la ligne des zéros. Une absence peinte comme une valeur est un FAIT
+ * FAUX, et `.claude/rules/frontend.md` l'interdit nommément — « ne jamais
+ * remplacer une donnée absente par 0 ». Le module de géométrie du socle avait
+ * déjà nommé ce piège et écrit le remède ; les copies ne l'avaient jamais
+ * adopté.
+ *
+ * L'appelant DOIT désormais traiter `null` : ne rien dessiner, écarter le
+ * point, ou refuser la figure — jamais lui substituer une valeur.
+ */
+function geometryNumber(value: string | null | undefined): number | null {
+  return geometryValue(value);
 }
 
 export interface PayoffChartProps {
@@ -87,10 +101,19 @@ export function PayoffChart({ points, breakevens, maxGain, maxLoss }: PayoffChar
                 // Violet `--vx-option` : lumière du domaine options (identité).
                 lineStyle: { color: cssToken('--vx-option'), width: 2 },
                 itemStyle: { color: cssToken('--vx-option') },
-                data: points.map((point) => [
-                  geometryNumber(point.spot),
-                  geometryNumber(point.pnl),
-                ]),
+                /*
+                  UN POINT DONT LE SPOT OU LE P&L NE SE LIT PAS N'EST PAS UN
+                  POINT À L'ORIGINE. La conversion rendait `0` : le tracé
+                  passait alors par le coin du repère, et ce coude se lisait
+                  comme un profil de gain réel. Le point est écarté ; la table
+                  rendue sous la figure porte les chaînes servies telles
+                  quelles et reste la référence complète.
+                */
+                data: points
+                  .map((point) => [geometryNumber(point.spot), geometryNumber(point.pnl)])
+                  .filter((couple): couple is [number, number] =>
+                    couple[0] !== null && couple[1] !== null,
+                  ),
                 markLine: {
                   symbol: 'none',
                   animation: false,
@@ -102,10 +125,15 @@ export function PayoffChart({ points, breakevens, maxGain, maxLoss }: PayoffChar
                   },
                   data: [
                     { yAxis: 0, name: 'P&L 0' },
-                    ...breakevens.map((breakeven) => ({
-                      xAxis: geometryNumber(breakeven.spot),
-                      name: `BE ${breakeven.spot} (résidu ${breakeven.payoff_at_spot})`,
-                    })),
+                    // Un breakeven dont le spot ne se lit pas serait tracé
+                    // sur l'axe des ordonnées : une ligne verticale à zéro,
+                    // annoncée comme un point mort. Il n'est pas tracé.
+                    ...breakevens
+                      .map((breakeven) => ({
+                        xAxis: geometryNumber(breakeven.spot),
+                        name: `BE ${breakeven.spot} (résidu ${breakeven.payoff_at_spot})`,
+                      }))
+                      .filter((ligne): ligne is { xAxis: number; name: string } => ligne.xAxis !== null),
                   ],
                 },
               },

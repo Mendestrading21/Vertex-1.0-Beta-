@@ -1,5 +1,8 @@
 import { useRef, useState } from 'react';
+import { useEffect } from 'react';
 import { Link, useParams } from 'react-router-dom';
+
+import { useWorkspace } from '../../app/workspace.tsx';
 
 import type { OptionChainContract, OptionChainExpiration, OptionChainResponse } from '../../api/client.ts';
 import { pageStateOf, useOptionChain } from '../../api/hooks.ts';
@@ -34,6 +37,7 @@ import {
 } from './optionsView.ts';
 import { pageAccentAttrs } from '../../components/widgets/pageAccent.ts';
 import { Widget } from '../../components/widgets/Widget.tsx';
+import { MethodNote } from '../../components/widgets/MethodNote.tsx';
 
 /**
  * Page Options (`TL / 05`) — question : « Quels contrats sont réellement
@@ -165,6 +169,7 @@ function ChainFrame({
   selected,
   onSelectGroup,
   onInspect,
+  selectedConId,
 }: {
   readonly data: OptionChainResponse;
   readonly state: DataState;
@@ -173,6 +178,8 @@ function ChainFrame({
   readonly selected: OptionChainExpiration | null;
   readonly onSelectGroup: (key: string) => void;
   readonly onInspect: (contract: OptionChainContract, trigger: HTMLElement | null) => void;
+  /** Contrat inspecté, pour que sa ligne se distingue dans la chaîne. */
+  readonly selectedConId: number | null;
 }) {
   const budget = rowBudgetOf(data);
   const asOf = data.as_of;
@@ -269,6 +276,9 @@ function ChainFrame({
             >
               <OptionChainTable
                 group={selected}
+                selectedConId={selectedConId}
+                spotValue={spotViewOf(data)?.value ?? null}
+                spotObservedAt={spotViewOf(data)?.observedAt ?? null}
                 onInspect={(contract) => {
                   onInspect(contract, pendingTrigger.current);
                 }}
@@ -280,21 +290,27 @@ function ChainFrame({
         )}
       </DataStateBoundary>
 
-      <footer className="vx-chartframe-foot">
-        <p>
-          Méthode : quotes relayées verbatim avec leur statut (<code>OK</code>,{' '}
-          <code>CROSSED</code>, <code>STALE</code>, <code>MISSING</code>) ; IV Vertex{' '}
-          <code>options.implied_volatility</code> et Greeks <code>options.greeks</code> calculés par
-          le worker sur le MID d'une quote saine uniquement (lignée <code>CalculationRecord</code>{' '}
-          conservée, nature THÉORIQUE). Rendu direct de la table (~24 contrats par groupe, budget
-          serveur 240 lignes) — décision documentée, aucune virtualisation externe.
-        </p>
-        <p data-testid="chain-population-limit">
-          Limites : population publiée <code>{data.population ?? 'NON_PUBLIÉE'}</code> ; une quote
-          croisée, périmée ou absente n'a jamais d'IV ; le statut d'open interest est relayé
-          contrat par contrat lorsqu'il est publié.
-        </p>
-      </footer>
+      <MethodNote
+        limitesTestId="chain-population-limit"
+        methode={
+          <>
+            quotes relayées verbatim avec leur statut (<code>OK</code>, <code>CROSSED</code>,{' '}
+            <code>STALE</code>, <code>MISSING</code>) ; IV Vertex{' '}
+            <code>options.implied_volatility</code> et Greeks <code>options.greeks</code> calculés
+            par le worker sur le MID d'une quote saine uniquement (lignée{' '}
+            <code>CalculationRecord</code> conservée, nature THÉORIQUE). Rendu direct de la table
+            (~24 contrats par groupe, budget serveur 240 lignes) — décision documentée, aucune
+            virtualisation externe.
+          </>
+        }
+        limites={
+          <>
+            population publiée <code>{data.population ?? 'NON_PUBLIÉE'}</code> ; une quote croisée,
+            périmée ou absente n'a jamais d'IV ; le statut d'open interest est relayé contrat par
+            contrat lorsqu'il est publié.
+          </>
+        }
+      />
     </section>
   );
 }
@@ -385,6 +401,7 @@ function OptionsBoard({
             }
             setSelectedKey(key);
           }}
+          selectedConId={currentInspected?.con_id ?? null}
           onInspect={(contract, trigger) => {
             triggerRef.current = trigger;
             if (selected !== null) {
@@ -456,6 +473,11 @@ function ChainRoute({ underlying }: { readonly underlying: string }) {
 
 export function OptionsPage() {
   const { underlying } = useParams<{ underlying?: string }>();
+  // Même règle que sur Analyse : le contexte SUIT l'adresse.
+  const { adopter } = useWorkspace();
+  useEffect(() => {
+    adopter(underlying ?? null);
+  }, [adopter, underlying]);
 
   return (
     <article className="vx-page" {...pageAccentAttrs('options')} aria-labelledby="vx-page-title-options">

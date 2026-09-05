@@ -204,9 +204,15 @@ describe('Page Analyse — état nominal', () => {
     const analysis = makeAnalysis();
     repondre(jsonResponse(analysis));
     await renderAnalysis();
+    // La table est passée sur la primitive `DataTable` : son nom accessible
+    // vient désormais de son `<caption>` VISIBLE, et non plus d'un `aria-label`
+    // invisible à l'écran. L'assertion reste la même — la table doit avoir un
+    // nom — mais elle porte maintenant sur un nom que l'utilisateur voit aussi.
     const table = await screen.findByRole('table', {
-      name: 'Table OHLCV équivalente des chandeliers',
+      name: /Table OHLCV — équivalent exact des chandeliers/,
     });
+    // Et la légende est bien RENDUE, pas seulement annoncée.
+    expect(table.querySelector('caption')?.textContent).toContain('équivalent exact des chandeliers');
     const bars = barsViewOf(analysis);
     expect(bars).not.toBeNull();
     expect(within(table).getAllByRole('row')).toHaveLength(1 + bars!.bars.length);
@@ -364,6 +370,24 @@ describe('Page Analyse — indicateurs techniques', () => {
     expect(bloc.textContent).toContain('27.95');
     expect(bloc.textContent).toContain('%');
     expect(bloc.textContent).toContain('20');
+  });
+
+  it('borne la VALEUR au rendu, jamais l’UNITÉ', async () => {
+    // La valeur et l'unité formaient une seule chaîne : « 4.413571428571428
+    // SYN ». Borner le rendu a fait disparaître « SYN » derrière l'ellipse —
+    // vu sur capture, pas par un test. Un nombre sans son unité n'est pas une
+    // information abrégée, c'est une information fausse.
+    repondre(jsonResponse(makeAnalysis()));
+    await renderAnalysis();
+    const bloc = await screen.findByTestId('indicator-volatility');
+    const borne = bloc.querySelector('.vx-served-number');
+    expect(borne, 'la valeur doit vivre dans une boîte bornée').not.toBeNull();
+    expect(borne?.textContent).toBe('27.95');
+    // L'unité est DANS le bloc, mais HORS de la boîte bornée.
+    expect(bloc.textContent).toContain('%');
+    expect(borne?.textContent ?? '').not.toContain('%');
+    // Et la valeur entière reste atteignable au survol.
+    expect(borne?.getAttribute('title')).toBe('27.95');
   });
 
   it('affiche une absence NOMMÉE plutôt qu’une case vide', async () => {

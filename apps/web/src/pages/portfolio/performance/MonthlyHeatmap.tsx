@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 
 import type { EChartsInstance } from '../../../charts/echartsLoader.ts';
+import { SIGNED_SCALES } from '../../../design/signedScale.ts';
 import { geometryNumber } from './performanceView.ts';
 import type { HeatmapView } from './performanceView.ts';
 
@@ -10,6 +11,20 @@ import type { HeatmapView } from './performanceView.ts';
  * table) — un mois partiel ne se présente jamais comme un mois plein.
  *
  * Statut non-OK : la page affiche le statut + raison à la place du visuel.
+ *
+ * COULEUR — ÉCHELLE FIXE, PLUS DE NORMALISATION LOCALE.
+ *
+ * La rampe était continue et bornée au MAXIMUM ABSOLU des mois affichés. Le
+ * même mois à +3 % changeait donc de couleur selon les autres mois de la
+ * grille : ajouter une année exceptionnelle délavait tout le reste, et deux
+ * captures n'étaient plus comparables. C'est une normalisation locale sur des
+ * données servies, que `.claude/rules/frontend.md` interdit.
+ *
+ * L'échelle est désormais celle de `design/signedScale.ts`, découpée en crans
+ * à bornes déclarées et PUBLIÉES dans la légende du graphique. Elle emploie les
+ * seuils MENSUELS : peindre un rendement mensuel avec les seuils quotidiens
+ * saturerait la grille entière au dernier cran, et la couleur cesserait à
+ * nouveau de mesurer.
  */
 
 function cssToken(name: string): string {
@@ -42,7 +57,6 @@ export function MonthlyHeatmap({ heatmap }: { readonly heatmap: HeatmapView }) {
         const monthLabels = ['01', '02', '03', '04', '05', '06', '07', '08', '09', '10', '11', '12'];
         const byMonth = new Map(heatmap.months.map((month) => [month.month, month]));
         const cells: [number, number, number][] = [];
-        let maxAbs = 0;
         for (const month of heatmap.months) {
           const value = geometryNumber(month.ret);
           if (value === null) {
@@ -51,8 +65,20 @@ export function MonthlyHeatmap({ heatmap }: { readonly heatmap: HeatmapView }) {
           const yearIndex = years.indexOf(month.month.slice(0, 4));
           const monthIndex = Number(month.month.slice(5, 7)) - 1;
           cells.push([monthIndex, yearIndex, value]);
-          maxAbs = Math.max(maxAbs, Math.abs(value));
         }
+        /*
+          Découpage PAR MORCEAUX plutôt qu'en rampe : les bornes sont celles de
+          l'échelle mensuelle, et elles s'affichent telles quelles dans la
+          légende du moteur. Le cran « exactement 0 % » est un intervalle
+          fermé sur lui-même — un mois nul est une observation, pas une petite
+          hausse.
+        */
+        const morceaux = SIGNED_SCALES.mensuel.steps.map((cran) => ({
+          ...(cran.from === null ? {} : cran.key === 'flat' ? { min: 0 } : { gte: cran.from }),
+          ...(cran.to === null ? {} : cran.key === 'flat' ? { max: 0 } : { lt: cran.to }),
+          label: cran.label,
+          color: cssToken(`--vx-${cran.token}`),
+        }));
         const chart = chartRef.current ?? echarts.init(containerRef.current);
         chartRef.current = chart;
         chart.setOption(
@@ -106,20 +132,15 @@ export function MonthlyHeatmap({ heatmap }: { readonly heatmap: HeatmapView }) {
                 },
             },
             visualMap: {
-              min: -maxAbs || -1,
-              max: maxAbs || 1,
-              calculable: false,
+              type: 'piecewise',
+              pieces: morceaux,
+              showLabel: true,
+              itemWidth: 14,
+              itemHeight: 10,
               orient: 'vertical',
               right: 8,
               top: 'center',
               textStyle: { color: cssToken('--vx-text-muted'), fontSize: 11 },
-              inRange: {
-                color: [
-                  cssToken('--vx-negative'),
-                  cssToken('--vx-surface-3'),
-                  cssToken('--vx-positive'),
-                ],
-              },
             },
             series: [
               {
@@ -128,7 +149,10 @@ export function MonthlyHeatmap({ heatmap }: { readonly heatmap: HeatmapView }) {
                 label: {
                   show: true,
                   fontSize: 11,
-                  color: cssToken('--vx-black'),
+                  // Texte CLAIR : les crans sont translucides sur fond
+                  // obsidienne, donc sombres. `contrast.test.ts` mesure le
+                  // texte clair sur chaque cran et sur chaque fond de lecture.
+                  color: cssToken('--vx-text'),
                   formatter: (params: unknown): string => {
                     const item = params as { value?: unknown } | undefined;
                     const value = Array.isArray(item?.value) ? item.value : [];

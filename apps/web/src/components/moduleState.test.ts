@@ -38,3 +38,19 @@ describe('moduleStateOf — l’état d’un module vient des faits servis', () 
     expect(Object.values(MODULE_STATE_LABELS).some((label) => /ok|succès/i.test(label))).toBe(false);
   });
 });
+
+describe('moduleStateOf — un état servi PARTIEL se dit partiel', () => {
+  it('ne range plus « partial » parmi les états fermés', () => {
+    // Le vocabulaire contenait `partial` et la fonction ne le rendait JAMAIS :
+    // tout état servi hors `ok`/`stale`/`empty` tombait dans `closed`, dont
+    // le libellé est « État serveur fermé ». Un instantané PARTIEL n'est pas
+    // un serveur fermé — il porte des valeurs, incomplètes, et le lecteur doit
+    // savoir laquelle des deux situations il regarde.
+    expect(moduleStateOf('ready', { state: 'partial', population: 'SYNTHETIC' })).toBe('partial');
+    // Un contenu partiel se montre — c'est justement ce qui le distingue d'un
+    // état fermé, où rien n'est publié.
+    expect(moduleShowsContent('partial')).toBe(true);
+    // Et un code hors vocabulaire reste fermé : on n'invente pas son sens.
+    expect(moduleStateOf('ready', { state: 'quelque_chose', population: null })).toBe('closed');
+  });
+});

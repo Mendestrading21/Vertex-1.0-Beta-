@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 
 import type { OpportunitiesResponse } from '../../api/client.ts';
-import { FreshnessBadge } from '../../components/FreshnessBadge.tsx';
+import { FreshnessBadge, policyProps } from '../../components/FreshnessBadge.tsx';
 import { SnapshotFacts, publishedOr } from '../../components/inspector/SnapshotFacts.tsx';
 import { StepList } from '../../components/widgets/StepList.tsx';
 import type { StatusChipTone } from '../../components/widgets/StatusChip.tsx';
@@ -191,7 +191,7 @@ export function OpportunitiesSnapshotInspector({
           },
           {
             label: 'Âge publié',
-            value: <FreshnessBadge ageSeconds={data.age_seconds} sourceLabel="âge publié par le serveur" />,
+            value: <FreshnessBadge ageSeconds={data.age_seconds} {...policyProps(data.freshness_policy)} sourceLabel="âge publié par le serveur" />,
           },
           { label: 'État servi', value: <code>{data.state}</code> },
           { label: 'Population', value: <code>{publishedOr(view.population)}</code> },

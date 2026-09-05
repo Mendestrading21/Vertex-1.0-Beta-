@@ -1,4 +1,7 @@
+import { useEffect } from 'react';
 import { Link, useParams } from 'react-router-dom';
+
+import { useWorkspace } from '../../app/workspace.tsx';
 
 import type { AnalysisResponse } from '../../api/client.ts';
 import { pageStateOf, useAnalysis } from '../../api/hooks.ts';
@@ -29,6 +32,8 @@ import { ScenarioPanel } from './ScenarioPanel.tsx';
 import { analysisModule } from './analysisModules.ts';
 import type { BarsView } from './analysisView.ts';
 import { adviceViewOf, analysisStateOf, barsViewOf, evidenceViewOf, scenariosViewOf } from './analysisView.ts';
+import { MethodNote } from '../../components/widgets/MethodNote.tsx';
+import { ChartSkeleton, TableSkeleton } from '../../components/widgets/Skeleton.tsx';
 
 /**
  * LOT-A4 : la table OHLCV et les indicateurs vivent dans leurs propres
@@ -209,6 +214,18 @@ function AnalysisFrame({
         state={state}
         {...(detail !== undefined ? { detail } : {})}
         {...(asOf !== null ? { asOfLabel: `as_of ${asOf}` } : {})}
+        /*
+          Le squelette a la FORME de ce qui vient : un graphique haut, puis sa
+          table équivalente. Le rectangle générique qu'il remplace faisait
+          SAUTER la page au moment où la donnée arrivait — la carte grandissait,
+          et tout ce qu'on lisait plus bas se déplaçait sous le curseur.
+        */
+        skeleton={
+          <>
+            <ChartSkeleton label="Chandeliers en cours de chargement" height="large" />
+            <TableSkeleton label="Table OHLCV en cours de chargement" rows={6} columns={6} />
+          </>
+        }
       >
         {bars !== null && bars.bars.length > 0 ? (
           <>
@@ -225,24 +242,32 @@ function AnalysisFrame({
         )}
       </DataStateBoundary>
 
-      <footer className="vx-chartframe-foot">
-        <p>
-          Méthode : barres OHLCV validées barre à barre par le worker (une barre invalide est
-          écartée avec sa raison, jamais réparée) ; verdict par l'unique <code>AdviceEngine</code>{' '}
-          (<code>{data.engine_version ?? 'non publié'}</code>) ; clusters par la fusion
-          déterministe. Rendu :
-          Lightweight Charts™ —{' '}
-          <a href="https://www.tradingview.com/" rel="noopener noreferrer" target="_blank">
-            TradingView
-          </a>{' '}
-          (Apache-2.0, version épinglée), chargé uniquement sur cette route.
-        </p>
-        <p>
-          Limites : population <code>{population}</code> déclarée par le worker ; les gates non
-          évaluables restent BLOCK <code>UNEVALUABLE</code> (fail-closed) et le statut publié est
-          affiché tel quel.
-        </p>
-      </footer>
+      <MethodNote
+        methode={
+          <>
+            barres OHLCV validées barre à barre par le worker (une barre invalide est écartée avec
+            sa raison, jamais réparée) ; verdict par l'unique <code>AdviceEngine</code> (
+            <code>{data.engine_version ?? 'non publié'}</code>) ; clusters par la fusion
+            déterministe.
+          </>
+        }
+        attribution={
+          <>
+            Rendu : Lightweight Charts™ —{' '}
+            <a href="https://www.tradingview.com/" rel="noopener noreferrer" target="_blank">
+              TradingView
+            </a>{' '}
+            (Apache-2.0, version épinglée), chargé uniquement sur cette route.
+          </>
+        }
+        limites={
+          <>
+            population <code>{population}</code> déclarée par le worker ; les gates non évaluables
+            restent BLOCK <code>UNEVALUABLE</code> (fail-closed) et le statut publié est affiché tel
+            quel.
+          </>
+        }
+      />
     </section>
   );
 }
@@ -398,6 +423,13 @@ function AnalysisRoute({ instrument }: { readonly instrument: string }) {
 
 export function AnalysisPage() {
   const { instrument } = useParams<{ instrument?: string }>();
+  // L'URL reste PROPRIÉTAIRE : le contexte de travail la suit, il ne la
+  // contredit jamais. `adopter` est distinct de `selectInstrument` à dessein —
+  // ceci est l'écho d'une adresse, pas un choix de l'utilisateur.
+  const { adopter } = useWorkspace();
+  useEffect(() => {
+    adopter(instrument ?? null);
+  }, [adopter, instrument]);
 
   return (
     <article className="vx-page" aria-labelledby="vx-page-title-analysis">

@@ -151,3 +151,35 @@ describe("DataStateBoundary — l'état vient des props, jamais de l'horloge", (
     expect(nowSpy).not.toHaveBeenCalled();
   });
 });
+
+describe('DataStateBoundary — le squelette a la FORME de ce qui vient', () => {
+  it('rend le squelette fourni À LA PLACE du rectangle générique', () => {
+    // Un rectangle de hauteur arbitraire fait SAUTER la page au moment où la
+    // donnée arrive : la carte grandit ou rétrécit, et ce qu'on lisait plus bas
+    // se déplace sous le curseur. Le squelette qui réserve la place réelle
+    // supprime ce sursaut — c'est sa seule raison d'être.
+    const { container } = render(
+      <DataStateBoundary state="loading" skeleton={<div data-testid="forme-reelle" />}>
+        <p>contenu</p>
+      </DataStateBoundary>,
+    );
+    expect(screen.getByTestId('forme-reelle')).toBeDefined();
+    expect(container.querySelector('.vx-dsb-skeleton')).toBeNull();
+  });
+
+  it('garde le rectangle générique quand aucune forme n’est déclarée', () => {
+    // Le défaut reste sûr : mieux vaut un rectangle qu'un vide, et une page qui
+    // n'a pas encore décidé de sa forme ne doit pas perdre son état d'attente.
+    const { container } = render(<DataStateBoundary state="loading">contenu</DataStateBoundary>);
+    expect(container.querySelector('.vx-dsb-skeleton')).not.toBeNull();
+  });
+
+  it('ne montre AUCUNE valeur pendant l’attente', () => {
+    const { container } = render(
+      <DataStateBoundary state="loading" skeleton={<div data-testid="forme-reelle" />}>
+        <p>111,23 SYN</p>
+      </DataStateBoundary>,
+    );
+    expect(container.textContent ?? '').not.toContain('111,23');
+  });
+});

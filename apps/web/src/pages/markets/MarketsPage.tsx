@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 
 import type { MarketsOverview } from '../../api/client.ts';
 import { pageStateOf, useMarketsOverview } from '../../api/hooks.ts';
+import { useWorkspace } from '../../app/workspace.tsx';
 import { AbsentModule } from '../../components/AbsentModule.tsx';
 import { AuthRequiredNotice } from '../../components/AuthRequiredNotice.tsx';
 import { DataStateBoundary } from '../../components/DataStateBoundary.tsx';
@@ -26,6 +27,10 @@ import {
 } from '../../components/markets/marketsView.ts';
 import { marketsModule } from './marketsModules.ts';
 import { pageAccentAttrs } from '../../components/widgets/pageAccent.ts';
+import { MethodNote } from '../../components/widgets/MethodNote.tsx';
+import { moduleStateOf } from '../../components/moduleState.ts';
+import { HeatmapSkeleton, TableSkeleton } from '../../components/widgets/Skeleton.tsx';
+import { FreshnessBadge, policyProps } from '../../components/FreshnessBadge.tsx';
 
 /**
  * Page Marchés (`TL / 02`) — question : « Dans quel contexte de marché
@@ -212,6 +217,18 @@ function MarketsFrame({
         state={state}
         {...(detail !== undefined ? { detail } : {})}
         {...(asOf !== null ? { asOfLabel: `as_of ${asOf}` } : {})}
+        /*
+          Le squelette a la FORME de ce qui vient : une carte de tuiles, puis sa
+          table équivalente. Il ne montre aucune valeur, pas même d'exemple —
+          une silhouette n'est pas une donnée, et une donnée grisée en serait
+          une.
+        */
+        skeleton={
+          <>
+            <HeatmapSkeleton label="Carte des marchés en cours de chargement" cells={24} />
+            <TableSkeleton label="Table équivalente en cours de chargement" rows={6} columns={7} />
+          </>
+        }
       >
         {/* Légende interactive : filtre LOCAL d'affichage, valeurs intactes. */}
         <div className="vx-chartframe-legend" role="group" aria-label="Légende et filtre local">
@@ -256,22 +273,25 @@ function MarketsFrame({
       </DataStateBoundary>
 
       {/* 6. WidgetFooter : méthode/calcul, version, limites et hypothèses */}
-      <footer className="vx-chartframe-foot">
-        <p>
-          Méthode : rendement 1 j <code>market.simple_return</code> et breadth{' '}
-          <code>market.breadth</code> calculés par le worker (
-          <code>{data.engine_version ?? 'version inconnue'}</code>, lignée{' '}
-          <code>input_hash</code> conservée dans le snapshot). Poids = parts
-          descriptives des clôtures servies. Rendu : Apache ECharts
-          (licence Apache-2.0), chargé uniquement sur cette route.
-        </p>
-        <p>
-          Limites : 2 clôtures par instrument, breadth refusée sous le seuil de
-          couverture ; un instrument sans ses 2 clôtures est écarté et compté.
-          Nature des données : voir le bandeau de population ci-dessus, qui en
-          est le seul propriétaire.
-        </p>
-      </footer>
+      <MethodNote
+        methode={
+          <>
+            rendement 1 j <code>market.simple_return</code> et breadth{' '}
+            <code>market.breadth</code> calculés par le worker (
+            <code>{data.engine_version ?? 'version inconnue'}</code>, lignée{' '}
+            <code>input_hash</code> conservée dans le snapshot). Poids = parts descriptives des
+            clôtures servies.
+          </>
+        }
+        attribution={<>Rendu : Apache ECharts (licence Apache-2.0), chargé uniquement sur cette route.</>}
+        limites={
+          <>
+            2 clôtures par instrument, breadth refusée sous le seuil de couverture ; un instrument
+            sans ses 2 clôtures est écarté et compté. Nature des données : voir le bandeau de
+            population ci-dessus, qui en est le seul propriétaire.
+          </>
+        }
+      />
     </section>
   );
 }
@@ -295,11 +315,15 @@ function MarketHealthModule({ data }: { readonly data: MarketsOverview }) {
       kicker="Couverture publiée"
       title={module.title}
       titleId="vx-markets-health-title"
-      state="ready"
+      state={moduleStateOf('ready', { state: data.data_state, population: data.population })}
       footer={
         <>
-          état worker <code>{data.data_state ?? 'non publié'}</code> · âge publié{' '}
-          {data.age_seconds === null ? 'non publié' : `${data.age_seconds} s`}
+          état worker <code>{data.data_state ?? 'non publié'}</code> ·{' '}
+          <FreshnessBadge
+            ageSeconds={data.age_seconds}
+            {...policyProps(data.freshness_policy)}
+            sourceLabel="instantané de marchés"
+          />
         </>
       }
     >
@@ -347,7 +371,7 @@ function DiscardsModule({ data }: { readonly data: MarketsOverview }) {
       kicker="Refus nommés"
       title={module.title}
       titleId="vx-markets-discards-title"
-      state="ready"
+      state={moduleStateOf('ready', { state: data.data_state, population: data.population })}
       footer={<>raisons relayées telles quelles — jamais interpolées</>}
     >
       {coverage === null ? (
@@ -390,6 +414,21 @@ function DiscardsModule({ data }: { readonly data: MarketsOverview }) {
 
 function MarketsBoard({ data, state }: { readonly data: MarketsOverview; readonly state: DataState }) {
   const [selected, setSelected] = useState<string | null>(null);
+  /*
+    La sélection reste LOCALE pour l'inspecteur de cette planche — c'est elle
+    qui décide quelle carte est mise en avant ici — et devient AUSSI un choix
+    d'espace de travail, de sorte que passer ensuite sur Analyse ou Options
+    retrouve l'instrument qu'on regardait. Sans cela, chaque page repartait de
+    zéro : c'est le défaut que le contexte corrige.
+  */
+  const { selectInstrument } = useWorkspace();
+  const choisir = useCallback(
+    (ticker: string | null) => {
+      setSelected(ticker);
+      selectInstrument(ticker);
+    },
+    [selectInstrument],
+  );
   const allEntries = useMemo(() => flattenTickers(data.sectors), [data.sectors]);
   const selectedEntry = allEntries.find((entry) => entry.ticker.ticker === selected) ?? null;
   const breadthModule = marketsModule('breadth');
@@ -409,7 +448,7 @@ function MarketsBoard({ data, state }: { readonly data: MarketsOverview; readonl
           kicker="Breadth publiée"
           title={breadthModule.title}
           titleId="vx-markets-breadth-title"
-          state="ready"
+          state={moduleStateOf('ready', { state: data.data_state, population: data.population })}
           footer={<>comptes et seuils publiés par le worker — aucun pourcentage recalculé</>}
         >
           {data.breadth === null ? (
@@ -435,7 +474,7 @@ function MarketsBoard({ data, state }: { readonly data: MarketsOverview; readonl
           kicker="Snapshot Marchés"
           title={sectorsModule.title}
           titleId="vx-markets-sectors-title"
-          state="ready"
+          state={moduleStateOf('ready', { state: data.data_state, population: data.population })}
           action={<StatusChip label={`${data.sectors.length} secteur(s) publié(s)`} tone="neutral" />}
           footer={<>rendement 1 j par instrument, chaîne serveur ; aucun rendement de secteur n&apos;est publié</>}
         >
@@ -457,7 +496,7 @@ function MarketsBoard({ data, state }: { readonly data: MarketsOverview; readonl
           entry={selectedEntry}
           data={data}
           onClose={() => {
-            setSelected(null);
+            choisir(null);
           }}
         />
       )}
