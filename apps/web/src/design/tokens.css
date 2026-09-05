@@ -30,6 +30,12 @@
   --vx-positive-soft: rgba(80, 201, 146, 0.12);
   --vx-negative: #ef6f6c;
   --vx-negative-soft: rgba(239, 111, 108, 0.12);
+  --vx-positive-band-1: rgba(80, 201, 146, 0.16);
+  --vx-positive-band-2: rgba(80, 201, 146, 0.3);
+  --vx-positive-band-3: rgba(80, 201, 146, 0.48);
+  --vx-negative-band-1: rgba(239, 111, 108, 0.18);
+  --vx-negative-band-2: rgba(239, 111, 108, 0.36);
+  --vx-negative-band-3: rgba(239, 111, 108, 0.6);
   --vx-warning: #e8843a;
   --vx-warning-soft: rgba(232, 132, 58, 0.12);
   --vx-option: #a88ae8;

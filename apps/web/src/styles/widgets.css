@@ -3464,3 +3464,65 @@
   color: var(--vx-text-muted);
   font-size: var(--vx-font-size-meta);
 }
+
+/* ==================================================================== */
+/* ÉCHELLE DIVERGENTE — la légende publie les bornes                    */
+/*                                                                      */
+/* Une gradation sans bornes chiffrées est une décoration : elle dit    */
+/* « plus » sans dire combien. Les pastilles ci-dessous portent          */
+/* exactement les couleurs que la carte emploie, lues sur les mêmes      */
+/* variables — elles ne peuvent donc pas diverger d'elle.                */
+/* ==================================================================== */
+
+.vx-marketmap-scale {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--vx-space-4) var(--vx-space-12);
+  margin: var(--vx-space-8) 0 0;
+  padding: 0;
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+  list-style: none;
+}
+
+.vx-marketmap-scale > li {
+  display: inline-flex;
+  gap: var(--vx-space-4);
+  align-items: center;
+  white-space: nowrap;
+}
+
+.vx-marketmap-swatch {
+  width: 18px;
+  height: 10px;
+  border: 1px solid var(--vx-border-soft);
+  border-radius: 2px;
+}
+
+.vx-marketmap-swatch[data-step='down-3'] {
+  background-color: var(--vx-negative-band-3);
+}
+
+.vx-marketmap-swatch[data-step='down-2'] {
+  background-color: var(--vx-negative-band-2);
+}
+
+.vx-marketmap-swatch[data-step='down-1'] {
+  background-color: var(--vx-negative-band-1);
+}
+
+.vx-marketmap-swatch[data-step='flat'] {
+  background-color: var(--vx-titanium-soft);
+}
+
+.vx-marketmap-swatch[data-step='up-1'] {
+  background-color: var(--vx-positive-band-1);
+}
+
+.vx-marketmap-swatch[data-step='up-2'] {
+  background-color: var(--vx-positive-band-2);
+}
+
+.vx-marketmap-swatch[data-step='up-3'] {
+  background-color: var(--vx-positive-band-3);
+}

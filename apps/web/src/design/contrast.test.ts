@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest';
+import { analyser, composer, contraste, deltaE } from './colorMetrics.ts';
+import { SIGNED_STEPS } from './signedScale.ts';
 import { color } from './tokens.ts';
 
 /**
@@ -21,72 +23,14 @@ import { color } from './tokens.ts';
  * rendue aujourd'hui ou demain.
  */
 
-/** Canaux 0-255 plus alpha 0-1. */
-interface Rgba {
-  readonly r: number;
-  readonly g: number;
-  readonly b: number;
-  readonly a: number;
-}
-
-function parse(valeur: string): Rgba {
-  const hex = /^#([0-9a-f]{6})$/i.exec(valeur.trim());
-  const chiffres = hex?.[1];
-  if (chiffres !== undefined) {
-    const n = Number.parseInt(chiffres, 16);
-    return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255, a: 1 };
-  }
-  const rgba = /^rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)(?:[,\s/]+([\d.]+))?\s*\)$/i.exec(
-    valeur.trim(),
-  );
-  if (rgba === null) {
-    throw new Error(`couleur non analysable : ${valeur}`);
-  }
-  return {
-    r: Number(rgba[1]),
-    g: Number(rgba[2]),
-    b: Number(rgba[3]),
-    a: rgba[4] === undefined ? 1 : Number(rgba[4]),
-  };
-}
-
-/** Composition « source-over » d'une couleur translucide sur un fond opaque. */
-function composer(dessus: Rgba, dessous: Rgba): Rgba {
-  return {
-    r: dessus.r * dessus.a + dessous.r * (1 - dessus.a),
-    g: dessus.g * dessus.a + dessous.g * (1 - dessus.a),
-    b: dessus.b * dessus.a + dessous.b * (1 - dessus.a),
-    a: 1,
-  };
-}
-
-/** Luminance relative, WCAG 2.2 §dfn-relative-luminance. */
-function luminance({ r, g, b }: Rgba): number {
-  const canal = (v: number): number => {
-    const s = v / 255;
-    return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
-  };
-  return 0.2126 * canal(r) + 0.7152 * canal(g) + 0.0722 * canal(b);
-}
-
 /**
- * Ratio WCAG. `devant` peut être translucide : il est composé sur `fond`.
+ * Le calcul lui-même vit dans `colorMetrics.ts`.
  *
- * NON EXPORTÉ : un fichier de test n'expose rien (`noExportsInTest`). Le jour
- * où un autre lot aura besoin de cette mesure, elle déménagera dans un module
- * de `src/design/` — l'exporter d'ici en ferait une API par accident.
+ * Il y a été déplacé le jour où une deuxième porte en a eu besoin : trois
+ * copies d'une même arithmétique de couleur, c'était trois occasions de
+ * diverger, et une porte qui mesure faux rassure au lieu d'alerter.
  */
-function ratio(devant: string, fond: string): number {
-  const arriere = parse(fond);
-  if (arriere.a !== 1) {
-    throw new Error(`un fond doit être opaque : ${fond}`);
-  }
-  const compose = composer(parse(devant), arriere);
-  const l1 = luminance(compose);
-  const l2 = luminance(arriere);
-  const [clair, sombre] = l1 >= l2 ? [l1, l2] : [l2, l1];
-  return (clair + 0.05) / (sombre + 0.05);
-}
+const ratio = contraste;
 
 /** Arrondi à deux décimales, pour que le message d'échec soit lisible. */
 const arrondi = (n: number): number => Math.round(n * 100) / 100;
@@ -179,6 +123,62 @@ describe('Contraste des jetons — WCAG 2.2', () => {
       }
     }
     expect(echecs, `Texte sombre illisible sur son accent :\n  ${echecs.join('\n  ')}`).toEqual([]);
+  });
+
+  it('le texte reste lisible sur CHAQUE cran de l’échelle divergente', () => {
+    // Les crans sont translucides : ils se composent d'abord sur le fond de
+    // lecture, et c'est le RÉSULTAT qui porte le texte. Mesurer le cran seul
+    // n'aurait aucun sens — il n'est jamais opaque.
+    //
+    // Le cran le plus dense est celui qui décide : plus la teinte couvre, plus
+    // le fond s'éclaircit, et plus le texte clair s'en rapproche.
+    const echecs: string[] = [];
+    for (const cran of SIGNED_STEPS) {
+      for (const fond of FONDS) {
+        const pose = composer(analyser(color[cran.token as keyof typeof color]), analyser(color[fond]));
+        const mesure = ratio(color.text, pose);
+        if (mesure < 4.5) {
+          echecs.push(`text sur ${cran.token} posé sur ${fond} : ${arrondi(mesure)}:1`);
+        }
+      }
+    }
+    expect(echecs, `Crans où la valeur devient illisible :\n  ${echecs.join('\n  ')}`).toEqual([]);
+  });
+
+  it('deux crans voisins se DISTINGUENT une fois posés sur leur fond', () => {
+    // Une échelle dont deux crans se ressemblent ne mesure rien : elle donne
+    // l'illusion d'une gradation.
+    //
+    // La mesure est ΔE, PAS le contraste. Une première version comparait des
+    // luminances et déclarait « down-1 » et « flat » indiscernables : deux
+    // aplats de clarté voisine, l'un rouge et l'autre neutre, que l'œil sépare
+    // pourtant sans hésiter. Le contraste est aveugle à la teinte ; la
+    // distinction de deux surfaces ne l'est pas.
+    //
+    // Le seuil est plus bas que celui de `token-distinctness` (10) parce que la
+    // question est différente : là-bas, deux SENS ne doivent pas se confondre ;
+    // ici, deux crans d'une même échelle sont voisins par construction et il
+    // suffit qu'un pas se voie.
+    const poses = SIGNED_STEPS.map((cran) => ({
+      cle: cran.key,
+      couleur: composer(
+        analyser(color[cran.token as keyof typeof color]),
+        analyser(color['surface-1']),
+      ),
+    }));
+    const trop_proches: string[] = [];
+    for (let i = 1; i < poses.length; i += 1) {
+      const precedent = poses[i - 1];
+      const courant = poses[i];
+      if (precedent === undefined || courant === undefined) {
+        continue;
+      }
+      const ecart = deltaE(precedent.couleur, courant.couleur);
+      if (ecart < 4) {
+        trop_proches.push(`${precedent.cle} et ${courant.cle} : ΔE ${arrondi(ecart)}`);
+      }
+    }
+    expect(trop_proches, `Crans indiscernables :\n  ${trop_proches.join('\n  ')}`).toEqual([]);
   });
 
   it('chaque exemption porte une raison écrite et un jeton réel', () => {

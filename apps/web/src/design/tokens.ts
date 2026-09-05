@@ -55,6 +55,37 @@ export const color = {
   'positive-soft': 'rgba(80, 201, 146, 0.12)',
   'negative': '#ef6f6c',
   'negative-soft': 'rgba(239, 111, 108, 0.12)',
+  // ÉCHELLE DIVERGENTE À BORNES DÉCLARÉES — trois crans par signe.
+  //
+  // POURQUOI ELLE EXISTE. La carte des marchés peignait ses tuiles avec la
+  // teinte PLEINE : un +0,9 % et un +2,4 % recevaient exactement le même vert.
+  // La couleur occupait donc toute la surface sans rien mesurer — l'inverse de
+  // la deuxième loi de composition (« la couleur est une mesure ») — et une
+  // planche entière de blocs saturés relève de l'esthétique de casino que
+  // l'identité interdit nommément.
+  //
+  // POURQUOI DES BORNES FIXES, ET PAS UN MIN/MAX DES DONNÉES. Normaliser sur
+  // l'étendue observée serait un calcul local : la même valeur changerait de
+  // couleur selon ses voisines, et deux captures ne seraient plus comparables.
+  // Les bornes sont donc FIXES, déclarées dans `signedScale.ts`, publiées dans
+  // la légende, et la valeur reste écrite en toutes lettres sur la tuile.
+  //
+  // POURQUOI CES ALPHAS. Composés sur les fonds de lecture, ils gardent le
+  // texte clair au-dessus du seuil AA — `contrast.test.ts` le mesure cran par
+  // cran, et c'est le cran le plus dense qui décide.
+  // Les deux familles n'ont PAS les mêmes opacités, et ce n'est pas une
+  // négligence : le vert est intrinsèquement plus clair que le rouge. À
+  // opacité égale il éclaircit davantage son fond, donc il approche plus vite
+  // le texte clair — mesuré, `positive` à 0,55 tombe à 4,15:1 sur le fond de
+  // survol, sous le seuil AA, quand `negative` y tient encore 5,28:1. Les
+  // opacités sont donc réglées pour que les deux côtés soient également
+  // LISIBLES, et non également transparents.
+  'positive-band-1': 'rgba(80, 201, 146, 0.16)',
+  'positive-band-2': 'rgba(80, 201, 146, 0.3)',
+  'positive-band-3': 'rgba(80, 201, 146, 0.48)',
+  'negative-band-1': 'rgba(239, 111, 108, 0.18)',
+  'negative-band-2': 'rgba(239, 111, 108, 0.36)',
+  'negative-band-3': 'rgba(239, 111, 108, 0.6)',
   // LOT V2 — RÉSERVE 3 D'ADR-017, ENFIN TRANCHÉE.
   //
   // `warning` valait `#f0c36a` et `signal-bright` vaut `#f2c76b` : ΔE = 1,9,

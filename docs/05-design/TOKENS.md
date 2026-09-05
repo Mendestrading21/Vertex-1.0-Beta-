@@ -7,6 +7,16 @@ déclare une couleur brute.
 ## Familles
 
 - couleur : surface, texte, bordure, état, option, macro et, depuis ADR-017, un couple de dégradé `<famille>-gradient-start/-end` par famille de série (`silver`, `positive`, `negative`, `warning`, `option`, `macro`) ;
+- échelle divergente à bornes déclarées : `positive-band-1/2/3` et
+  `negative-band-1/2/3`, trois crans par signe, employés uniquement par les
+  surfaces qui peignent une valeur signée servie (carte des marchés, matrices).
+  Les bornes en pourcent vivent dans `src/design/signedScale.ts` et sont
+  publiées dans la légende de chaque figure qui les emploie ; elles ne
+  dépendent JAMAIS des données affichées — une normalisation locale ferait
+  changer de couleur la même valeur selon ses voisines. Les opacités des deux
+  familles diffèrent parce que le vert est plus clair que le rouge : elles sont
+  réglées pour une LISIBILITÉ égale du texte posé dessus, pas pour une
+  transparence égale (`contrast.test.ts` le mesure cran par cran) ;
 - espace : grille de 4 px, valeurs 4/8/12/16/20/24/32 ;
 - rayon : clés 6/10/14/16/20, chacune valant ses pixels, plus `pill` réservé aux
   badges ;
