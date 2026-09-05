@@ -3673,3 +3673,25 @@
   color: var(--vx-text-muted);
   font-size: var(--vx-font-size-meta);
 }
+
+/* ==================================================================== */
+/* TABLES DE REGISTRE — un horodatage ne pousse plus la table dehors    */
+/*                                                                      */
+/* `2026-09-05T00:40:48.190000+00:00` est un SEUL mot de trente-deux    */
+/* caractères, sans aucune occasion de coupure. Une table ne descend    */
+/* jamais sous sa largeur MIN-CONTENT : un tel mot impose donc sa       */
+/* largeur à sa colonne et pousse les suivantes hors du champ. Mesuré   */
+/* sur Sources & Rapports : la colonne « testé à » se faisait couper au */
+/* milieu de la fraction de seconde.                                    */
+/*                                                                      */
+/* ET C'EST BIEN `anywhere`, PAS `break-word`. Les deux coupent un mot  */
+/* trop long à la mise en page, mais seul `anywhere` RÉDUIT la largeur  */
+/* min-content — donc seul lui laisse la table rétrécir. Posé d'abord   */
+/* en `break-word`, ce correctif n'a strictement rien changé, et la     */
+/* capture l'a montré.                                                  */
+/* ==================================================================== */
+
+.vx-matrix-table code,
+.vx-matrix-table time {
+  overflow-wrap: anywhere;
+}

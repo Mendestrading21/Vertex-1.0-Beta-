@@ -7599,7 +7599,16 @@ label {
     'entry entry entry params'
     'payoff payoff payoff params'
     'payoff payoff payoff kpi'
-    'scenarios scenarios mc kpiprob'
+    /* LA GRILLE DE SCÉNARIOS EST UNE MATRICE : son axe des spots a besoin de
+       LARGEUR, pas de hauteur. Sur deux colonnes (≈455 px), la table portait
+       six colonnes — le temps restant plus cinq spots — et se faisait couper
+       à « SPOT 350 » : les deux dernières valeurs de P&L sortaient du champ.
+       Or comparer les spots EST la fonction de cette matrice.
+       Sur trois colonnes et deux rangées, elle tient, et ses deux voisines
+       — toutes deux des absences déclarées, donc courtes — s'empilent dans la
+       colonne restante au lieu de la laisser vide. */
+    'scenarios scenarios scenarios mc'
+    'scenarios scenarios scenarios kpiprob'
     'stress sensitivity impact catalysts'
     'assumptions sources method method';
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -7626,8 +7635,8 @@ label {
       'entry entry entry entry params'
       'payoff payoff payoff kpi params'
       'payoff payoff payoff kpi kpiprob'
-      'scenarios scenarios scenarios mc stress'
-      'sensitivity impact catalysts catalysts catalysts'
+      'scenarios scenarios scenarios scenarios mc'
+      'stress stress sensitivity impact catalysts'
       'assumptions sources sources method method';
     grid-template-columns: repeat(5, minmax(0, 1fr));
   }
