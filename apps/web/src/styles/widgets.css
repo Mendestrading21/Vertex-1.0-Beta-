@@ -3553,3 +3553,96 @@
   overflow-wrap: anywhere;
   line-height: 1.35;
 }
+
+/* ==================================================================== */
+/* CLASSEMENT DES CANDIDATS — huit colonnes qui doivent TENIR            */
+/*                                                                      */
+/* Vu sur capture à 1440 px, jamais par un test : les deux dernières     */
+/* colonnes — « Gates dégradées » et « Preuves manquantes » — étaient    */
+/* coupées au milieu d'un mot (« • func », « • inv », « • man »). Le     */
+/* conteneur défile, donc rien n'était perdu, mais deux colonnes         */
+/* entières restaient invisibles au repos, sans que rien ne le dise.     */
+/*                                                                      */
+/* La cause : les listes en puces posent chaque code sur SA ligne, donc  */
+/* la largeur minimale de la colonne vaut celle du plus long code —      */
+/* `entitlements_sufficient`, vingt-trois caractères. Deux colonnes      */
+/* ainsi dimensionnées poussaient la table hors du champ.                */
+/*                                                                      */
+/* Les codes se coupent désormais à l'intérieur d'une colonne bornée :   */
+/* la ligne est déjà haute (le motif d'exclusion fait plusieurs lignes), */
+/* donc l'enroulement ne coûte rien, et rien n'est tronqué.              */
+/* ==================================================================== */
+
+/* BUDGET DE LARGEUR, POSÉ COLONNE PAR COLONNE — ET EN CHASSE FIXE.
+   `max-width` sur une cellule de tableau en chasse AUTOMATIQUE n'est qu'un
+   indice : le navigateur dimensionne d'abord sur le contenu, et la colonne la
+   plus bavarde — le motif d'exclusion — prenait toute la place en rejetant les
+   dernières hors du champ. Mesuré : deux colonnes entières invisibles au
+   repos, coupées au milieu d'un mot.
+   En chasse fixe, la PREMIÈRE rangée fixe les colonnes, et les pourcentages
+   sont honorés exactement. La rangée d'en-tête porte ici les huit cellules —
+   contrairement à la chaîne d'options, dont la première rangée n'a que des
+   groupes, et où la chasse fixe produisait l'effet inverse. */
+.vx-opp-table {
+  table-layout: fixed;
+  width: 100%;
+}
+
+.vx-opp-table th[data-col='rank'] {
+  width: 6%;
+}
+
+.vx-opp-table th[data-col='instrument'] {
+  width: 12%;
+}
+
+.vx-opp-table th[data-col='status'] {
+  width: 18%;
+}
+
+.vx-opp-table th[data-col='exclusion'] {
+  width: 20%;
+}
+
+.vx-opp-table th[data-col='degraded_gates'],
+.vx-opp-table th[data-col='missing_evidence'] {
+  width: 17%;
+}
+
+/* La nature de population porte trois énoncés que trois tests différents
+   défendent — phrase française, code servi, pastille de marquage. La colonne
+   reçoit donc la largeur que ce contenu demande, plutôt que de rogner un
+   contenu dont chaque morceau est exigé. */
+.vx-opp-table th[data-col='population'] {
+  width: 16%;
+}
+
+/* La direction sous le statut : deux faits distincts, deux lignes, un seul
+   emplacement. Le libellé n'est pas décoratif — sans lui, « UNKNOWN » posé
+   sous « INSUFFICIENT_DATA » se lirait comme une précision du statut, alors
+   que ce sont deux axes différents. */
+.vx-opp-direction {
+  margin: var(--vx-space-4) 0 0;
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-opp-direction-label {
+  color: var(--vx-text-muted);
+}
+
+/* Un code serveur ne se coupe qu'en dernier recours : « instrum / ent_res /
+   olved » ne se lit plus. `break-word` ne coupe que le mot qui ne tient pas,
+   là où `anywhere` coupait tout. */
+.vx-opp-table td code,
+.vx-opp-table th code {
+  overflow-wrap: break-word;
+}
+
+/* Le reste de la liste se compte, il ne s'énumère pas : le nombre est lisible
+   d'un coup d'œil là où six codes empilés ne l'étaient pas. */
+.vx-opp-list-more {
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+  white-space: nowrap;
+}
+
