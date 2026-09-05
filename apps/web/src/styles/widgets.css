@@ -1452,7 +1452,7 @@
 
 .vx-charts-grid .vx-w2-daybar-value,
 .vx-charts-grid .vx-w2-daybar-label {
-  font-size: 11px;
+  font-size: var(--vx-font-size-micro);
 }
 
 /* Un corps de module ne redéclare pas de cadre : la carte du widget est déjà

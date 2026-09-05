@@ -82,9 +82,16 @@ body {
      que ceux de la capture : « Sources & Rapports » demande 192 px de largeur
      intrinsèque, le cartouche 154 px, la tête 126 px. À 120 px stricts, les
      trois sont TRONQUÉS — et un libellé de navigation coupé est un défaut
-     plus grave que 16 px de marge. 136 px tient « environ 120 px » sans rien
-     couper ; le test de densité mesure les deux à la fois. */
-  --vx-rail-width: 136px;
+     plus grave que 16 px de marge. 136 px tenait « environ 120 px » sans rien
+     couper ; le test de densité mesure les deux à la fois.
+     POURQUOI 140 DEPUIS LE PLANCHER TYPOGRAPHIQUE. Les libellés de groupe du
+     rail vivaient à 10 px, sous le plancher de l'échelle. Passés à 11 px, ils
+     demandent 137,6 px — le rail débordait donc de 1,6 px, et le cartouche
+     d'édition mordait sur la zone de travail. Le rail prend les quatre pixels
+     qui manquent : il reste dans la bande 120–140 du contrat, et rien n'est
+     coupé. Rétrécir le texte pour tenir la largeur aurait été rendre le
+     plancher inutile. */
+  --vx-rail-width: 140px;
   position: relative;
   display: flex;
   min-height: 100vh;
@@ -345,7 +352,7 @@ body {
   font-family: var(--vx-font-mono);
   /* 154 px intrinsèques ne tiennent pas dans un rail de 136 px : la chasse et
      l'interlettrage cèdent, jamais le texte. */
-  font-size: 10px;
+  font-size: var(--vx-font-size-micro);
   letter-spacing: 0.04em;
   text-transform: uppercase;
   white-space: nowrap;
@@ -1255,7 +1262,7 @@ body {
   margin-bottom: 0;
   color: var(--vx-text-muted);
   font-family: var(--vx-font-mono);
-  font-size: 10px;
+  font-size: var(--vx-font-size-micro);
   font-weight: 650;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -3502,7 +3509,7 @@ body {
 
 .vx-perf-metric-value {
   font-family: var(--vx-font-mono);
-  font-size: 20px;
+  font-size: var(--vx-font-size-display);
 }
 
 .vx-perf-metric-raw {
@@ -4312,7 +4319,7 @@ body {
 
 .vx-rail-group-label {
   color: var(--vx-titanium);
-  font-size: 10px;
+  font-size: var(--vx-font-size-micro);
   font-weight: 650;
   letter-spacing: 0.14em;
 }
@@ -4352,7 +4359,7 @@ body {
 .vx-contextbar-app {
   color: var(--vx-signal);
   font-family: var(--vx-font-mono);
-  font-size: 10px;
+  font-size: var(--vx-font-size-micro);
   font-weight: 650;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -4490,7 +4497,7 @@ body {
   color: var(--vx-titanium);
   content: var(--vx-page-ledger, 'TITANIUM LEDGER');
   font-family: var(--vx-font-mono);
-  font-size: 10px;
+  font-size: var(--vx-font-size-micro);
   font-weight: 650;
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -4498,7 +4505,7 @@ body {
 
 .vx-page-header h1 {
   color: var(--vx-text);
-  font-size: 26px;
+  font-size: var(--vx-font-size-headline);
   font-weight: 620;
   letter-spacing: -0.035em;
 }
@@ -4629,7 +4636,7 @@ body {
   border-top-color: var(--vx-border);
   color: var(--vx-text-muted);
   font-family: var(--vx-font-mono);
-  font-size: 11px;
+  font-size: var(--vx-font-size-micro);
 }
 
 .vx-chartframe-legend,
@@ -4689,7 +4696,7 @@ body {
 .vx-main table thead th {
   color: var(--vx-titanium);
   font-family: var(--vx-font-mono);
-  font-size: 10px;
+  font-size: var(--vx-font-size-micro);
   font-weight: 650;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -4943,7 +4950,7 @@ label {
   }
 
   .vx-main::before {
-    font-size: 40px;
+    font-size: var(--vx-font-size-metric);
   }
 }
 
@@ -5217,7 +5224,7 @@ label {
 
 @media (max-width: 900px) {
   .vx-riskmatrix-table {
-    font-size: 11px;
+    font-size: var(--vx-font-size-micro);
   }
 
   .vx-riskmatrix-cell,
@@ -5310,7 +5317,7 @@ label {
   border-top: 1px solid var(--vx-border-soft);
   color: var(--vx-text-muted);
   font-family: var(--vx-font-mono);
-  font-size: 11px;
+  font-size: var(--vx-font-size-micro);
   line-height: 1.5;
 }
 
@@ -5477,7 +5484,7 @@ label {
 .vx-metric-label {
   color: var(--vx-titanium);
   font-family: var(--vx-font-mono);
-  font-size: 10px;
+  font-size: var(--vx-font-size-micro);
   font-weight: 650;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -5686,7 +5693,7 @@ label {
   margin: 0;
   color: var(--vx-text-muted);
   font-family: var(--vx-font-mono);
-  font-size: 10px;
+  font-size: var(--vx-font-size-micro);
   white-space: nowrap;
 }
 
@@ -5714,7 +5721,7 @@ label {
   background: var(--vx-surface-1);
   color: var(--vx-text);
   font-family: var(--vx-font-mono);
-  font-size: 11px;
+  font-size: var(--vx-font-size-micro);
   font-variant-numeric: tabular-nums;
   line-height: 1.5;
 }
@@ -5764,7 +5771,7 @@ label {
   margin: 0 0 var(--vx-space-8);
   color: var(--vx-titanium);
   font-family: var(--vx-font-mono);
-  font-size: 10px;
+  font-size: var(--vx-font-size-micro);
   font-weight: 650;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -5934,7 +5941,7 @@ label {
   margin: var(--vx-space-12) 0 0;
   color: var(--vx-text-muted);
   font-family: var(--vx-font-mono);
-  font-size: 10px;
+  font-size: var(--vx-font-size-micro);
   line-height: 1.5;
   overflow-wrap: anywhere;
 }
@@ -6087,7 +6094,7 @@ label {
 .vx-markets-grid > [data-module] > .vx-card .vx-card-kicker {
   margin-bottom: var(--vx-space-8);
   color: var(--vx-titanium);
-  font-size: 10px;
+  font-size: var(--vx-font-size-micro);
   letter-spacing: 0.12em;
 }
 
@@ -6112,7 +6119,7 @@ label {
   padding-top: var(--vx-space-12);
   border-top: 1px solid var(--vx-border-soft);
   color: var(--vx-text-muted);
-  font-size: 10.5px;
+  font-size: var(--vx-font-size-micro);
   letter-spacing: 0.01em;
   line-height: 1.55;
 }
@@ -6178,7 +6185,7 @@ label {
 }
 
 .vx-metric-value {
-  font-size: 30px;
+  font-size: var(--vx-font-size-metric);
   line-height: 1.05;
 }
 
@@ -6464,7 +6471,7 @@ label {
   margin: 0;
   color: var(--vx-titanium);
   font-family: var(--vx-font-mono);
-  font-size: 10px;
+  font-size: var(--vx-font-size-micro);
   font-weight: 650;
   letter-spacing: 0.12em;
   text-transform: uppercase;
@@ -6547,13 +6554,13 @@ label {
   flex-wrap: wrap;
   justify-content: flex-end;
   padding: 2px var(--vx-space-8);
-  font-size: 11px;
+  font-size: var(--vx-font-size-micro);
 }
 
 .vx-iw-state {
   color: var(--vx-text-muted);
   font-family: var(--vx-font-mono);
-  font-size: 10px;
+  font-size: var(--vx-font-size-micro);
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
@@ -6578,7 +6585,7 @@ label {
 .vx-iw-price {
   color: var(--vx-silver);
   font-family: var(--vx-font-mono);
-  font-size: 28px;
+  font-size: var(--vx-font-size-headline);
   font-variant-numeric: tabular-nums lining-nums;
   font-weight: 600;
   letter-spacing: -0.03em;
@@ -6603,7 +6610,7 @@ label {
   background: var(--vx-surface-2);
   color: var(--vx-text-secondary);
   font-family: var(--vx-font-mono);
-  font-size: 12px;
+  font-size: var(--vx-font-size-micro);
   font-variant-numeric: tabular-nums;
   font-weight: 600;
   white-space: nowrap;
@@ -6639,7 +6646,7 @@ label {
 .vx-iw-foot {
   color: var(--vx-text-muted);
   font-family: var(--vx-font-mono);
-  font-size: 10px;
+  font-size: var(--vx-font-size-micro);
   letter-spacing: 0.02em;
 }
 
@@ -6805,7 +6812,7 @@ label {
 .vx-board > [data-module] > .vx-card .vx-card-kicker {
   margin-bottom: var(--vx-space-8);
   color: var(--vx-titanium);
-  font-size: 10px;
+  font-size: var(--vx-font-size-micro);
   letter-spacing: 0.12em;
 }
 
@@ -6828,7 +6835,7 @@ label {
   padding-top: var(--vx-space-12);
   border-top: 1px solid var(--vx-border-soft);
   color: var(--vx-text-muted);
-  font-size: 10.5px;
+  font-size: var(--vx-font-size-micro);
   letter-spacing: 0.01em;
   line-height: 1.55;
 }
@@ -6993,7 +7000,7 @@ label {
 
 .vx-census-code {
   color: var(--vx-text-muted);
-  font-size: 10px;
+  font-size: var(--vx-font-size-micro);
 }
 
 .vx-census-track {
@@ -7070,7 +7077,7 @@ label {
   background: transparent;
   color: var(--vx-text-secondary);
   font-family: var(--vx-font-mono);
-  font-size: 10px;
+  font-size: var(--vx-font-size-micro);
   letter-spacing: 0.04em;
   text-transform: uppercase;
 }
@@ -7283,7 +7290,7 @@ label {
   margin-top: auto;
   padding-top: var(--vx-space-12);
   color: var(--vx-text-muted);
-  font-size: 10.5px;
+  font-size: var(--vx-font-size-micro);
   line-height: 1.55;
   overflow-wrap: anywhere;
 }
@@ -7355,7 +7362,7 @@ label {
 .vx-ih-price {
   color: var(--vx-silver);
   font-family: var(--vx-font-mono);
-  font-size: 40px;
+  font-size: var(--vx-font-size-metric);
   font-variant-numeric: tabular-nums lining-nums;
   font-weight: 600;
   letter-spacing: -0.035em;
@@ -7547,7 +7554,7 @@ label {
   flex-wrap: wrap;
   gap: var(--vx-space-4) var(--vx-space-16);
   color: var(--vx-text-muted);
-  font-size: 10.5px;
+  font-size: var(--vx-font-size-micro);
   line-height: 1.5;
 }
 
@@ -7584,12 +7591,12 @@ label {
 .vx-smile-multiple-title {
   margin: 0 0 var(--vx-space-8);
   color: var(--vx-text-secondary);
-  font-size: 10.5px;
+  font-size: var(--vx-font-size-micro);
   overflow-wrap: anywhere;
 }
 
 .vx-smile[data-compact='true'] .vx-smile-caption {
-  font-size: 10px;
+  font-size: var(--vx-font-size-micro);
 }
 
 /* ---- Grille du Simulateur (planche §6) ------------------------------- */

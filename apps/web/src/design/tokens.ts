@@ -248,6 +248,26 @@ export const fontFamily = {
  * conformes AA (docs/05-design/DESIGN_SYSTEM.md).
  */
 export const fontSize = {
+  /**
+   * LE PLANCHER DE L'ÉCHELLE — 11 px, et il est DÉCLARÉ.
+   *
+   * Le CSS portait trente tailles littérales sous le plancher affiché du
+   * système : dix-huit à 10 px, cinq à 10,5 px, six à 11 px, une à 12 px. Le
+   * commentaire de `widgets.css` nommait cette dette et rien ne la gardait —
+   * chaque nouvelle micro-étiquette recopiait le nombre de sa voisine, et
+   * l'échelle typographique cessait d'exister là où le texte est le plus
+   * dense.
+   *
+   * `micro` est réservé aux étiquettes qui ACCOMPAGNENT une valeur — unité,
+   * coiffe, libellé de groupe de navigation — et qui ne portent JAMAIS seules
+   * une information. Une valeur, un statut, un motif d'absence prennent `meta`
+   * au minimum.
+   *
+   * 11 px et non 10 : c'est le plus petit corps où Geist reste lisible sur
+   * fond obsidienne à 100 % de zoom, mesuré sur capture. Une porte refuse
+   * désormais toute taille littérale sous ce plancher.
+   */
+  micro: '11px',
   meta: '13px',
   body: '14px',
   // LOT V2 — `label` retiré : il valait `'13px'`, exactement comme `meta`, et

@@ -22,7 +22,7 @@ déclare une couleur brute.
   badges ;
 - ombre : `panel`, `glass` et `inset` sobres, jamais utilisés comme
   seule séparation ni comme halo lumineux ;
-- typographie : `meta`, `body`, `title`, `display`, `headline`, `metric` ;
+- typographie : `micro`, `meta`, `body`, `title`, `display`, `headline`, `metric` ;
 - motion : 90/140/180/220 ms et 600 ms (`--vx-motion-600`, surbrillance unique d'une valeur mise à jour ; nom documentaire `--vx-motion-data`, ADR-017), courbes documentées et variante reduced-motion ;
 - z-index : base, sticky, popover, sheet, dialog, toast ; aucune valeur locale arbitraire ;
 - densité : confortable par défaut, compacte uniquement dans tables analytiques.
@@ -55,3 +55,17 @@ série servie ; jamais un fond de carte, jamais un dégradé entre deux teintes.
 ## Validation
 
 La CI refuse couleurs hex/rgb hors fichier source, espacements arbitraires et tokens non documentés. Storybook montre états, thèmes, focus, contrastes et reduced-motion. Les captures de référence utilisent les mêmes données synthétiques déterministes.
+
+### Plancher typographique
+
+La plus petite taille de l'échelle vaut 11 px. Elle est réservée aux étiquettes
+qui ACCOMPAGNENT une valeur — unité, coiffe, libellé de groupe de navigation —
+et qui ne portent jamais seules une information ; une valeur, un statut ou un
+motif d'absence prennent la taille de méta au minimum.
+
+Le CSS n'écrit plus aucune taille littérale. Une porte les refuse toutes, y
+compris celles qui égalent un jeton : c'est le nombre recopié qui fait dériver
+une échelle, pas sa valeur du jour. Trente tailles littérales vivaient sous le
+plancher affiché du système — dix-huit à 10 px, cinq à 10,5 px, six à 11 px,
+une à 12 px — et l'échelle typographique cessait donc d'exister là où le texte
+est le plus dense, c'est-à-dire là où elle compte le plus.
