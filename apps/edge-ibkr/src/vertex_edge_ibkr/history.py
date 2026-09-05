@@ -135,6 +135,17 @@ class HistoryBackfiller:
         """Arrêt demandé : la requête en cours se termine, puis la boucle sort."""
         self._stop_requested = True
 
+    @property
+    def stop_requested(self) -> bool:
+        """Un arrêt a-t-il été demandé ?
+
+        Lu par l'appelant qui enchaîne PLUSIEURS passes : sans cet accesseur, un
+        Ctrl-C reçu pendant une passe arrêtait cette passe puis en relançait une
+        autre, indéfiniment. L'attribut existait déjà ; seule sa lecture
+        manquait.
+        """
+        return self._stop_requested
+
     def stats(self) -> BackfillStats:
         return BackfillStats(waited_seconds=self._waited, **self._c)
 

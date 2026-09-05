@@ -113,7 +113,37 @@ non servie.
 
 ### Fiches et formulaires
 
-`AdviceCard`, `OptionInspector`, `LegComposer`, `ThesisDetail`, `AiAnswer` et les diagnostics système s'appuient sur les primitives Radix. Dialog, AlertDialog, Accordion, Tooltip, Popover, Tabs et Select sont enveloppés une seule fois dans le package UI Vertex.
+`AdviceCard`, `OptionInspector`, `LegComposer`, `ThesisDetail`, `AiAnswer` et
+les diagnostics système s'appuient sur les primitives **de ce dépôt** et sur les
+éléments natifs du navigateur. **Aucune bibliothèque de composants n'est
+installée.**
+
+Une version antérieure de cette section affirmait qu'ils « s'appuient sur les
+primitives Radix » et que « Dialog, AlertDialog, Accordion, Tooltip, Popover,
+Tabs et Select sont enveloppés une seule fois dans le package UI Vertex ».
+C'était faux, et coûteux : `apps/web/package.json` porte **sept** dépendances de
+production — `@tanstack/react-query`, `echarts`, `geist`, `lightweight-charts`,
+`react`, `react-dom`, `react-router-dom` — dont aucune n'est Radix, aucune n'est
+Lucide, et il n'existe aucun « package UI Vertex ». Un document de design est lu
+AVANT d'écrire : celui qui le croyait importait un paquet absent, puis concluait
+qu'il fallait l'installer — exactement la décision que `architecture.md`
+interdit sans ADR. `apps/web/src/design/doc-libraries.test.ts` empêche désormais
+la rechute.
+
+Ce qui tient réellement ces rôles aujourd'hui :
+
+| Rôle | Ce que le dépôt utilise |
+|---|---|
+| Repli / divulgation | `<details>` natif — `MethodNote`, `AbsentModule`, et la table équivalente de chaque figure |
+| Onglets de période | `PeriodTabs` (`components/widgets/`), boutons `aria-pressed` |
+| Palette de commandes | `shell/CommandPalette.tsx` |
+| Tableau | `DataTable` (`components/widgets/`) — légende visible, unité obligatoire, `aria-sort` sur la seule colonne triée par le serveur |
+| Sélection, cases, champs | `<select>`, `<input>` et `<button>` natifs, stylés par les jetons |
+| Icônes | `Glyph` (`components/widgets/`) — jeu fermé, aucun jeu tiers |
+
+Ajouter une bibliothèque de composants reste possible, mais exige un manque
+précis et démontré **et** un ADR accepté : ce tableau décrit l'existant, il ne
+gèle pas l'avenir.
 
 ## Contrat de données commun
 

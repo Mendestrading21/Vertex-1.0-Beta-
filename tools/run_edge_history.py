@@ -44,7 +44,7 @@ import os
 import random
 import signal
 import sys
-from collections.abc import Sequence
+from collections.abc import Awaitable, Callable, Sequence
 from pathlib import Path
 from time import monotonic as _monotonic
 from types import FrameType
@@ -174,6 +174,76 @@ def _text(name: str, default: str) -> str:
     return os.environ.get(name, "").strip() or default
 
 
+#: Plancher de l'intervalle de reprise, en secondes.
+#:
+#: IBKR n'accorde que 60 requêtes par fenêtre glissante de dix minutes : une
+#: passe de K instruments ne peut donc pas durer moins de K/6 minutes, et le
+#: pacer ATTEND quand la fenêtre est pleine. Repartir plus vite que ce plancher
+#: ne collecte rien de plus — cela ne produit que des reconnexions et du bruit
+#: de journal. Le plancher est refusé, jamais corrigé en silence : une valeur
+#: rejetée se voit, une valeur corrigée se croit appliquée.
+MIN_REPEAT_SECONDS = 300
+
+
+def repeat_seconds() -> int | None:
+    """Intervalle de reprise, ou ``None`` pour une passe unique.
+
+    OPT-IN. Sans ``VERTEX_IBKR_REPEAT_SECONDS``, le comportement d'origine est
+    EXACTEMENT conservé : une passe, puis sortie. Ce n'est pas un ordonnanceur
+    et cela n'en devient pas un — c'est le même outil qui refait la même passe.
+    Vertex n'en a aucun (``docs/99-status/DEBT.md``), et en ajouter un exigerait
+    un ADR.
+    """
+    brut = os.environ.get("VERTEX_IBKR_REPEAT_SECONDS", "").strip()
+    if not brut:
+        return None
+    try:
+        valeur = int(brut)
+    except ValueError:
+        _refuser(f"VERTEX_IBKR_REPEAT_SECONDS doit être un entier de secondes, reçu {brut!r}.")
+    if valeur < MIN_REPEAT_SECONDS:
+        _refuser(
+            f"VERTEX_IBKR_REPEAT_SECONDS={valeur} est sous le plancher de "
+            f"{MIN_REPEAT_SECONDS} s. IBKR n'accorde que 60 requêtes par fenêtre "
+            "de dix minutes : repartir plus vite ne collecte rien de plus."
+        )
+    return valeur
+
+
+async def run_passes(
+    *,
+    session: Callable[[], Awaitable[Any]],
+    repeat_seconds: int | None,
+    arret_demande: Callable[[], bool],
+    sleep: Callable[[float], Awaitable[None]],
+) -> int:
+    """Enchaîne les passes de remplissage et renvoie leur NOMBRE.
+
+    Contrat, tenu par les tests de ``tools/tests/test_run_edge_history_repeat.py`` :
+
+    - ``repeat_seconds is None`` → EXACTEMENT une passe, aucune attente ;
+    - sinon, une attente ENTRE deux passes, jamais après la dernière ;
+    - un arrêt demandé pendant l'attente ne déclenche pas une passe de plus ;
+    - une passe qui lève REMONTE. Une erreur de transport n'est jamais avalée
+      pour « continuer quand même » : le journal du fournisseur doit être lu.
+    """
+    passes = 0
+    while True:
+        await session()
+        passes += 1
+        if repeat_seconds is None or arret_demande():
+            return passes
+        log.info(
+            "passe %d terminée — reprise dans %d s (VERTEX_IBKR_REPEAT_SECONDS). "
+            "Ctrl-C pour arrêter.",
+            passes,
+            repeat_seconds,
+        )
+        await sleep(float(repeat_seconds))
+        if arret_demande():
+            return passes
+
+
 def main() -> int:
     logging.basicConfig(
         level=os.environ.get("VERTEX_LOG_LEVEL", "INFO"),
@@ -183,6 +253,7 @@ def main() -> int:
     chemin_univers = _require_universe_path()
     port_tws = _positive_int("VERTEX_IBKR_PORT", DEFAULT_TWS_PORT)
     client_id = _positive_int("VERTEX_IBKR_HISTORY_CLIENT_ID", DEFAULT_CLIENT_ID)
+    reprise = repeat_seconds()
     duration = _text("VERTEX_IBKR_HISTORY_DURATION", DEFAULT_DURATION)
     bar_size = _text("VERTEX_IBKR_HISTORY_BAR_SIZE", DEFAULT_BAR_SIZE)
     what_to_show = _text("VERTEX_IBKR_HISTORY_WHAT", DEFAULT_WHAT_TO_SHOW)
@@ -233,6 +304,15 @@ def main() -> int:
         what_to_show,
         heures,
     )
+    if reprise is None:
+        log.info(
+            "passe UNIQUE : la commande sortira une fois l'univers parcouru. "
+            "Vertex n'a aucun ordonnanceur — sans reprise, plus rien ne "
+            "rafraîchira les pages. Poser VERTEX_IBKR_REPEAT_SECONDS pour "
+            "enchaîner les passes."
+        )
+    else:
+        log.info("reprise ACTIVE : nouvelle passe %d s après la fin de la précédente.", reprise)
     log.warning(
         "AUCUNE capacité compte, position, P&L, ordre ou exécution n'est utilisée. "
         "Ce régime ne consomme AUCUNE ligne de données de marché."
@@ -246,13 +326,25 @@ def main() -> int:
             await adapter.disconnect()
 
     try:
-        stats = asyncio.run(_session())
+        passes = asyncio.run(
+            run_passes(
+                session=_session,
+                repeat_seconds=reprise,
+                arret_demande=lambda: backfiller.stop_requested,
+                sleep=asyncio.sleep,
+            )
+        )
     finally:
         engine.dispose()
 
+    # Les compteurs du remplisseur sont CUMULÉS sur toutes les passes : ils ne
+    # sont pas remis à zéro entre deux, et le dire évite de lire le total d'une
+    # soirée comme le résultat d'une passe.
+    stats = backfiller.stats()
     log.info(
-        "terminé — demandées=%d insérées=%d doublons=%d attentes=%d (%.0f s cumulées) "
-        "erreurs_fournisseur=%d notices=%d transport=%d",
+        "terminé — %d passe(s) ; cumulé : demandées=%d insérées=%d doublons=%d "
+        "attentes=%d (%.0f s cumulées) erreurs_fournisseur=%d notices=%d transport=%d",
+        passes,
         stats.requested,
         stats.ingested,
         stats.duplicates,

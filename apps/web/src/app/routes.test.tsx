@@ -1,8 +1,30 @@
 import { screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { renderApp } from '../test/render.tsx';
 import { ALL_PAGES } from './pages.ts';
+
+/*
+  MOTEUR DE CHANDELIERS DOUBLÉ. Ce fichier rend `/analysis/…`, qui monte
+  `CandleChart`. Dans jsdom il n'y a pas de canvas : le graphique se construit
+  quand même et planifie un `requestAnimationFrame` qui, exécuté après le
+  démontage, lève « Value is null » HORS de tout test — Vitest le compte en
+  « unhandled error » et la campagne sort en code 1 avec tous ses tests verts.
+
+  Trouvé par `design/chart-engine-doubled.test.ts`, pas à l'œil : c'était le
+  SECOND fichier dans ce cas, et le premier avait vécu des semaines sans jamais
+  tomber dans la fenêtre de la course.
+*/
+vi.mock('../charts/lightweightChartsLoader.ts', () => ({
+  CandlestickSeries: { name: 'Candlestick' },
+  HistogramSeries: { name: 'Histogram' },
+  createChart: vi.fn(() => ({
+    addSeries: vi.fn(() => ({ setData: vi.fn() })),
+    priceScale: vi.fn(() => ({ applyOptions: vi.fn() })),
+    timeScale: vi.fn(() => ({ fitContent: vi.fn() })),
+    remove: vi.fn(),
+  })),
+}));
 
 /** Pages réellement installées (routes + données + états + tests). */
 const INSTALLED_KEYS = new Set([

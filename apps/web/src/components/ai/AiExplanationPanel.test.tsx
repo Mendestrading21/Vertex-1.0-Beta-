@@ -23,6 +23,35 @@ import {
   makeRefusedAiAnswer,
 } from '../../test/fixtures.ts';
 import { renderApp } from '../../test/render.tsx';
+
+/*
+  LE MOTEUR DE CHANDELIERS EST DOUBLÉ, comme dans les trois autres fichiers qui
+  rendent cette route (`AnalysisPage.test.tsx`, `AnalysisComposition.test.tsx`,
+  `ChartsPage.test.tsx`). Ce fichier montait `/analysis/SYN-TECH-01` — donc
+  `CandleChart` — SANS ce double : un vrai graphique était créé dans jsdom, qui
+  n'a pas de canvas.
+
+  CE QUE CELA A COÛTÉ. Le graphique planifie un `requestAnimationFrame` ; quand
+  il s'exécutait après le démontage, `PriceAxisWidget._internal_optimalWidth`
+  levait « Value is null » HORS de tout test. Vitest le compte en « unhandled
+  error » : la campagne affichait 1171 tests VERTS et sortait quand même en
+  code 1. Le défaut est resté latent des semaines, puis a émergé en CI le jour
+  où un fichier de test supplémentaire a décalé l'ordonnancement — la course
+  existait avant, elle n'était simplement pas tombée dans la fenêtre.
+
+  Aucune assertion n'est touchée : ce fichier teste le panneau d'explication,
+  pas le moteur de rendu. Le rendu réel est couvert par Playwright.
+*/
+vi.mock('../../charts/lightweightChartsLoader.ts', () => ({
+  CandlestickSeries: { name: 'Candlestick' },
+  HistogramSeries: { name: 'Histogram' },
+  createChart: vi.fn(() => ({
+    addSeries: vi.fn(() => ({ setData: vi.fn() })),
+    priceScale: vi.fn(() => ({ applyOptions: vi.fn() })),
+    timeScale: vi.fn(() => ({ fitContent: vi.fn() })),
+    remove: vi.fn(),
+  })),
+}));
 import { isNoSnapshotError } from './AiExplanationPanel.tsx';
 import { isWellFormedAnswer } from './aiView.ts';
 import {
