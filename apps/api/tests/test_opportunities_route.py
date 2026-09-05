@@ -270,6 +270,13 @@ def test_empty_state_is_honest_200(api: TestClient) -> None:
         "snapshot_version": None,
         "as_of": None,
         "age_seconds": None,
+        # Le budget est une propriété de la ROUTE (daily_bar, séance fermée) :
+        # il reste servi sans instantané, l'âge seul est absent.
+        "freshness_policy": {
+            "budget_seconds": 259200,
+            "kind": "daily_bar",
+            "version": "1.0.0",
+        },
         "content": None,
         "reason": "no snapshot published",
     }

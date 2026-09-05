@@ -27,6 +27,7 @@ import random
 from enum import Enum, unique
 
 __all__ = [
+    "PROVIDER_STATUS_CODES",
     "TRANSPORT_ERROR_CODE_502",
     "ConnectionState",
     "ConnectionStateMachine",
@@ -37,6 +38,10 @@ __all__ = [
 
 #: TWS "couldn't connect" transport error code, handled as EOF-equivalent.
 TRANSPORT_ERROR_CODE_502 = 502
+
+# Codes that change connection admissibility. Other IBKR messages remain
+# request-scoped provider facts and never drive this machine.
+PROVIDER_STATUS_CODES = frozenset({502, 1100, 1101, 1102, 1300})
 
 
 @unique
@@ -90,7 +95,10 @@ class ConnectionStateMachine:
         self._state = ConnectionState.STARTING
         self._epoch = 0
         self._transport_failures = 0
+        self._pending_transport_backoff: float | None = None
         self._reconnect_in_progress = False
+        self._transport_down = False
+        self._connectivity_down = False
         self._resubscribe_required = False
         self._reread_port_required = False
         self._awaiting_post_reconnect_observation = False
@@ -126,6 +134,11 @@ class ConnectionStateMachine:
     def transport_failures(self) -> int:
         return self._transport_failures
 
+    @property
+    def pending_transport_backoff(self) -> float | None:
+        """Backoff already drawn for the current transport incident, if any."""
+        return self._pending_transport_backoff
+
     def observation_is_fresh(self, epoch: int) -> bool:
         """True only for a current-epoch observation in a HEALTHY session.
 
@@ -153,6 +166,9 @@ class ConnectionStateMachine:
                 "1300 received: re-read the socket port before reconnecting"
             )
         self._reconnect_in_progress = True
+        # A new attempt owns a new failure slot. Repeated 502 callbacks before
+        # this point shared the previous incident and therefore one jitter.
+        self._pending_transport_backoff = None
         self._state = ConnectionState.CONNECTING
 
     def on_connected(self) -> None:
@@ -160,14 +176,11 @@ class ConnectionStateMachine:
         if self._state is not ConnectionState.CONNECTING:
             raise InvalidTransitionError("on_connected requires state CONNECTING")
         self._epoch += 1
+        self._transport_down = False
         self._transport_failures = 0
+        self._pending_transport_backoff = None
         self._reconnect_in_progress = False
-        if self._resubscribe_required:
-            self._state = ConnectionState.DEGRADED
-        elif self._awaiting_post_reconnect_observation:
-            self._state = ConnectionState.RECOVERING
-        else:
-            self._state = ConnectionState.HEALTHY
+        self._refresh_state()
 
     def on_connect_failed(self) -> float:
         """Failed attempt: release the lock, go ``DOWN``, return backoff delay."""
@@ -179,6 +192,7 @@ class ConnectionStateMachine:
     def mark_port_reread(self) -> None:
         """Acknowledge that the socket port was re-read after a 1300."""
         self._reread_port_required = False
+        self._refresh_state()
 
     def stop(self) -> None:
         """Deliberate shutdown; terminal state."""
@@ -193,23 +207,30 @@ class ConnectionStateMachine:
             return None
         if code == 1100:
             # Connectivity lost: block every fresh result.
-            self._state = ConnectionState.DOWN
+            self._connectivity_down = True
+            self._refresh_state()
             return None
         if code == 1101:
             # Restored, data lost: new epoch, full resubscription required.
-            self._epoch += 1
+            # IBKR can repeat the same status. While the resubscription debt is
+            # still open, replaying 1101 must not manufacture another epoch.
+            if not self._resubscribe_required:
+                self._epoch += 1
             self._resubscribe_required = True
-            self._state = ConnectionState.DEGRADED
+            self._connectivity_down = False
+            self._refresh_state()
             return None
         if code == 1102:
             # Restored, data maintained: one observation required before HEALTHY.
             self._awaiting_post_reconnect_observation = True
-            self._state = ConnectionState.RECOVERING
+            self._connectivity_down = False
+            self._refresh_state()
             return None
         if code == 1300:
             # Socket port changed: re-read the port, then reconnect.
             self._reread_port_required = True
-            self._state = ConnectionState.DOWN
+            self._transport_down = True
+            self._refresh_state()
             return None
         if code == TRANSPORT_ERROR_CODE_502:
             return self.on_transport_error()
@@ -220,12 +241,31 @@ class ConnectionStateMachine:
         if self._state is ConnectionState.STOPPED:
             return 0.0
         self._reconnect_in_progress = False
+        if self._pending_transport_backoff is not None:
+            self._transport_down = True
+            self._refresh_state()
+            return self._pending_transport_backoff
         return self._register_transport_failure()
 
     def _register_transport_failure(self) -> float:
         self._transport_failures += 1
-        self._state = ConnectionState.DOWN
-        return self._next_backoff_delay()
+        self._transport_down = True
+        self._pending_transport_backoff = self._next_backoff_delay()
+        self._refresh_state()
+        return self._pending_transport_backoff
+
+    def _refresh_state(self) -> None:
+        """Reduce cumulative safety obligations to one externally visible state."""
+        if self._state is ConnectionState.STOPPED:
+            return
+        if self._reread_port_required or self._transport_down or self._connectivity_down:
+            self._state = ConnectionState.DOWN
+        elif self._resubscribe_required:
+            self._state = ConnectionState.DEGRADED
+        elif self._awaiting_post_reconnect_observation:
+            self._state = ConnectionState.RECOVERING
+        else:
+            self._state = ConnectionState.HEALTHY
 
     def _next_backoff_delay(self) -> float:
         """Capped exponential backoff with injected half-jitter.
@@ -244,11 +284,7 @@ class ConnectionStateMachine:
         if not self._resubscribe_required:
             raise InvalidTransitionError("mark_resubscribed without a pending resubscription")
         self._resubscribe_required = False
-        if self._state is ConnectionState.DEGRADED:
-            if self._awaiting_post_reconnect_observation:
-                self._state = ConnectionState.RECOVERING
-            else:
-                self._state = ConnectionState.HEALTHY
+        self._refresh_state()
 
     def record_observation(self, epoch: int) -> bool:
         """Record one observation stamped with ``epoch``.
@@ -262,8 +298,5 @@ class ConnectionStateMachine:
             return False
         if self._awaiting_post_reconnect_observation and self._state is ConnectionState.RECOVERING:
             self._awaiting_post_reconnect_observation = False
-            if self._resubscribe_required:
-                self._state = ConnectionState.DEGRADED
-            else:
-                self._state = ConnectionState.HEALTHY
+            self._refresh_state()
         return self._state is ConnectionState.HEALTHY

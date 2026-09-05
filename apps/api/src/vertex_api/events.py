@@ -44,6 +44,9 @@ WATCHED_SNAPSHOTS: tuple[tuple[str, str], ...] = (
     ("capabilities", "global"),
     ("markets_overview", "global"),
     ("opportunities", "global"),
+    # LOT S4: the worker publishes the risk matrix under this single fixed
+    # key (``vertex_worker.risk``); relayed by ``GET /api/v1/risk/matrix``.
+    ("risk_matrix", "global"),
 )
 """(kind, key) heads whose version changes are signalled on the stream."""
 

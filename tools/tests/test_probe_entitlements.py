@@ -28,11 +28,15 @@ import yaml
 
 from vertex_core.contracts import SourceCapabilityStatus
 from vertex_edge_ibkr.port import (
+    CancellationOutcome,
     ContractSpec,
     EdgeIbkrError,
     MarketDataSnapshotResult,
+    OperationToken,
     OptionChainDefinition,
     ProviderError,
+    ProviderSessionStateError,
+    ProviderStatusEvent,
 )
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -144,12 +148,28 @@ class FauxPort:
             reported_market_data_type=None,
             generic_ticks=generic_ticks,
             subscription_id=f"sub-{spec.con_id}",
-            cancelled=False,
+            operation=OperationToken(
+                journal_id="probe-journal",
+                connection_epoch_at_start=7,
+                provider_sequence_at_start=0,
+                market_update_sequence_at_start=0,
+            ),
+            market_update_sequence_at_end=0,
+            cancellation_outcome=CancellationOutcome.NOT_FOUND,
         )
 
-    async def cancel_subscription(self, subscription_id: str) -> bool:
+    async def cancel_subscription(
+        self, subscription_id: str
+    ) -> CancellationOutcome:
         self.cancelled.append(subscription_id)
-        return True
+        return CancellationOutcome.CANCELLED
+
+    def drain_provider_status_events(self) -> tuple[ProviderStatusEvent, ...]:
+        return ()
+
+    @property
+    def pending_subscription_count(self) -> int:
+        return 0
 
 
 def _run(argv: list[str], port: FauxPort) -> int:
@@ -346,6 +366,28 @@ def test_un_echec_de_transport_ne_conclut_rien(capsys: pytest.CaptureFixture[str
     assert "ÉCHEC" in capture.err
     assert "capacité" not in capture.out
     assert port.disconnected is False  # aucun adaptateur réel n'a été construit
+
+
+def test_un_fence_de_session_interdit_la_matrice_et_la_persistance(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Une réponse traversant 1100/502 reste une panne, jamais une preuve."""
+    ecritures: list[Any] = []
+    monkeypatch.setattr(
+        tool, "persist_snapshot", lambda snapshot, *, now: ecritures.append(snapshot)
+    )
+    port = FauxPort(
+        snapshot_error=ProviderSessionStateError("synthetic provider-status fence")
+    )
+
+    code = _run(["--symbol", "SYN", *_OPTION_ARGV, "--persist"], port)
+
+    capture = capsys.readouterr()
+    assert code == 1
+    assert "ÉCHEC" in capture.err
+    assert "probe_id=" not in capture.out
+    assert ecritures == []
 
 
 def test_sans_persist_rien_n_est_ecrit(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -194,7 +194,7 @@ def test_un_horodatage_SANS_FUSEAU_est_conserve_en_le_disant() -> None:
                 article_id="a1",
                 headline="Alphabet recule",
                 time=None,
-                time_unzoned=naif,
+                time_unzoned=naif.isoformat(),
             )
         ),
         SPEC,
@@ -204,3 +204,30 @@ def test_un_horodatage_SANS_FUSEAU_est_conserve_en_le_disant() -> None:
     assert enveloppes[0].published_at is None, (
         "un instant inconnu ne doit pas etre publie comme connu"
     )
+
+
+def test_une_enveloppe_portant_un_horodatage_naif_se_HACHE() -> None:
+    """Le defaut du 2026-09-02, epingle : AUCUNE depeche collectee.
+
+    `time_unzoned` etait un `datetime` naif. L enveloppe du fournisseur est
+    hachee (`canonical_json_hash`), et le canonicaliseur refuse tout datetime
+    naif — a juste titre. Resultat : `CanonicalizationError` a la premiere
+    depeche, et le collecteur tombait avant d avoir insere quoi que ce soit.
+
+    Aucun test ne hachait une enveloppe COMPLETE avec ce champ : la suite
+    etait verte pendant que la collecte reelle plantait. Celui-ci le fait.
+    """
+    from vertex_core.contracts.hashing import canonical_json_hash
+
+    naif = datetime(2026, 6, 2, 14, 50, 49, tzinfo=UTC).replace(tzinfo=None)
+    depeche_naive = NewsHeadline(
+        provider_code="DJ-RT",
+        article_id="DJ-RT$1e0664c8",
+        headline="Alphabet recule",
+        time=None,
+        time_unzoned=naif.isoformat(),
+    )
+    # Le hachage de la charge ENTIERE — c est ce que fait l adaptateur — ne
+    # doit lever aucune erreur de canonicalisation.
+    empreinte = canonical_json_hash(charge(depeche_naive))
+    assert empreinte.startswith("sha256:")

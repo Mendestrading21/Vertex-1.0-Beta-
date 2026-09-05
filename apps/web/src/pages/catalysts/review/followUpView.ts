@@ -41,14 +41,14 @@ function bool(record: UnknownRecord | null, key: string): boolean {
 
 // -- vues -------------------------------------------------------------------
 
-export interface UrgencyReasonView {
+interface UrgencyReasonView {
   readonly code: string;
   readonly clusterId: string | null;
   readonly lastReceivedAt: string | null;
   readonly referenceInstant: string | null;
 }
 
-export interface ClusterContextView {
+interface ClusterContextView {
   readonly clusterId: string;
   readonly title: string | null;
   readonly synthetic: boolean;
@@ -235,7 +235,7 @@ export function queueContentOf(content: unknown): QueueContentView | null {
 }
 
 /** Statuts projetés → libellé français (le code machine reste affiché). */
-export const THESIS_STATUS_LABELS: Readonly<Record<string, string>> = {
+const THESIS_STATUS_LABELS: Readonly<Record<string, string>> = {
   ACTIVE: 'active',
   SNOOZED: 'reportée',
   ARCHIVED: 'archivée',
@@ -243,7 +243,9 @@ export const THESIS_STATUS_LABELS: Readonly<Record<string, string>> = {
 
 export function thesisStatusLabel(status: string | null): string {
   if (status === null) {
-    return '—';
+    // LOT T4-3 — un statut non publié se DIT. Le tiret laissait le lecteur
+    // deviner s'il s'agissait d'un statut vide, inconnu ou non servi.
+    return 'statut non publié';
   }
   return THESIS_STATUS_LABELS[status] ?? status;
 }

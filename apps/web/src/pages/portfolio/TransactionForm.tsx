@@ -58,7 +58,7 @@ type Outcome =
   | { readonly phase: 'offline' }
   | { readonly phase: 'error' };
 
-export function buildTransactionRequest(
+function buildTransactionRequest(
   draft: FormDraft,
 ): { readonly request: RecordTransactionRequest | null; readonly issues: readonly string[] } {
   const issues: string[] = [];
@@ -295,7 +295,12 @@ export function TransactionForm({ onRecorded }: { readonly onRecorded: () => voi
               </ul>
             ) : (
               <p>
-                Raison exacte : <code>{outcome.rejection.code ?? '—'}</code>
+                Raison exacte :{' '}
+                {outcome.rejection.code === null ? (
+                  <span className="vx-cell-absent">code de refus non publié</span>
+                ) : (
+                  <code>{outcome.rejection.code}</code>
+                )}
                 {outcome.rejection.message !== null ? ` — ${outcome.rejection.message}` : null}
               </p>
             )}

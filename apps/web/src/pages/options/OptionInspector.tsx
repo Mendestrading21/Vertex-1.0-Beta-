@@ -6,6 +6,7 @@ import { InspectorPanel } from '../../shell/inspector.tsx';
 import { SIMULATOR_TRANSFER_VERSION } from '../simulator/transfer.ts';
 import type { SimulatorTransfer } from '../simulator/transfer.ts';
 import type { CalculationMetaView, SpotView } from './optionsView.ts';
+import { AbsentCell } from '../../components/absence.tsx';
 import { greeksViewOf, ivAbsentLabel, ivViewOf, quoteViewOf } from './optionsView.ts';
 
 /**
@@ -20,49 +21,38 @@ import { greeksViewOf, ivAbsentLabel, ivViewOf, quoteViewOf } from './optionsVie
  * d'exécution n'existe ici, par construction.
  */
 
-function AbsentValue({ label }: { readonly label: string }) {
-  return (
-    // Voir AttentionQueue.tsx : `aria-label` est interdit sur le rôle
-    // implicite `generic` d'un <span> ; `title` seul ne fournit pas un
-    // nom accessible fiable.
-    <span className="vx-cell-absent" role="img" aria-label={label} title={label}>
-      —
-    </span>
-  );
-}
-
 function CalculationMeta({ meta }: { readonly meta: CalculationMetaView | null }) {
   if (meta === null) {
-    return <AbsentValue label="lignée de calcul non publiée" />;
+    return <AbsentCell quoi="lignée de calcul" nature="not_published" reason={null} accord="f" />;
   }
   return (
     <dl className="vx-inspector-calc">
       <div>
         <dt>CalculationRecord</dt>
         <dd>
-          <code>{meta.calculationId ?? '—'}</code>
+          <code>{meta.calculationId ?? 'calcul non publié'}</code>
         </dd>
       </div>
       <div>
         <dt>Moteur</dt>
         <dd>
-          <code>{meta.engineVersion ?? '—'}</code>
+          <code>{meta.engineVersion ?? 'non publié'}</code>
         </dd>
       </div>
       <div>
         <dt>Méthode</dt>
-        <dd>{meta.method ?? '—'}</dd>
+        <dd>{meta.method ?? <span className="vx-cell-absent">méthode non publiée</span>}</dd>
       </div>
       <div>
         <dt>input_hash</dt>
         <dd>
-          <code className="vx-inspector-hash">{meta.inputHash ?? '—'}</code>
+          <code className="vx-inspector-hash">{meta.inputHash ?? 'non publié'}</code>
         </dd>
       </div>
       <div>
         <dt>result_hash</dt>
         <dd>
-          <code className="vx-inspector-hash">{meta.resultHash ?? '—'}</code>
+          <code className="vx-inspector-hash">{meta.resultHash ?? 'non publié'}</code>
         </dd>
       </div>
     </dl>
@@ -74,6 +64,7 @@ export interface OptionInspectorProps {
   readonly underlying: string;
   readonly spot: SpotView | null;
   readonly population: string | null;
+  readonly transferBlockReason: string | null;
   readonly onClose: () => void;
 }
 
@@ -82,9 +73,11 @@ export function OptionInspector({
   underlying,
   spot,
   population,
+  transferBlockReason,
   onClose,
 }: OptionInspectorProps) {
   const titleId = useId();
+  const transferNoteId = useId();
   const navigate = useNavigate();
   const [sheetNode, setSheetNode] = useState<HTMLDivElement | null>(null);
 
@@ -128,10 +121,24 @@ export function OptionInspector({
   const quote = quoteViewOf(contract);
   const iv = ivViewOf(contract);
   const greeks = greeksViewOf(contract);
-  const canTransfer = contract.right !== null && contract.strike !== null;
+  const quoteTransferBlockReason =
+    quote.status !== 'OK'
+      ? `Transfert bloqué : statut de quote ${quote.status ?? 'NON_PUBLIÉ'}. Seule une quote OK peut fournir une prime au Simulateur.`
+      : quote.ask === null
+        ? 'Transfert bloqué : ask non publié. Aucune prime ne sera suggérée au Simulateur.'
+        : null;
+  const effectiveTransferBlockReason = transferBlockReason ?? quoteTransferBlockReason;
+  const canTransfer =
+    contract.right !== null && contract.strike !== null && effectiveTransferBlockReason === null;
 
   function sendToSimulator(): void {
-    if (contract.right === null || contract.strike === null) {
+    if (
+      contract.right === null ||
+      contract.strike === null ||
+      effectiveTransferBlockReason !== null ||
+      quote.status !== 'OK' ||
+      quote.ask === null
+    ) {
       return;
     }
     const transfer: SimulatorTransfer = {
@@ -146,7 +153,7 @@ export function OptionInspector({
       multiplier: contract.multiplier,
       currency: contract.currency,
       premium: quote.ask,
-      premiumSide: quote.ask !== null ? 'ASK' : null,
+      premiumSide: 'ASK',
       spot: spot?.value ?? null,
       iv: iv.status === 'OK' ? iv.value : null,
       population,
@@ -156,14 +163,17 @@ export function OptionInspector({
 
   return (
     <InspectorPanel
-      subject={`${contract.right ?? '?'} ${contract.strike ?? '—'} · ${contract.expiration} · ${contract.trading_class}`}
+      subject={`${contract.right ?? 'sens non publié'} ${
+        contract.strike ?? 'strike non publié'
+      } · ${contract.expiration} · ${contract.trading_class}`}
     >
       <div ref={attacherPanneau} className="vx-sheet" data-testid="option-inspector">
         <div className="vx-sheet-head">
           {/* Le sujet est déjà rendu par l'inspecteur : ce titre reste pour
               `aria-labelledby` sans doubler visuellement l'en-tête. */}
           <h3 id={titleId} className="vx-visually-hidden">
-            {contract.right ?? '?'} {contract.strike ?? '—'} · {contract.expiration} ·{' '}
+            {contract.right ?? 'sens non publié'} {contract.strike ?? 'strike non publié'} ·{' '}
+            {contract.expiration} ·{' '}
             {contract.trading_class}
           </h3>
           <button type="button" className="vx-sheet-close" onClick={onClose}>
@@ -178,7 +188,7 @@ export function OptionInspector({
           <dt>con_id</dt>
           <dd>
             {contract.con_id === null ? (
-              <AbsentValue label="con_id absent (identité incomplète)" />
+              <AbsentCell quoi="con_id" nature="not_published" reason="identité incomplète" />
             ) : (
               <code>{contract.con_id}</code>
             )}
@@ -192,13 +202,13 @@ export function OptionInspector({
         </div>
         <div>
           <dt>Right</dt>
-          <dd>{contract.right ?? <AbsentValue label="right illisible" />}</dd>
+          <dd>{contract.right ?? <AbsentCell quoi="sens" nature="not_recognised" reason={null} />}</dd>
         </div>
         <div>
           <dt>Strike</dt>
           <dd>
             {contract.strike === null ? (
-              <AbsentValue label="strike illisible" />
+              <AbsentCell quoi="strike" nature="not_recognised" reason={null} />
             ) : (
               <code className="vx-num">
                 {contract.strike} {contract.currency}
@@ -256,10 +266,10 @@ export function OptionInspector({
           <dt>Bid / taille</dt>
           <dd>
             {quote.bid === null ? (
-              <AbsentValue label="bid absent" />
+              <AbsentCell quoi="bid" nature="not_published" reason={null} />
             ) : (
               <code className="vx-num">
-                {quote.bid} {contract.currency} ({quote.bidSize ?? '—'})
+                {quote.bid} {contract.currency} ({quote.bidSize ?? 'taille non publiée'})
               </code>
             )}
           </dd>
@@ -268,10 +278,10 @@ export function OptionInspector({
           <dt>Ask / taille</dt>
           <dd>
             {quote.ask === null ? (
-              <AbsentValue label="ask absent" />
+              <AbsentCell quoi="ask" nature="not_published" reason={null} />
             ) : (
               <code className="vx-num">
-                {quote.ask} {contract.currency} ({quote.askSize ?? '—'})
+                {quote.ask} {contract.currency} ({quote.askSize ?? 'taille non publiée'})
               </code>
             )}
           </dd>
@@ -280,7 +290,7 @@ export function OptionInspector({
           <dt>Observée (UTC)</dt>
           <dd>
             {quote.observedAt === null ? (
-              <AbsentValue label="instant d'observation non publié" />
+              <AbsentCell quoi="instant d’observation" nature="not_published" reason={null} />
             ) : (
               <time dateTime={quote.observedAt}>{quote.observedAt}</time>
             )}
@@ -290,7 +300,7 @@ export function OptionInspector({
           <dt>Âge au snapshot</dt>
           <dd>
             {quote.ageSeconds === null ? (
-              <AbsentValue label="âge non publié" />
+              <AbsentCell quoi="âge" nature="not_published" reason={null} />
             ) : (
               <code className="vx-num">{quote.ageSeconds} s</code>
             )}
@@ -300,7 +310,7 @@ export function OptionInspector({
           <dt>Volume</dt>
           <dd>
             {contract.volume === null ? (
-              <AbsentValue label="volume non publié" />
+              <AbsentCell quoi="volume" nature="not_published" reason={null} />
             ) : (
               <code className="vx-num">{contract.volume}</code>
             )}
@@ -310,7 +320,7 @@ export function OptionInspector({
           <dt>Open interest</dt>
           <dd>
             {contract.open_interest === null ? (
-              <AbsentValue label="open interest non publié" />
+              <AbsentCell quoi="open interest" nature="not_published" reason={null} />
             ) : (
               <code className="vx-num">
                 {contract.open_interest} ({contract.open_interest_status ?? 'statut non publié'})
@@ -329,7 +339,8 @@ export function OptionInspector({
           <p className="vx-inspector-value">
             <code className="vx-num">{iv.value}</code>{' '}
             <span className="vx-inspector-unit">
-              volatilité annualisée (décimal, 0.25 = 25 %/an), côté {iv.quoteSide ?? '?'}
+              volatilité annualisée (décimal, 0.25 = 25 %/an), côté{' '}
+              {iv.quoteSide ?? 'non publié'}
             </span>
           </p>
           <CalculationMeta meta={iv.calculation} />
@@ -373,12 +384,13 @@ export function OptionInspector({
           className="vx-primary-action"
           onClick={sendToSimulator}
           disabled={!canTransfer}
+          aria-describedby={transferNoteId}
         >
           Envoyer au Simulateur
         </button>
-        <p className="vx-inspector-note">
-          Transfert d'analyse théorique uniquement : le Simulateur prépare une étude, jamais une
-          transaction.
+        <p id={transferNoteId} className="vx-inspector-note" role="status">
+          {effectiveTransferBlockReason ??
+            "Transfert d'analyse théorique uniquement : le Simulateur prépare une étude, jamais une transaction."}
         </p>
       </div>
       </div>

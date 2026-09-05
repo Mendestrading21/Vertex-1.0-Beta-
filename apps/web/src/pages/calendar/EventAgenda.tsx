@@ -1,6 +1,5 @@
 import { Link } from 'react-router-dom';
 
-import { FreshnessBadge } from '../../components/FreshnessBadge.tsx';
 import {
   CONFIRMED_STATUS,
   ESTIMATED_STATUS,
@@ -14,7 +13,9 @@ import {
 import type { AgendaGrouping, CalendarEventView } from './calendarView.ts';
 
 /**
- * Composant dominant de la page Calendrier : l'agenda jour/semaine.
+ * Composant dominant de la page Calendrier : l'agenda jour/semaine. LOT-A7 :
+ * il est le CORPS de la carte dominante portée par la page (planche §11) ;
+ * chaque carte d'événement peut ouvrir l'inspecteur (« Inspecter »).
  *
  * Invariants d'affichage :
  * - « Estimé » et « Confirmé » ne partagent JAMAIS le même libellé : badge,
@@ -30,7 +31,7 @@ import type { AgendaGrouping, CalendarEventView } from './calendarView.ts';
  *   (position, thèse, liens) proviennent du snapshot, jamais d'un calcul.
  */
 
-const STATUS_DESCRIPTIONS: Readonly<Record<string, string>> = {
+export const STATUS_DESCRIPTIONS: Readonly<Record<string, string>> = {
   [ESTIMATED_STATUS]: 'date estimée par la source, non confirmée',
   [CONFIRMED_STATUS]: 'date confirmée par la source',
 };
@@ -101,7 +102,7 @@ function TimeReadings({
  * raison. Aucun des deux n'est masqué ; leur ABSENCE du snapshot n'invente
  * aucun état (rien n'est affiché plutôt qu'un « RESOLVED » supposé).
  */
-function VersionState({ event }: { readonly event: CalendarEventView }) {
+export function VersionState({ event }: { readonly event: CalendarEventView }) {
   if (event.versionState === null && event.rejectedRevisions.length === 0) {
     return null;
   }
@@ -159,7 +160,7 @@ function VersionState({ event }: { readonly event: CalendarEventView }) {
   );
 }
 
-function RevisionDetails({ event }: { readonly event: CalendarEventView }) {
+export function RevisionDetails({ event }: { readonly event: CalendarEventView }) {
   if (!event.revised) {
     return (
       <p className="vx-cal-norevision" data-testid={`cal-norevision-${event.eventId}`}>
@@ -220,7 +221,7 @@ function RevisionDetails({ event }: { readonly event: CalendarEventView }) {
                   )}
                 </td>
                 <td>
-                  <code>{previous.source ?? '—'}</code>
+                  <code>{previous.source ?? 'source non publiée'}</code>
                   {previous.sourceEventId !== null ? (
                     <>
                       {' '}
@@ -292,7 +293,7 @@ function RevisionDetails({ event }: { readonly event: CalendarEventView }) {
   );
 }
 
-function EventContext({ event }: { readonly event: CalendarEventView }) {
+export function EventContext({ event }: { readonly event: CalendarEventView }) {
   const { positions, theses, links } = event.context;
   if (positions.length === 0 && theses.length === 0 && links.length === 0) {
     return (
@@ -319,8 +320,9 @@ function EventContext({ event }: { readonly event: CalendarEventView }) {
         {theses.length > 0 ? (
           theses.map((thesis) => (
             <li key={thesis.thesisId ?? thesis.title}>
-              Thèse <code>#{thesis.thesisId ?? '—'}</code> « {thesis.title ?? 'sans titre'} » —
-              statut <code>{thesis.status ?? '—'}</code>{' '}
+              Thèse <code>#{thesis.thesisId ?? 'identifiant non publié'}</code> «{' '}
+              {thesis.title ?? 'sans titre'} » — statut{' '}
+              <code>{thesis.status ?? 'non publié'}</code>{' '}
               <Link to="/follow-up">ouvrir le suivi</Link>
             </li>
           ))
@@ -352,15 +354,37 @@ function EventContext({ event }: { readonly event: CalendarEventView }) {
 export function EventCard({
   event,
   viewerTimeZone,
+  selected = false,
+  onInspect,
 }: {
   readonly event: CalendarEventView;
   readonly viewerTimeZone: string | null;
+  readonly selected?: boolean;
+  readonly onInspect?: (eventId: string) => void;
 }) {
   return (
-    <li className="vx-cal-event" data-testid={`cal-event-${event.eventId}`} data-status={event.status}>
+    <li
+      className="vx-cal-event"
+      data-testid={`cal-event-${event.eventId}`}
+      data-status={event.status}
+      {...(selected ? { 'data-selected': 'true' } : {})}
+    >
       <div className="vx-cal-event-head" data-testid={`cal-head-${event.eventId}`}>
         <h4 className="vx-cal-event-title">{event.title ?? event.eventId}</h4>
         <EventStatusBadge status={event.status} />
+        {onInspect !== undefined ? (
+          <button
+            type="button"
+            className="vx-opp-inspect"
+            aria-pressed={selected}
+            aria-label={`Inspecter ${event.title ?? event.eventId}`}
+            onClick={() => {
+              onInspect(event.eventId);
+            }}
+          >
+            Inspecter
+          </button>
+        ) : null}
       </div>
       <p className="vx-cal-event-meta">
         <span className="vx-cal-category" data-category={event.category}>
@@ -374,58 +398,33 @@ export function EventCard({
         )}
         {' · '}
         <span data-testid={`cal-importance-${event.eventId}`}>
-          Importance rang {event.importance.rank ?? '—'} — code{' '}
-          <code>{event.importance.code ?? '—'}</code> (règle{' '}
-          <code>{event.importance.ruleVersion ?? '—'}</code>)
+          Importance rang {event.importance.rank ?? 'non publié'} — code{' '}
+          <code>{event.importance.code ?? 'non publié'}</code> (règle{' '}
+          <code>{event.importance.ruleVersion ?? 'non publiée'}</code>)
         </span>
       </p>
-      <p className="vx-cal-event-status-note">
-        Statut de la date : {statusLabelOf(event.status)} —{' '}
-        {STATUS_DESCRIPTIONS[event.status] ?? 'statut relayé tel quel par la source'}.
-      </p>
+      {/* LOT P6a — CE QUI RESTE DANS LA LIGNE, ET POURQUOI. Les TROIS LECTURES
+          DU TEMPS restent : elles sont l'essence d'un calendrier, et les
+          déplacer obligerait à ouvrir chaque événement pour savoir QUAND il a
+          lieu. Tout le reste — la description du statut, la fraîcheur, les
+          droits, l'archive des révisions, le contexte croisé — vit désormais
+          dans l'inspecteur, qui le portait DÉJÀ : la ligne le répétait. */}
       <TimeReadings event={event} viewerTimeZone={viewerTimeZone} />
-      <p className="vx-cal-freshness" data-fresh={String(event.fresh)}>
-        <FreshnessBadge ageSeconds={null} sourceLabel={event.source ?? 'source non publiée'} />
-        <span aria-hidden="true">{event.fresh === true ? ' ● ' : ' ◐ '}</span>
-        <span>
-          {event.fresh === true
-            ? 'Fraîcheur : fraîche'
-            : event.fresh === false
-              ? 'Fraîcheur : périmée'
-              : 'Fraîcheur : non publiée'}
-        </span>
-        {' — péremption '}
-        {event.staleAfter !== null ? (
-          <time dateTime={event.staleAfter}>{event.staleAfter}</time>
-        ) : (
-          <span className="vx-cell-absent">non publiée</span>
-        )}
-        {' — retard '}
-        <code>{event.delayStatus ?? '—'}</code>
-        {' — qualité '}
-        <code>{event.quality ?? '—'}</code>
-        {' — droits '}
-        <code>{event.rights ?? '—'}</code>
-      </p>
-      {event.amount !== null || event.expiration !== null ? (
-        <p className="vx-cal-event-extra">
-          {event.amount !== null ? (
-            <>
-              Montant publié : <span className="vx-num">{event.amount}</span>{' '}
-              <code>{event.currency ?? ''}</code>
-            </>
-          ) : null}
-          {event.expiration !== null ? (
-            <>
-              {event.amount !== null ? ' · ' : null}Expiration publiée :{' '}
-              <code>{event.expiration}</code>
-            </>
-          ) : null}
+      {event.versionState === VERSION_STATE_CONFLICTING ? (
+        // UNE EXCEPTION, ET UNE SEULE. Des versions qui se contredisent ne
+        // peuvent pas attendre l'ouverture d'un panneau : le lecteur doit
+        // savoir, en parcourant la liste, que cet événement est en conflit.
+        // Le DÉTAIL du conflit, lui, est dans l'inspecteur.
+        <p
+          className="vx-cal-version-state"
+          data-version-state={event.versionState}
+          role="status"
+          data-testid={`cal-conflict-flag-${event.eventId}`}
+        >
+          <span aria-hidden="true">⚠</span> Versions en conflit —{' '}
+          <code>{event.versionState}</code>
         </p>
       ) : null}
-      <VersionState event={event} />
-      <RevisionDetails event={event} />
-      <EventContext event={event} />
     </li>
   );
 }
@@ -433,10 +432,13 @@ export function EventCard({
 export interface EventAgendaProps {
   readonly events: readonly CalendarEventView[];
   readonly grouping: AgendaGrouping;
+  /** Fuseau IANA d'affichage (troisième lecture du temps) — explicite, jamais deviné. */
   readonly viewerTimeZone: string | null;
+  readonly selectedEventId?: string | null;
+  readonly onInspect?: (eventId: string) => void;
 }
 
-export function EventAgenda({ events, grouping, viewerTimeZone }: EventAgendaProps) {
+export function EventAgenda({ events, grouping, viewerTimeZone, selectedEventId = null, onInspect }: EventAgendaProps) {
   const groups = groupAgenda(events, grouping);
   if (groups.length === 0) {
     return (
@@ -465,7 +467,6 @@ export function EventAgenda({ events, grouping, viewerTimeZone }: EventAgendaPro
     */
     <div
       className="vx-cal-agenda"
-      data-rank="dominant"
       data-testid="cal-agenda"
       data-grouping={grouping}
       tabIndex={0}
@@ -484,7 +485,13 @@ export function EventAgenda({ events, grouping, viewerTimeZone }: EventAgendaPro
           </h3>
           <ul className="vx-cal-event-list">
             {group.events.map((event) => (
-              <EventCard key={event.eventId} event={event} viewerTimeZone={viewerTimeZone} />
+              <EventCard
+                key={event.eventId}
+                event={event}
+                viewerTimeZone={viewerTimeZone}
+                selected={event.eventId === selectedEventId}
+                {...(onInspect === undefined ? {} : { onInspect })}
+              />
             ))}
           </ul>
         </section>

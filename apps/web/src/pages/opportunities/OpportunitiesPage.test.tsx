@@ -17,6 +17,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type { OpportunitiesResponse } from '../../api/client.ts';
 import {
+  SYNTHETIC_AS_OF,
   makeExcludedCandidate,
   makeOpportunities,
   makeOpportunitiesContent,
@@ -235,10 +236,64 @@ describe('page Opportunités — rendu', () => {
     expect(reference.textContent).toContain('vertex.calendar/1.0');
   });
 
+  it('compteur NON publié : le mot, jamais un tiret, jamais un zéro', async () => {
+    // LOT T4-1 — LA BRANCHE NULLE N'AVAIT JAMAIS ÉTÉ EXERCÉE. Elle rendait
+    // `<dd className="vx-num">—</dd>` À CÔTÉ de vrais comptes : un lecteur ne
+    // pouvait pas distinguer « zéro événement à venir » — une DONNÉE — de
+    // « compteur non publié ». C'est le fait financier que l'invariant protège.
+    mockOpportunities(
+      makeOpportunities({
+        content: makeOpportunitiesContent({
+          calendar_ref: {
+            kind: 'calendar',
+            key: 'global',
+            version: 21,
+            snapshot_as_of: SYNTHETIC_AS_OF,
+            content_as_of: SYNTHETIC_AS_OF,
+            content_schema_version: 'vertex.calendar/1.0',
+            status: 'USED',
+            max_age_seconds: 259200,
+            events_upcoming: null,
+            // Le voisin est un ZÉRO SERVI : il doit rester « 0 », et se
+            // distinguer de l'absence ci-dessus.
+            events_ignored_past: 0,
+            events_without_ticker: 3,
+            events_rejected: 0,
+          },
+        }),
+      }),
+    );
+    await renderOpportunities();
+    const reference = await screen.findByTestId('opp-calendar-ref');
+    const cellules = [...reference.querySelectorAll('dd')].map((dd) => dd.textContent);
+    expect(cellules).toContain('non publié');
+    expect(cellules).not.toContain('—');
+    // Le zéro servi survit : l'aveu ne l'a pas absorbé.
+    expect(cellules).toContain('0');
+  });
+
   it('affiche l’âge PUBLIÉ par le serveur, et le bandeau périmé le cas échéant', async () => {
     mockOpportunities(makeOpportunities({ age_seconds: 3600 }));
     await renderOpportunities();
-    expect((await screen.findByTestId('opp-provenance')).textContent).toContain('il y a 1 h');
+    const provenance = await screen.findByTestId('opp-provenance');
+    expect(provenance.textContent).toContain('il y a 1 h');
+    // LOT T4-1 — LA LIGNE DE PROVENANCE PORTAIT SIX TIRETS MUETS. Elle passe
+    // sur `ProvenanceLine` — première pose du produit — qui DIT chaque champ
+    // manquant à sa place.
+    //
+    // L'assertion vise la LIGNE, pas le conteneur : celui-ci porte aussi le
+    // badge de fraîcheur, dont le « — » est un séparateur de prose entre l'âge
+    // et sa source. Le confondre avec un substitut ferait échouer le test sur
+    // de la ponctuation correcte.
+    const ligne = within(provenance).getByTestId('provenance-line');
+    expect(ligne.textContent).not.toContain('—');
+    // Chaque fait de provenance est là, ou DIT absent — jamais muet.
+    expect(ligne.textContent).toContain('v37');
+    expect(ligne.textContent).toContain('vertex.opportunities/1.0');
+    expect(ligne.textContent).toContain('sources non publiées');
+    // Les deux dénombrements ne sont PAS de la provenance : ils prennent la
+    // forme `Metric`, qui rend nativement « non publié ».
+    expect(provenance.textContent).toContain('Univers déclaré');
 
     fetchMock.mockReset();
     mockOpportunities(makeOpportunities({ state: 'stale', reason: 'past freshness budget' }));
@@ -252,7 +307,7 @@ describe('page Opportunités — rendu', () => {
     );
   });
 
-  it('affiche la répartition des raisons d’exclusion en tableau', async () => {
+  it('affiche la répartition des raisons d’exclusion en barres de dénombrement', async () => {
     mockOpportunities(
       makeOpportunities({
         content: makeOpportunitiesContent({
@@ -272,9 +327,18 @@ describe('page Opportunités — rendu', () => {
     await renderOpportunities();
     const reasons = await screen.findByTestId('opp-exclusion-reasons');
     const row = within(reasons).getByTestId('opp-reason-entitlements_sufficient:UNEVALUABLE');
-    expect(within(row).getByRole('cell').textContent).toBe('24');
-    const statusRow = within(reasons).getByTestId('opp-status-count-INSUFFICIENT_DATA');
-    expect(within(statusRow).getByRole('cell').textContent).toBe('24');
+    // LOT P2c — la table de deux colonnes est devenue des barres. Même
+    // exigence : le compte SERVI, exact, dans la ligne portant la clé exacte.
+    // Et la clé reste écrite en toutes lettres, en chasse fixe.
+    expect(row.querySelector('.vx-census-count')?.textContent).toBe('24');
+    expect(within(row).getByText('entitlements_sufficient:UNEVALUABLE').tagName).toBe('CODE');
+    // Aucun pourcentage n'est écrit : il n'est pas publié, l'écrire serait le
+    // calculer.
+    expect(row.textContent).not.toContain('%');
+    // LOT-A4 : les statuts sur l'univers vivent dans leur propre module, en
+    // barres de dénombrement — le compte publié reste lisible tel quel.
+    const statusRow = screen.getByTestId('opp-status-count-INSUFFICIENT_DATA');
+    expect(within(statusRow).getByText('24')).toBeDefined();
   });
 });
 

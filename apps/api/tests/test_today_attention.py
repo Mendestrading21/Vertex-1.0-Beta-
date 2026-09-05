@@ -128,6 +128,13 @@ def test_no_snapshot_published_is_honest_200_empty(snapshot_client: TestClient) 
         "snapshot_version": None,
         "as_of": None,
         "age_seconds": None,
+        # Le budget est une propriété de la ROUTE (news_attention, séance
+        # fermée) : il reste servi sans instantané, l'âge seul est absent.
+        "freshness_policy": {
+            "budget_seconds": 3600,
+            "kind": "news_attention",
+            "version": "1.0.0",
+        },
         "population": None,
         "coverage": None,
         "items": [],
@@ -174,6 +181,7 @@ def test_response_carries_complete_metadata_fields(
         "snapshot_version",
         "as_of",
         "age_seconds",
+        "freshness_policy",
         "population",
         "coverage",
         "items",

@@ -3,7 +3,12 @@ import { useMemo, useState } from 'react';
 import { saveTextAsFile } from '../../app/downloadFile.ts';
 
 import type { FlatTicker } from '../../components/markets/marketsView.ts';
-import { GROUP_LABELS_FR, frDecimal, geometryNumber } from '../../components/markets/marketsView.ts';
+import {
+  GROUP_LABELS_FR,
+  frDecimal,
+  geometryNumber,
+  signSymbolOf,
+} from '../../components/markets/marketsView.ts';
 
 /**
  * Table accessible ÉQUIVALENTE de la MarketMap : mêmes valeurs exactes
@@ -37,6 +42,54 @@ const COLUMNS: readonly Column[] = [
   { key: 'quality', label: 'Qualité', numeric: false },
 ];
 
+const CSV_HEADER = [
+  'ticker',
+  'sector',
+  'trading_day',
+  'last_close',
+  'currency',
+  'return_1d',
+  'return_1d_pct',
+  'weight_in_sector',
+  'weight_global',
+  'quality',
+  'synthetic',
+] as const;
+const CSV_FORMULA_PREFIXES: ReadonlySet<string> = new Set(['=', '+', '-', '@']);
+
+/**
+ * Cellule CSV au délimiteur `;` : neutralisation tableur identique à
+ * `vertex_api.portfolio.neutralize_csv_cell`, puis échappement des
+ * délimiteurs, guillemets et retours ligne.
+ */
+export function marketsCsvCell(value: string): string {
+  const safe = CSV_FORMULA_PREFIXES.has(value.charAt(0)) ? `'${value}` : value;
+  return /[;"\r\n]/u.test(safe) ? `"${safe.replaceAll('"', '""')}"` : safe;
+}
+
+function marketsCsvRow(cells: readonly string[]): string {
+  return cells.map(marketsCsvCell).join(';');
+}
+
+export function renderMarketsCsv(entries: readonly FlatTicker[]): string {
+  const lines = entries.map((entry) =>
+    marketsCsvRow([
+      entry.ticker.ticker,
+      entry.ticker.sector,
+      entry.ticker.trading_day,
+      entry.ticker.last_close,
+      entry.ticker.currency ?? '',
+      entry.ticker.return_1d,
+      entry.ticker.return_1d_pct,
+      entry.ticker.weight_in_sector,
+      entry.ticker.weight_global,
+      entry.ticker.quality,
+      entry.ticker.synthetic ? 'SYNTHETIC' : '',
+    ]),
+  );
+  return `${marketsCsvRow(CSV_HEADER)}\n${lines.join('\n')}\n`;
+}
+
 function rawValue(entry: FlatTicker, key: ColumnKey): string {
   switch (key) {
     case 'ticker':
@@ -56,15 +109,43 @@ function rawValue(entry: FlatTicker, key: ColumnKey): string {
   }
 }
 
-function signSymbol(group: FlatTicker['group']): string {
-  return group === 'up' ? '▲' : group === 'down' ? '▼' : '=';
-}
-
 export interface MarketsTableProps {
   readonly entries: readonly FlatTicker[];
+  readonly population: string | null;
+  /** LOT-A3 : instrument ouvert dans l'inspecteur, et son sélecteur. */
+  readonly selected?: string | null;
+  readonly onSelect?: (ticker: string) => void;
 }
 
-export function MarketsTable({ entries }: MarketsTableProps) {
+/**
+ * Nom d'export dérivé de la population publiée, sans présumer de la nature
+ * des cas absents, mixtes ou non synthétiques.
+ */
+function marketsCsvFilename(population: string | null): string {
+  return population === 'SYNTHETIC' ? 'marches-synthetiques.csv' : 'marches.csv';
+}
+
+/**
+ * Compare deux valeurs servies dont l'une peut être illisible.
+ *
+ * L'illisible va TOUJOURS au bout, quel que soit le sens du tri : l'inverser
+ * avec le reste le ferait remonter en tête au premier clic, comme s'il était
+ * l'extrême le plus élevé.
+ */
+function compareNumeriqueServi(gauche: number | null, droite: number | null): number {
+  if (gauche === null && droite === null) {
+    return 0;
+  }
+  if (gauche === null) {
+    return 1;
+  }
+  if (droite === null) {
+    return -1;
+  }
+  return gauche - droite;
+}
+
+export function MarketsTable({ entries, population, selected = null, onSelect }: MarketsTableProps) {
   const [sortKey, setSortKey] = useState<ColumnKey>('ticker');
   const [descending, setDescending] = useState(false);
 
@@ -74,8 +155,14 @@ export function MarketsTable({ entries }: MarketsTableProps) {
     copy.sort((a, b) => {
       const left = rawValue(a, sortKey);
       const right = rawValue(b, sortKey);
+      // UNE VALEUR ILLISIBLE NE VAUT PAS ZÉRO, MÊME POUR TRIER. La conversion
+      // rendait `0` : une chaîne non analysable se rangeait alors AU MILIEU du
+      // classement, entre les valeurs négatives et positives, comme si elle
+      // avait été mesurée à zéro. Elle est désormais reléguée en fin de tri,
+      // dans les deux sens : « on ne sait pas » n'est pas une position sur
+      // l'échelle, c'est l'absence de position.
       const compared = column?.numeric
-        ? geometryNumber(left) - geometryNumber(right)
+        ? compareNumeriqueServi(geometryNumber(left), geometryNumber(right))
         : left.localeCompare(right, 'fr');
       return descending ? -compared : compared;
     });
@@ -92,37 +179,9 @@ export function MarketsTable({ entries }: MarketsTableProps) {
   }
 
   function exportCsv(): void {
-    const header = [
-      'ticker',
-      'sector',
-      'trading_day',
-      'last_close',
-      'currency',
-      'return_1d',
-      'return_1d_pct',
-      'weight_in_sector',
-      'weight_global',
-      'quality',
-      'synthetic',
-    ].join(';');
-    const lines = sorted.map((entry) =>
-      [
-        entry.ticker.ticker,
-        entry.ticker.sector,
-        entry.ticker.trading_day,
-        entry.ticker.last_close,
-        entry.ticker.currency ?? '',
-        entry.ticker.return_1d,
-        entry.ticker.return_1d_pct,
-        entry.ticker.weight_in_sector,
-        entry.ticker.weight_global,
-        entry.ticker.quality,
-        entry.ticker.synthetic ? 'SYNTHETIC' : '',
-      ].join(';'),
-    );
     saveTextAsFile(
-      `${header}\n${lines.join('\n')}\n`,
-      'marches-synthetiques.csv',
+      renderMarketsCsv(sorted),
+      marketsCsvFilename(population),
       'text/csv;charset=utf-8',
     );
   }
@@ -134,7 +193,18 @@ export function MarketsTable({ entries }: MarketsTableProps) {
           Exporter (CSV)
         </button>
       </div>
-      <div className="vx-markets-table-scroll">
+      {/*
+        LOT-A3 — bornée comme les autres tables longues (règle commune de
+        `global.css`) : 22 lignes déroulées faisaient 1 100 px. `tabIndex` dans
+        le même geste que la borne : une région défilante doit être atteignable
+        au clavier (axe `scrollable-region-focusable`, seuil zéro).
+      */}
+      <div
+        className="vx-markets-table-scroll"
+        tabIndex={0}
+        role="region"
+        aria-label="Table équivalente, région défilante"
+      >
         <table className="vx-markets-table" aria-label="Table équivalente de la carte des marchés">
           <thead>
             <tr>
@@ -166,7 +236,21 @@ export function MarketsTable({ entries }: MarketsTableProps) {
             {sorted.map((entry) => (
               <tr key={entry.ticker.ticker} data-group={entry.group}>
                 <th scope="row">
-                  <code>{entry.ticker.ticker}</code>{' '}
+                  {onSelect === undefined ? (
+                    <code>{entry.ticker.ticker}</code>
+                  ) : (
+                    <button
+                      type="button"
+                      className="vx-markets-pick"
+                      aria-pressed={selected === entry.ticker.ticker}
+                      aria-label={`Inspecter ${entry.ticker.ticker}`}
+                      onClick={() => {
+                        onSelect(entry.ticker.ticker);
+                      }}
+                    >
+                      <code>{entry.ticker.ticker}</code>
+                    </button>
+                  )}{' '}
                   {entry.ticker.synthetic ? (
                     <span className="vx-badge vx-badge-synthetic">SYNTHÉTIQUE</span>
                   ) : null}
@@ -177,7 +261,7 @@ export function MarketsTable({ entries }: MarketsTableProps) {
                   {entry.ticker.currency !== null ? ` ${entry.ticker.currency}` : ''}
                 </td>
                 <td className="vx-num" data-sign={entry.group}>
-                  <span aria-hidden="true">{signSymbol(entry.group)}</span>{' '}
+                  <span aria-hidden="true">{signSymbolOf(entry.group)}</span>{' '}
                   {frDecimal(entry.ticker.return_1d_pct)} %{' '}
                   <span className="vx-visually-hidden">({GROUP_LABELS_FR[entry.group]})</span>
                 </td>

@@ -15,6 +15,7 @@ import type { components } from './schema.d.ts';
 
 export type AttentionSnapshot = components['schemas']['AttentionSnapshotResponse'];
 export type AttentionItem = components['schemas']['AttentionItem'];
+export type FreshnessPolicyView = components['schemas']['FreshnessPolicyView'];
 export type MarketsOverview = components['schemas']['MarketsOverviewResponse'];
 export type MarketsSector = components['schemas']['MarketsSector'];
 export type MarketsTicker = components['schemas']['MarketsTicker'];
@@ -34,6 +35,7 @@ export type OptionChainResponse = components['schemas']['OptionChainResponse'];
 export type OptionChainExpiration = components['schemas']['OptionChainExpiration'];
 export type OptionChainContract = components['schemas']['OptionChainContract'];
 export type AnalysisResponse = components['schemas']['AnalysisResponse'];
+export type SecFundamentalsResponse = components['schemas']['SecFundamentalsResponse'];
 export type SimulationPreviewRequest = components['schemas']['SimulationPreviewRequest'];
 export type SimulationPreviewResponse = components['schemas']['SimulationPreviewResponse'];
 export type SimulationOptionLeg = components['schemas']['OptionLeg'];
@@ -65,7 +67,6 @@ export type ThesisRevisionRequest = components['schemas']['ThesisRevisionRequest
 export type ThesisRevisionResponse = components['schemas']['ThesisRevisionResponse'];
 export type PerformanceSnapshotResponse = components['schemas']['PerformanceSnapshotResponse'];
 export type CalendarResponse = components['schemas']['CalendarResponse'];
-export type CalendarWindowEcho = components['schemas']['CalendarWindow'];
 export type OpportunitiesResponse = components['schemas']['OpportunitiesResponse'];
 export type RiskMatrixResponse = components['schemas']['RiskMatrixResponse'];
 export type AiAnswer = components['schemas']['AiAnswer'];
@@ -264,6 +265,19 @@ export function getAnalysis(instrument: string): Promise<AnalysisResponse> {
   return request({
     method: 'GET',
     path: `/v1/analysis/${encodeURIComponent(instrument)}`,
+    protectedRoute: true,
+  });
+}
+
+/**
+ * Faits SEC officiels d'un instrument (dépôts et faits XBRL point-in-time),
+ * relayés VERBATIM par l'API : aucun ratio, score ni avis n'est calculé, ni
+ * côté serveur, ni ici. LOT-A4 : premier relais client de cette route.
+ */
+export function getSecFundamentals(instrument: string): Promise<SecFundamentalsResponse> {
+  return request({
+    method: 'GET',
+    path: `/v1/sources/sec/${encodeURIComponent(instrument)}/fundamentals`,
     protectedRoute: true,
   });
 }

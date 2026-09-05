@@ -9,6 +9,7 @@ import type {
   AttentionItem,
   AttentionSnapshot,
   CapabilityEntry,
+  FreshnessPolicyView,
   MarketsBreadth,
   MarketsOverview,
   MarketsSector,
@@ -18,6 +19,7 @@ import type {
   OptionChainResponse,
   CalendarResponse,
   OpportunitiesResponse,
+  SecFundamentalsResponse,
   SimulationPreviewResponse,
   SystemCapabilities,
   SystemHealth,
@@ -25,7 +27,18 @@ import type {
 
 export const SYNTHETIC_AS_OF = '2026-08-25T12:00:00+00:00';
 
-export function makeCapabilityEntry(overrides: Partial<CapabilityEntry> = {}): CapabilityEntry {
+/**
+ * Budget de fraîcheur PUBLIÉ par le serveur — coordonnées de la jauge
+ * âge / TTL (`freshness_policy`). Valeurs SYNTHÉTIQUES de test : le client
+ * ne recopie aucun registre et ne calcule rien à partir d'elles.
+ */
+export function makeFreshnessPolicy(
+  overrides: Partial<FreshnessPolicyView> = {},
+): FreshnessPolicyView {
+  return { budget_seconds: 259200, kind: 'daily_bar', version: '1.0.0', ...overrides };
+}
+
+function makeCapabilityEntry(overrides: Partial<CapabilityEntry> = {}): CapabilityEntry {
   return {
     capability_id: 'syn_capability_a',
     family: 'market_data',
@@ -61,7 +74,7 @@ export function makeCapabilityEntries(): CapabilityEntry[] {
   });
 }
 
-export function makeSystemHealth(overrides: Partial<SystemHealth> = {}): SystemHealth {
+function makeSystemHealth(overrides: Partial<SystemHealth> = {}): SystemHealth {
   return {
     db: { status: 'ok' },
     attention_snapshot: { present: true, version: 3, as_of: SYNTHETIC_AS_OF, age_seconds: 120 },
@@ -80,6 +93,8 @@ export function makeCapabilities(
     snapshot_version: 2,
     as_of: SYNTHETIC_AS_OF,
     age_seconds: 60,
+    // Aucun budget de relais pour cette famille : absence DÉCLARÉE (null).
+    freshness_policy: null,
     total: capabilities.length,
     capabilities,
     unknown_probed_capability_ids: [],
@@ -119,6 +134,7 @@ export function makeAttentionSnapshot(
     snapshot_version: 3,
     as_of: SYNTHETIC_AS_OF,
     age_seconds: 60,
+    freshness_policy: makeFreshnessPolicy({ kind: 'news_attention', budget_seconds: 3600 }),
     population: 'SYNTHETIC',
     coverage: { published_items: items.length },
     items,
@@ -134,6 +150,7 @@ export function makeEmptyAttentionSnapshot(): AttentionSnapshot {
     snapshot_version: null,
     as_of: null,
     age_seconds: null,
+    freshness_policy: makeFreshnessPolicy({ kind: 'news_attention', budget_seconds: 3600 }),
     population: null,
     coverage: null,
     items: [],
@@ -234,6 +251,8 @@ export function makeMarketsBreadth(overrides: Partial<MarketsBreadth> = {}): Mar
     value: '0.5',
     value_pct: '50.0',
     above_count: 2,
+    down_count: 1,
+    flat_count: 1,
     covered_count: 4,
     universe_size: 4,
     coverage_pct: '100.0',
@@ -257,6 +276,7 @@ export function makeMarketsOverview(overrides: Partial<MarketsOverview> = {}): M
     snapshot_version: 5,
     as_of: SYNTHETIC_AS_OF,
     age_seconds: 60,
+    freshness_policy: makeFreshnessPolicy(),
     population: 'SYNTHETIC',
     data_state: 'ok',
     unit: 'return_ratio',
@@ -288,6 +308,7 @@ export function makeEmptyMarketsOverview(): MarketsOverview {
     snapshot_version: null,
     as_of: null,
     age_seconds: null,
+    freshness_policy: makeFreshnessPolicy(),
     population: null,
     data_state: null,
     unit: null,
@@ -446,6 +467,7 @@ export function makeOptionChain(
     snapshot_version: 12,
     as_of: SYNTHETIC_AS_OF,
     age_seconds: 60,
+    freshness_policy: makeFreshnessPolicy({ kind: 'option_surface', budget_seconds: 3600 }),
     population: 'SYNTHETIC',
     underlying: 'SYN-TECH-01',
     engine_version: 'vertex_core@0.1.0',
@@ -481,6 +503,7 @@ export function makeEmptyOptionChain(): OptionChainResponse {
     snapshot_version: null,
     as_of: null,
     age_seconds: null,
+    freshness_policy: makeFreshnessPolicy({ kind: 'option_surface', budget_seconds: 3600 }),
     population: null,
     underlying: 'SYN-TECH-01',
     engine_version: null,
@@ -524,7 +547,7 @@ export function makeAnalysisBars(count = 3): Record<string, unknown> {
   };
 }
 
-export function makeAnalysisAdvice(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+function makeAnalysisAdvice(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     advice_id: `sha256:${'a'.repeat(64)}`,
     instrument_id: 'SYN-TECH-01',
@@ -537,6 +560,17 @@ export function makeAnalysisAdvice(overrides: Record<string, unknown> = {}): Rec
     direction: 'UNKNOWN',
     horizon: '1d',
     risk_summary: 'SYNTHETIC development data; deterministic fixtures',
+    // LOT P2b — LA PREUVE SERVIE, AUX FORMES EXACTES DU MOTEUR.
+    // `observed_values` et `thresholds` sont recopiés des points de retour de
+    // `vertex_core/decision/gates.py`, pas devinés :
+    //   · `instrument_resolved` DEGRADE publie `identity_status` + un BOOLÉEN
+    //     `resolved_with_conid: false` (gates.py:126-136) ;
+    //   · `_unevaluable` (gates.py:62-69) ne publie NI observé NI seuil —
+    //     c'est le cas qui prouve qu'un groupe vide n'est pas rendu ;
+    //   · `snapshot_fresh_and_coherent` publie `quality` + `fresh`
+    //     (gates.py:238).
+    // Un `false` deviné en chaîne `'false'` aurait fait passer le test sur une
+    // forme que le serveur ne publie pas.
     gates: [
       {
         gate_id: 'instrument_resolved',
@@ -544,6 +578,8 @@ export function makeAnalysisAdvice(overrides: Record<string, unknown> = {}): Rec
         status: 'DEGRADE',
         reason_code: 'RESOLVED_WITHOUT_CONID',
         message: 'identity resolved without an IBKR con_id confirmation',
+        observed_values: { identity_status: 'RESOLVED', resolved_with_conid: false },
+        thresholds: {},
       },
       {
         gate_id: 'entitlements_sufficient',
@@ -551,6 +587,8 @@ export function makeAnalysisAdvice(overrides: Record<string, unknown> = {}): Rec
         status: 'BLOCK',
         reason_code: 'UNEVALUABLE',
         message: 'capability_status is missing or invalid',
+        observed_values: {},
+        thresholds: {},
       },
       {
         gate_id: 'snapshot_fresh_and_coherent',
@@ -558,6 +596,8 @@ export function makeAnalysisAdvice(overrides: Record<string, unknown> = {}): Rec
         status: 'PASS',
         reason_code: 'FRESH_AND_COHERENT',
         message: 'snapshot is fresh and coherent',
+        observed_values: { quality: 'GOOD', fresh: true },
+        thresholds: {},
       },
     ],
     limitations: ['SYNTHETIC development population'],
@@ -576,6 +616,7 @@ export function makeAnalysis(overrides: Partial<AnalysisResponse> = {}): Analysi
     snapshot_version: 16,
     as_of: SYNTHETIC_AS_OF,
     age_seconds: 60,
+    freshness_policy: makeFreshnessPolicy(),
     population: 'SYNTHETIC',
     instrument: 'SYN-TECH-01',
     engine_version: 'vertex_core@0.1.0',
@@ -602,6 +643,38 @@ export function makeAnalysis(overrides: Partial<AnalysisResponse> = {}): Analysi
         available_bars: 3,
         detail: '15 barres requises ; 3 disponibles',
       },
+      rebased_comparison: {
+        status: 'OK',
+        benchmark: 'SYN-IDX-01',
+        unit: 'index',
+        base_value: '100',
+        currency: 'SYN',
+        adjustment_basis: 'synthetic-unadjusted',
+        common_sessions: 3,
+        first_trading_day: '2026-08-21',
+        last_trading_day: '2026-08-24',
+        series: [
+          { trading_day: '2026-08-21', instrument: '100.0', benchmark: '100.0' },
+          { trading_day: '2026-08-22', instrument: '96.07843137254902', benchmark: '101.5' },
+          { trading_day: '2026-08-24', instrument: '102.45098039215686', benchmark: '103.0' },
+        ],
+        calculation: {
+          calculation_id: 'market.rebased_series',
+          method: 'base_value * p_i / p_0 sur les seules séances communes aux deux séries',
+          engine_version: 'vertex_core@0.1.0',
+          input_hash: 'sha256:0000000000000000000000000000000000000000000000000000000000000003',
+          result_hash: 'sha256:0000000000000000000000000000000000000000000000000000000000000004',
+          status: 'OK',
+        },
+        benchmark_calculation: {
+          calculation_id: 'market.rebased_series',
+          method: 'base_value * p_i / p_0 sur les seules séances communes aux deux séries',
+          engine_version: 'vertex_core@0.1.0',
+          input_hash: 'sha256:0000000000000000000000000000000000000000000000000000000000000005',
+          result_hash: 'sha256:0000000000000000000000000000000000000000000000000000000000000006',
+          status: 'OK',
+        },
+      },
     },
     evidence: {
       source: 'fusion',
@@ -624,6 +697,7 @@ export function makeEmptyAnalysis(): AnalysisResponse {
     snapshot_version: null,
     as_of: null,
     age_seconds: null,
+    freshness_policy: makeFreshnessPolicy(),
     population: null,
     instrument: 'SYN-TECH-01',
     engine_version: null,
@@ -632,6 +706,96 @@ export function makeEmptyAnalysis(): AnalysisResponse {
     evidence: null,
     scenarios: null,
     advice: null,
+    coverage: null,
+    reason: 'no snapshot published',
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Faits SEC officiels — relais verbatim (LOT-A4)
+// ---------------------------------------------------------------------------
+
+/**
+ * Snapshot SEC SYNTHÉTIQUE : forme du contrat, valeurs fictives. L'accession,
+ * le CIK et l'URL suivent la grammaire EDGAR sans désigner un émetteur réel.
+ */
+export function makeSecFundamentals(
+  overrides: Partial<SecFundamentalsResponse> = {},
+): SecFundamentalsResponse {
+  return {
+    state: 'ok',
+    snapshot_version: 3,
+    as_of: SYNTHETIC_AS_OF,
+    age_seconds: 120,
+    freshness_policy: makeFreshnessPolicy({ kind: 'fundamental_filing', budget_seconds: 604800 }),
+    population: 'SYNTHETIC',
+    instrument: 'SYN-TECH-01',
+    source: 'sec_edgar',
+    rights: 'R1_PUBLIC_FACT_SEC_EDGAR_POLICY_2026_08_28',
+    identity_state: 'RESOLVED',
+    cik: '0000000001',
+    entity_name: '[SYNTHETIC] Fictional Tech One Inc.',
+    data_as_of: SYNTHETIC_AS_OF,
+    filings: [
+      {
+        accession: '0000000001-26-000001',
+        form: '10-Q',
+        available_at: SYNTHETIC_AS_OF,
+        primary_document_url: 'https://www.sec.gov/Archives/edgar/data/1/000000000126000001/syn.htm',
+      },
+    ],
+    facts: [
+      {
+        taxonomy: 'us-gaap',
+        concept: 'Assets',
+        value: '110',
+        unit: 'USD',
+        period_end: '2026-06-30',
+        available_at: SYNTHETIC_AS_OF,
+        accession: '0000000001-26-000001',
+      },
+      {
+        taxonomy: 'us-gaap',
+        concept: 'Revenues',
+        value: '42',
+        unit: 'USD',
+        period_end: '2026-06-30',
+        available_at: SYNTHETIC_AS_OF,
+        accession: '0000000001-26-000001',
+      },
+    ],
+    conflicts: [],
+    coverage: {
+      observations_considered: 2,
+      published_filings: 1,
+      published_facts: 2,
+      truncated_facts: 0,
+      conflicting_fact_keys: 0,
+      corrections_observed: 0,
+    },
+    reason: null,
+    ...overrides,
+  };
+}
+
+export function makeEmptySecFundamentals(): SecFundamentalsResponse {
+  return {
+    state: 'empty',
+    snapshot_version: null,
+    as_of: null,
+    age_seconds: null,
+    freshness_policy: makeFreshnessPolicy({ kind: 'fundamental_filing', budget_seconds: 604800 }),
+    population: null,
+    instrument: 'SYN-TECH-01',
+    source: null,
+    rights: null,
+    identity_state: null,
+    cik: null,
+    entity_name: null,
+    data_as_of: null,
+    filings: [],
+    facts: [],
+    conflicts: [],
     coverage: null,
     reason: 'no snapshot published',
   };
@@ -841,6 +1005,7 @@ export function makePortfolioResponse(
       snapshot_version: 3,
       as_of: SYNTHETIC_AS_OF,
       age_seconds: 60,
+      freshness_policy: makeFreshnessPolicy({ kind: 'portfolio_mark', budget_seconds: 86400 }),
       reason: null,
       content: makeValuationContent(),
     },
@@ -856,6 +1021,7 @@ export function makeEmptyPortfolioResponse(): PortfolioResponse {
       snapshot_version: null,
       as_of: null,
       age_seconds: null,
+      freshness_policy: makeFreshnessPolicy({ kind: 'portfolio_mark', budget_seconds: 86400 }),
       reason: 'never_published',
       content: null,
     },
@@ -987,6 +1153,7 @@ export function makeFollowUpQueue(
     snapshot_version: 4,
     as_of: SYNTHETIC_AS_OF,
     age_seconds: 60,
+    freshness_policy: makeFreshnessPolicy({ kind: 'news_attention', budget_seconds: 3600 }),
     reason: null,
     content: makeQueueContent(),
     ...overrides,
@@ -1155,6 +1322,7 @@ export function makePerformanceSnapshot(
     snapshot_version: 2,
     as_of: SYNTHETIC_AS_OF,
     age_seconds: 60,
+    freshness_policy: makeFreshnessPolicy(),
     reason: null,
     content: makePerformanceContent(),
     ...overrides,
@@ -1260,6 +1428,8 @@ export function makeCalendarResponse(
     state: 'ok',
     snapshot_version: 21,
     as_of: SYNTHETIC_AS_OF,
+    age_seconds: 60,
+    freshness_policy: makeFreshnessPolicy({ kind: 'corporate_event', budget_seconds: 86400 }),
     population: 'SYNTHETIC',
     importance_rule: {
       version: 'importance_rule/1.1',
@@ -1434,6 +1604,7 @@ export function makeOpportunities(
     snapshot_version: 37,
     as_of: SYNTHETIC_AS_OF,
     age_seconds: 60,
+    freshness_policy: makeFreshnessPolicy(),
     content: makeOpportunitiesContent(),
     reason: null,
     ...overrides,

@@ -79,13 +79,21 @@ export interface ValuedLotRow {
 
 /** Un lot ouvert EXCLU de la valorisation, avec sa raison machine. */
 export interface ExcludedLotRow {
-  readonly lotId: string;
+  /**
+   * Identifiant de lot SERVI. `null` = absent — et c'était un DÉFAUT RÉEL, pas
+   * seulement une ambiguïté : ce champ valait `'—'` par repli, et les positions
+   * invalides le recevaient EN DUR. Deux positions invalides de même ticker et
+   * même raison produisaient alors deux fois la même clé React, cassant la
+   * réconciliation ; et le tiret s'affichait comme s'il était un identifiant
+   * servi. Une identité ne se fabrique pas.
+   */
+  readonly lotId: string | null;
   readonly ticker: string | null;
   readonly currency: string | null;
   readonly reason: string;
 }
 
-export interface ConcentrationEntry {
+interface ConcentrationEntry {
   readonly ticker: string;
   readonly weight: string;
 }
@@ -109,7 +117,7 @@ export interface CurrencyBlockView {
   readonly concentrationCalculation: CalculationMetaView | null;
 }
 
-export interface MarksSourceView {
+interface MarksSourceView {
   readonly status: string | null;
   readonly reason: string | null;
   readonly snapshotVersion: number | null;
@@ -117,7 +125,7 @@ export interface MarksSourceView {
   readonly tickersMarked: number | null;
 }
 
-export interface CoverageView {
+interface CoverageView {
   readonly eventsConsidered: number | null;
   readonly positionEvents: number | null;
   readonly cashEvents: number | null;
@@ -213,7 +221,7 @@ function excludedLotOf(value: unknown): ExcludedLotRow | null {
     return null;
   }
   return {
-    lotId: str(record, 'lot_id') ?? '—',
+    lotId: str(record, 'lot_id'),
     ticker: str(record, 'ticker'),
     currency: str(record, 'currency'),
     reason,
@@ -260,12 +268,16 @@ export function valuationContentOf(valuation: PortfolioValuationView): Valuation
       if (record === null || reason === null) {
         return null;
       }
-      return {
-        lotId: '—',
+      const row: ExcludedLotRow = {
+        // Une position INVALIDE n'a pas de lot : elle a été rejetée avant d'en
+        // devenir un. Le serveur n'a donc rien omis — c'est « sans objet », et
+        // l'interface le dira ainsi.
+        lotId: null,
         ticker: str(record, 'ticker'),
         currency: str(record, 'currency'),
         reason,
-      } satisfies ExcludedLotRow;
+      };
+      return row;
     })
     .filter((row): row is ExcludedLotRow => row !== null);
   return {
@@ -302,7 +314,7 @@ export function valuationContentOf(valuation: PortfolioValuationView): Valuation
  * Raisons machine d'exclusion → explication française. Une raison inconnue
  * est affichée telle quelle (code machine), jamais masquée.
  */
-export const EXCLUSION_REASON_LABELS: Readonly<Record<string, string>> = {
+const EXCLUSION_REASON_LABELS: Readonly<Record<string, string>> = {
   missing_mark: 'aucune clôture synthétique publiée pour ce ticker',
   invalid_mark: 'clôture publiée illisible ou non positive — refusée',
   mark_currency_mismatch: 'devise de la clôture différente de celle du lot',

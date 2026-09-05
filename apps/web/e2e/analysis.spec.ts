@@ -23,7 +23,13 @@ interface ApiAnalysis {
   advice: {
     status: string;
     direction: string;
-    gates: { gate_id: string; status: string; reason_code: string }[];
+    gates: {
+      gate_id: string;
+      status: string;
+      reason_code: string;
+      observed_values?: Record<string, unknown>;
+      thresholds?: Record<string, unknown>;
+    }[];
   } | null;
   scenarios: { status: string; reason?: string } | null;
 }
@@ -72,7 +78,7 @@ test.describe('Page Analyse — chandeliers, table équivalente, AdviceCard', ()
     expect(bars).toHaveLength(60);
 
     await page.goto(`/analysis/${INSTRUMENT}`);
-    const table = page.getByRole('table', { name: 'Table OHLCV équivalente des chandeliers' });
+    const table = page.getByRole('table', { name: /Table OHLCV — équivalent exact des chandeliers/ });
     await expect(table).toBeVisible();
     await expect(table.locator('tbody tr')).toHaveCount(60);
 
@@ -122,6 +128,31 @@ test.describe('Page Analyse — chandeliers, table équivalente, AdviceCard', ()
     await expect(
       card.locator('.vx-advice-gates li', { hasText: 'UNEVALUABLE' }).first(),
     ).toBeVisible();
+
+    // LOT P2b — LA PREUVE SERVIE EST LUE, ET COMPARÉE À L'API. Chaque couple
+    // `observed_values` / `thresholds` que le dossier publie doit être lisible
+    // DANS la gate qui l'a produit. L'assertion est faite depuis la réponse
+    // réelle, jamais depuis une liste écrite à la main.
+    let couplesPublies = 0;
+    for (const gate of advice.gates) {
+      const item = card.locator('.vx-advice-gates li', { hasText: gate.gate_id }).first();
+      for (const dictionnaire of [gate.observed_values ?? {}, gate.thresholds ?? {}]) {
+        for (const [cle, valeur] of Object.entries(dictionnaire)) {
+          couplesPublies += 1;
+          await expect(item, `${gate.gate_id}.${cle}`).toContainText(cle);
+          // Scalaires seulement : le reste est avoué « non reconnue » côté
+          // affichage, et cette boucle ne prétend pas le contraire.
+          if (typeof valeur === 'string' || typeof valeur === 'number' || typeof valeur === 'boolean') {
+            await expect(item, `${gate.gate_id}.${cle}=${String(valeur)}`).toContainText(
+              String(valeur),
+            );
+          }
+        }
+      }
+    }
+    // Une boucle vide serait une assertion vide : le dossier DOIT publier de
+    // la preuve, sinon ce lot n'a rien rendu visible et le test doit le dire.
+    expect(couplesPublies).toBeGreaterThan(0);
   });
 
   test('scénarios : bloc relayé tel que publié (THÉORIQUE ou raison d’absence)', async ({
@@ -140,6 +171,63 @@ test.describe('Page Analyse — chandeliers, table équivalente, AdviceCard', ()
         analysis.scenarios?.reason ?? '',
       );
     }
+  });
+
+  test('LOT-A4 : les DIX-NEUF modules de la planche §4, une dominante, absences motivées, inspecteur du dossier', async ({
+    page,
+  }) => {
+    const analysis = await fetchAnalysis(page);
+    await page.goto(`/analysis/${INSTRUMENT}`);
+    await expect(page.locator('.vx-candles-canvas canvas').first()).toBeVisible({ timeout: 15_000 });
+    const MODULES = [
+      'instrument-header',
+      'identity-facts',
+      'chart',
+      'indicators',
+      'oscillators',
+      'regime',
+      'fundamental-quality',
+      'valuation',
+      'financials',
+      'model-confidence',
+      'analyst-revisions',
+      'verdict',
+      'scenarios',
+      'upcoming-catalysts',
+      'key-risks',
+      'peers',
+      'evidence',
+      'levels',
+      'contradictions',
+    ];
+    for (const module of MODULES) {
+      await expect(page.locator(`[data-module="${module}"]`).first(), module).toBeVisible();
+    }
+    await expect(page.locator('.vx-main [data-rank="dominant"]')).toHaveCount(1);
+    // LOT P2 — huit → SEPT. Le module « Oscillateurs » déclarait « le
+    // registre des calculs ne publie aucun oscillateur » ; le worker publie
+    // RSI et MACD depuis le LOT-S6. Même assertion, sur un compte devenu
+    // juste — et le module rend désormais ce qui est servi.
+    await expect(page.locator('.vx-absent-badge')).toHaveCount(7);
+    await expect(page.getByTestId('analysis-rsi')).toBeVisible();
+    await expect(page.getByTestId('analysis-macd')).toBeVisible();
+    for (const corps of await page.locator('.vx-absent-body').allTextContents()) {
+      expect(corps).not.toMatch(/\d/);
+    }
+    // L'en-tête porte la dernière clôture PUBLIÉE du dossier et une série tracée.
+    const lastClose = analysis.bars!.bars[analysis.bars!.bars.length - 1]!.close;
+    await expect(page.getByTestId('instrument-header-price')).toContainText(lastClose.replace('.', ','));
+    await expect(page.getByTestId('instrument-header').getByTestId('spark-line')).toBeVisible();
+    // Faits SEC : aucun snapshot semé → état vide HONNÊTE, rien à la place.
+    const sec = await (await page.request.get(`/api/v1/sources/sec/${INSTRUMENT}/fundamentals`)).json();
+    if (sec.state === 'empty') {
+      await expect(page.getByTestId('sec-empty')).toBeVisible();
+    } else {
+      await expect(page.getByTestId('sec-facts')).toBeVisible();
+    }
+    // Inspecteur du dossier + panneau d'explication : deux panneaux, le premier est le dossier.
+    await expect(page.locator('.vx-inspector-heading').first()).toHaveText(`Inspecteur — Dossier ${INSTRUMENT}`);
+    await expect(page.getByTestId('analysis-dossier-facts')).toBeVisible();
   });
 
   test('axe : zéro violation critique/sérieuse + capture', async ({ page }, testInfo) => {

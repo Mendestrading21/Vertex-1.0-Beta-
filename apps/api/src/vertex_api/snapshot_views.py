@@ -79,7 +79,7 @@ from typing import Any, cast
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from vertex_api.capability_manifest import CapabilityDeclaration, CapabilityManifest
-from vertex_api.freshness import RelayFreshness, evaluate_relay_freshness
+from vertex_api.freshness import RelayFreshness, evaluate_relay_freshness, published_budget
 from vertex_api.schemas import (
     AnalysisResponse,
     AttentionItem,
@@ -118,6 +118,7 @@ from vertex_persistence.repository.snapshots import CurrentSnapshot
 
 __all__ = [
     "BARS_STATUS_LABELS",
+    "CAPABILITY_DECLARATION_PATHS",
     "DATA_STATE_LABELS",
     "DELAY_STATUS_LABELS",
     "GENERATED_NATURE_LABELS",
@@ -183,6 +184,18 @@ _SEC_FUNDAMENTALS_POLICY = get_freshness_policy(SEC_FUNDAMENTALS_FRESHNESS_POLIC
 #: de la sonde qui l'a établie. Inventer un TTL ici serait la valeur non
 #: justifiée que ce dépôt refuse ailleurs. L'âge, lui, est publié.
 CAPABILITIES_FRESHNESS_POLICY: FreshnessPolicy | None = None
+
+#: Les coordonnées PUBLIÉES de la jauge âge / budget de chaque relais : la
+#: projection de la politique ci-dessus (`vertex_api.freshness.published_budget`),
+#: servie dans TOUS les états — le budget est une propriété de la route, pas
+#: de l'instantané. La matrice de capacités publie ``None`` : son absence de
+#: budget est déclarée, jamais convertie en zéro.
+_ATTENTION_BUDGET = published_budget(_ATTENTION_POLICY)
+_MARKETS_BUDGET = published_budget(_MARKETS_POLICY)
+_ANALYSIS_BUDGET = published_budget(_ANALYSIS_POLICY)
+_OPTION_CHAIN_BUDGET = published_budget(_OPTION_CHAIN_POLICY)
+_SEC_FUNDAMENTALS_BUDGET = published_budget(_SEC_FUNDAMENTALS_POLICY)
+_CAPABILITIES_BUDGET = published_budget(CAPABILITIES_FRESHNESS_POLICY)
 
 
 def _relay_freshness(
@@ -664,6 +677,67 @@ these exact shapes, a genuine ``REAL`` snapshot naming it would be REFUSED.
 That direction is fail-closed — an honest error state instead of a synthetic
 value shown as an observation — which is the direction
 ``financial-safety.md`` requires.
+"""
+
+CAPABILITY_DECLARATION_PATHS: frozenset[str] = frozenset(
+    {
+        "coverage.content_schema_prefixes",
+    }
+)
+"""CHEMINS EXACTS dont la valeur DÉCLARE UNE CAPACITÉ DE LECTURE.
+
+Une déclaration de capacité dit ce que le consommateur SAIT LIRE. Elle ne dit
+RIEN de la provenance des observations RETENUES : les deux vivent dans le même
+document, elles n'ont pas le même sens, et le balayage de provenance les
+confondait.
+
+CE QUE LE DÉFAUT A COÛTÉ, mesuré sur la pile vivante (base ``vertex_live``,
+2026-09-04 11:43 UTC) : ``GET /api/v1/today/attention`` et
+``GET /api/v1/follow-up/queue`` répondaient 500 ``SNAPSHOT_CONTENT_INVALID``.
+Depuis le lot S0, ``vertex_worker.handlers.build_attention_content`` et
+``vertex_worker.follow_up.build_review_queue_content`` publient dans leur
+couverture ``content_schema_prefixes = ["synthetic-news/",
+"ibkr.news-headline/"]`` — la liste des familles de dépêches que la file
+accepte de lire, ``vertex_worker.handlers.CONTENT_SCHEMA_PREFIXES``. Le
+balayage y lisait le préfixe ``synthetic-`` de
+:data:`SYNTHETIC_VALUE_PREFIXES`, le comptait comme marqueur, et refusait la
+tête ``population = "REAL"`` pour contradiction avec elle-même. En CI la
+population est ``SYNTHETIC`` : aucune contradiction, aucun signal — le défaut
+n'existait que sur données réelles.
+
+POURQUOI UNE LISTE DE CHEMINS, ET RIEN DE PLUS LARGE. Trois remèdes étaient
+possibles ; deux désarment le garde :
+
+1. assouplir :data:`SYNTHETIC_VALUE_PREFIXES` (par exemple n'accepter
+   ``synthetic-`` que suivi d'une version) : le motif cesserait de voir une
+   VRAIE ``schema_version`` générée servie sous une tête ``REAL`` — c'est
+   exactement le trou que le 6e audit avait fermé ;
+2. exclure la CLÉ FEUILLE ``content_schema_prefixes`` où qu'elle soit : un
+   producteur qui publierait un jour cette clé ailleurs — dans un élément
+   servi, dans une provenance — sortirait du balayage sans décision ;
+3. exclure des CHEMINS NOMMÉS, ancrés à la racine du document. Le balayage
+   reste intact partout ailleurs, et étendre l'exclusion demande d'écrire un
+   chemin de plus ici, sous revue.
+
+C'est le troisième. UN SEUL chemin le mérite aujourd'hui,
+``coverage.content_schema_prefixes`` — publié par DEUX contenus, la file
+d'attention et la file de revue, au même endroit, donc une seule entrée. Ce
+sont aussi les deux seuls endroits où un worker publie une déclaration de
+familles de schéma dans un contenu relayé. Les autres déclarations de familles
+(``DAILY_QUOTE_SCHEMA_PREFIXES``, ``DAILY_BARS_SCHEMA_PREFIXES``,
+``CALENDAR_EVENT_SCHEMA_PREFIXES``, ``EVIDENCE_SCHEMA_PREFIXES``) ne servent
+qu'au FILTRAGE en base : elles ne sont jamais publiées, donc jamais balayées.
+
+CE QUE L'EXCLUSION NE FAIT PAS. Elle ne retire aucune VÉRIFICATION : la
+valeur reste soumise au contrôle de forme de sa classe de champ
+(:func:`_check_relayed_string`), une déclaration vide ou porteuse d'un
+caractère de contrôle est toujours refusée. Elle retire une INTERPRÉTATION :
+cette valeur cesse d'être lue comme la provenance d'une observation. Partout
+ailleurs — ``source``, ``sources``, ``rights``, ``schema_version``,
+``generator``, ``source_system``, identifiants d'événements, titres — le
+balayage est inchangé, et les témoins de
+``apps/api/tests/test_capability_declaration_is_not_provenance.py`` le tiennent
+dans les deux sens.
 """
 
 NATURE_LEAF_KEYS: frozenset[str] = frozenset({"population", "mark_population"})
@@ -1248,6 +1322,22 @@ def _parent_path(path: str) -> str:
     return head if sep else ""
 
 
+_LIST_INDEX_RE = re.compile(r"\[[0-9]+\]")
+"""Les index de liste d'un chemin de marche (``prefixes[0]`` -> ``prefixes``)."""
+
+
+def _declares_a_read_capability(path: str) -> bool:
+    """Whether ``path`` holds a READ-CAPABILITY declaration, not a provenance.
+
+    Compares the path INDEX-FREE against :data:`CAPABILITY_DECLARATION_PATHS`,
+    so a declaration published as a list (``coverage.content_schema_prefixes[0]``)
+    and the same declaration published as a lone string are the same location.
+    The match is on the FULL path from the document root: the same leaf key
+    elsewhere keeps being read as a provenance.
+    """
+    return _LIST_INDEX_RE.sub("", path) in CAPABILITY_DECLARATION_PATHS
+
+
 def _nature_scope(path: str) -> str | None:
     """The SUBTREE a nature label at ``path`` governs, or ``None``.
 
@@ -1295,6 +1385,13 @@ def is_synthetic_marker(value: str, path: str) -> bool:
     It proves nothing about content that carries NO marker: a producer that
     scrubs every tell is still relayed as it declares itself. That limit is
     pinned by ``test_residue_a_fully_scrubbed_payload_still_passes``.
+
+    IT JUDGES A VALUE, NOT A LOCATION'S MEANING. The one location whose value
+    announces a READ CAPABILITY rather than a provenance is excluded by the
+    CALLER (:data:`CAPABILITY_DECLARATION_PATHS`), never by weakening the
+    tells above: this function keeps answering "this string announces
+    generated content", which stays true of ``synthetic-news/`` wherever it
+    appears.
     """
     if value in SYNTHETIC_MARKER_VALUES:
         return True
@@ -1356,6 +1453,17 @@ def checked_relayed_content(
     being :func:`is_synthetic_marker`, an explicit ``synthetic: true``, or a
     generated nature (:data:`GENERATED_NATURE_LABELS`) declared at another
     nature-bearing location inside that subtree.
+
+    A CAPABILITY DECLARATION IS NOT A PROVENANCE (9th audit). A handful of
+    NAMED PATHS (:data:`CAPABILITY_DECLARATION_PATHS`) carry the families of
+    schema a consumer DECLARES IT CAN READ, not the origin of the
+    observations it kept. Their values are still form-checked; they are
+    simply not read as provenance markers. Before this wave, the attention
+    queue and the review queue published ``coverage.content_schema_prefixes =
+    ["synthetic-news/", ...]`` and the walk counted that declaration as proof
+    that the served data was generated: on the live database both routes
+    answered 500 under an honest ``REAL`` head, while CI — where the
+    population is ``SYNTHETIC`` — saw no contradiction at all.
 
     THE CENSUS CONSTRAINS THE CLAIM ABOVE IT (7th audit). A nature census
     (:data:`NATURE_CENSUS_KEYS`) DESCRIBES the members of the container it
@@ -1450,8 +1558,15 @@ def checked_relayed_content(
             scope = _nature_scope(path)
             if scope is not None and node in OBSERVATION_CLAIM_LABELS:
                 claims.append((path, scope))
-            elif is_synthetic_marker(node, path) or (
-                scope is not None and node in GENERATED_NATURE_LABELS
+            # Une DÉCLARATION DE CAPACITÉ DE LECTURE n'est pas une PROVENANCE :
+            # elle nomme les familles que le consommateur sait lire, jamais
+            # l'origine des observations retenues. Sa FORME reste vérifiée
+            # juste au-dessus ; seule sa lecture comme marqueur est retirée,
+            # et seulement aux chemins nommés dans
+            # CAPABILITY_DECLARATION_PATHS.
+            elif not _declares_a_read_capability(path) and (
+                is_synthetic_marker(node, path)
+                or (scope is not None and node in GENERATED_NATURE_LABELS)
             ):
                 markers.append(path)
         elif isinstance(node, (int, float)):
@@ -1554,6 +1669,7 @@ def build_attention_response(
             snapshot_version=None,
             as_of=None,
             age_seconds=None,
+            freshness_policy=_ATTENTION_BUDGET,
             population=None,
             coverage=None,
             items=(),
@@ -1573,6 +1689,7 @@ def build_attention_response(
         snapshot_version=snapshot.version,
         as_of=_parse_utc(content.get("as_of"), field="as_of"),
         age_seconds=freshness.age_seconds,
+        freshness_policy=_ATTENTION_BUDGET,
         population=population,
         coverage=coverage,
         items=tuple(
@@ -1728,17 +1845,38 @@ def _markets_breadth(raw: Any) -> MarketsBreadth:
             "breadth.status: 'OK' or 'INVALID' required", field="breadth.status"
         )
     calculation = entry.get("calculation")
+    above_count = _require_non_negative_int(
+        entry.get("above_count"), field="breadth.above_count"
+    )
+    down_count = _require_non_negative_int(
+        entry.get("down_count"), field="breadth.down_count"
+    )
+    flat_count = _require_non_negative_int(
+        entry.get("flat_count"), field="breadth.flat_count"
+    )
+    covered_count = _require_non_negative_int(
+        entry.get("covered_count"), field="breadth.covered_count"
+    )
+    # Les trois comptes PARTITIONNENT les couverts (`vertex_worker.markets`
+    # incrémente exactement l'un d'eux par instrument couvert). Un bloc où ils
+    # ne s'additionnent pas se contredit : il n'est pas relayé. Ce n'est pas un
+    # recalcul — aucun compte n'est dérivé des autres, un compte absent n'est
+    # jamais lu comme zéro — mais le refus d'un contenu incohérent, au même
+    # titre que la borne [0, 1] tenue sur `value` juste au-dessus.
+    if above_count + down_count + flat_count != covered_count:
+        raise SnapshotContentError(
+            "breadth: above_count + down_count + flat_count must equal covered_count",
+            field="breadth.covered_count",
+        )
     return MarketsBreadth(
         status=status,
         reason=_optional_str(entry.get("reason"), field="breadth.reason"),
         value=_bounded_ratio(entry.get("value"), field="breadth.value"),
         value_pct=_optional_str(entry.get("value_pct"), field="breadth.value_pct"),
-        above_count=_require_non_negative_int(
-            entry.get("above_count"), field="breadth.above_count"
-        ),
-        covered_count=_require_non_negative_int(
-            entry.get("covered_count"), field="breadth.covered_count"
-        ),
+        above_count=above_count,
+        down_count=down_count,
+        flat_count=flat_count,
+        covered_count=covered_count,
         universe_size=_require_positive_int(
             entry.get("universe_size"), field="breadth.universe_size"
         ),
@@ -1840,6 +1978,7 @@ def build_markets_overview_response(
             snapshot_version=None,
             as_of=None,
             age_seconds=None,
+            freshness_policy=_MARKETS_BUDGET,
             population=None,
             data_state=None,
             unit=None,
@@ -1875,6 +2014,7 @@ def build_markets_overview_response(
         snapshot_version=snapshot.version,
         as_of=_parse_utc(content.get("as_of"), field="as_of"),
         age_seconds=freshness.age_seconds,
+        freshness_policy=_MARKETS_BUDGET,
         population=_require_str(content.get("population"), field="population"),
         data_state=data_state,
         unit=_require_str(content.get("unit"), field="unit"),
@@ -1932,6 +2072,44 @@ def _checked_advice(value: Any) -> Mapping[str, Any]:
     return advice
 
 
+def _checked_rebased_comparison(indicators: Mapping[str, Any]) -> None:
+    """La comparaison base 100 est relayée VERBATIM, mais jamais muette.
+
+    Le bloc est FACULTATIF : un dossier publié avant son ajout n'en porte
+    aucun, et exiger la clé transformerait cette absence légitime en 500.
+
+    Quand il est là, deux exigences fail-closed :
+
+    - une comparaison SERVIE (``status = "OK"``) doit dire sur quelle base
+      elle repose (``base_value``, ``unit``), porter la série alignée par le
+      worker et la lignée des DEUX rebasages. Une série d'index sans sa base
+      afficherait deux courbes dont personne ne pourrait dire de quoi elles
+      partent, et sans lignée personne ne pourrait dire d'où elles viennent ;
+    - une comparaison ABSENTE doit être NOMMÉE. Une absence muette est pire
+      qu'une absence : l'écran ne saurait pas quoi afficher à sa place.
+
+    Le relais ne rebase rien, ne réaligne rien et ne complète rien : il
+    vérifie que ce qu'il transporte est lisible, ou il refuse.
+    """
+    bloc = indicators.get("rebased_comparison")
+    if bloc is None:
+        return
+    champ = "indicators.rebased_comparison"
+    comparaison = _require_mapping(bloc, field=champ)
+    statut = _require_str(comparaison.get("status"), field=f"{champ}.status")
+    if statut != "OK":
+        return
+    _require_str(comparaison.get("unit"), field=f"{champ}.unit")
+    _require_str(comparaison.get("base_value"), field=f"{champ}.base_value")
+    _require_str(comparaison.get("benchmark"), field=f"{champ}.benchmark")
+    _require_list(comparaison.get("series"), field=f"{champ}.series")
+    _require_mapping(comparaison.get("calculation"), field=f"{champ}.calculation")
+    _require_mapping(
+        comparaison.get("benchmark_calculation"),
+        field=f"{champ}.benchmark_calculation",
+    )
+
+
 def build_analysis_response(
     snapshot: CurrentSnapshot | None, *, instrument: str, now: datetime
 ) -> AnalysisResponse:
@@ -1958,6 +2136,7 @@ def build_analysis_response(
             snapshot_version=None,
             as_of=None,
             age_seconds=None,
+            freshness_policy=_ANALYSIS_BUDGET,
             population=None,
             instrument=instrument,
             engine_version=None,
@@ -1996,25 +2175,29 @@ def build_analysis_response(
     if scenario_status == "ABSENT":
         _require_str(scenarios.get("reason"), field="scenarios.reason")
     freshness = _relay_freshness(snapshot, now=now, policy=_ANALYSIS_POLICY)
+    # FACULTATIF : un dossier publié avant l'ajout des indicateurs n'en porte
+    # aucun. Exiger la clé transformerait cette absence légitime en 500 — une
+    # absence n'est jamais une erreur.
+    indicators = (
+        _wire_mapping(content["indicators"], field="indicators")
+        if content.get("indicators") is not None
+        else None
+    )
+    if indicators is not None:
+        _checked_rebased_comparison(indicators)
     return AnalysisResponse(
         state="stale" if freshness.stale else "ok",
         snapshot_version=snapshot.version,
         as_of=_parse_utc(content.get("as_of"), field="as_of"),
         age_seconds=freshness.age_seconds,
+        freshness_policy=_ANALYSIS_BUDGET,
         population=_require_str(content.get("population"), field="population"),
         instrument=published_instrument,
         engine_version=_require_str(
             content.get("engine_version"), field="engine_version"
         ),
         bars=bars,
-        # FACULTATIF : un dossier publié avant l'ajout des indicateurs n'en
-        # porte aucun. Exiger la clé transformerait cette absence légitime
-        # en 500 — une absence n'est jamais une erreur.
-        indicators=(
-            _wire_mapping(content["indicators"], field="indicators")
-            if content.get("indicators") is not None
-            else None
-        ),
+        indicators=indicators,
         evidence=_wire_mapping(content.get("evidence"), field="evidence"),
         scenarios=scenarios,
         advice=dict(_checked_advice(content.get("advice"))),
@@ -2033,6 +2216,7 @@ def build_sec_fundamentals_response(
             snapshot_version=None,
             as_of=None,
             age_seconds=None,
+            freshness_policy=_SEC_FUNDAMENTALS_BUDGET,
             population=None,
             instrument=instrument,
             source=None,
@@ -2098,6 +2282,7 @@ def build_sec_fundamentals_response(
         snapshot_version=snapshot.version,
         as_of=_parse_utc(content.get("as_of"), field="as_of"),
         age_seconds=freshness.age_seconds,
+        freshness_policy=_SEC_FUNDAMENTALS_BUDGET,
         population=_require_str(content.get("population"), field="population"),
         instrument=published_instrument,
         source="sec_edgar",
@@ -2224,6 +2409,7 @@ def build_option_chain_response(
             snapshot_version=None,
             as_of=None,
             age_seconds=None,
+            freshness_policy=_OPTION_CHAIN_BUDGET,
             population=None,
             underlying=underlying,
             engine_version=None,
@@ -2257,6 +2443,7 @@ def build_option_chain_response(
         snapshot_version=snapshot.version,
         as_of=_parse_utc(content.get("as_of"), field="as_of"),
         age_seconds=freshness.age_seconds,
+        freshness_policy=_OPTION_CHAIN_BUDGET,
         population=_require_str(content.get("population"), field="population"),
         underlying=published_underlying,
         engine_version=_require_str(
@@ -2459,6 +2646,9 @@ def build_capabilities_response(
         snapshot_version=None if snapshot is None else snapshot.version,
         as_of=snapshot_as_of,
         age_seconds=snapshot_age,
+        # Absence DÉCLARÉE de budget (voir CAPABILITIES_FRESHNESS_POLICY) :
+        # servie ``null``, jamais convertie en ``budget_seconds = 0``.
+        freshness_policy=_CAPABILITIES_BUDGET,
         total=len(entries),
         capabilities=entries,
         unknown_probed_capability_ids=unknown,

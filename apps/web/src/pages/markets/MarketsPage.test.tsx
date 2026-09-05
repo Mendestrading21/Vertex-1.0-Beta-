@@ -7,7 +7,7 @@
  * le contrat testé ici est celui de la page, pas du rendu Canvas (couvert par
  * Playwright sur le vrai navigateur).
  */
-import { screen, waitFor, within } from '@testing-library/react';
+import { act, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -17,15 +17,30 @@ import {
   makeMarketsOverview,
 } from '../../test/fixtures.ts';
 import { renderApp } from '../../test/render.tsx';
+import { ABSENCE_REASONS } from '../../components/AbsentModule.tsx';
 import { frameStateOf } from './MarketsPage.tsx';
+import { marketsCsvCell } from './MarketsTable.tsx';
+import { MARKETS_MODULES, absentMarketsModules } from './marketsModules.ts';
+
+const downloadMocks = vi.hoisted(() => ({ saveTextAsFile: vi.fn() }));
+
+vi.mock('../../app/downloadFile.ts', () => downloadMocks);
 
 const setOption = vi.fn();
 const dispose = vi.fn();
 const resize = vi.fn();
+/** LOT-A3 : le double enregistre l'écouteur de clic, pour le déclencher. */
+const clickHandlers: Array<(params: { name?: string }) => void> = [];
+const on = vi.fn((_event: string, handler: (params: { name?: string }) => void) => {
+  clickHandlers.push(handler);
+});
+const off = vi.fn(() => {
+  clickHandlers.length = 0;
+});
 
 vi.mock('../../charts/echartsLoader.ts', () => ({
   echarts: {
-    init: vi.fn(() => ({ setOption, dispose, resize })),
+    init: vi.fn(() => ({ setOption, dispose, resize, on, off })),
   },
 }));
 
@@ -44,12 +59,51 @@ function jsonResponse(body: unknown, status = 200): Response {
   });
 }
 
+function makeObservedMarketsOverview(population: 'REAL' | 'DELAYED' = 'REAL') {
+  const base = makeMarketsOverview();
+  const original = base.sectors[0]!.tickers[0]!;
+  return makeMarketsOverview({
+    population,
+    sectors: [
+      {
+        sector: 'TECH',
+        label: 'Technologie',
+        declared_count: 1,
+        covered_count: 1,
+        tickers: [
+          {
+            ...original,
+            ticker: 'AAPL',
+            sector: 'TECH',
+            currency: 'USD',
+            synthetic: false,
+          },
+        ],
+      },
+    ],
+    breadth: null,
+    coverage: {
+      expected: 1,
+      received: 1,
+      covered: 1,
+      discarded: 0,
+      discarded_tickers: [],
+      rejected_records: [],
+      observations_considered: 2,
+      lookback_seconds: 259200,
+    },
+    conclusion: 'Un instrument couvert.',
+  });
+}
+
 beforeEach(() => {
   vi.stubGlobal('fetch', fetchMock);
   vi.stubGlobal('ResizeObserver', FakeResizeObserver);
   fetchMock.mockReset();
+  downloadMocks.saveTextAsFile.mockClear();
   setOption.mockClear();
   dispose.mockClear();
+  clickHandlers.length = 0;
 });
 
 afterEach(() => {
@@ -60,6 +114,22 @@ async function renderMarkets(): Promise<void> {
   renderApp('/markets');
   await screen.findByRole('heading', { level: 1, name: 'Marchés' });
 }
+
+describe('export Marchés — sérialisation CSV pure', () => {
+  it.each([
+    ['texte', 'texte'],
+    ['TECH;NORD', '"TECH;NORD"'],
+    ['dit "oui"', '"dit ""oui"""'],
+    ['ligne 1\nligne 2', '"ligne 1\nligne 2"'],
+    ['ligne 1\rligne 2', '"ligne 1\rligne 2"'],
+    ['=2+3', "'=2+3"],
+    ['+5.00', "'+5.00"],
+    ['-5.00', "'-5.00"],
+    ['@QUALITY', "'@QUALITY"],
+  ])('encode %j sans perdre la valeur', (raw, expected) => {
+    expect(marketsCsvCell(raw)).toBe(expected);
+  });
+});
 
 describe('frameStateOf — l’état canonique du snapshot prime en succès', () => {
   it('relais des états requête hors succès', () => {
@@ -72,8 +142,20 @@ describe('frameStateOf — l’état canonique du snapshot prime en succès', ()
     expect(frameStateOf('ready', undefined)).toBe('error');
   });
 
-  it('empty/partial/stale viennent du serveur, jamais déduits localement', () => {
+  it('empty/stale/delayed/partial viennent du serveur avec leur priorité canonique', () => {
     expect(frameStateOf('ready', makeEmptyMarketsOverview())).toBe('empty');
+    expect(
+      frameStateOf('ready', makeMarketsOverview({ state: 'stale', data_state: 'ok' })),
+    ).toBe('stale');
+    expect(
+      frameStateOf(
+        'ready',
+        makeMarketsOverview({ state: 'stale', population: 'DELAYED', data_state: 'partial' }),
+      ),
+    ).toBe('stale');
+    expect(
+      frameStateOf('ready', makeMarketsOverview({ population: 'DELAYED', data_state: 'partial' })),
+    ).toBe('delayed');
     expect(frameStateOf('ready', makeMarketsOverview({ data_state: 'partial' }))).toBe('partial');
     expect(frameStateOf('ready', makeMarketsOverview({ data_state: 'stale' }))).toBe('stale');
     expect(frameStateOf('ready', makeMarketsOverview())).toBe('ready');
@@ -104,10 +186,13 @@ describe('Page Marchés — état nominal', () => {
     ).toBeDefined();
     expect(screen.queryByText('synthetic-dev')).toBeNull();
 
-    // Métadonnées : unité, source, as_of, couverture.
-    expect(screen.getByText(/rendement 1 jour en %/)).toBeDefined();
-    expect(screen.getByText('2026-08-25T12:00:00+00:00')).toBeDefined();
-    expect(screen.getByText('4/4 couverts, 0 écartés, 4 reçus')).toBeDefined();
+    // Métadonnées : unité, source, as_of, couverture — dans la PAGE. Depuis
+    // le LOT-A3 l'inspecteur du shell relaie aussi l'as_of du snapshot ; le
+    // cadre doit porter le sien, près de la donnée qu'il qualifie.
+    const main = screen.getByRole('main');
+    expect(within(main).getByText(/rendement 1 jour en %/)).toBeDefined();
+    expect(within(main).getByText('2026-08-25T12:00:00+00:00')).toBeDefined();
+    expect(within(main).getByText('4/4 couverts, 0 écartés, 4 reçus')).toBeDefined();
 
     // Bandeau population SYNTHETIC non masquable.
     // Portée à la PAGE : depuis le LOT-14 le ticker du shell porte sa propre
@@ -137,17 +222,50 @@ describe('Page Marchés — état nominal', () => {
     expect(techRow?.textContent).toContain('70,97 %');
     expect(techRow?.textContent).toContain('SYNTHÉTIQUE');
 
-    // Breadth : barres linéaires (role meter), valeurs et couverture serveur.
+    // Breadth : arc gradué + jauge linéaire (deux `meter`), valeurs et
+    // couverture serveur. Le chiffre de l'arc est lu SUR la figure : la
+    // primitive sépare la valeur de son unité en deux nœuds, et le texte
+    // complet de la figure est comparé en entier.
     const meters = screen.getAllByRole('meter');
     expect(meters).toHaveLength(2);
-    expect(screen.getByText('50,0 %')).toBeDefined();
-    expect(screen.getByText('100,0 % (seuil 80,0 %)')).toBeDefined();
-    expect(screen.getByText('2 en hausse sur 4 couverts (univers 4)')).toBeDefined();
+    expect(screen.getByTestId('arc-figure').textContent).toBe('50,0 %');
+    // LOT T3 — LA MESURE ET SON SEUIL SONT DEUX TEXTES. Réunis dans le
+    // libellé de la jauge, « 100,0 % (seuil 80,0 %) » se coupait en deux
+    // lignes dont la seconde ne portait que « %) » — mesuré sur capture
+    // d'Aujourd'hui, carte de 200 px. La couverture SERVIE se lit seule ; le
+    // seuil SERVI vit sur son marqueur, à sa place sur la même échelle.
+    expect(screen.getByText('100,0 %')).toBeDefined();
+    expect(screen.getByText('seuil exigé 80,0 %')).toBeDefined();
+    expect(screen.queryByText('100,0 % (seuil 80,0 %)')).toBeNull();
+    // Les trois comptes servis prennent aussi la forme de barres de
+    // dénombrement, chacune avec son compte publié.
+    expect(screen.getByTestId('markets-breadth-count-above').textContent).toContain('2');
+    expect(screen.getByTestId('markets-breadth-count-down').textContent).toContain('1');
+    expect(screen.getByTestId('markets-breadth-count-flat').textContent).toContain('1');
+    // Les trois comptes servis (hausses, baisses, inchangés) sont relayés
+    // avec le total couvert : aucun compte n'est déduit des deux autres.
+    expect(
+      screen.getByText('4 couverts sur un univers de 4'),
+    ).toBeDefined();
+    // ET LA MÊME DONNÉE N'EST PAS RENDUE DEUX FOIS. La phrase répétait mot
+    // pour mot les trois comptes que les barres portent dix pixels plus haut :
+    // elle n'informait pas deux fois, elle occupait deux fois la place et
+    // faisait douter de laquelle fait foi. Ce qu'elle garde — la population —
+    // est justement ce que les barres ne disent pas.
+    const phrasePopulation = document.querySelector('.vx-breadth-counts');
+    expect(phrasePopulation, 'la phrase de population doit exister').not.toBeNull();
+    for (const mot of ['en hausse', 'en baisse', 'stables']) {
+      expect(
+        phrasePopulation?.textContent ?? '',
+        `« ${mot} » répété hors des barres de dénombrement`,
+      ).not.toContain(mot);
+    }
 
-    // Pied : méthode, version moteur et limites.
-    expect(screen.getByText('market.simple_return')).toBeDefined();
-    expect(screen.getByText('market.breadth')).toBeDefined();
-    expect(screen.getByText('vertex_core@0.1.0')).toBeDefined();
+    // Pied : méthode, version moteur et limites — dans la PAGE (l'inspecteur
+    // du shell relaie aussi la version du moteur depuis le LOT-A3).
+    expect(within(main).getByText('market.simple_return')).toBeDefined();
+    expect(within(main).getByText('market.breadth')).toBeDefined();
+    expect(within(main).getByText('vertex_core@0.1.0')).toBeDefined();
   });
 
   it('tri par colonne au clavier : aria-sort reflété et lignes réordonnées', async () => {
@@ -171,6 +289,89 @@ describe('Page Marchés — état nominal', () => {
     expect(returnHeader?.getAttribute('aria-sort')).toBe('descending');
     rows = within(table).getAllByRole('row').slice(1);
     expect(rows[0]?.textContent).toContain('SYN-TECH-01'); // +10,00 % en premier
+  });
+
+  it('export REAL : nom générique et contenu servi, jamais « marches-synthetiques.csv »', async () => {
+    const user = userEvent.setup();
+    fetchMock.mockResolvedValue(jsonResponse(makeObservedMarketsOverview()));
+    await renderMarkets();
+
+    await user.click(await screen.findByRole('button', { name: 'Exporter (CSV)' }));
+
+    const conclusion = screen.getByTestId('markets-conclusion').textContent;
+    expect(conclusion).toBe('Un instrument couvert.');
+    expect(conclusion).not.toContain('synthétique');
+    expect(downloadMocks.saveTextAsFile).toHaveBeenCalledTimes(1);
+    expect(downloadMocks.saveTextAsFile).toHaveBeenCalledWith(
+      expect.stringContaining('AAPL'),
+      'marches.csv',
+      'text/csv;charset=utf-8',
+    );
+  });
+
+  it('export SYNTHETIC : conserve le nom explicitement synthétique', async () => {
+    const user = userEvent.setup();
+    fetchMock.mockResolvedValue(jsonResponse(makeMarketsOverview()));
+    await renderMarkets();
+
+    await user.click(await screen.findByRole('button', { name: 'Exporter (CSV)' }));
+
+    expect(downloadMocks.saveTextAsFile).toHaveBeenCalledWith(
+      expect.any(String),
+      'marches-synthetiques.csv',
+      'text/csv;charset=utf-8',
+    );
+  });
+
+  it('export hostile : échappe le CSV et neutralise chaque préfixe de formule', async () => {
+    const user = userEvent.setup();
+    const base = makeObservedMarketsOverview();
+    const original = base.sectors[0]!.tickers[0]!;
+    fetchMock.mockResolvedValue(
+      jsonResponse({
+        ...base,
+        sectors: [
+          {
+            ...base.sectors[0]!,
+            sector: 'TECH;"Nord"',
+            tickers: [
+              {
+                ...original,
+                ticker: '=2+3',
+                sector: 'TECH;"Nord"',
+                trading_day: '2026-09-02\nsuite',
+                last_close: '-100.00',
+                currency: '@USD',
+                return_1d: '"quoted"',
+                return_1d_pct: '+5.00',
+                weight_in_sector: '0;5',
+                weight_global: '\r\nnext',
+                quality: '@QUALITY',
+              },
+            ],
+          },
+        ],
+      }),
+    );
+    await renderMarkets();
+
+    await user.click(await screen.findByRole('button', { name: 'Exporter (CSV)' }));
+
+    const csv: unknown = downloadMocks.saveTextAsFile.mock.calls[0]?.[0];
+    expect(typeof csv).toBe('string');
+    if (typeof csv !== 'string') {
+      throw new TypeError('CSV non produit');
+    }
+    expect(csv).toContain(`\n'=2+3;"TECH;""Nord""";"2026-09-02\nsuite";`);
+    expect(csv).toContain(
+      `;'-100.00;'@USD;"""quoted""";'+5.00;"0;5";"\r\nnext";'@QUALITY;`,
+    );
+    expect(csv).not.toContain('\n=2+3;');
+    expect(downloadMocks.saveTextAsFile).toHaveBeenCalledWith(
+      csv,
+      'marches.csv',
+      'text/csv;charset=utf-8',
+    );
   });
 
   it('légende interactive : filtre local qui retire un groupe de la vue', async () => {
@@ -220,7 +421,13 @@ describe('Page Marchés — états dégradés et vides', () => {
       ),
     );
     await renderMarkets();
-    await screen.findByText('Données partielles');
+    // L'ÉTAT SERVI SE PROPAGE AUX MODULES, il ne reste plus au bandeau.
+    // Les modules satellites annonçaient `state="ready"` en dur : un
+    // instantané PARTIEL s'y affichait comme frais, et seul le bandeau de page
+    // disait la vérité. L'assertion attend donc PLUSIEURS annonces — une par
+    // module qui lit cet instantané — au lieu d'une seule.
+    const partiels = await screen.findAllByText('Données partielles');
+    expect(partiels.length, 'l’état servi doit atteindre les modules').toBeGreaterThan(1);
     expect(
       screen.getByText(/3 instruments couverts sur 4 attendus, 1 écartés/),
     ).toBeDefined();
@@ -233,8 +440,44 @@ describe('Page Marchés — états dégradés et vides', () => {
   it('stale serveur : bandeau « Données périmées », contenu daté conservé', async () => {
     fetchMock.mockResolvedValue(jsonResponse(makeMarketsOverview({ data_state: 'stale' })));
     await renderMarkets();
-    await screen.findByText('Données périmées');
+    const perimes = await screen.findAllByText('Données périmées');
+    expect(perimes.length, 'l’état servi doit atteindre les modules').toBeGreaterThan(1);
     expect(screen.getByText(/as_of 2026-08-25T12:00:00\+00:00/)).toBeDefined();
+    expect(screen.getByRole('table', { name: /Table équivalente/ })).toBeDefined();
+  });
+
+  it('state=stale du relais : conserve la carte et affiche âge et raison publiés', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(
+        makeMarketsOverview({
+          state: 'stale',
+          data_state: 'ok',
+          age_seconds: 300_000,
+          reason: 'snapshot older than its freshness budget: age 300000 s',
+        }),
+      ),
+    );
+    await renderMarkets();
+
+    await screen.findByText('Données périmées');
+    // Raison et âge DANS le cadre périmé — le module Santé des marchés
+    // relaie aussi l'âge publié (LOT-A3) ; ce n'est pas lui qui est testé ici.
+    const cadre = screen.getByRole('main').querySelector('[data-state="stale"]') as HTMLElement;
+    expect(
+      within(cadre).getByText(/snapshot older than its freshness budget: age 300000 s/),
+    ).toBeDefined();
+    expect(within(cadre).getByText(/âge publié 300000 s/)).toBeDefined();
+    expect(screen.getByRole('table', { name: /Table équivalente/ })).toBeDefined();
+  });
+
+  it('population DELAYED : état différé explicite et contenu conservé', async () => {
+    fetchMock.mockResolvedValue(jsonResponse(makeObservedMarketsOverview('DELAYED')));
+    await renderMarkets();
+
+    const differes = await screen.findAllByText('Données différées');
+    expect(differes.length, 'l’état servi doit atteindre les modules').toBeGreaterThan(1);
+    expect(within(screen.getByRole('main')).getByText('DONNÉES RETARDÉES')).toBeDefined();
+    expect(screen.getByText(/Population DELAYED publiée par le worker/)).toBeDefined();
     expect(screen.getByRole('table', { name: /Table équivalente/ })).toBeDefined();
   });
 
@@ -255,7 +498,15 @@ describe('Page Marchés — états dégradés et vides', () => {
     await renderMarkets();
     await screen.findByText('Breadth non calculable');
     expect(screen.getByText(/coverage_below_threshold/)).toBeDefined();
+    // Aucune forme de remplacement : ni arc, ni jauge de couverture. Une
+    // jauge servie à côté d'un refus donnerait un chiffre à regarder à la
+    // place de celui que le serveur refuse.
     expect(screen.queryByRole('meter')).toBeNull();
+    expect(screen.queryByTestId('arc-figure')).toBeNull();
+    // Les comptes restent des faits publiés, même sans ratio.
+    expect(
+      screen.getByText('4 couverts sur un univers de 4'),
+    ).toBeDefined();
   });
 
   it('loading au premier chargement (aucun résultat affiché)', async () => {
@@ -285,5 +536,79 @@ describe('Page Marchés — états dégradés et vides', () => {
     await renderMarkets();
     await screen.findByText('Session requise');
     expect(screen.queryByRole('table')).toBeNull();
+  });
+});
+
+describe('Page Marchés — la planche §2 est complète, servie ou déclarée (LOT-A3)', () => {
+  it('rend les DOUZE modules de la planche, une seule dominante : la carte', async () => {
+    fetchMock.mockResolvedValue(jsonResponse(makeMarketsOverview()));
+    await renderMarkets();
+    await screen.findByRole('heading', { level: 2, name: 'Carte des marchés' });
+    for (const module of MARKETS_MODULES) {
+      expect(
+        document.querySelector(`[data-module="${module.id}"]`),
+        `module « ${module.title} » (${module.id}) absent du DOM`,
+      ).not.toBeNull();
+    }
+    const dominantes = document.querySelectorAll('.vx-main [data-rank="dominant"]');
+    expect(dominantes).toHaveLength(1);
+    expect(dominantes[0]?.getAttribute('data-module')).toBe('market-map');
+  });
+
+  it('les sept modules absents portent leur motif fermé, sans chiffre dans le corps', async () => {
+    fetchMock.mockResolvedValue(jsonResponse(makeMarketsOverview()));
+    await renderMarkets();
+    await screen.findByRole('heading', { level: 2, name: 'Carte des marchés' });
+    for (const module of absentMarketsModules()) {
+      const zone = within(document.querySelector(`[data-module="${module.id}"]`) as HTMLElement);
+      expect(zone.getByRole('heading', { level: 3, name: module.title })).toBeDefined();
+      expect(zone.getByText(ABSENCE_REASONS[module.status.reason].label)).toBeDefined();
+      expect(zone.getByTestId('absent-body').textContent).not.toMatch(/\d/);
+    }
+  });
+
+  it('inspecteur par défaut : la vérité du snapshot ; une ligne de table sélectionnée : l’instrument et sa lignée', async () => {
+    const user = userEvent.setup();
+    fetchMock.mockResolvedValue(jsonResponse(makeMarketsOverview()));
+    await renderMarkets();
+    expect(await screen.findByTestId('markets-snapshot-facts')).toBeDefined();
+    expect(screen.getByRole('heading', { level: 2, name: 'Inspecteur — Carte des marchés' })).toBeDefined();
+
+    await user.click(screen.getByRole('button', { name: 'Inspecter SYN-TECH-01' }));
+    const faits = await screen.findByTestId('markets-instrument-facts');
+    expect(screen.getByRole('heading', { level: 2, name: 'Inspecteur — SYN-TECH-01' })).toBeDefined();
+    // Chaînes serveur verbatim, virgule française : clôture, rendement, poids.
+    expect(faits.textContent).toContain('110,00');
+    expect(faits.textContent).toContain('+10,00 %');
+    expect(faits.textContent).toContain('70,97 %');
+    // La lignée du calcul, jamais un chiffre neuf.
+    const lignee = screen.getByTestId('markets-instrument-lineage');
+    expect(lignee.textContent).toContain('market.simple_return');
+    expect(lignee.textContent).toContain('vertex_core@0.1.0');
+    expect(screen.queryByTestId('markets-snapshot-facts')).toBeNull();
+    // La ligne et la puce sectorielle disent la sélection (aria-pressed).
+    expect(screen.getByRole('button', { name: 'Inspecter SYN-TECH-01' }).getAttribute('aria-pressed')).toBe('true');
+
+    // Fermer rend l'inspecteur par défaut.
+    await user.click(screen.getByRole('button', { name: 'Fermer' }));
+    expect(await screen.findByTestId('markets-snapshot-facts')).toBeDefined();
+  });
+
+  it('un clic sur une TUILE de la carte sélectionne l’instrument ; un nœud de secteur, non', async () => {
+    fetchMock.mockResolvedValue(jsonResponse(makeMarketsOverview()));
+    await renderMarkets();
+    await waitFor(() => {
+      expect(clickHandlers.length).toBeGreaterThan(0);
+    });
+    const handler = clickHandlers[clickHandlers.length - 1]!;
+    act(() => {
+      handler({ name: 'Technologie synthétique' });
+    });
+    expect(screen.queryByTestId('markets-instrument-facts')).toBeNull();
+    act(() => {
+      handler({ name: 'SYN-TECH-01' });
+    });
+    expect(await screen.findByTestId('markets-instrument-facts')).toBeDefined();
+    expect(screen.getByRole('heading', { level: 2, name: 'Inspecteur — SYN-TECH-01' })).toBeDefined();
   });
 });

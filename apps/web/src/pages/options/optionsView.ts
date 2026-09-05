@@ -15,17 +15,18 @@ import type {
   OptionChainResponse,
 } from '../../api/client.ts';
 import type { DataState } from '../../components/DataStateBoundary.tsx';
+import { geometryValue } from '../../components/widgets/geometry.ts';
 
 // ---------------------------------------------------------------------------
 // Lecture défensive des blocs relayés verbatim (jamais un zéro fabriqué)
 // ---------------------------------------------------------------------------
 
-function blockString(block: Record<string, unknown>, key: string): string | null {
+export function blockString(block: Record<string, unknown>, key: string): string | null {
   const value = block[key];
   return typeof value === 'string' && value !== '' ? value : null;
 }
 
-function blockInt(block: Record<string, unknown>, key: string): number | null {
+export function blockInt(block: Record<string, unknown>, key: string): number | null {
   const value = block[key];
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
@@ -126,7 +127,7 @@ export function ivViewOf(contract: OptionChainContract): IvView {
 }
 
 /** Une sensibilité nommée avec son unité d'affichage (contrat du worker). */
-export interface GreekEntry {
+interface GreekEntry {
   readonly key: string;
   readonly label: string;
   readonly unit: string;
@@ -236,9 +237,22 @@ export interface StrikeRow {
 }
 
 /** Valeur numérique d'une chaîne serveur pour la géométrie/tri UNIQUEMENT. */
-export function geometryNumber(value: string): number {
-  const parsed = Number.parseFloat(value);
-  return Number.isFinite(parsed) ? parsed : 0;
+/**
+ * Valeur numérique d'une chaîne servie, POUR LA GÉOMÉTRIE SEULE — ou `null`.
+ *
+ * ELLE RENDAIT `0`. Une chaîne illisible devenait donc un point tracé à zéro :
+ * une bougie qui plonge sur l'axe, une étincelle qui touche le fond, un P&L
+ * posé sur la ligne des zéros. Une absence peinte comme une valeur est un FAIT
+ * FAUX, et `.claude/rules/frontend.md` l'interdit nommément — « ne jamais
+ * remplacer une donnée absente par 0 ». Le module de géométrie du socle avait
+ * déjà nommé ce piège et écrit le remède ; les copies ne l'avaient jamais
+ * adopté.
+ *
+ * L'appelant DOIT désormais traiter `null` : ne rien dessiner, écarter le
+ * point, ou refuser la figure — jamais lui substituer une valeur.
+ */
+export function geometryNumber(value: string | null | undefined): number | null {
+  return geometryValue(value);
 }
 
 /**
@@ -266,8 +280,26 @@ export function buildStrikeRows(group: OptionChainExpiration): {
     }
     byStrike.set(contract.strike, slot);
   }
+  // Un strike ILLISIBLE ne vaut pas zéro : converti ainsi, il se serait rangé
+  // sous tous les autres comme s'il valait le plus bas de l'échelle. Il va au
+  // bout du tri, où « on ne sait pas » se lit comme tel — la ligne reste
+  // rendue, seule sa position dans l'ordre change.
+  const cle = (entree: readonly [string, unknown]): number | null => geometryNumber(entree[0]);
   const rows = [...byStrike.entries()]
-    .sort((a, b) => geometryNumber(a[0]) - geometryNumber(b[0]))
+    .sort((a, b) => {
+      const gauche = cle(a);
+      const droite = cle(b);
+      if (gauche === null && droite === null) {
+        return 0;
+      }
+      if (gauche === null) {
+        return 1;
+      }
+      if (droite === null) {
+        return -1;
+      }
+      return gauche - droite;
+    })
     .map(([strike, slot]) => ({ strike, call: slot.call, put: slot.put }));
   return { rows, unpairable };
 }
@@ -289,12 +321,99 @@ export function chainStateOf(
   if (data.state === 'empty') {
     return 'empty';
   }
+  // Le relais publie explicitement `stale` quand le snapshot a dépassé
+  // le budget option_surface. Ce statut porte sur la chaîne entière et
+  // prime donc sur une troncature ou une qualité de groupe partielle : le
+  // contenu reste consultable, mais ne doit jamais redevenir `ready` par le
+  // seul état de TanStack Query.
+  if (data.state === 'stale') {
+    return 'stale';
+  }
+  // Le contrat de chaîne n'ajoute pas `delayed` à son champ `state`, mais
+  // publie cette nature dans `population`. C'est donc ce statut exact — et
+  // lui seul — qui autorise le cadre différé ; aucun préfixe de source ou
+  // contenu de quote n'est interprété localement.
+  if (data.population === 'DELAYED') {
+    return 'delayed';
+  }
   const truncated = data.row_budget !== null ? blockInt(data.row_budget, 'truncated_rows') : null;
   const degradedGroup = data.expirations.some((group) => group.quality !== 'VALID');
   if ((truncated !== null && truncated > 0) || degradedGroup) {
     return 'partial';
   }
   return queryState;
+}
+
+/**
+ * Raison qui ferme le transfert Options → Simulateur v1.
+ *
+ * Le DTO de transfert ne porte ni l'état global, ni `as_of`, ni l'âge. Il
+ * n'est donc sûr que pour un snapshot courant, dont la population est une des
+ * deux natures que le Simulateur sait conserver et dont le groupe sélectionné
+ * est explicitement `VALID`.
+ *
+ * Une chaîne peut rester globalement `partial` parce qu'un AUTRE groupe est
+ * dégradé. Ce cadre n'interdit pas de transférer un contrat sain appartenant à
+ * un groupe `VALID` : la décision est bornée au groupe réellement inspecté.
+ * De même, une troncature de budget décrit les contrats non publiés ; elle ne
+ * dégrade pas rétroactivement un contrat publié dans un groupe `VALID`.
+ */
+export function chainTransferBlockReasonOf(
+  state: DataState,
+  data: OptionChainResponse,
+  selectedGroupQuality: string | null,
+  queryRefreshing: boolean,
+): string | null {
+  const snapshotCoordinates = `(as_of ${data.as_of ?? 'non publié'}, âge publié ${
+    data.age_seconds === null ? 'non publié' : `${data.age_seconds} s`
+  })`;
+
+  // `chainStateOf` conserve légitimement un cadre `partial` lorsqu'un groupe
+  // est dégradé, y compris pendant un rafraîchissement TanStack. L'état brut
+  // de la requête ferme donc séparément ce trou : aucun transfert en vol.
+  if (queryRefreshing || state === 'refreshing') {
+    return `Transfert bloqué : l'actualisation est en cours ${snapshotCoordinates}. Attendez le prochain snapshot stable.`;
+  }
+  if (state === 'stale') {
+    return `Transfert bloqué : le snapshot d'options est périmé ${snapshotCoordinates}. Obtenez un snapshot courant avant de l'envoyer au Simulateur.`;
+  }
+  if (state === 'delayed') {
+    return `Transfert bloqué : la population d'options est DELAYED ${snapshotCoordinates}. Le transfert ne porte pas encore l'état et l'horodatage complets ; aucun contexte n'est perdu silencieusement.`;
+  }
+  if (state !== 'ready' && state !== 'partial') {
+    return `Transfert bloqué : l'état global ${state} n'est ni ready ni un cadre partiel avec groupe valide ${snapshotCoordinates}.`;
+  }
+  if (data.population !== 'REAL' && data.population !== 'SYNTHETIC') {
+    return "Transfert bloqué : la population publiée n'est ni REAL ni SYNTHETIC. Le Simulateur v1 ne peut pas conserver honnêtement cette nature.";
+  }
+  if (selectedGroupQuality === null) {
+    return 'Transfert bloqué : aucun groupe publié et sélectionné ne permet de certifier la qualité du contrat.';
+  }
+  if (selectedGroupQuality !== 'VALID') {
+    return `Transfert bloqué : la qualité publiée du groupe sélectionné est ${selectedGroupQuality}, pas VALID.`;
+  }
+  return null;
+}
+
+/**
+ * Références de source réellement publiées dans le snapshot.
+ *
+ * Aucun fournisseur n'est déduit du préfixe : l'interface relaie uniquement
+ * les `source_event_id` du spot et des groupes, dans leur ordre de publication,
+ * en supprimant seulement les doublons exacts de présentation.
+ */
+export function sourceEventIdsOf(data: OptionChainResponse): readonly string[] {
+  const sourceEventIds = new Set<string>();
+  if (data.spot !== null) {
+    const spotSourceEventId = blockString(data.spot, 'source_event_id');
+    if (spotSourceEventId !== null) {
+      sourceEventIds.add(spotSourceEventId);
+    }
+  }
+  for (const group of data.expirations) {
+    sourceEventIds.add(group.source_event_id);
+  }
+  return [...sourceEventIds];
 }
 
 /** Budget de lignes publié (relayé verbatim depuis `row_budget`). */

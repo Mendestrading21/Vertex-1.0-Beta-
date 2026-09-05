@@ -6,8 +6,9 @@
  * signalée, jamais tout le cache. Aucune donnée n'est transformée ici : les
  * DTO de l'API arrivent tels quels jusqu'aux composants.
  */
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { UseQueryResult } from '@tanstack/react-query';
+import { useCallback, useRef, useSyncExternalStore } from 'react';
 
 import type { DataState } from '../components/DataStateBoundary.tsx';
 import {
@@ -16,6 +17,7 @@ import {
   getCapabilities,
   getMarketsOverview,
   getOptionChain,
+  getSecFundamentals,
   isApiError,
 } from './client.ts';
 import type {
@@ -23,6 +25,7 @@ import type {
   AttentionSnapshot,
   MarketsOverview,
   OptionChainResponse,
+  SecFundamentalsResponse,
   SystemCapabilities,
 } from './client.ts';
 
@@ -34,6 +37,9 @@ export const SSE_RESOURCES = [
   'markets_overview/global',
   'opportunities/global',
   'review_queue/global',
+  // LOT S4 : la matrice de risques est publiée sous cette seule tête fixe
+  // (`WATCHED_SNAPSHOTS` côté serveur) ; c'est la clé de `useRiskMatrix`.
+  'risk_matrix/global',
 ] as const;
 
 /**
@@ -48,6 +54,9 @@ export const SSE_RESOURCE_PREFIXES = [
   'analysis/',
   'portfolio_valuation/',
   'performance/',
+  // LOT-A4 : la route SEC est relayée par Analyse ; le serveur signale
+  // `sec_fundamentals/<instrument>` (`WATCHED_SNAPSHOT_KINDS`).
+  'sec_fundamentals/',
 ] as const;
 
 export type SseResource = string;
@@ -116,6 +125,15 @@ export function useAnalysis(instrument: string): UseQueryResult<AnalysisResponse
   });
 }
 
+export function useSecFundamentals(instrument: string): UseQueryResult<SecFundamentalsResponse> {
+  return useQuery({
+    queryKey: queryKeyForResource(`sec_fundamentals/${instrument}`),
+    queryFn: () => getSecFundamentals(instrument),
+    retry: false,
+    staleTime: Infinity,
+  });
+}
+
 /**
  * État de page dérivé du résultat de requête — 8 états canoniques + l'état
  * dédié « session requise ». Uniquement des faits observés : statut de la
@@ -143,4 +161,118 @@ export function pageStateOf(query: UseQueryResult<unknown>): PageDataState {
     return 'refreshing';
   }
   return 'ready';
+}
+
+// ---------------------------------------------------------------------------
+// Métadonnées SERVIES d'un snapshot, lues dans le cache — lot L0.
+// ---------------------------------------------------------------------------
+
+type SnapshotMetaError = 'AUTH_REQUIRED' | 'NETWORK' | 'OTHER';
+
+/**
+ * Ce que le SERVEUR a publié avec la réponse, plus l'état de la requête.
+ *
+ * AUCUNE EXTRAPOLATION. `ageSeconds` est l'âge calculé par le backend au
+ * moment de la réponse ; il ne vieillit pas entre deux réponses et n'est
+ * jamais corrigé par l'horloge du navigateur (`FreshnessBadge` fige déjà cet
+ * âge, `docs/05-design/UI_STATES.md`). Un champ que l'API ne publie pas vaut
+ * `null` — jamais zéro.
+ */
+export interface SnapshotMeta {
+  readonly ageSeconds: number | null;
+  readonly asOf: string | null;
+  readonly state: string | null;
+  readonly population: string | null;
+  readonly snapshotVersion: number | null;
+  readonly fetchStatus: 'idle' | 'fetching' | 'paused';
+  readonly error: SnapshotMetaError | null;
+  /** Une réponse a-t-elle été vue pour cette clé ? */
+  readonly present: boolean;
+}
+
+export const ABSENT_SNAPSHOT_META: SnapshotMeta = {
+  ageSeconds: null,
+  asOf: null,
+  state: null,
+  population: null,
+  snapshotVersion: null,
+  fetchStatus: 'idle',
+  error: null,
+  present: false,
+};
+
+function readString(source: Record<string, unknown>, key: string): string | null {
+  const value = source[key];
+  return typeof value === 'string' && value !== '' ? value : null;
+}
+
+function readNumber(source: Record<string, unknown>, key: string): number | null {
+  const value = source[key];
+  return typeof value === 'number' && Number.isFinite(value) ? value : null;
+}
+
+/** Traduit un état de requête en métadonnées SERVIES. Fonction pure, testable. */
+export function snapshotMetaOf(
+  data: unknown,
+  status: { readonly fetchStatus: 'idle' | 'fetching' | 'paused'; readonly error: unknown },
+): SnapshotMeta {
+  const error = isApiError(status.error)
+    ? status.error.kind === 'AUTH_REQUIRED'
+      ? 'AUTH_REQUIRED'
+      : status.error.kind === 'NETWORK'
+        ? 'NETWORK'
+        : 'OTHER'
+    : status.error === null || status.error === undefined
+      ? null
+      : 'OTHER';
+
+  if (typeof data !== 'object' || data === null) {
+    return { ...ABSENT_SNAPSHOT_META, fetchStatus: status.fetchStatus, error };
+  }
+  const source = data as Record<string, unknown>;
+  return {
+    ageSeconds: readNumber(source, 'age_seconds'),
+    asOf: readString(source, 'as_of'),
+    state: readString(source, 'state'),
+    population: readString(source, 'population'),
+    snapshotVersion: readNumber(source, 'snapshot_version'),
+    fetchStatus: status.fetchStatus,
+    error,
+    present: true,
+  };
+}
+
+/**
+ * Métadonnées servies d'une clé de cache, SANS requête supplémentaire.
+ *
+ * Aucun `queryFn` : ce hook OBSERVE le cache (`useSyncExternalStore` sur
+ * `QueryCache.subscribe`). Il ne déclenche donc jamais de fetch et ne peut pas
+ * faire diverger deux lecteurs de la même donnée. L'instantané rendu est
+ * mémorisé : `useSyncExternalStore` compare par identité et bouclerait sur un
+ * objet neuf à chaque appel.
+ */
+export function useSnapshotMeta(queryKey: readonly [string, string]): SnapshotMeta {
+  const queryClient = useQueryClient();
+  const cacheKey = queryKey.join(' ');
+  const memo = useRef<{ signature: string; meta: SnapshotMeta } | null>(null);
+
+  const subscribe = useCallback(
+    (listener: () => void) => queryClient.getQueryCache().subscribe(listener),
+    [queryClient],
+  );
+
+  const getSnapshot = useCallback((): SnapshotMeta => {
+    const state = queryClient.getQueryState(cacheKey.split(' '));
+    const meta =
+      state === undefined
+        ? ABSENT_SNAPSHOT_META
+        : snapshotMetaOf(state.data, { fetchStatus: state.fetchStatus, error: state.error });
+    const signature = JSON.stringify(meta);
+    if (memo.current === null || memo.current.signature !== signature) {
+      memo.current = { signature, meta };
+    }
+    return memo.current.meta;
+  }, [queryClient, cacheKey]);
+
+  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
 }

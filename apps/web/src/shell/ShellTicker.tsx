@@ -71,7 +71,7 @@ import type { PageDataState } from '../api/hooks.ts';
  */
 
 /** Ce que la bande a le droit d'afficher, dérivé du seul état observé. */
-export type TickerMode = 'values' | 'notice';
+type TickerMode = 'values' | 'notice';
 
 export interface TickerFrame {
   readonly mode: TickerMode;
@@ -204,10 +204,27 @@ export function ShellTicker() {
             >
               {nature.label}
             </p>
+            {/*
+              LOT V1 — CE LIBELLÉ ÉCRIVAIT « instantané v— ».
+
+              Le tiret y tenait lieu de numéro de version, et se lisait comme
+              un numéro : rien ne disait au lecteur que le serveur n'avait
+              PUBLIÉ aucune version. Le défaut vivait dans le shell, donc sur
+              les douze destinations, et échappait à la porte anti-tiret ambigu
+              parce que `src/shell` n'était dans son périmètre — ce que ce même
+              lot corrige.
+
+              L'absence est maintenant DITE, avec la formulation que la
+              primitive de provenance emploie déjà partout ailleurs.
+            */}
             <p className="vx-ticker-freshness">
               <FreshnessBadge
                 ageSeconds={data?.age_seconds ?? null}
-                sourceLabel={`instantané v${data?.snapshot_version ?? '—'}`}
+                sourceLabel={
+                  data?.snapshot_version == null
+                    ? 'instantané, version non publiée'
+                    : `instantané v${data.snapshot_version}`
+                }
               />
             </p>
             {/*

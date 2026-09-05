@@ -54,8 +54,9 @@ if TYPE_CHECKING:  # import-time cycle avoidance (ingest -> markets)
     from vertex_worker.options import OptionsConfig
     from vertex_worker.risk import RiskConfig
 
-from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy import func, or_, select
+from sqlalchemy.orm import Session, aliased
+from sqlalchemy.sql import ColumnElement
 
 from vertex_core.contracts import (
     EnvelopeQuality,
@@ -79,6 +80,7 @@ from vertex_persistence.repository.snapshots import (
     get_current_snapshot,
     publish_snapshot,
 )
+from vertex_worker.calendar import CALENDAR_EVENT_SCHEMA_PREFIXES
 from vertex_worker.ingest import TOPIC_OBSERVATION_INGESTED
 from vertex_worker.registry import HandlerRegistry
 
@@ -86,8 +88,10 @@ __all__ = [
     "ATTENTION_SCHEMA_VERSION",
     "CAPABILITIES_SCHEMA_VERSION",
     "CAPABILITY_SCHEMA_PREFIX",
+    "CONTENT_SCHEMA_PREFIXES",
     "DEFAULT_SOURCE_TIER",
     "DEV_SYNTHETIC_CONFIG",
+    "EVIDENCE_SCHEMA_PREFIXES",
     "MAX_ATTENTION_ITEMS",
     "POPULATION_EMPTY",
     "POPULATION_REAL",
@@ -106,6 +110,7 @@ __all__ = [
     "is_synthetic_record",
     "load_capability_records",
     "load_recent_observation_records",
+    "load_recent_observation_records_by_instrument",
     "publish_if_changed",
 ]
 
@@ -125,6 +130,88 @@ CAPABILITIES_SCHEMA_VERSION = "vertex.capabilities/1.0"
 CAPABILITY_SCHEMA_PREFIX = "source-capability/"
 """Observations whose ``schema_version`` starts with this prefix are persisted
 source-capability probe results (``SourceCapabilitySnapshot`` dumps)."""
+
+CONTENT_SCHEMA_PREFIXES: tuple[str, ...] = (
+    "synthetic-news/",
+    "ibkr.news-headline/",
+)
+"""Familles de schéma ADMISES comme contenu par la file d'attention, la file
+de revue et le rail de preuves (deny by default) : une dépêche par ligne,
+porteuse d'un ``title`` et d'``entities``.
+
+- ``synthetic-news/`` : la population de développement
+  (``vertex_core.synthetic.SYNTHETIC_SCHEMA_NEWS``) ;
+- ``ibkr.news-headline/`` : la dépêche DÉRIVÉE par l'adaptateur IBKR
+  (``vertex_edge_ibkr.news.NEWS_HEADLINE_SCHEMA_VERSION``, une ligne par
+  titre). Le lot brut ``ibkr.news-headlines/`` (une liste par réponse) n'en
+  fait pas partie : il ne porte pas de titre.
+
+POURQUOI CETTE DÉCLARATION EXISTE. Mesuré le 2026-09-03 à 08:40 UTC :
+``today/attention`` servait 0 item sur données réelles alors que des dépêches
+valides existaient en base. Le collecteur temps réel écrit une cotation
+instantanée par instrument et par cycle de 60 s (``ibkr.quote/1`` depuis le
+lot L1, ``ibkr.daily-quote/1`` pour les 3 197 lignes déjà écrites) : sans
+titre, jamais du contenu — mais les 500 observations les plus récentes,
+toutes familles confondues, n'étaient plus QUE des instantanées. Rien
+n'échouait, rien n'était journalisé : la file était vide.
+
+Le remède n'est pas une borne plus large (la famine reviendrait avec le
+prochain instrument) : le consommateur déclare les familles qu'il sait lire
+et le chargeur les applique AVANT la borne, comme ``DAILY_QUOTE_SCHEMA_PREFIXES``
+(page Marchés) et ``DAILY_BARS_SCHEMA_PREFIXES`` (page Analyse) le font déjà
+pour leurs propres familles. Les familles de marché (cotations, barres,
+chaînes d'options, sondes de capacité, faits SEC) ne portent jamais de titre :
+les déclarer ici n'ajouterait aucun contenu et rouvrirait la famine.
+
+Les ÉVÉNEMENTS DE CALENDRIER (``synthetic-calendar-event/``, familles de
+``vertex_worker.calendar.CALENDAR_EVENT_SCHEMA_PREFIXES``) portent un titre
+mais ne sont pas des dépêches : la page Calendrier les sert, Catalyseurs les
+croise ; la file d'attention et le contexte d'information de la revue ne les
+lisent pas. Avant cette déclaration, un événement synthétique pouvait entrer
+dans la file d'attention de développement ; ce n'est plus le cas, et c'est
+DÉCLARÉ (test-témoin dans ``tests/test_attention_content.py``), pas subi.
+Les réintroduire est une décision de produit, qui passe par cette liste —
+jamais par une borne plus large. Contrat écrit dans
+``docs/03-domain/ATTENTION_AND_RELEVANCE_ENGINE.md``.
+"""
+
+EVIDENCE_SCHEMA_PREFIXES: tuple[str, ...] = (
+    *CONTENT_SCHEMA_PREFIXES,
+    *CALENDAR_EVENT_SCHEMA_PREFIXES,
+)
+"""Familles ADMISES par le RAIL DE PREUVES des pages Analyse et Opportunités
+(deny by default) : les dépêches de :data:`CONTENT_SCHEMA_PREFIXES` ET les
+événements de calendrier de
+:data:`vertex_worker.calendar.CALENDAR_EVENT_SCHEMA_PREFIXES`.
+
+POURQUOI CETTE DÉCLARATION EXISTE. Régression mesurée (CI GitHub, exécution
+33750177958, tâche « e2e — Chromium, 3 viewports desktop, axe », trois échecs
+identiques sur les trois viewports) : ``e2e/ai-inspector.spec.ts:89``
+attendait au moins un extrait externe et en recevait ZÉRO. Le rail avait été
+cadré sur :data:`CONTENT_SCHEMA_PREFIXES` seul ; or, dans la population de
+démonstration, les dépêches synthétiques parlent des tickers ``SYN1``..``SYN9``
+(``vertex_core.synthetic.generator``) et JAMAIS d'un ticker de l'univers
+(``SYN-TECH-01``). Les seules observations titrées rattachées à ces tickers
+sont les événements de calendrier : le rail est passé de plusieurs grappes à
+zéro, et l'explication IA — dont les extraits externes n'ont qu'une source,
+``evidence.clusters[].title`` — a servi un bloc vide sans qu'aucune erreur ne
+soit levée.
+
+CE N'EST PAS UN RETOUR À « TOUTES LES FAMILLES ». Le rail lit UNE famille de
+plus que la file, nommée ; les familles de marché (cotations, barres, chaînes,
+sondes de capacité) restent dehors : sans titre, elles ne produiraient aucune
+grappe et rouvriraient la famine décrite ci-dessus.
+
+LE PARTAGE RESTE DÉCLARÉ DANS LES DEUX SENS. La file d'attention et le
+contexte d'information de la revue ne lisent PAS les événements de calendrier
+(:data:`CONTENT_SCHEMA_PREFIXES`) : un événement n'est pas une dépêche, la
+page Calendrier le sert et Catalyseurs le croise. Le rail de preuves d'un
+instrument, lui, les cite comme preuve titrée de CET instrument. Deux
+consommateurs, deux déclarations, deux témoins
+(``tests/test_evidence_rail_declaration.py``,
+``tests_integration/test_evidence_rail_families.py``). Contrat écrit dans
+``docs/03-domain/ATTENTION_AND_RELEVANCE_ENGINE.md``.
+"""
 
 MAX_ATTENTION_ITEMS = 15
 """Hard cap of the published attention queue (explained truncation)."""
@@ -149,6 +236,31 @@ def _iso(value: datetime | None) -> str | None:
     if value is None:
         return None
     return _require_aware_utc_now(value).isoformat()
+
+
+def _require_schema_prefixes(prefixes: Sequence[str], *, name: str) -> tuple[str, ...]:
+    """Au moins une famille, chacune un préfixe non vide : rien de déclaré,
+    rien de lu — le refus est explicite plutôt qu'une fenêtre vide muette."""
+    if isinstance(prefixes, (str, bytes)) or not isinstance(prefixes, Sequence) or not prefixes:
+        raise ValueError(f"{name}: at least one schema family prefix required")
+    for prefix in prefixes:
+        if not isinstance(prefix, str) or not prefix.strip():
+            raise ValueError(f"{name}: non-empty string prefixes required")
+    return tuple(prefixes)
+
+
+def _schema_family_filter(familles: tuple[str, ...]) -> ColumnElement[bool]:
+    """``schema_version`` COMMENCE PAR l'une des familles, caractère pour
+    caractère : ``%``, ``_`` et le caractère d'échappement sont échappés
+    (``autoescape``). Mesuré (revue S0, réserve 4) : ``LIKE 'demo_news/%'``
+    lisait le souligné comme « n'importe quel caractère » et laissait entrer
+    ``demoXnews/1.0`` dans une fenêtre qui ne l'avait pas déclarée."""
+    return or_(
+        *(
+            Observation.schema_version.startswith(prefix, autoescape=True)
+            for prefix in familles
+        )
+    )
 
 
 @dataclass(frozen=True)
@@ -186,6 +298,12 @@ class FusionConfig:
     / RIGHTS_OK gates (deny by default). ``source_tiers`` maps a source to
     its trust tier; an undeclared source gets :data:`DEFAULT_SOURCE_TIER`
     (the lowest trust), never a promotion.
+
+    ``content_schema_prefixes`` déclare les familles de schéma que ce
+    consommateur SAIT LIRE ; le chargeur les applique avant la borne
+    ``max_observations`` (voir :data:`CONTENT_SCHEMA_PREFIXES`). Une famille
+    non déclarée n'entre jamais dans la fenêtre — ni dans le classement, ni
+    dans la couverture publiée.
     """
 
     allowed_sources: frozenset[str]
@@ -193,12 +311,14 @@ class FusionConfig:
     source_tiers: Mapping[str, str] = field(default_factory=dict)
     lookback: timedelta = timedelta(hours=72)
     max_observations: int = 500
+    content_schema_prefixes: tuple[str, ...] = CONTENT_SCHEMA_PREFIXES
 
     def __post_init__(self) -> None:
         if self.lookback <= timedelta(0):
             raise ValueError("lookback: must be a positive duration")
         if not isinstance(self.max_observations, int) or self.max_observations < 1:
             raise ValueError("max_observations: must be an int >= 1")
+        _require_schema_prefixes(self.content_schema_prefixes, name="content_schema_prefixes")
         object.__setattr__(
             self, "source_tiers", MappingProxyType(dict(self.source_tiers))
         )
@@ -240,15 +360,23 @@ def load_recent_observation_records(
     now: datetime,
     lookback: timedelta,
     limit: int,
+    schema_prefixes: Sequence[str],
     instrument_ref: str | None = None,
 ) -> list[ObservationRecord]:
     """Load the bounded recent observation window, deterministically ordered.
 
     The window is ``[now - lookback, now]`` on ``as_of`` (future rows are
     excluded — the TIME gate would refuse them anyway), most recent first,
-    capped at ``limit`` rows. Capability probe observations are part of the
-    window and are counted by the coverage report; having no title, they can
-    never enter the content ranking.
+    capped at ``limit`` rows.
+
+    ``schema_prefixes`` sont les familles que l'APPELANT sait lire ; elles
+    s'appliquent AVANT la borne, et il n'y a pas de défaut. Chaque préfixe
+    est un LITTÉRAL (``%`` et ``_`` échappés), jamais un motif. Mesuré le
+    2026-09-03 : les 500 lignes les plus récentes étaient toutes des
+    cotations instantanées (une par instrument et par minute), et la file
+    d'attention ne voyait plus aucune dépêche — voir
+    :data:`CONTENT_SCHEMA_PREFIXES`. Une famille absente de la liste n'est ni
+    chargée ni comptée : la couverture publiée dit ce qu'elle a regardé.
 
     ``instrument_ref`` RESTREINT la fenêtre à un instrument, et le cadrage se
     fait alors AVANT la borne. Mesuré le 2026-09-01 : avec 1376 dépêches sur
@@ -261,8 +389,11 @@ def load_recent_observation_records(
     d'où un filtre optionnel plutôt qu'un changement de comportement.
     """
     now = _require_aware_utc_now(now)
+    familles = _require_schema_prefixes(schema_prefixes, name="schema_prefixes")
     requete = select(Observation).where(
-        Observation.as_of <= now, Observation.as_of >= now - lookback
+        Observation.as_of <= now,
+        Observation.as_of >= now - lookback,
+        _schema_family_filter(familles),
     )
     if instrument_ref is not None:
         requete = requete.where(Observation.instrument_ref == instrument_ref)
@@ -276,6 +407,82 @@ def load_recent_observation_records(
         .all()
     )
     return [_record_from_row(row) for row in rows]
+
+
+def load_recent_observation_records_by_instrument(
+    session: Session,
+    *,
+    now: datetime,
+    lookback: timedelta,
+    limit: int,
+    schema_prefixes: Sequence[str],
+    instrument_refs: Sequence[str],
+) -> dict[str, list[ObservationRecord]]:
+    """Une fenêtre PAR INSTRUMENT, en UNE lecture de ``observations``.
+
+    Pour chaque référence de ``instrument_refs``, exactement ce que
+    :func:`load_recent_observation_records` rend avec ``instrument_ref=ref`` :
+    mêmes bornes sur ``as_of``, mêmes familles (préfixes littéraux), même
+    ordre ``as_of DESC, id DESC`` et même ``limit`` — PAR instrument, jamais
+    partagé entre eux. Une référence sans observation dans la fenêtre rend
+    une liste vide, comme le chargeur unitaire ; une référence non demandée
+    n'apparaît pas.
+
+    POURQUOI. Mesuré (revue S0, réserve 3) : la page Opportunités exécutait
+    une requête de preuves par instrument à barres, ≈161 en profil réel,
+    chacune parcourant toute la plage ``as_of`` du lookback — le seul index
+    de ``observations`` porte sur ``as_of``. Ici la plage est lue une fois :
+    numérotation par instrument (``row_number() OVER (PARTITION BY
+    instrument_ref ORDER BY as_of DESC, id DESC)``) puis coupe à ``limit``.
+    Ce n'est pas un index : le coût reste proportionnel à la plage, mais il
+    ne croît plus avec la taille de l'univers.
+    """
+    now = _require_aware_utc_now(now)
+    familles = _require_schema_prefixes(schema_prefixes, name="schema_prefixes")
+    if (
+        isinstance(instrument_refs, (str, bytes))
+        or not isinstance(instrument_refs, Sequence)
+        or not instrument_refs
+    ):
+        raise ValueError("instrument_refs: at least one instrument reference required")
+    references: list[str] = []
+    for ref in instrument_refs:
+        if not isinstance(ref, str) or not ref.strip():
+            raise ValueError("instrument_refs: non-empty string references required")
+        if ref not in references:
+            references.append(ref)
+    rang = (
+        func.row_number()
+        .over(
+            partition_by=Observation.instrument_ref,
+            order_by=(Observation.as_of.desc(), Observation.id.desc()),
+        )
+        .label("rang")
+    )
+    interieur = (
+        select(Observation, rang)
+        .where(
+            Observation.as_of <= now,
+            Observation.as_of >= now - lookback,
+            _schema_family_filter(familles),
+            Observation.instrument_ref.in_(references),
+        )
+        .subquery()
+    )
+    fenetre = aliased(Observation, interieur)
+    rows = (
+        session.execute(
+            select(fenetre)
+            .where(interieur.c.rang <= limit)
+            .order_by(fenetre.instrument_ref, fenetre.as_of.desc(), fenetre.id.desc())
+        )
+        .scalars()
+        .all()
+    )
+    par_instrument: dict[str, list[ObservationRecord]] = {ref: [] for ref in references}
+    for row in rows:
+        par_instrument[str(row.instrument_ref)].append(_record_from_row(row))
+    return par_instrument
 
 
 def load_capability_records(session: Session) -> list[ObservationRecord]:
@@ -513,6 +720,7 @@ def build_attention_content(
         ],
         "coverage": {
             "lookback_seconds": int(config.lookback.total_seconds()),
+            "content_schema_prefixes": list(config.content_schema_prefixes),
             "max_items": MAX_ATTENTION_ITEMS,
             "observations_considered": len(records),
             "content_observations": len(observations),
@@ -614,6 +822,7 @@ class AttentionFusionHandler:
             now=now,
             lookback=self._config.lookback,
             limit=self._config.max_observations,
+            schema_prefixes=self._config.content_schema_prefixes,
         )
         content = build_attention_content(records, now=now, config=self._config)
         published = publish_if_changed(

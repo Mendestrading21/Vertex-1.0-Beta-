@@ -1,7 +1,7 @@
 """Unit tests of the pure markets overview content builder (LOT-13).
 
-Everything here is SYNTHETIC and deterministic: records are built in memory
-from explicit decimal strings; no database, no clock, no network.
+Records are built in memory from explicit decimal strings for both declared
+REAL and SYNTHETIC profiles; no database, no clock, no network.
 """
 
 from __future__ import annotations
@@ -13,6 +13,7 @@ import pytest
 
 from vertex_core.synthetic import SYNTHETIC_RIGHTS, SYNTHETIC_SOURCE
 from vertex_core.version import ENGINE_VERSION
+from vertex_worker import markets as markets_module
 from vertex_worker.markets import (
     DEV_SYNTHETIC_MARKETS_CONFIG,
     MARKETS_SCHEMA_VERSION,
@@ -36,6 +37,16 @@ SMALL_CONFIG = MarketsConfig(
     sector_labels={"SYN-AAA": "Secteur AAA", "SYN-BBB": "Secteur BBB"},
     allowed_sources=frozenset({SYNTHETIC_SOURCE}),
     usable_rights=frozenset({SYNTHETIC_RIGHTS}),
+    coverage_threshold=Decimal("0.5"),
+)
+
+REAL_SOURCE = "ibkr"
+REAL_RIGHTS = "IBKR_MARKET_DATA_DISPLAY_ONLY"
+REAL_CONFIG = MarketsConfig(
+    universe={"UNCLASSIFIED": ("ACME",)},
+    sector_labels={"UNCLASSIFIED": "Classification indisponible"},
+    allowed_sources=frozenset({REAL_SOURCE}),
+    usable_rights=frozenset({REAL_RIGHTS}),
     coverage_threshold=Decimal("0.5"),
 )
 
@@ -87,11 +98,40 @@ def full_records() -> list[QuoteRecord]:
     ]
 
 
+def real_records() -> list[QuoteRecord]:
+    return [
+        QuoteRecord(
+            event_id=f"ibkr:daily-quote:acme:{day}",
+            source=REAL_SOURCE,
+            instrument_ref="ACME",
+            as_of=NOW - timedelta(hours=1),
+            quality_status="VALID",
+            rights=REAL_RIGHTS,
+            schema_version="ibkr.daily-quote/1.0",
+            payload={
+                "type": "daily_quote",
+                "ticker": "ACME",
+                "sector": "UNCLASSIFIED",
+                "trading_day": day,
+                "close": close,
+                "currency": "USD",
+                "adjustment_basis": "split_adjusted",
+            },
+        )
+        for day, close in (("2026-08-23", "100.00"), ("2026-08-24", "110.00"))
+    ]
+
+
 def test_schema_predicate() -> None:
     assert is_daily_quote_schema("synthetic-daily-quote/1.0") is True
     assert is_daily_quote_schema("synthetic-quote/1.0") is False
     assert is_daily_quote_schema("synthetic-news/1.0") is False
     assert is_daily_quote_schema("") is False
+    # L1 (2026-09-03) : seule la cotation DERIVEE d'une barre quotidienne est
+    # une cotation quotidienne ; la cotation instantanee de l'edge IBKR porte
+    # son propre schema et ne reveille pas la page Marches.
+    assert is_daily_quote_schema("ibkr.daily-quote/1") is True
+    assert is_daily_quote_schema("ibkr.quote/1") is False
 
 
 def test_full_coverage_content() -> None:
@@ -144,11 +184,19 @@ def test_full_coverage_content() -> None:
     total = Decimal(t1["weight_global"]) + Decimal(t2["weight_global"])
     assert total < 1
 
-    # breadth: 2 up (AAA-01 +10%, BBB-02 +10%), covered 4, universe 4.
+    # breadth: 2 up (AAA-01 +10%, BBB-02 +10%), 1 down (AAA-02 -10%),
+    # 1 flat (BBB-01 0%), covered 4, universe 4. Les trois comptes sont
+    # PUBLIES et partitionnent exactement les couverts.
     breadth = content["breadth"]
     assert breadth["status"] == "OK"
     assert breadth["above_count"] == 2
+    assert breadth["down_count"] == 1
+    assert breadth["flat_count"] == 1
     assert breadth["covered_count"] == 4
+    assert (
+        breadth["above_count"] + breadth["down_count"] + breadth["flat_count"]
+        == breadth["covered_count"]
+    )
     assert breadth["universe_size"] == 4
     assert breadth["value"] == "0.5"
     assert breadth["value_pct"] == "50.0"
@@ -161,6 +209,57 @@ def test_full_coverage_content() -> None:
     assert "1 en baisse" in conclusion
     assert "1 stables" in conclusion
     assert "breadth 50.0 %" in conclusion
+    assert "instruments attendus" in conclusion
+    assert "synth" not in conclusion.lower()
+
+
+def test_real_conclusion_and_calculation_assumption_never_claim_synthetic(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[dict] = []
+    original = markets_module.make_calculation_record
+
+    def capture_calculation_record(**kwargs):
+        calls.append(kwargs)
+        return original(**kwargs)
+
+    monkeypatch.setattr(
+        markets_module,
+        "make_calculation_record",
+        capture_calculation_record,
+    )
+
+    real = build_markets_overview_content(
+        real_records(), now=NOW, config=REAL_CONFIG
+    )
+    synthetic = build_markets_overview_content(
+        full_records(), now=NOW, config=SMALL_CONFIG
+    )
+
+    assert real["population"] == "REAL"
+    assert synthetic["population"] == "SYNTHETIC"
+    for content in (real, synthetic):
+        assert "instruments attendus" in content["conclusion"]
+        assert "synth" not in content["conclusion"].lower()
+
+    return_calls = [
+        call for call in calls if call["calculation_id"] == "market.simple_return"
+    ]
+    assert return_calls
+    assert all(
+        call["assumptions"]
+        == ("consecutive trading days from admitted daily-quote observations",)
+        for call in return_calls
+    )
+    real_call = next(
+        call
+        for call in return_calls
+        if call["source_event_ids"][0].startswith("ibkr:daily-quote")
+    )
+    assert real_call["source_event_ids"] == (
+        "ibkr:daily-quote:acme:2026-08-23",
+        "ibkr:daily-quote:acme:2026-08-24",
+    )
 
 
 def test_missing_close_is_discarded_and_counted_never_interpolated() -> None:
@@ -193,6 +292,57 @@ def test_breadth_fails_closed_below_coverage_threshold() -> None:
     assert breadth["value_pct"] is None
     assert breadth["calculation"] is None
     assert "breadth non calculable" in content["conclusion"]
+    # Le bloc INVALID ne publie AUCUNE valeur, mais les COMPTES restent des
+    # faits : un seul instrument couvert, en hausse, et rien d'autre.
+    assert breadth["above_count"] == 1
+    assert breadth["down_count"] == 0
+    assert breadth["flat_count"] == 0
+    assert breadth["covered_count"] == 1
+
+
+def test_breadth_counts_partition_the_covered_universe() -> None:
+    """Hausses + baisses + inchangés = couverts, et chaque compte se relit
+    sur les instruments publiés (signe de ``return_1d``), jamais ailleurs.
+
+    Un ticker attendu sans seconde clôture est ÉCARTÉ : il n'entre dans
+    aucun des trois comptes et ne fait pas de ``covered_count`` un zéro
+    inventé. La conclusion française et le bloc breadth disent les MÊMES
+    nombres — deux rendus, une seule vérité.
+    """
+    records = [
+        quote("SYN-AAA-01", "SYN-AAA", "2026-08-23", "100.00"),
+        quote("SYN-AAA-01", "SYN-AAA", "2026-08-24", "90.00"),  # baisse
+        quote("SYN-AAA-02", "SYN-AAA", "2026-08-23", "50.00"),
+        quote("SYN-AAA-02", "SYN-AAA", "2026-08-24", "50.00"),  # inchangé
+        quote("SYN-BBB-01", "SYN-BBB", "2026-08-23", "20.00"),
+        quote("SYN-BBB-01", "SYN-BBB", "2026-08-24", "19.00"),  # baisse
+        quote("SYN-BBB-02", "SYN-BBB", "2026-08-24", "88.00"),  # écarté
+    ]
+    content = build_markets_overview_content(records, now=NOW, config=SMALL_CONFIG)
+    breadth = content["breadth"]
+    published = [t for s in content["sectors"] for t in s["tickers"]]
+
+    assert breadth["status"] == "OK"  # couverture 3/4 >= 0.5
+    assert breadth["above_count"] == 0
+    assert breadth["down_count"] == 2
+    assert breadth["flat_count"] == 1
+    assert breadth["covered_count"] == 3 == content["coverage"]["covered"]
+    assert (
+        breadth["above_count"] + breadth["down_count"] + breadth["flat_count"]
+        == breadth["covered_count"]
+    )
+    assert breadth["above_count"] == sum(
+        1 for t in published if Decimal(t["return_1d"]) > 0
+    )
+    assert breadth["down_count"] == sum(
+        1 for t in published if Decimal(t["return_1d"]) < 0
+    )
+    assert breadth["flat_count"] == sum(
+        1 for t in published if Decimal(t["return_1d"]) == 0
+    )
+    assert breadth["value"] == "0.0"
+    assert breadth["value_pct"] == "0.0"
+    assert "0 en hausse, 2 en baisse, 1 stables" in content["conclusion"]
 
 
 def test_undeclared_source_rights_and_ticker_are_rejected() -> None:
@@ -268,7 +418,38 @@ def test_empty_records_yield_empty_population_and_invalid_breadth() -> None:
     assert content["population"] == "EMPTY"
     assert content["coverage"]["received"] == 0
     assert content["coverage"]["discarded"] == 4
-    assert content["breadth"]["status"] == "INVALID"
+    breadth = content["breadth"]
+    assert breadth["status"] == "INVALID"
+    # Rien de couvert : trois comptes à zéro parce qu'ils COMPTENT zéro
+    # instrument, et un `covered_count` qui le confirme.
+    assert breadth["above_count"] == 0
+    assert breadth["down_count"] == 0
+    assert breadth["flat_count"] == 0
+    assert breadth["covered_count"] == 0
+
+
+def test_records_present_but_all_rejected_yield_empty_population() -> None:
+    content = build_markets_overview_content(
+        [
+            quote(
+                "SYN-AAA-01",
+                "SYN-AAA",
+                "2026-08-24",
+                "110.00",
+                source="not-declared",
+                event_id="rejected-only",
+            )
+        ],
+        now=NOW,
+        config=SMALL_CONFIG,
+    )
+
+    assert content["coverage"]["observations_considered"] == 1
+    assert content["coverage"]["received"] == 0
+    assert content["coverage"]["rejected_records"] == [
+        {"event_id": "rejected-only", "reason": REASON_SOURCE_NOT_ALLOWED}
+    ]
+    assert content["population"] == "EMPTY"
 
 
 def test_determinism_and_order_insensitivity() -> None:

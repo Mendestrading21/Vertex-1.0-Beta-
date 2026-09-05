@@ -83,7 +83,8 @@ composants ni dans la QA de la Beta.
 - négatif confirmé : `--vx-negative` + texte ;
 - avertissement/retard : `--vx-warning` + texte ;
 - options : `--vx-option` uniquement pour identifier la classe d'actif, pas un résultat positif ;
-- macro : `--vx-macro` uniquement pour catégoriser la source.
+- macro : `--vx-macro` uniquement pour catégoriser la source ;
+- teinte secondaire de page (ADR-017, `docs/09-adr/017-titanium-ledger-v2-formes-widgets.md`) : les deux règles ci-dessus régissent la couleur d'une icône ; la famille déclarée par une page (`macro`, `option` ou `warning`) colore, par `--vx-page-accent*`, les formes de widgets sur données servies (anneaux, arcs, aires, rails) et jamais un statut d'icône — une icône `--vx-macro` continue de catégoriser une source, une icône `--vx-option` d'identifier la classe d'actif.
 
 Une direction haussière ou baissière n'est pas un statut de sécurité. `scenario-bull` et `scenario-bear` héritent de la couleur du contexte et restent nommés textuellement.
 

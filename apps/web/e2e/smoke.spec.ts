@@ -27,11 +27,29 @@ test.describe('Dégradation 1024×768', () => {
     await expect(table.locator('tbody tr')).toHaveCount(14);
     await expect(table.locator('thead th')).toHaveCount(6);
     await expectNoHorizontalPageScroll(page);
-    // Le conteneur de la table (et lui seul) peut défiler horizontalement.
-    const scrollMode = await page
-      .locator('.vx-matrix-scroll')
-      .evaluate((element) => getComputedStyle(element).overflowX);
-    expect(scrollMode).toBe('auto');
+    /*
+      Le conteneur de la table — et lui seul — peut défiler horizontalement,
+      ET il est atteignable au clavier.
+
+      L'assertion visait `.vx-matrix-scroll`, une CLASSE CSS. La migration de
+      cette table vers `DataTable` a renommé le conteneur en `.vx-dt-scroll` et
+      le test est tombé, alors que le comportement était intact — la règle du
+      dépôt le disait déjà : « tester le comportement public et les invariants ;
+      ne pas figer les détails d'implémentation ».
+
+      Elle vise donc la RÉGION défilante par son rôle et son nom accessible, ce
+      qui est à la fois ce que la porte WCAG 2.1.1 exige et ce qu'un lecteur
+      d'écran perçoit. Le `tabIndex` est vérifié en même temps : une zone qui
+      défile sans être focalisable est inatteignable sans souris.
+    */
+    const region = page.getByRole('region', { name: /capacité/i });
+    await expect(region).toBeVisible();
+    const defilement = await region.evaluate((element) => ({
+      overflowX: getComputedStyle(element).overflowX,
+      focalisable: element.getAttribute('tabindex'),
+    }));
+    expect(defilement.overflowX).toBe('auto');
+    expect(defilement.focalisable).toBe('0');
     await page.screenshot({
       path: screenshotPath('sources-reports-smoke', testInfo.project.name),
       fullPage: true,
@@ -65,7 +83,12 @@ test.describe('Dégradation 1024×768', () => {
     await page.goto('/options/SYN-TECH-01');
     const table = page.getByRole('table', { name: /Chaîne d'options/ });
     await expect(table).toBeVisible();
-    await expect(table.locator('tbody tr')).toHaveCount(12); // 12 strikes appariés
+    // 12 strikes = 12 LIGNES DE STRIKE. Le corps en contient une treizième : la
+    // ligne de repère qui porte le SPOT SERVI à sa place dans l'échelle. Les
+    // compter ensemble mélangeait deux choses différentes ; l'assertion vise
+    // donc les lignes de strike, et le repère reçoit la sienne juste après.
+    await expect(table.locator('tbody tr[data-row="strike"]')).toHaveCount(12);
+    await expect(table.locator('tbody tr.vx-chain-spot')).toHaveCount(1);
     await expect(page.locator('main').getByText('DONNÉES SYNTHÉTIQUES', { exact: true })).toBeVisible();
     await expectNoHorizontalPageScroll(page);
     const scrollMode = await page
@@ -87,7 +110,7 @@ test.describe('Dégradation 1024×768', () => {
     });
     await expect(page.getByRole('link', { name: 'TradingView' }).first()).toBeVisible();
     await expect(
-      page.getByRole('table', { name: 'Table OHLCV équivalente des chandeliers' }).locator('tbody tr'),
+      page.getByRole('table', { name: /Table OHLCV — équivalent exact des chandeliers/ }).locator('tbody tr'),
     ).toHaveCount(60);
     await expectNoHorizontalPageScroll(page);
     await page.screenshot({

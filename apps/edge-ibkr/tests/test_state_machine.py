@@ -108,7 +108,10 @@ def test_transport_error_backoff_grows_and_stays_capped() -> None:
     machine = make_machine(
         seed=3, base_backoff_seconds=1.0, backoff_multiplier=2.0, max_backoff_seconds=8.0
     )
-    delays = [machine.on_transport_error() for _ in range(8)]
+    delays = [machine.on_transport_error()]
+    for _ in range(7):
+        machine.begin_connect()
+        delays.append(machine.on_connect_failed())
     for attempt, delay in enumerate(delays):
         capped = min(8.0, 1.0 * (2.0**attempt))
         assert capped / 2.0 <= delay <= capped
@@ -127,10 +130,254 @@ def test_502_is_a_transport_error_with_backoff() -> None:
 def test_successful_reconnect_resets_backoff() -> None:
     machine = make_machine()
     machine.on_transport_error()
-    machine.on_transport_error()
+    machine.begin_connect()
+    machine.on_connect_failed()
     assert machine.transport_failures == 2
     connect(machine)
     assert machine.transport_failures == 0
+
+
+def test_duplicate_502_reuses_one_backoff_within_an_incident() -> None:
+    """Deux callbacks du même incident ne redessinent ni jitter ni échec."""
+    machine = make_machine(seed=9)
+    first = machine.on_error_code(502)
+    duplicate = machine.on_error_code(502)
+
+    assert duplicate == first
+    assert machine.transport_failures == 1
+
+
+def test_duplicate_1101_bumps_epoch_once_while_resubscription_is_open() -> None:
+    machine = make_machine()
+    connect(machine)
+    machine.on_error_code(1100)
+    machine.on_error_code(1101)
+    epoch = machine.connection_epoch
+    machine.on_error_code(1101)
+
+    assert machine.connection_epoch == epoch
+    assert machine.resubscribe_required
+
+
+def test_502_then_restoration_preserves_transport_down_and_obligations() -> None:
+    machine = make_machine()
+    connect(machine)
+    epoch = machine.connection_epoch
+
+    machine.on_error_code(502)
+    machine.on_error_code(1101)
+    machine.on_error_code(1102)
+
+    assert machine.state is ConnectionState.DOWN
+    assert machine.connection_epoch == epoch + 1
+    assert machine.resubscribe_required
+    assert machine.awaiting_post_reconnect_observation
+    assert machine.pending_transport_backoff is not None
+
+    machine.begin_connect()
+    machine.on_connected()
+    assert machine.state is ConnectionState.DEGRADED
+    machine.mark_resubscribed()
+    assert machine.state is ConnectionState.RECOVERING
+
+
+@pytest.mark.parametrize(
+    ("restoration_code", "state_after_reconnect", "epoch_increase"),
+    [
+        pytest.param(1101, ConnectionState.DEGRADED, 2, id="502-then-1101"),
+        pytest.param(1102, ConnectionState.RECOVERING, 1, id="502-then-1102"),
+    ],
+)
+def test_transport_failure_dominates_restoration_until_a_new_connection(
+    restoration_code: int,
+    state_after_reconnect: ConnectionState,
+    epoch_increase: int,
+) -> None:
+    machine = make_machine(seed=17)
+    connect(machine)
+    initial_epoch = machine.connection_epoch
+    backoff = machine.on_error_code(502)
+
+    machine.on_error_code(restoration_code)
+
+    assert machine.state is ConnectionState.DOWN
+    assert machine.pending_transport_backoff == backoff
+    assert machine.observation_is_fresh(machine.connection_epoch) is False
+
+    machine.begin_connect()
+    machine.on_connected()
+
+    assert machine.state is state_after_reconnect
+    assert machine.connection_epoch == initial_epoch + epoch_increase
+    assert machine.pending_transport_backoff is None
+    assert machine.transport_failures == 0
+    if restoration_code == 1101:
+        machine.mark_resubscribed()
+    else:
+        assert machine.record_observation(machine.connection_epoch) is True
+    assert machine.state is ConnectionState.HEALTHY
+
+
+def test_1100_then_1101_then_1102_keeps_both_recovery_obligations() -> None:
+    machine = make_machine()
+    connect(machine)
+    initial_epoch = machine.connection_epoch
+
+    for code in (1100, 1101, 1102):
+        machine.on_error_code(code)
+
+    assert machine.state is ConnectionState.DEGRADED
+    assert machine.connection_epoch == initial_epoch + 1
+    assert machine.resubscribe_required is True
+    assert machine.awaiting_post_reconnect_observation is True
+    # A current-epoch observation cannot bypass the resubscription debt.
+    assert machine.record_observation(machine.connection_epoch) is False
+    assert machine.awaiting_post_reconnect_observation is True
+
+    machine.mark_resubscribed()
+    assert machine.state is ConnectionState.RECOVERING
+    assert machine.record_observation(machine.connection_epoch) is True
+    assert machine.state is ConnectionState.HEALTHY
+
+
+@pytest.mark.parametrize(
+    "codes",
+    [
+        pytest.param((1101, 1102), id="data-lost-then-maintained"),
+        pytest.param((1102, 1101), id="data-maintained-then-lost"),
+    ],
+)
+def test_1101_and_1102_order_preserves_the_same_cumulative_obligations(
+    codes: tuple[int, int],
+) -> None:
+    machine = make_machine()
+    connect(machine)
+    initial_epoch = machine.connection_epoch
+
+    for code in codes:
+        machine.on_error_code(code)
+
+    assert machine.state is ConnectionState.DEGRADED
+    assert machine.connection_epoch == initial_epoch + 1
+    assert machine.resubscribe_required is True
+    assert machine.awaiting_post_reconnect_observation is True
+
+    machine.mark_resubscribed()
+    assert machine.state is ConnectionState.RECOVERING
+    assert machine.record_observation(machine.connection_epoch) is True
+    assert machine.state is ConnectionState.HEALTHY
+
+
+@pytest.mark.parametrize(
+    "codes",
+    [
+        pytest.param((502, 502), id="duplicate-502"),
+        pytest.param((502, 502, 502), id="two-duplicate-502s"),
+    ],
+)
+def test_duplicate_502_events_share_one_failure_and_one_backoff(
+    codes: tuple[int, ...],
+) -> None:
+    machine = make_machine(seed=23)
+    delays = [machine.on_error_code(code) for code in codes]
+
+    assert delays == [delays[0]] * len(delays)
+    assert machine.pending_transport_backoff == delays[0]
+    assert machine.transport_failures == 1
+    assert machine.state is ConnectionState.DOWN
+
+
+@pytest.mark.parametrize(
+    "codes",
+    [
+        pytest.param((1101, 1101), id="adjacent-duplicate"),
+        pytest.param((1101, 1102, 1101), id="duplicate-after-1102"),
+    ],
+)
+def test_duplicate_1101_events_do_not_manufacture_epochs_while_debt_is_open(
+    codes: tuple[int, ...],
+) -> None:
+    machine = make_machine()
+    connect(machine)
+    initial_epoch = machine.connection_epoch
+
+    for code in codes:
+        machine.on_error_code(code)
+
+    assert machine.connection_epoch == initial_epoch + 1
+    assert machine.resubscribe_required is True
+    assert machine.state is ConnectionState.DEGRADED
+
+
+@pytest.mark.parametrize(
+    ("codes", "state_after_reconnect"),
+    [
+        pytest.param((1300,), ConnectionState.HEALTHY, id="port-change-only"),
+        pytest.param((1300, 1101), ConnectionState.DEGRADED, id="port-change-then-1101"),
+        pytest.param((1300, 1102), ConnectionState.RECOVERING, id="port-change-then-1102"),
+        pytest.param(
+            (1101, 1300, 1102),
+            ConnectionState.DEGRADED,
+            id="restoration-around-port-change",
+        ),
+        pytest.param(
+            (502, 1300, 1101, 1102),
+            ConnectionState.DEGRADED,
+            id="transport-and-port-change",
+        ),
+    ],
+)
+def test_1300_dominates_other_statuses_until_port_reread_and_reconnect(
+    codes: tuple[int, ...],
+    state_after_reconnect: ConnectionState,
+) -> None:
+    machine = make_machine()
+    connect(machine)
+
+    for code in codes:
+        machine.on_error_code(code)
+
+    assert machine.state is ConnectionState.DOWN
+    assert machine.reread_port_required is True
+    assert machine.observation_is_fresh(machine.connection_epoch) is False
+    with pytest.raises(PortRereadRequiredError):
+        machine.begin_connect()
+
+    machine.mark_port_reread()
+    # Reading configuration alone never proves a new transport session.
+    assert machine.state is ConnectionState.DOWN
+    machine.begin_connect()
+    machine.on_connected()
+    assert machine.reread_port_required is False
+    assert machine.state is state_after_reconnect
+
+
+def test_only_a_failed_new_connection_attempt_advances_backoff() -> None:
+    seed = 29
+    machine = make_machine(
+        seed=seed,
+        base_backoff_seconds=1.0,
+        backoff_multiplier=2.0,
+        max_backoff_seconds=8.0,
+    )
+    oracle = random.Random(seed)
+    expected_first = 0.5 + oracle.uniform(0.0, 0.5)
+    expected_second = 1.0 + oracle.uniform(0.0, 1.0)
+
+    first = machine.on_error_code(502)
+    assert first is not None
+    assert first == pytest.approx(expected_first)
+    assert machine.on_error_code(502) == first
+    assert machine.on_transport_error() == first
+    assert machine.transport_failures == 1
+
+    machine.begin_connect()
+    assert machine.transport_failures == 1
+    second = machine.on_connect_failed()
+    assert second == pytest.approx(expected_second)
+    assert machine.transport_failures == 2
+    assert machine.on_error_code(502) == second
+    assert machine.transport_failures == 2
 
 
 def test_reconnection_lock_allows_a_single_concurrent_attempt() -> None:

@@ -20,10 +20,13 @@ from vertex_core.contracts import (
     canonical_json_hash,
 )
 from vertex_edge_ibkr.port import (
+    CancellationOutcome,
     GreeksObservation,
     MarketDataSnapshotResult,
+    OperationToken,
     ProviderError,
     ProviderErrorInfo,
+    ProviderStatusEvent,
     QuoteObservation,
 )
 
@@ -165,6 +168,7 @@ class FakeIB:
         wsh_raw: str = "[]",
     ) -> None:
         self.errorEvent = FakeEvent()
+        self.pendingTickersEvent = FakeEvent()
         self.ticker = ticker if ticker is not None else FakeTicker()
         self.subscribe_errors = subscribe_errors
         self.server_time_value = server_time
@@ -183,14 +187,20 @@ class FakeIB:
         self.subscriptions: list[tuple[Any, str]] = []
         self.cancellations: list[Any] = []
         self.wsh_requests: list[Any] = []
+        self.connected = False
 
     # -- session -----------------------------------------------------------
 
     async def connectAsync(self, **kwargs: Any) -> None:
         self.connect_calls.append(dict(kwargs))
+        self.connected = True
 
     def disconnect(self) -> None:
         self.disconnect_calls += 1
+        self.connected = False
+
+    def isConnected(self) -> bool:
+        return self.connected
 
     async def reqCurrentTimeAsync(self) -> datetime | None:
         return self.server_time_value
@@ -295,7 +305,17 @@ def make_snapshot_result(
     generic: tuple[int, ...] = (),
     subscription_id: str = "sub-1",
     cancelled: bool = True,
+    operation: OperationToken | None = None,
+    market_update_sequence_at_end: int | None = None,
 ) -> MarketDataSnapshotResult:
+    if operation is None:
+        epoch = envelopes[0].connection_epoch if envelopes else 1
+        operation = OperationToken(
+            journal_id="synthetic-journal",
+            connection_epoch_at_start=epoch,
+            provider_sequence_at_start=0,
+            market_update_sequence_at_start=0,
+        )
     return MarketDataSnapshotResult(
         envelopes=envelopes,
         provider_errors=errors,
@@ -303,7 +323,17 @@ def make_snapshot_result(
         reported_market_data_type=reported,
         generic_ticks=generic,
         subscription_id=subscription_id,
-        cancelled=cancelled,
+        operation=operation,
+        market_update_sequence_at_end=(
+            market_update_sequence_at_end
+            if market_update_sequence_at_end is not None
+            else (1 if envelopes else 0)
+        ),
+        cancellation_outcome=(
+            CancellationOutcome.CANCELLED
+            if cancelled
+            else CancellationOutcome.NOT_FOUND
+        ),
     )
 
 
@@ -400,6 +430,15 @@ class FakeInformationPort:
             raise ProviderError(9999, "unscripted snapshot in fake")
         return await self._apply(self.snapshot_behaviors[key])
 
-    async def cancel_subscription(self, subscription_id: str) -> bool:
+    async def cancel_subscription(
+        self, subscription_id: str
+    ) -> CancellationOutcome:
         self.cancelled_subscriptions.append(subscription_id)
-        return True
+        return CancellationOutcome.CANCELLED
+
+    def drain_provider_status_events(self) -> tuple[ProviderStatusEvent, ...]:
+        return ()
+
+    @property
+    def pending_subscription_count(self) -> int:
+        return 0

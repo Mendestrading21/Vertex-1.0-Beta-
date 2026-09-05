@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import random
 from decimal import Decimal
+from typing import Any
 
 import pytest
 from fakes import NAN, T1, FakeComputation, FakeIB, FakeTicker, fixed_clock, instant_sleep
@@ -15,13 +16,18 @@ from vertex_edge_ibkr.adapter import (
     LOOPBACK_HOST,
     IbAsyncInformationAdapter,
 )
+from vertex_edge_ibkr.pacing import LineBudget
 from vertex_edge_ibkr.port import (
+    CancellationOutcome,
     ContractSpec,
     GreeksObservation,
+    ProviderError,
+    ProviderSessionStateError,
     QuoteObservation,
     ScannerDefinition,
+    WshEventRequest,
 )
-from vertex_edge_ibkr.state import ConnectionStateMachine
+from vertex_edge_ibkr.state import ConnectionState, ConnectionStateMachine
 
 STOCK = ContractSpec(sec_type="STK", con_id=1001, symbol="SYN", exchange="SMART", currency="USD")
 OPTION = ContractSpec(
@@ -36,8 +42,13 @@ OPTION = ContractSpec(
 
 
 def make_adapter(fake: FakeIB, **overrides) -> IbAsyncInformationAdapter:
+    state = ConnectionStateMachine(rng=random.Random(1))
+    state.begin_connect()
+    state.on_connected()
     values = {
         "ib": fake,
+        "state": state,
+        "manage_connection_state": False,
         "clock": fixed_clock(T1),
         "sleep": instant_sleep,
         "snapshot_timeout_seconds": 0.2,
@@ -74,6 +85,12 @@ def test_default_client_id_is_71_and_loopback() -> None:
     assert adapter is not None
 
 
+def test_connection_state_machine_is_mandatory() -> None:
+    """Aucun mode par défaut ne peut neutraliser silencieusement les fences."""
+    with pytest.raises(TypeError, match="state"):
+        IbAsyncInformationAdapter(ib=FakeIB())  # type: ignore[call-arg]
+
+
 # -- connect: readonly always transmitted -----------------------------------
 
 
@@ -93,7 +110,7 @@ def test_connect_transmits_readonly_true_and_loopback_and_client_id() -> None:
 def test_connect_drives_the_state_machine_epoch() -> None:
     fake = FakeIB()
     state = ConnectionStateMachine(rng=random.Random(1))
-    adapter = make_adapter(fake, state=state)
+    adapter = make_adapter(fake, state=state, manage_connection_state=True)
     asyncio.run(adapter.connect())
     assert state.connection_epoch == 1
     result = snapshot(adapter, STOCK)
@@ -126,6 +143,67 @@ def test_disconnect_does_not_stop_an_externally_managed_state() -> None:
 
     assert state.connection_epoch == 1
     assert state.state.value == "HEALTHY"
+
+
+class _ConnectStatusFakeIB(FakeIB):
+    """Emit one connection-status callback before connectAsync settles."""
+
+    def __init__(self, code: int, *, succeeds: bool) -> None:
+        super().__init__()
+        self.code = code
+        self.succeeds = succeeds
+
+    async def connectAsync(self, **kwargs: Any) -> None:
+        self.connect_calls.append(dict(kwargs))
+        self.errorEvent.emit(-1, self.code, "synthetic connect status")
+        if not self.succeeds:
+            self.connected = False
+            raise OSError("synthetic connect failure")
+        self.connected = True
+
+
+@pytest.mark.parametrize(
+    ("code", "expected_state", "must_refuse"),
+    [
+        (502, ConnectionState.DOWN, True),
+        (1100, ConnectionState.DOWN, True),
+        (1101, ConnectionState.HEALTHY, False),
+        (1102, ConnectionState.RECOVERING, False),
+        (1300, ConnectionState.DOWN, True),
+    ],
+)
+def test_managed_connect_applies_in_flight_status_after_transport_success(
+    code: int,
+    expected_state: ConnectionState,
+    must_refuse: bool,
+) -> None:
+    """A callback during connect is serialized; it never double-drives CONNECTING."""
+    fake = _ConnectStatusFakeIB(code, succeeds=True)
+    state = ConnectionStateMachine(rng=random.Random(1))
+    adapter = make_adapter(fake, state=state, manage_connection_state=True)
+
+    if must_refuse:
+        with pytest.raises(ProviderSessionStateError):
+            asyncio.run(adapter.connect())
+    else:
+        asyncio.run(adapter.connect())
+
+    assert state.state is expected_state
+
+
+@pytest.mark.parametrize("code", [502, 1100, 1101, 1102, 1300])
+def test_managed_connect_preserves_transport_failure_after_in_flight_status(
+    code: int,
+) -> None:
+    """The original connect failure wins, while every status ordering ends DOWN."""
+    fake = _ConnectStatusFakeIB(code, succeeds=False)
+    state = ConnectionStateMachine(rng=random.Random(1))
+    adapter = make_adapter(fake, state=state, manage_connection_state=True)
+
+    with pytest.raises(OSError, match="synthetic connect failure"):
+        asyncio.run(adapter.connect())
+
+    assert state.state is ConnectionState.DOWN
 
 
 # -- sentinels: -1/NaN stay None, never zero --------------------------------
@@ -331,9 +409,7 @@ def test_any_missing_risk_field_degrades_to_partial(missing: str) -> None:
     """Each of the five risk fields is required: losing one degrades the whole."""
     computation = {"impliedVol": 0.31, "delta": 0.55, "gamma": 0.04, "vega": 0.12, "theta": -0.05}
     del computation[missing]
-    ticker = FakeTicker(
-        bid=1.0, ask=1.2, last=1.1, modelGreeks=FakeComputation(**computation)
-    )
+    ticker = FakeTicker(bid=1.0, ask=1.2, last=1.1, modelGreeks=FakeComputation(**computation))
     assert greeks_envelope(ticker).quality_status is EnvelopeQuality.PARTIAL
 
 
@@ -380,6 +456,111 @@ def test_snapshot_cancels_even_on_timeout_with_empty_ticker() -> None:
     result = snapshot(make_adapter(fake), STOCK)
     assert result.cancelled is True
     assert len(fake.cancellations) == 1
+
+
+def test_snapshot_quarantines_line_and_registry_when_provider_cancel_fails() -> None:
+    """Une annulation incertaine reste comptée jusqu'à la fermeture de session."""
+
+    class CancelFailureFakeIB(FakeIB):
+        def cancelMktData(self, contract: Any) -> bool:
+            super().cancelMktData(contract)
+            raise OSError("annulation synthétique impossible")
+
+    budget = LineBudget(10, hard_cap=8)
+    fake = CancelFailureFakeIB(ticker=FakeTicker(bid=1.0, ask=1.1, last=1.05))
+    adapter = make_adapter(fake, line_budget=budget)
+
+    result = snapshot(adapter, STOCK)
+
+    assert result.cancellation_outcome is CancellationOutcome.FAILED
+    assert budget.in_use == 1
+    assert adapter.pending_subscription_count == 1
+
+    asyncio.run(adapter.disconnect())
+    assert budget.in_use == 0
+    assert adapter._subscriptions == {}
+
+
+def test_snapshot_cancel_false_then_retry_true_releases_exactly_once() -> None:
+    """NOT_FOUND ne libère rien ; seul le retry confirmé rend le slot."""
+
+    class RetryCancelFakeIB(FakeIB):
+        def __init__(self) -> None:
+            super().__init__(ticker=FakeTicker(bid=1.0, ask=1.1, last=1.05))
+            self.outcomes = iter((False, True))
+
+        def cancelMktData(self, contract: Any) -> bool:
+            self.cancellations.append(contract)
+            return next(self.outcomes)
+
+    budget = LineBudget(10, hard_cap=8)
+    adapter = make_adapter(RetryCancelFakeIB(), line_budget=budget)
+
+    result = snapshot(adapter, STOCK)
+    assert result.cancellation_outcome is CancellationOutcome.NOT_FOUND
+    assert budget.in_use == 1
+    assert adapter.pending_subscription_count == 1
+
+    retried = asyncio.run(adapter.cancel_subscription(result.subscription_id))
+    assert retried is CancellationOutcome.CANCELLED
+    assert budget.in_use == 0
+    assert adapter.pending_subscription_count == 0
+
+
+def test_snapshot_preserves_primary_provider_error_when_cleanup_fails() -> None:
+    """Une panne de nettoyage ne requalifie jamais une erreur d'entitlement."""
+
+    class PrimaryFailureFakeIB(FakeIB):
+        def reqMktData(self, *args: Any, **kwargs: Any) -> FakeTicker:
+            raise ProviderError(354, "refus synthétique")
+
+        def cancelMktData(self, contract: Any) -> bool:
+            raise OSError("nettoyage synthétique impossible")
+
+    budget = LineBudget(10, hard_cap=8)
+    adapter = make_adapter(PrimaryFailureFakeIB(), line_budget=budget)
+
+    with pytest.raises(ProviderError) as captured:
+        snapshot(adapter, STOCK)
+
+    assert captured.value.code == 354
+    assert adapter.pending_subscription_count == 1
+    assert budget.in_use == 1
+    asyncio.run(adapter.disconnect())
+
+
+def test_snapshot_preserves_cancelled_error_when_cleanup_fails() -> None:
+    """L'annulation de tâche reste le signal primaire, jamais une OSError secondaire."""
+
+    class TaskCancellationFakeIB(FakeIB):
+        def reqMktData(self, *args: Any, **kwargs: Any) -> FakeTicker:
+            raise asyncio.CancelledError
+
+        def cancelMktData(self, contract: Any) -> bool:
+            raise OSError("nettoyage synthétique impossible")
+
+    adapter = make_adapter(TaskCancellationFakeIB())
+
+    with pytest.raises(asyncio.CancelledError):
+        snapshot(adapter, STOCK)
+
+    assert adapter.pending_subscription_count == 1
+    asyncio.run(adapter.disconnect())
+
+
+def test_identifier_failure_happens_before_line_acquisition() -> None:
+    budget = LineBudget(10, hard_cap=8)
+
+    def fail_identifier() -> str:
+        raise RuntimeError("identifiant synthétique impossible")
+
+    adapter = make_adapter(FakeIB(), line_budget=budget, event_id_factory=fail_identifier)
+
+    with pytest.raises(RuntimeError, match="identifiant synthétique impossible"):
+        snapshot(adapter, STOCK)
+
+    assert budget.in_use == 0
+    assert adapter.pending_subscription_count == 0
 
 
 def test_provider_errors_during_subscription_are_reported() -> None:
@@ -445,3 +626,174 @@ def test_empty_news_provider_list_is_a_real_answer_but_a_missing_one_is_not() ->
 
     missing = asyncio.run(make_adapter(FakeIB(providers=None)).news_providers())
     assert missing.quality_status is EnvelopeQuality.INSUFFICIENT_DATA
+
+
+# -- the provider-status journal fences every information family -----------
+
+
+_GLOBAL_METHODS = (
+    ("server_time", "reqCurrentTimeAsync", T1),
+    ("qualification", "qualifyContractsAsync", "arguments"),
+    ("option_chain", "reqSecDefOptParamsAsync", ()),
+    ("historical_bars", "reqHistoricalDataAsync", ()),
+    ("scanner", "reqScannerDataAsync", ()),
+    ("news_providers", "reqNewsProvidersAsync", ()),
+    ("news_headlines", "reqHistoricalNewsAsync", ()),
+    ("news_article", "reqNewsArticleAsync", None),
+    ("wsh", "getWshEventDataAsync", "[]"),
+)
+
+
+async def _call_global_method(adapter: IbAsyncInformationAdapter, operation: str) -> Any:
+    if operation == "server_time":
+        return await adapter.server_time()
+    if operation == "qualification":
+        return await adapter.qualify_contracts(STOCK)
+    if operation == "option_chain":
+        return await adapter.sec_def_opt_params(STOCK)
+    if operation == "historical_bars":
+        return await adapter.historical_bars(STOCK)
+    if operation == "scanner":
+        return await adapter.scanner_run(
+            ScannerDefinition(
+                instrument="STK",
+                location_code="STK.US.MAJOR",
+                scan_code="TOP_PERC_GAIN",
+            )
+        )
+    if operation == "news_providers":
+        return await adapter.news_providers()
+    if operation == "news_headlines":
+        return await adapter.news_headlines(1001, ("SYN",))
+    if operation == "news_article":
+        return await adapter.news_article("SYN", "article-1")
+    if operation == "wsh":
+        return await adapter.wsh_events(WshEventRequest(con_id=1001))
+    raise AssertionError(f"unknown synthetic operation: {operation}")
+
+
+@pytest.mark.parametrize("status_code", [502, 1100])
+@pytest.mark.parametrize(("operation", "provider_method", "response"), _GLOBAL_METHODS)
+def test_global_information_result_is_rejected_when_status_changes_in_flight(
+    operation: str,
+    provider_method: str,
+    response: Any,
+    status_code: int,
+) -> None:
+    """No family may return evidence captured across a provider-status edge."""
+    fake = FakeIB()
+    state = ConnectionStateMachine(rng=random.Random(1))
+    adapter = make_adapter(fake, state=state, manage_connection_state=True)
+    asyncio.run(adapter.connect())
+    provider_calls = 0
+
+    async def emit_status(*args: Any, **_kwargs: Any) -> Any:
+        nonlocal provider_calls
+        provider_calls += 1
+        fake.errorEvent.emit(-1, status_code, "synthetic in-flight status")
+        if response == "arguments":
+            return list(args)
+        return response
+
+    setattr(fake, provider_method, emit_status)
+
+    with pytest.raises(ProviderSessionStateError):
+        asyncio.run(_call_global_method(adapter, operation))
+
+    assert provider_calls == 1
+    assert state.state is ConnectionState.DOWN
+
+
+class _RecoveringSnapshotFakeIB(FakeIB):
+    """Script status and real ticker-update callbacks by subscription number."""
+
+    def __init__(self) -> None:
+        super().__init__(ticker=FakeTicker(bid=1.0, ask=1.1, last=1.05))
+        self.snapshot_number = 0
+        self.pending_update_on: set[int] = set()
+
+    def reqMktData(
+        self,
+        contract: Any,
+        genericTickList: str = "",
+        snapshot: bool = False,
+        regulatorySnapshot: bool = False,
+    ) -> FakeTicker:
+        ticker = super().reqMktData(
+            contract,
+            genericTickList=genericTickList,
+            snapshot=snapshot,
+            regulatorySnapshot=regulatorySnapshot,
+        )
+        self.snapshot_number += 1
+        if self.snapshot_number == 1:
+            self.errorEvent.emit(-1, 1100, "synthetic connectivity lost", contract)
+            self.errorEvent.emit(-1, 1102, "synthetic data maintained", contract)
+        if self.snapshot_number in self.pending_update_on:
+            self.pendingTickersEvent.emit((ticker,))
+        return ticker
+
+
+def test_recovery_requires_a_later_valid_ticker_callback_for_the_exact_snapshot() -> None:
+    """Prefilled or partial fields cannot heal 1100 -> 1102 without new evidence."""
+    fake = _RecoveringSnapshotFakeIB()
+    state = ConnectionStateMachine(rng=random.Random(1))
+    adapter = make_adapter(fake, state=state, manage_connection_state=True)
+    asyncio.run(adapter.connect())
+
+    # The first request was already fully populated, but crossed 1100 -> 1102
+    # in flight: its apparent result belongs to no admissible stable interval.
+    with pytest.raises(ProviderSessionStateError):
+        snapshot(adapter, STOCK)
+    assert state.state is ConnectionState.RECOVERING
+
+    # Reading the same already-populated object again is not a provider update.
+    with pytest.raises(ProviderSessionStateError, match="later VALID market update"):
+        snapshot(adapter, STOCK)
+    assert state.state is ConnectionState.RECOVERING
+
+    # A real callback is necessary but not sufficient when the resulting
+    # evidence remains partial.
+    fake.ticker.ask = NAN
+    fake.ticker.last = NAN
+    fake.pending_update_on.add(3)
+    with pytest.raises(ProviderSessionStateError, match="later VALID market update"):
+        snapshot(adapter, STOCK)
+    assert state.state is ConnectionState.RECOVERING
+
+    # Only a later callback carrying a complete valid quote heals the session.
+    fake.ticker.ask = 1.1
+    fake.ticker.last = 1.05
+    fake.pending_update_on.add(4)
+    result = snapshot(adapter, STOCK)
+
+    assert result.quote() is not None
+    assert result.envelopes[0].quality_status is EnvelopeQuality.VALID
+    assert state.state is ConnectionState.HEALTHY
+
+
+# -- schéma d'une cotation INSTANTANÉE (L1, mesuré le 2026-09-03) -----------
+
+
+def test_une_cotation_instantanee_ne_porte_PAS_le_schema_des_cotations_quotidiennes() -> None:
+    """Un carnet haut à 11 h 27 n'est pas une clôture de séance.
+
+    Mesuré le 2026-09-03 sur la base réelle : dans la fenêtre de 72 h, 3197
+    lignes `ibkr.daily-quote/1` SANS `ticker` ni `trading_day` — les cotations
+    temps réel des 8 indices, une par instrument et par cycle de 60 s — contre
+    323 vraies cotations quotidiennes. La page Marchés chargeait les 500 plus
+    récentes : 495 instantanées, 5 quotidiennes, 0 ticker couvert.
+
+    Le schéma des cotations QUOTIDIENNES (`ibkr.daily-quote/1`) est réservé à
+    la dérivation d'une barre quotidienne (`normalize.daily_quote_envelopes`).
+    Une `QuoteObservation` porte son propre schéma, que le worker ne prend pas
+    pour une cotation quotidienne ; l'identité fournisseur ne bouge pas.
+    """
+    from vertex_worker.markets import is_daily_quote_schema
+
+    result = snapshot(make_adapter(FakeIB()), STOCK)
+    quote_env = next(e for e in result.envelopes if isinstance(e.payload, QuoteObservation))
+    assert quote_env.schema_version == "ibkr.quote/1"
+    assert not is_daily_quote_schema(quote_env.schema_version)
+    assert quote_env.source == "ibkr"
+    assert quote_env.instrument_id == str(STOCK.con_id)

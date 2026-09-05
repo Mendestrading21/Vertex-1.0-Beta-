@@ -24,10 +24,30 @@ export const color = {
   'border-soft': 'rgba(231, 224, 207, 0.07)',
   'border': 'rgba(231, 224, 207, 0.12)',
   'border-strong': 'rgba(231, 224, 207, 0.21)',
+  /**
+   * LA FRONTIÈRE D'UN CHAMP DE SAISIE — 3:1, PARCE QUE C'EST UNE EXIGENCE.
+   *
+   * WCAG 1.4.11 traite la limite d'un composant d'interface comme une
+   * information : sans elle, on ne sait pas où commence le champ ni jusqu'où
+   * on peut cliquer. Les champs portaient `border-soft`, mesuré à 1,14:1 sur
+   * leur fond — la frontière était invisible, et un formulaire de simulateur
+   * occupe autant de place que les modules qu'il sert.
+   *
+   * 0,40 est le plus petit alpha qui tient 3:1 sur les SIX fonds de lecture ;
+   * le pire cas est le fond de survol, à 3,03:1. Plus clair, la bordure
+   * deviendrait un trait de dessin ; plus sombre, elle redeviendrait une
+   * suggestion.
+   */
+  'border-field': 'rgba(231, 224, 207, 0.4)',
   'grid-line': 'rgba(231, 224, 207, 0.045)',
   'text': '#f6f2e8',
   'text-secondary': '#b8b0a0',
-  'text-muted': '#948c7d',
+  // LOT V1 — relevé de `#948c7d`, qui donnait 4,35:1 sur `hover` : SOUS le
+  // seuil AA, et précisément là où il compte. Ce jeton porte les métadonnées À
+  // L'INTÉRIEUR des cartes, donc sur leur état de survol. +3 par canal suffit
+  // (4,52:1), garde la teinte, et laisse 1,49 d'écart avec `text-secondary` :
+  // les deux rôles restent distincts. Mesuré par `contrast.test.ts`.
+  'text-muted': '#978f80',
   'silver': '#d8d3c7',
   'titanium': '#aaa497',
   'titanium-soft': 'rgba(216, 211, 199, 0.1)',
@@ -41,19 +61,106 @@ export const color = {
   'signal-deep': '#765319',
   'signal-soft': 'rgba(215, 169, 74, 0.15)',
   'signal-faint': 'rgba(215, 169, 74, 0.065)',
+  // Deux crans de tension SUPPLÉMENTAIRES, pour les échelles à bandes servies
+  // (matrice de corrélation) : `-soft` et `-faint` ne se distinguaient pas à
+  // l'œil sur une cellule de tableau (mesuré sur capture, planche §9), et une
+  // bande invisible ne porte plus l'information qu'elle nomme.
+  'signal-strong': 'rgba(215, 169, 74, 0.3)',
   'positive': '#50c992',
   'positive-soft': 'rgba(80, 201, 146, 0.12)',
   'negative': '#ef6f6c',
   'negative-soft': 'rgba(239, 111, 108, 0.12)',
-  'warning': '#f0c36a',
-  'warning-soft': 'rgba(240, 195, 106, 0.12)',
+  // ÉCHELLE DIVERGENTE À BORNES DÉCLARÉES — trois crans par signe.
+  //
+  // POURQUOI ELLE EXISTE. La carte des marchés peignait ses tuiles avec la
+  // teinte PLEINE : un +0,9 % et un +2,4 % recevaient exactement le même vert.
+  // La couleur occupait donc toute la surface sans rien mesurer — l'inverse de
+  // la deuxième loi de composition (« la couleur est une mesure ») — et une
+  // planche entière de blocs saturés relève de l'esthétique de casino que
+  // l'identité interdit nommément.
+  //
+  // POURQUOI DES BORNES FIXES, ET PAS UN MIN/MAX DES DONNÉES. Normaliser sur
+  // l'étendue observée serait un calcul local : la même valeur changerait de
+  // couleur selon ses voisines, et deux captures ne seraient plus comparables.
+  // Les bornes sont donc FIXES, déclarées dans `signedScale.ts`, publiées dans
+  // la légende, et la valeur reste écrite en toutes lettres sur la tuile.
+  //
+  // POURQUOI CES ALPHAS. Composés sur les fonds de lecture, ils gardent le
+  // texte clair au-dessus du seuil AA — `contrast.test.ts` le mesure cran par
+  // cran, et c'est le cran le plus dense qui décide.
+  // Les deux familles n'ont PAS les mêmes opacités, et ce n'est pas une
+  // négligence : le vert est intrinsèquement plus clair que le rouge. À
+  // opacité égale il éclaircit davantage son fond, donc il approche plus vite
+  // le texte clair — mesuré, `positive` à 0,55 tombe à 4,15:1 sur le fond de
+  // survol, sous le seuil AA, quand `negative` y tient encore 5,28:1. Les
+  // opacités sont donc réglées pour que les deux côtés soient également
+  // LISIBLES, et non également transparents.
+  'positive-band-1': 'rgba(80, 201, 146, 0.16)',
+  'positive-band-2': 'rgba(80, 201, 146, 0.3)',
+  'positive-band-3': 'rgba(80, 201, 146, 0.48)',
+  'negative-band-1': 'rgba(239, 111, 108, 0.18)',
+  'negative-band-2': 'rgba(239, 111, 108, 0.36)',
+  'negative-band-3': 'rgba(239, 111, 108, 0.6)',
+  // LOT V2 — RÉSERVE 3 D'ADR-017, ENFIN TRANCHÉE.
+  //
+  // `warning` valait `#f0c36a` et `signal-bright` vaut `#f2c76b` : ΔE = 1,9,
+  // soit la MÊME couleur. Le même jaune disait « attention à ceci » et « voici
+  // la lumière de la page » — l'exact contraire de « une couleur = une
+  // signification ». La réserve demandait de trancher « avant toute page P » ;
+  // elle ne l'avait jamais été, et `catalog.test.ts` tenait la ligne en
+  // INTERDISANT à toute page de déclarer `warning` comme teinte.
+  //
+  // La prudence quitte donc l'ambre de marque pour une orange franche :
+  // ΔE 26,9 de `signal`, 33,3 de `negative`. Elle ne peut plus être confondue
+  // ni avec la dominante, ni avec le signe négatif — ce qui, dans un produit
+  // financier, était le vrai danger. Contraste minimal mesuré sur les six
+  // fonds de lecture : 5,38:1, au-dessus du seuil AA.
+  'warning': '#e8843a',
+  'warning-soft': 'rgba(232, 132, 58, 0.12)',
   'option': '#a88ae8',
   'option-soft': 'rgba(168, 138, 232, 0.12)',
   'macro': '#6bc5bc',
   'macro-soft': 'rgba(107, 197, 188, 0.12)',
+  'macro-strong': 'rgba(107, 197, 188, 0.28)',
+  // Dégradés de série (ADR-017) : de la teinte sémantique vers SA transparence,
+  // UNIQUEMENT sous une série servie (`SparkFigure`, `MultiSeriesArea`), jamais
+  // un fond de carte. `-gradient-end` est le même triplet à alpha 0 : le fondu
+  // reste dans la famille, il ne va ni vers le noir ni vers une autre teinte.
+  // L'ambre (`signal`) n'a pas de dégradé : il n'est jamais la teinte d'une série.
+  'silver-gradient-start': 'rgba(216, 211, 199, 0.22)',
+  'silver-gradient-end': 'rgba(216, 211, 199, 0)',
+  'positive-gradient-start': 'rgba(80, 201, 146, 0.22)',
+  'positive-gradient-end': 'rgba(80, 201, 146, 0)',
+  'negative-gradient-start': 'rgba(239, 111, 108, 0.22)',
+  'negative-gradient-end': 'rgba(239, 111, 108, 0)',
+  'warning-gradient-start': 'rgba(232, 132, 58, 0.22)',
+  'warning-gradient-end': 'rgba(232, 132, 58, 0)',
+  'option-gradient-start': 'rgba(168, 138, 232, 0.22)',
+  'option-gradient-end': 'rgba(168, 138, 232, 0)',
+  'macro-gradient-start': 'rgba(107, 197, 188, 0.22)',
+  'macro-gradient-end': 'rgba(107, 197, 188, 0)',
   'overlay': 'rgba(3, 3, 2, 0.86)',
   'scrim': 'rgba(3, 3, 2, 0.56)',
 } as const satisfies Record<string, string>;
+
+/**
+ * Teinte sémantique SECONDAIRE par page (ADR-017). Une page déclare UNE famille
+ * dans son catalogue ; l'ambre (`signal`) reste la seule lumière de la
+ * dominante et n'est pas éligible. Chaque clé renvoie à une famille EXISTANTE —
+ * aucune couleur nouvelle : « une couleur = une signification » est préservé,
+ * la teinte garde le sens de sa famille (macro = contexte, option = domaine
+ * options, warning = prudence, retard, synthétique). `positive` et `negative`
+ * restent réservés au signe financier servi : une teinte de page ne bascule
+ * pas selon le signe, elle n'est donc jamais verte ni rouge (revue du lot C0).
+ * Le CSS généré expose `[data-page-accent="<clé>"]` → `--vx-page-accent`,
+ * `--vx-page-accent-soft`, `--vx-page-accent-gradient-start/-end`. Aucune
+ * valeur par défaut : sans déclaration de page, il n'y a pas de teinte.
+ */
+export const pageAccent = {
+  macro: 'macro',
+  option: 'option',
+  warning: 'warning',
+} as const satisfies Record<string, ColorToken>;
 
 /** Espacements — grille 4 px. Clé (valeur px) → `--vx-space-<clé>`. */
 export const space = {
@@ -64,24 +171,44 @@ export const space = {
   20: '20px',
   24: '24px',
   32: '32px',
-  40: '40px',
-  48: '48px',
+  // LOT V1 — `40` et `48` sont retirés : zéro lecture dans tout le produit,
+  // et `tokens-css.test.ts` les EXIGEAIT, figeant deux jetons que personne
+  // n'employait. Un cran s'ajoute le jour où il sert, pas avant.
 } as const satisfies Record<number, string>;
 
-/** Rayons. `pill` est réservé aux badges (docs/05-design/TOKENS.md). */
+/**
+ * Rayons. `pill` est réservé aux badges (docs/05-design/TOKENS.md).
+ *
+ * LOT V1 — `18` valait `'16px'` et `22` valait `'20px'` : la clé mentait, et
+ * l'assertion qui exigeait ces clés protégeait le mensonge. Deux documents
+ * normatifs se contredisaient déjà — « 18 px pour les grandes surfaces »
+ * contre « grande surface : rayon 16 px » — et le jeton donnait raison au
+ * second en portant le nom du premier. Les clés valent maintenant leurs
+ * valeurs ; les quatre consommateurs CSS ont suivi. AUCUN pixel ne change.
+ */
 export const radius = {
   6: '6px',
   10: '10px',
   14: '14px',
-  18: '16px',
-  22: '20px',
+  16: '16px',
+  20: '20px',
   pill: '999px',
 } as const satisfies Record<string | number, string>;
 
-/** Ombres sobres : profondeur, jamais halo lumineux. */
+/**
+ * Ombres sobres : profondeur, jamais halo lumineux.
+ *
+ * `glass` est la profondeur de la CARTE ORDINAIRE (LOT T1) : plus courte et
+ * plus proche que `panel`, qui reste la profondeur d'une planche entière.
+ * Avec `inset` — le liseré clair d'un pixel en haut — elle donne au verre
+ * noir son épaisseur sans aucun halo : une ombre portée et une arête, jamais
+ * une lumière.
+ */
 export const shadow = {
+  // LOT V1 — `floating` retiré : zéro lecture. Aucune surface flottante du
+  // produit ne l'employait, et il était pourtant figé par une assertion.
   panel: '0 20px 52px rgba(0, 0, 0, 0.28)',
-  floating: '0 32px 80px rgba(0, 0, 0, 0.48)',
+  glass: '0 10px 28px rgba(0, 0, 0, 0.34)',
   inset: 'inset 0 1px 0 rgba(255, 255, 255, 0.045)',
 } as const satisfies Record<string, string>;
 
@@ -95,12 +222,20 @@ export const motionDuration = {
   140: '140ms',
   180: '180ms',
   220: '220ms',
+  // ADR-017 : surbrillance UNIQUE d'une valeur dont `snapshot_version` a changé
+  // (`docs/05-design/MOTION_AND_MICROINTERACTIONS.md`, « Valeur mise à jour »,
+  // nom documentaire `--vx-motion-data`). Jamais une transition d'interface.
+  600: '600ms',
 } as const satisfies Record<number, string>;
 
-/** Courbes documentées (docs/05-design/MOTION_AND_MICROINTERACTIONS.md). */
+/**
+ * Courbes documentées (docs/05-design/MOTION_AND_MICROINTERACTIONS.md).
+ *
+ * LOT V1 — `decelerate` retiré : zéro lecture. La courbe reste documentée ;
+ * elle reviendra dans le lot qui l'emploie réellement.
+ */
 export const motionEase = {
   standard: 'cubic-bezier(0.2, 0, 0, 1)',
-  decelerate: 'cubic-bezier(0, 0, 0.2, 1)',
 } as const satisfies Record<string, string>;
 
 /** Plans z nommés — aucune valeur locale arbitraire. */
@@ -128,9 +263,34 @@ export const fontFamily = {
  * conformes AA (docs/05-design/DESIGN_SYSTEM.md).
  */
 export const fontSize = {
+  /**
+   * LE PLANCHER DE L'ÉCHELLE — 11 px, et il est DÉCLARÉ.
+   *
+   * Le CSS portait trente tailles littérales sous le plancher affiché du
+   * système : dix-huit à 10 px, cinq à 10,5 px, six à 11 px, une à 12 px. Le
+   * commentaire de `widgets.css` nommait cette dette et rien ne la gardait —
+   * chaque nouvelle micro-étiquette recopiait le nombre de sa voisine, et
+   * l'échelle typographique cessait d'exister là où le texte est le plus
+   * dense.
+   *
+   * `micro` est réservé aux étiquettes qui ACCOMPAGNENT une valeur — unité,
+   * coiffe, libellé de groupe de navigation — et qui ne portent JAMAIS seules
+   * une information. Une valeur, un statut, un motif d'absence prennent `meta`
+   * au minimum.
+   *
+   * 11 px et non 10 : c'est le plus petit corps où Geist reste lisible sur
+   * fond obsidienne à 100 % de zoom, mesuré sur capture. Une porte refuse
+   * désormais toute taille littérale sous ce plancher.
+   */
+  micro: '11px',
   meta: '13px',
   body: '14px',
-  label: '13px',
+  // LOT V2 — `label` retiré : il valait `'13px'`, exactement comme `meta`, et
+  // ADR-017 interdit l'alias de même valeur. Aucune règle ne permettait de
+  // savoir lequel employer — 199 lectures pour `meta` contre 6 pour `label`,
+  // sur les mêmes pixels. Les six lectures ont rejoint `meta` : AUCUN pixel ne
+  // change. Le jour où un libellé de formulaire mérite sa propre taille, il
+  // reviendra avec une VALEUR à lui, pas avec un second nom pour la même.
   title: '16px',
   display: '22px',
   headline: '28px',
@@ -138,8 +298,4 @@ export const fontSize = {
 } as const satisfies Record<string, string>;
 
 export type ColorToken = keyof typeof color;
-export type SpaceToken = keyof typeof space;
-export type RadiusToken = keyof typeof radius;
-export type ShadowToken = keyof typeof shadow;
-export type MotionDurationToken = keyof typeof motionDuration;
-export type ZIndexToken = keyof typeof zIndex;
+export type PageAccentToken = keyof typeof pageAccent;

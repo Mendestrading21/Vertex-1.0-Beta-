@@ -20,6 +20,7 @@ from vertex_persistence.repository.outbox import enqueue_outbox
 from vertex_persistence.repository.snapshots import get_current_snapshot
 from vertex_worker.errors import HandlerError
 from vertex_worker.handlers import (
+    CONTENT_SCHEMA_PREFIXES,
     POPULATION_SYNTHETIC,
     SNAPSHOT_KEY_GLOBAL,
     SNAPSHOT_KIND_ATTENTION,
@@ -122,6 +123,9 @@ def test_mixed_population_is_labeled_through_the_real_chain(session_factory) -> 
         allowed_sources=frozenset({SYNTHETIC_SOURCE, demo_source}),
         usable_rights=frozenset({SYNTHETIC_RIGHTS, demo_rights}),
         source_tiers={SYNTHETIC_SOURCE: "P4", demo_source: "P3"},
+        # Le consommateur déclare les familles qu'il lit : la famille DEMO
+        # de cette fixture s'ajoute aux familles de contenu du worker.
+        content_schema_prefixes=(*CONTENT_SCHEMA_PREFIXES, "demo-news/"),
     )
     clock = MutableClock(NOW)
     registry = build_registry(clock=clock, fusion_config=config)

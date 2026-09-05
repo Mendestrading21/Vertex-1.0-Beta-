@@ -44,6 +44,21 @@ export default defineConfig({
   reporter: [['list']],
   use: {
     baseURL: WEB_BASE_URL,
+    /*
+      LA CAPTURE DOIT MONTRER CE QUE L'UTILISATEUR VOIT. `index.html` déclare
+      `lang="fr"`, mais un contrôle natif — `<input type="datetime-local">` en
+      tête — ne lit PAS `lang` : il se formate sur la locale du NAVIGATEUR.
+      Chromium démarrait ici en `en-US`, et la capture de Catalyseurs affichait
+      donc `mm/dd/yyyy, --:-- --` dans un produit entièrement français. Le
+      défaut était dans la photo, pas dans le produit ; sans cette ligne, la
+      relecture des captures juge un artefact d'environnement.
+
+      `timezoneId` reste VOLONTAIREMENT non fixé : les instants servis sont en
+      UTC et plusieurs assertions lisent des heures rendues. Changer le fuseau
+      du navigateur déplacerait ces heures sans rien prouver sur l'identité
+      visuelle.
+    */
+    locale: 'fr-FR',
     ...(executablePath !== undefined ? { launchOptions: { executablePath } } : {}),
   },
   projects: [

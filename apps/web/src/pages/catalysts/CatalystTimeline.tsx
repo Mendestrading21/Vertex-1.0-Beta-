@@ -40,22 +40,13 @@ export function CatalystTimeline({
   onSelect,
 }: CatalystTimelineProps) {
   return (
-    <section
-      className="vx-cat-timeline"
-      /*
-        LA DOMINANTE DE CATALYSEURS. La page demande « quels événements
-        vérifiés peuvent modifier la thèse et quand ? » : c'est cette timeline
-        qui répond. La file de revues portait la dominante ; elle vit pourtant
-        plus bas et répond à une autre question (« quelles thèses doivent être
-        revues »). Une dominante mal placée ne se voit dans aucun test — elle
-        se voit à la question que la page pose.
-      */
-      data-rank="dominant"
-      aria-labelledby="vx-cat-timeline-title"
-    >
-      <h2 id="vx-cat-timeline-title">
-        Timeline — {catalysts.length} événement(s) relié(s)
-      </h2>
+    /*
+      LA DOMINANTE DE CATALYSEURS. La page demande « quels événements
+      vérifiés peuvent modifier la thèse et quand ? » : c'est cette timeline
+      qui répond. LOT-A7 : elle est le CORPS de la carte dominante, portée par
+      la page (planche §10) ; le titre et le rang vivent sur la carte.
+    */
+    <div className="vx-cat-timeline">
       <p className="vx-cat-scope" role="note">
         Ordre publié par le worker, conservé tel quel. Seuls les événements que le snapshot relie à
         une thèse déclarée ou à une position du registre manuel figurent ici ;{' '}
@@ -150,7 +141,11 @@ export function CatalystTimeline({
                   <ul className="vx-cat-theses">
                     {theses.map((thesis, index) => (
                       <li key={`${event.eventId}-${thesis.thesisId ?? index}`}>
-                        <span className="vx-cat-thesis-title">{thesis.title ?? '—'}</span>
+                        <span className="vx-cat-thesis-title">
+                          {thesis.title ?? (
+                            <span className="vx-cell-absent">titre non renseigné</span>
+                          )}
+                        </span>
                         {thesis.status !== null ? <code>{thesis.status}</code> : null}
                         {thesis.knownInQueue ? (
                           <>
@@ -233,9 +228,9 @@ export function CatalystTimeline({
                   </span>
                 ) : null}
                 <span className="vx-cat-provenance">
-                  source {event.source !== null ? <code>{event.source}</code> : '—'} · droit{' '}
-                  {event.rights !== null ? <code>{event.rights}</code> : '—'} · qualité{' '}
-                  {event.quality !== null ? <code>{event.quality}</code> : '—'}
+                  source <code>{event.source ?? 'non publiée'}</code> · droit{' '}
+                  <code>{event.rights ?? 'non publié'}</code> · qualité{' '}
+                  <code>{event.quality ?? 'non publiée'}</code>
                 </span>
               </div>
             </li>
@@ -249,6 +244,6 @@ export function CatalystTimeline({
         consensus n'existe dans le contrat d'agenda publié : il est donc ABSENT, pas approximé.
         Catégories couvertes par le libellé : {Object.keys(CATEGORY_LABELS).length}.
       </p>
-    </section>
+    </div>
   );
 }

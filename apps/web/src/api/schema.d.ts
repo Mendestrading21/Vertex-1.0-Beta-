@@ -1101,13 +1101,19 @@ export interface components {
          *       ``AdviceEngine`` — status, direction, the ten gates with their reason
          *       codes, limitations — exactly as published; the API neither recomputes
          *       nor softens it;
-         *     - ``bars`` carries the validated synthetic OHLCV series (decimal
-         *       strings) with its per-bar discard account;
+         *     - ``bars`` carries the admitted, validated OHLCV series (decimal strings)
+         *       with its per-bar discard account; its observation may belong to a
+         *       ``REAL`` or ``SYNTHETIC`` population, relayed separately;
          *     - ``indicators`` carries the technical indicators computed by the
-         *       approved engine (``market.realized_volatility``, ``market.atr``), each
+         *       approved engine (``market.realized_volatility``, ``market.atr``,
+         *       ``market.relative_strength`` against the declared benchmark), each
          *       with its ``CalculationRecord`` lineage — or a NAMED absence
          *       (``INSUFFICIENT_SAMPLE``) when the declared window exceeds the
-         *       available history. No interpretation is published: a value, never a
+         *       available history. Each block also carries its rolling ``series``
+         *       (LOT S3): one rendered value per served session with a complete
+         *       window (decimal strings, same status vocabulary, same method, own
+         *       lineage), relayed verbatim — the interface plots what it receives and
+         *       computes nothing. No interpretation is published: a value, never a
          *       level, a regime or a signal;
          *     - ``evidence`` is the fusion-cluster rail of the instrument;
          *     - ``scenarios`` is either the ``THEORETICAL`` scenario grid with its
@@ -1118,7 +1124,8 @@ export interface components {
          *     a dépassé son budget de fraîcheur (daily_bar) : le worker n'a rien
          *     publié de plus récent. ``age_seconds`` est publié dans TOUS les états
          *     datables — son absence faisait passer un instantané de trois jours
-         *     pour un instantané d'une minute.
+         *     pour un instantané d'une minute. ``freshness_policy`` publie le budget
+         *     contre lequel cet âge est jugé (``FreshnessPolicyView``).
          */
         AnalysisResponse: {
             /** Advice */
@@ -1143,6 +1150,7 @@ export interface components {
             evidence: {
                 [key: string]: unknown;
             } | null;
+            freshness_policy: components["schemas"]["FreshnessPolicyView"] | null;
             /** Indicators */
             indicators: {
                 [key: string]: unknown;
@@ -1213,7 +1221,8 @@ export interface components {
          *     a dépassé son budget de fraîcheur (news_attention) : le worker n'a rien
          *     publié de plus récent. ``age_seconds`` est publié dans TOUS les états
          *     datables — son absence faisait passer un instantané de trois jours
-         *     pour un instantané d'une minute.
+         *     pour un instantané d'une minute. ``freshness_policy`` publie le budget
+         *     contre lequel cet âge est jugé (``FreshnessPolicyView``).
          */
         AttentionSnapshotResponse: {
             /** Age Seconds */
@@ -1224,6 +1233,7 @@ export interface components {
             coverage: {
                 [key: string]: unknown;
             } | null;
+            freshness_policy: components["schemas"]["FreshnessPolicyView"] | null;
             /** Items */
             items: components["schemas"]["AttentionItem"][];
             /** Population */
@@ -1287,8 +1297,17 @@ export interface components {
          *     non-ok state carries its ``reason``: an empty agenda never passes for a
          *     success, and a relayed ``fresh`` flag is recomputed against the server
          *     clock — never a frozen boolean.
+         *
+         *     ``age_seconds`` est publié dans TOUS les états datés et
+         *     ``freshness_policy`` porte l'échelle qui le juge : le relais mesurait déjà
+         *     cet âge — il nommait même son budget dans la raison ``stale`` — sans le
+         *     servir, donc un agenda de vingt heures était indiscernable d'un agenda
+         *     d'une minute tant que le budget tenait. Sans instantané publié l'âge est
+         *     ``null`` (il n'existe pas) ; le budget, propriété de la route, reste servi.
          */
         CalendarResponse: {
+            /** Age Seconds */
+            age_seconds: number | null;
             /** Agenda */
             agenda: {
                 [key: string]: unknown;
@@ -1303,6 +1322,7 @@ export interface components {
             coverage: {
                 [key: string]: unknown;
             } | null;
+            freshness_policy: components["schemas"]["FreshnessPolicyView"] | null;
             /** Importance Rule */
             importance_rule: {
                 [key: string]: unknown;
@@ -1571,6 +1591,7 @@ export interface components {
             content: {
                 [key: string]: unknown;
             } | null;
+            freshness_policy: components["schemas"]["FreshnessPolicyView"] | null;
             /** Reason */
             reason: string | null;
             /** Snapshot Version */
@@ -1580,6 +1601,37 @@ export interface components {
              * @enum {string}
              */
             state: "ok" | "stale" | "empty";
+        };
+        /**
+         * FreshnessPolicyView
+         * @description Coordonnées SERVEUR de la jauge âge / budget d'une réponse datable.
+         *
+         *     ``budget_seconds`` est le TTL de SÉANCE FERMÉE de la politique du registre
+         *     (`vertex_core.data.freshness`) qui borne le relais — la même valeur, du
+         *     même propriétaire (`vertex_api.freshness.closed_session_budget`), que
+         *     celle nommée dans la raison ``stale``. ``kind`` est le NOM de cette
+         *     politique, c'est-à-dire la famille d'observation la plus fraîche dont
+         *     l'instantané peut être issu (``daily_bar``, ``news_attention``,
+         *     ``option_surface``…) — à ne pas confondre avec le ``kind`` d'un
+         *     instantané. ``version`` est la version de la politique : tout changement
+         *     de TTL exige une montée de version, la jauge la porte donc avec elle.
+         *
+         *     Le client pose ``age_seconds`` sur cette échelle et n'invente ni TTL ni
+         *     ratio : publier le budget évite un second registre recopié côté
+         *     interface. Le budget est une propriété de la ROUTE, pas de l'instantané :
+         *     il est servi dans tous les états, ``empty`` compris — sans instantané
+         *     l'âge est ``null`` (il n'existe pas), l'échelle reste connue. Un budget
+         *     nul est refusé à la frontière : c'est la forme qu'une absence prendrait
+         *     si elle était convertie en zéro. Une famille sans budget au registre
+         *     publie ``null`` (matrice de capacités), jamais un TTL inventé.
+         */
+        FreshnessPolicyView: {
+            /** Budget Seconds */
+            budget_seconds: number;
+            /** Kind */
+            kind: string;
+            /** Version */
+            version: string;
         };
         /**
          * GateResult
@@ -1883,6 +1935,13 @@ export interface components {
          *     ``status = "INVALID"`` (coverage below the threshold gate) carries the
          *     typed reason and NO value — a breadth computed on a sliver of the
          *     universe is never presented. All percentages are server-rendered strings.
+         *
+         *     ``above_count`` (advancers), ``down_count`` (decliners) and
+         *     ``flat_count`` (unchanged) are the worker's exact counts over the covered
+         *     instruments and PARTITION ``covered_count`` (up + down + flat = covered);
+         *     they are published in both states, since an INVALID block refuses the
+         *     ratio, not the counted facts. The API relays them verbatim and never
+         *     derives one from the others.
          */
         MarketsBreadth: {
             /** Above Count */
@@ -1899,6 +1958,10 @@ export interface components {
             coverage_threshold_pct: string;
             /** Covered Count */
             covered_count: number;
+            /** Down Count */
+            down_count: number;
+            /** Flat Count */
+            flat_count: number;
             /** Reason */
             reason: string | null;
             /**
@@ -1963,7 +2026,8 @@ export interface components {
          *     a dépassé son budget de fraîcheur (daily_bar) : le worker n'a rien
          *     publié de plus récent. ``age_seconds`` est publié dans TOUS les états
          *     datables — son absence faisait passer un instantané de trois jours
-         *     pour un instantané d'une minute.
+         *     pour un instantané d'une minute. ``freshness_policy`` publie le budget
+         *     contre lequel cet âge est jugé (``FreshnessPolicyView``).
          */
         MarketsOverviewResponse: {
             /** Age Seconds */
@@ -1980,6 +2044,7 @@ export interface components {
             display_unit: string | null;
             /** Engine Version */
             engine_version: string | null;
+            freshness_policy: components["schemas"]["FreshnessPolicyView"] | null;
             /** Population */
             population: string | null;
             /** Reason */
@@ -2100,6 +2165,7 @@ export interface components {
             content: {
                 [key: string]: unknown;
             } | null;
+            freshness_policy: components["schemas"]["FreshnessPolicyView"] | null;
             /** Reason */
             reason: string | null;
             /** Snapshot Version */
@@ -2209,15 +2275,16 @@ export interface components {
          *     ``state = "empty"`` means NO snapshot was ever published for this
          *     underlying: every snapshot-derived field is ``None`` (never invented) and
          *     ``reason`` says why. ``state = "ok"`` relays the persisted content
-         *     verbatim: population (``SYNTHETIC`` shown as-is), the synthetic spot,
-         *     the pricing assumptions, the per-(expiration, trading_class) groups and
-         *     the displayed row budget.
+         *     verbatim: population (``REAL``/``SYNTHETIC`` shown as-is), the published
+         *     spot, the pricing assumptions, the per-(expiration, trading_class) groups
+         *     and the displayed row budget.
          *
          *     ``state = "stale"`` relaie le MÊME contenu, mais dit que l'instantané
          *     a dépassé son budget de fraîcheur (option_surface) : le worker n'a rien
          *     publié de plus récent. ``age_seconds`` est publié dans TOUS les états
          *     datables — son absence faisait passer un instantané de trois jours
-         *     pour un instantané d'une minute.
+         *     pour un instantané d'une minute. ``freshness_policy`` publie le budget
+         *     contre lequel cet âge est jugé (``FreshnessPolicyView``).
          */
         OptionChainResponse: {
             /** Age Seconds */
@@ -2236,6 +2303,7 @@ export interface components {
             engine_version: string | null;
             /** Expirations */
             expirations: components["schemas"]["OptionChainExpiration"][];
+            freshness_policy: components["schemas"]["FreshnessPolicyView"] | null;
             /** Population */
             population: string | null;
             /** Reason */
@@ -2355,6 +2423,7 @@ export interface components {
             content: {
                 [key: string]: unknown;
             } | null;
+            freshness_policy: components["schemas"]["FreshnessPolicyView"] | null;
             /** Portfolio Id */
             portfolio_id: number;
             /** Reason */
@@ -2463,6 +2532,7 @@ export interface components {
             content: {
                 [key: string]: unknown;
             } | null;
+            freshness_policy: components["schemas"]["FreshnessPolicyView"] | null;
             /** Reason */
             reason: string | null;
             /** Snapshot Version */
@@ -2610,6 +2680,7 @@ export interface components {
             content: {
                 [key: string]: unknown;
             } | null;
+            freshness_policy: components["schemas"]["FreshnessPolicyView"] | null;
             /** Reason */
             reason: string | null;
             /** Snapshot Version */
@@ -2623,6 +2694,10 @@ export interface components {
         /**
          * SecFundamentalsResponse
          * @description Official SEC filings and XBRL facts, relayed without financial logic.
+         *
+         *     ``age_seconds`` est publié dans tous les états datables et
+         *     ``freshness_policy`` publie le budget (``fundamental_filing``) contre
+         *     lequel il est jugé (``FreshnessPolicyView``).
          */
         SecFundamentalsResponse: {
             /** Age Seconds */
@@ -2651,6 +2726,7 @@ export interface components {
             filings: {
                 [key: string]: unknown;
             }[];
+            freshness_policy: components["schemas"]["FreshnessPolicyView"] | null;
             /** Identity State */
             identity_state: ("RESOLVED" | "CONFLICTING_IDENTITY" | "ABSENT") | null;
             /** Instrument */
@@ -2864,6 +2940,8 @@ export interface components {
          *     péremption d'une capacité est portée champ par champ par le
          *     ``expires_at`` de la sonde qui l'a établie. Déclarer un budget de relais
          *     pour cette famille inventerait un TTL que le registre ne contient pas.
+         *     ``freshness_policy`` est donc TOUJOURS ``null`` ici : l'absence de budget
+         *     est déclarée telle quelle, jamais convertie en ``budget_seconds = 0``.
          */
         SystemCapabilitiesResponse: {
             /** Age Seconds */
@@ -2877,6 +2955,7 @@ export interface components {
              * Format: date-time
              */
             checked_at: string;
+            freshness_policy: components["schemas"]["FreshnessPolicyView"] | null;
             health: components["schemas"]["SystemHealth"];
             /** Snapshot Version */
             snapshot_version: number | null;

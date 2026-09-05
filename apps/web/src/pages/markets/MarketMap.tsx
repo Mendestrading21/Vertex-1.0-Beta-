@@ -4,14 +4,22 @@ import type { MarketsSector } from '../../api/client.ts';
 import type { EChartsInstance } from '../../charts/echartsLoader.ts';
 import type { SignGroup } from '../../components/markets/marketsView.ts';
 import { flattenTickers, frDecimal, geometryNumber } from '../../components/markets/marketsView.ts';
+import { SIGNED_SCALES, signedStep } from '../../design/signedScale.ts';
 
 /**
  * MarketMap — treemap ECharts secteurs → tickers (dominante de /markets).
  *
  * - taille de tuile = poids global serveur (`weight_global_pct`) ;
- * - couleur = signe du rendement via les TOKENS (positif/négatif/texte
- *   atténué pour stable), jamais la couleur seule : chaque tuile affiche en
- *   texte le ticker ET le rendement signé (« +1,23 % ») ;
+ * - couleur = CRAN de l'échelle divergente à bornes déclarées
+ *   (`design/signedScale.ts`), jamais la couleur seule : chaque tuile affiche
+ *   en texte le ticker ET le rendement signé (« +1,23 % ») ;
+ *
+ *   La carte peignait auparavant la teinte PLEINE selon le seul signe : un
+ *   +0,09 % et un +2,42 % recevaient exactement le même vert. La couleur
+ *   couvrait donc toute la surface sans rien mesurer, et une planche de blocs
+ *   saturés relève de l'esthétique que l'identité proscrit. Les bornes de
+ *   l'échelle sont FIXES et publiées dans la légende : la même valeur donne
+ *   toujours la même couleur, d'un instantané à l'autre ;
  * - moteur importé DYNAMIQUEMENT (chunk séparé, hors bundle initial) ;
  * - `AriaComponent` actif + description courte ; l'équivalence d'accès
  *   complète est la table triable rendue par la page sous la carte ;
@@ -42,25 +50,39 @@ function buildTreemapData(
   sectors: readonly MarketsSector[],
   visibleGroups: ReadonlySet<SignGroup>,
 ): TreemapNode[] {
-  const positive = cssToken('--vx-positive');
-  const negative = cssToken('--vx-negative');
-  const neutral = cssToken('--vx-text-muted');
+  // Une tuile sans rendement lisible n'est PAS peinte en gris neutre : elle
+  // prend la surface d'absence, qui ne ressemble à aucun cran de l'échelle.
+  // Peindre une absence comme un zéro les rendrait indiscernables.
+  const absente = cssToken('--vx-surface-2');
   return sectors
     .map((sector) => ({
       name: sector.label,
       children: flattenTickers([sector])
         .filter((entry) => visibleGroups.has(entry.group))
-        .map((entry) => ({
+        // Une tuile dont le POIDS ne se lit pas n'a pas de surface : la
+        // dessiner à zéro la rendrait invisible tout en la comptant, et
+        // l'écarter en silence changerait la population sans le dire. Elle est
+        // donc retirée de la carte, et la table équivalente rendue sous la
+        // figure — qui, elle, porte la chaîne servie telle quelle — reste la
+        // référence complète.
+        .map((entry) => {
+          const poids = geometryNumber(entry.ticker.weight_global_pct);
+          if (poids === null) {
+            return null;
+          }
+          const cran = signedStep(geometryNumber(entry.ticker.return_1d_pct), SIGNED_SCALES.quotidien);
+          return {
           name: entry.ticker.ticker,
-          value: geometryNumber(entry.ticker.weight_global_pct),
+          value: poids,
           itemStyle: {
-            color:
-              entry.group === 'up' ? positive : entry.group === 'down' ? negative : neutral,
+            color: cran === null ? absente : cssToken(`--vx-${cran.token}`),
           },
           label: {
             formatter: `${entry.ticker.ticker}\n${frDecimal(entry.ticker.return_1d_pct)} %`,
           },
-        })),
+          };
+        })
+        .filter((feuille): feuille is TreemapLeaf => feuille !== null),
     }))
     .filter((node) => node.children.length > 0);
 }
@@ -70,12 +92,21 @@ export interface MarketMapProps {
   readonly visibleGroups: ReadonlySet<SignGroup>;
   /** Description courte lue par les lecteurs d'écran (résumé serveur). */
   readonly description: string;
+  /**
+   * LOT-A3 : un clic sur une TUILE ouvre l'instrument dans l'inspecteur. La
+   * souris seule ne suffit pas à l'accessibilité — la même sélection existe
+   * au clavier dans la table équivalente et la carte sectorielle.
+   */
+  readonly onSelect?: (ticker: string) => void;
 }
 
-export function MarketMap({ sectors, visibleGroups, description }: MarketMapProps) {
+export function MarketMap({ sectors, visibleGroups, description, onSelect }: MarketMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const chartRef = useRef<EChartsInstance | null>(null);
   const [engineFailed, setEngineFailed] = useState(false);
+  // La dernière fonction de sélection, lue par l'écouteur sans le réabonner.
+  const onSelectRef = useRef(onSelect);
+  onSelectRef.current = onSelect;
 
   useEffect(() => {
     let disposed = false;
@@ -142,7 +173,12 @@ export function MarketMap({ sectors, visibleGroups, description }: MarketMapProp
                 },
                 label: {
                   show: true,
-                  color: cssToken('--vx-black'),
+                  // Texte CLAIR : les crans sont translucides sur fond
+                  // obsidienne, donc sombres. Un texte noir y était lisible
+                  // tant que la teinte était pleine ; il ne l'est plus.
+                  // `contrast.test.ts` mesure le texte clair sur chaque cran
+                  // et sur chaque fond de lecture.
+                  color: cssToken('--vx-text'),
                   // Ticker et rendement : « mono/tabular pour prix, dates,
                   // unités et codes ». Une tuile porte les deux.
                   fontFamily: cssToken('--vx-font-mono'),
@@ -166,6 +202,16 @@ export function MarketMap({ sectors, visibleGroups, description }: MarketMapProp
           },
           true,
         );
+        // Seule une FEUILLE (un ticker servi) est sélectionnable : le nom d'un
+        // nœud de secteur n'ouvre rien. La liste des tickers vient du snapshot.
+        const tickers = new Set(flattenTickers(sectors).map((entry) => entry.ticker.ticker));
+        chart.off('click');
+        chart.on('click', (params: { readonly name?: string }) => {
+          const name = params.name;
+          if (typeof name === 'string' && tickers.has(name)) {
+            onSelectRef.current?.(name);
+          }
+        });
         resizeObserver = new ResizeObserver(() => {
           chartRef.current?.resize();
         });
@@ -205,10 +251,29 @@ export function MarketMap({ sectors, visibleGroups, description }: MarketMapProp
         aria-label={description}
         data-testid="marketmap-canvas"
       />
+      {/*
+        LA LÉGENDE PUBLIE LES BORNES, et c'est ce qui rend l'échelle honnête.
+        Sans elle, une teinte plus soutenue signifierait « plus » sans dire
+        combien — une gradation décorative. Avec elle, un lecteur sait qu'un
+        bloc soutenu est au-dessus de deux pour cent, et il peut le vérifier
+        sur la tuile, qui porte le chiffre.
+      */}
+      <ul
+        className="vx-marketmap-scale"
+        aria-label={`Échelle de couleur — ${SIGNED_SCALES.quotidien.mesure}`}
+      >
+        {SIGNED_SCALES.quotidien.steps.map((cran) => (
+          <li key={cran.key}>
+            <span className="vx-marketmap-swatch" data-step={cran.key} aria-hidden="true" />
+            {cran.label}
+          </li>
+        ))}
+      </ul>
       <figcaption className="vx-marketmap-caption">
-        Taille de tuile = poids global (%) ; texte de tuile = ticker et
-        rendement 1 j signé. La table ci-dessous contient exactement les mêmes
-        valeurs.
+        Taille de tuile = poids global (%) ; couleur = cran de rendement 1 j à
+        bornes fixes, identiques d'un instantané à l'autre ; texte de tuile =
+        ticker et rendement 1 j signé. La table ci-dessous contient exactement
+        les mêmes valeurs.
       </figcaption>
     </figure>
   );

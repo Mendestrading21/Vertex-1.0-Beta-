@@ -43,8 +43,13 @@ describe('SourceHealthMatrix', () => {
     for (const cell of table.querySelectorAll('tbody td, tbody th')) {
       expect(cell.textContent?.trim()).not.toBe('');
     }
-    expect(screen.getAllByLabelText('jamais sondé').length).toBeGreaterThan(0);
-    expect(screen.getAllByLabelText('aucune raison fournie').length).toBeGreaterThan(0);
+    // LOT T4-7 — « jamais sondé » est un FAIT servi (`tested_at === null`
+    // signifie qu'aucune sonde n'a tourné), pas une absence de publication :
+    // il se lit en toutes lettres, sans glyphe à expliquer.
+    expect(screen.getAllByText('jamais sondé').length).toBeGreaterThan(0);
+    // La raison, elle, EST une absence de publication : glyphe dense + nom
+    // accessible qui nomme le champ manquant.
+    expect(screen.getAllByLabelText('raison non publiée').length).toBeGreaterThan(0);
   });
 
   it('badges de statut : icône aria-hidden + texte visible du contrat', () => {
@@ -91,9 +96,18 @@ describe('SourceHealthMatrix', () => {
     const combined = entries.filter(
       (entry) => entry.family === 'not_provided_by_source' && entry.tested_status === 'AVAILABLE',
     );
-    expect(bodyRows()).toHaveLength(combined.length);
     if (combined.length === 0) {
+      /*
+        L'ASSERTION EST PLUS FORTE QU'AVANT, PAS PLUS FAIBLE. Elle exigeait une
+        table à zéro ligne ; `DataTable` n'en rend AUCUNE et nomme l'absence à
+        la place. Un en-tête seul au-dessus du vide laissait le lecteur devant
+        une table sans lignes, sans lui dire pourquoi. On vérifie donc les deux
+        choses : plus de table du tout, et le message honnête présent.
+      */
+      expect(screen.queryByRole('table')).toBeNull();
       expect(screen.getByText(/Aucune capacité ne correspond aux filtres actifs/)).toBeDefined();
+    } else {
+      expect(bodyRows()).toHaveLength(combined.length);
     }
   });
 });

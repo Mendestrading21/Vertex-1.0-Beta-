@@ -83,24 +83,65 @@ mesure. Aucune définition de page n'a été modifiée.
 5. **Une redirection permanente remplace chaque route retirée**, pour ne pas
    casser un signet ou un lien profond existant.
 
-## Pourquoi Graphiques et Risques ne sont toujours pas créées
+## Graphiques et Risques — de « pas créées » à créées
+
+**Mise à jour du 2026-09-02.** Les deux destinations existent désormais ; le
+raisonnement du 2026-09-01 qui suit est conservé comme trace, parce qu'il dit
+pourquoi elles n'ont PAS été créées en façade.
+
+- **Risques (§9)** a été installée le 2026-09-01 en CRÉANT son contrat :
+  `risk.correlation` au registre des calculs, snapshot `risk_matrix/global`,
+  relais `GET /api/v1/risk/matrix`.
+- **Graphiques (§8)** a été installée le 2026-09-02 (LOT-A2, `TL / 08`) SANS
+  nouveau contrat, et sans façade : la planche est rendue en entier, module
+  par module, et chaque module y est soit **servi**, soit **déclaré absent**
+  avec un motif du vocabulaire fermé d'`AbsentModule` (article 17 de la
+  Constitution). Sa dominante — l'espace graphique, chandeliers + volume + table
+  OHLCV équivalente — lit le **même DTO, par le même client, avec le même
+  composant** que `/analysis`. Ce n'est pas un second propriétaire de donnée :
+  le propriétaire est le contrat `GET /api/v1/analysis/{instrument}`, et la
+  page ne recalcule rien. Ce que `/analysis` porte en propre (verdict, gates,
+  preuves, scénarios, explication) n'y est pas repris.
+
+  Les neuf modules sans source au 2026-09-02, et leur motif mesuré (état
+  serveur mis à jour le 2026-09-03 pour les overlays et oscillateurs) :
+
+  | Module | Motif | Ce qui manque exactement |
+  |---|---|---|
+  | Comparaison base 100 | `CONTRAT SERVEUR ABSENT` | `market.rebased_series` est approuvé au registre et implémenté dans `vertex_core`, mais **aucun snapshot ni aucune route ne le relaie** |
+  | Graphiques synchronisés | `CONTRAT SERVEUR ABSENT` | aucun contrat d'alignement de plusieurs séries sur un calendrier commun |
+  | Overlays (moyennes mobiles), RSI, MACD | `AUCUNE SOURCE` côté page → **source serveur depuis le lot S6 (2026-09-03)** | `market.sma`, `market.ema`, `market.bollinger_bands`, `market.rsi`, `market.macd` sont approuvés au registre, implémentés dans `vertex_core` et publiés par le worker dans `indicators.overlays` / `indicators.oscillators` du snapshot `analysis/{instrument}` (chaînes rendues alignées sur leurs jours de bourse, fenêtres déclarées, noms des bandes et des lignes, `INSUFFICIENT_SAMPLE` nommé avec le compte réel), relayés tels quels par `GET /api/v1/analysis/{instrument}` ; la page les déclare encore absents — les brancher est un lot d'interface, sans calcul |
+  | Objet sélectionné, Alertes liées, Agencement, Études sauvegardées | `DÉCISION EN ATTENTE` | données ou préférences **utilisateur** persistées ; propriétaire et contrat non tranchés (« Alertes » est une capacité globale, pas un module de page) |
+
+  Brancher la comparaison est donc un lot **serveur** — producteur et relais de
+  `market.rebased_series` — et non un lot d'interface. Le calculer dans le
+  navigateur reste interdit (`.claude/rules/frontend.md`).
+
+Le contrat OpenAPI compte trente-deux routes au 2026-09-02, dont
+`/api/v1/risk/matrix` ; aucune ne se nomme `charts`, et c'est cohérent : la
+page n'a pas de contrat propre, elle affiche celui d'Analyse sous sa question.
+
+### Trace du 2026-09-01 — pourquoi ni l'une ni l'autre n'a été créée en façade
 
 Mesuré le 2026-09-01, pas supposé. Catalyseurs a montré qu'une destination
 « sans contrat » pouvait en fait être constructible depuis des contrats déjà
 servis ; la même vérification a donc été refaite pour les deux dernières.
 
-Les trente routes du contrat OpenAPI ne comportent **ni `charts` ni `risks`**.
-La question est alors : ces pages sont-elles assemblables depuis l'existant,
-comme Catalyseurs l'était ?
+Les trente routes du contrat OpenAPI d'alors ne comportaient **ni `charts` ni
+`risks`**. La question était : ces pages sont-elles assemblables depuis
+l'existant, comme Catalyseurs l'était ?
 
-**Graphiques (§8) — non.** Sa dominante est « un espace graphique configurable
-avec séries autorisées » et son widget distinctif est la **comparaison**.
-Comparer deux séries de prix suppose de les rebaser, c'est-à-dire de calculer
-un rendement dans le navigateur — ce que `.claude/rules/frontend.md` interdit
-explicitement. L'alternative, un double axe, est interdite au même endroit.
-Sans overlays ni comparaison servis par le serveur, il ne resterait qu'un
-graphique d'un seul instrument : ce que `/analysis` fait déjà, et le
-dupliquer créerait un second propriétaire pour la même donnée.
+**Graphiques (§8) — pas sans déclarer ses absences.** Sa dominante est « un
+espace graphique configurable avec séries autorisées » et son widget
+distinctif est la **comparaison**. Comparer deux séries de prix suppose de les
+rebaser, c'est-à-dire de calculer un rendement dans le navigateur — ce que
+`.claude/rules/frontend.md` interdit explicitement. L'alternative, un double
+axe, est interdite au même endroit. Sans overlays ni comparaison servis par le
+serveur, il ne resterait qu'un graphique d'un seul instrument : ce que
+`/analysis` fait déjà. C'est la voie de l'`AbsentModule` (LOT-A0) qui a levé
+l'objection : la composition complète avec absences nommées n'est pas une
+façade, et l'affichage du même contrat sous une autre question n'en fait pas
+un second propriétaire.
 
 **Risques (§9) — non.** Sa dominante est « la matrice des risques avec
 exposition, horizon, sévérité et preuve ». Les morceaux existent bien

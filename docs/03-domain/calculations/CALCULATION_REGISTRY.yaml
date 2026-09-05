@@ -4,10 +4,11 @@ schema_version: 2
 # Entries keep every field of schema_version 1 unchanged.
 registry_status: runtime_partially_approved
 registry_status_meaning: >-
-  Twenty-three entries carry a verified runtime block; two entries have no
-  implementation in this repository and stay NOT_IMPLEMENTED. No entry is
-  approved on documentation alone: every method, tolerance, oracle and test
-  path below was read in the code and in the test files it cites.
+  Twenty-nine entries carry a verified runtime block (APPROVED); one entry
+  stays RESEARCH_ONLY and two entries have no implementation in this
+  repository and stay NOT_IMPLEMENTED. No entry is approved on documentation
+  alone: every method, tolerance, oracle and test path below was read in the
+  code and in the test files it cites.
 activation_rule: >-
   No entry is runtime-approved until its spec_version, method, assumptions,
   parameter_schema, tolerances, oracle, criticality and tests are present and
@@ -132,6 +133,9 @@ calculations:
     criticality: high
     tests:
       - packages/python/vertex_core/tests/calculations/test_market.py
+      - apps/worker/tests/test_analysis_content.py
+      - apps/api/tests/test_analysis.py
+      - apps/api/tests/test_risk_contract_matches_worker.py
   - id: market.log_return
     owner: market_statistics
     inputs: [price_t0, price_t1]
@@ -206,6 +210,29 @@ calculations:
     criticality: high
     tests:
       - packages/python/vertex_core/tests/calculations/test_market.py
+    consumers:
+      worker: >-
+        apps/worker/src/vertex_worker/analysis.py::_build_indicators — valeur
+        ponctuelle `indicators.realized_volatility` (fenêtre VOLATILITY_WINDOW
+        = 20 rendements, 252 séances par an) ET sa série glissante
+        `indicators.realized_volatility.series` (LOT S3 : une valeur rendue par
+        séance servie disposant d'une fenêtre complète, même méthode, même
+        statut, lignée propre ; `value_pct` produit côté serveur ; une séance
+        servie deux fois ou hors ordre refuse, par la porte d'ordre strict du
+        constructeur — `unordered_bars`, même code que la porte du moteur
+        ATR, le moteur de volatilité ne voyant que des rendements — la série
+        entière et la valeur ponctuelle dont la fenêtre la traverse, jamais
+        un rendement intra-séance).
+      api: >-
+        GET /api/v1/analysis/{instrument} — bloc `indicators` relayé VERBATIM
+        par apps/api/src/vertex_api/snapshot_views.py::build_analysis_response,
+        jamais recalculé ni tronqué.
+      pages: >-
+        Analyse et Graphiques (apps/web/src/pages/analysis/IndicatorsPanel.tsx,
+        module `served-indicators`) — affichage des chaînes rendues, aucun
+        calcul dans le navigateur.
+      report: aucun consommateur déclaré à ce jour
+      ai: aucun consommateur déclaré à ce jour
   - id: market.atr
     owner: indicators
     inputs: [bars, lookback]
@@ -242,6 +269,24 @@ calculations:
     criticality: high
     tests:
       - packages/python/vertex_core/tests/calculations/test_market.py
+    consumers:
+      worker: >-
+        apps/worker/src/vertex_worker/analysis.py::_build_indicators — valeur
+        ponctuelle `indicators.atr` (ATR_LOOKBACK = 14 barres) ET sa série
+        glissante `indicators.atr.series` (LOT S3 : une valeur rendue par
+        séance servie disposant de 14 barres précédentes, même méthode, même
+        statut, lignée propre ; une fenêtre désordonnée refuse la série
+        entière avec la séance en défaut, jamais un trou).
+      api: >-
+        GET /api/v1/analysis/{instrument} — bloc `indicators` relayé VERBATIM
+        par apps/api/src/vertex_api/snapshot_views.py::build_analysis_response,
+        jamais recalculé ni tronqué.
+      pages: >-
+        Analyse et Graphiques (apps/web/src/pages/analysis/IndicatorsPanel.tsx,
+        module `served-indicators`) — affichage des chaînes rendues dans la
+        devise des barres, aucun calcul dans le navigateur.
+      report: aucun consommateur déclaré à ce jour
+      ai: aucun consommateur déclaré à ce jour
   - id: market.relative_strength
     owner: indicators
     inputs: [asset_returns, benchmark_returns, horizon]
@@ -277,6 +322,31 @@ calculations:
     criticality: high
     tests:
       - packages/python/vertex_core/tests/calculations/test_market.py
+    consumers:
+      worker: >-
+        apps/worker/src/vertex_worker/analysis.py::_relative_strength_block —
+        valeur ponctuelle `indicators.relative_strength` contre l'indice
+        DÉCLARÉ par AnalysisConfig.benchmark (RELATIVE_STRENGTH_HORIZON = 60
+        séances communes, calendriers intersectés) ET sa série glissante
+        `indicators.relative_strength.series` (LOT S3 : une valeur rendue par
+        séance commune après l'horizon, même méthode, même statut ; une
+        absence nommée du point — indice non déclaré, non observé, instrument
+        comparé à lui-même, trop peu de séances communes — est celle de la
+        série ; une séance servie deux fois ou hors ordre, d'un côté ou de
+        l'autre, refuse le bloc entier — point et série — avec
+        `unordered_bars`, la séance et le ticker en défaut, parce que
+        l'alignement des calendriers consomme toutes les barres des deux
+        côtés : jamais « dernière barre gagne »).
+      api: >-
+        GET /api/v1/analysis/{instrument} — bloc `indicators` relayé VERBATIM
+        par apps/api/src/vertex_api/snapshot_views.py::build_analysis_response,
+        jamais recalculé ni tronqué.
+      pages: >-
+        Analyse et Graphiques (apps/web/src/pages/analysis/IndicatorsPanel.tsx,
+        module `served-indicators`) — affichage du ratio rendu et du nom de
+        l'indice, aucun calcul dans le navigateur.
+      report: aucun consommateur déclaré à ce jour
+      ai: aucun consommateur déclaré à ce jour
   - id: market.breadth
     owner: market_statistics
     inputs: [point_in_time_universe, returns]
@@ -313,6 +383,225 @@ calculations:
       - packages/python/vertex_core/tests/calculations/test_market.py
       - apps/worker/tests/test_markets_content.py
       - apps/api/tests/test_markets_overview.py
+  - id: market.sma
+    owner: indicators
+    inputs: [prices, window]
+    output_unit: price
+    gates: [valid_window, minimum_sample, positive_prices]
+    invariants: [finite, within_window_range, one_point_per_complete_window]
+    runtime_status: APPROVED
+    spec_version: "1.0.0"
+    implementation: packages/python/vertex_core/src/vertex_core/calculations/market.py::simple_moving_average
+    method: trailing_arithmetic_mean_fsum_over_complete_windows
+    assumptions:
+      - "SMA_t = (1 / window) * sum(p_{t-window+1..t}): one value per COMPLETE window, aligned on the last price of the window, so len(result) == len(prices) - window + 1. No leading fill and no partial window: a series shorter than the window is INVALID (minimum_sample), never averaged on what is available."
+      - "Each window is summed with math.fsum (exactly rounded) then divided once; int/float/Decimal inputs are converted explicitly to float64 and bool is rejected at the boundary."
+      - "Every price must be finite and strictly positive (same boundary as market.rebased_series); a non-positive price is rejected, never skipped."
+      - "Output is expressed in the price unit of the inputs. Adjustment basis, currency and calendar alignment stay with the caller, who must pass a single-basis series (the function only receives numbers)."
+    parameter_schema:
+      prices: {type: "list | tuple of (int | float | Decimal)", unit: price, constraint: "length >= window, each finite and > 0"}
+      window: {type: int, unit: bars, constraint: ">= 1, bool rejected"}
+      returns: {type: "tuple[float, ...]", unit: price, note: "length == len(prices) - window + 1"}
+    tolerances:
+      float64_rel_tol: 1.0e-9
+      window_range_rel_tol: 1.0e-12
+      note: >-
+        The numpy.convolve oracle is asserted with rtol=FLOAT64_REL_TOL and
+        atol=0 for windows 1, 2, 5, 13 and 40. The property "each point lies
+        within [min, max] of its window" is asserted with a 1e-12 relative
+        margin (one rounding of the exact fsum divided by the window).
+        window == 1 returns the prices themselves EXACTLY, asserted without
+        tolerance.
+    oracle: numpy_convolve_independent_implementation_in_test
+    oracle_evidence: >-
+      TestOracleNumpy.test_oracle_numpy_convolve recomputes the trailing mean
+      as numpy.convolve(series, ones(window) / window, mode="valid") — a
+      different arithmetic (float64 convolution product) written in the test
+      — on a 40-point synthetic series; TestSimpleMovingAverage asserts the
+      hand-derived vector 1..5 with window 3 -> (2, 3, 4).
+    oracle_limitation: >-
+      numpy is a third-party numerical library, not a technical-analysis
+      library; the vectors are not registered under the pytest golden marker.
+    criticality: high
+    tests:
+      - packages/python/vertex_core/tests/calculations/test_market_sma.py
+  - id: market.ema
+    owner: indicators
+    inputs: [prices, window]
+    output_unit: price
+    gates: [valid_window, minimum_sample, positive_prices]
+    invariants: [finite, convex_combination_of_seen_prices, one_point_per_complete_window]
+    runtime_status: APPROVED
+    spec_version: "1.0.0"
+    implementation: packages/python/vertex_core/src/vertex_core/calculations/market.py::exponential_moving_average
+    method: exponential_smoothing_alpha_2_over_window_plus_1_seeded_by_arithmetic_mean
+    assumptions:
+      - "Seed EMA_window = arithmetic mean (math.fsum) of the first window prices; then EMA_t = alpha * p_t + (1 - alpha) * EMA_{t-1} with alpha = 2 / (window + 1). The seed convention is DECLARED here: a library seeding on the first price alone publishes different values for the same window."
+      - "One value per complete window aligned on the last price: len(result) == len(prices) - window + 1; a shorter series is INVALID (minimum_sample), never seeded on what is available."
+      - "int/float/Decimal inputs converted explicitly to float64, bool rejected; every price finite and strictly positive."
+      - "Output in the price unit of the inputs; adjustment basis, currency and calendar alignment stay with the caller."
+    parameter_schema:
+      prices: {type: "list | tuple of (int | float | Decimal)", unit: price, constraint: "length >= window, each finite and > 0"}
+      window: {type: int, unit: bars, constraint: ">= 1, bool rejected"}
+      returns: {type: "tuple[float, ...]", unit: price, note: "length == len(prices) - window + 1"}
+    tolerances:
+      float64_rel_tol: 1.0e-9
+      window_range_rel_tol: 1.0e-12
+      note: >-
+        The scipy.signal.lfilter oracle is asserted with rtol=FLOAT64_REL_TOL
+        and atol=0 for windows 1, 2, 5, 12, 26 and 39. The convex-combination
+        property (each point within [min, max] of the prices seen so far) is
+        asserted with a 1e-12 relative margin. window == 1 (alpha == 1)
+        returns the prices themselves EXACTLY, asserted without tolerance.
+    oracle: scipy_lfilter_independent_implementation_in_test
+    oracle_evidence: >-
+      TestOracleScipy.test_oracle_lfilter solves the same first-order IIR
+      recurrence with scipy.signal.lfilter (b = [alpha], a = [1, -(1 - alpha)])
+      whose initial state is set by scipy.signal.lfiltic from the arithmetic
+      seed — an independent solver written in the test; TestExponentialMovingAverage
+      asserts the hand-derived vector 1..5 with window 3 -> (2, 3, 4)
+      (seed 2, alpha 0.5).
+    oracle_limitation: >-
+      scipy is a signal-processing library, not a technical-analysis one; the
+      seed convention is Vertex's declared choice and the oracle shares it.
+      The vectors are not registered under the pytest golden marker.
+    criticality: high
+    tests:
+      - packages/python/vertex_core/tests/calculations/test_market_ema.py
+  - id: market.bollinger_bands
+    owner: indicators
+    inputs: [prices, window, num_std]
+    output_unit: price
+    gates: [valid_window, positive_num_std, minimum_sample, positive_prices]
+    invariants: [finite, lower_le_middle_le_upper, symmetric_around_middle, middle_equals_sma]
+    runtime_status: APPROVED
+    spec_version: "1.0.0"
+    implementation: packages/python/vertex_core/src/vertex_core/calculations/market.py::bollinger_bands
+    method: sma_middle_plus_minus_num_std_population_stdev_ddof0
+    assumptions:
+      - "middle = SMA(window): the SAME computation as market.sma (asserted EXACTLY equal, no tolerance); sigma = POPULATION standard deviation (ddof = 0) of each window, the declared convention of the bands — distinct from the ddof = 1 of market.realized_volatility; upper = middle + num_std * sigma, lower = middle - num_std * sigma."
+      - "window >= 2: a single price has no dispersion, so the band does not exist (invalid_window). num_std must be finite and strictly positive (invalid_num_std); no default multiplier exists."
+      - "One point per complete window aligned on the last price; a shorter series is INVALID (minimum_sample). Prices finite and strictly positive."
+      - "Output in the price unit of the inputs; the three bands have the same length len(prices) - window + 1 and are published under their declared names (lower, middle, upper)."
+      - "An overflowing float64 window mean or variance raises CalculationInputError (non_finite_result): the squared deviation is computed as a product (overflows to inf, refused by the finite gate), never with the power operator whose bare OverflowError would escape the typed boundary (asserted by test_debordement_float64_de_la_variance_refuse_type)."
+    parameter_schema:
+      prices: {type: "list | tuple of (int | float | Decimal)", unit: price, constraint: "length >= window, each finite and > 0"}
+      window: {type: int, unit: bars, constraint: ">= 2, bool rejected"}
+      num_std: {type: "int | float | Decimal", unit: multiplier, constraint: "keyword-only, finite and > 0, bool rejected"}
+      returns: {type: "BollingerBands(lower, middle, upper)", unit: price, note: "three tuple[float, ...] of length len(prices) - window + 1"}
+    tolerances:
+      float64_rel_tol: 1.0e-9
+      float64_abs_tol: 1.0e-12
+      symmetry_abs_tol: "max(FLOAT64_ABS_TOL, 2 * ulp(middle))"
+      note: >-
+        The numpy sliding-window oracle is asserted with rtol=FLOAT64_REL_TOL
+        and atol=0 on the three bands. The symmetry property
+        upper - middle == middle - lower is asserted with
+        rel_tol=FLOAT64_REL_TOL and abs_tol=max(FLOAT64_ABS_TOL,
+        2 * math.ulp(middle)): two float64 roundings (middle + h, middle - h)
+        of at most ulp(middle) / 2 each. middle == market.sma is asserted
+        EXACTLY.
+    oracle: numpy_sliding_window_std_independent_implementation_in_test
+    oracle_evidence: >-
+      TestOracleNumpy.test_oracle_sliding_window recomputes mean and
+      population standard deviation (ddof = 0) of every window with
+      numpy.lib.stride_tricks.sliding_window_view on a 40-point synthetic
+      series for (window, k) in (2, 1), (5, 2), (20, 2), (40, 0.5);
+      TestBollingerBands asserts the hand-derived vector 1..5 with window 5
+      (mean 3, population variance 2) and the sliding window of three.
+    oracle_limitation: >-
+      numpy is a third-party numerical library, not a technical-analysis
+      library; the vectors are not registered under the pytest golden marker.
+    criticality: high
+    tests:
+      - packages/python/vertex_core/tests/calculations/test_market_bollinger.py
+  - id: market.rsi
+    owner: indicators
+    inputs: [prices, window]
+    output_unit: index_0_100
+    gates: [valid_window, minimum_sample, positive_prices, flat_series]
+    invariants: [finite, between_zero_and_hundred, one_point_per_variation_beyond_window]
+    runtime_status: APPROVED
+    spec_version: "1.0.0"
+    implementation: packages/python/vertex_core/src/vertex_core/calculations/market.py::relative_strength_index
+    method: wilder_smoothed_average_gain_over_gain_plus_loss_seeded_by_arithmetic_mean
+    assumptions:
+      - "Variations d_t = p_t - p_{t-1}; gain_t = max(d_t, 0), loss_t = max(-d_t, 0). Average gain AG and average loss AL are seeded by the arithmetic mean (math.fsum) of the first window variations, then Wilder-smoothed: AG_t = (AG_{t-1} * (window - 1) + gain_t) / window, idem AL. RSI_t = 100 * AG_t / (AG_t + AL_t)."
+      - "One point per variation beyond the seed window: len(result) == len(prices) - window; len(prices) >= window + 1 is required (minimum_sample)."
+      - "flat_series: when AG_t + AL_t == 0 at any published point (seed window without any variation, or with window 1 — which has no memory — a flat step) the gain/loss ratio does not exist. The WHOLE series is rejected; 0, 50 or 100 is never substituted as a conventional value."
+      - "A strictly rising series yields EXACTLY 100.0 (AL == 0 gives AG / AG == 1.0 in float64) and a strictly falling series EXACTLY 0.0. Prices finite and strictly positive; the output is dimensionless."
+    parameter_schema:
+      prices: {type: "list | tuple of (int | float | Decimal)", unit: price, constraint: "length >= window + 1, each finite and > 0"}
+      window: {type: int, unit: bars, constraint: ">= 1, bool rejected"}
+      returns: {type: "tuple[float, ...]", unit: index_0_100, note: "length == len(prices) - window, each in [0, 100]"}
+    tolerances:
+      float64_rel_tol: 1.0e-9
+      oracle_abs_tol: 1.0e-9
+      note: >-
+        The scipy.signal.lfilter oracle, written in the classical form
+        100 - 100 / (1 + AG / AL), is asserted with rtol=FLOAT64_REL_TOL and
+        atol=1e-9 for windows 1, 2, 7, 14 and 30. The saturation values
+        100.0 and 0.0 and the hand-derived vector are asserted EXACTLY or
+        with rel=FLOAT64_REL_TOL.
+    oracle: scipy_lfilter_independent_implementation_in_test
+    oracle_evidence: >-
+      TestOracleScipy.test_oracle_lfilter smooths gains and losses with the
+      first-order IIR filter of alpha = 1 / window (scipy.signal.lfilter
+      seeded through lfiltic) and evaluates the classical form
+      100 - 100 / (1 + RS); TestRelativeStrengthIndex asserts the
+      hand-derived vector 10, 11, 12, 11, 12 with window 2 -> (100, 50, 75).
+    oracle_limitation: >-
+      scipy is a signal-processing library, not a technical-analysis one; the
+      seed convention is Vertex's declared choice and the oracle shares it.
+      The vectors are not registered under the pytest golden marker.
+    criticality: high
+    tests:
+      - packages/python/vertex_core/tests/calculations/test_market_rsi.py
+  - id: market.macd
+    owner: indicators
+    inputs: [prices, fast, slow, signal]
+    output_unit: price
+    gates: [valid_windows, ordered_windows, minimum_sample, positive_prices]
+    invariants: [finite, macd_equals_fast_ema_minus_slow_ema, histogram_equals_macd_minus_signal]
+    runtime_status: APPROVED
+    spec_version: "1.0.0"
+    implementation: packages/python/vertex_core/src/vertex_core/calculations/market.py::macd
+    method: ema_fast_minus_ema_slow_with_ema_signal_line_and_histogram
+    assumptions:
+      - "MACD_t = EMA_fast(p)_t - EMA_slow(p)_t on the points where BOTH averages exist (len(prices) - slow + 1 points, the fast average being offset by slow - fast); the EMAs are those of market.ema (arithmetic-mean seed, alpha = 2 / (window + 1))."
+      - "signal = EMA_signal(MACD line), seeded the same way on the MACD line (which may be negative or zero); histogram = MACD - signal on the len(prices) - slow - signal + 2 points where the signal exists. Three tuples aligned on the LAST price."
+      - "fast < slow strictly (unordered_windows); every window >= 1; len(prices) >= slow + signal - 1 so that at least one signal point exists (minimum_sample) — never a partial line."
+      - "Prices finite and strictly positive; output in the price unit of the inputs (a difference of two averages)."
+    parameter_schema:
+      prices: {type: "list | tuple of (int | float | Decimal)", unit: price, constraint: "length >= slow + signal - 1, each finite and > 0"}
+      fast: {type: int, unit: bars, constraint: "keyword-only, >= 1 and < slow, bool rejected"}
+      slow: {type: int, unit: bars, constraint: "keyword-only, >= 1 and > fast, bool rejected"}
+      signal: {type: int, unit: bars, constraint: "keyword-only, >= 1, bool rejected"}
+      returns: {type: "MacdSeries(macd, signal, histogram)", unit: price, note: "macd has len(prices) - slow + 1 points; signal and histogram have len(prices) - slow - signal + 2"}
+    tolerances:
+      float64_rel_tol: 1.0e-9
+      float64_abs_tol: 1.0e-12
+      note: >-
+        The scipy.signal.lfilter oracle (three chained IIR filters) is
+        asserted with rtol=FLOAT64_REL_TOL and atol=1e-12 on the three lines
+        for (fast, slow, signal) in (1, 2, 1), (3, 6, 2), (12, 26, 9),
+        (5, 30, 10). The identities MACD == EMA_fast - EMA_slow and
+        histogram == MACD - signal are asserted against market.ema with
+        rel=FLOAT64_REL_TOL, abs=1e-12.
+    oracle: scipy_lfilter_independent_implementation_in_test
+    oracle_evidence: >-
+      TestOracleScipy.test_oracle_lfilter composes three scipy.signal.lfilter
+      first-order filters (fast, slow, signal) seeded through lfiltic — an
+      independent solver written in the test; TestMacd asserts the
+      hand-derived vector 1..6 with (fast 1, slow 2, signal 2) -> MACD 0.5
+      everywhere, signal 0.5, histogram 0.
+    oracle_limitation: >-
+      scipy is a signal-processing library, not a technical-analysis one; the
+      seed convention is Vertex's declared choice and the oracle shares it.
+      The vectors are not registered under the pytest golden marker.
+    criticality: high
+    tests:
+      - packages/python/vertex_core/tests/calculations/test_market_macd.py
   - id: portfolio.fx_conversion
     owner: portfolio
     inputs: [money, fx_quote, quote_as_of]

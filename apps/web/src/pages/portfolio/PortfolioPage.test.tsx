@@ -10,6 +10,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   makeEmptyPortfolioResponse,
+  makeFreshnessPolicy,
   makePortfolioResponse,
   makeValuationContent,
 } from '../../test/fixtures.ts';
@@ -105,6 +106,7 @@ describe('valuationFrameStateOf — états dérivés de faits serveur uniquement
         snapshot_version: 3,
         as_of: '2026-08-25T12:00:00+00:00',
         age_seconds: 60,
+        freshness_policy: makeFreshnessPolicy({ kind: 'portfolio_mark', budget_seconds: 86400 }),
         reason: null,
         content: makeValuationContent({
           excluded_lots: [],
@@ -132,6 +134,7 @@ describe('valuationFrameStateOf — états dérivés de faits serveur uniquement
         snapshot_version: 3,
         as_of: null,
         age_seconds: null,
+        freshness_policy: makeFreshnessPolicy({ kind: 'portfolio_mark', budget_seconds: 86400 }),
         reason: null,
         content: { schema_version: 'autre/9.9' },
       },
@@ -147,6 +150,7 @@ describe('portfolioView — lecture verbatim, jamais un calcul', () => {
       snapshot_version: 3,
       as_of: '2026-08-25T12:00:00+00:00',
       age_seconds: 60,
+      freshness_policy: makeFreshnessPolicy({ kind: 'portfolio_mark', budget_seconds: 86400 }),
       reason: null,
       content: makeValuationContent(),
     });
@@ -159,6 +163,48 @@ describe('portfolioView — lecture verbatim, jamais un calcul', () => {
     expect(view!.excludedLots).toEqual([
       { lotId: 'ledger-9', ticker: 'SYN-NOMARK-01', currency: 'SYN', reason: 'missing_mark' },
     ]);
+  });
+
+  it('DÉFAUT RÉEL — deux positions invalides ne partagent plus la même identité', () => {
+    // `lotId` était typé `string` avec `?? '—'` en repli, et les positions
+    // invalides recevaient `'—'` EN DUR. Deux positions invalides de même
+    // ticker et même raison produisaient donc deux fois la même clé React
+    // (`'—'-SYN-X-01-missing_price`) : la réconciliation cassait, et le
+    // tiret s'affichait comme s'il était un identifiant de lot servi.
+    //
+    // `lotId` devient `string | null`. Une position invalide n'a PAS de lot :
+    // elle a été rejetée avant d'en devenir un. C'est « sans objet », pas
+    // « non publié » — le serveur n'a rien omis.
+    const view = valuationContentOf({
+      state: 'ok',
+      snapshot_version: 3,
+      as_of: '2026-08-25T12:00:00+00:00',
+      age_seconds: 60,
+      freshness_policy: makeFreshnessPolicy({ kind: 'portfolio_mark', budget_seconds: 86400 }),
+      reason: null,
+      content: makeValuationContent({
+        coverage: {
+          events_considered: 5,
+          position_events: 3,
+          cash_events: 2,
+          compensation_pairs: 0,
+          invalid_events: [],
+          invalid_positions: [
+            { ticker: 'SYN-X-01', currency: 'SYN', reason: 'missing_price' },
+            { ticker: 'SYN-X-01', currency: 'SYN', reason: 'missing_price' },
+          ],
+          lots_open: 2,
+          lots_valued: 1,
+          lots_excluded: 1,
+        },
+      }),
+    });
+    expect(view).not.toBeNull();
+    const invalides = view!.coverage.invalidPositions;
+    expect(invalides).toHaveLength(2);
+    for (const lot of invalides) {
+      expect(lot.lotId).toBeNull();
+    }
   });
 
   it('localDateTimeToUtcIso convertit l’heure locale en instant UTC (suffixe Z)', () => {
@@ -194,13 +240,46 @@ describe('Page Portefeuille — état nominal', () => {
     expect(screen.getByText('DONNÉES SYNTHÉTIQUES')).toBeDefined();
 
     const summary = screen.getByTestId('pf-summary-grid');
-    expect(within(summary).getByText('55')).toBeDefined(); // P&L latent — chaîne serveur
-    expect(within(summary).getByText('49')).toBeDefined(); // P&L réalisé — chaîne serveur
-    expect(within(summary).getByText('555')).toBeDefined(); // valeur — chaîne serveur
+    // Bande de mesures (LOT P4) : chaque chiffre est la chaîne serveur, à sa
+    // place nommée, avec la DEVISE servie — jamais une unité sous-entendue.
+    const latent = within(summary).getByTestId('pf-value-unrealized');
+    expect(latent.textContent).toContain('55'); // P&L latent — chaîne serveur
+    expect(latent.textContent).toContain('SYN');
+    const realise = within(summary).getByTestId('pf-value-realized');
+    expect(realise.textContent).toContain('49'); // P&L réalisé — chaîne serveur
+    const valeur = within(summary).getByTestId('pf-value-total');
+    expect(valeur.textContent).toContain('555'); // valeur — chaîne serveur
+    // Le signe n'est porté QUE s'il est publié : « 55 » n'en porte aucun, et
+    // la mesure ne se colore donc pas. Déduire « positif » de l'absence de
+    // « - » serait publier un signe que le serveur n'a pas publié.
+    expect(latent.getAttribute('data-sign')).toBeNull();
     // Espèces : absence honnête, jamais un total local.
     expect(screen.getByTestId('pf-cash-absent')).toBeDefined();
     // Provenance du calcul (lignage, pas un recalcul).
     expect(within(summary).getByText('portfolio.unrealized_pnl')).toBeDefined();
+  });
+
+  it('compte d’événements de trésorerie NON publié → dit non publié, jamais « 0 »', async () => {
+    // Défaut mesuré sur capture : l'aveu sur les espèces écrivait
+    // « (0 événement(s) de trésorerie au journal) » quand le serveur ne
+    // publiait AUCUN compte. Un zéro fabriqué est un fait de journal inventé.
+    const base = makePortfolioResponse();
+    const content = makeValuationContent();
+    const coverage = { ...(content['coverage'] as Record<string, unknown>) };
+    delete coverage['cash_events'];
+    mockRoutes({
+      portfolio: () =>
+        jsonResponse({
+          ...base,
+          valuation: { ...base.valuation, content: { ...content, coverage } },
+        }),
+    });
+    await renderPortfolio();
+
+    const especes = await screen.findByTestId('pf-cash-absent');
+    expect(especes.textContent).toContain('non publié');
+    expect(especes.textContent).toContain('nombre d’événements de trésorerie non publié');
+    expect(especes.textContent).not.toMatch(/\d/);
   });
 
   it('lots exclus dans une section séparée avec raison — jamais un zéro dans la table valorisée', async () => {
@@ -226,7 +305,9 @@ describe('Page Portefeuille — état nominal', () => {
     await renderPortfolio();
     await screen.findByTestId('pf-bars-SYN');
     const bars = screen.getByTestId('pf-bars-SYN');
-    expect(within(bars).getByText('1')).toBeDefined(); // poids verbatim
+    // Poids VERBATIM dans la légende de la bande, suivi de l'unité déclarée
+    // par la page : la chaîne servie n'est ni arrondie ni convertie en %.
+    expect(within(bars).getByText('1 du registre SYN')).toBeDefined();
     expect(
       screen.getByRole('table', { name: 'Poids de concentration (SYN)' }),
     ).toBeDefined();

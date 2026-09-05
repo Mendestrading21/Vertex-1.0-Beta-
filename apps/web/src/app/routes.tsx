@@ -17,14 +17,15 @@ import type { PageDef } from './pages.ts';
  * installé » que lorsque ses routes, données, états et tests existent
  * (docs/07-delivery/FOLDER_BY_FOLDER_PROGRAM.md).
  *
- * Onze destinations du rail sont installées : Aujourd'hui, Opportunités,
- * Analyse, Options, Simulateur, Calendrier, Marchés, Portefeuille, Risques,
- * Catalyseurs et Sources & Rapports. S'y ajoute /auth, hors rail : c'est une
- * route de session, pas une destination du blueprint.
+ * Les douze destinations du rail sont installées : Aujourd'hui, Opportunités,
+ * Analyse, Options, Simulateur, Calendrier, Marchés, Graphiques, Portefeuille,
+ * Risques, Catalyseurs et Sources & Rapports. S'y ajoute /auth, hors rail :
+ * c'est une route de session, pas une destination du blueprint.
  *
- * Graphiques, que la cible attend, n'existe pas encore. `NotInstalledPage` ne
- * sert aujourd'hui AUCUNE entrée du rail : les destinations manquantes sont
- * absentes du rail plutôt que présentes en façade.
+ * `NotInstalledPage` ne sert AUCUNE entrée du rail. Graphiques (LOT-A2) est
+ * une composition complète dont les modules sans source sont DÉCLARÉS absents
+ * (`AbsentModule`), ce qui n'est pas une façade : la géométrie est réelle, le
+ * motif est nommé, aucune valeur n'est inventée.
  *
  * Toutes les pages sauf Aujourd'hui et Sources & Rapports sont chargées
  * PARESSEUSEMENT (React.lazy) : leurs chunks — et les chunks moteurs
@@ -72,6 +73,11 @@ const LazyCalendarPage = lazy(async () => {
 const LazyRiskPage = lazy(async () => {
   const module = await import('../pages/risk/RiskPage.tsx');
   return { default: module.RiskPage };
+});
+
+const LazyChartsPage = lazy(async () => {
+  const module = await import('../pages/charts/ChartsPage.tsx');
+  return { default: module.ChartsPage };
 });
 
 const LazyOpportunitiesPage = lazy(async () => {
@@ -143,6 +149,14 @@ function RiskRoute() {
   );
 }
 
+function ChartsRoute() {
+  return (
+    <Suspense fallback={<DataStateBoundary state="loading" />}>
+      <LazyChartsPage />
+    </Suspense>
+  );
+}
+
 function OpportunitiesRoute() {
   return (
     <Suspense fallback={<DataStateBoundary state="loading" />}>
@@ -163,16 +177,20 @@ const INSTALLED_PAGES: Readonly<Record<string, () => React.JSX.Element>> = {
   catalysts: CatalystsRoute,
   calendar: CalendarRoute,
   opportunities: OpportunitiesRoute,
+  charts: ChartsRoute,
 };
 
 /** Définition de la page d'accès (hors navigation, hors blueprint des 12). */
-export const AUTH_PAGE: PageDef = {
+const AUTH_PAGE: PageDef = {
   key: 'auth',
   title: 'Accès',
   navPath: '/auth',
   routePath: '/auth',
   question: 'Ouvrir une session locale par passkey — aucun mot de passe, aucun repli.',
   lot: 'LOT-14',
+  // La page d'accès ne lit aucun snapshot, et le flux SSE ne vit qu'en session
+  // authentifiée : il n'y a rien à signaler ici, donc rien à prétendre suivre.
+  live: null,
 };
 
 /**

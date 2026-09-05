@@ -432,7 +432,7 @@ invariants:
   proofs:
   - >-
     apps/web/src/components/markets/marketsView.test.ts::parse une chaîne serveur finie,
-    0 sinon (jamais NaN dans le rendu)
+    et REFUSE le reste — jamais 0, jamais NaN
   - >-
     apps/web/src/pages/portfolio/PortfolioPage.test.tsx::valuationContentOf relaie
     les chaînes exactes du serveur

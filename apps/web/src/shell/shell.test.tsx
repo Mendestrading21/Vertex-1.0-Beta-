@@ -26,9 +26,8 @@ describe('AppShell — landmarks et lien d’évitement', () => {
 
   // L'ordre canonique lui-même, épinglé. Le garde-fou d'en dessous ne voyait
   // qu'un code ABSENT ; un code FAUX lui était invisible, et huit destinations
-  // sur dix en portaient un. `08 charts` reste réservé : son absence de la
-  // table est intentionnelle et vérifiée ici. `09 risks` a été installé le
-  // 2026-09-01 — route, données et tests — donc il y figure désormais.
+  // sur dix en portaient un. `09 risks` a été installé le 2026-09-01 et
+  // `08 charts` le 2026-09-02 (LOT-A2) : les douze codes figurent ici.
   it('les signatures suivent l’ordre des planches canoniques', () => {
     expect(LEDGER_CODE_BY_PAGE).toEqual({
       today: 'TL / 01',
@@ -38,15 +37,18 @@ describe('AppShell — landmarks et lien d’évitement', () => {
       options: 'TL / 05',
       simulator: 'TL / 06',
       portfolio: 'TL / 07',
+      charts: 'TL / 08',
       risks: 'TL / 09',
       catalysts: 'TL / 10',
       calendar: 'TL / 11',
       'sources-reports': 'TL / 12',
       auth: 'TL / ACCESS',
     });
-    // `08 charts` reste réservé ; `09 risks` est installé depuis le
-    // 2026-09-01 (route, données et tests), donc il DOIT figurer ci-dessus.
-    expect(Object.values(LEDGER_CODE_BY_PAGE)).not.toContain('TL / 08');
+    // Douze destinations, douze codes, de 01 à 12 sans trou.
+    const codes = Object.values(LEDGER_CODE_BY_PAGE).filter((code) => code !== 'TL / ACCESS');
+    expect([...codes].sort()).toEqual(
+      Array.from({ length: 12 }, (_, index) => `TL / ${String(index + 1).padStart(2, '0')}`),
+    );
   });
 
   // DEUX sources portent le même numéro : `LEDGER_CODE_BY_PAGE` (ici) et les
@@ -136,6 +138,75 @@ describe('ContextBar', () => {
     expect(within(banner).getByText('Marchés')).toBeDefined();
     expect(within(banner).getByText('Session non vérifiée')).toBeDefined();
   });
+
+  /**
+   * POINT 5 DE L'ANATOMIE CANONIQUE — lot L0. Le haut à droite était vide :
+   * ni badge de mode, ni fraîcheur, ni cloche. Deux des trois ont désormais un
+   * propriétaire ; la cloche reste absente, faute de file de notifications.
+   */
+  it('porte le badge du lien de signalement, avec la nature de la population', () => {
+    renderApp('/markets');
+    const banner = screen.getByRole('banner');
+    const badge = within(banner).getByTestId('live-badge');
+    expect(badge).toBeDefined();
+    // Sans réponse vue, l'âge n'est pas publié : le badge le DIT.
+    expect(badge.textContent).toContain('âge non publié');
+    expect(within(banner).getByTestId('status-chip').textContent).toContain(
+      'NATURE NON DÉCLARÉE',
+    );
+  });
+
+  it('le badge ne prononce jamais le mot « direct » : le flux est signal-only', () => {
+    for (const path of ['/markets', '/today', '/risks', '/analysis']) {
+      const { unmount } = renderApp(path);
+      const badge = screen.getByTestId('live-badge');
+      expect(badge.textContent?.toLowerCase()).not.toContain('direct');
+      unmount();
+    }
+  });
+
+  it('une page sans tête fixe le DIT : SANS SIGNAL, jamais une clé inventée', () => {
+    // `/analysis` est signalée par PRÉFIXE (`analysis/<instrument>`) : le shell
+    // ne connaît pas l'instrument, il ne prétend donc suivre aucune tête.
+    renderApp('/analysis');
+    expect(screen.getByTestId('live-badge').textContent).toContain('SANS SIGNAL');
+    expect(screen.getByTestId('live-badge').getAttribute('data-live')).toBe('untracked');
+  });
+
+  it('la cloche reste absente : aucune file de notifications n’existe', () => {
+    renderApp('/markets');
+    const banner = screen.getByRole('banner');
+    expect(within(banner).queryByRole('button', { name: /notification/i })).toBeNull();
+  });
+
+  it('chaque tête fixe déclarée est suivie par le flux, ou porte le lot qui la suivra', async () => {
+    const { isKnownResource } = await import('../api/hooks.ts');
+    const manquantes: string[] = [];
+    for (const page of ALL_PAGES) {
+      const resource = page.live?.resource ?? null;
+      if (resource === null) {
+        continue;
+      }
+      // Soit la ressource est déjà dans `SSE_RESOURCES`, soit la page dit
+      // ÉCRITEMENT quel lot l'y ajoutera (aucune tête muette).
+      if (!isKnownResource(resource) && (page.live?.note ?? '') === '') {
+        manquantes.push(`${page.key} → ${resource}`);
+      }
+    }
+    expect(manquantes, `têtes fixes non suivies et sans motif : ${manquantes.join(', ')}`).toEqual(
+      [],
+    );
+  });
+
+  it('toute page qui déclare une clé de cache la nomme complètement', () => {
+    for (const page of ALL_PAGES) {
+      if (page.live === null) {
+        continue;
+      }
+      expect(page.live.queryKey[0]).toBe('snapshot');
+      expect(page.live.queryKey[1].length).toBeGreaterThan(0);
+    }
+  });
 });
 
 describe('NavRail — groupes et liens', () => {
@@ -163,11 +234,11 @@ describe('NavRail — groupes et liens', () => {
       const link = within(nav).getByRole('link', { name: page.title });
       expect(link.getAttribute('href')).toBe(page.navPath);
     }
-    // Onze destinations : douze en cible, moins Graphiques qui attend encore
-    // son contrat serveur. Risques a ete installe le 2026-09-01 avec sa route,
-    // ses donnees et ses tests — la condition posee dans app/pages.ts.
+    // Douze destinations, douze en cible : Risques installée le 2026-09-01,
+    // Graphiques le 2026-09-02 (LOT-A2) — composition complète, dominante
+    // servie par le contrat Analyse, modules sans source DÉCLARÉS absents.
     // Le compte exact est asséré dans routes.test.tsx, avec la liste ordonnée.
-    expect(ALL_PAGES).toHaveLength(11);
+    expect(ALL_PAGES).toHaveLength(12);
     // `/ai` a quitté le rail au LOT-12 : l'explication vit dans l'inspecteur.
     expect(ALL_PAGES.map((page) => page.navPath)).not.toContain('/ai');
     expect(ALL_PAGES.map((page) => page.navPath)).not.toContain('/vertex-ai');

@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 
 import type { AttentionItem } from '../api/client.ts';
+import { AbsentCell } from '../components/absence.tsx';
 import { FreshnessBadge } from '../components/FreshnessBadge.tsx';
 import { InspectorPanel } from '../shell/inspector.tsx';
 
@@ -52,18 +54,6 @@ export function snapshotAgeSeconds(asOf: string | null, eventTime: string | null
 }
 
 // -- panneau latéral de détail ----------------------------------------------
-
-function AbsentValue({ label }: { readonly label: string }) {
-  return (
-    // `role="img"` obligatoire : sur un <span> sans rôle (rôle implicite
-    // `generic`), ARIA INTERDIT `aria-label` et les lecteurs d'écran
-    // ignorent le libellé — le motif de l'absence ne serait pas annoncé.
-    // Aligné sur OptionChainTable.tsx, qui portait déjà le rôle correct.
-    <span className="vx-cell-absent" role="img" aria-label={label}>
-      —
-    </span>
-  );
-}
 
 interface SideSheetProps {
   readonly item: AttentionItem;
@@ -162,13 +152,13 @@ function SideSheet({ item, asOf, onClose }: SideSheetProps) {
         </div>
         <div>
           <dt>Cluster</dt>
-          <dd>{clusterId === null ? <AbsentValue label="cluster inconnu" /> : <code>{clusterId}</code>}</dd>
+          <dd>{clusterId === null ? <AbsentCell quoi="cluster" nature="not_published" reason={null} /> : <code>{clusterId}</code>}</dd>
         </div>
         <div>
           <dt>Événements membres</dt>
           <dd>
             {memberIds.length === 0 ? (
-              <AbsentValue label="aucun événement membre publié" />
+              <AbsentCell quoi="événements membres" nature="not_published" reason={null} />
             ) : (
               <ul className="vx-sheet-list">
                 {memberIds.map((memberId) => (
@@ -192,7 +182,7 @@ function SideSheet({ item, asOf, onClose }: SideSheetProps) {
           <dt>Première publication (UTC)</dt>
           <dd>
             {firstPublishedAt === null ? (
-              <AbsentValue label="première publication inconnue" />
+              <AbsentCell quoi="première publication" nature="not_published" reason={null} accord="f" />
             ) : (
               <time dateTime={firstPublishedAt}>{firstPublishedAt}</time>
             )}
@@ -202,7 +192,7 @@ function SideSheet({ item, asOf, onClose }: SideSheetProps) {
           <dt>Dernière réception (UTC)</dt>
           <dd>
             {lastReceivedAt === null ? (
-              <AbsentValue label="dernière réception inconnue" />
+              <AbsentCell quoi="dernière réception" nature="not_published" reason={null} accord="f" />
             ) : (
               <time dateTime={lastReceivedAt}>{lastReceivedAt}</time>
             )}
@@ -212,7 +202,7 @@ function SideSheet({ item, asOf, onClose }: SideSheetProps) {
           <dt>Instrument</dt>
           <dd>
             {instrumentRef === null ? (
-              <AbsentValue label="aucun instrument associé" />
+              <AbsentCell quoi="instrument" nature="not_applicable" reason={null} />
             ) : (
               <code>{instrumentRef}</code>
             )}
@@ -221,7 +211,7 @@ function SideSheet({ item, asOf, onClose }: SideSheetProps) {
         <div>
           <dt>Snapshot as_of (UTC)</dt>
           <dd>
-            {asOf === null ? <AbsentValue label="as_of absent" /> : <time dateTime={asOf}>{asOf}</time>}
+            {asOf === null ? <AbsentCell quoi="as_of" nature="not_published" reason={null} /> : <time dateTime={asOf}>{asOf}</time>}
           </dd>
         </div>
         </dl>
@@ -235,9 +225,17 @@ function SideSheet({ item, asOf, onClose }: SideSheetProps) {
 export interface AttentionQueueProps {
   readonly items: readonly AttentionItem[];
   readonly asOf: string | null;
+  /**
+   * LOT-A3 : ce que l'inspecteur montre TANT QU'AUCUN item n'est ouvert — la
+   * vérité du snapshot. La planche §1 garde l'inspecteur à droite en
+   * permanence ; sans sélection, il porte la provenance de la file plutôt
+   * qu'une colonne vide. Un seul panneau à la fois : le détail d'un item le
+   * remplace, `Échap` le restitue.
+   */
+  readonly fallbackInspector?: ReactNode;
 }
 
-export function AttentionQueue({ items, asOf }: AttentionQueueProps) {
+export function AttentionQueue({ items, asOf, fallbackInspector }: AttentionQueueProps) {
   const [openItemId, setOpenItemId] = useState<string | null>(null);
   const triggerRef = useRef<HTMLButtonElement | null>(null);
 
@@ -251,6 +249,19 @@ export function AttentionQueue({ items, asOf }: AttentionQueueProps) {
 
   return (
     <div className="vx-queue">
+      {/*
+        LOT-A3 — la file est BORNÉE : quinze items déroulés faisaient 1 800 px
+        de page, et la planche §1 compose neuf autres modules autour. Le
+        conteneur défile, il ne tronque pas : le nombre d'items servis reste
+        le nombre d'items présents. `tabIndex` dans le même geste que la borne
+        (axe `scrollable-region-focusable`, seuil zéro).
+      */}
+      <div
+        className="vx-queue-scroll"
+        tabIndex={0}
+        role="region"
+        aria-label="File d’attention, liste défilante"
+      >
       <ol className="vx-queue-list">
         {items.map((item) => {
           const firstPublishedAt = provString(item.provenance, 'first_published_at');
@@ -291,7 +302,12 @@ export function AttentionQueue({ items, asOf }: AttentionQueueProps) {
           );
         })}
       </ol>
-      {openItem !== null ? <SideSheet item={openItem} asOf={asOf} onClose={close} /> : null}
+      </div>
+      {openItem !== null ? (
+        <SideSheet item={openItem} asOf={asOf} onClose={close} />
+      ) : (
+        (fallbackInspector ?? null)
+      )}
     </div>
   );
 }

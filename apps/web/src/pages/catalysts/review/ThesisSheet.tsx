@@ -209,7 +209,13 @@ export function ThesisSheet({
         <div>
           <dt>État projeté (serveur)</dt>
           <dd>
-            <code>{thesis.status ?? '—'}</code> ({thesisStatusLabel(thesis.status)})
+            {thesis.status === null ? (
+              <span className="vx-cell-absent">{thesisStatusLabel(null)}</span>
+            ) : (
+              <>
+                <code>{thesis.status}</code> ({thesisStatusLabel(thesis.status)})
+              </>
+            )}
             {thesis.isDue ? <span className="vx-badge vx-badge-warning"> à revoir</span> : null}
           </dd>
         </div>
@@ -219,17 +225,26 @@ export function ThesisSheet({
         </div>
         <div>
           <dt>Hypothèses</dt>
-          <dd className="vx-thesis-text">{thesis.hypotheses ?? '—'}</dd>
+          <dd className="vx-thesis-text">
+            {/* LOT T4-3 — CE TEXTE EST ÉCRIT PAR L'UTILISATEUR. Son absence ne
+                reproche rien au serveur : c'est une case du formulaire que
+                personne n'a remplie. */}
+            {thesis.hypotheses ?? (
+              <span className="vx-cell-absent">hypothèses non renseignées</span>
+            )}
+          </dd>
         </div>
         <div>
           <dt>Invalidation (ce qui prouverait la thèse fausse)</dt>
           <dd className="vx-thesis-text" data-testid="thesis-invalidation">
-            {thesis.invalidation ?? '—'}
+            {thesis.invalidation ?? (
+              <span className="vx-cell-absent">condition d’invalidation non renseignée</span>
+            )}
           </dd>
         </div>
         <div>
           <dt>Horizon</dt>
-          <dd>{thesis.horizon ?? '—'}</dd>
+          <dd>{thesis.horizon ?? <span className="vx-cell-absent">horizon non renseigné</span>}</dd>
         </div>
         <div>
           <dt>Échéance de revue effective</dt>
@@ -254,16 +269,21 @@ export function ThesisSheet({
         <ul className="vx-sheet-list">
           <li>
             Créée le{' '}
-            {thesis.createdAt !== null ? (
-              <time dateTime={thesis.createdAt}>{thesis.createdAt}</time>
+            {thesis.createdAt === null ? (
+              <span className="vx-cell-absent">instant non publié</span>
             ) : (
-              '—'
+              <time dateTime={thesis.createdAt}>{thesis.createdAt}</time>
             )}{' '}
             (révision CREATED)
           </li>
           <li>
-            {thesis.revisionCount ?? '—'} révision(s) au total — dernière action :{' '}
-            <code>{thesis.lastAction ?? '—'}</code>
+            {thesis.revisionCount ?? 'nombre non publié de'} révision(s) au total — dernière
+            action :{' '}
+            {thesis.lastAction === null ? (
+              <span className="vx-cell-absent">non publiée</span>
+            ) : (
+              <code>{thesis.lastAction}</code>
+            )}
             {thesis.lastRecordedAt !== null ? (
               <>
                 {' '}
@@ -294,17 +314,17 @@ export function ThesisSheet({
           <ul className="vx-sheet-list">
             {thesis.urgencyReasons.map((reason) => (
               <li key={`${reason.code}-${reason.clusterId ?? ''}`}>
-                <code>{reason.code}</code> — cluster <code>{reason.clusterId ?? '—'}</code>, reçu{' '}
-                {reason.lastReceivedAt !== null ? (
-                  <time dateTime={reason.lastReceivedAt}>{reason.lastReceivedAt}</time>
+                <code>{reason.code}</code> — cluster <code>{reason.clusterId ?? 'non publié'}</code>, reçu{' '}
+                {reason.lastReceivedAt === null ? (
+                  <span className="vx-cell-absent">instant non publié</span>
                 ) : (
-                  '—'
+                  <time dateTime={reason.lastReceivedAt}>{reason.lastReceivedAt}</time>
                 )}{' '}
                 (référence :{' '}
-                {reason.referenceInstant !== null ? (
-                  <time dateTime={reason.referenceInstant}>{reason.referenceInstant}</time>
+                {reason.referenceInstant === null ? (
+                  <span className="vx-cell-absent">instant non publié</span>
                 ) : (
-                  '—'
+                  <time dateTime={reason.referenceInstant}>{reason.referenceInstant}</time>
                 )}
                 )
               </li>
@@ -317,7 +337,7 @@ export function ThesisSheet({
         <section aria-label="Contexte d'information" className="vx-thesis-clusters">
           <h3>
             Contexte d'information — population{' '}
-            <code>{thesis.informationPopulation ?? '—'}</code> (séparée des thèses, jamais
+            <code>{thesis.informationPopulation ?? 'non publiée'}</code> (séparée des thèses, jamais
             fusionnée)
           </h3>
           <ul className="vx-sheet-list">
@@ -326,13 +346,15 @@ export function ThesisSheet({
                 {cluster.synthetic ? (
                   <span className="vx-badge vx-badge-synthetic">SYNTHÉTIQUE</span>
                 ) : null}{' '}
-                {cluster.title ?? cluster.clusterId} — sources : {cluster.sources.join(', ') || '—'}
-                {' · '}droits : {cluster.rights.join(', ') || '—'}
+                {cluster.title ?? cluster.clusterId} — sources :{' '}
+                {cluster.sources.length === 0 ? 'aucune publiée' : cluster.sources.join(', ')}
+                {' · '}droits :{' '}
+                {cluster.rights.length === 0 ? 'aucun publié' : cluster.rights.join(', ')}
                 {' · '}reçu :{' '}
-                {cluster.lastReceivedAt !== null ? (
-                  <time dateTime={cluster.lastReceivedAt}>{cluster.lastReceivedAt}</time>
+                {cluster.lastReceivedAt === null ? (
+                  <span className="vx-cell-absent">instant non publié</span>
                 ) : (
-                  '—'
+                  <time dateTime={cluster.lastReceivedAt}>{cluster.lastReceivedAt}</time>
                 )}
               </li>
             ))}
@@ -432,7 +454,12 @@ export function ThesisSheet({
               </strong>
               {outcome.rejection !== null ? (
                 <p>
-                  Raison exacte : <code>{outcome.rejection.code ?? '—'}</code>
+                  Raison exacte :{' '}
+                  {outcome.rejection.code === null ? (
+                    <span className="vx-cell-absent">code de refus non publié</span>
+                  ) : (
+                    <code>{outcome.rejection.code}</code>
+                  )}
                   {outcome.rejection.message !== null ? ` — ${outcome.rejection.message}` : null}
                   {outcome.rejection.wireIssues.length > 0
                     ? ` — ${outcome.rejection.wireIssues.join(' ; ')}`

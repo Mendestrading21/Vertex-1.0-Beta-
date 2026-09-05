@@ -12,6 +12,10 @@
  * fabrique aucun verdict.
  */
 
+import type { OpportunitiesResponse } from '../../api/client.ts';
+import type { PageDataState } from '../../api/hooks.ts';
+import type { DataState } from '../../components/DataStateBoundary.tsx';
+
 type UnknownRecord = Record<string, unknown>;
 
 function asRecord(value: unknown): UnknownRecord | null {
@@ -87,7 +91,7 @@ export interface AdviceView {
   readonly engineVersion: string | null;
 }
 
-export interface EvidenceCheckView {
+interface EvidenceCheckView {
   readonly name: string;
   readonly present: boolean;
   readonly detail: string | null;
@@ -272,7 +276,7 @@ export function partitionCandidates(content: unknown): PartitionedCandidates {
 
 // -- références de provenance ------------------------------------------------
 
-export interface ProfileRefView {
+interface ProfileRefView {
   readonly id: string | null;
   readonly version: string | null;
   readonly source: string | null;
@@ -280,7 +284,7 @@ export interface ProfileRefView {
   readonly notApplied: readonly { readonly field: string; readonly reason: string | null }[];
 }
 
-export function profileRefOf(value: unknown): ProfileRefView {
+function profileRefOf(value: unknown): ProfileRefView {
   const record = asRecord(value);
   const notApplied: { field: string; reason: string | null }[] = [];
   for (const raw of asArray(record?.['not_applied'])) {
@@ -306,7 +310,7 @@ export const CALENDAR_REF_STATUS_LABELS: Readonly<Record<string, string>> = {
   REJECTED_FUTURE_AS_OF: 'Refusé — snapshot daté dans le futur, aucun catalyseur prouvé',
 };
 
-export interface CalendarRefView {
+interface CalendarRefView {
   readonly kind: string | null;
   readonly key: string | null;
   readonly version: number | null;
@@ -321,7 +325,7 @@ export interface CalendarRefView {
   readonly eventsRejected: number | null;
 }
 
-export function calendarRefOf(value: unknown): CalendarRefView {
+function calendarRefOf(value: unknown): CalendarRefView {
   const record = asRecord(value);
   return {
     kind: str(record, 'kind'),
@@ -339,13 +343,13 @@ export function calendarRefOf(value: unknown): CalendarRefView {
   };
 }
 
-export interface OrderingView {
+interface OrderingView {
   readonly method: string | null;
   readonly keys: readonly string[];
   readonly note: string | null;
 }
 
-export function orderingOf(value: unknown): OrderingView {
+function orderingOf(value: unknown): OrderingView {
   const record = asRecord(value);
   return {
     method: str(record, 'method'),
@@ -406,4 +410,51 @@ export function opportunitiesContentOf(content: unknown): OpportunitiesContentVi
     },
     candidates: partitionCandidates(record),
   };
+}
+
+/**
+ * État du cadre Opportunités, dérivé des faits servis (déplacé de la page au
+ * LOT-A3 : Aujourd'hui le réutilise sans tirer la page dans son chunk).
+ */
+export function opportunitiesFrameStateOf(
+  queryState: PageDataState,
+  data: OpportunitiesResponse | undefined,
+): {
+  readonly state: DataState | 'auth-required';
+  readonly view: OpportunitiesContentView | null;
+  readonly detail?: string;
+} {
+  if (queryState !== 'ready' && queryState !== 'refreshing') {
+    return { state: queryState, view: null };
+  }
+  if (data === undefined) {
+    return { state: 'error', view: null };
+  }
+  const served: string = data.state;
+  if (served === 'empty') {
+    return { state: 'empty', view: null };
+  }
+  if (served === 'clock_inconsistent') {
+    // Fermé comme tout état sans contenu servable, mais la cause vient du
+    // serveur : dire « erreur » seul laisserait croire à un contenu invalide.
+    return {
+      state: 'error',
+      view: null,
+      detail:
+        data.reason ??
+        'Horloge incohérente entre le worker et l’API : aucun verdict n’est affiché.',
+    };
+  }
+  if (served !== 'ok' && served !== 'stale') {
+    // Fail-closed : un état hors contrat n'est jamais rendu comme un succès,
+    // et aucune cause n'est inventée pour lui.
+    return { state: 'error', view: null };
+  }
+  const view = opportunitiesContentOf(data.content);
+  if (view === null) {
+    return { state: 'error', view: null };
+  }
+  // Un verdict périmé garde son contenu SOUS un bandeau explicite : il n'est
+  // ni masqué, ni présenté comme courant.
+  return { state: served === 'stale' ? 'stale' : queryState, view };
 }

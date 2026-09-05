@@ -26,6 +26,8 @@ from typing import Any
 import pytest
 from test_analysis import AS_OF as ANALYSIS_AS_OF
 from test_analysis import analysis_content
+from test_calendar_route import event as calendar_event
+from test_calendar_route import snapshot as calendar_snapshot
 from test_markets_overview import markets_content
 from test_option_chain import chain_content
 from test_snapshot_content_errors import (
@@ -34,6 +36,7 @@ from test_snapshot_content_errors import (
 )
 from test_today_attention import attention_content
 
+from vertex_api.calendar import build_calendar_response
 from vertex_api.follow_up import build_follow_up_queue_response
 from vertex_api.performance import build_performance_response
 from vertex_api.snapshot_views import (
@@ -57,6 +60,14 @@ def _snapshot(kind: str, content: dict[str, Any]) -> CurrentSnapshot:
         content_hash="sha256:relay-freshness",
         as_of=AS_OF,
     )
+
+
+def _calendar_snapshot() -> CurrentSnapshot:
+    """Un agenda dont l'événement reste dans son propre ``stale_after`` bien
+    au-delà du budget de l'agenda : seule la bascule du BUDGET est mesurée."""
+    entry = calendar_event("syn-ev-1")
+    entry["stale_after"] = (AS_OF + timedelta(days=30)).isoformat()
+    return calendar_snapshot([entry], version=7)
 
 
 #: Chaque relais avec sa politique DÉCLARÉE et le constructeur qui le sert.
@@ -116,6 +127,14 @@ RELAIS = (
             now=now,
         ),
         id="performance",
+    ),
+    # L'agenda mesurait son âge sans le publier (correctif du LOT-S5) : il
+    # entre dans la table avec sa politique ``corporate_event``.
+    pytest.param(
+        "calendar",
+        "corporate_event",
+        lambda now: build_calendar_response(_calendar_snapshot(), window=None, now=now),
+        id="calendar",
     ),
 )
 

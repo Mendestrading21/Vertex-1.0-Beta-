@@ -21,7 +21,7 @@ Ce fichier ne contient pas de décision humaine ; celles-ci restent dans
 |---|---|
 | Version Python | La suite tourne localement sur **3.11** (plancher). Le workflow CI exécute la cible **3.13** et il est **vert** — c'est là, et seulement là, que la version de production est prouvée. |
 | CI | Le workflow `.github/workflows/ci.yml` existe et couvre 15 portes (actions épinglées à un SHA de commit complet, images par digest immuable). Il a **été exécuté et est vert** sur les 6 jobs et les 15 portes (dernier run vérifié : `1c782fe`), sur les versions CIBLES — Python 3.13, Node 24, PostgreSQL 18.6. C'est la seule preuve existante sur ces versions ; l'environnement de développement tourne sur 3.11 / Node 22 / PostgreSQL 16. |
-| Intégration | `tools/run_checks.sh --integration` couvre désormais les trois suites (`vertex_persistence`, `worker`, `api`), **en série obligatoire** : elles partagent la même base et recréent le schéma. Avant ce correctif, seule la suite `vertex_persistence` tournait — les mentions « TOUT VERT » antérieures ne couvraient donc **pas** les suites worker et api. |
+| Intégration | `tools/run_checks.sh --integration` et le job CI PostgreSQL couvrent désormais les quatre suites (`vertex_persistence`, `worker`, `api`, `edge-ibkr`), **en série obligatoire** : elles partagent la même base et recréent le schéma. Une garde inventorie chaque répertoire `tests_integration` non vide et exige sa présence dans les deux chemins. Avant S1, `edge-ibkr` tournait seulement dans le miroir local : sept checks distants pouvaient donc rester verts sans prouver le trajet IBKR → PostgreSQL → outbox. |
 | Lint et typage Python | **Porte `python-quality` livrée et verte.** `ruff check .` : **1653 → 0** ; `mypy --strict` : **0 erreur sur 114 fichiers source**. Les deux sont câblés dans `.github/workflows/ci.yml` (job `python-quality`) et dans `tools/run_checks.sh`, et échouent sur la moindre violation. Cause structurelle corrigée d'abord : `ruff==0.15.8` et `mypy==1.19.1` sont désormais épinglés en versions EXACTES dans `pyproject.toml` et verrouillés dans `uv.lock` — auparavant épinglés NULLE PART, d'où un compte non reproductible. **Le chiffre de départ réel est 1653, pas 1634** : la ligne précédente avait été mesurée avec une version de Ruff non épinglée et donc inconnue (septième chiffre erroné de ce registre) ; l'écart par règle était bien plus large que l'écart total (`UP017` 86 → 164, `E501` 102 → 146). Périmètre du typage : sources de production + portes `tools/` ; **aucune suite de tests n'est typée** (frontière uniforme, déclarée par `exclude` dans `[tool.mypy]`). Deux règles restent désactivées AVEC motif écrit dans `pyproject.toml` : `RUF001-003` (texte français, préexistant) et **`UP042`** — la conversion `class X(str, Enum)` → `StrEnum` change la sémantique (`f"{A.X}"` vaut `"A.X"` contre `"x"`, mesuré sur CPython 3.11.15) sur les 30 énumérations de CONTRAT qui traversent PostgreSQL, JSON et OpenAPI ; la lever est un lot à part entière (inventaire des interpolations + tests de sérialisation sur 3.13). Suppressions locales ajoutées par ce lot : **102 `# noqa`**, chacune avec un motif écrit — 36 `DTZ001`, 31 `S101`, 7 `S603`, 7 `B017`, 5 `S311`, 5 `B008`, 4 `S607`, 3 `S104`, 2 `S105`, 1 `S608`, 1 `S314` — plus **1 `# type: ignore[method-assign]`** (surcharge `app.openapi` documentée par FastAPI) et **4 `# type: ignore` RETIRÉS** devenus inutiles une fois `types-PyYAML` verrouillé. Les **36 `DTZ001`** sont des tests NÉGATIFS vérifiant le REJET d'un instant naïf : les « corriger » aurait supprimé l'invariant qu'ils protègent — le brief supposait l'inverse, la mesure dit le contraire. Les 3 `S104` sont de même nature (refus d'un hôte non-loopback) et les 31 `S101` sont des narrowings placés APRÈS une garde réelle. Les **7 `B017`** (`pytest.raises(Exception)` trop large) restent une **dette de test réelle non traitée** : les resserrer changerait le contrat des tests, ce que ce lot s'interdit. |
 | Portes CI manquantes | Par rapport à `docs/06-quality/CI_GATES.md` (`python-quality` est désormais LIVRÉE) : `web-quality` (Biome), `migrations` (rollback + restauration), `performance` (Lighthouse, Locust), `build` (images non-root/digest). La porte `policy` existe désormais (`tools/check_policy.py`) et le volet **notices** de `release` aussi (`tools/check_notices.py`) ; **provenance** et **signature** restent NON FAISABLES ici — voir la section dédiée en fin de fichier, elles ne sont ni implémentées ni simulées. |
 | Sauvegarde | `infra/backup/` : cycle `pg_dump` → chiffrement AES-256 → déchiffrement → contrôle d'empreinte → restauration dans une base vide → 4 contrôles → `verified_restore_at` **exécuté et vert sur PostgreSQL réel**. Manquent : archivage WAL/PITR (donc **RPO ≤ 5 min NON atteint**), troisième copie hors machine, ordonnancement, purge de rétention 7/4/12. |
@@ -545,8 +545,10 @@ chemin de fraîcheur avec un lot de démarrage.
   `catalysts: TL / 09` puis `sources-reports: TL / 12` : les codes `10` et `11`
   n'étaient attribués à **rien**, et rien n'en souffrait. La contiguïté n'a
   jamais été requise — réserver un code pour une destination à venir est
-  exactement ce que cette table faisait déjà. `08 charts` et `09 risks` sont
-  donc réservés, avec un test qui vérifie leur absence délibérée.
+  exactement ce que cette table faisait déjà. `08 charts` et `09 risks` ont
+  été réservés ainsi, avec un test qui vérifiait leur absence délibérée —
+  puis attribués : `09 risks` le 2026-09-01, `08 charts` le 2026-09-02
+  (LOT-A2). Le test épingle désormais les douze codes, de `01` à `12`.
 
   **Pourquoi le garde-fou n'a rien vu.** Il vérifiait qu'aucune page ne
   RETOMBE sur `TL / —`, jamais que le code servi est le BON : un code faux lui
@@ -752,3 +754,46 @@ chemin de fraîcheur avec un lot de démarrage.
   PRÉVISUALISATION ne part, pas qu'aucun octet ne circule. Ils asserent
   maintenant l'absence de `/api/v1/simulations/preview` dans les chemins
   appelés, plus l'absence de tout appel autre que celui du shell.
+
+## Trouvé au lot SRV-S0 (2026-09-03)
+
+- **`observations` n'a d'index que sur `as_of`** — **OUVERT, lot de
+  migration dédié.** Chaque fenêtre cadrée par instrument (`instrument_ref`)
+  ou par famille (`schema_version LIKE`) parcourt toute la plage du lookback
+  (8 jours en profil réel, une cotation instantanée par instrument et par
+  minute depuis L1) puis filtre. Analyse exécute une lecture par instrument
+  à barres (≈161 en profil réel) ; Opportunités en exécutait autant depuis
+  S0-B et une seule depuis S0-D (`row_number() OVER (PARTITION BY
+  instrument_ref)`, `load_recent_observation_records_by_instrument`). **Non
+  mesuré sur la base vivante.** Un index `(instrument_ref, as_of)` et/ou
+  `(schema_version text_pattern_ops, as_of)` exige une migration Alembic
+  (`0008_…`), la mise à jour de `Observation.__table_args__` (le test de
+  dérive `compare_metadata` de `vertex_persistence` l'impose) et une mesure
+  `EXPLAIN (ANALYZE)` avant/après sur une copie de `vertex_live` — un
+  `CREATE INDEX` non concurrent bloque les écritures du collecteur pendant
+  sa construction, ce qui se décide avec l'utilisateur.
+- **Six chargeurs émettent encore `LIKE '<préfixe>%'` sans échappement** —
+  **OUVERT, sans effet aujourd'hui.** `markets.py`, `analysis.py`,
+  `calendar.py`, `options.py`, `performance.py` et
+  `handlers.load_capability_records` appliquent des CONSTANTES du code,
+  dont aucune ne porte `%` ni `_`. Le seul chargeur dont les familles
+  viennent de l'appelant (`load_recent_observation_records`) est échappé
+  depuis S0-D (`_schema_family_filter`, `autoescape`). À unifier à
+  l'occasion, avec un reproducteur par site.
+- **Comportement changé en développement, déclaré** :
+  `synthetic-calendar-event/` (porte un titre) n'entre plus dans la file
+  d'attention ni dans le contexte d'information de la revue. La page
+  Calendrier et Catalyseurs les servent toujours ; test-témoin
+  `test_calendar_events_are_served_by_their_own_page_not_by_the_queue`.
+  Réintroduire les catalyseurs dans la file (« proximité temporelle d'un
+  catalyste » est un facteur positif du moteur) est une décision de produit
+  qui passe par `CONTENT_SCHEMA_PREFIXES`.
+- **`observations_considered` a changé de sens** : il ne compte plus que
+  les familles déclarées, et `population` vaut `EMPTY` — non plus `REAL` —
+  quand seules des cotations sont en fenêtre. C'est plus honnête, mais un
+  consommateur qui lisait ce compteur comme « toutes les observations
+  récentes » lit désormais autre chose.
+- **Non vérifié sur données réelles** : la famine « 0 item à 08:40 UTC »
+  est reproduite en base de test, pas rejouée sur `vertex_live` ; la
+  présence de lignes `ibkr.news-headline/1` en base vivante n'a pas été
+  interrogée ; fusion avec L1 (PR #32) non testée sur branche combinée.

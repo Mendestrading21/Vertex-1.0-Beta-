@@ -88,7 +88,16 @@ export function statusLabelOf(status: string): string {
   return status;
 }
 
-/** Marqueur textuel (jamais la couleur seule) accolé au libellé de statut. */
+/**
+ * Marqueur textuel (jamais la couleur seule) accolé au libellé de statut.
+ *
+ * LOT T4-4 — UN STATUT HORS CONTRAT N'A PAS DE MARQUEUR, et c'est juste. Il
+ * renvoyait `'?'`, qui ne disait rien de plus que le libellé posé JUSTE À CÔTÉ :
+ * `statusLabelOf` relaie le statut servi verbatim, et c'est lui le signal. Le
+ * point d'interrogation ajoutait un glyphe ambigu à une information déjà
+ * complète — et sur `AgendaLine`, où le marqueur est `aria-hidden`, il
+ * n'atteignait même pas le lecteur d'écran.
+ */
 export function statusMarkOf(status: string): string {
   if (status === ESTIMATED_STATUS) {
     return '≈';
@@ -96,7 +105,7 @@ export function statusMarkOf(status: string): string {
   if (status === CONFIRMED_STATUS) {
     return '✓';
   }
-  return '?';
+  return '';
 }
 
 export const CATEGORY_LABELS: Readonly<Record<string, string>> = {
@@ -112,7 +121,7 @@ export function categoryLabelOf(category: string): string {
 
 // -- vues -------------------------------------------------------------------
 
-export interface ImportanceView {
+interface ImportanceView {
   readonly rank: number | null;
   readonly code: string | null;
   readonly ruleVersion: string | null;
@@ -135,7 +144,7 @@ export interface RejectedRevisionView {
 }
 
 /** Un enregistrement SUPPLANTÉ, resté lisible (statut et instant antérieurs). */
-export interface PreviousValueView {
+interface PreviousValueView {
   readonly sourceEventId: string | null;
   readonly source: string | null;
   readonly asOf: string | null;
@@ -143,7 +152,7 @@ export interface PreviousValueView {
   readonly eventTimeUtc: string | null;
 }
 
-export interface EventContextView {
+interface EventContextView {
   readonly positions: readonly number[];
   readonly theses: readonly {
     readonly thesisId: number | null;

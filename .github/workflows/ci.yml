@@ -197,7 +197,7 @@ jobs:
       - name: Installation depuis le verrou exact
         run: uv sync --locked --all-extras --python ${{ env.PYTHON_VERSION }}
 
-      # Les trois suites partagent la même base et recréent le schéma :
+      # Les quatre suites partagent la même base et recréent le schéma :
       # exécution SÉRIELLE obligatoire, une invocation par suite.
       - name: Porte 8a — persistance (migrations, outbox, append-only)
         run: uv run --no-sync python -m pytest -q -p no:xdist packages/python/vertex_persistence/tests_integration
@@ -207,6 +207,9 @@ jobs:
 
       - name: Porte 8c — api (relais, passkey, bout en bout)
         run: uv run --no-sync python -m pytest -q -p no:xdist apps/api/tests_integration
+
+      - name: Porte 8d — edge IBKR (runner, PostgreSQL, outbox)
+        run: uv run --no-sync python -m pytest -q -p no:xdist apps/edge-ibkr/tests_integration
 
   # ── Portes 9 à 12 : contrats web, lint, types, tests, budget de bundle ──
   web:

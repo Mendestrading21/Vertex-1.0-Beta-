@@ -33,6 +33,7 @@ __all__ = [
     "CapabilityStatusEntry",
     "DbHealth",
     "EngineInfoResponse",
+    "FreshnessPolicyView",
     "HealthResponse",
     "MarketsBreadth",
     "MarketsCoverage",
@@ -110,6 +111,39 @@ class EngineInfoResponse(ContractModel):
 
 
 # ---------------------------------------------------------------------------
+# Budget de fraîcheur publié — coordonnées serveur de la jauge âge / TTL
+# ---------------------------------------------------------------------------
+
+
+class FreshnessPolicyView(ContractModel):
+    """Coordonnées SERVEUR de la jauge âge / budget d'une réponse datable.
+
+    ``budget_seconds`` est le TTL de SÉANCE FERMÉE de la politique du registre
+    (`vertex_core.data.freshness`) qui borne le relais — la même valeur, du
+    même propriétaire (`vertex_api.freshness.closed_session_budget`), que
+    celle nommée dans la raison ``stale``. ``kind`` est le NOM de cette
+    politique, c'est-à-dire la famille d'observation la plus fraîche dont
+    l'instantané peut être issu (``daily_bar``, ``news_attention``,
+    ``option_surface``…) — à ne pas confondre avec le ``kind`` d'un
+    instantané. ``version`` est la version de la politique : tout changement
+    de TTL exige une montée de version, la jauge la porte donc avec elle.
+
+    Le client pose ``age_seconds`` sur cette échelle et n'invente ni TTL ni
+    ratio : publier le budget évite un second registre recopié côté
+    interface. Le budget est une propriété de la ROUTE, pas de l'instantané :
+    il est servi dans tous les états, ``empty`` compris — sans instantané
+    l'âge est ``null`` (il n'existe pas), l'échelle reste connue. Un budget
+    nul est refusé à la frontière : c'est la forme qu'une absence prendrait
+    si elle était convertie en zéro. Une famille sans budget au registre
+    publie ``null`` (matrice de capacités), jamais un TTL inventé.
+    """
+
+    budget_seconds: PositiveInt
+    kind: NonEmptyStr
+    version: NonEmptyStr
+
+
+# ---------------------------------------------------------------------------
 # GET /api/v1/today/attention — last published attention snapshot, verbatim
 # ---------------------------------------------------------------------------
 
@@ -146,13 +180,15 @@ class AttentionSnapshotResponse(ContractModel):
     a dépassé son budget de fraîcheur (news_attention) : le worker n'a rien
     publié de plus récent. ``age_seconds`` est publié dans TOUS les états
     datables — son absence faisait passer un instantané de trois jours
-    pour un instantané d'une minute.
+    pour un instantané d'une minute. ``freshness_policy`` publie le budget
+    contre lequel cet âge est jugé (``FreshnessPolicyView``).
     """
 
     state: Literal["ok", "stale", "empty"]
     snapshot_version: PositiveInt | None
     as_of: UtcDatetime | None
     age_seconds: int | None
+    freshness_policy: FreshnessPolicyView | None
     population: NonEmptyStr | None
     coverage: FrozenStrMapping | None
     items: tuple[AttentionItem, ...]
@@ -210,6 +246,13 @@ class MarketsBreadth(ContractModel):
     ``status = "INVALID"`` (coverage below the threshold gate) carries the
     typed reason and NO value — a breadth computed on a sliver of the
     universe is never presented. All percentages are server-rendered strings.
+
+    ``above_count`` (advancers), ``down_count`` (decliners) and
+    ``flat_count`` (unchanged) are the worker's exact counts over the covered
+    instruments and PARTITION ``covered_count`` (up + down + flat = covered);
+    they are published in both states, since an INVALID block refuses the
+    ratio, not the counted facts. The API relays them verbatim and never
+    derives one from the others.
     """
 
     status: Literal["OK", "INVALID"]
@@ -217,6 +260,8 @@ class MarketsBreadth(ContractModel):
     value: NonEmptyStr | None
     value_pct: NonEmptyStr | None
     above_count: Annotated[int, Field(ge=0)]
+    down_count: Annotated[int, Field(ge=0)]
+    flat_count: Annotated[int, Field(ge=0)]
     covered_count: Annotated[int, Field(ge=0)]
     universe_size: PositiveInt
     coverage_pct: NonEmptyStr
@@ -270,13 +315,15 @@ class MarketsOverviewResponse(ContractModel):
     a dépassé son budget de fraîcheur (daily_bar) : le worker n'a rien
     publié de plus récent. ``age_seconds`` est publié dans TOUS les états
     datables — son absence faisait passer un instantané de trois jours
-    pour un instantané d'une minute.
+    pour un instantané d'une minute. ``freshness_policy`` publie le budget
+    contre lequel cet âge est jugé (``FreshnessPolicyView``).
     """
 
     state: Literal["ok", "stale", "empty"]
     snapshot_version: PositiveInt | None
     as_of: UtcDatetime | None
     age_seconds: int | None
+    freshness_policy: FreshnessPolicyView | None
     population: NonEmptyStr | None
     data_state: Literal["ok", "partial", "stale"] | None
     unit: NonEmptyStr | None
@@ -306,13 +353,19 @@ class AnalysisResponse(ContractModel):
       ``AdviceEngine`` — status, direction, the ten gates with their reason
       codes, limitations — exactly as published; the API neither recomputes
       nor softens it;
-    - ``bars`` carries the validated synthetic OHLCV series (decimal
-      strings) with its per-bar discard account;
+    - ``bars`` carries the admitted, validated OHLCV series (decimal strings)
+      with its per-bar discard account; its observation may belong to a
+      ``REAL`` or ``SYNTHETIC`` population, relayed separately;
     - ``indicators`` carries the technical indicators computed by the
-      approved engine (``market.realized_volatility``, ``market.atr``), each
+      approved engine (``market.realized_volatility``, ``market.atr``,
+      ``market.relative_strength`` against the declared benchmark), each
       with its ``CalculationRecord`` lineage — or a NAMED absence
       (``INSUFFICIENT_SAMPLE``) when the declared window exceeds the
-      available history. No interpretation is published: a value, never a
+      available history. Each block also carries its rolling ``series``
+      (LOT S3): one rendered value per served session with a complete
+      window (decimal strings, same status vocabulary, same method, own
+      lineage), relayed verbatim — the interface plots what it receives and
+      computes nothing. No interpretation is published: a value, never a
       level, a regime or a signal;
     - ``evidence`` is the fusion-cluster rail of the instrument;
     - ``scenarios`` is either the ``THEORETICAL`` scenario grid with its
@@ -323,13 +376,15 @@ class AnalysisResponse(ContractModel):
     a dépassé son budget de fraîcheur (daily_bar) : le worker n'a rien
     publié de plus récent. ``age_seconds`` est publié dans TOUS les états
     datables — son absence faisait passer un instantané de trois jours
-    pour un instantané d'une minute.
+    pour un instantané d'une minute. ``freshness_policy`` publie le budget
+    contre lequel cet âge est jugé (``FreshnessPolicyView``).
     """
 
     state: Literal["ok", "stale", "empty"]
     snapshot_version: PositiveInt | None
     as_of: UtcDatetime | None
     age_seconds: int | None
+    freshness_policy: FreshnessPolicyView | None
     population: NonEmptyStr | None
     instrument: NonEmptyStr
     engine_version: NonEmptyStr | None
@@ -348,12 +403,18 @@ class AnalysisResponse(ContractModel):
 
 
 class SecFundamentalsResponse(ContractModel):
-    """Official SEC filings and XBRL facts, relayed without financial logic."""
+    """Official SEC filings and XBRL facts, relayed without financial logic.
+
+    ``age_seconds`` est publié dans tous les états datables et
+    ``freshness_policy`` publie le budget (``fundamental_filing``) contre
+    lequel il est jugé (``FreshnessPolicyView``).
+    """
 
     state: Literal["ok", "stale", "empty"]
     snapshot_version: PositiveInt | None
     as_of: UtcDatetime | None
     age_seconds: int | None
+    freshness_policy: FreshnessPolicyView | None
     population: NonEmptyStr | None
     instrument: NonEmptyStr
     source: NonEmptyStr | None
@@ -435,21 +496,23 @@ class OptionChainResponse(ContractModel):
     ``state = "empty"`` means NO snapshot was ever published for this
     underlying: every snapshot-derived field is ``None`` (never invented) and
     ``reason`` says why. ``state = "ok"`` relays the persisted content
-    verbatim: population (``SYNTHETIC`` shown as-is), the synthetic spot,
-    the pricing assumptions, the per-(expiration, trading_class) groups and
-    the displayed row budget.
+    verbatim: population (``REAL``/``SYNTHETIC`` shown as-is), the published
+    spot, the pricing assumptions, the per-(expiration, trading_class) groups
+    and the displayed row budget.
 
     ``state = "stale"`` relaie le MÊME contenu, mais dit que l'instantané
     a dépassé son budget de fraîcheur (option_surface) : le worker n'a rien
     publié de plus récent. ``age_seconds`` est publié dans TOUS les états
     datables — son absence faisait passer un instantané de trois jours
-    pour un instantané d'une minute.
+    pour un instantané d'une minute. ``freshness_policy`` publie le budget
+    contre lequel cet âge est jugé (``FreshnessPolicyView``).
     """
 
     state: Literal["ok", "stale", "empty"]
     snapshot_version: PositiveInt | None
     as_of: UtcDatetime | None
     age_seconds: int | None
+    freshness_policy: FreshnessPolicyView | None
     population: NonEmptyStr | None
     underlying: NonEmptyStr
     engine_version: NonEmptyStr | None
@@ -537,12 +600,15 @@ class SystemCapabilitiesResponse(ContractModel):
     péremption d'une capacité est portée champ par champ par le
     ``expires_at`` de la sonde qui l'a établie. Déclarer un budget de relais
     pour cette famille inventerait un TTL que le registre ne contient pas.
+    ``freshness_policy`` est donc TOUJOURS ``null`` ici : l'absence de budget
+    est déclarée telle quelle, jamais convertie en ``budget_seconds = 0``.
     """
 
     checked_at: UtcDatetime
     snapshot_version: PositiveInt | None
     as_of: UtcDatetime | None
     age_seconds: int | None
+    freshness_policy: FreshnessPolicyView | None
     total: Annotated[int, Field(ge=0)]
     capabilities: tuple[CapabilityStatusEntry, ...]
     unknown_probed_capability_ids: tuple[NonEmptyStr, ...]

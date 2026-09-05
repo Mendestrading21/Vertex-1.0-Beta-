@@ -2,6 +2,7 @@ import { useState } from 'react';
 
 import { isApiError } from '../../../api/client.ts';
 import { saveTextAsFile } from '../../../app/downloadFile.ts';
+import { AbsentCell } from '../../../components/absence.tsx';
 import { getPerformanceExport, usePerformance, usePortfolio } from '../../../api/portfolioApi.ts';
 import type { PerformanceSnapshotResponse } from '../../../api/client.ts';
 import { pageStateOf } from '../../../api/hooks.ts';
@@ -141,8 +142,8 @@ function MetricsBand({ view }: { readonly view: PerformanceContentView }) {
                   {' · '}méthode :{' '}
                   {block.calculation !== null ? (
                     <>
-                      <code>{block.calculation.calculationId ?? '—'}</code> v
-                      {block.calculation.engineVersion ?? '—'}
+                      <code>{block.calculation.calculationId ?? 'calcul non publié'}</code> v
+                      {block.calculation.engineVersion ?? 'non publié'}
                     </>
                   ) : (
                     'aucun calcul publié'
@@ -252,9 +253,9 @@ export function PerformanceSection() {
           {...(frame.view.asOf !== null ? { asOfLabel: frame.view.asOf } : {})}
         >
           <p className="vx-perf-population" role="note" data-testid="perf-population">
-            <strong>Population : {frame.view.population ?? '—'}</strong> — marques{' '}
-            <code>{frame.view.populationMarks ?? '—'}</code> × journal{' '}
-            <code>{frame.view.populationLedger ?? '—'}</code>. Marques synthétiques croisées avec le
+            <strong>Population : {frame.view.population ?? 'non publiée'}</strong> — marques{' '}
+            <code>{frame.view.populationMarks ?? 'non publiées'}</code> × journal{' '}
+            <code>{frame.view.populationLedger ?? 'non publié'}</code>. Marques synthétiques croisées avec le
             ledger réellement déclaré : aucune de ces courbes n'est une performance de marché réel.
           </p>
 
@@ -301,7 +302,13 @@ export function PerformanceSection() {
                         <time dateTime={month.month}>{month.month}</time>
                       </th>
                       <td className="vx-num">{month.retPct}</td>
-                      <td className="vx-num">{month.periods ?? '—'}</td>
+                      <td className="vx-num">
+                        {month.periods === null ? (
+                          <AbsentCell quoi="nombre de périodes" nature="not_published" reason={null} />
+                        ) : (
+                          month.periods
+                        )}
+                      </td>
                       <td>{month.complete ? 'oui' : 'NON — mois incomplet'}</td>
                       <td>
                         {month.incompleteReasons.length > 0 ? (
@@ -311,7 +318,12 @@ export function PerformanceSection() {
                             </code>
                           ))
                         ) : (
-                          '—'
+                          /* LOT T4-2 — UNE LISTE SERVIE VIDE N'EST PAS UNE
+                             ABSENCE. Le mois est complet, donc il n'y a aucune
+                             raison à signaler : c'est un FAIT, pas un manque.
+                             Les confondre est précisément la faute que ce lot
+                             corrige — dans l'autre sens. */
+                          'aucune'
                         )}
                       </td>
                     </tr>
@@ -348,10 +360,34 @@ export function PerformanceSection() {
                           {point.grossValue}
                         </td>
                         <td className="vx-num">{point.netValue}</td>
-                        <td className="vx-num">{point.cash ?? '—'}</td>
-                        <td className="vx-num">{point.positionValue ?? '—'}</td>
-                        <td className="vx-num">{point.feesCumulative ?? '—'}</td>
-                        <td className="vx-num">{point.lotsValued ?? '—'}</td>
+                        <td className="vx-num">
+                          {point.cash === null ? (
+                            <AbsentCell quoi="trésorerie" nature="not_published" reason={null} accord="f" />
+                          ) : (
+                            point.cash
+                          )}
+                        </td>
+                        <td className="vx-num">
+                          {point.positionValue === null ? (
+                            <AbsentCell quoi="valeur des positions" nature="not_published" reason={null} accord="f" />
+                          ) : (
+                            point.positionValue
+                          )}
+                        </td>
+                        <td className="vx-num">
+                          {point.feesCumulative === null ? (
+                            <AbsentCell quoi="frais cumulés" nature="not_published" reason={null} />
+                          ) : (
+                            point.feesCumulative
+                          )}
+                        </td>
+                        <td className="vx-num">
+                          {point.lotsValued === null ? (
+                            <AbsentCell quoi="lots valorisés" nature="not_published" reason={null} />
+                          ) : (
+                            point.lotsValued
+                          )}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -432,12 +468,17 @@ export function PerformanceSection() {
               ))}
             </dl>
             <p className="vx-perf-metric-meta">
-              Couverture : {frame.view.coverage.daysValued ?? '—'} jour(s) valorisé(s) /{' '}
-              {frame.view.coverage.daysWithClose ?? '—'} jour(s) de clôture (ratio{' '}
-              <code className="vx-num">{frame.view.coverage.coverageRatio ?? '—'}</code>) ·{' '}
-              {frame.view.coverage.externalCashflows ?? '—'} flux externe(s) · méthode de lots{' '}
-              <code>{frame.view.lotMethod ?? '—'}</code> · moteur{' '}
-              <code>{frame.view.engineVersion ?? '—'}</code>
+              Couverture : {frame.view.coverage.daysValued ?? 'nombre non publié'} jour(s)
+              valorisé(s) / {frame.view.coverage.daysWithClose ?? 'nombre non publié'} jour(s) de
+              clôture (ratio{' '}
+              {frame.view.coverage.coverageRatio === null ? (
+                <span className="vx-cell-absent">non publié</span>
+              ) : (
+                <code className="vx-num">{frame.view.coverage.coverageRatio}</code>
+              )}
+              ) · {frame.view.coverage.externalCashflows ?? 'nombre non publié'} flux externe(s) ·
+              méthode de lots <code>{frame.view.lotMethod ?? 'non publiée'}</code> · moteur{' '}
+              <code>{frame.view.engineVersion ?? 'non publié'}</code>
             </p>
           </section>
         </DataStateBoundary>

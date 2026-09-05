@@ -31,6 +31,72 @@ Denylist minimale : `placeOrder`, `cancelOrder`, `reqGlobalCancel`, `exerciseOpt
 
 Chaque observation porte `con_id`, `connection_epoch`, `market_data_type`, `observed_at`, `received_at`, `last_confirmed_at`, `request_id` et `quality_flags`.
 
+## Contrat causal S1
+
+### Propriétaire unique de l'état
+
+Une session possède un seul propriétaire de `ConnectionStateMachine`. Dans le
+runner continu, l'adaptateur est configuré avec
+`manage_connection_state=False` : il journalise les événements asynchrones et
+le runner est seul à les appliquer. Pour un appel autonome, l'adaptateur reste
+le propriétaire de l'état. Une machine est obligatoire à la construction : il
+n'existe aucun mode implicite sans barrière d'état. Les deux chemins ne pilotent
+jamais la même machine en parallèle.
+
+Le journal de statut fournisseur (`ProviderStatusJournal`) est matérialisé par
+des `ProviderStatusEvent`. Chaque événement global `502`, `1100`, `1101`,
+`1102` ou `1300` porte un `journal_id` de session et une `sequence` strictement
+croissante. Le couple `(journal_id, sequence)` est la barrière causale ; un
+champ d'erreur attaché à une requête reste un fait et ne peut pas remplacer ce
+journal ni autoriser une transition.
+
+### Barrière des opérations
+
+Avant chaque appel fournisseur, un `OperationToken` fige le `journal_id`,
+`connection_epoch_at_start`, `provider_sequence_at_start` et
+`market_update_sequence_at_start`. Les enveloppes utilisent l'epoch du début de
+l'opération, jamais un epoch relu après la réponse.
+
+Si le journal, sa séquence ou l'epoch change pendant l'appel, la réponse est
+refusée. Pour un snapshot composé de plusieurs enveloppes, le rejet est
+atomique : aucune partie du lot n'atteint le puits de persistance. La même
+barrière protège les contrats, chaînes, historiques, scanners, actualités et
+événements WSH.
+
+Une sonde de capacités capture également un epoch positif unique avant son
+préambule. Chaque résultat de snapshot, chacune de ses enveloppes et l'epoch
+relu avant publication doivent correspondre exactement à cet epoch. Un
+changement entre deux étapes ou un lot mélangeant plusieurs epochs compromet la
+sonde entière : aucune matrice n'est publiée.
+
+Après `1102`, la session reste `RECOVERING`. Elle ne redevient `HEALTHY` qu'à
+partir d'une opération ultérieure contenant au moins une enveloppe `VALID` et
+une mise à jour du ticker reçue après le début de cette opération. Une réponse
+`PARTIAL` ou `INSUFFICIENT_DATA`, une valeur déjà présente, ou l'opération dans
+laquelle `1102` a été reçu ne ferme pas la récupération.
+
+### Annulation et quarantaine
+
+Seul `CancellationOutcome.CANCELLED`, obtenu après confirmation du fournisseur
+**et** accompagné d'un registre de souscriptions revenu à zéro, libère la
+souscription et le budget de lignes de l'adaptateur. Le libellé `CANCELLED` seul
+n'est jamais une preuve suffisante. Un résultat
+`NOT_FOUND`, `FAILED` ou une exception conserve la souscription dans le registre
+comme ligne en quarantaine. Après un résultat `NOT_FOUND` ou `FAILED`, le runner
+réessaie l'annulation une fois. Une exception ou un second échec interdit la
+persistance, arrête le cycle et impose le recyclage de la session avant toute
+nouvelle requête. La reconnexion est refusée si la fermeture de session ou
+l'absence de souscription résiduelle ne peut pas être prouvée.
+
+### Preuve d'intégration
+
+Le câblage S1 exécute en série, dans `tools/run_checks.sh --integration` et dans
+le job PostgreSQL de la CI, les quatre suites `vertex_persistence`, `worker`,
+`api` et `edge-ibkr`. Une garde inventorie les répertoires
+`tests_integration` non vides et exige leur présence dans les deux chemins. Ce
+câblage décrit les contrôles requis ; le verdict de la branche dépend de leur
+exécution effective.
+
 ## Options
 
 - `reqSecDefOptParams` pour les expirations/strikes ;

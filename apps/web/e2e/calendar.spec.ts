@@ -93,7 +93,17 @@ test.describe('Page Calendrier — snapshot réel', () => {
     await expect(page.getByTestId('cal-agenda')).toBeVisible({ timeout: 20_000 });
     for (const event of revised) {
       const id = event['event_id'] as string;
+      // LOT P6a — L'ARCHIVE DES RÉVISIONS A DÉMÉNAGÉ DANS L'INSPECTEUR. La
+      // ligne d'agenda la répétait alors que le panneau la portait déjà ;
+      // c'est un fait qu'on ÉTUDIE, pas un fait qui aide à CHOISIR quel
+      // événement ouvrir. L'exigence est INCHANGÉE — chaque valeur antérieure
+      // reste lisible — seule sa PORTÉE change.
+      await page
+        .getByTestId(`cal-event-${id}`)
+        .getByRole('button', { name: /^Inspecter/ })
+        .click();
       const details = page.getByTestId(`cal-revision-${id}`);
+      await expect(details).toBeVisible();
       await details.locator('summary').click();
       const previousValues = event['previous_values'] as Record<string, unknown>[];
       for (const previous of previousValues) {
@@ -244,5 +254,32 @@ test.describe('Page Calendrier — snapshot réel', () => {
     await expect(boundary).toContainText('Hors ligne');
     await expect(page.getByTestId('cal-agenda')).toHaveCount(0);
     await expect(page.getByTestId('cal-blocked')).toHaveCount(0);
+  });
+});
+
+test.describe('Page Calendrier — composition de la planche §11 (LOT-A7)', () => {
+  test('LOT-A7 : les treize modules, une seule dominante (l’agenda), fuseau explicite, inspecteur de l’événement', async ({ page }) => {
+    await page.goto('/calendar?tz=UTC');
+    const grille = page.getByTestId('calendar-grid');
+    await expect(grille).toBeVisible();
+    await expect(grille.locator('> [data-module]')).toHaveCount(13);
+    await expect(page.locator('.vx-main [data-rank="dominant"]')).toHaveCount(1);
+    await expect(page.locator('[data-module="agenda"] [data-rank="dominant"]')).toBeVisible();
+    await expect(grille.locator('.vx-absent')).toHaveCount(2);
+    for (const body of await grille.locator('[data-testid="absent-body"]').allTextContents()) {
+      expect(body).not.toMatch(/\d/);
+    }
+    await expect(page.getByTestId('cal-tz-select')).toHaveValue('UTC');
+    await expect(page.getByRole('heading', { level: 2, name: 'Inspecteur — Snapshot publié' })).toBeVisible();
+
+    const agenda = page.getByTestId('cal-agenda');
+    await expect(agenda).toBeVisible({ timeout: 20_000 });
+    const bouton = agenda.getByRole('button', { name: /^Inspecter/ }).first();
+    test.skip((await bouton.count()) === 0, 'aucun événement servi dans la fenêtre courante');
+    await bouton.click();
+    await expect(page.getByTestId('cal-event-facts')).toBeVisible();
+    await expect(bouton).toHaveAttribute('aria-pressed', 'true');
+    await page.getByRole('button', { name: 'Fermer' }).click();
+    await expect(page.getByTestId('cal-snapshot-facts')).toBeVisible();
   });
 });

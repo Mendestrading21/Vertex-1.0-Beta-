@@ -165,7 +165,10 @@ export function CatalystInspector({ catalyst }: CatalystInspectorProps) {
           <ul className="vx-inspector-links">
             {catalyst.theses.map((thesis, index) => (
               <li key={`these-${thesis.thesisId ?? index}`}>
-                Thèse : {thesis.title ?? '—'}
+                Thèse :{' '}
+                {thesis.title ?? (
+                  <span className="vx-cell-absent">titre non renseigné</span>
+                )}
                 {thesis.knownInQueue ? null : (
                   <span className="vx-cell-absent"> (absente du snapshot de revue)</span>
                 )}

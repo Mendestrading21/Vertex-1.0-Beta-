@@ -11,6 +11,7 @@
  */
 import type { AnalysisResponse } from '../../api/client.ts';
 import type { DataState } from '../../components/DataStateBoundary.tsx';
+import { geometryValue } from '../../components/widgets/geometry.ts';
 
 function blockString(block: Record<string, unknown>, key: string): string | null {
   const value = block[key];
@@ -58,7 +59,9 @@ export interface BarsView {
 
 export function barsViewOf(data: AnalysisResponse): BarsView | null {
   const block = data.bars;
-  if (block === null) {
+  // `undefined` n'est pas dans le contrat, mais un corps étranger reçu à la
+  // place d'un dossier ne doit jamais faire tomber la page : absent = absent.
+  if (block === null || block === undefined) {
     return null;
   }
   const rawBars = block['bars'];
@@ -107,14 +110,41 @@ export function barsViewOf(data: AnalysisResponse): BarsView | null {
 }
 
 /** Valeur numérique d'une chaîne serveur pour la GÉOMÉTRIE du rendu. */
-export function geometryNumber(value: string): number {
-  const parsed = Number.parseFloat(value);
-  return Number.isFinite(parsed) ? parsed : 0;
+/**
+ * Valeur numérique d'une chaîne servie, POUR LA GÉOMÉTRIE SEULE — ou `null`.
+ *
+ * ELLE RENDAIT `0`. Une chaîne illisible devenait donc un point tracé à zéro :
+ * une bougie qui plonge sur l'axe, une étincelle qui touche le fond, un P&L
+ * posé sur la ligne des zéros. Une absence peinte comme une valeur est un FAIT
+ * FAUX, et `.claude/rules/frontend.md` l'interdit nommément — « ne jamais
+ * remplacer une donnée absente par 0 ». Le module de géométrie du socle avait
+ * déjà nommé ce piège et écrit le remède ; les copies ne l'avaient jamais
+ * adopté.
+ *
+ * L'appelant DOIT désormais traiter `null` : ne rien dessiner, écarter le
+ * point, ou refuser la figure — jamais lui substituer une valeur.
+ */
+export function geometryNumber(value: string | null | undefined): number | null {
+  return geometryValue(value);
 }
 
 // ---------------------------------------------------------------------------
 // AdviceResult (statut canonique — relayé, jamais recalculé)
 // ---------------------------------------------------------------------------
+
+/**
+ * Un couple `clé → valeur` de la PREUVE servie par une gate
+ * (`observed_values`, `thresholds`).
+ *
+ * `text === null` ne veut PAS dire « non publié » : la clé EST publiée, mais
+ * sa valeur n'est pas un scalaire que l'affichage sache relayer verbatim
+ * (objet, tableau, `null`). L'aveu correspondant est donc « non reconnu », pas
+ * « non publié » — nommer la mauvaise nature serait mentir sur le serveur.
+ */
+export interface GateEvidenceEntry {
+  readonly key: string;
+  readonly text: string | null;
+}
 
 export interface GateView {
   readonly gateId: string;
@@ -122,6 +152,49 @@ export interface GateView {
   readonly status: string;
   readonly reasonCode: string;
   readonly message: string;
+  /** `observed_values` SERVI — ce que la gate a réellement vu. */
+  readonly observedValues: readonly GateEvidenceEntry[];
+  /** `thresholds` SERVI — la configuration que la gate a comparée. */
+  readonly thresholds: readonly GateEvidenceEntry[];
+}
+
+/**
+ * Relais VERBATIM d'un scalaire servi. Ce n'est pas un formatage : aucune
+ * unité n'est ajoutée, aucun arrondi n'est appliqué, aucun séparateur n'est
+ * inséré. Un nombre publié `60` s'écrit `60`, un booléen publié s'écrit
+ * `true` — ce sont des codes serveur, pas des mots français.
+ *
+ * Tout le reste (objet, tableau, `null`, `undefined`) rend `null` : le lecteur
+ * verra que la clé est publiée et que sa valeur n'entre pas dans le
+ * vocabulaire relayable, plutôt qu'un `[object Object]`.
+ */
+function evidenceText(value: unknown): string | null {
+  if (typeof value === 'string') {
+    return value;
+  }
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return String(value);
+  }
+  if (typeof value === 'boolean') {
+    return String(value);
+  }
+  return null;
+}
+
+/**
+ * Lit un dictionnaire de preuve servi. L'ORDRE des clés est celui du serveur :
+ * il n'est ni trié, ni filtré, ni complété — une clé absente du payload reste
+ * absente de l'affichage, elle n'est jamais inventée avec une valeur vide.
+ */
+function gateEvidenceOf(gate: Record<string, unknown>, key: string): GateEvidenceEntry[] {
+  const raw = gate[key];
+  if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
+    return [];
+  }
+  return Object.entries(raw as Record<string, unknown>).map(([name, value]) => ({
+    key: name,
+    text: evidenceText(value),
+  }));
 }
 
 export interface AdviceView {
@@ -168,6 +241,8 @@ export function adviceViewOf(data: AnalysisResponse): AdviceView | null {
         status: gateStatus,
         reasonCode,
         message: blockString(gate, 'message') ?? '',
+        observedValues: gateEvidenceOf(gate, 'observed_values'),
+        thresholds: gateEvidenceOf(gate, 'thresholds'),
       });
     }
   }
@@ -213,7 +288,7 @@ export const DIRECTION_FR: Readonly<Record<string, string>> = {
 // Evidence (clusters de fusion)
 // ---------------------------------------------------------------------------
 
-export interface EvidenceClusterView {
+interface EvidenceClusterView {
   readonly clusterId: string;
   readonly title: string;
   readonly sources: readonly string[];
@@ -316,9 +391,11 @@ export function scenariosViewOf(data: AnalysisResponse): ScenariosView | null {
     const tradingClass = blockString(record, 'trading_class');
     const premium = blockString(record, 'premium');
     const premiumSide = blockString(record, 'premium_side');
-    basisLabel = `jambe longue 1 x ${right ?? '?'} ${strike ?? '?'} · ${expiration ?? '?'} · ${
-      tradingClass ?? '?'
-    } — prime déclarée ${premium ?? '?'} (côté ${premiumSide ?? '?'})`;
+    basisLabel = `jambe longue 1 x ${right ?? 'sens non publié'} ${
+      strike ?? 'strike non publié'
+    } · ${expiration ?? 'échéance non publiée'} · ${
+      tradingClass ?? 'classe non publiée'
+    } — prime déclarée ${premium ?? 'non publiée'} (côté ${premiumSide ?? 'non publié'})`;
   }
   const rawGrid = block['grid'];
   const grid: string[][][] = [];
@@ -348,7 +425,7 @@ export function scenariosViewOf(data: AnalysisResponse): ScenariosView | null {
 }
 
 /** Raisons typées d'absence de scénarios → phrase française. */
-export const SCENARIO_ABSENT_REASONS_FR: Readonly<Record<string, string>> = {
+const SCENARIO_ABSENT_REASONS_FR: Readonly<Record<string, string>> = {
   no_option_chain: 'aucune chaîne d’options publiée pour cet instrument',
   no_healthy_contract: 'aucun contrat sain (quote saine ET IV résolue) dans la chaîne publiée',
 };
@@ -379,6 +456,12 @@ export function analysisStateOf(
   }
   if (data.state === 'empty') {
     return 'empty';
+  }
+  if (data.state === 'stale') {
+    return 'stale'; // statut de fraîcheur du relais, propriétaire de l'âge servi
+  }
+  if (data.population === 'DELAYED') {
+    return 'delayed'; // nature publiée par le relais, jamais ramenée à ready
   }
   const bars = barsViewOf(data);
   if (bars === null || bars.status !== 'OK') {

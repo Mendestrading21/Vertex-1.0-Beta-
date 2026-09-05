@@ -153,7 +153,7 @@ def news_headline_envelopes(
         # nom qui dit son defaut. `published_at` reste absent — l'instant est
         # inconnu — mais l'ecran peut afficher la date en la qualifiant.
         if depeche.time_unzoned is not None:
-            charge["provider_time_unzoned"] = depeche.time_unzoned.isoformat()
+            charge["provider_time_unzoned"] = depeche.time_unzoned
         # `entities` rattache la depeche a l'instrument : sans elle le
         # fusionneur retombe sur `instrument_ref`, ce qui marche aussi, mais
         # le symbole est plus lisible dans une preuve affichee.

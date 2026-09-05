@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 
 import { POPULATION_NATURES, resolvePopulationNature } from '../../components/SyntheticBanner.tsx';
+import { AbsentCell } from '../../components/absence.tsx';
 import type { PopulationTone } from '../../components/SyntheticBanner.tsx';
 import { EXCLUSION_KIND_LABELS, disqualifyingFacts } from './opportunitiesView.ts';
 import type { CandidateView } from './opportunitiesView.ts';
@@ -77,6 +78,18 @@ function PopulationCell({ candidate }: { readonly candidate: CandidateView }) {
       data-vx-tone={nature.tone}
       title={nature.detail}
     >
+      {/*
+        TROIS ÉNONCÉS, ET CHACUN EST DÉFENDU PAR UN TEST — la redondance est
+        ici VOULUE, et deux tentatives de la réduire l'ont prouvé.
+        Retirer la phrase française au profit du code rouvre le défaut P1-8,
+        « la nature imprimée en ANGLAIS SEUL », qu'un test gèle nommément.
+        Retirer le code casse l'assertion qui exige que la valeur SERVIE
+        apparaisse dans la ligne — c'est elle, la preuve. La pastille, enfin,
+        est le marquage visuel qu'exige `frontend.md` pour une population non
+        réelle : « impossible à masquer ».
+        La colonne reçoit donc la largeur que ce contenu demande, au lieu que
+        le contenu soit rogné pour entrer dans une colonne trop étroite.
+      */}
       <strong data-testid="opp-population-label" style={{ color: TONE_ACCENT[nature.tone] }}>
         {nature.label}
       </strong>{' '}
@@ -112,7 +125,13 @@ function ExclusionCell({ candidate }: { readonly candidate: CandidateView }) {
               ? (EXCLUSION_KIND_LABELS[exclusion.kind] ?? exclusion.kind)
               : 'Nature d’exclusion non publiée'}
           </strong>{' '}
-          (<code>{exclusion.kind ?? '—'}</code>)
+          (
+          {exclusion.kind === null ? (
+            <span className="vx-cell-absent">type non publié</span>
+          ) : (
+            <code>{exclusion.kind}</code>
+          )}
+          )
         </p>
       ) : null}
       {primaryExclusionReason !== null ? (
@@ -132,6 +151,27 @@ function ExclusionCell({ candidate }: { readonly candidate: CandidateView }) {
   );
 }
 
+/**
+ * Une liste de codes serveurs, RÉSUMÉE dans la table et ENTIÈRE dans le
+ * document.
+ *
+ * POURQUOI ELLE NE S'AFFICHE PLUS EN ENTIER. Chaque code occupait sa propre
+ * ligne, donc la largeur minimale de la colonne valait celle du plus long —
+ * `entitlements_sufficient`, vingt-trois caractères. Deux colonnes ainsi
+ * dimensionnées poussaient la table hors de son conteneur : mesuré sur
+ * capture à 1440 px, « Gates dégradées » et « Preuves manquantes » étaient
+ * coupées au milieu d'un mot. Le conteneur défile, donc rien n'était perdu —
+ * mais deux colonnes entières restaient invisibles au repos, et rien ne le
+ * disait.
+ *
+ * CE QUI RESTE ATTEIGNABLE, ET COMMENT. Le premier code est lu directement ;
+ * le nombre des autres est écrit ; la liste complète voyage dans le `title`
+ * (survol) ET dans un texte réservé aux technologies d'assistance, donc dans
+ * le `textContent` de la ligne — un test e2e vérifie d'ailleurs que chaque
+ * code servi s'y trouve encore. L'inspecteur du candidat, lui, publie la
+ * TOTALITÉ des gates avec leur statut et des preuves avec leur présence : ce
+ * résumé ne remplace pas une source, il en abrège l'aperçu.
+ */
 function ListCell({
   items,
   emptyLabel,
@@ -142,14 +182,18 @@ function ListCell({
   if (items.length === 0) {
     return <span className="vx-cell-absent">{emptyLabel}</span>;
   }
+  const [premier, ...reste] = items;
   return (
-    <ul className="vx-opp-list">
-      {items.map((item) => (
-        <li key={item}>
-          <code>{item}</code>
-        </li>
-      ))}
-    </ul>
+    <span className="vx-opp-list" title={items.join(' · ')}>
+      <code>{premier}</code>
+      {reste.length === 0 ? null : (
+        <>
+          {' '}
+          <span className="vx-opp-list-more">+{reste.length}</span>
+          <span className="vx-visually-hidden">{`, et aussi : ${reste.join(', ')}`}</span>
+        </>
+      )}
+    </span>
   );
 }
 
@@ -159,6 +203,36 @@ export interface OpportunityTableProps {
   readonly emptyMessage: string;
   /** Candidats publiés qualifiés mais contredits — jamais rendus qualifiés. */
   readonly contradictory?: readonly CandidateView[];
+  /** LOT-A4 : ouvre le candidat dans l'inspecteur de la page. */
+  readonly onInspect?: (ticker: string) => void;
+  readonly selected?: string | null;
+}
+
+function InspectButton({
+  ticker,
+  selected,
+  onInspect,
+}: {
+  readonly ticker: string;
+  readonly selected: string | null;
+  readonly onInspect: ((ticker: string) => void) | undefined;
+}) {
+  if (onInspect === undefined) {
+    return null;
+  }
+  return (
+    <button
+      type="button"
+      className="vx-opp-inspect"
+      aria-label={`Inspecter ${ticker}`}
+      aria-pressed={selected === ticker}
+      onClick={() => {
+        onInspect(ticker);
+      }}
+    >
+      Inspecter
+    </button>
+  );
 }
 
 export function OpportunityTable({
@@ -166,6 +240,8 @@ export function OpportunityTable({
   candidates,
   emptyMessage,
   contradictory = [],
+  onInspect,
+  selected = null,
 }: OpportunityTableProps) {
   const titleId = `vx-opp-group-${group}`;
   const isQualified = group === 'qualified';
@@ -173,12 +249,11 @@ export function OpportunityTable({
     <section
       className="vx-opp-group"
       /*
-        SEUL le groupe « qualifiés » domine : c'est lui qui répond à la
-        question de la page (« quels candidats méritent une analyse ? »). Le
-        groupe des exclus reste au rang par défaut — il informe, il ne dirige
-        pas le regard. Deux dominantes sur un écran, c'est zéro dominante.
+        LOT-A4 : le rang dominant est porté par la CARTE « Classement publié »
+        qui contient les deux groupes — un seul porteur par page, tenu par la
+        porte `one-dominant-per-page`. Le groupe qualifié garde sa tranche
+        verte, le groupe exclu son ambre : deux régions, jamais confondues.
       */
-      {...(isQualified ? { 'data-rank': 'dominant' } : {})}
       data-group={group}
       data-testid={`opp-group-${group}`}
       aria-labelledby={titleId}
@@ -211,14 +286,41 @@ export function OpportunityTable({
             </caption>
             <thead>
               <tr>
-                {isQualified ? <th scope="col">Rang</th> : null}
-                <th scope="col">Instrument</th>
-                <th scope="col">Statut</th>
-                <th scope="col">Direction</th>
-                <th scope="col">{isQualified ? 'Exclusion' : 'Raison d’exclusion'}</th>
-                <th scope="col">Gates dégradées</th>
-                <th scope="col">Preuves manquantes</th>
-                <th scope="col">Population</th>
+                {/* `data-col` rend chaque colonne ADRESSABLE — par le CSS qui
+                    borne sa largeur, comme par une assertion. Un `nth-child` ne
+                    désigne rien de stable ici : le groupe qualifié porte une
+                    colonne de rang que le groupe exclu n'a pas. */}
+                {isQualified ? (
+                  <th scope="col" data-col="rank">
+                    Rang
+                  </th>
+                ) : null}
+                <th scope="col" data-col="instrument">
+                  Instrument
+                </th>
+                {/* STATUT ET DIRECTION DANS LA MÊME COLONNE, mais JAMAIS
+                    fondus. `financial-safety.md` exige qu'ils restent
+                    distincts : un statut fermé n'est pas une direction, et
+                    « BLOCKED » ne veut pas dire « baissier ». Ils gardent donc
+                    chacun leur libellé et leur ligne. Ce qui change est la
+                    place : à sept colonnes de prose dans 940 px, la colonne de
+                    direction faisait rejeter « Population » hors du champ,
+                    alors qu'elle ne porte qu'un mot par ligne. */}
+                <th scope="col" data-col="status">
+                  Statut et direction
+                </th>
+                <th scope="col" data-col="exclusion">
+                  {isQualified ? 'Exclusion' : 'Raison d’exclusion'}
+                </th>
+                <th scope="col" data-col="degraded_gates">
+                  Gates dégradées
+                </th>
+                <th scope="col" data-col="missing_evidence">
+                  Preuves manquantes
+                </th>
+                <th scope="col" data-col="population">
+                  Population
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -228,18 +330,33 @@ export function OpportunityTable({
                   data-testid={`opp-contradictory-${candidate.ticker}`}
                   className="vx-opp-contradictory"
                 >
-                  {isQualified ? <td className="vx-num">—</td> : null}
-                  <th scope="row">
+                  {/* LOT T4-1 — « SANS OBJET », ET SURTOUT PAS « NON PUBLIÉ ».
+                      Un candidat contradictoire n'a pas de rang parce qu'il
+                      n'entre PAS dans le classement : le serveur n'a rien omis.
+                      Écrire ici « non publié » lui adresserait un reproche
+                      injustifié — un mensonge neuf à la place d'une ambiguïté. */}
+                  {isQualified ? (
+                    <td data-col="rank">
+                      <AbsentCell quoi="rang" nature="not_applicable" reason={null} />
+                    </td>
+                  ) : null}
+                  <th scope="row" data-col="instrument">
                     <code>{candidate.ticker}</code>
                     <span className="vx-badge vx-badge-warning">SNAPSHOT INCOHÉRENT</span>
+                    <InspectButton ticker={candidate.ticker} selected={selected} onInspect={onInspect} />
                   </th>
-                  <td>
+                  <td data-col="status">
                     <StatusCell candidate={candidate} />
+                    <p className="vx-opp-direction">
+                      <span className="vx-opp-direction-label">direction</span>{' '}
+                      {candidate.advice.direction === null ? (
+                        <span className="vx-cell-absent">non publiée</span>
+                      ) : (
+                        <code>{candidate.advice.direction}</code>
+                      )}
+                    </p>
                   </td>
-                  <td>
-                    <code>{candidate.advice.direction ?? '—'}</code>
-                  </td>
-                  <td>
+                  <td data-col="exclusion">
                     <p>
                       Publié dans le groupe qualifié alors que ses propres faits l’interdisent :{' '}
                       {disqualifyingFacts(candidate).join(' ; ')}. Il est affiché ici, jamais parmi
@@ -247,13 +364,13 @@ export function OpportunityTable({
                     </p>
                     <ExclusionCell candidate={candidate} />
                   </td>
-                  <td>
+                  <td data-col="degraded_gates">
                     <ListCell items={candidate.degradedGates} emptyLabel="Aucune" />
                   </td>
-                  <td>
+                  <td data-col="missing_evidence">
                     <ListCell items={candidate.missingEvidence} emptyLabel="Aucune" />
                   </td>
-                  <td>
+                  <td data-col="population">
                     <PopulationCell candidate={candidate} />
                   </td>
                 </tr>
@@ -261,35 +378,49 @@ export function OpportunityTable({
               {candidates.map((candidate) => (
                 <tr key={candidate.ticker} data-testid={`opp-row-${group}-${candidate.ticker}`}>
                   {isQualified ? (
-                    <td className="vx-num">{candidate.rank ?? '—'}</td>
+                    candidate.rank === null ? (
+                      <td data-col="rank">
+                        <AbsentCell quoi="rang" nature="not_published" reason={null} />
+                      </td>
+                    ) : (
+                      <td className="vx-num" data-col="rank">
+                        {candidate.rank}
+                      </td>
+                    )
                   ) : null}
-                  <th scope="row">
+                  <th scope="row" data-col="instrument">
                     <Link to={`/analysis/${encodeURIComponent(candidate.ticker)}`}>
                       <code>{candidate.ticker}</code>
                     </Link>
                     {candidate.sector !== null ? (
                       <span className="vx-opp-sector"> {candidate.sector}</span>
                     ) : null}
+                    <InspectButton ticker={candidate.ticker} selected={selected} onInspect={onInspect} />
                   </th>
-                  <td>
+                  <td data-col="status">
                     <StatusCell candidate={candidate} />
+                    <p className="vx-opp-direction">
+                      <span className="vx-opp-direction-label">direction</span>{' '}
+                      {candidate.advice.direction === null ? (
+                        <span className="vx-cell-absent">non publiée</span>
+                      ) : (
+                        <code>{candidate.advice.direction}</code>
+                      )}
+                    </p>
                   </td>
-                  <td>
-                    <code>{candidate.advice.direction ?? '—'}</code>
-                  </td>
-                  <td>
+                  <td data-col="exclusion">
                     <ExclusionCell candidate={candidate} />
                   </td>
-                  <td>
+                  <td data-col="degraded_gates">
                     <ListCell items={candidate.degradedGates} emptyLabel="Aucune gate dégradée" />
                   </td>
-                  <td>
+                  <td data-col="missing_evidence">
                     <ListCell
                       items={candidate.missingEvidence}
                       emptyLabel="Aucune preuve manquante"
                     />
                   </td>
-                  <td>
+                  <td data-col="population">
                     <PopulationCell candidate={candidate} />
                   </td>
                 </tr>

@@ -22,6 +22,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
+from enum import Enum, unique
 from typing import Any, Protocol, runtime_checkable
 
 from vertex_core.contracts import (
@@ -41,6 +42,7 @@ __all__ = [
     "MARKET_DATA_TYPE_DELAY",
     "BarObservation",
     "BarsPayload",
+    "CancellationOutcome",
     "ContractQualificationError",
     "ContractSpec",
     "EdgeIbkrError",
@@ -52,9 +54,12 @@ __all__ = [
     "NewsHeadlinesPayload",
     "NewsProviderInfo",
     "NewsProvidersPayload",
+    "OperationToken",
     "OptionChainDefinition",
     "ProviderError",
     "ProviderErrorInfo",
+    "ProviderSessionStateError",
+    "ProviderStatusEvent",
     "QuoteObservation",
     "ScannerDefinition",
     "ScannerPayload",
@@ -120,6 +125,7 @@ ALLOWED_PORT_METHODS: tuple[str, ...] = (
     "news_article",
     "wsh_events",
     "cancel_subscription",
+    "drain_provider_status_events",
 )
 
 
@@ -147,6 +153,10 @@ class ProviderError(EdgeIbkrError):
 
 class ContractQualificationError(EdgeIbkrError):
     """One or more contracts could not be qualified (fail-closed, no guess)."""
+
+
+class ProviderSessionStateError(EdgeIbkrError):
+    """A provider status transition made an operation result inadmissible."""
 
 
 # --------------------------------------------------------------------------
@@ -347,7 +357,11 @@ class NewsHeadline(ContractModel):
     article_id: NonEmptyStr
     headline: NonEmptyStr
     time: UtcDatetime | None = None
-    time_unzoned: datetime | None = None
+    #: ISO 8601 SANS fuseau, en CHAINE et non en `datetime` : l'enveloppe est
+    #: hachee, et le canonicaliseur refuse tout datetime naif — a juste titre.
+    #: Un datetime ici a fait echouer TOUTE la collecte de depeches le
+    #: 2026-09-02. L'ambiguite est portee par le nom du champ, pas par son type.
+    time_unzoned: str | None = None
 
 
 class NewsHeadlinesPayload(ContractModel):
@@ -394,13 +408,47 @@ class OptionChainDefinition(ContractModel):
 # --------------------------------------------------------------------------
 
 
+@unique
+class CancellationOutcome(str, Enum):
+    """Provider-confirmed lifecycle outcome for one market-data line."""
+
+    CANCELLED = "CANCELLED"
+    NOT_FOUND = "NOT_FOUND"
+    FAILED = "FAILED"
+    SESSION_CLOSED = "SESSION_CLOSED"
+
+
+@dataclass(frozen=True, slots=True)
+class ProviderStatusEvent:
+    """One globally sequenced IBKR connection-status fact."""
+
+    journal_id: str
+    sequence: int
+    code: int
+    req_id: int | None
+    received_at: datetime
+    message: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class OperationToken:
+    """Causal fence captured before one provider operation starts."""
+
+    journal_id: str
+    connection_epoch_at_start: int | None
+    provider_sequence_at_start: int
+    market_update_sequence_at_start: int
+
+
 @dataclass(frozen=True, slots=True)
 class ProviderErrorInfo:
-    """A provider error observed during a request window (redacted summary)."""
+    """A provider error observed during a request window (redacted fact)."""
 
     code: int
     message: str = ""
     req_id: int | None = None
+    status_journal_id: str | None = None
+    status_sequence: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -419,7 +467,14 @@ class MarketDataSnapshotResult:
     reported_market_data_type: int | None
     generic_ticks: tuple[int, ...]
     subscription_id: str
-    cancelled: bool
+    operation: OperationToken
+    market_update_sequence_at_end: int
+    cancellation_outcome: CancellationOutcome
+
+    @property
+    def cancelled(self) -> bool:
+        """True only after ``cancelMktData`` explicitly returned True."""
+        return self.cancellation_outcome is CancellationOutcome.CANCELLED
 
     def quote(self) -> QuoteObservation | None:
         """The quote observation of this snapshot, when one was produced."""
@@ -526,6 +581,15 @@ class IbkrInformationPort(Protocol):
         """WSH corporate event data (one bounded request at a time)."""
         ...
 
-    async def cancel_subscription(self, subscription_id: str) -> bool:
-        """Cancel one active market-data subscription line; True if it existed."""
+    async def cancel_subscription(self, subscription_id: str) -> CancellationOutcome:
+        """Attempt one data-line cancellation without hiding an uncertain slot."""
+        ...
+
+    def drain_provider_status_events(self) -> tuple[ProviderStatusEvent, ...]:
+        """Consume globally sequenced connection events exactly once."""
+        ...
+
+    @property
+    def pending_subscription_count(self) -> int:
+        """Number of data lines still active or quarantined locally."""
         ...
