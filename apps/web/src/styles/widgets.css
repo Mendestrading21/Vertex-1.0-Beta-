@@ -3748,3 +3748,79 @@
   white-space: nowrap;
   text-overflow: ellipsis;
 }
+
+
+/* ===========================================================================
+   LOT P6 — PLACEMENT DES PLANCHES DE CALENDRIER, CATALYSEURS ET SOURCES
+   ---------------------------------------------------------------------------
+   CINQUIÈME fois, même cause. `.vx-w2[data-size='S']` (0,2,0) et
+   `.vx-cal-grid > [data-module='x']` (0,2,0) ont la même spécificité, et cette
+   feuille est importée APRÈS `global.css` : une aire nommée restée là-bas perd
+   contre le span du socle. Tant que ces trois pages rendaient un `Card` nu,
+   aucun `.vx-w2` n'existait et le conflit dormait ; le lot P6 les enveloppe
+   dans `Widget`, et il s'est réveillé.
+
+   CE QUE LA MESURE A MONTRÉ, à 1600 sur /calendar : `grid-column: span 1`
+   l'emportait, `grid-area: controls` ne survivait qu'en `grid-row-start`, et
+   les colonnes implicites nées de ce placement raté ramenaient les cinq
+   colonnes nommées à 67,5 px chacune contre deux colonnes fantômes de 315 px.
+   Les cartes mesuraient 68 px de large. Rien n'échouait : ni erreur, ni
+   avertissement — seulement des cartes illisibles et deux portes rouges.
+
+   La porte « aucun module ne perd son aire nommée » ne le voyait pas : elle
+   lit `gridRowStart`, qui valait bien `controls`. C'est la COLONNE qui était
+   perdue. Elle reste utile ; elle n'est simplement pas suffisante seule.
+
+   Le combinateur est `>` : un `[data-module]` imbriqué plus bas — il en existe
+   dans l'inspecteur — n'hérite jamais d'une aire de la grille.
+   =========================================================================== */
+
+.vx-cal-grid > [data-module='view-controls'] { grid-area: controls; }
+.vx-cal-grid > [data-module='timezone'] { grid-area: tz; }
+.vx-cal-grid > [data-module='agenda'] { grid-area: agenda; }
+.vx-cal-grid > [data-module='next-event'] { grid-area: next; }
+.vx-cal-grid > [data-module='counters'] { grid-area: counters; }
+.vx-cal-grid > [data-module='daily-exposure'] { grid-area: exposure; }
+.vx-cal-grid > [data-module='density'] { grid-area: density; }
+.vx-cal-grid > [data-module='reminders'] { grid-area: reminders; }
+.vx-cal-grid > [data-module='changes-since-visit'] { grid-area: changes; }
+.vx-cal-grid > [data-module='revisions'] { grid-area: revisions; }
+.vx-cal-grid > [data-module='conflicts'] { grid-area: conflicts; }
+.vx-cal-grid > [data-module='importance-rule'] { grid-area: rule; }
+.vx-cal-grid > [data-module='provenance'] { grid-area: provenance; }
+
+.vx-cat-grid > [data-module='upcoming-count'] { grid-area: count; }
+.vx-cat-grid > [data-module='mean-impact'] { grid-area: impact; }
+.vx-cat-grid > [data-module='confidence'] { grid-area: confidence; }
+.vx-cat-grid > [data-module='revisions'] { grid-area: revisions; }
+.vx-cat-grid > [data-module='filters'] { grid-area: filters; }
+.vx-cat-grid > [data-module='surprises'] { grid-area: surprises; }
+.vx-cat-grid > [data-module='consensus'] { grid-area: consensus; }
+.vx-cat-grid > [data-module='timeline'] { grid-area: timeline; }
+.vx-cat-grid > [data-module='category-split'] { grid-area: catsplit; }
+.vx-cat-grid > [data-module='surprise-history'] { grid-area: history; }
+.vx-cat-grid > [data-module='portfolio-exposure'] { grid-area: exposure; }
+.vx-cat-grid > [data-module='event-alerts'] { grid-area: alerts; }
+.vx-cat-grid > [data-module='sources-freshness'] { grid-area: sources; }
+.vx-cat-grid > [data-module='window'] { grid-area: window; }
+.vx-cat-grid > [data-module='conflicts'] { grid-area: conflicts; }
+.vx-cat-grid > [data-module='orphan-theses'] { grid-area: orphans; }
+.vx-cat-grid > [data-module='review'] { grid-area: review; }
+
+.vx-sources-grid > [data-module='global-health'] { grid-area: health; }
+.vx-sources-grid > [data-module='status-census'] { grid-area: census; }
+.vx-sources-grid > [data-module='freshness'] { grid-area: freshness; }
+.vx-sources-grid > [data-module='field-coverage'] { grid-area: fields; }
+.vx-sources-grid > [data-module='error-rate'] { grid-area: errors; }
+.vx-sources-grid > [data-module='incidents'] { grid-area: incidents; }
+.vx-sources-grid > [data-module='last-sync'] { grid-area: lastsync; }
+.vx-sources-grid > [data-module='versions'] { grid-area: versions; }
+.vx-sources-grid > [data-module='registry'] { grid-area: registry; }
+.vx-sources-grid > [data-module='lineage'] { grid-area: lineage; }
+.vx-sources-grid > [data-module='field-quality'] { grid-area: quality; }
+.vx-sources-grid > [data-module='audit-log'] { grid-area: audit; }
+.vx-sources-grid > [data-module='reports'] { grid-area: reports; }
+.vx-sources-grid > [data-module='exports'] { grid-area: exports; }
+.vx-sources-grid > [data-module='backups'] { grid-area: backups; }
+.vx-sources-grid > [data-module='components-health'] { grid-area: components; }
+.vx-sources-grid > [data-module='unknown-probes'] { grid-area: probes; }

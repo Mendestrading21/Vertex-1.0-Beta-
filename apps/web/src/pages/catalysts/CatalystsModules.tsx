@@ -2,13 +2,13 @@ import { Link } from 'react-router-dom';
 
 import type { CalendarResponse } from '../../api/client.ts';
 import { AbsentModule } from '../../components/AbsentModule.tsx';
-import { Card } from '../../components/Card.tsx';
 import { CensusBars } from '../../components/CensusBars.tsx';
 import type { CensusEntry } from '../../components/CensusBars.tsx';
 import { Metric } from '../../components/Metric.tsx';
 import { MODULE_STATE_LABELS } from '../../components/moduleState.ts';
 import type { ModuleState } from '../../components/moduleState.ts';
 import { AgendaLine } from '../../components/calendar/AgendaLine.tsx';
+import { Widget } from '../../components/widgets/Widget.tsx';
 import { VERSION_STATE_CONFLICTING, categoryLabelOf } from '../calendar/calendarView.ts';
 import { catalystsModule } from './catalystsModules.ts';
 import { LINK_LABELS } from './catalystsView.ts';
@@ -30,7 +30,9 @@ export function AbsentCatalystsModule({ id }: { readonly id: string }) {
     throw new Error(`Module ${id} is served, not absent`);
   }
   return (
-    <div data-module={id}>
+    // `data-size` vient du catalogue comme pour un module servi : la planche
+    // compose de la même façon un module absent et un module servi.
+    <div data-module={id} data-size={module.size}>
       <AbsentModule title={module.title} question={module.question} reason={module.status.reason} note={module.status.note} />
     </div>
   );
@@ -85,7 +87,15 @@ export function UpcomingCountModule({
 }) {
   const module = catalystsModule('upcoming-count');
   return (
-    <Card rank="quiet" kicker="Agenda × file de revue" title={module.title} titleId="vx-cat-count-title" footer={<>reliés par le contexte croisé publié ; les non reliés restent sur Calendrier</>}>
+    <Widget
+      id="upcoming-count"
+      size={module.size}
+      kicker="Agenda × file de revue"
+      title={module.title}
+      titleId="vx-cat-count-title"
+      state={state}
+      footer={<>reliés par le contexte croisé publié ; les non reliés restent sur Calendrier</>}
+    >
       {selection === null ? (
         // La raison serveur n'est écrite qu'UNE fois sur la page : dans la
         // chronologie (dominante). Ici, seul l'état est nommé.
@@ -97,7 +107,7 @@ export function UpcomingCountModule({
           <Metric label="Thèses orphelines" value={String(selection.thesesWithoutCatalyst.length)} size="compact" />
         </div>
       )}
-    </Card>
+    </Widget>
   );
 }
 
@@ -107,7 +117,15 @@ export function RevisionsModule({ selection, state }: { readonly selection: Cata
   const module = catalystsModule('revisions');
   const revised = selection === null ? [] : selection.catalysts.filter((entry) => entry.event.revised);
   return (
-    <Card rank="quiet" kicker="Publiées par la source" title={module.title} titleId="vx-cat-revisions-title" footer={<>drapeau et détail sont deux champs distincts du snapshot ; aucune direction de révision n’est déduite</>}>
+    <Widget
+      id="revisions"
+      size={module.size}
+      kicker="Publiées par la source"
+      title={module.title}
+      titleId="vx-cat-revisions-title"
+      state={state}
+      footer={<>drapeau et détail sont deux champs distincts du snapshot ; aucune direction de révision n’est déduite</>}
+    >
       {selection === null ? (
         <SelectionAbsence state={state} />
       ) : (
@@ -125,7 +143,7 @@ export function RevisionsModule({ selection, state }: { readonly selection: Cata
           ) : null}
         </>
       )}
-    </Card>
+    </Widget>
   );
 }
 
@@ -160,7 +178,23 @@ export function FiltersModule({
   const module = catalystsModule('filters');
   const categories = selection === null ? [] : [...new Set(selection.catalysts.map((entry) => entry.event.category))].sort();
   return (
-    <Card rank="quiet" kicker="Affichage local" title={module.title} titleId="vx-cat-filters-title" footer={<>un filtre masque, il ne reclasse pas ; le snapshot servi reste entier</>}>
+    <Widget
+      id="filters"
+      size={module.size}
+      kicker="Affichage local"
+      title={module.title}
+      titleId="vx-cat-filters-title"
+            /*
+       * MODULE DE CONTRÔLE — `state="ready"` littéral. Les cases de catégorie
+       * et de lien sont les filtres DE L'UTILISATEUR : les masquer parce que
+       * le snapshot est hors ligne ou périmé retirerait le réglage au moment
+       * où la page en a le plus besoin, et `Widget` ne rend aucun enfant hors
+       * des états qui montrent du contenu. L'état du snapshot reste DIT dans
+       * le corps (`SelectionAbsence`).
+       */
+      state="ready"
+      footer={<>un filtre masque, il ne reclasse pas ; le snapshot servi reste entier</>}
+    >
       {selection === null ? (
         <SelectionAbsence state={state} />
       ) : (
@@ -200,7 +234,7 @@ export function FiltersModule({
           </p>
         </>
       )}
-    </Card>
+    </Widget>
   );
 }
 
@@ -209,7 +243,15 @@ export function FiltersModule({
 export function CategorySplitModule({ selection, state }: { readonly selection: CatalystSelectionView | null; readonly state: ModuleState }) {
   const module = catalystsModule('category-split');
   return (
-    <Card rank="quiet" kicker="Dénombrement" title={module.title} titleId="vx-cat-split-title" footer={<>comptes d’événements reliés par catégorie publiée ; aucune pondération</>}>
+    <Widget
+      id="category-split"
+      size={module.size}
+      kicker="Dénombrement"
+      title={module.title}
+      titleId="vx-cat-split-title"
+      state={state}
+      footer={<>comptes d’événements reliés par catégorie publiée ; aucune pondération</>}
+    >
       {selection === null ? (
         <SelectionAbsence state={state} />
       ) : (
@@ -223,7 +265,7 @@ export function CategorySplitModule({ selection, state }: { readonly selection: 
           emptyLabel="Aucun événement relié."
         />
       )}
-    </Card>
+    </Widget>
   );
 }
 
@@ -235,11 +277,13 @@ export function PortfolioExposureModule({ selection, state }: { readonly selecti
   const module = catalystsModule('portfolio-exposure');
   const exposed = selection === null ? [] : selection.catalysts.filter((entry) => entry.positions.length > 0);
   return (
-    <Card
-      rank="quiet"
+    <Widget
+      id="portfolio-exposure"
+      size={module.size}
       kicker="Registre manuel"
       title={module.title}
       titleId="vx-cat-exposure-title"
+      state={state}
       footer={
         <>
           positions déclarées par vous, nommées par le contexte croisé du snapshot ; <Link to="/portfolio">voir Portefeuille</Link>
@@ -267,7 +311,7 @@ export function PortfolioExposureModule({ selection, state }: { readonly selecti
           ))}
         </ul>
       )}
-    </Card>
+    </Widget>
   );
 }
 
@@ -276,7 +320,15 @@ export function PortfolioExposureModule({ selection, state }: { readonly selecti
 export function SourcesFreshnessModule({ selection, state }: { readonly selection: CatalystSelectionView | null; readonly state: ModuleState }) {
   const module = catalystsModule('sources-freshness');
   return (
-    <Card rank="quiet" kicker="Dénombrement" title={module.title} titleId="vx-cat-sources-title" footer={<>sources et fraîcheur telles que publiées par événement ; aucun délai mesuré ici</>}>
+    <Widget
+      id="sources-freshness"
+      size={module.size}
+      kicker="Dénombrement"
+      title={module.title}
+      titleId="vx-cat-sources-title"
+      state={state}
+      footer={<>sources et fraîcheur telles que publiées par événement ; aucun délai mesuré ici</>}
+    >
       {selection === null ? (
         <SelectionAbsence state={state} />
       ) : (
@@ -298,7 +350,7 @@ export function SourcesFreshnessModule({ selection, state }: { readonly selectio
           />
         </>
       )}
-    </Card>
+    </Widget>
   );
 }
 
@@ -315,7 +367,15 @@ export function WindowModule({
 }) {
   const module = catalystsModule('window');
   return (
-    <Card rank="quiet" kicker="Deux snapshots" title={module.title} titleId="vx-cat-window-title" footer={<>populations séparées, jamais additionnées ; leur croisement ne crée aucune donnée nouvelle</>}>
+    <Widget
+      id="window"
+      size={module.size}
+      kicker="Deux snapshots"
+      title={module.title}
+      titleId="vx-cat-window-title"
+      state={state}
+      footer={<>populations séparées, jamais additionnées ; leur croisement ne crée aucune donnée nouvelle</>}
+    >
       {data === undefined ? (
         <SelectionAbsence state={state} />
       ) : (
@@ -348,7 +408,7 @@ export function WindowModule({
           </p>
         </>
       )}
-    </Card>
+    </Widget>
   );
 }
 
@@ -359,7 +419,15 @@ export function ConflictsModule({ selection, state }: { readonly selection: Cata
   const conflicting = selection === null ? [] : selection.catalysts.filter((entry) => entry.event.versionState === VERSION_STATE_CONFLICTING);
   const rejected = selection === null ? [] : selection.catalysts.filter((entry) => entry.event.rejectedRevisions.length > 0);
   return (
-    <Card rank="quiet" kicker="Publiés par le worker" title={module.title} titleId="vx-cat-conflicts-title" footer={<>un conflit n’est jamais résolu ici : la version affichée suit l’ordre stable publié</>}>
+    <Widget
+      id="conflicts"
+      size={module.size}
+      kicker="Publiés par le worker"
+      title={module.title}
+      titleId="vx-cat-conflicts-title"
+      state={state}
+      footer={<>un conflit n’est jamais résolu ici : la version affichée suit l’ordre stable publié</>}
+    >
       {selection === null ? (
         <SelectionAbsence state={state} />
       ) : (
@@ -368,7 +436,7 @@ export function ConflictsModule({ selection, state }: { readonly selection: Cata
           <Metric label="Révisions rejetées" value={String(rejected.length)} size="compact" testId="cat-conflicts-rejected" />
         </div>
       )}
-    </Card>
+    </Widget>
   );
 }
 
@@ -377,13 +445,15 @@ export function ConflictsModule({ selection, state }: { readonly selection: Cata
 export function OrphanThesesModule({ theses, state }: { readonly theses: readonly ThesisEntryView[] | null; readonly state: ModuleState }) {
   const module = catalystsModule('orphan-theses');
   return (
-    <Card
-      rank="quiet"
+    <Widget
+      id="orphan-theses"
+      size={module.size}
       kicker="Fait de couverture"
       title={module.title}
       titleId="vx-cat-orphans-title"
       className="vx-cat-orphans"
-      {...(theses === null ? {} : { 'aside': <>{theses.length}</> })}
+      state={state}
+      {...(theses === null ? {} : { action: <>{theses.length}</> })}
       footer={<>l’absence d’événement publié ne signifie pas qu’aucun événement n’existe — un fait de couverture, pas un verdict</>}
     >
       {theses === null ? (
@@ -402,6 +472,6 @@ export function OrphanThesesModule({ theses, state }: { readonly theses: readonl
           ))}
         </ul>
       )}
-    </Card>
+    </Widget>
   );
 }

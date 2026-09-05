@@ -153,8 +153,6 @@ body {
   border-bottom: 1px solid var(--vx-border-soft);
 }
 
-
-
 .vx-brand-lockup {
   display: flex;
   min-width: 0;
@@ -174,7 +172,6 @@ body {
   background: none;
   color: var(--vx-silver);
 }
-
 
 .vx-rail-toggle {
   display: inline-flex;
@@ -731,7 +728,6 @@ body {
   align-items: center;
   gap: var(--vx-space-12);
 }
-
 
 .vx-contextbar-status {
   display: inline-flex;
@@ -4396,8 +4392,6 @@ body {
   -webkit-mask-size: contain;
 }
 
-
-
 .vx-rail-group-label {
   color: var(--vx-titanium);
   font-size: var(--vx-font-size-micro);
@@ -4445,7 +4439,6 @@ body {
   letter-spacing: 0.12em;
   text-transform: uppercase;
 }
-
 
 .vx-main {
   position: relative;
@@ -5044,7 +5037,6 @@ label {
   }
 }
 
-
 /* ==========================================================================
    Page Risques (LEDGER 09) — matrice de correlation
    ==========================================================================
@@ -5394,12 +5386,28 @@ label {
 
 .vx-card-aside {
   display: flex;
-  flex: 0 0 auto;
+  /* MESURÉ sur /calendar, carte `importance-rule` (planche S, 180 px) :
+     `flex: 0 0 auto` refusait tout rétrécissement, `.vx-card-heading` était
+     écrasé à clientWidth = 0 — le TITRE disparaissait — et la tête débordait
+     quand même de 27 px. Un aside qui ne cède jamais ne protège pas son
+     contenu : il efface celui du voisin. */
+  flex: 0 1 auto;
   align-items: center;
   gap: var(--vx-space-8);
+  min-width: 0;
   color: var(--vx-text-muted);
   font-size: var(--vx-font-size-meta);
   text-align: right;
+}
+
+/* Un `code` est un IDENTIFIANT — version de règle, nom de schéma, code
+   fournisseur — jamais une mesure. Il peut donc se couper n'importe où sans
+   qu'un nombre soit séparé de son unité, ce que `widgets.css` interdit par
+   ailleurs. Et seul `anywhere` RÉDUIT la largeur min-content : `break-word`
+   ne change rien à ce calcul. */
+.vx-card-aside code,
+.vx-module-sentence code {
+  overflow-wrap: anywhere;
 }
 
 .vx-card-body {
@@ -7212,6 +7220,11 @@ label {
 }
 
 .vx-opp-filters {
+  /* MESURÉ sur /catalysts, carte `filters` (planche S) : sept pastilles de
+     catégorie sur une rangée flex sans repli débordaient de 42 px. Une
+     pastille est un interrupteur indépendant : la rangée se replie, elle ne
+     se coupe pas. */
+  flex-wrap: wrap;
   margin-bottom: var(--vx-space-16);
 }
 
@@ -7902,7 +7915,6 @@ label {
    déclaration, import) et le module Performance entier gardent leur corps ;
    la grille leur donne le matériau des cartes. */
 
-
 /* Les sections du registre gardent leur corps mais reçoivent le matériau des
    cartes de la grille : plus de double cadre, plus de marge de page. */
 .vx-pf-grid > [data-module] > .vx-pf-ledger,
@@ -8073,24 +8085,6 @@ label {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
-.vx-cat-grid > [data-module='upcoming-count'] { grid-area: count; }
-.vx-cat-grid > [data-module='mean-impact'] { grid-area: impact; }
-.vx-cat-grid > [data-module='confidence'] { grid-area: confidence; }
-.vx-cat-grid > [data-module='revisions'] { grid-area: revisions; }
-.vx-cat-grid > [data-module='filters'] { grid-area: filters; }
-.vx-cat-grid > [data-module='surprises'] { grid-area: surprises; }
-.vx-cat-grid > [data-module='consensus'] { grid-area: consensus; }
-.vx-cat-grid > [data-module='timeline'] { grid-area: timeline; }
-.vx-cat-grid > [data-module='category-split'] { grid-area: catsplit; }
-.vx-cat-grid > [data-module='surprise-history'] { grid-area: history; }
-.vx-cat-grid > [data-module='portfolio-exposure'] { grid-area: exposure; }
-.vx-cat-grid > [data-module='event-alerts'] { grid-area: alerts; }
-.vx-cat-grid > [data-module='sources-freshness'] { grid-area: sources; }
-.vx-cat-grid > [data-module='window'] { grid-area: window; }
-.vx-cat-grid > [data-module='conflicts'] { grid-area: conflicts; }
-.vx-cat-grid > [data-module='orphan-theses'] { grid-area: orphans; }
-.vx-cat-grid > [data-module='review'] { grid-area: review; }
-
 @media (min-width: 1600px) {
   .vx-cat-grid {
     /*
@@ -8202,30 +8196,22 @@ label {
   m'attend ». La règle d'importance devient une bande de pied, pleine largeur.
 */
 .vx-cal-grid {
+  /* RECOMPOSÉE par hauteurs MESURÉES (1280x800, population SYNTHETIC) :
+     counters 2982 px partageait sa rangée avec exposure 281 et density 355 —
+     60 % de vide, la pire rangée des douze planches. counters n'a aucun pair
+     de sa taille : il prend sa propre rangée, et les deux courtes se
+     retrouvent entre elles (281 / 355, soit 10 % de vide). */
   grid-template-areas:
     'controls controls controls tz'
     'agenda agenda agenda next'
     'agenda agenda agenda conflicts'
-    'exposure density counters counters'
+    'counters counters counters counters'
+    'exposure exposure density density'
     'revisions revisions provenance provenance'
     'reminders reminders changes changes'
     'rule rule rule rule';
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
-
-.vx-cal-grid > [data-module='view-controls'] { grid-area: controls; }
-.vx-cal-grid > [data-module='timezone'] { grid-area: tz; }
-.vx-cal-grid > [data-module='agenda'] { grid-area: agenda; }
-.vx-cal-grid > [data-module='next-event'] { grid-area: next; }
-.vx-cal-grid > [data-module='counters'] { grid-area: counters; }
-.vx-cal-grid > [data-module='daily-exposure'] { grid-area: exposure; }
-.vx-cal-grid > [data-module='density'] { grid-area: density; }
-.vx-cal-grid > [data-module='reminders'] { grid-area: reminders; }
-.vx-cal-grid > [data-module='changes-since-visit'] { grid-area: changes; }
-.vx-cal-grid > [data-module='revisions'] { grid-area: revisions; }
-.vx-cal-grid > [data-module='conflicts'] { grid-area: conflicts; }
-.vx-cal-grid > [data-module='importance-rule'] { grid-area: rule; }
-.vx-cal-grid > [data-module='provenance'] { grid-area: provenance; }
 
 @media (min-width: 1600px) {
   .vx-cal-grid {
@@ -8363,24 +8349,6 @@ label {
     'components components components components';
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
-
-.vx-sources-grid > [data-module='global-health'] { grid-area: health; }
-.vx-sources-grid > [data-module='status-census'] { grid-area: census; }
-.vx-sources-grid > [data-module='freshness'] { grid-area: freshness; }
-.vx-sources-grid > [data-module='field-coverage'] { grid-area: fields; }
-.vx-sources-grid > [data-module='error-rate'] { grid-area: errors; }
-.vx-sources-grid > [data-module='incidents'] { grid-area: incidents; }
-.vx-sources-grid > [data-module='last-sync'] { grid-area: lastsync; }
-.vx-sources-grid > [data-module='versions'] { grid-area: versions; }
-.vx-sources-grid > [data-module='registry'] { grid-area: registry; }
-.vx-sources-grid > [data-module='lineage'] { grid-area: lineage; }
-.vx-sources-grid > [data-module='field-quality'] { grid-area: quality; }
-.vx-sources-grid > [data-module='audit-log'] { grid-area: audit; }
-.vx-sources-grid > [data-module='reports'] { grid-area: reports; }
-.vx-sources-grid > [data-module='exports'] { grid-area: exports; }
-.vx-sources-grid > [data-module='backups'] { grid-area: backups; }
-.vx-sources-grid > [data-module='components-health'] { grid-area: components; }
-.vx-sources-grid > [data-module='unknown-probes'] { grid-area: probes; }
 
 @media (min-width: 1600px) {
   .vx-sources-grid {

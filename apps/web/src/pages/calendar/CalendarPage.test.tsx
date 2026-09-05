@@ -425,7 +425,11 @@ describe('page Calendrier — rendu', () => {
     );
     await renderCalendar();
     await screen.findByTestId('cal-agenda');
-    const boundary = document.querySelector('[data-state="stale"]');
+    // La frontière d'état lue ici est celle de la DOMINANTE : depuis le lot
+    // P6a, chaque widget servi porte AUSSI son propre `data-state`, et un
+    // sélecteur non borné ramènerait le premier module de la planche au lieu
+    // du bandeau qui porte la raison servie.
+    const boundary = document.querySelector('[data-module="agenda"] [data-state="stale"]');
     expect(boundary).not.toBeNull();
     expect(boundary?.textContent).toContain('Données périmées');
     expect(boundary?.textContent).toContain('every displayed event is stale');

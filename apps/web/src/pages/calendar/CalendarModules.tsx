@@ -1,12 +1,12 @@
 import type { CalendarResponse } from '../../api/client.ts';
 import { AbsentModule } from '../../components/AbsentModule.tsx';
-import { Card } from '../../components/Card.tsx';
-import { CensusBars } from '../../components/CensusBars.tsx';
-import type { CensusEntry } from '../../components/CensusBars.tsx';
 import { Metric } from '../../components/Metric.tsx';
 import { MODULE_STATE_LABELS } from '../../components/moduleState.ts';
 import type { ModuleState } from '../../components/moduleState.ts';
 import { AgendaLine } from '../../components/calendar/AgendaLine.tsx';
+import { DayBars } from '../../components/widgets/DayBars.tsx';
+import type { DayBarEntry } from '../../components/widgets/DayBars.tsx';
+import { Widget } from '../../components/widgets/Widget.tsx';
 import { EventStatusBadge } from './EventAgenda.tsx';
 import { calendarModule } from './calendarModules.ts';
 import {
@@ -37,7 +37,9 @@ export function AbsentCalendarModule({ id }: { readonly id: string }) {
     throw new Error(`Module ${id} is served, not absent`);
   }
   return (
-    <div data-module={id}>
+    // `data-size` vient du catalogue comme pour un module servi : la planche
+    // compose de la même façon un module absent et un module servi.
+    <div data-module={id} data-size={module.size}>
       <AbsentModule title={module.title} question={module.question} reason={module.status.reason} note={module.status.note} />
     </div>
   );
@@ -136,12 +138,14 @@ export function ImportanceRuleModule({ served, state }: { readonly served: Calen
   const module = calendarModule('importance-rule');
   const view = served === null ? null : importanceRuleOf(served.importance_rule);
   return (
-    <Card
-      rank="quiet"
+    <Widget
+      id="importance-rule"
+      size={module.size}
       kicker="Règle versionnée"
       title={module.title}
       titleId="vx-cal-rule-title"
-      {...(view === null ? {} : { aside: <code>{view.version ?? 'non publiée'}</code> })}
+      state={state}
+      {...(view === null ? {} : { action: <code>{view.version ?? 'non publiée'}</code> })}
       footer={<>l’interface n’attribue aucune importance : elle affiche le rang et le code que le worker a appliqués</>}
     >
       {view === null ? (
@@ -182,7 +186,7 @@ export function ImportanceRuleModule({ served, state }: { readonly served: Calen
           </div>
         </div>
       )}
-    </Card>
+    </Widget>
   );
 }
 
@@ -191,9 +195,17 @@ export function ImportanceRuleModule({ served, state }: { readonly served: Calen
 export function CountersModule({ served, state }: { readonly served: CalendarResponse | null; readonly state: ModuleState }) {
   const module = calendarModule('counters');
   return (
-    <Card rank="quiet" kicker="Deux comptages publiés" title={module.title} titleId="vx-cal-counters-title" footer={<>la liste réellement servie (après fenêtre) et les totaux du snapshot entier ne se remplacent jamais</>}>
+    <Widget
+      id="counters"
+      size={module.size}
+      kicker="Deux comptages publiés"
+      title={module.title}
+      titleId="vx-cal-counters-title"
+      state={state}
+      footer={<>la liste réellement servie (après fenêtre) et les totaux du snapshot entier ne se remplacent jamais</>}
+    >
       {served === null ? <AgendaAbsence state={state} /> : <CountersTable served={served} />}
-    </Card>
+    </Widget>
   );
 }
 
@@ -259,7 +271,15 @@ export function ProvenanceModule({ served, state }: { readonly served: CalendarR
   const considered = coverage['observations_considered'];
   const stale = coverage['events_stale'];
   return (
-    <Card rank="quiet" kicker="Snapshot publié" title={module.title} titleId="vx-cal-provenance-title" footer={<>fenêtre bornée par le serveur ; observations, supplantés et périmés comptés par le worker</>}>
+    <Widget
+      id="provenance"
+      size={module.size}
+      kicker="Snapshot publié"
+      title={module.title}
+      titleId="vx-cal-provenance-title"
+      state={state}
+      footer={<>fenêtre bornée par le serveur ; observations, supplantés et périmés comptés par le worker</>}
+    >
       {served === null ? (
         <AgendaAbsence state={state} />
       ) : (
@@ -314,7 +334,7 @@ export function ProvenanceModule({ served, state }: { readonly served: CalendarR
           </p>
         </>
       )}
-    </Card>
+    </Widget>
   );
 }
 
@@ -350,7 +370,25 @@ export function TimezoneModule({
   const module = calendarModule('timezone');
   const choices = timeZoneChoicesOf(events ?? [], viewerTimeZone);
   return (
-    <Card rank="quiet" kicker="Conversion explicite" title={module.title} titleId="vx-cal-tz-title" footer={<>l’instant UTC publié reste affiché ; la conversion se fait dans un fuseau IANA nommé, jamais deviné</>}>
+    <Widget
+      id="timezone"
+      size={module.size}
+      kicker="Conversion explicite"
+      title={module.title}
+      titleId="vx-cal-tz-title"
+      /*
+       * MODULE DE CONTRÔLE — `state="ready"` littéral, comme la fenêtre servie.
+       * Le fuseau d'affichage est un choix DE L'UTILISATEUR : le masquer parce
+       * que l'agenda est hors ligne ou périmé retirerait le réglage au moment
+       * où la page en a le plus besoin, et `Widget` ne rend aucun enfant hors
+       * des états qui montrent du contenu. L'état de l'agenda reste DIT dans
+       * le corps (`AgendaAbsence`), et la liste des fuseaux proposés se
+       * dégrade seule : sans événement servi, il ne reste qu'UTC et le fuseau
+       * du navigateur.
+       */
+      state="ready"
+      footer={<>l’instant UTC publié reste affiché ; la conversion se fait dans un fuseau IANA nommé, jamais deviné</>}
+    >
       {events === null ? <AgendaAbsence state={state} /> : null}
       <label className="vx-cal-tz-label">
         Fuseau d’affichage
@@ -375,31 +413,60 @@ export function TimezoneModule({
           ? 'Fuseaux proposés : UTC et le fuseau du navigateur.'
           : `${choices.length} fuseau(x) proposé(s) : UTC, le fuseau du navigateur et les fuseaux de place publiés par les événements servis.`}
       </p>
-    </Card>
+    </Widget>
   );
 }
 
 // ---------------------------------------------------------------------------
 
-function dayCensusOf(events: readonly CalendarEventView[]): readonly CensusEntry[] {
+/**
+ * Dénombrement d'événements SERVIS par journée UTC, en entrées de `DayBars`
+ * (forme « rail derrière les barres », ADR-017).
+ *
+ * Ce n'est pas un calcul financier : c'est un DÉNOMBREMENT de la liste servie,
+ * la même opération que la table équivalente rend visible ligne à ligne. Aucun
+ * pourcentage n'est écrit — il n'est pas publié, et l'écrire serait le
+ * calculer. Les journées sans événement servi n'entrent pas dans la figure :
+ * une barre nulle affirmerait un zéro que le serveur n'a pas publié.
+ *
+ * `shortLabel` rend l'abscisse `MM-JJ` ; le jour complet reste dans l'infobulle
+ * ET dans la table équivalente. ADR-017 interdit d'abréger une VALEUR, pas une
+ * date d'axe.
+ */
+function dayBarsOf(events: readonly CalendarEventView[]): readonly DayBarEntry[] {
   const counts = new Map<string, number>();
   for (const event of events) {
     const day = groupKeyOf(event.eventTimeUtc, 'day');
     counts.set(day, (counts.get(day) ?? 0) + 1);
   }
-  return [...counts.entries()].sort((left, right) => left[0].localeCompare(right[0])).map(([key, count]) => ({ key, count }));
+  return [...counts.entries()]
+    .sort((left, right) => left[0].localeCompare(right[0]))
+    .map(([key, count]) => ({ key, label: key, value: String(count), shortLabel: key.slice(5) }));
 }
 
 export function DensityModule({ events, state }: { readonly events: readonly CalendarEventView[] | null; readonly state: ModuleState }) {
   const module = calendarModule('density');
   return (
-    <Card rank="quiet" kicker="Dénombrement par journée UTC" title={module.title} titleId="vx-cal-density-title" footer={<>événements servis par journée UTC ; les journées sans événement ne sont pas inventées</>}>
+    <Widget
+      id="density"
+      size={module.size}
+      kicker="Dénombrement par journée UTC"
+      title={module.title}
+      titleId="vx-cal-density-title"
+      state={state}
+      footer={<>événements servis par journée UTC ; les journées sans événement ne sont pas inventées</>}
+    >
       {events === null ? (
         <AgendaAbsence state={state} />
       ) : (
-        <CensusBars entries={dayCensusOf(events)} ariaLabel="Événements servis par journée UTC" testIdPrefix="cal-density" emptyLabel="Aucun événement servi." />
+        <DayBars
+          entries={dayBarsOf(events)}
+          unit="événements servis"
+          ariaLabel="Événements servis par journée UTC"
+          emptyLabel="Aucun événement servi."
+        />
       )}
-    </Card>
+    </Widget>
   );
 }
 
@@ -407,18 +474,26 @@ export function DailyExposureModule({ events, state }: { readonly events: readon
   const module = calendarModule('daily-exposure');
   const exposed = events === null ? null : events.filter((event) => event.context.positions.length > 0);
   return (
-    <Card rank="quiet" kicker="Registre manuel" title={module.title} titleId="vx-cal-exposure-title" footer={<>événements dont le contexte croisé nomme une position déclarée par vous ; aucun montant, aucun poids</>}>
+    <Widget
+      id="daily-exposure"
+      size={module.size}
+      kicker="Registre manuel"
+      title={module.title}
+      titleId="vx-cal-exposure-title"
+      state={state}
+      footer={<>événements dont le contexte croisé nomme une position déclarée par vous ; aucun montant, aucun poids</>}
+    >
       {exposed === null ? (
         <AgendaAbsence state={state} />
       ) : (
-        <CensusBars
-          entries={dayCensusOf(exposed)}
+        <DayBars
+          entries={dayBarsOf(exposed)}
+          unit="événements servis"
           ariaLabel="Événements liés à une position déclarée, par journée UTC"
-          testIdPrefix="cal-exposure"
           emptyLabel="Aucun événement servi ne touche une position déclarée."
         />
       )}
-    </Card>
+    </Widget>
   );
 }
 
@@ -437,7 +512,15 @@ export function NextEventModule({
   const first = events === null ? null : (events[0] ?? null);
   const reading = first === null ? null : formatInTimeZone(first.eventTimeUtc, displayTimeZone);
   return (
-    <Card rank="quiet" kicker="Premier de l’ordre publié" title={module.title} titleId="vx-cal-next-title" footer={<>aucun compte à rebours : une horloge vivante n’est pas une donnée servie</>}>
+    <Widget
+      id="next-event"
+      size={module.size}
+      kicker="Premier de l’ordre publié"
+      title={module.title}
+      titleId="vx-cal-next-title"
+      state={state}
+      footer={<>aucun compte à rebours : une horloge vivante n’est pas une donnée servie</>}
+    >
       {events === null ? (
         <AgendaAbsence state={state} />
       ) : first === null ? (
@@ -459,7 +542,7 @@ export function NextEventModule({
           </p>
         </div>
       )}
-    </Card>
+    </Widget>
   );
 }
 
@@ -469,7 +552,15 @@ export function RevisionsModule({ events, state }: { readonly events: readonly C
   const module = calendarModule('revisions');
   const revised = events === null ? [] : events.filter((event) => event.revised);
   return (
-    <Card rank="quiet" kicker="Publiées par la source" title={module.title} titleId="vx-cal-revisions-title" footer={<>drapeau et détail sont deux champs distincts du snapshot ; les valeurs antérieures restent lisibles dans l’agenda</>}>
+    <Widget
+      id="revisions"
+      size={module.size}
+      kicker="Publiées par la source"
+      title={module.title}
+      titleId="vx-cal-revisions-title"
+      state={state}
+      footer={<>drapeau et détail sont deux champs distincts du snapshot ; les valeurs antérieures restent lisibles dans l’agenda</>}
+    >
       {events === null ? (
         <AgendaAbsence state={state} />
       ) : (
@@ -487,7 +578,7 @@ export function RevisionsModule({ events, state }: { readonly events: readonly C
           ) : null}
         </>
       )}
-    </Card>
+    </Widget>
   );
 }
 
@@ -496,7 +587,15 @@ export function ConflictsModule({ events, state }: { readonly events: readonly C
   const conflicting = events === null ? [] : events.filter((event) => event.versionState === VERSION_STATE_CONFLICTING);
   const rejected = events === null ? [] : events.filter((event) => event.rejectedRevisions.length > 0);
   return (
-    <Card rank="quiet" kicker="Publiés par le worker" title={module.title} titleId="vx-cal-conflicts-title" footer={<>un conflit n’est jamais résolu ici ; la version affichée suit l’ordre stable publié</>}>
+    <Widget
+      id="conflicts"
+      size={module.size}
+      kicker="Publiés par le worker"
+      title={module.title}
+      titleId="vx-cal-conflicts-title"
+      state={state}
+      footer={<>un conflit n’est jamais résolu ici ; la version affichée suit l’ordre stable publié</>}
+    >
       {events === null ? (
         <AgendaAbsence state={state} />
       ) : (
@@ -505,6 +604,6 @@ export function ConflictsModule({ events, state }: { readonly events: readonly C
           <Metric label="Révisions rejetées" value={String(rejected.length)} size="compact" testId="cal-conflicts-rejected" />
         </div>
       )}
-    </Card>
+    </Widget>
   );
 }

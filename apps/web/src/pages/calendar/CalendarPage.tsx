@@ -13,6 +13,7 @@ import { DataStateBoundary } from '../../components/DataStateBoundary.tsx';
 import type { DataState } from '../../components/DataStateBoundary.tsx';
 import type { ModuleState } from '../../components/moduleState.ts';
 import { SyntheticBanner } from '../../components/SyntheticBanner.tsx';
+import { Widget } from '../../components/widgets/Widget.tsx';
 import {
   AbsentCalendarModule,
   BlockedAgenda,
@@ -301,15 +302,27 @@ export function CalendarPage() {
       ) : (
         <>
           <div className="vx-cal-grid vx-board" data-testid="calendar-grid">
-            <div data-module="view-controls">
-              <Card
-                rank="quiet"
-                kicker="Bornes transmises telles quelles"
-                title={calendarModule('view-controls').title}
-                titleId="vx-cal-window-title"
-                className="vx-cal-window"
-                footer={<>le serveur valide les bornes et borne la profondeur à 90 jours ; aucune borne n’est corrigée par l’interface</>}
-              >
+            {/*
+              MODULE DE CONTRÔLE, PAS DE DONNÉE — d'où `state="ready"` littéral.
+              Les bornes, la catégorie, le statut et le regroupement sont les
+              paramètres DE L'UTILISATEUR : ils existent même quand le serveur
+              ne sert rien. Leur passer l'état de la page les ferait disparaître
+              exactement quand ils sont nécessaires — une fenêtre vide ou un
+              refus typé se corrigent DANS ce formulaire, et `Widget` ne rend
+              aucun enfant hors des états qui montrent du contenu. Les
+              compteurs SERVIS qu'il affiche, eux, se dégradent seuls : ils
+              viennent des tables servies, vides quand rien n'est publié.
+            */}
+            <Widget
+              id="view-controls"
+              size={calendarModule('view-controls').size}
+              kicker="Bornes transmises telles quelles"
+              title={calendarModule('view-controls').title}
+              titleId="vx-cal-window-title"
+              state="ready"
+              className="vx-cal-window"
+              footer={<>le serveur valide les bornes et borne la profondeur à 90 jours ; aucune borne n’est corrigée par l’interface</>}
+            >
                 <div className="vx-matrix-filters">
                   <label>
                     Du (instant avec fuseau)
@@ -361,19 +374,16 @@ export function CalendarPage() {
                     {windowError.message !== null ? <span className="vx-cal-window-error-raw">Message du serveur : {windowError.message}</span> : null}
                   </p>
                 ) : null}
-              </Card>
-            </div>
-            <div data-module="timezone">
-              <TimezoneModule
+            </Widget>
+            <TimezoneModule
                 events={agendaEvents}
                 viewerTimeZone={viewerTimeZone}
                 displayTimeZone={displayTimeZone}
                 onChange={(zone) => {
                   updateParam('tz', zone);
                 }}
-                state={moduleState}
-              />
-            </div>
+              state={moduleState}
+            />
 
             <div data-module="agenda">
               <AgendaModule
@@ -387,35 +397,19 @@ export function CalendarPage() {
                 }}
               />
             </div>
-            <div data-module="next-event">
-              <NextEventModule events={agendaEvents === null ? null : visible} displayTimeZone={displayTimeZone} state={moduleState} />
-            </div>
-            <div data-module="counters">
-              <CountersModule served={served} state={moduleState} />
-            </div>
+            <NextEventModule events={agendaEvents === null ? null : visible} displayTimeZone={displayTimeZone} state={moduleState} />
+            <CountersModule served={served} state={moduleState} />
 
-            <div data-module="daily-exposure">
-              <DailyExposureModule events={agendaEvents} state={moduleState} />
-            </div>
-            <div data-module="density">
-              <DensityModule events={agendaEvents} state={moduleState} />
-            </div>
+            <DailyExposureModule events={agendaEvents} state={moduleState} />
+            <DensityModule events={agendaEvents} state={moduleState} />
 
             <AbsentCalendarModule id="reminders" />
             <AbsentCalendarModule id="changes-since-visit" />
-            <div data-module="revisions">
-              <RevisionsModule events={agendaEvents} state={moduleState} />
-            </div>
-            <div data-module="conflicts">
-              <ConflictsModule events={agendaEvents} state={moduleState} />
-            </div>
+            <RevisionsModule events={agendaEvents} state={moduleState} />
+            <ConflictsModule events={agendaEvents} state={moduleState} />
 
-            <div data-module="importance-rule">
-              <ImportanceRuleModule served={served} state={moduleState} />
-            </div>
-            <div data-module="provenance">
-              <ProvenanceModule served={served} state={moduleState} />
-            </div>
+            <ImportanceRuleModule served={served} state={moduleState} />
+            <ProvenanceModule served={served} state={moduleState} />
           </div>
 
           {selected === null ? (

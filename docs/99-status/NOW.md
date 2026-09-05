@@ -3324,6 +3324,80 @@ captures relues.
   sonores**. C'est le symptôme du paragraphe d'absence, pas du jeton : la
   désaturation du texte (**V5**) le ramène à une ligne.
 
+---
+
+## LOT P6 — les trois dernières planches rejoignent le conteneur v2
+
+Branche `claude/syncfusion-flutter-widgets-btl182`, base `75f14d5` (V2 fusionné),
+commits `96aff7d` (P6a — Calendrier) et `5889f37` (P6b — Catalyseurs et
+Sources & Rapports). Dernier lot `P` du plan `docs/05-design/WIDGETS_V2_PLAN.md`.
+
+### Ce qui était mesuré avant
+
+Neuf pages sur douze rendaient leurs modules par `Widget` (ADR-017). Trois ne
+le faisaient pas : Calendrier, Catalyseurs, Sources & Rapports — **zéro import**
+de `components/widgets/` dans leurs fichiers de page. Leurs catalogues
+(`calendarModules.ts`, `catalystsModules.ts`, `sourcesModules.ts`) déclaraient
+pourtant `size` et `variant` pour leurs 43 modules et importaient les types
+depuis `Widget.tsx` : deux champs que personne ne lisait, et un `<div
+data-module>` réécrit à la main sur chaque module par les pages.
+
+### Ce que le lot pose
+
+24 modules servis passent par `Widget` : `data-module`, `data-size` et
+`data-state` posés depuis le catalogue, onze états au lieu d'une phrase locale,
+squelette de chargement, surbrillance de valeur mise à jour. Les modules absents
+portent `data-size` comme les servis. Les trois grilles gardent leurs enfants
+directs (13, 17, 17) et leurs `grid-area` — les règles CSS ciblent
+`> [data-module]`, un sélecteur d'attribut, pas une balise.
+
+Densité et exposition quotidienne du Calendrier quittent `CensusBars` pour
+`DayBars`, la forme « rail derrière les barres » qu'ADR-017 admet sur un
+dénombrement par jour, avec sa table équivalente.
+
+### Trois décisions à contre-courant de la mécanique
+
+1. **Les contrôles ne prennent pas l'état de la page.** Fenêtre servie et fuseau
+   du Calendrier, filtres des Catalyseurs restent en `state="ready"` littéral.
+   `Widget` ne rend aucun enfant hors des états qui montrent du contenu : leur
+   passer l'état de la page ferait disparaître le formulaire exactement quand il
+   sert — une fenêtre vide ou un refus typé se corrigent DANS ce formulaire.
+2. **Les dominantes restent sur `Card` + `DataStateBoundary`.** Agenda,
+   chronologie et registre portent le détail servi de leur état ; le dédoubler
+   dans `Widget` n'ajouterait rien et créerait un second témoin.
+3. **`portfolio-exposure` garde sa liste.** Le plan proposait `DayBars` en [I] ;
+   un dénombrement par jour perdrait les identifiants de position, qui sont
+   l'information du module.
+
+### Conséquence mesurée sur les témoins d'état
+
+Chaque widget servi porte désormais son propre `data-state`. Trois assertions
+qui lisaient un `data-state` non borné ramenaient donc le premier module de la
+planche au lieu de la frontière : elles sont bornées à ce qu'elles vérifiaient
+déjà — `[data-module="agenda"]` pour le Calendrier (unitaire « agenda périmé »,
+e2e `empty_window` et hors ligne), `.vx-dsb-message` pour les deux bandeaux
+hors ligne de Catalyseurs.
+
+### Preuves
+
+`pnpm typecheck` vert · `pnpm test` vert, **981 tests, 97 fichiers** ·
+`pnpm lint` sans diagnostic sur les fichiers touchés (le seul `info` du dépôt
+reste `options/OptionsModules.tsx:219`, hors lot).
+
+**Non exécuté ici, et donc non prouvé** : les e2e Playwright (PostgreSQL, API et
+worker requis) et la comparaison de captures aux trois viewports. Les trois
+locators corrigés le sont par lecture du DOM rendu, pas par exécution.
+
+### Dette laissée, nommée
+
+`variant` (`WIDGET_VARIANTS` : `dominant`, `support`, `rail`, `inline`, `sheet`,
+`workflow-step`) est déclaré par les **douze** catalogues de page et n'est
+consommé par personne — `Widget` n'a pas de prop `variant`, aucune page n'en
+passe. Ce n'est pas un oubli de ce lot : décider ce que la variante doit rendre
+à l'écran est une décision de design, pas une correction mécanique.
+
+---
+
 ## LOT V3a — trois portes de mise en page (2026-09-04)
 
 Branche `refonte/v3a-portes-mise-en-page-20260904`, depuis `main` = `75f14d5`.
