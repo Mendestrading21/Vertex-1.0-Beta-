@@ -2,6 +2,7 @@ import type { MarketsOverview } from '../../api/client.ts';
 import type { FlatTicker } from '../../components/markets/marketsView.ts';
 import { GROUP_LABELS_FR, frDecimal, signSymbolOf } from '../../components/markets/marketsView.ts';
 import { InspectorPanel } from '../../shell/inspector.tsx';
+import { FreshnessBadge, policyProps } from '../../components/FreshnessBadge.tsx';
 
 /**
  * Inspecteur de la page Marchés (planche §2 : « instrument/secteur
@@ -123,7 +124,26 @@ export function SnapshotInspector({ data }: { readonly data: MarketsOverview }) 
         </div>
         <div>
           <dt>Âge publié</dt>
-          <dd>{data.age_seconds === null ? 'non publié' : `${data.age_seconds} s`}</dd>
+          <dd>
+            <FreshnessBadge ageSeconds={data.age_seconds} {...policyProps(data.freshness_policy)} />
+          </dd>
+        </div>
+        <div>
+          {/* Le NOM et la VERSION de la politique, écrits en clair : la
+              pastille les porte en infobulle, l'inspecteur est l'endroit où
+              rien ne se replie. */}
+          <dt>Politique de fraîcheur</dt>
+          <dd>
+            {data.freshness_policy === null ? (
+              'non publiée'
+            ) : (
+              <>
+                <code>{data.freshness_policy.kind}</code> ·{' '}
+                <code>{data.freshness_policy.version}</code> ·{' '}
+                {data.freshness_policy.budget_seconds} s
+              </>
+            )}
+          </dd>
         </div>
         <div>
           <dt>Population</dt>

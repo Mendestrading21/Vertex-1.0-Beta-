@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import type { OptionChainExpiration, OptionChainResponse } from '../../api/client.ts';
 import { pageStateOf, useAnalysis, useMarketsOverview } from '../../api/hooks.ts';
 import { Card } from '../../components/Card.tsx';
-import { FreshnessBadge } from '../../components/FreshnessBadge.tsx';
+import { FreshnessBadge, policyProps } from '../../components/FreshnessBadge.tsx';
 import { Metric } from '../../components/Metric.tsx';
 import { ModuleStatus } from '../../components/ModuleStatus.tsx';
 import { Sparkline } from '../../components/markets/Sparkline.tsx';
@@ -82,7 +82,11 @@ export function UnderlyingSeriesModule({ underlying }: { readonly underlying: st
       titleId="vx-options-series-title"
       {...(shows && data !== undefined
         ? {
-            aside: <FreshnessBadge ageSeconds={data.age_seconds} sourceLabel="dossier" />,
+            aside: <FreshnessBadge
+                ageSeconds={data.age_seconds}
+                {...policyProps(data.freshness_policy)}
+                sourceLabel="dossier"
+              />,
             footer: (
               <>
                 {lineBars.length} clôtures publiées{bars === null ? '' : ` · dernière ${publie(bars.lastClose)} ${publie(bars.currency)} (${publie(bars.lastTradingDay)})`} ·{' '}
@@ -169,7 +173,11 @@ export function IdentityStripModule({ data }: { readonly data: OptionChainRespon
         <div>
           <dt>Âge publié</dt>
           <dd>
-            <FreshnessBadge ageSeconds={data.age_seconds} sourceLabel="âge publié par le serveur" />
+            <FreshnessBadge
+              ageSeconds={data.age_seconds}
+              {...policyProps(data.freshness_policy)}
+              sourceLabel="âge publié par le serveur"
+            />
           </dd>
         </div>
         <div>

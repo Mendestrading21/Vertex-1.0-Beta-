@@ -7,7 +7,7 @@ import { AbsentModule } from '../../components/AbsentModule.tsx';
 import { AuthRequiredNotice } from '../../components/AuthRequiredNotice.tsx';
 import { DataStateBoundary } from '../../components/DataStateBoundary.tsx';
 import type { DataState } from '../../components/DataStateBoundary.tsx';
-import { FreshnessBadge } from '../../components/FreshnessBadge.tsx';
+import { FreshnessBadge, policyProps } from '../../components/FreshnessBadge.tsx';
 import { Metric } from '../../components/Metric.tsx';
 import { ProvenanceLine } from '../../components/widgets/ProvenanceLine.tsx';
 import { Widget } from '../../components/widgets/Widget.tsx';
@@ -170,6 +170,7 @@ function RankingModule({
       <div className="vx-opp-provenance" data-testid="opp-provenance">
         <FreshnessBadge
           ageSeconds={data.age_seconds}
+          {...policyProps(data.freshness_policy)}
           sourceLabel="âge publié par le serveur"
         />
         <ProvenanceLine

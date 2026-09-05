@@ -930,8 +930,32 @@ body {
 /* FreshnessBadge                                                      */
 /* ------------------------------------------------------------------ */
 
+/*
+  LA PASTILLE PLIE ENTRE SES SEGMENTS, JAMAIS DEDANS.
+
+  Vue en capture dans le pied de Marchés, la pastille rendait « il y a 4 / min »
+  et « budget 3 / j » : chaque MESURE coupée en deux, le nombre sur une ligne
+  et son unité sur la suivante. Un « 3 » seul au bout d'une ligne n'est pas
+  trois jours, c'est un chiffre orphelin — la même faute que la valeur bornée
+  qui perdait son unité, corrigée plus haut dans cette nuit.
+
+  Les segments sont donc insécables et la pastille, elle, a le droit de passer
+  à la ligne entre eux.
+*/
+/*
+  LA PASTILLE PLIE ENTRE SES SEGMENTS, JAMAIS DEDANS.
+
+  Vue en capture dans le pied de Marchés, la pastille rendait « il y a 4 / min »
+  et « budget 3 / j » : chaque MESURE coupée entre son nombre et son unité. Un
+  « 3 » seul au bout d'une ligne n'est pas trois jours, c'est un chiffre
+  orphelin — la même faute que la valeur bornée qui perdait son unité.
+
+  Les segments sont donc insécables, et la pastille a le droit de passer à la
+  ligne ENTRE eux : dans une colonne étroite, c'est le bon comportement.
+*/
 .vx-freshness {
   display: inline-flex;
+  flex-wrap: wrap;
   align-items: baseline;
   gap: var(--vx-space-8);
   padding: var(--vx-space-4) var(--vx-space-12);
@@ -941,6 +965,25 @@ body {
   color: var(--vx-text-secondary);
   font-family: var(--vx-font-mono);
   font-size: var(--vx-font-size-meta);
+}
+
+/*
+  L'ÉCHELLE SERVIE, LISIBLEMENT SECONDE À L'ÂGE. Les deux nombres sont du même
+  ordre de grandeur — « il y a 3 j » et « budget 1 j » — et c'est exactement
+  pourquoi ils ne doivent pas se lire comme un seul. Le budget est en retrait :
+  la barre verticale le sépare, la couleur le range au second plan. Il répond à
+  « de quoi est-ce l'âge ? », il n'est pas la mesure elle-même.
+*/
+.vx-freshness-age,
+.vx-freshness-budget,
+.vx-freshness-source {
+  white-space: nowrap;
+}
+
+.vx-freshness-budget {
+  padding-left: var(--vx-space-8);
+  border-left: 1px solid var(--vx-border-soft);
+  color: var(--vx-text-muted);
 }
 
 .vx-freshness-source {
@@ -5550,11 +5593,24 @@ label {
   font-weight: 500;
 }
 
+/*
+  L'UNITÉ RESTE COLLÉE À SON NOMBRE.
+
+  `unbroken-measure.spec.ts` mesure « % / an » sur DEUX lignes dans Portefeuille,
+  à 1440 et à 1600. Une unité coupée de son nombre ne mesure plus rien : le
+  lecteur doit la rattacher lui-même.
+
+  `nowrap` supprime la seule occasion de rupture — l'espace initial du segment.
+  Aucun risque de débordement : le nombre est déjà borné à 14ch par
+  `.vx-metric-number`, et les unités du produit tiennent en quelques
+  caractères.
+*/
 .vx-metric-unit {
   color: var(--vx-text-muted);
   font-size: var(--vx-font-size-meta);
   font-weight: 500;
   letter-spacing: 0;
+  white-space: nowrap;
 }
 
 .vx-metric-note {

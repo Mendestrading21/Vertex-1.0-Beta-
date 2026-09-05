@@ -222,8 +222,10 @@ RESSERRÉ, pas desserré — `null` dit strictement plus que `0`.
 
 Reporté, avec sa mesure, pour un lot dédié :
 
-- **`freshness_policy` est servi par 12 routes et lu par ZÉRO fichier
-  d'interface.** Un contrat de fraîcheur existe et n'est pas branché.
+- ~~`freshness_policy` servi par 12 routes et lu par ZÉRO fichier
+  d'interface~~ — **traité**. Le budget servi est affiché à côté de l'âge, la
+  politique est nommée dans l'inspecteur, et une porte interdit qu'un champ de
+  vérité redevienne muet ; voir « L'échelle qui juge la fraîcheur ».
 - ~~38 modules servis figés à `state="ready"`~~ — **traité**. Marchés (6),
   Graphiques (6) et Opportunités (8) propagent désormais l'état servi de leur
   instantané. Le seul `ready` en dur qui reste est celui du journal manuel de
@@ -331,3 +333,95 @@ La porte s'est d'abord accusée elle-même : son commentaire d'explication
 contient les mots `data-sign='positive'`. Les commentaires CSS sont désormais
 retirés avant lecture — une porte qui lit de la prose ne lit pas des règles, et
 symétriquement une règle cachée dans un commentaire n'est pas une règle.
+
+### L'échelle qui juge la fraîcheur, servie et jamais lue
+
+`freshness_policy = {budget_seconds, kind, version}` traverse **douze routes**
+et arrivait jusqu'au client TypeScript généré. **Aucun fichier d'interface ne
+la lisait.** Le contrat serveur avait pourtant écrit son intention mot pour
+mot :
+
+> Le client pose `age_seconds` sur cette échelle et n'invente ni TTL ni ratio :
+> publier le budget évite un second registre recopié côté interface.
+
+La moitié cliente n'avait jamais été écrite. La conséquence n'est pas
+cosmétique : **un âge sans son échelle ne dit rien.** Trois jours sur une barre
+quotidienne de séance fermée, c'est normal ; trois jours sur une cotation,
+c'est une donnée morte. Le lecteur voyait « il y a 3 j » sans savoir de quoi
+c'était l'âge.
+
+`FreshnessBadge` porte désormais le budget servi à côté de l'âge — « il y a
+3 j │ budget 1 j » — avec le nom et la version de la politique en infobulle, et
+en clair dans l'inspecteur de Marchés. `WidgetServed` transporte les trois
+champs, donc **toute carte** posée sur `Widget` peut les montrer. Neuf sites
+d'appel sont câblés ; `policyProps()` est le seul endroit qui connaît les noms
+du contrat.
+
+**Pourquoi pas une jauge.** `LinearGauge` exigerait une POSITION SERVIE en
+pourcentage — `WIDGET_LIBRARY.md` : « le navigateur ne calcule ni pourcentage,
+ni seuil, ni position du marqueur ». Le serveur publie deux durées, pas un
+ratio ; dessiner un remplissage obligerait à calculer `âge / budget` dans le
+navigateur. Les deux durées sont donc affichées, jamais divisées. Le jour où le
+serveur publiera la position, la jauge la prendra.
+
+Un budget absent reste tu : une famille sans TTL au registre publie `null`
+(matrice de capacités), et un budget nul ou négatif — refusé à la frontière
+serveur, « la forme qu'une absence prendrait si elle était convertie en zéro »
+— est tu aussi. L'afficher ferait lire **toute** donnée comme périmée.
+
+**La porte a d'abord été vacuité.** `design/served-truth-read.test.ts` exige
+qu'un champ de vérité servi ait au moins un lecteur hors de `api/`. Écrite
+ainsi, elle restait VERTE avec le câblage retiré : `test/fixtures.ts` **pose**
+`freshness_policy` pour satisfaire le type de la réponse. Poser un champ n'est
+pas le lire — c'est exactement l'état que la porte doit interdire. `test/` est
+donc exclu comme `api/`, et la porte devient rouge sans le câblage. Sans cette
+correction elle aurait été verte pour toujours, sur rien : une porte qu'on ne
+prouve pas rouge ne garde rien.
+
+Le composant `LiveDataIndicator`, lui, documentait `freshness_policy` dans son
+en-tête sans jamais la recevoir. C'est pourquoi la porte retire les
+commentaires avant de chercher un lecteur.
+
+### La mesure coupée en deux, et une porte qui mesurait mal
+
+La capture de Marchés, relue avant de livrer le budget de fraîcheur, montrait
+la pastille pliée **à l'intérieur de chaque mesure** :
+
+```
+il y a 4 │ budget 3  — instantané de
+min      │ j           marchés
+```
+
+Un « 3 » seul au bout d'une ligne n'est pas trois jours. C'est la même faute
+que la valeur bornée qui perdait son unité, corrigée plus tôt cette nuit : une
+unité séparée de son nombre ne mesure plus rien. Les segments sont désormais
+insécables et la pastille plie **entre** eux — dans une colonne étroite, c'est
+le bon comportement.
+
+**La porte écrite pour ce défaut s'est d'abord trompée.** `unbroken-measure`
+comptait les rectangles clients : un élément qui passe à la ligne en produit un
+par ligne, donc `length > 1` semblait être la coupure. Elle a signalé trois
+« défauts » sur trois pages. Une sonde les a réfutés :
+
+```
+.vx-metric-unit " %" → rects = 985,515 8x17 │ 993,515 8x17
+```
+
+Même ordonnée, abscisses contiguës : **une seule ligne**. Chromium boîte
+simplement l'espace initial d'un segment à part. La porte compte maintenant les
+ORDONNÉES DISTINCTES, et sur les trois signalements il n'en restait qu'un —
+mais un vrai : `« % / an »` coupé sur deux lignes dans Portefeuille, à 1440 et
+à 1600. Corrigé, et prouvé rouge d'abord.
+
+**Ce que chaque correctif a pour preuve, et ce qu'il n'a pas.** L'unité collée
+à son nombre est prouvée par la porte. La pastille de fraîcheur, elle, ne l'est
+PAS : la porte navigue vers `/markets` et n'y reproduit pas la mise en page de
+la capture `fullPage`, où le défaut apparaît. Sa preuve est la capture
+avant/après, au même endroit et à la même largeur — l'instrument qui l'a
+trouvé. C'est une preuve, pas une garantie de non-régression, et il faut le
+dire plutôt que de laisser croire qu'une porte le tient.
+
+La leçon vaut plus que les deux correctifs : **une porte qu'on ne réfute pas
+peut mesurer autre chose que ce qu'elle prétend.** Trois faux positifs auraient
+été livrés comme des défauts corrigés si la sonde n'avait pas demandé les
+coordonnées.

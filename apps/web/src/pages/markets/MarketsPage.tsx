@@ -30,6 +30,7 @@ import { pageAccentAttrs } from '../../components/widgets/pageAccent.ts';
 import { MethodNote } from '../../components/widgets/MethodNote.tsx';
 import { moduleStateOf } from '../../components/moduleState.ts';
 import { HeatmapSkeleton, TableSkeleton } from '../../components/widgets/Skeleton.tsx';
+import { FreshnessBadge, policyProps } from '../../components/FreshnessBadge.tsx';
 
 /**
  * Page Marchés (`TL / 02`) — question : « Dans quel contexte de marché
@@ -317,8 +318,12 @@ function MarketHealthModule({ data }: { readonly data: MarketsOverview }) {
       state={moduleStateOf('ready', { state: data.data_state, population: data.population })}
       footer={
         <>
-          état worker <code>{data.data_state ?? 'non publié'}</code> · âge publié{' '}
-          {data.age_seconds === null ? 'non publié' : `${data.age_seconds} s`}
+          état worker <code>{data.data_state ?? 'non publié'}</code> ·{' '}
+          <FreshnessBadge
+            ageSeconds={data.age_seconds}
+            {...policyProps(data.freshness_policy)}
+            sourceLabel="instantané de marchés"
+          />
         </>
       }
     >

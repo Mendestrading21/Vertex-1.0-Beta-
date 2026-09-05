@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom';
 
 import type { RiskMatrixResponse } from '../../api/client.ts';
-import { FreshnessBadge } from '../../components/FreshnessBadge.tsx';
+import { FreshnessBadge, policyProps } from '../../components/FreshnessBadge.tsx';
 import { SnapshotFacts, publishedOr } from '../../components/inspector/SnapshotFacts.tsx';
 import { InspectorPanel } from '../../shell/inspector.tsx';
 import { BAND_LABELS, correlationRowsOf } from './riskView.ts';
@@ -108,7 +108,7 @@ export function MatrixInspector({ data, view }: { readonly data: RiskMatrixRespo
             label: 'as_of',
             value: data.as_of === null ? 'non publié' : <time dateTime={data.as_of}>{data.as_of}</time>,
           },
-          { label: 'Âge publié', value: <FreshnessBadge ageSeconds={data.age_seconds} sourceLabel="âge publié par le serveur" /> },
+          { label: 'Âge publié', value: <FreshnessBadge ageSeconds={data.age_seconds} {...policyProps(data.freshness_policy)} sourceLabel="âge publié par le serveur" /> },
           { label: 'Population', value: <code>{publishedOr(view?.population)}</code> },
           { label: 'État des données', value: <code>{publishedOr(view?.dataState)}</code> },
           { label: 'Schéma', value: <code>{publishedOr(view?.schemaVersion)}</code> },
