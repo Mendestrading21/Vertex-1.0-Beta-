@@ -1,10 +1,36 @@
 # État courant
 
 ```yaml
-phase: refonte_visuelle_dashboard_system_upgrade
-lot: "Refonte visuelle — nuit du 4 au 5 septembre 2026"
-branch: agent/vertex-1-0-dashboard-system-upgrade-v2
-status: pr_72_ouverte_ci_en_cours_aucune_fusion_de_cette_branche
+phase: preparation_session_ibkr_reelle
+lot: "Démarrage live — les trois pièges du runbook"
+branch: claude/vertex-connection-kgkntr
+status: pr_ouverte_ci_en_cours
+demarrage_live_2026_09_05:
+  - "main = 282a75f. #70, #72 et #73 fusionnées ce jour. Il ne reste ouverte
+     que #69, rouge sur les e2e SEULEMENT (6 checks sur 7 verts), base deux
+     `main` en retard : ses 9 régressions de mise en page sont réelles, elle
+     NE DOIT PAS être fusionnée en l'état"
+  - "PIÈGE 1 — START_LOCAL.md promettait « alimenter les pages avec du marché
+     réel » puis nommait tools/run_edge_ibkr.py. Ce collecteur produit
+     `ibkr.quote/1`, qu'AUCUN consommateur n'admet : le seul lecteur de
+     cotation est markets.DAILY_QUOTE_SCHEMA_PREFIXES, qui déclare
+     `ibkr.daily-quote/`, produit par tools/run_edge_history.py. Suivre le
+     runbook remplissait la base sans rien changer à l'écran"
+  - "PIÈGE 2 — la bannière de start_local.sh affirmait « tout porte SYNTHETIC »
+     sans condition. Le démarreur n'exporte jamais VERTEX_FUSION_PROFILE : une
+     pile lancée en profil réel annonçait de la démonstration. Corrigé et
+     vérifié sur la pile réelle dans les DEUX régimes"
+  - "PIÈGE 3 — .env.example déclarait VERTEX_TWS_HOST/PORT/CLIENT_ID, sans
+     aucun lecteur. Les vraies sont VERTEX_IBKR_PORT et VERTEX_IBKR_CLIENT_ID ;
+     l'hôte n'est pas configurable (adapter.py fixe 127.0.0.1 en dur)"
+  - "START_LOCAL.md affirmait « Aucune donnée réelle n'a jamais été observée ».
+     FAUX depuis le 2026-08-31 : voir `affichage_reel_mesure` plus bas.
+     Remplacé par la mesure datée"
+  - "docs/08-runbooks/CE_SOIR.md : la séquence complète d'une première session
+     IBKR réelle, en une page, avec ce qui marchera et ce qui ne marchera pas"
+  - "pile remontée sur main du jour, base jetable : vite build 5,5 s ;
+     bootstrap 14,4 s aux sept compteurs identiques ; pile debout en 8 s ;
+     campagne smoke 12 vertes en 55,8 s ; pytest tools/tests 219 verts"
 refonte_nuit_du_5_septembre:
   - "base : main = bd95ca2 (après #71 chirurgie du dépôt, puis #70 portes V3a
      fusionnée par moi ce matin) ; PR #72 OUVERTE, en attente des sept checks"
@@ -364,7 +390,11 @@ demarrage_local:
      AUTH_REQUIRED ; interface → 200 ; depuis l'adresse non-loopback de la
      machine, les deux ports REFUSENT la connexion"
   semis: "48 enveloppes, 46 quotes, 12 chaînes, 4 barres, 21 événements,
-     490 messages traités, 10 familles de snapshots publiées — tout SYNTHETIC"
+     402 messages traités, 11 familles de snapshots publiées — tout SYNTHETIC.
+     Mesuré le 2026-09-02 sur ba749c1, base neuve. Le `490 messages / 10
+     familles` précédent était juste sur un autre arbre : le compteur d'outbox
+     suit le nombre de snapshots publiés, qui a changé. Les six autres
+     compteurs sont identiques"
   refus_verifies: "aucun DSN → code 2 ; base contenant déjà un journal → refus
      nommant la table et le compte ; base au nom de test → refus"
 mesures_reelles:
@@ -373,8 +403,15 @@ mesures_reelles:
   accessibilite: "168 cas de test verts, 14 chemins × 3 viewports (Chromium)"
   navigateurs: "Chromium, Firefox et WebKit VERTS — 665 passed, 2 skipped"
 checks_locaux:
-  - "pytest 3559 passed, 4 skipped, 0 failed (les 4 sautés exigent
-     PostgreSQL réel : bootstrap local)"
+  - "pytest 3953 passed, 4 skipped, 0 failed sur 3957 collectés — mesuré par
+     `bash tools/run_checks.sh` le 2026-09-02 sur ba749c1 + les gardes de
+     runbook. Les 4 sautés exigent PostgreSQL réel (bootstrap local). Le total
+     est RECOUPÉ : `pytest --collect-only -v` déclare 3957, et le comptage des
+     caractères de progression donne 3953 + 4. `addopts = -q` cumulé au `-q`
+     du script SUPPRIME la ligne de synthèse — un total lu dans ce journal
+     serait donc lu nulle part. Le 3763 précédent était juste sur bdf9f306, et
+     le 3559 avant lui sur l'arbre d'avant la PR #8 : un chiffre mesuré sans
+     son SHA redevient faux tout seul"
   - "intégration PostgreSQL : 96 (persistance) + 32 (worker, dont 15 chaos)
      + 65 (api) — exécution SÉRIELLE obligatoire, base partagée. TOUS VERTS"
   - "vitest 386 passed ; tsc 0 erreur ; biome 0 violation (125 fichiers).

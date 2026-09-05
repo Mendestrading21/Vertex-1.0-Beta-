@@ -12,6 +12,10 @@ API FastAPI réelle, build de production — sur une base jetable dont le schém
 pour son utilisateur**. `tools/start_local.sh` est cette séquence, promue hors
 des tests, sans base jetable et sans destruction de schéma.
 
+> **Première session avec un IBKR réel ?** `CE_SOIR.md` enchaîne cette page,
+> `FIRST_INSTALL.md` et `IBKR_SETUP.md` en une seule séquence, et nomme
+> d'avance ce qui marchera et ce qui ne marchera pas.
+
 ## Prérequis
 
 PostgreSQL 18, Node 24, Corepack et `uv` installés, puis les environnements
@@ -55,6 +59,12 @@ barres=4 calendrier=21 portefeuille=1 messages_traites=402
 Tout ce qui précède porte population = SYNTHETIC jusqu'à l'écran.
 Aucune donnée réelle n'a été observée.
 ```
+
+Ré-exécuté le 2026-09-05 sur `87a4e8b`, base neuve `vertex_soir_probe` :
+**les sept compteurs sont identiques**, en 14,4 s. La pile complète est ensuite
+montée en 8 s — migrations, API (`{"status":"alive"}`), worker et interface
+servie depuis le build de production — et les douze destinations ont été
+rendues par la campagne `smoke` (12 vertes, 55,8 s).
 
 Le `messages_traites=490` d'une mesure antérieure n'était pas inventé : il
 était juste, sur un autre arbre. Un compteur de messages d'outbox dépend du
@@ -128,11 +138,22 @@ Un test refuse tout `--host` autre que `127.0.0.1` dans le démarreur
 
 ## Ce que ce démarrage ne fait PAS
 
-Il ne contacte ni TWS, ni IBKR, ni TradingView, ni Cloudflare. **Aucune donnée
-réelle n'a jamais été observée par ce logiciel.** Sans source connectée, le
-worker tourne en configuration synthétique de développement et l'écrit dans
-son journal au démarrage ; tout ce qui s'affiche porte
+Il ne contacte ni TWS, ni IBKR, ni TradingView, ni Cloudflare. Sans source
+connectée, le worker tourne en configuration synthétique de développement et
+l'écrit dans son journal au démarrage ; tout ce qui s'affiche porte
 `population = SYNTHETIC`.
+
+Une version antérieure de cette page affirmait ici : « Aucune donnée réelle
+n'a jamais été observée par ce logiciel. » **C'est faux depuis le
+2026-08-31.** `docs/99-status/NOW.md` (`affichage_reel_mesure`) porte la
+mesure : base `vertex_live`, `VERTEX_FUSION_PROFILE=real`, Marchés en
+population `REAL` avec une clôture reçue 1/1, Analyse avec 251 barres du
+2025-08-29 au 2026-08-28, 0 écartée. La sonde de droits du même jour
+(`sonde_ibkr_reelle`) n'a démontré **aucun** droit manquant. Ce que ce
+démarreur ne fait pas, c'est **collecter** ; il n'a jamais été vrai qu'il
+était impossible de collecter. Rien de tout cela n'existe en intégration
+continue : la collecte dépend de TWS, qui tourne sur la machine de
+l'utilisateur, et toute population observée en CI reste `SYNTHETIC`.
 
 Brancher une source réelle exige la machine cible : TWS ou IB Gateway en
 lecture seule sur loopback avec un `client_id` non nul (`IBKR_SETUP.md`), et
@@ -165,15 +186,81 @@ effectivement sondées — et pour elles seules.
 
 ## Brancher IBKR en continu
 
-`tools/start_local.sh` ne contacte JAMAIS TWS : il sert la population
-`SYNTHETIC`. Pour alimenter les pages avec du marché réel, un second processus
-tourne à côté, une fois les droits sondés :
+`tools/start_local.sh` ne contacte JAMAIS TWS : il sert ce que la base contient.
+Pour alimenter les pages avec du marché réel, un second processus tourne à
+côté, une fois les droits sondés.
+
+### Lequel ? Celui dont le schéma atteint un écran
+
+C'est le piège le plus coûteux de ce runbook, et il a longtemps été écrit à
+l'envers ici. Chaque page est **fermée par défaut sur le préfixe de schéma** :
+elle déclare les familles qu'elle sait lire, et ignore le reste.
+
+| Collecteur | Schéma produit | Lu par |
+|---|---|---|
+| `tools/run_edge_history.py` | `ibkr.daily-quote/1`, `ibkr.daily-bars/1` | **Marchés** (`vertex_worker.markets`), **Analyse** (`vertex_worker.analysis`) |
+| `tools/run_edge_news.py` | `ibkr.news-headline/1` | file d'attention et preuves (`vertex_worker.handlers`) |
+| `tools/run_edge_ibkr.py` | `ibkr.quote/1` | **personne, aujourd'hui** |
+| `tools/run_edge_discovery.py` | `ibkr.scanner/1` | **personne, aujourd'hui** |
+
+**C'est donc `tools/run_edge_history.py` qui peint l'écran.** Le collecteur
+temps réel écrit une cotation instantanée — un carnet haut daté de l'instant,
+sans jour de bourse ni clôture de séance. Ce n'est pas une cotation
+quotidienne, et `vertex_worker.markets` ne l'admet pas. Le lancer seul remplit
+la base sans rien changer à l'affichage. Ce n'est pas un défaut à contourner
+par un préfixe plus large : c'est une famille de données qu'aucune page ne
+sait encore lire.
+
+### La séquence
 
 ```bash
+export VERTEX_DATABASE_URL='postgresql+psycopg://vertex:…@127.0.0.1:5432/vertex'
 export VERTEX_IBKR_UNIVERSE="$HOME/.vertex/univers.json"
-export VERTEX_IBKR_PORT=<port confirmé dans TWS>
-.venv/bin/python tools/run_edge_ibkr.py
+export VERTEX_IBKR_PORT=7497          # le port CONFIRMÉ dans TWS, jamais supposé
+
+# 1. remplir la base — c'est CE processus qui alimente les pages
+.venv/bin/python tools/run_edge_history.py
+
+# 2. puis servir, en profil réel, dans le MÊME shell
+export VERTEX_FUSION_PROFILE=real
+bash tools/start_local.sh
 ```
+
+`VERTEX_FUSION_PROFILE=real` doit être exporté **avant** le démarreur : celui-ci
+ne le pose jamais lui-même, `python -m vertex_worker` hérite simplement de
+l'environnement du shell. Le profil réel exige EN PLUS `VERTEX_IBKR_UNIVERSE` :
+il ne s'active jamais par omission. Le journal du worker au démarrage dit
+lequel des deux a été pris — c'est lui qui fait foi.
+
+L'univers est un fichier JSON **hors du dépôt** (il nomme les instruments
+réellement suivis, donc une donnée personnelle). Chaque entrée porte un
+`con_id` EXACT — relevé par `--dry-run` de la sonde :
+
+```json
+{
+  "instruments": [
+    {"con_id": 0, "sec_type": "STK", "symbol": "XYZ",
+     "exchange": "SMART", "currency": "USD"}
+  ]
+}
+```
+
+`tools/build_universe.py --out <fichier>` l'écrit pour vous.
+
+### Ce que le processus fait, et ne fait pas
+
+- instantanés PÉRIODIQUES BORNÉS, pas un flux de ticks permanent ; chaque cycle
+  acquiert une ligne de données, la relâche et annule sa souscription dans un
+  `finally` ;
+- au plus `VERTEX_IBKR_MAX_LINES` lignes simultanées (défaut **2**) ;
+- l'historique avance à environ **6 requêtes par minute** : comptez quelques
+  minutes pour 5 à 10 titres, et plusieurs heures au-delà de 500. Pour une
+  première soirée, prenez un univers court ;
+- il n'appelle ni compte, ni position, ni P&L, ni ordre, ni exécution.
+
+**Ne pas semer `--with-demo-data` sur la base destinée au réel.** Une seule
+observation synthétique dans la fenêtre suffit à faire porter `SYNTHETIC` au
+snapshot — c'est voulu, et c'est irréversible sans repartir d'une base propre.
 
 Séquence complète, univers, bornes et codes fournisseur : `IBKR_SETUP.md`,
 section « Ingestion continue ». `/system` cesse alors d'afficher
