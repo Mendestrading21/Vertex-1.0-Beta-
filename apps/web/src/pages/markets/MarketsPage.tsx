@@ -27,6 +27,7 @@ import {
 } from '../../components/markets/marketsView.ts';
 import { marketsModule } from './marketsModules.ts';
 import { pageAccentAttrs } from '../../components/widgets/pageAccent.ts';
+import { MethodNote } from '../../components/widgets/MethodNote.tsx';
 
 /**
  * Page Marchés (`TL / 02`) — question : « Dans quel contexte de marché
@@ -257,22 +258,25 @@ function MarketsFrame({
       </DataStateBoundary>
 
       {/* 6. WidgetFooter : méthode/calcul, version, limites et hypothèses */}
-      <footer className="vx-chartframe-foot">
-        <p>
-          Méthode : rendement 1 j <code>market.simple_return</code> et breadth{' '}
-          <code>market.breadth</code> calculés par le worker (
-          <code>{data.engine_version ?? 'version inconnue'}</code>, lignée{' '}
-          <code>input_hash</code> conservée dans le snapshot). Poids = parts
-          descriptives des clôtures servies. Rendu : Apache ECharts
-          (licence Apache-2.0), chargé uniquement sur cette route.
-        </p>
-        <p>
-          Limites : 2 clôtures par instrument, breadth refusée sous le seuil de
-          couverture ; un instrument sans ses 2 clôtures est écarté et compté.
-          Nature des données : voir le bandeau de population ci-dessus, qui en
-          est le seul propriétaire.
-        </p>
-      </footer>
+      <MethodNote
+        methode={
+          <>
+            rendement 1 j <code>market.simple_return</code> et breadth{' '}
+            <code>market.breadth</code> calculés par le worker (
+            <code>{data.engine_version ?? 'version inconnue'}</code>, lignée{' '}
+            <code>input_hash</code> conservée dans le snapshot). Poids = parts descriptives des
+            clôtures servies.
+          </>
+        }
+        attribution={<>Rendu : Apache ECharts (licence Apache-2.0), chargé uniquement sur cette route.</>}
+        limites={
+          <>
+            2 clôtures par instrument, breadth refusée sous le seuil de couverture ; un instrument
+            sans ses 2 clôtures est écarté et compté. Nature des données : voir le bandeau de
+            population ci-dessus, qui en est le seul propriétaire.
+          </>
+        }
+      />
     </section>
   );
 }

@@ -52,6 +52,42 @@ describe('AbsentModule — une absence se NOMME, elle ne se devine pas', () => {
     expect(screen.getByText(ABSENCE_REASONS.DECISION_PENDING.label)).toBeDefined();
   });
 
+  it('montre le motif COURT, et range le reste derrière « Pourquoi ? »', () => {
+    // La divulgation progressive n'a de valeur que si elle divulgue vraiment :
+    // le motif court doit être visible SANS interaction, et l'explication
+    // complète doit être atteignable AVEC une interaction — pas supprimée.
+    render(
+      <AbsentModule
+        title="Structure de volatilité"
+        question="Comment la volatilité implicite évolue-t-elle par échéance ?"
+        reason="NO_SOURCE"
+        note="Aucune surface en terme de volatilité n’est publiée."
+      />,
+    );
+    const corps = screen.getByTestId('absent-body');
+    const details = corps.querySelector('details');
+    expect(details, 'l’explication doit vivre dans un élément de divulgation').not.toBeNull();
+    // Le motif court est HORS du repli : c'est ce qu'on lit sans rien ouvrir.
+    const court = corps.querySelector('.vx-absent-court');
+    expect(court?.textContent).toBe(ABSENCE_REASONS.NO_SOURCE.court);
+    expect(details!.contains(court!)).toBe(false);
+    // Et il est nettement plus court que l'explication qu'il résume, sinon la
+    // divulgation ne gagne rien.
+    expect(ABSENCE_REASONS.NO_SOURCE.court.length).toBeLessThan(
+      ABSENCE_REASONS.NO_SOURCE.detail.length / 2,
+    );
+    // Question, détail et note restent dans le document, repliés.
+    for (const attendu of [
+      'Comment la volatilité implicite évolue-t-elle par échéance ?',
+      ABSENCE_REASONS.NO_SOURCE.detail,
+      'Aucune surface en terme de volatilité n’est publiée.',
+    ]) {
+      expect(details!.textContent).toContain(attendu);
+    }
+    // Le repli s'ouvre par un contrôle NOMMÉ, pas par un clic sur du vide.
+    expect(details!.querySelector('summary')?.textContent?.trim()).toContain('Pourquoi');
+  });
+
   it('les quatre motifs sont DISTINCTS — aucun n’est le synonyme d’un autre', () => {
     // `financial-safety.md` : « réel, retardé, théorique, simulé et
     // démonstration ne partagent jamais le même statut visuel ou sémantique ».
@@ -61,6 +97,13 @@ describe('AbsentModule — une absence se NOMME, elle ne se devine pas', () => {
     expect(new Set(labels).size).toBe(labels.length);
     const details = Object.values(ABSENCE_REASONS).map((entry) => entry.detail);
     expect(new Set(details).size).toBe(details.length);
+    // Le motif court est ce qui reste à l'écran : c'est LUI qui doit
+    // distinguer les quatre natures, sans quoi la carte repliée les confond.
+    const courts = Object.values(ABSENCE_REASONS).map((entry) => entry.court);
+    expect(new Set(courts).size).toBe(courts.length);
+    for (const court of courts) {
+      expect(court.length, `motif court trop long : ${court}`).toBeLessThanOrEqual(48);
+    }
   });
 
   it('n’affiche AUCUN chiffre — c’est l’invariant central', () => {

@@ -26,6 +26,7 @@ import {
 import { useDeclaredInstruments } from '../devUniverse.ts';
 import { absentModules, chartsModule, comparisonViewOf } from './chartsView.ts';
 import { pageAccentAttrs } from '../../components/widgets/pageAccent.ts';
+import { MethodNote } from '../../components/widgets/MethodNote.tsx';
 
 /**
  * Page Graphiques (`TL / 08`) — question : « Quelles relations puis-je
@@ -218,22 +219,30 @@ function ChartsFrame({
         )}
       </DataStateBoundary>
 
-      <footer className="vx-chartframe-foot">
-        <p>
-          Méthode : barres OHLCV validées barre à barre par le worker (une barre invalide est
-          écartée avec sa raison, jamais réparée), relayées telles quelles. Rendu : Lightweight
-          Charts™ —{' '}
-          <a href="https://www.tradingview.com/" rel="noopener noreferrer" target="_blank">
-            TradingView
-          </a>{' '}
-          (Apache-2.0, version épinglée), chargé uniquement sur cette route.
-        </p>
-        <p>
-          Limites : population <code>{publie(data.population)}</code> déclarée par le worker ;
-          aucun overlay, indicateur, rebasage ni comparaison n&apos;est calculé dans le navigateur —
-          ce qui n&apos;est pas publié est déclaré absent ci-dessous, avec son motif.
-        </p>
-      </footer>
+      <MethodNote
+        methode={
+          <>
+            barres OHLCV validées barre à barre par le worker (une barre invalide est écartée avec
+            sa raison, jamais réparée), relayées telles quelles.
+          </>
+        }
+        attribution={
+          <>
+            Rendu : Lightweight Charts™ —{' '}
+            <a href="https://www.tradingview.com/" rel="noopener noreferrer" target="_blank">
+              TradingView
+            </a>{' '}
+            (Apache-2.0, version épinglée), chargé uniquement sur cette route.
+          </>
+        }
+        limites={
+          <>
+            population <code>{publie(data.population)}</code> déclarée par le worker ; aucun
+            overlay, indicateur, rebasage ni comparaison n&apos;est calculé dans le navigateur — ce
+            qui n&apos;est pas publié est déclaré absent ci-dessous, avec son motif.
+          </>
+        }
+      />
     </section>
   );
 }

@@ -37,6 +37,7 @@ import {
 } from './optionsView.ts';
 import { pageAccentAttrs } from '../../components/widgets/pageAccent.ts';
 import { Widget } from '../../components/widgets/Widget.tsx';
+import { MethodNote } from '../../components/widgets/MethodNote.tsx';
 
 /**
  * Page Options (`TL / 05`) — question : « Quels contrats sont réellement
@@ -289,21 +290,27 @@ function ChainFrame({
         )}
       </DataStateBoundary>
 
-      <footer className="vx-chartframe-foot">
-        <p>
-          Méthode : quotes relayées verbatim avec leur statut (<code>OK</code>,{' '}
-          <code>CROSSED</code>, <code>STALE</code>, <code>MISSING</code>) ; IV Vertex{' '}
-          <code>options.implied_volatility</code> et Greeks <code>options.greeks</code> calculés par
-          le worker sur le MID d'une quote saine uniquement (lignée <code>CalculationRecord</code>{' '}
-          conservée, nature THÉORIQUE). Rendu direct de la table (~24 contrats par groupe, budget
-          serveur 240 lignes) — décision documentée, aucune virtualisation externe.
-        </p>
-        <p data-testid="chain-population-limit">
-          Limites : population publiée <code>{data.population ?? 'NON_PUBLIÉE'}</code> ; une quote
-          croisée, périmée ou absente n'a jamais d'IV ; le statut d'open interest est relayé
-          contrat par contrat lorsqu'il est publié.
-        </p>
-      </footer>
+      <MethodNote
+        limitesTestId="chain-population-limit"
+        methode={
+          <>
+            quotes relayées verbatim avec leur statut (<code>OK</code>, <code>CROSSED</code>,{' '}
+            <code>STALE</code>, <code>MISSING</code>) ; IV Vertex{' '}
+            <code>options.implied_volatility</code> et Greeks <code>options.greeks</code> calculés
+            par le worker sur le MID d'une quote saine uniquement (lignée{' '}
+            <code>CalculationRecord</code> conservée, nature THÉORIQUE). Rendu direct de la table
+            (~24 contrats par groupe, budget serveur 240 lignes) — décision documentée, aucune
+            virtualisation externe.
+          </>
+        }
+        limites={
+          <>
+            population publiée <code>{data.population ?? 'NON_PUBLIÉE'}</code> ; une quote croisée,
+            périmée ou absente n'a jamais d'IV ; le statut d'open interest est relayé contrat par
+            contrat lorsqu'il est publié.
+          </>
+        }
+      />
     </section>
   );
 }

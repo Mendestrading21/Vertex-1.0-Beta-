@@ -984,9 +984,14 @@
 }
 
 /* La valeur servie n'est jamais coupée : elle passe à la ligne. Un `ellipsis`
-   ferait lire un chiffre tronqué comme un chiffre publié. */
+   ferait lire un chiffre tronqué comme un chiffre publié.
+
+   `--vx-text-primary` n'a jamais existé : la déclaration était ignorée en
+   silence et la preuve chiffrée d'une gate héritait du gris de son libellé —
+   elle ne se distinguait donc plus de ce qu'elle prouve. Trouvé par la porte
+   `css-var-defined`, jamais par un test de composant. */
 .vx-w2-step-fact dd {
-  color: var(--vx-text-primary);
+  color: var(--vx-text);
   overflow-wrap: anywhere;
 }
 
@@ -3349,4 +3354,113 @@
   padding: 0 var(--vx-space-4);
   font-size: var(--vx-font-size-meta);
   white-space: nowrap;
+}
+
+/* ==================================================================== */
+/* DIVULGATION PROGRESSIVE DE L'ABSENCE                                 */
+/*                                                                      */
+/* Onze modules absents sur une planche mettaient près de 3 500         */
+/* caractères de prose grise à l'écran, sous des cartes qui ne portent   */
+/* aucune donnée. Le lecteur cessait de lire, donc l'information         */
+/* cessait d'exister. Le motif court reste ; le reste se replie.         */
+/* Rien n'est supprimé : tout demeure dans le document.                  */
+/* ==================================================================== */
+
+.vx-absent-court {
+  margin: 0;
+  color: var(--vx-text-secondary);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-absent-why {
+  margin-top: var(--vx-space-8);
+}
+
+.vx-absent-why > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--vx-space-4);
+  width: fit-content;
+  padding: 2px var(--vx-space-4);
+  border-radius: var(--vx-radius-6);
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+  cursor: pointer;
+}
+
+.vx-absent-why > summary:hover {
+  color: var(--vx-text-secondary);
+  background-color: var(--vx-hover);
+}
+
+.vx-absent-why > summary:focus-visible {
+  outline: 2px solid var(--vx-signal);
+  outline-offset: 2px;
+}
+
+/* Le contenu replié respire par rapport au déclencheur, et se rattache à lui
+   par un filet vertical : sans ce rattachement, l'explication ouverte flotte
+   au-dessus de la carte suivante. */
+.vx-absent-why[open] > :not(summary) {
+  margin-top: var(--vx-space-8);
+  padding-left: var(--vx-space-12);
+  border-left: 1px solid var(--vx-border-soft);
+}
+
+/* ==================================================================== */
+/* MÉTHODE ET LIMITES — repliées sous un contrôle nommé                 */
+/*                                                                      */
+/* Quatre pages posaient sous leur module dominant deux paragraphes     */
+/* permanents : 470 caractères de prose grise sur Marchés, sous une     */
+/* carte qui porte déjà figure, légende, provenance et équivalent       */
+/* tabulaire. Le texte reste ; il ne s'impose plus.                     */
+/* ==================================================================== */
+
+.vx-method-note > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--vx-space-4);
+  width: fit-content;
+  padding: 2px var(--vx-space-4);
+  border-radius: var(--vx-radius-6);
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+  cursor: pointer;
+}
+
+.vx-method-note > summary:hover {
+  color: var(--vx-text-secondary);
+  background-color: var(--vx-hover);
+}
+
+.vx-method-note > summary:focus-visible {
+  outline: 2px solid var(--vx-signal);
+  outline-offset: 2px;
+}
+
+.vx-method-note-body {
+  margin-top: var(--vx-space-8);
+  padding-left: var(--vx-space-12);
+  border-left: 1px solid var(--vx-border-soft);
+}
+
+/* Le nom de la rubrique n'est PAS une décoration : ouvert, le repli montre
+   deux paragraphes qui se ressemblent, et « méthode » n'appelle pas la même
+   lecture que « limites ». */
+.vx-method-note-tag {
+  margin-right: var(--vx-space-4);
+  color: var(--vx-text-secondary);
+  font-size: var(--vx-font-size-meta);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* L'attribution de licence ne se replie JAMAIS : Apache-2.0 exige que la
+   mention accompagne l'œuvre, et une mention derrière un bouton n'accompagne
+   rien. Elle est courte, elle reste. */
+.vx-method-note-attribution {
+  margin: 0 0 var(--vx-space-8);
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
 }
