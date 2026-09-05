@@ -229,8 +229,22 @@ export function DataTable<Row>({
                 {/* L'unité vit DANS l'en-tête, pas dans un tooltip : une colonne
                     dont l'unité n'est atteignable qu'au survol est illisible au
                     clavier et absente des captures. */}
+                {/*
+                  L'ESPACE N'EST PAS DÉCORATIF. Sans lui, le NOM ACCESSIBLE de
+                  l'en-tête est la concaténation brute des deux segments :
+                  « tested_atUTC ». C'est ce que lit un lecteur d'écran et ce
+                  que produit toute extraction de texte — mesuré au deuxième
+                  consommateur de cette primitive, pas au premier, parce que le
+                  premier n'avait aucune colonne dont l'unité fût un mot.
+                  Visuellement, l'unité est déjà sur sa propre ligne ; l'espace
+                  ne change rien à l'œil et rétablit « tested_at UTC » à
+                  l'oreille.
+                */}
                 {colonne.unit === undefined || colonne.unit === null ? null : (
-                  <span className="vx-dt-head-unit">{colonne.unit}</span>
+                  <>
+                    {' '}
+                    <span className="vx-dt-head-unit">{colonne.unit}</span>
+                  </>
                 )}
               </th>
             );

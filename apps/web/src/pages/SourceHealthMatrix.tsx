@@ -3,6 +3,8 @@ import { useSearchParams } from 'react-router-dom';
 import type { CapabilityEntry, SourceCapabilityStatus } from '../api/client.ts';
 import { StatusBadge } from '../components/StatusBadge.tsx';
 import { AbsentCell } from '../components/absence.tsx';
+import { DataTable } from '../components/widgets/DataTable.tsx';
+import type { DataColumn } from '../components/widgets/DataTable.tsx';
 
 /**
  * Visuel dominant de la page Sources & Rapports : matrice de santé des sources.
@@ -47,6 +49,93 @@ export interface SourceHealthMatrixProps {
   readonly total: number;
   readonly selected?: string | null;
   readonly onInspect?: (capabilityId: string) => void;
+}
+
+/**
+ * Colonnes de la matrice, typées par la NATURE de leur valeur.
+ *
+ * Aucune n'est `num` : un identifiant de capacité, une famille, un mode, un
+ * statut, une raison et un horodatage ne sont pas des mesures. Le type refuse
+ * d'ailleurs une colonne `num` sans unité servie — ce qui est exactement la
+ * bonne contrainte, et ce qui aurait empêché d'inventer une unité ici.
+ */
+function colonnes(
+  selected: string | null,
+  onInspect?: (capabilityId: string) => void,
+): ReadonlyArray<DataColumn<CapabilityEntry>> {
+  return [
+  {
+    key: 'capability_id',
+    header: 'capability_id',
+    align: 'text',
+    rowHeader: true,
+    /*
+      L'ACTION RESTE DANS LA CELLULE D'IDENTITÉ, comme avant la migration.
+      `DataTable` sait poser une colonne d'action dédiée (`onOpenRow`), et c'est
+      sa convention ; l'adopter ici ajouterait une SEPTIÈME colonne à une
+      matrice dont la composition en compte six, figées par un test. Migrer une
+      table ne doit pas changer ce qu'elle montre : le gain visé est la légende,
+      l'ordre déclaré, l'état vide nommé et la région défilante — pas une
+      colonne de plus.
+    */
+    cell: (entry) => (
+      <>
+        <code>{entry.capability_id}</code>
+        {onInspect === undefined ? null : (
+          <button
+            type="button"
+            className="vx-opp-inspect"
+            aria-pressed={selected === entry.capability_id}
+            aria-label={`Inspecter ${entry.capability_id}`}
+            onClick={() => {
+              onInspect(entry.capability_id);
+            }}
+          >
+            Détail
+          </button>
+        )}
+      </>
+    ),
+  },
+  { key: 'family', header: 'Famille', align: 'text', cell: (entry) => entry.family },
+  { key: 'declared_mode', header: 'Mode déclaré', align: 'text', cell: (entry) => entry.declared_mode },
+  {
+    key: 'tested_status',
+    header: 'Statut testé',
+    align: 'status',
+    cell: (entry) => <StatusBadge status={entry.tested_status} />,
+  },
+  {
+    key: 'reason',
+    header: 'Raison',
+    align: 'text',
+    cell: (entry) =>
+      entry.reason === null ? (
+        <AbsentCell quoi="raison" nature="not_published" reason={null} accord="f" />
+      ) : (
+        entry.reason
+      ),
+  },
+  {
+    key: 'tested_at',
+    header: 'tested_at',
+    align: 'text',
+    unit: 'UTC',
+    /*
+      « JAMAIS SONDÉ » N'EST PAS UNE ABSENCE, C'EST UN FAIT. `tested_at === null`
+      signifie qu'aucune sonde n'a jamais tourné sur cette source. Le passer en
+      `AbsentCell` écrirait « sonde sans objet », ce qui est faux — la porte
+      anti-tiret ne juge pas si la NATURE choisie est la bonne, et c'est un test
+      qui l'avait rattrapé. La distinction est conservée telle quelle.
+    */
+    cell: (entry) =>
+      entry.tested_at === null ? (
+        <span className="vx-cell-absent">jamais sondé</span>
+      ) : (
+        <time dateTime={entry.tested_at}>{entry.tested_at}</time>
+      ),
+    },
+  ];
 }
 
 export function SourceHealthMatrix({ entries, total, selected = null, onInspect }: SourceHealthMatrixProps) {
@@ -105,73 +194,18 @@ export function SourceHealthMatrix({ entries, total, selected = null, onInspect 
         </p>
       </div>
 
-      {/* Région défilante focusable au clavier (WCAG 2.1.1 — axe
-          scrollable-region-focusable) : la table large défile dans SON
-          conteneur, jamais la page entière. */}
-      <div className="vx-matrix-scroll" role="region" aria-label="Table des capacités (défilement horizontal possible)" tabIndex={0}>
-        <table className="vx-matrix-table">
-          <caption>
-            Capacités IBKR market-data déclarées ({total}) croisées avec les sondes réellement persistées — un statut jamais sondé
-            reste ERROR / NEVER_TESTED, jamais une disponibilité supposée.
-          </caption>
-          <thead>
-            <tr>
-              <th scope="col">capability_id</th>
-              <th scope="col">Famille</th>
-              <th scope="col">Mode déclaré</th>
-              <th scope="col">Statut testé</th>
-              <th scope="col">Raison</th>
-              <th scope="col">tested_at (UTC)</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((entry) => (
-              <tr key={entry.capability_id} {...(selected === entry.capability_id ? { 'data-selected': 'true' } : {})}>
-                <th scope="row">
-                  <code>{entry.capability_id}</code>
-                  {onInspect !== undefined ? (
-                    <button
-                      type="button"
-                      className="vx-opp-inspect"
-                      aria-pressed={selected === entry.capability_id}
-                      aria-label={`Inspecter ${entry.capability_id}`}
-                      onClick={() => {
-                        onInspect(entry.capability_id);
-                      }}
-                    >
-                      Détail
-                    </button>
-                  ) : null}
-                </th>
-                <td>{entry.family}</td>
-                <td>{entry.declared_mode}</td>
-                <td>
-                  <StatusBadge status={entry.tested_status} />
-                </td>
-                <td>{entry.reason === null ? <AbsentCell quoi="raison" nature="not_published" reason={null} accord="f" /> : entry.reason}</td>
-                {/* LOT T4-7 — « JAMAIS SONDÉ » N'EST PAS UNE ABSENCE, c'est un FAIT :
-                    `tested_at === null` signifie qu'aucune sonde n'a jamais tourné sur
-                    cette source. Le passer en `AbsentCell` aurait écrit « sonde sans
-                    objet », ce qui est faux — et c'est exactement la limite n° 3 de la
-                    porte : elle ne juge pas si la NATURE choisie est la bonne. Le test
-                    existant l'a rattrapée. */}
-                <td>
-                  {entry.tested_at === null ? (
-                    <span className="vx-cell-absent">jamais sondé</span>
-                  ) : (
-                    <time dateTime={entry.tested_at}>{entry.tested_at}</time>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      {filtered.length === 0 ? (
-        <p className="vx-matrix-empty" role="status">
-          Aucune capacité ne correspond aux filtres actifs — les {entries.length} entrées reçues restent comptées ci-dessus.
-        </p>
-      ) : null}
+      <DataTable<CapabilityEntry>
+        id="vx-capabilities"
+        caption={`Capacités IBKR market-data déclarées (${total}) croisées avec les sondes réellement persistées`}
+        captionDetail="un statut jamais sondé reste ERROR / NEVER_TESTED, jamais une disponibilité supposée"
+        columns={colonnes(selected, onInspect)}
+        rows={filtered}
+        rowKey={(entry) => entry.capability_id}
+        overflow="panel"
+        emptyLabel={`Aucune capacité ne correspond aux filtres actifs — les ${entries.length} entrées reçues restent comptées ci-dessus.`}
+        servedOrder={null}
+        selectedRowKey={selected}
+      />
     </div>
   );
 }
