@@ -425,3 +425,73 @@ La leçon vaut plus que les deux correctifs : **une porte qu'on ne réfute pas
 peut mesurer autre chose que ce qu'elle prétend.** Trois faux positifs auraient
 été livrés comme des défauts corrigés si la sonde n'avait pas demandé les
 coordonnées.
+
+---
+
+## Analyse — douze modules qui ne savent rien de l'état du dossier
+
+**Défaut MESURÉ le 2026-09-05, non corrigé. Reproducteur ci-dessous.**
+
+`AnalysisRoute` calcule l'état correct — `analysisStateOf(queryState, data)`
+(`AnalysisPage.tsx`) distingue `stale`, `partial`, `delayed` et les relaie
+depuis les statuts publiés, sans jamais lire l'horloge locale. Puis il ne le
+donne qu'à `AnalysisBoard`, qui ne le transmet qu'à `AnalysisFrame`. La route
+ne court-circuite que sur `auth-required | empty | loading | offline | error` :
+**un dossier `stale`, `partial` ou `delayed` affiche donc la planche entière**,
+et les douze autres modules n'en savent rien.
+
+Mesure, sur le DOM rendu par un instantané `state: 'stale'` :
+
+```text
+instrument-header=aucun  identity-facts=aucun  chart=aucun  indicators=aucun
+oscillators=aucun  analyst-revisions=aucun  verdict=aucun  financials=aucun
+scenarios=aucun  upcoming-catalysts=aucun  key-risks=aucun  regime=aucun
+fundamental-quality=aucun  valuation=aucun  model-confidence=aucun
+peers=aucun  evidence=aucun  levels=aucun  contradictions=aucun
+```
+
+Dix-neuf modules, **zéro `data-state`**. Ce n'est pas un défaut d'apparence :
+`financial-safety.md` exige que réel, retardé et périmé ne partagent jamais le
+même statut visuel ou sémantique, et un verdict d'`AdviceEngine` affiché comme
+frais sur un dossier périmé est exactement ce que cette règle interdit.
+
+**Reproducteur, à recréer tel quel** dans `AnalysisPage.test.tsx` — il a été
+écrit, exécuté ROUGE, puis retiré de l'arbre plutôt que livré rouge :
+
+```ts
+repondre(jsonResponse(makeAnalysis({
+  state: 'stale', age_seconds: 300_000,
+  reason: 'snapshot older than its freshness budget',
+})));
+await renderAnalysis();
+await screen.findByTestId('analysis-grid');   // le titre du shell est rendu
+                                              // AVANT la réponse : attendre la
+                                              // planche, sinon le test mesure
+                                              // un DOM vide et passe au vert
+const etats = new Map<string, string | null>();
+for (const el of document.querySelectorAll('[data-module]')) { … }
+```
+
+**Pourquoi ce n'est pas corrigé ici.** Le remède n'est pas de poser `data-state`
+à la main sur les `<div data-module>` : `architecture.md` interdit un deuxième
+chemin d'autorité, et `Widget` est déjà la primitive qui porte l'état servi. Les
+douze modules doivent donc migrer `Card → Widget`, comme les neuf autres pages —
+et cette migration s'étend sur `AnalysisPage.tsx`, `IndicatorsPanel`,
+`OscillatorsModule`, `InstrumentHeaderModule`, `IdentityModule` et les modules
+de preuve. C'est un lot, pas une correction, et un lot commencé à quelques
+heures d'une session de test réelle finit à moitié fait.
+
+**Attendre le même piège.** `.vx-analysis-grid` déclare ses aires nommées dans
+`global.css`. Dès que ces modules porteront un `.vx-w2`, le conflit d'ordre
+d'import se rouvrira — cinquième occurrence documentée. Déplacer les aires dans
+`widgets.css` **dans le même commit** que la migration, jamais après.
+
+Deux défauts voisins, mesurés en même temps et non corrigés :
+
+- **Catalyseurs** : `catalystFrameStateOf` ne lit que `agendaState` ;
+  `population` n'est jamais consultée, donc un agenda `DELAYED` se lit comme un
+  agenda temps réel.
+- **Calendrier** : `moduleStateOfFrame` replie `blocked` (`not_entitled`,
+  `rejected`) sur `'empty'` — exactement la distinction que `ModuleState.closed`
+  (« État serveur fermé ») existe pour tenir. Un refus de droit se lit « rien
+  n'est publié ».
