@@ -3646,3 +3646,30 @@
   white-space: nowrap;
 }
 
+
+/* ==================================================================== */
+/* NOMBRE SERVI — borné au rendu, entier au survol                      */
+/*                                                                      */
+/* `max-width` et `text-overflow` ne s'appliquent PAS à un élément       */
+/* inline non remplacé : sur un `<code>` inline, le plafond est inerte.  */
+/* Mesuré sur la chaîne d'options : valeur rendue à 149 px pour un       */
+/* plafond calculé à 86. `inline-block` le rend effectif.                */
+/* ==================================================================== */
+
+.vx-served-number {
+  display: inline-block;
+  overflow: hidden;
+  vertical-align: bottom;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+/* L'unité vit HORS de la boîte bornée du nombre : « 4.413571428571428 SYN »
+   formait une seule chaîne, et borner le rendu faisait disparaître « SYN »
+   derrière l'ellipse. Un nombre sans son unité n'est pas une information
+   abrégée, c'est une information fausse. */
+.vx-indicator-unit {
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+}

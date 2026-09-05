@@ -372,6 +372,24 @@ describe('Page Analyse — indicateurs techniques', () => {
     expect(bloc.textContent).toContain('20');
   });
 
+  it('borne la VALEUR au rendu, jamais l’UNITÉ', async () => {
+    // La valeur et l'unité formaient une seule chaîne : « 4.413571428571428
+    // SYN ». Borner le rendu a fait disparaître « SYN » derrière l'ellipse —
+    // vu sur capture, pas par un test. Un nombre sans son unité n'est pas une
+    // information abrégée, c'est une information fausse.
+    repondre(jsonResponse(makeAnalysis()));
+    await renderAnalysis();
+    const bloc = await screen.findByTestId('indicator-volatility');
+    const borne = bloc.querySelector('.vx-served-number');
+    expect(borne, 'la valeur doit vivre dans une boîte bornée').not.toBeNull();
+    expect(borne?.textContent).toBe('27.95');
+    // L'unité est DANS le bloc, mais HORS de la boîte bornée.
+    expect(bloc.textContent).toContain('%');
+    expect(borne?.textContent ?? '').not.toContain('%');
+    // Et la valeur entière reste atteignable au survol.
+    expect(borne?.getAttribute('title')).toBe('27.95');
+  });
+
   it('affiche une absence NOMMÉE plutôt qu’une case vide', async () => {
     repondre(jsonResponse(makeAnalysis()));
     await renderAnalysis();
