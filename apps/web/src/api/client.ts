@@ -67,7 +67,6 @@ export type ThesisRevisionRequest = components['schemas']['ThesisRevisionRequest
 export type ThesisRevisionResponse = components['schemas']['ThesisRevisionResponse'];
 export type PerformanceSnapshotResponse = components['schemas']['PerformanceSnapshotResponse'];
 export type CalendarResponse = components['schemas']['CalendarResponse'];
-export type CalendarWindowEcho = components['schemas']['CalendarWindow'];
 export type OpportunitiesResponse = components['schemas']['OpportunitiesResponse'];
 export type RiskMatrixResponse = components['schemas']['RiskMatrixResponse'];
 export type AiAnswer = components['schemas']['AiAnswer'];

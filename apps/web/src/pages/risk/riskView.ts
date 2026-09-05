@@ -35,7 +35,7 @@ export const DISCARD_LABELS: Readonly<Record<string, string>> = {
   rights_not_usable: 'droits inutilisables',
 };
 
-export interface RiskExtremePair {
+interface RiskExtremePair {
   readonly pair: string;
   readonly value: string;
 }

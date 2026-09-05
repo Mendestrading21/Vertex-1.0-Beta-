@@ -298,9 +298,4 @@ export const fontSize = {
 } as const satisfies Record<string, string>;
 
 export type ColorToken = keyof typeof color;
-export type SpaceToken = keyof typeof space;
-export type RadiusToken = keyof typeof radius;
-export type ShadowToken = keyof typeof shadow;
-export type MotionDurationToken = keyof typeof motionDuration;
 export type PageAccentToken = keyof typeof pageAccent;
-export type ZIndexToken = keyof typeof zIndex;

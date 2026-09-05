@@ -30,7 +30,7 @@ function int(record: UnknownRecord | null, key: string): number | null {
   return typeof value === 'number' && Number.isInteger(value) ? value : null;
 }
 
-export interface SecFilingView {
+interface SecFilingView {
   readonly accession: string;
   readonly form: string | null;
   readonly availableAt: string | null;

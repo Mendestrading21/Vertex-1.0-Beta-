@@ -13,13 +13,13 @@ import { geometryValue, servedWidth } from './geometry.ts';
  * servie, et AUCUNE barre. Pas de valeur de remplacement, précédent
  * `BreadthPanel`.
  */
-export interface GaugeMarker {
+interface GaugeMarker {
   /** Position SERVIE en pourcentage. */
   readonly pct: string;
   readonly label: string;
 }
 
-export interface GaugeSegment {
+interface GaugeSegment {
   readonly fromPct: string | null;
   readonly toPct: string | null;
   readonly name: string;

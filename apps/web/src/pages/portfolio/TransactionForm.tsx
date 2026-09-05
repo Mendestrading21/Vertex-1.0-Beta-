@@ -58,7 +58,7 @@ type Outcome =
   | { readonly phase: 'offline' }
   | { readonly phase: 'error' };
 
-export function buildTransactionRequest(
+function buildTransactionRequest(
   draft: FormDraft,
 ): { readonly request: RecordTransactionRequest | null; readonly issues: readonly string[] } {
   const issues: string[] = [];

@@ -29,7 +29,7 @@
  * `note` porte le motif, écrit, quand la tête n'est pas fixe ou quand elle est
  * suivie par un autre lot.
  */
-export interface PageLiveLink {
+interface PageLiveLink {
   readonly resource: string | null;
   readonly queryKey: readonly [string, string];
   readonly note?: string;

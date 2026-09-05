@@ -50,7 +50,7 @@ export interface SeriesPointView {
   readonly lotsValued: number | null;
 }
 
-export interface ExcludedDayView {
+interface ExcludedDayView {
   readonly tradingDay: string;
   readonly reason: string;
 }
@@ -74,7 +74,7 @@ export interface MetricBlockView {
   readonly drawdownPoints: readonly { readonly tradingDay: string; readonly drawdown: string }[];
 }
 
-export interface HeatmapMonthView {
+interface HeatmapMonthView {
   readonly month: string;
   readonly ret: string;
   readonly retPct: string;
