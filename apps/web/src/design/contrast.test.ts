@@ -190,7 +190,7 @@ describe('Contraste des jetons — WCAG 2.2', () => {
     // clavier. Un utilisateur qui navigue aux flèches ne voyait pas où il
     // était.
     const echecs: string[] = [];
-    for (const repere of ['signal', 'signal-bright', 'silver'] as const) {
+    for (const repere of ['signal', 'signal-bright', 'silver', 'border-field'] as const) {
       for (const fond of FONDS) {
         const mesure = ratio(color[repere], color[fond]);
         if (mesure < 3) {

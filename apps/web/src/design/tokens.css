@@ -12,6 +12,7 @@
   --vx-border-soft: rgba(231, 224, 207, 0.07);
   --vx-border: rgba(231, 224, 207, 0.12);
   --vx-border-strong: rgba(231, 224, 207, 0.21);
+  --vx-border-field: rgba(231, 224, 207, 0.4);
   --vx-grid-line: rgba(231, 224, 207, 0.045);
   --vx-text: #f6f2e8;
   --vx-text-secondary: #b8b0a0;

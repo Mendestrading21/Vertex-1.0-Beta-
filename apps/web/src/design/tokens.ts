@@ -24,6 +24,21 @@ export const color = {
   'border-soft': 'rgba(231, 224, 207, 0.07)',
   'border': 'rgba(231, 224, 207, 0.12)',
   'border-strong': 'rgba(231, 224, 207, 0.21)',
+  /**
+   * LA FRONTIÈRE D'UN CHAMP DE SAISIE — 3:1, PARCE QUE C'EST UNE EXIGENCE.
+   *
+   * WCAG 1.4.11 traite la limite d'un composant d'interface comme une
+   * information : sans elle, on ne sait pas où commence le champ ni jusqu'où
+   * on peut cliquer. Les champs portaient `border-soft`, mesuré à 1,14:1 sur
+   * leur fond — la frontière était invisible, et un formulaire de simulateur
+   * occupe autant de place que les modules qu'il sert.
+   *
+   * 0,40 est le plus petit alpha qui tient 3:1 sur les SIX fonds de lecture ;
+   * le pire cas est le fond de survol, à 3,03:1. Plus clair, la bordure
+   * deviendrait un trait de dessin ; plus sombre, elle redeviendrait une
+   * suggestion.
+   */
+  'border-field': 'rgba(231, 224, 207, 0.4)',
   'grid-line': 'rgba(231, 224, 207, 0.045)',
   'text': '#f6f2e8',
   'text-secondary': '#b8b0a0',

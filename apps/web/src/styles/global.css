@@ -1136,7 +1136,7 @@ body {
 .vx-matrix-filters select {
   min-height: 32px;
   padding: var(--vx-space-4) var(--vx-space-8);
-  border: 1px solid var(--vx-border);
+  border: 1px solid var(--vx-border-field);
   border-radius: var(--vx-radius-6);
   background: var(--vx-surface-1);
   color: var(--vx-text);
@@ -2690,7 +2690,7 @@ body {
 .vx-sim-assumptions-grid input {
   padding: var(--vx-space-8);
   background: var(--vx-surface-1);
-  border: 1px solid var(--vx-border);
+  border: 1px solid var(--vx-border-field);
   border-radius: var(--vx-radius-6);
   color: var(--vx-text);
   font-family: var(--vx-font-mono);
@@ -2707,7 +2707,7 @@ body {
   margin-top: var(--vx-space-8);
   padding: var(--vx-space-4) var(--vx-space-12);
   background: transparent;
-  border: 1px solid var(--vx-border);
+  border: 1px solid var(--vx-border-field);
   border-radius: var(--vx-radius-6);
   color: var(--vx-text-secondary);
   font-size: var(--vx-font-size-meta);
@@ -3044,7 +3044,7 @@ body {
 .vx-thesis-action-form input {
   padding: var(--vx-space-8);
   background: var(--vx-surface-1);
-  border: 1px solid var(--vx-border);
+  border: 1px solid var(--vx-border-field);
   border-radius: var(--vx-radius-6);
   color: var(--vx-text);
   font-family: var(--vx-font-mono);
@@ -3597,7 +3597,7 @@ body {
   width: 220px;
   max-width: 100%;
   padding: var(--vx-space-4) var(--vx-space-8);
-  border: 1px solid var(--vx-border);
+  border: 1px solid var(--vx-border-field);
   border-radius: var(--vx-radius-6);
   background: var(--vx-surface-0);
   color: var(--vx-text);
@@ -4778,7 +4778,10 @@ select,
 textarea {
   min-height: 32px;
   padding: var(--vx-space-4) var(--vx-space-8);
-  border: 1px solid var(--vx-border-soft);
+  /* La FRONTIÈRE d'un champ est une information, pas un ornement : WCAG 1.4.11
+     lui demande 3:1. `border-soft` mesurait 1,14:1 — on ne voyait pas où le
+     champ commençait ni jusqu'où on pouvait cliquer. */
+  border: 1px solid var(--vx-border-field);
   border-radius: var(--vx-radius-6);
   background: var(--vx-surface-0);
   color: var(--vx-text);
