@@ -974,9 +974,20 @@ body {
   la barre verticale le sépare, la couleur le range au second plan. Il répond à
   « de quoi est-ce l'âge ? », il n'est pas la mesure elle-même.
 */
+/*
+  SEULES LES MESURES SONT INSÉCABLES.
+
+  J'avais mis `.vx-freshness-source` dans le même lot que l'âge et le budget.
+  C'était une faute de catégorie : « — dernier snapshot publié » est de la
+  PROSE, pas une mesure. Rendue insécable, elle a fait déborder ses cartes de
+  88 px et 104 px sur Sources & Rapports, à 1280 — mesuré par la porte de
+  débordement, pas deviné.
+
+  Un nombre et son unité forment un tout indivisible ; un libellé de source se
+  coupe où la langue le permet.
+*/
 .vx-freshness-age,
-.vx-freshness-budget,
-.vx-freshness-source {
+.vx-freshness-budget {
   white-space: nowrap;
 }
 
