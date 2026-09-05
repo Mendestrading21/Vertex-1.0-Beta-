@@ -75,7 +75,10 @@ describe('Page Sources & Rapports — composition (LOT-A8)', () => {
       'Mode déclaré',
       'Statut testé',
       'Raison',
-      'tested_at (UTC)',
+      // L'unité a quitté les parenthèses du titre pour le créneau que
+      // `DataTable` lui réserve, sous le nom de colonne. Le nom accessible
+      // reste « tested_at UTC » — six en-têtes, mêmes noms, unité à sa place.
+      'tested_at UTC',
     ]);
     // La seule table de la page reste la matrice.
     expect(screen.getAllByRole('table')).toHaveLength(1);
