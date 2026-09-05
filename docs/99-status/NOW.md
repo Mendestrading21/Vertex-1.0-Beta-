@@ -1,10 +1,36 @@
 # État courant
 
 ```yaml
-phase: refonte_visuelle_dashboard_system_upgrade
-lot: "Refonte visuelle — nuit du 4 au 5 septembre 2026"
-branch: agent/vertex-1-0-dashboard-system-upgrade-v2
-status: pr_72_ouverte_ci_en_cours_aucune_fusion_de_cette_branche
+phase: preparation_session_ibkr_reelle
+lot: "Démarrage live — les trois pièges du runbook"
+branch: claude/vertex-connection-kgkntr
+status: pr_ouverte_ci_en_cours
+demarrage_live_2026_09_05:
+  - "main = 282a75f. #70, #72 et #73 fusionnées ce jour. Il ne reste ouverte
+     que #69, rouge sur les e2e SEULEMENT (6 checks sur 7 verts), base deux
+     `main` en retard : ses 9 régressions de mise en page sont réelles, elle
+     NE DOIT PAS être fusionnée en l'état"
+  - "PIÈGE 1 — START_LOCAL.md promettait « alimenter les pages avec du marché
+     réel » puis nommait tools/run_edge_ibkr.py. Ce collecteur produit
+     `ibkr.quote/1`, qu'AUCUN consommateur n'admet : le seul lecteur de
+     cotation est markets.DAILY_QUOTE_SCHEMA_PREFIXES, qui déclare
+     `ibkr.daily-quote/`, produit par tools/run_edge_history.py. Suivre le
+     runbook remplissait la base sans rien changer à l'écran"
+  - "PIÈGE 2 — la bannière de start_local.sh affirmait « tout porte SYNTHETIC »
+     sans condition. Le démarreur n'exporte jamais VERTEX_FUSION_PROFILE : une
+     pile lancée en profil réel annonçait de la démonstration. Corrigé et
+     vérifié sur la pile réelle dans les DEUX régimes"
+  - "PIÈGE 3 — .env.example déclarait VERTEX_TWS_HOST/PORT/CLIENT_ID, sans
+     aucun lecteur. Les vraies sont VERTEX_IBKR_PORT et VERTEX_IBKR_CLIENT_ID ;
+     l'hôte n'est pas configurable (adapter.py fixe 127.0.0.1 en dur)"
+  - "START_LOCAL.md affirmait « Aucune donnée réelle n'a jamais été observée ».
+     FAUX depuis le 2026-08-31 : voir `affichage_reel_mesure` plus bas.
+     Remplacé par la mesure datée"
+  - "docs/08-runbooks/CE_SOIR.md : la séquence complète d'une première session
+     IBKR réelle, en une page, avec ce qui marchera et ce qui ne marchera pas"
+  - "pile remontée sur main du jour, base jetable : vite build 5,5 s ;
+     bootstrap 14,4 s aux sept compteurs identiques ; pile debout en 8 s ;
+     campagne smoke 12 vertes en 55,8 s ; pytest tools/tests 219 verts"
 refonte_nuit_du_5_septembre:
   - "base : main = bd95ca2 (après #71 chirurgie du dépôt, puis #70 portes V3a
      fusionnée par moi ce matin) ; PR #72 OUVERTE, en attente des sept checks"
