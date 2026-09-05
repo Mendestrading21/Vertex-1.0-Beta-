@@ -4,6 +4,7 @@ import { Widget } from '../../components/widgets/Widget.tsx';
 import { CALENDAR_REF_STATUS_LABELS } from './opportunitiesView.ts';
 import type { CandidateView, OpportunitiesContentView } from './opportunitiesView.ts';
 import { opportunitiesModule } from './opportunitiesModules.ts';
+import type { ModuleState } from '../../components/moduleState.ts';
 
 /**
  * Les modules SERVIS de la planche §3, hors la dominante. Tous lisent le MÊME
@@ -41,14 +42,27 @@ export function directionCensusOf(
 
 // ---------------------------------------------------------------------------
 
-export function ActiveIdeasModule({ view }: { readonly view: OpportunitiesContentView }) {
+export function ActiveIdeasModule({
+  view,
+  servedState,
+}: {
+  readonly view: OpportunitiesContentView;
+  /**
+   * L'ÉTAT SERVI DE L'INSTANTANÉ, propagé par la page.
+   *
+   * Ces modules annonçaient `state="ready"` en dur : un instantané périmé ou
+   * différé s'y affichait comme frais, et seul le cadre de page disait la
+   * vérité — or un lecteur qui regarde une carte ne regarde pas le cadre.
+   */
+  readonly servedState: ModuleState;
+}) {
   const module = opportunitiesModule('active-ideas');
   const coverage = view.coverage;
   return (
     <Widget
       id={module.id}
       size={module.size}
-      state="ready"
+      state={servedState}
       rank="quiet"
       kicker="Couverture publiée"
       title={module.title}
@@ -81,13 +95,26 @@ export function ActiveIdeasModule({ view }: { readonly view: OpportunitiesConten
 
 // ---------------------------------------------------------------------------
 
-export function BiasSplitModule({ view }: { readonly view: OpportunitiesContentView }) {
+export function BiasSplitModule({
+  view,
+  servedState,
+}: {
+  readonly view: OpportunitiesContentView;
+  /**
+   * L'ÉTAT SERVI DE L'INSTANTANÉ, propagé par la page.
+   *
+   * Ces modules annonçaient `state="ready"` en dur : un instantané périmé ou
+   * différé s'y affichait comme frais, et seul le cadre de page disait la
+   * vérité — or un lecteur qui regarde une carte ne regarde pas le cadre.
+   */
+  readonly servedState: ModuleState;
+}) {
   const module = opportunitiesModule('bias-split');
   return (
     <Widget
       id={module.id}
       size={module.size}
-      state="ready"
+      state={servedState}
       rank="quiet"
       kicker="Directions publiées"
       title={module.title}
@@ -106,7 +133,20 @@ export function BiasSplitModule({ view }: { readonly view: OpportunitiesContentV
 
 // ---------------------------------------------------------------------------
 
-export function OpportunityHealthModule({ view }: { readonly view: OpportunitiesContentView }) {
+export function OpportunityHealthModule({
+  view,
+  servedState,
+}: {
+  readonly view: OpportunitiesContentView;
+  /**
+   * L'ÉTAT SERVI DE L'INSTANTANÉ, propagé par la page.
+   *
+   * Ces modules annonçaient `state="ready"` en dur : un instantané périmé ou
+   * différé s'y affichait comme frais, et seul le cadre de page disait la
+   * vérité — or un lecteur qui regarde une carte ne regarde pas le cadre.
+   */
+  readonly servedState: ModuleState;
+}) {
   const module = opportunitiesModule('opportunity-health');
   const entries = [...view.coverage.statusCounts.entries()]
     .sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
@@ -115,7 +155,7 @@ export function OpportunityHealthModule({ view }: { readonly view: Opportunities
     <Widget
       id={module.id}
       size={module.size}
-      state="ready"
+      state={servedState}
       rank="quiet"
       kicker="Moteur fail-closed"
       title={module.title}
@@ -134,14 +174,27 @@ export function OpportunityHealthModule({ view }: { readonly view: Opportunities
 
 // ---------------------------------------------------------------------------
 
-export function ProfileModule({ view }: { readonly view: OpportunitiesContentView }) {
+export function ProfileModule({
+  view,
+  servedState,
+}: {
+  readonly view: OpportunitiesContentView;
+  /**
+   * L'ÉTAT SERVI DE L'INSTANTANÉ, propagé par la page.
+   *
+   * Ces modules annonçaient `state="ready"` en dur : un instantané périmé ou
+   * différé s'y affichait comme frais, et seul le cadre de page disait la
+   * vérité — or un lecteur qui regarde une carte ne regarde pas le cadre.
+   */
+  readonly servedState: ModuleState;
+}) {
   const module = opportunitiesModule('profile');
   const profile = view.profileRef;
   return (
     <Widget
       id={module.id}
       size={module.size}
-      state="ready"
+      state={servedState}
       rank="quiet"
       kicker="Profil appliqué en partie"
       title={module.title}
@@ -199,7 +252,20 @@ export function ProfileModule({ view }: { readonly view: OpportunitiesContentVie
 
 // ---------------------------------------------------------------------------
 
-export function ExclusionsModule({ view }: { readonly view: OpportunitiesContentView }) {
+export function ExclusionsModule({
+  view,
+  servedState,
+}: {
+  readonly view: OpportunitiesContentView;
+  /**
+   * L'ÉTAT SERVI DE L'INSTANTANÉ, propagé par la page.
+   *
+   * Ces modules annonçaient `state="ready"` en dur : un instantané périmé ou
+   * différé s'y affichait comme frais, et seul le cadre de page disait la
+   * vérité — or un lecteur qui regarde une carte ne regarde pas le cadre.
+   */
+  readonly servedState: ModuleState;
+}) {
   const module = opportunitiesModule('exclusions');
   // LOT P2c — MÊME ORDRE QUE LES STATUTS SUR L'UNIVERS : le compte le plus
   // gros d'abord, la clé servie pour départager. Une liste de raisons se lit
@@ -212,7 +278,7 @@ export function ExclusionsModule({ view }: { readonly view: OpportunitiesContent
     <Widget
       id={module.id}
       size={module.size}
-      state="ready"
+      state={servedState}
       rank="quiet"
       kicker="Compteurs publiés"
       title={module.title}
@@ -263,7 +329,20 @@ function CountCell({ value }: { readonly value: number | null }) {
   );
 }
 
-export function CalendarRefModule({ view }: { readonly view: OpportunitiesContentView }) {
+export function CalendarRefModule({
+  view,
+  servedState,
+}: {
+  readonly view: OpportunitiesContentView;
+  /**
+   * L'ÉTAT SERVI DE L'INSTANTANÉ, propagé par la page.
+   *
+   * Ces modules annonçaient `state="ready"` en dur : un instantané périmé ou
+   * différé s'y affichait comme frais, et seul le cadre de page disait la
+   * vérité — or un lecteur qui regarde une carte ne regarde pas le cadre.
+   */
+  readonly servedState: ModuleState;
+}) {
   const module = opportunitiesModule('catalysts-provenance');
   const reference = view.calendarRef;
   const status = reference.status ?? '';
@@ -271,7 +350,7 @@ export function CalendarRefModule({ view }: { readonly view: OpportunitiesConten
     <Widget
       id={module.id}
       size={module.size}
-      state="ready"
+      state={servedState}
       rank="quiet"
       kicker="Snapshot calendrier"
       title={module.title}
@@ -349,13 +428,26 @@ export function CalendarRefModule({ view }: { readonly view: OpportunitiesConten
 
 // ---------------------------------------------------------------------------
 
-export function LimitationsModule({ view }: { readonly view: OpportunitiesContentView }) {
+export function LimitationsModule({
+  view,
+  servedState,
+}: {
+  readonly view: OpportunitiesContentView;
+  /**
+   * L'ÉTAT SERVI DE L'INSTANTANÉ, propagé par la page.
+   *
+   * Ces modules annonçaient `state="ready"` en dur : un instantané périmé ou
+   * différé s'y affichait comme frais, et seul le cadre de page disait la
+   * vérité — or un lecteur qui regarde une carte ne regarde pas le cadre.
+   */
+  readonly servedState: ModuleState;
+}) {
   const module = opportunitiesModule('quality');
   return (
     <Widget
       id={module.id}
       size={module.size}
-      state="ready"
+      state={servedState}
       rank="quiet"
       kicker="Déclaré par le moteur"
       title={module.title}

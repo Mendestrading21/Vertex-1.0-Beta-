@@ -240,6 +240,14 @@ export function DividendsModule({ transactions }: { readonly transactions: reado
       kicker="Faits déclarés au journal"
       title={module.title}
       titleId="vx-pf-dividends-title"
+      /*
+        `ready` EST JUSTE ICI, et c'est le seul endroit du produit où il l'est
+        encore en dur. Ce module lit le JOURNAL MANUEL — des faits déclarés par
+        l'utilisateur, pas un instantané de marché. Un journal n'a ni fraîcheur,
+        ni population, ni état servi : il n'y a rien à propager. Ailleurs, un
+        `ready` en dur cachait un instantané périmé ; ici, il n'y a pas
+        d'instantané.
+      */
       state="ready"
       footer={<>{dividends.length} ligne(s) de nature « {LEDGER_KIND_LABELS.DIVIDEND} » ; montants verbatim, jamais sommés</>}
     >

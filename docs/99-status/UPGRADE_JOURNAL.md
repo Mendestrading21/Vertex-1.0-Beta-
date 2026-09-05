@@ -224,9 +224,13 @@ Reporté, avec sa mesure, pour un lot dédié :
 
 - **`freshness_policy` est servi par 12 routes et lu par ZÉRO fichier
   d'interface.** Un contrat de fraîcheur existe et n'est pas branché.
-- **38 modules servis figés à `state="ready"`** : un instantané périmé,
-  différé ou partiel s'affiche comme frais sur Marchés (4), Analyse (11),
-  Graphiques (6), Catalyseurs (7) et Calendrier (10).
+- ~~38 modules servis figés à `state="ready"`~~ — **traité**. Marchés (6),
+  Graphiques (6) et Opportunités (8) propagent désormais l'état servi de leur
+  instantané. Le seul `ready` en dur qui reste est celui du journal manuel de
+  Portefeuille, et il est JUSTE : un journal déclaré par l'utilisateur n'a ni
+  fraîcheur, ni population, ni état servi — il n'y a rien à propager, et le
+  code le dit à cet endroit. Analyse, Catalyseurs et Calendrier passent par
+  d'autres cadres et restent à vérifier un par un.
 - **Trois règles de signe concurrentes sur Portefeuille**, dont un
   `startsWith('-')` qui peint un P&L servi `0.00` en vert.
 - **Sept composants sans consommateur de production** (1 408 lignes),

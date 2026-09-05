@@ -27,6 +27,7 @@ import { useDeclaredInstruments } from '../devUniverse.ts';
 import { absentModules, chartsModule, comparisonViewOf } from './chartsView.ts';
 import { pageAccentAttrs } from '../../components/widgets/pageAccent.ts';
 import { MethodNote } from '../../components/widgets/MethodNote.tsx';
+import { moduleStateOf } from '../../components/moduleState.ts';
 
 /**
  * Page Graphiques (`TL / 08`) — question : « Quelles relations puis-je
@@ -343,6 +344,13 @@ function ChartsRoute({ instrument }: { readonly instrument: string }) {
   const analysis = useAnalysis(instrument);
   const queryState = pageStateOf(analysis);
   const data = analysis.data;
+  /*
+    L'ÉTAT SERVI, CALCULÉ UNE FOIS ET PROPAGÉ. Les modules annonçaient
+    `state="ready"` en dur : un instantané périmé, différé ou partiel s'y
+    affichait comme frais, et seul le bandeau de page disait la vérité — or un
+    lecteur qui regarde une carte ne regarde pas le bandeau.
+  */
+  const etatServi = moduleStateOf('ready', data);
   const state = analysisStateOf(queryState, data);
   const bars = useMemo(() => (data === undefined ? null : barsViewOf(data)), [data]);
   const [fenetre, setFenetre] = useState<string>('all');
@@ -382,7 +390,7 @@ function ChartsRoute({ instrument }: { readonly instrument: string }) {
               onWindow={setFenetre}
             />
 
-            <VolumeModule bars={bars} />
+            <VolumeModule bars={bars} servedState={etatServi} />
 
             <Widget
               id="served-indicators"
@@ -390,7 +398,7 @@ function ChartsRoute({ instrument }: { readonly instrument: string }) {
               kicker="Moteur serveur"
               title={chartsModule('served-indicators').title}
               titleId="vx-charts-indicators-title"
-              state="ready"
+              state={etatServi}
               footer={<>mesures ponctuelles publiées par le worker, relayées verbatim</>}
             >
               {data.indicators === null || data.indicators === undefined ? (
@@ -405,11 +413,12 @@ function ChartsRoute({ instrument }: { readonly instrument: string }) {
               )}
             </Widget>
 
-            <OverlaysModule indicators={data.indicators} />
-            <RsiModule indicators={data.indicators} />
-            <MacdModule indicators={data.indicators} />
+            <OverlaysModule indicators={data.indicators} servedState={etatServi} />
+            <RsiModule indicators={data.indicators} servedState={etatServi} />
+            <MacdModule indicators={data.indicators} servedState={etatServi} />
 
             <ComparisonModule
+              servedState={etatServi}
               comparison={comparisonViewOf(data.indicators)}
               instrument={instrument}
             />

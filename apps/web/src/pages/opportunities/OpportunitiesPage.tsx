@@ -26,6 +26,7 @@ import { OpportunityTable } from './OpportunityTable.tsx';
 import { opportunitiesModule } from './opportunitiesModules.ts';
 import { opportunitiesFrameStateOf } from './opportunitiesView.ts';
 import type { CandidateView, OpportunitiesContentView } from './opportunitiesView.ts';
+import { moduleStateOf } from '../../components/moduleState.ts';
 
 /**
  * LOT-A3 : la dérivation d'état vit dans la vue pure, parce qu'Aujourd'hui
@@ -133,7 +134,7 @@ function RankingModule({
     <Widget
       id={module.id}
       size={module.size}
-      state="ready"
+      state={moduleStateOf('ready', data)}
       rank="dominant"
       kicker="Ordre publié"
       title={module.title}
@@ -268,26 +269,33 @@ function OpportunitiesBoard({
     return candidate === undefined ? null : { candidate, contradictory: false };
   }, [selected, view]);
 
+  /*
+    L'ÉTAT SERVI, CALCULÉ UNE FOIS ET PROPAGÉ. Les modules annonçaient
+    `state="ready"` en dur : un instantané périmé ou différé s'y affichait comme
+    frais, et seul le cadre de page disait la vérité.
+  */
+  const etatServi = moduleStateOf('ready', data);
+
   return (
     <>
       <div className="vx-opp-grid vx-board" data-testid="opportunities-grid">
-        <ActiveIdeasModule view={view} />
+        <ActiveIdeasModule view={view} servedState={etatServi} />
         <AbsentOpportunitiesModule id="mean-score" />
         <AbsentOpportunitiesModule id="global-bias" />
         <AbsentOpportunitiesModule id="expected-return" />
 
         <RankingModule data={data} view={view} selected={selected} onInspect={setSelected} />
 
-        <BiasSplitModule view={view} />
+        <BiasSplitModule view={view} servedState={etatServi} />
         <AbsentOpportunitiesModule id="score-return-scatter" />
         <AbsentOpportunitiesModule id="factor-contribution" />
         <AbsentOpportunitiesModule id="recent-activity" />
 
-        <OpportunityHealthModule view={view} />
-        <ProfileModule view={view} />
-        <ExclusionsModule view={view} />
-        <CalendarRefModule view={view} />
-        <LimitationsModule view={view} />
+        <OpportunityHealthModule view={view} servedState={etatServi} />
+        <ProfileModule view={view} servedState={etatServi} />
+        <ExclusionsModule view={view} servedState={etatServi} />
+        <CalendarRefModule view={view} servedState={etatServi} />
+        <LimitationsModule view={view} servedState={etatServi} />
       </div>
 
       {picked === null ? (
