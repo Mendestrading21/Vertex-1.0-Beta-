@@ -28,6 +28,7 @@ import {
 import { marketsModule } from './marketsModules.ts';
 import { pageAccentAttrs } from '../../components/widgets/pageAccent.ts';
 import { MethodNote } from '../../components/widgets/MethodNote.tsx';
+import { moduleStateOf } from '../../components/moduleState.ts';
 
 /**
  * Page Marchés (`TL / 02`) — question : « Dans quel contexte de marché
@@ -300,7 +301,7 @@ function MarketHealthModule({ data }: { readonly data: MarketsOverview }) {
       kicker="Couverture publiée"
       title={module.title}
       titleId="vx-markets-health-title"
-      state="ready"
+      state={moduleStateOf('ready', { state: data.data_state, population: data.population })}
       footer={
         <>
           état worker <code>{data.data_state ?? 'non publié'}</code> · âge publié{' '}
@@ -352,7 +353,7 @@ function DiscardsModule({ data }: { readonly data: MarketsOverview }) {
       kicker="Refus nommés"
       title={module.title}
       titleId="vx-markets-discards-title"
-      state="ready"
+      state={moduleStateOf('ready', { state: data.data_state, population: data.population })}
       footer={<>raisons relayées telles quelles — jamais interpolées</>}
     >
       {coverage === null ? (
@@ -429,7 +430,7 @@ function MarketsBoard({ data, state }: { readonly data: MarketsOverview; readonl
           kicker="Breadth publiée"
           title={breadthModule.title}
           titleId="vx-markets-breadth-title"
-          state="ready"
+          state={moduleStateOf('ready', { state: data.data_state, population: data.population })}
           footer={<>comptes et seuils publiés par le worker — aucun pourcentage recalculé</>}
         >
           {data.breadth === null ? (
@@ -455,7 +456,7 @@ function MarketsBoard({ data, state }: { readonly data: MarketsOverview; readonl
           kicker="Snapshot Marchés"
           title={sectorsModule.title}
           titleId="vx-markets-sectors-title"
-          state="ready"
+          state={moduleStateOf('ready', { state: data.data_state, population: data.population })}
           action={<StatusChip label={`${data.sectors.length} secteur(s) publié(s)`} tone="neutral" />}
           footer={<>rendement 1 j par instrument, chaîne serveur ; aucun rendement de secteur n&apos;est publié</>}
         >

@@ -421,7 +421,13 @@ describe('Page Marchés — états dégradés et vides', () => {
       ),
     );
     await renderMarkets();
-    await screen.findByText('Données partielles');
+    // L'ÉTAT SERVI SE PROPAGE AUX MODULES, il ne reste plus au bandeau.
+    // Les modules satellites annonçaient `state="ready"` en dur : un
+    // instantané PARTIEL s'y affichait comme frais, et seul le bandeau de page
+    // disait la vérité. L'assertion attend donc PLUSIEURS annonces — une par
+    // module qui lit cet instantané — au lieu d'une seule.
+    const partiels = await screen.findAllByText('Données partielles');
+    expect(partiels.length, 'l’état servi doit atteindre les modules').toBeGreaterThan(1);
     expect(
       screen.getByText(/3 instruments couverts sur 4 attendus, 1 écartés/),
     ).toBeDefined();
@@ -434,7 +440,8 @@ describe('Page Marchés — états dégradés et vides', () => {
   it('stale serveur : bandeau « Données périmées », contenu daté conservé', async () => {
     fetchMock.mockResolvedValue(jsonResponse(makeMarketsOverview({ data_state: 'stale' })));
     await renderMarkets();
-    await screen.findByText('Données périmées');
+    const perimes = await screen.findAllByText('Données périmées');
+    expect(perimes.length, 'l’état servi doit atteindre les modules').toBeGreaterThan(1);
     expect(screen.getByText(/as_of 2026-08-25T12:00:00\+00:00/)).toBeDefined();
     expect(screen.getByRole('table', { name: /Table équivalente/ })).toBeDefined();
   });
@@ -467,7 +474,8 @@ describe('Page Marchés — états dégradés et vides', () => {
     fetchMock.mockResolvedValue(jsonResponse(makeObservedMarketsOverview('DELAYED')));
     await renderMarkets();
 
-    await screen.findByText('Données différées');
+    const differes = await screen.findAllByText('Données différées');
+    expect(differes.length, 'l’état servi doit atteindre les modules').toBeGreaterThan(1);
     expect(within(screen.getByRole('main')).getByText('DONNÉES RETARDÉES')).toBeDefined();
     expect(screen.getByText(/Population DELAYED publiée par le worker/)).toBeDefined();
     expect(screen.getByRole('table', { name: /Table équivalente/ })).toBeDefined();
