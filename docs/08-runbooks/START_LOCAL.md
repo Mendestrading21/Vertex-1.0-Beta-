@@ -12,6 +12,10 @@ API FastAPI réelle, build de production — sur une base jetable dont le schém
 pour son utilisateur**. `tools/start_local.sh` est cette séquence, promue hors
 des tests, sans base jetable et sans destruction de schéma.
 
+> **Première session avec un IBKR réel ?** `CE_SOIR.md` enchaîne cette page,
+> `FIRST_INSTALL.md` et `IBKR_SETUP.md` en une seule séquence, et nomme
+> d'avance ce qui marchera et ce qui ne marchera pas.
+
 ## Prérequis
 
 PostgreSQL 18, Node 24, Corepack et `uv` installés, puis les environnements
