@@ -60,6 +60,12 @@ Tout ce qui précède porte population = SYNTHETIC jusqu'à l'écran.
 Aucune donnée réelle n'a été observée.
 ```
 
+Ré-exécuté le 2026-09-05 sur `87a4e8b`, base neuve `vertex_soir_probe` :
+**les sept compteurs sont identiques**, en 14,4 s. La pile complète est ensuite
+montée en 8 s — migrations, API (`{"status":"alive"}`), worker et interface
+servie depuis le build de production — et les douze destinations ont été
+rendues par la campagne `smoke` (12 vertes, 55,8 s).
+
 Le `messages_traites=490` d'une mesure antérieure n'était pas inventé : il
 était juste, sur un autre arbre. Un compteur de messages d'outbox dépend du
 nombre de snapshots publiés, qui a changé depuis — 11 familles aujourd'hui.
