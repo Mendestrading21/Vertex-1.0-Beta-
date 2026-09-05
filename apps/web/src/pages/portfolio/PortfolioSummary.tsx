@@ -1,6 +1,6 @@
 import { Card } from '../../components/Card.tsx';
 import type { GlyphName } from '../../components/widgets/Glyph.tsx';
-import { signGroupOfText } from '../../components/widgets/KpiDelta.tsx';
+import { signGroupOfText } from '../../components/widgets/sign.ts';
 import { KpiTile } from '../../components/widgets/KpiTile.tsx';
 import { portfolioModule } from './portfolioModules.ts';
 import type { CurrencyBlockView, ValuationContentView } from './portfolioView.ts';

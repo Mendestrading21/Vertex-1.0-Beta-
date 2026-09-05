@@ -2975,12 +2975,32 @@ body {
   white-space: nowrap;
 }
 
-.vx-pf-lots td[data-sign='negative'] {
+/*
+  SIGNE D'UN NOMBRE SERVI — RÈGLE UNIQUE, VOCABULAIRE CANONIQUE.
+
+  Deux règles vivaient ici sous `.vx-pf-lots td[data-sign='positive'|'negative']`,
+  un dialecte que ne parlait aucune autre feuille du produit. Elles cachaient
+  deux fautes. La première : la règle binaire qui les alimentait peignait un
+  P&L latent servi `0.00` EN VERT, un gain fabriqué. La seconde : l'inspecteur
+  de lot posait le même attribut HORS de `.vx-pf-lots`, donc son P&L n'était
+  colorié par RIEN — du balisage mort, et une incohérence entre deux vues du
+  même chiffre.
+
+  La règle porte désormais sur `.vx-num`, le marqueur des nombres servis, et
+  parle le `up`/`down`/`flat` de `.vx-dt`. `flat` ne prend aucune couleur de
+  sens : un zéro n'est ni un gain ni une perte. La couleur DOUBLE le signe déjà
+  présent dans le texte servi, elle ne le remplace jamais.
+*/
+.vx-num[data-sign='up'] {
+  color: var(--vx-positive);
+}
+
+.vx-num[data-sign='down'] {
   color: var(--vx-negative);
 }
 
-.vx-pf-lots td[data-sign='positive'] {
-  color: var(--vx-positive);
+.vx-num[data-sign='flat'] {
+  color: var(--vx-text-secondary);
 }
 
 .vx-pf-excluded {

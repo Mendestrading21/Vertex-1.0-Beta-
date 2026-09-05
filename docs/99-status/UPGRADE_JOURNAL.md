@@ -231,8 +231,10 @@ Reporté, avec sa mesure, pour un lot dédié :
   fraîcheur, ni population, ni état servi — il n'y a rien à propager, et le
   code le dit à cet endroit. Analyse, Catalyseurs et Calendrier passent par
   d'autres cadres et restent à vérifier un par un.
-- **Trois règles de signe concurrentes sur Portefeuille**, dont un
-  `startsWith('-')` qui peint un P&L servi `0.00` en vert.
+- ~~Trois règles de signe concurrentes sur Portefeuille~~ — **traité**. Le
+  comptage était sous-estimé : il y en avait CINQ dans le produit, dont trois
+  fausses. Une autorité unique (`components/widgets/sign.ts`) et une porte les
+  remplacent ; voir « Cinq règles de signe, dont trois qui mentaient ».
 - **Sept composants sans consommateur de production** (1 408 lignes),
   `ChartFrame`, `LiveDataIndicator` et `Skeleton` compris : écrits et testés
   cette nuit, ils restent à poser sur leurs pages.
@@ -279,3 +281,53 @@ aucune source ne peut désormais appeler `toLocale…String()` ni construire un
 mutation sur ses deux motifs à la fois. L'enjeu n'est pas cosmétique :
 `05/09/2026` et `09/05/2026` désignent deux jours différents, et une échéance
 d'option lue à l'envers est une décision prise sur un fait faux.
+
+### Cinq règles de signe, dont trois qui mentaient
+
+Le signe n'est pas une décoration. Peindre un chiffre en vert AFFIRME un gain.
+Cinq règles indépendantes décidaient cette affirmation dans le produit, et
+trois se trompaient :
+
+| Où | Règle | Ce qu'elle affirmait à tort |
+|---|---|---|
+| `PortfolioTable`, `PortfolioInspector` | `startsWith('-') ? 'negative' : 'positive'` | un P&L latent servi `0.00` peint **en vert** |
+| `RiskModules` (drawdown) | `startsWith('-') ? 'down' : 'flat'` | un `-0.00` servi lu comme une perte |
+| `PortfolioModules`, `SimResult` (deux copies de `signOf`) | tiret testé AVANT le zéro | `-0.00` = perte, et une chaîne positive **non signée** = gain |
+| `marketsView.signGroupOf` | `+0.00`/`-0.00` reconnus à l'égalité EXACTE | `-0.000` lu comme une baisse |
+| `KpiDelta.signGroupOfText` | **correcte** — mais logée dans un fichier de composant | — |
+
+La cinquième était la bonne : le zéro reconnu AVANT le signe, et `null` quand
+le signe n'est pas publié — car une chaîne positive sans « + » ne prouve pas un
+gain, elle prouve que le serveur n'a pas publié de signe. Elle vivait dans
+`KpiDelta.tsx`, où personne n'allait la chercher ; c'est très exactement
+pourquoi quatre autres sont nées.
+
+Elle est promue en `components/widgets/sign.ts`, seule autorité, et les cinq
+sites d'appel y sont branchés. Aucun ré-export de compatibilité : une seule
+voie d'accès.
+
+**Le vocabulaire cachait la faute.** `positive`/`negative` n'était parlé par
+aucune autre feuille de style du produit. Conséquence mesurée en lisant le
+DOM : l'inspecteur de lot posait son `data-sign` **hors** de `.vx-pf-lots`,
+donc son P&L n'était colorié par **rien** — du balisage mort, et deux vues du
+même chiffre qui ne s'accordaient pas. La règle porte désormais sur `.vx-num`,
+le marqueur des nombres servis, et parle le `up`/`down`/`flat` de `.vx-dt`.
+`flat` ne reçoit aucune couleur de sens : un zéro n'est ni un gain ni une
+perte.
+
+Trois preuves, chacune rouge d'abord :
+
+1. `components/widgets/sign.test.ts` — 21 cas, dont un reproducteur qui exécute
+   l'ancienne règle binaire côte à côte avec l'autorité et montre leur
+   désaccord sur `0.00` et `-0.00` ;
+2. `pages/portfolio/PortfolioTable.test.tsx` — la LIGNE RENDUE, parce que c'est
+   le site d'appel qui avait divergé : les 6 assertions échouent toutes quand
+   on restaure la règle d'origine ;
+3. `design/one-sign-rule.test.ts` — la porte : seule l'autorité lit un signe
+   dans une chaîne, et aucun `data-sign` (balisage ou feuille de style) ne
+   sort du vocabulaire canonique.
+
+La porte s'est d'abord accusée elle-même : son commentaire d'explication
+contient les mots `data-sign='positive'`. Les commentaires CSS sont désormais
+retirés avant lecture — une porte qui lit de la prose ne lit pas des règles, et
+symétriquement une règle cachée dans un commentaire n'est pas une règle.

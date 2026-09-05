@@ -18,6 +18,7 @@ import { valuationContentOf } from '../portfolio/portfolioView.ts';
 import type { ValuationContentView } from '../portfolio/portfolioView.ts';
 import { riskModule } from './riskModules.ts';
 import type { RiskView } from './riskView.ts';
+import { signGroupOfServed } from '../../components/widgets/sign.ts';
 
 /**
  * Les modules SERVIS de la planche §9, hors la dominante (la matrice, portée
@@ -510,7 +511,7 @@ export function DrawdownModule() {
                   label={METRIC_LABELS[key]}
                   value={block.status === 'OK' ? block.maxDrawdownPct : null}
                   unit="%"
-                  sign={block.status === 'OK' && block.maxDrawdownPct !== null ? (block.maxDrawdownPct.startsWith('-') ? 'down' : 'flat') : null}
+                  sign={block.status === 'OK' ? signGroupOfServed(block.maxDrawdownPct) : null}
                   absentLabel={block.status === 'OK' ? 'non publié' : `${block.status}${block.reason !== null ? ` — ${block.reason}` : ''}`}
                   {...(block.status === 'OK' && block.peakAt !== null && block.troughAt !== null ? { note: `sommet ${block.peakAt} → creux ${block.troughAt}` } : {})}
                   testId={`risk-${key}`}

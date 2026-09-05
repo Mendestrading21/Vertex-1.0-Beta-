@@ -16,6 +16,7 @@ import type { MetricBlockView, MetricKey } from './performance/performanceView.t
 import { portfolioModule } from './portfolioModules.ts';
 import { LEDGER_KIND_LABELS } from './portfolioView.ts';
 import type { ExcludedLotRow, ValuationContentView, ValuedLotRow } from './portfolioView.ts';
+import { signGroupOfServed } from '../../components/widgets/sign.ts';
 
 /**
  * Les modules SERVIS de la planche §7, hors la dominante (la concentration,
@@ -64,15 +65,13 @@ export function ValuationAbsence({
 
 // ---------------------------------------------------------------------------
 
-function signOf(value: string | null): 'up' | 'down' | 'flat' | null {
-  if (value === null) {
-    return null;
-  }
-  if (value.startsWith('-')) {
-    return 'down';
-  }
-  return /^[+]?0*(\.0+)?$/.test(value) ? 'flat' : 'up';
-}
+/*
+  LA COPIE LOCALE TESTAIT `'-'` AVANT LE ZÉRO : un `-0.00` servi — un zéro que
+  le serveur a signé — se lisait comme une PERTE. Et sa branche finale rendait
+  `up` sur une chaîne positive NON signée, inventant un gain là où le signe
+  n'était pas publié. L'autorité de `sign.ts` fait les deux correctement.
+*/
+const signOf = signGroupOfServed;
 
 function ratioMetric(key: MetricKey, block: MetricBlockView) {
   const isTwr = key === 'twr_gross' || key === 'twr_net';

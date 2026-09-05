@@ -10,20 +10,26 @@
  */
 import type { MarketsSector, MarketsTicker } from '../../api/client.ts';
 import { geometryValue } from '../widgets/geometry.ts';
+import { signGroupOfText } from '../widgets/sign.ts';
 
 /** Groupe de signe d'un ticker, dérivé du PREMIER caractère de la chaîne
  * serveur `return_1d_pct` (« + », « - » ou autre) — pas d'arithmétique. */
 export type SignGroup = 'up' | 'down' | 'flat';
 
 export function signGroupOf(ticker: MarketsTicker): SignGroup {
-  const pct = ticker.return_1d_pct;
-  if (pct.startsWith('+')) {
-    return pct === '+0.00' ? 'flat' : 'up';
-  }
-  if (pct.startsWith('-')) {
-    return pct === '-0.00' ? 'flat' : 'down';
-  }
-  return 'flat';
+  /*
+    LA CLASSIFICATION VIENT DE L'AUTORITÉ (`widgets/sign.ts`). Cette fonction
+    n'est plus qu'une adaptation de contrat : elle extrait la chaîne du ticker.
+    Sa règle propre reconnaissait `+0.00` et `-0.00` à l'ÉGALITÉ EXACTE, donc
+    elle aurait lu `-0.000` comme une baisse.
+
+    LE REPLI `flat` EST LE CHEMIN DE VIOLATION DU CONTRAT. Le worker publie
+    `return_1d_pct` avec `signed=True` (`markets.py`) : une chaîne sans signe
+    ne devrait pas exister. Si elle survient, la tuile reste NEUTRE plutôt que
+    d'inventer une direction — et `SignGroup` n'est pas nullable ici, la
+    grille sectorielle exigeant un groupe pour chaque tuile.
+  */
+  return signGroupOfText(ticker.return_1d_pct) ?? 'flat';
 }
 
 export interface FlatTicker {
