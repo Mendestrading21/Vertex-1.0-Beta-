@@ -121,7 +121,7 @@ export function categoryLabelOf(category: string): string {
 
 // -- vues -------------------------------------------------------------------
 
-export interface ImportanceView {
+interface ImportanceView {
   readonly rank: number | null;
   readonly code: string | null;
   readonly ruleVersion: string | null;
@@ -144,7 +144,7 @@ export interface RejectedRevisionView {
 }
 
 /** Un enregistrement SUPPLANTÉ, resté lisible (statut et instant antérieurs). */
-export interface PreviousValueView {
+interface PreviousValueView {
   readonly sourceEventId: string | null;
   readonly source: string | null;
   readonly asOf: string | null;
@@ -152,7 +152,7 @@ export interface PreviousValueView {
   readonly eventTimeUtc: string | null;
 }
 
-export interface EventContextView {
+interface EventContextView {
   readonly positions: readonly number[];
   readonly theses: readonly {
     readonly thesisId: number | null;

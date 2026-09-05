@@ -99,7 +99,7 @@ export const POPULATION_NATURES = {
   },
 } as const satisfies Record<string, PopulationNature>;
 
-export type PopulationLabel = keyof typeof POPULATION_NATURES;
+type PopulationLabel = keyof typeof POPULATION_NATURES;
 
 /** Nature non déclarée par le producteur (champ absent ou vide). */
 const UNDECLARED: PopulationNature = {

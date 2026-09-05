@@ -126,7 +126,7 @@ export function ivViewOf(contract: OptionChainContract): IvView {
 }
 
 /** Une sensibilité nommée avec son unité d'affichage (contrat du worker). */
-export interface GreekEntry {
+interface GreekEntry {
   readonly key: string;
   readonly label: string;
   readonly unit: string;

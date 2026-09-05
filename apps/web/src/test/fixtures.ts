@@ -38,7 +38,7 @@ export function makeFreshnessPolicy(
   return { budget_seconds: 259200, kind: 'daily_bar', version: '1.0.0', ...overrides };
 }
 
-export function makeCapabilityEntry(overrides: Partial<CapabilityEntry> = {}): CapabilityEntry {
+function makeCapabilityEntry(overrides: Partial<CapabilityEntry> = {}): CapabilityEntry {
   return {
     capability_id: 'syn_capability_a',
     family: 'market_data',
@@ -74,7 +74,7 @@ export function makeCapabilityEntries(): CapabilityEntry[] {
   });
 }
 
-export function makeSystemHealth(overrides: Partial<SystemHealth> = {}): SystemHealth {
+function makeSystemHealth(overrides: Partial<SystemHealth> = {}): SystemHealth {
   return {
     db: { status: 'ok' },
     attention_snapshot: { present: true, version: 3, as_of: SYNTHETIC_AS_OF, age_seconds: 120 },
@@ -547,7 +547,7 @@ export function makeAnalysisBars(count = 3): Record<string, unknown> {
   };
 }
 
-export function makeAnalysisAdvice(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+function makeAnalysisAdvice(overrides: Record<string, unknown> = {}): Record<string, unknown> {
   return {
     advice_id: `sha256:${'a'.repeat(64)}`,
     instrument_id: 'SYN-TECH-01',

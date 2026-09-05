@@ -23,7 +23,7 @@ import type { ThesisEntryView } from './review/followUpView.ts';
 /** Motif par lequel un événement est retenu comme catalyseur. */
 export type CatalystLink = 'thesis' | 'position';
 
-export interface CatalystThesisView {
+interface CatalystThesisView {
   readonly thesisId: number | null;
   readonly title: string | null;
   readonly status: string | null;
