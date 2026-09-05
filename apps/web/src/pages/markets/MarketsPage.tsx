@@ -29,6 +29,7 @@ import { marketsModule } from './marketsModules.ts';
 import { pageAccentAttrs } from '../../components/widgets/pageAccent.ts';
 import { MethodNote } from '../../components/widgets/MethodNote.tsx';
 import { moduleStateOf } from '../../components/moduleState.ts';
+import { HeatmapSkeleton, TableSkeleton } from '../../components/widgets/Skeleton.tsx';
 
 /**
  * Page Marchés (`TL / 02`) — question : « Dans quel contexte de marché
@@ -215,6 +216,18 @@ function MarketsFrame({
         state={state}
         {...(detail !== undefined ? { detail } : {})}
         {...(asOf !== null ? { asOfLabel: `as_of ${asOf}` } : {})}
+        /*
+          Le squelette a la FORME de ce qui vient : une carte de tuiles, puis sa
+          table équivalente. Il ne montre aucune valeur, pas même d'exemple —
+          une silhouette n'est pas une donnée, et une donnée grisée en serait
+          une.
+        */
+        skeleton={
+          <>
+            <HeatmapSkeleton label="Carte des marchés en cours de chargement" cells={24} />
+            <TableSkeleton label="Table équivalente en cours de chargement" rows={6} columns={7} />
+          </>
+        }
       >
         {/* Légende interactive : filtre LOCAL d'affichage, valeurs intactes. */}
         <div className="vx-chartframe-legend" role="group" aria-label="Légende et filtre local">

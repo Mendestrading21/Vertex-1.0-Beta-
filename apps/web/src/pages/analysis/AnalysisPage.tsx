@@ -33,6 +33,7 @@ import { analysisModule } from './analysisModules.ts';
 import type { BarsView } from './analysisView.ts';
 import { adviceViewOf, analysisStateOf, barsViewOf, evidenceViewOf, scenariosViewOf } from './analysisView.ts';
 import { MethodNote } from '../../components/widgets/MethodNote.tsx';
+import { ChartSkeleton, TableSkeleton } from '../../components/widgets/Skeleton.tsx';
 
 /**
  * LOT-A4 : la table OHLCV et les indicateurs vivent dans leurs propres
@@ -213,6 +214,18 @@ function AnalysisFrame({
         state={state}
         {...(detail !== undefined ? { detail } : {})}
         {...(asOf !== null ? { asOfLabel: `as_of ${asOf}` } : {})}
+        /*
+          Le squelette a la FORME de ce qui vient : un graphique haut, puis sa
+          table équivalente. Le rectangle générique qu'il remplace faisait
+          SAUTER la page au moment où la donnée arrivait — la carte grandissait,
+          et tout ce qu'on lisait plus bas se déplaçait sous le curseur.
+        */
+        skeleton={
+          <>
+            <ChartSkeleton label="Chandeliers en cours de chargement" height="large" />
+            <TableSkeleton label="Table OHLCV en cours de chargement" rows={6} columns={6} />
+          </>
+        }
       >
         {bars !== null && bars.bars.length > 0 ? (
           <>

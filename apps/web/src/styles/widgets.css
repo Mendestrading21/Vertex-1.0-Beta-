@@ -125,7 +125,7 @@
   font-size: var(--vx-font-size-meta);
   color: var(--vx-text-muted);
   font-variant-numeric: tabular-nums lining-nums;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 /* --------------------------------------------------------------------------
@@ -455,7 +455,7 @@
   font-variant-numeric: tabular-nums lining-nums;
   /* Une chaîne servie longue se replie DANS le creux ; elle n'est jamais
      coupée, jamais arrondie — seul son cran typographique change. */
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 .vx-w2-ring-center[data-density='medium'] .vx-w2-ring-center-value {
@@ -495,7 +495,7 @@
 .vx-w2-ring-legend li > :last-child {
   font-family: var(--vx-font-mono);
   text-align: right;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
   color: var(--vx-text);
 }
 
@@ -924,7 +924,7 @@
 
 .vx-w2-step-head > .vx-w2-chip {
   max-width: 100%;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 .vx-w2-step-detail {
@@ -992,7 +992,7 @@
    `css-var-defined`, jamais par un test de composant. */
 .vx-w2-step-fact dd {
   color: var(--vx-text);
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 /* --------------------------------------------------------------------------
@@ -1200,7 +1200,7 @@
 .vx-risk-concentration-block .vx-metric-value {
   font-size: var(--vx-font-size-body);
   line-height: 1.4;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 .vx-risk-concentration-block + .vx-risk-concentration-block {
@@ -1371,7 +1371,7 @@
   font-variant-numeric: tabular-nums lining-nums;
   margin: 0;
   max-width: 100%;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
   text-align: center;
 }
 
@@ -1493,7 +1493,7 @@
   color: var(--vx-text-muted);
   font-size: var(--vx-font-size-meta);
   line-height: 1.5;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 /* ===========================================================================
@@ -1864,7 +1864,7 @@
 }
 
 .vx-analysis-osc-lines code {
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
   color: var(--vx-silver);
 }
 
@@ -3574,7 +3574,7 @@
 .vx-perf-metric-raw {
   display: block;
   margin-top: 2px;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
   line-height: 1.35;
 }
 

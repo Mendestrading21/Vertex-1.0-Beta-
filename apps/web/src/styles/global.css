@@ -1450,11 +1450,18 @@ body {
   font-size: var(--vx-font-size-meta);
 }
 
+/* `break-word` ET NON `anywhere` HORS DES TABLES.
+   Les deux coupent un mot trop long pour sa ligne ; seul `anywhere` réduit en
+   plus la largeur MIN-CONTENT, ce qui autorise la coupure d'un mot qui TENAIT.
+   Mesuré sur l'inspecteur du Calendrier : « SYNTHETIC », neuf caractères dans
+   une colonne de trois cents pixels, se lisait « SYNTHETI / C ». Une table, elle,
+   ne descend jamais sous sa largeur min-content : `anywhere` y reste
+   nécessaire, et il y est conservé. */
 .vx-snapshot-rail-facts dd {
   margin: 0;
   color: var(--vx-text);
   font-family: var(--vx-font-mono);
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
   text-align: right;
 }
 
@@ -1612,7 +1619,7 @@ body {
 
 .vx-sheet-facts dd {
   margin: 0;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 .vx-sheet-list {
@@ -2365,13 +2372,13 @@ body {
 
 .vx-inspector-calc dd {
   margin: 0;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
   text-align: right;
 }
 
 .vx-inspector-hash {
   font-size: var(--vx-font-size-meta);
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 .vx-inspector-actions {
@@ -3217,7 +3224,7 @@ body {
 .vx-inspector-facts dd {
   margin: 0;
   color: var(--vx-text-secondary);
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 .vx-inspector-block {
@@ -3550,7 +3557,7 @@ body {
 .vx-pf-provenance,
 .vx-perf-population,
 .vx-fu-populations {
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 /* V3 — le poids exact ne déborde plus de sa ligne, et n'écrase plus la barre.
@@ -3624,7 +3631,7 @@ body {
   color: var(--vx-text-muted);
   font-family: var(--vx-font-mono);
   font-size: var(--vx-font-size-meta);
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 .vx-cal-blocked {
@@ -3643,7 +3650,7 @@ body {
 
 .vx-cal-blocked-reason {
   color: var(--vx-text-secondary);
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 .vx-cal-provenance,
@@ -3651,7 +3658,7 @@ body {
   margin: 0 0 var(--vx-space-16);
   color: var(--vx-text-muted);
   font-size: var(--vx-font-size-meta);
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 .vx-cal-rule,
@@ -3762,7 +3769,7 @@ body {
   margin: var(--vx-space-8) 0 0;
   color: var(--vx-text-secondary);
   font-size: var(--vx-font-size-meta);
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 .vx-cal-category {
@@ -3793,7 +3800,7 @@ body {
   margin: 0;
   font-family: var(--vx-font-mono);
   font-size: var(--vx-font-size-meta);
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 .vx-cal-tz {
@@ -3891,7 +3898,7 @@ body {
 
 .vx-opp-exclusion-detail {
   color: var(--vx-text-muted);
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 .vx-opp-contradictory {
@@ -3947,7 +3954,7 @@ body {
   margin: 0 0 var(--vx-space-8);
   color: var(--vx-text-secondary);
   font-size: var(--vx-font-size-meta);
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 .vx-opp-calref-facts {
@@ -3965,7 +3972,7 @@ body {
 .vx-opp-calref-facts dd {
   margin: 0;
   font-size: var(--vx-font-size-meta);
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 /* ------------------------------------------------------------------ */
@@ -3986,7 +3993,7 @@ body {
   margin: var(--vx-space-8) 0 0;
   color: var(--vx-text-secondary);
   font-size: var(--vx-font-size-meta);
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 .vx-ai-subject {
@@ -4017,7 +4024,7 @@ body {
 
 .vx-ai-refusal-reason {
   color: var(--vx-negative);
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 .vx-ai-claims,
@@ -4046,7 +4053,7 @@ body {
   margin: var(--vx-space-4) 0 0;
   color: var(--vx-text-muted);
   font-size: var(--vx-font-size-meta);
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 .vx-ai-claim-ref {
@@ -4084,7 +4091,7 @@ body {
   margin: 0;
   color: var(--vx-warning);
   font-size: var(--vx-font-size-meta);
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 .vx-ai-external-ref {
@@ -4098,7 +4105,7 @@ body {
   background: var(--vx-surface-0);
   color: var(--vx-text-secondary);
   font-style: italic;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 .vx-ai-trace {
@@ -4120,7 +4127,7 @@ body {
 .vx-ai-trace dd {
   margin: 0;
   font-size: var(--vx-font-size-meta);
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 .vx-ai-note {
@@ -4194,7 +4201,7 @@ body {
 
 .vx-cal-event-title,
 .vx-cal-group-title {
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 /* Dégradation laptop de la composition Aujourd'hui. Le plancher global reste
@@ -5501,7 +5508,7 @@ label {
   font-weight: 600;
   letter-spacing: -0.025em;
   line-height: 1.1;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 .vx-metric-value.vx-cell-absent {
@@ -5630,7 +5637,7 @@ label {
   flex: 1 1 100%;
   min-width: 0;
   color: var(--vx-text-secondary);
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 .vx-agenda-status {
@@ -5946,7 +5953,7 @@ label {
   font-family: var(--vx-font-mono);
   font-size: var(--vx-font-size-micro);
   line-height: 1.5;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 /* ---- Corrections vues SUR CAPTURE (1440×900), pas par un test ------- */
@@ -6753,7 +6760,7 @@ label {
 
 .vx-iw-sector {
   white-space: normal;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 .vx-iw-fresh {
@@ -6925,7 +6932,7 @@ label {
 
 .vx-metrics-grid .vx-metric[data-size='compact'] .vx-metric-value {
   font-size: var(--vx-font-size-body);
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 /* La dominante en cadre graphique : même respiration que les cartes. */
@@ -6998,7 +7005,7 @@ label {
 .vx-census-label {
   min-width: 0;
   color: var(--vx-text-secondary);
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 .vx-census-code {
@@ -7295,7 +7302,7 @@ label {
   color: var(--vx-text-muted);
   font-size: var(--vx-font-size-micro);
   line-height: 1.55;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 .vx-analysis-grid .vx-scenarios-table {
@@ -7352,7 +7359,7 @@ label {
   margin: 0;
   color: var(--vx-text-muted);
   font-size: var(--vx-font-size-meta);
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 .vx-ih-price-row {
@@ -7409,7 +7416,7 @@ label {
 }
 
 .vx-sec-facts th[scope='row'] code {
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 @media (prefers-reduced-transparency: reduce) {
@@ -7487,7 +7494,7 @@ label {
   color: var(--vx-text-secondary);
   font-size: var(--vx-font-size-meta);
   text-align: right;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 .vx-options-facts code {
@@ -7595,7 +7602,7 @@ label {
   margin: 0 0 var(--vx-space-8);
   color: var(--vx-text-secondary);
   font-size: var(--vx-font-size-micro);
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 .vx-smile[data-compact='true'] .vx-smile-caption {
@@ -7728,7 +7735,7 @@ label {
 
 .vx-sim-grid .vx-sim-echo dd {
   margin: 0;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 .vx-sim-grid .vx-sim-warnings {
@@ -8258,5 +8265,5 @@ label {
 
 .vx-sources-grid [data-module='exports'] code {
   white-space: normal;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
