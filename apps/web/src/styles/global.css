@@ -5091,16 +5091,29 @@ label {
   color: var(--vx-text-muted);
 }
 
+/* INTENSITÉS SÉPARÉES — les bandes se voyaient à peine, et deux d'entre elles
+   ne se voyaient pas l'une de l'autre.
+   Mesuré sur capture : `moderate_positive` valait `signal-faint` (0,065
+   d'opacité) contre `weak` transparent — deux cases quasi identiques ; et
+   `moderate_negative` et `strong_negative` partageaient EXACTEMENT le même
+   fond, ne se distinguant que par un liseré d'un pixel. Une matrice dont les
+   bandes ne se distinguent pas ne dit rien : elle donne l'illusion d'une
+   gradation.
+   Chaque côté prend donc deux crans franchement écartés, pris dans les jetons
+   qui existent déjà. LES DEUX TEINTES RESTENT NEUTRES — ambre et cyan, jamais
+   vert et rouge : une corrélation positive n'est pas « bonne » et une
+   corrélation négative n'est pas « mauvaise », et le signe financier ne doit
+   pas déteindre sur une mesure qui n'en porte pas. Un test mesure l'écart. */
 .vx-riskmatrix-cell[data-band='strong_positive'],
 .vx-riskmatrix-swatch[data-band='strong_positive'] {
-  background: var(--vx-signal-soft);
+  background: var(--vx-signal-strong);
   box-shadow: inset 0 0 0 1px var(--vx-signal);
   color: var(--vx-signal-bright);
 }
 
 .vx-riskmatrix-cell[data-band='moderate_positive'],
 .vx-riskmatrix-swatch[data-band='moderate_positive'] {
-  background: var(--vx-signal-faint);
+  background: var(--vx-signal-soft);
   color: var(--vx-signal);
 }
 
@@ -5118,7 +5131,7 @@ label {
 
 .vx-riskmatrix-cell[data-band='strong_negative'],
 .vx-riskmatrix-swatch[data-band='strong_negative'] {
-  background: var(--vx-macro-soft);
+  background: var(--vx-macro-strong);
   box-shadow: inset 0 0 0 1px var(--vx-macro);
   color: var(--vx-macro);
 }

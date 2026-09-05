@@ -40,7 +40,19 @@ export function Metric({ label, value, unit, sign, note, absentLabel, testId, si
         </span>
       ) : (
         <span className="vx-metric-value">
-          {value}
+          {/*
+            LA VALEUR EST BORNÉE AU RENDU, PAS L'UNITÉ.
+            Le moteur publie ses flottants entiers : mesuré sur Risques, un
+            Herfindahl servi fait vingt-huit chiffres —
+            « 0.50208908615131055819803669… » — et il écrasait sa carte. La
+            chaîne servie n'est PAS arrondie : seule sa largeur est bornée, et
+            la valeur entière reste dans le `title`, donc au survol. L'unité
+            vit hors de la boîte bornée : un nombre sans son unité n'est pas
+            une information abrégée, c'est une information fausse.
+          */}
+          <span className="vx-metric-number" title={value}>
+            {value}
+          </span>
           {unit === undefined ? null : <span className="vx-metric-unit"> {unit}</span>}
         </span>
       )}

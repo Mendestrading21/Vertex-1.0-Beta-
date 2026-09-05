@@ -3719,3 +3719,16 @@
 .vx-matrix-table time {
   overflow-wrap: anywhere;
 }
+
+/* La valeur d'une mesure est bornée AU RENDU, jamais arrondie, et son unité
+   reste hors de la boîte : un nombre sans son unité n'est pas une information
+   abrégée, c'est une information fausse. Mesuré sur Risques : un Herfindahl
+   servi à vingt-huit chiffres écrasait sa carte. */
+.vx-metric-number {
+  display: inline-block;
+  overflow: hidden;
+  max-width: 14ch;
+  vertical-align: bottom;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}

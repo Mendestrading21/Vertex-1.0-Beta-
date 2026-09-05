@@ -203,6 +203,46 @@ describe('Contraste des jetons — WCAG 2.2', () => {
     );
   });
 
+  it('les cinq bandes de la matrice de corrélation se DISTINGUENT', () => {
+    // Une matrice dont les bandes se ressemblent ne dit rien : elle donne
+    // l'illusion d'une gradation. Mesuré avant correction :
+    // `moderate_positive` valait 0,065 d'opacité contre `weak` transparent —
+    // deux cases quasi identiques ; et les deux bandes NÉGATIVES partageaient
+    // exactement le même fond.
+    //
+    // Les teintes restent NEUTRES — ambre et cyan, jamais vert et rouge : une
+    // corrélation positive n'est pas « bonne », et le signe financier ne doit
+    // pas déteindre sur une mesure qui n'en porte pas.
+    const fond = analyser(color['surface-1']);
+    const bandes = [
+      { cle: 'strong_negative', jeton: 'macro-strong' },
+      { cle: 'moderate_negative', jeton: 'macro-soft' },
+      { cle: 'weak', jeton: null },
+      { cle: 'moderate_positive', jeton: 'signal-soft' },
+      { cle: 'strong_positive', jeton: 'signal-strong' },
+    ] as const;
+    const poses = bandes.map((bande) => ({
+      cle: bande.cle,
+      couleur:
+        bande.jeton === null
+          ? fond
+          : composer(analyser(color[bande.jeton as keyof typeof color]), fond),
+    }));
+    const trop_proches: string[] = [];
+    for (let i = 1; i < poses.length; i += 1) {
+      const precedent = poses[i - 1];
+      const courant = poses[i];
+      if (precedent === undefined || courant === undefined) {
+        continue;
+      }
+      const ecart = deltaE(precedent.couleur, courant.couleur);
+      if (ecart < 4) {
+        trop_proches.push(`${precedent.cle} et ${courant.cle} : ΔE ${arrondi(ecart)}`);
+      }
+    }
+    expect(trop_proches, `Bandes indiscernables :\n  ${trop_proches.join('\n  ')}`).toEqual([]);
+  });
+
   it('chaque exemption porte une raison écrite et un jeton réel', () => {
     for (const { jeton, raison } of JAMAIS_TEXTE) {
       expect(Object.keys(color), `jeton exempté inexistant : ${jeton}`).toContain(jeton);
