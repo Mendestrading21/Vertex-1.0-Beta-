@@ -125,7 +125,7 @@
   font-size: var(--vx-font-size-meta);
   color: var(--vx-text-muted);
   font-variant-numeric: tabular-nums lining-nums;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 /* --------------------------------------------------------------------------
@@ -455,7 +455,7 @@
   font-variant-numeric: tabular-nums lining-nums;
   /* Une chaîne servie longue se replie DANS le creux ; elle n'est jamais
      coupée, jamais arrondie — seul son cran typographique change. */
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 .vx-w2-ring-center[data-density='medium'] .vx-w2-ring-center-value {
@@ -495,7 +495,7 @@
 .vx-w2-ring-legend li > :last-child {
   font-family: var(--vx-font-mono);
   text-align: right;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
   color: var(--vx-text);
 }
 
@@ -924,7 +924,7 @@
 
 .vx-w2-step-head > .vx-w2-chip {
   max-width: 100%;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 .vx-w2-step-detail {
@@ -984,10 +984,15 @@
 }
 
 /* La valeur servie n'est jamais coupée : elle passe à la ligne. Un `ellipsis`
-   ferait lire un chiffre tronqué comme un chiffre publié. */
+   ferait lire un chiffre tronqué comme un chiffre publié.
+
+   `--vx-text-primary` n'a jamais existé : la déclaration était ignorée en
+   silence et la preuve chiffrée d'une gate héritait du gris de son libellé —
+   elle ne se distinguait donc plus de ce qu'elle prouve. Trouvé par la porte
+   `css-var-defined`, jamais par un test de composant. */
 .vx-w2-step-fact dd {
-  color: var(--vx-text-primary);
-  overflow-wrap: anywhere;
+  color: var(--vx-text);
+  overflow-wrap: break-word;
 }
 
 /* --------------------------------------------------------------------------
@@ -1195,7 +1200,7 @@
 .vx-risk-concentration-block .vx-metric-value {
   font-size: var(--vx-font-size-body);
   line-height: 1.4;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 .vx-risk-concentration-block + .vx-risk-concentration-block {
@@ -1366,7 +1371,7 @@
   font-variant-numeric: tabular-nums lining-nums;
   margin: 0;
   max-width: 100%;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
   text-align: center;
 }
 
@@ -1447,7 +1452,7 @@
 
 .vx-charts-grid .vx-w2-daybar-value,
 .vx-charts-grid .vx-w2-daybar-label {
-  font-size: 11px;
+  font-size: var(--vx-font-size-micro);
 }
 
 /* Un corps de module ne redéclare pas de cadre : la carte du widget est déjà
@@ -1488,7 +1493,7 @@
   color: var(--vx-text-muted);
   font-size: var(--vx-font-size-meta);
   line-height: 1.5;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 
 /* ===========================================================================
@@ -1556,9 +1561,15 @@
    colonne large (planche Marchés) et dans un quart de planche (Aujourd'hui).
    Une largeur de VIEWPORT ne dit rien de la largeur de la CELLULE — mesuré
    sur capture : la jauge de couverture y était coupée en plein texte. */
+/* 168 px, MESURÉ — pas un chiffre rond choisi à l'œil.
+   À 1440 px, la carte « Marché global » élargie à deux colonnes offre 392 px
+   utiles à ce bloc ; deux pistes plus leur gouttière de 20 px en demandent
+   186 chacune. Le plancher était à 190 : `auto-fit` retombait donc à UNE
+   colonne pour quatre pixels, l'arc et la jauge restaient empilés, et la carte
+   redevenait la tour qu'on venait d'élargir. */
 .vx-breadth-figures {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(168px, 1fr));
   gap: var(--vx-space-16) var(--vx-space-20);
   align-items: center;
   margin-bottom: var(--vx-space-16);
@@ -1853,7 +1864,7 @@
 }
 
 .vx-analysis-osc-lines code {
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
   color: var(--vx-silver);
 }
 
@@ -1871,13 +1882,28 @@
    de la planche. Un `[data-module]` imbriqué plus bas — il en existe dans
    l'inspecteur — ne doit jamais hériter d'une aire de la grille.
    =========================================================================== */
+/*
+  COMPOSITION PAR HAUTEURS VOISINES (même règle qu'à Calendrier et Sources).
+
+  Mesuré à 1440 : `'ideas score bias return'` valait 457 / 173 / 173 / 173 px,
+  soit 47 % de vide — une carte haute contre TROIS courtes. L'arithmétique de
+  la porte est instructive : la même carte haute face à UNE seule courte donne
+  31 %, sous le seuil. Ce n'est donc pas la différence de hauteur qui creuse le
+  trou, c'est le NOMBRE de courtes qui la subissent.
+
+  Les trois mesures de synthèse passent donc en tête, ensemble et de même
+  hauteur ; la file des idées actives prend sa bande. Les deux dernières
+  rangées étaient à 30 %, à trois points du seuil : appariées elles aussi, une
+  porte qu'on frôle finit par la franchir.
+*/
 .vx-opp-grid {
   grid-template-areas:
-    'ideas score bias return'
+    'score bias return return'
+    'ideas ideas ideas ideas'
     'ranking ranking ranking ranking'
     'biassplit health scatter factors'
-    'profile profile exclusions exclusions'
-    'provenance provenance quality activity';
+    'profile profile provenance provenance'
+    'exclusions exclusions quality activity';
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
 
@@ -1899,11 +1925,12 @@
 @media (min-width: 1600px) {
   .vx-opp-grid {
     grid-template-areas:
-      'ideas ideas score bias return'
+      'score score bias bias return'
+      'ideas ideas ideas ideas ideas'
       'ranking ranking ranking ranking ranking'
       'biassplit health health scatter factors'
-      'profile profile exclusions exclusions activity'
-      'provenance provenance provenance quality quality';
+      'profile profile profile provenance provenance'
+      'exclusions exclusions activity quality quality';
     grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 }
@@ -1943,4 +1970,1781 @@
 .vx-page[data-page-accent] .vx-page-header {
   padding-left: var(--vx-space-12);
   border-left: 2px solid var(--vx-page-accent);
+}
+
+/* ==========================================================================
+   DATATABLE — la famille UNIQUE des tableaux Vertex.
+   Elle remplace les 21 familles de classes mesurées dans
+   docs/05-design/refonte/00-systeme-visuel.md §3, et les 7 enveloppes de
+   défilement qui les accompagnaient.
+
+   Elle vit dans widgets.css et NON dans global.css : widgets.css est importé
+   APRÈS, et à spécificité égale c'est l'ordre source qui tranche. Une règle de
+   table posée dans global.css serait silencieusement écrasée par les familles
+   héritées tant qu'elles existent encore.
+   ========================================================================== */
+
+.vx-dt-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: var(--vx-space-8);
+  min-width: 0;
+}
+
+.vx-dt {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--vx-font-size-body);
+  /* Les colonnes gardent leur largeur déclarée : une table financière se lit
+     en colonnes, pas en paragraphes. */
+  table-layout: auto;
+}
+
+/* LA LÉGENDE RESTE `table-caption`, ET C'EST UNE RÈGLE, PAS UN DÉTAIL.
+   La première version posait `display: flex` sur le `<caption>`. Un affichage
+   non tabulaire à l'intérieur d'une `<table>` est enveloppé par le navigateur
+   dans des boîtes de tableau ANONYMES : la légende cessait d'être une légende
+   et se rendait comme une cellule, repliée dans une colonne de cent pixels au
+   flanc de la table. Les tests unitaires la trouvaient — elle était bien dans
+   le DOM — et seule la capture l'a montrée. L'empilement se fait donc par des
+   enfants `block`, jamais en changeant le `display` de la légende. */
+.vx-dt-caption {
+  display: table-caption;
+  padding: var(--vx-space-8) 0 var(--vx-space-12);
+  text-align: left;
+  caption-side: top;
+}
+
+.vx-dt-caption-main {
+  display: block;
+  color: var(--vx-text);
+  font-size: var(--vx-font-size-title);
+  font-weight: 500;
+}
+
+.vx-dt-caption-detail {
+  display: block;
+  margin-top: 2px;
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-dt th,
+.vx-dt td {
+  padding: var(--vx-space-8) var(--vx-space-16);
+  border-top: 1px solid var(--vx-border-soft);
+  vertical-align: top;
+}
+
+.vx-dt[data-density='standard'] th,
+.vx-dt[data-density='standard'] td {
+  padding: var(--vx-space-8) var(--vx-space-12);
+}
+
+/* `dense` sert la chaîne d'options et les registres longs : c'est la densité
+   d'un desk, pas un réglage d'utilisateur. */
+.vx-dt[data-density='dense'] th,
+.vx-dt[data-density='dense'] td {
+  padding: var(--vx-space-4) var(--vx-space-8);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-dt thead th {
+  position: relative;
+  border-top: none;
+  border-bottom: 1px solid var(--vx-border);
+  color: var(--vx-text-secondary);
+  font-size: var(--vx-font-size-meta);
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.vx-dt-head-label {
+  display: block;
+}
+
+/* L'unité est DANS l'en-tête, sous le nom : jamais un tooltip, qui la rendrait
+   inatteignable au clavier et absente des captures. */
+.vx-dt-head-unit {
+  display: block;
+  color: var(--vx-text-muted);
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-meta);
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+.vx-dt tbody th {
+  color: var(--vx-text);
+  font-weight: 500;
+  text-align: left;
+}
+
+/* Alignement dérivé du TYPE. `num` porte la mono tabulaire et va à droite :
+   c'est ce qui rend une colonne de prix comparable d'une ligne à l'autre. */
+.vx-dt [data-align='text'] {
+  text-align: left;
+}
+
+.vx-dt [data-align='num'] {
+  font-family: var(--vx-font-mono);
+  font-variant-numeric: tabular-nums lining-nums;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.vx-dt [data-align='status'] {
+  text-align: left;
+  white-space: nowrap;
+}
+
+.vx-dt [data-width='min'] {
+  width: 1%;
+}
+
+.vx-dt [data-width='ch8'] {
+  width: 8ch;
+}
+
+.vx-dt [data-width='ch12'] {
+  width: 12ch;
+}
+
+.vx-dt [data-width='ch16'] {
+  width: 16ch;
+}
+
+/* Signe SERVI. La couleur DOUBLE le signe déjà présent dans le texte servi ;
+   elle ne le remplace jamais (règle : jamais la couleur seule). */
+.vx-dt [data-sign='up'] {
+  color: var(--vx-positive);
+}
+
+.vx-dt [data-sign='down'] {
+  color: var(--vx-negative);
+}
+
+.vx-dt [data-sign='flat'] {
+  color: var(--vx-text-secondary);
+}
+
+.vx-dt tbody tr[data-selected='true'] > * {
+  background-color: var(--vx-signal-faint);
+}
+
+/* Survol PERCEPTIF : il ne déplace rien et ne change aucun rang. */
+.vx-dt tbody tr:hover > * {
+  background-color: var(--vx-hover);
+}
+
+.vx-dt-open {
+  padding: 2px var(--vx-space-8);
+  border: 1px solid var(--vx-border);
+  border-radius: var(--vx-radius-6);
+  background: transparent;
+  color: var(--vx-text-secondary);
+  font-family: inherit;
+  font-size: var(--vx-font-size-meta);
+  cursor: pointer;
+}
+
+.vx-dt-open:hover {
+  border-color: var(--vx-border-strong);
+  color: var(--vx-text);
+}
+
+/* Enveloppe défilante : UNE implémentation pour les 7 familles remplacées.
+   L'en-tête colle, y compris sur la chaîne d'options — qui en était la seule
+   table dépourvue alors qu'elle est la plus dense du produit. */
+.vx-dt-scroll[data-overflow='panel'] {
+  max-height: 420px;
+  overflow: auto;
+  border: 1px solid var(--vx-border-soft);
+  border-radius: var(--vx-radius-10);
+}
+
+.vx-dt-scroll[data-overflow='panel'] thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background-color: var(--vx-surface-1);
+}
+
+.vx-dt-scroll[data-overflow='panel'] .vx-dt-caption {
+  padding-left: var(--vx-space-16);
+  padding-right: var(--vx-space-16);
+}
+
+/* État vide NOMMÉ. Ni table sans ligne, ni tiret : une phrase. */
+.vx-dt-empty {
+  display: flex;
+  flex-direction: column;
+  gap: var(--vx-space-4);
+  padding: var(--vx-space-16);
+  border: 1px dashed var(--vx-border);
+  border-radius: var(--vx-radius-10);
+}
+
+.vx-dt-empty-label {
+  margin: 0;
+  color: var(--vx-text);
+  font-size: var(--vx-font-size-title);
+  font-weight: 500;
+}
+
+.vx-dt-empty-reason {
+  margin: 0;
+  color: var(--vx-text-secondary);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-dt-foot {
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+}
+
+/* ==========================================================================
+   LIVEDATAINDICATOR — statut canonique d'un jeu de données.
+   La couleur ne code JAMAIS seule : le mot est toujours présent, et la forme
+   de la pastille (pleine / creuse) porte une seconde fois la distinction
+   « décrit l'instant » / « ne le décrit plus ».
+   ========================================================================== */
+
+.vx-live {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--vx-space-8);
+  min-width: 0;
+}
+
+.vx-live-dot {
+  flex: 0 0 auto;
+  width: var(--vx-space-8);
+  height: var(--vx-space-8);
+  border: 1px solid currentcolor;
+  border-radius: var(--vx-radius-pill);
+  /* Alignée sur la ligne de base du texte, pas centrée sur la boîte : une
+     pastille qui flotte au-dessus du mot désaligne toute la barre. */
+  transform: translateY(-1px);
+}
+
+.vx-live-dot[data-filled='true'] {
+  background-color: currentcolor;
+}
+
+.vx-live-label {
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-meta);
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
+.vx-live[data-tone='positive'] {
+  color: var(--vx-positive);
+}
+
+.vx-live[data-tone='warning'] {
+  color: var(--vx-warning);
+}
+
+.vx-live[data-tone='negative'] {
+  color: var(--vx-negative);
+}
+
+.vx-live[data-tone='neutral'] {
+  color: var(--vx-text-secondary);
+}
+
+.vx-live[data-tone='muted'] {
+  color: var(--vx-text-muted);
+}
+
+/* Le contexte reste SILENCIEUX : c'est l'état qui doit se lire en premier. */
+.vx-live-context {
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--vx-space-8);
+  min-width: 0;
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-live-source,
+.vx-live-entitlement {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vx-live-age,
+.vx-live-asof {
+  font-family: var(--vx-font-mono);
+  white-space: nowrap;
+}
+
+/* UNE seule pulsation dans tout le produit, réservée à `live`, et très faible :
+   elle dit « ceci se rafraîchit », pas « regardez-moi ». Tout le reste est
+   immobile — un tableau de bord qui clignote ne se lit plus. */
+@keyframes vx-live-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+.vx-live[data-state='live'] .vx-live-dot {
+  animation: vx-live-pulse 2400ms ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vx-live[data-state='live'] .vx-live-dot {
+    animation: none;
+  }
+}
+
+/* ==========================================================================
+   BULLETMETRIC — mesure quantitative sur un axe linéaire.
+   Préférée à la jauge partout où plusieurs mesures doivent se comparer : des
+   barres alignées verticalement se lisent, une rangée de cadrans non.
+   ========================================================================== */
+
+.vx-bullet {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'label value'
+    'track track'
+    'bounds bounds';
+  gap: var(--vx-space-4) var(--vx-space-12);
+  align-items: baseline;
+}
+
+.vx-bullet-label {
+  grid-area: label;
+  color: var(--vx-text-secondary);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-bullet-value {
+  display: inline-flex;
+  gap: var(--vx-space-4);
+  grid-area: value;
+  align-items: baseline;
+}
+
+.vx-bullet-number {
+  color: var(--vx-text);
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-title);
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.vx-bullet-unit {
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-bullet-track {
+  position: relative;
+  grid-area: track;
+  height: var(--vx-space-12);
+  border-radius: var(--vx-radius-pill);
+  background-color: var(--vx-titanium-soft);
+  overflow: hidden;
+}
+
+/* Les paliers sont un FOND, jamais une couleur de sens : ils situent, ils ne
+   jugent pas. Leur nom vit dans la légende accessible. */
+.vx-bullet-band {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  background-color: var(--vx-signal-faint);
+  border-right: 1px solid var(--vx-border-soft);
+}
+
+.vx-bullet-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  border-radius: var(--vx-radius-pill);
+  background-color: var(--vx-silver);
+}
+
+.vx-bullet[data-tone='positive'] .vx-bullet-fill {
+  background-color: var(--vx-positive);
+}
+
+.vx-bullet[data-tone='negative'] .vx-bullet-fill {
+  background-color: var(--vx-negative);
+}
+
+.vx-bullet[data-tone='warning'] .vx-bullet-fill {
+  background-color: var(--vx-warning);
+}
+
+/* La cible est un TRAIT, pas une pastille : elle marque une position exacte
+   sur l'axe, et un disque en aurait masqué une partie. */
+.vx-bullet-target {
+  position: absolute;
+  top: -2px;
+  width: 2px;
+  height: calc(100% + 4px);
+  background-color: var(--vx-text);
+}
+
+.vx-bullet-bounds {
+  display: flex;
+  grid-area: bounds;
+  justify-content: space-between;
+  color: var(--vx-text-muted);
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-bullet[data-absent='true'] {
+  grid-template-areas:
+    'label label'
+    'track track';
+}
+
+.vx-bullet-reason {
+  grid-area: track;
+  margin: 0;
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+}
+
+/* ==========================================================================
+   MICRO-GRAPHIQUES — MicroBars, MicroRange, MiniHeatStrip.
+   Aucun axe, aucune légende, aucun tooltip lourd : une forme lue en moins
+   d'une seconde, à côté du chiffre qu'elle contextualise. Dès qu'une valeur
+   précise doit être lue, c'est une table qu'il faut, pas ces formes.
+   ========================================================================== */
+
+.vx-micro-absent {
+  margin: 0;
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+}
+
+/* --- MicroBars --- */
+
+.vx-micro-bars {
+  display: flex;
+  gap: 1px;
+  align-items: flex-end;
+  height: var(--vx-space-24);
+  min-width: 0;
+}
+
+.vx-micro-bar {
+  flex: 1 1 0;
+  min-width: 2px;
+  border-radius: 1px;
+  background-color: var(--vx-silver);
+}
+
+.vx-micro-bar[data-sign='up'] {
+  background-color: var(--vx-positive);
+}
+
+.vx-micro-bar[data-sign='down'] {
+  background-color: var(--vx-negative);
+}
+
+.vx-micro-bar[data-sign='flat'] {
+  background-color: var(--vx-text-muted);
+}
+
+/* Une hauteur non publiée est un TROU, pas une barre basse : elle occupe toute
+   la piste en creux, et son motif est nommé dans la légende accessible. */
+.vx-micro-bar[data-absent='true'] {
+  border: 1px dashed var(--vx-border);
+  background-color: transparent;
+}
+
+/* --- MicroRange --- */
+
+.vx-range {
+  display: flex;
+  flex-direction: column;
+  gap: var(--vx-space-4);
+  min-width: 0;
+}
+
+.vx-range-label {
+  color: var(--vx-text-secondary);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-range-track {
+  position: relative;
+  height: var(--vx-space-4);
+  border-radius: var(--vx-radius-pill);
+  background: linear-gradient(
+    to right,
+    var(--vx-titanium-soft),
+    var(--vx-titanium-soft)
+  );
+}
+
+.vx-range-cursor {
+  position: absolute;
+  top: -4px;
+  width: 2px;
+  height: calc(100% + 8px);
+  background-color: var(--vx-signal);
+}
+
+.vx-range-bounds {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-meta);
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+.vx-range-low,
+.vx-range-high {
+  color: var(--vx-text-muted);
+}
+
+.vx-range-current {
+  color: var(--vx-text);
+}
+
+.vx-range-window {
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-range-reason {
+  margin: 0;
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+}
+
+/* --- MiniHeatStrip --- */
+
+.vx-heatstrip {
+  display: flex;
+  gap: 2px;
+  min-width: 0;
+}
+
+.vx-heatstrip-cell {
+  flex: 1 1 0;
+  min-width: 4px;
+  height: var(--vx-space-16);
+  border-radius: 2px;
+}
+
+/* Cinq bandes NOMMÉES plutôt qu'un dégradé continu : un dégradé suppose une
+   normalisation — donc un calcul — et l'œil compare mal deux nuances voisines. */
+.vx-heatstrip-cell[data-band='none'] {
+  background-color: var(--vx-signal-faint);
+}
+
+.vx-heatstrip-cell[data-band='low'] {
+  background-color: var(--vx-signal-soft);
+}
+
+.vx-heatstrip-cell[data-band='medium'] {
+  background-color: var(--vx-signal-strong);
+}
+
+.vx-heatstrip-cell[data-band='high'] {
+  background-color: var(--vx-signal);
+}
+
+.vx-heatstrip-cell[data-band='extreme'] {
+  background-color: var(--vx-signal-bright);
+}
+
+/* `unknown` n'est PAS la bande la plus basse : c'est un creux, visuellement
+   d'une autre nature. Une cellule vide traitée comme « faible » inventerait
+   une mesure. */
+.vx-heatstrip-cell[data-band='unknown'] {
+  border: 1px dashed var(--vx-border);
+  background-color: transparent;
+}
+
+/* ==========================================================================
+   PALETTE DE COMMANDES — ⌘K. Motif `combobox` + `listbox` en HTML natif :
+   la dépendance `cmdk` aurait apporté un thème à neutraliser et une surface
+   de bundle sur TOUTES les routes, pour un motif entièrement décrit par
+   WAI-ARIA APG.
+   ========================================================================== */
+
+/* Le déclencheur occupe l'espace LIBRE entre le titre et les états, borné :
+   sans `max-width` il aurait écarté les badges d'état vers le bord, et sans
+   `flex: 1` il se serait collé au titre en laissant un vide au milieu. */
+.vx-palette-trigger {
+  flex: 0 1 320px;
+  justify-content: space-between;
+  max-width: 320px;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--vx-space-8);
+  min-width: 0;
+  padding: var(--vx-space-4) var(--vx-space-12);
+  border: 1px solid var(--vx-border);
+  border-radius: var(--vx-radius-pill);
+  background-color: var(--vx-surface-1);
+  color: var(--vx-text-muted);
+  font-family: inherit;
+  font-size: var(--vx-font-size-meta);
+  cursor: pointer;
+}
+
+.vx-palette-trigger:hover {
+  border-color: var(--vx-border-strong);
+  color: var(--vx-text-secondary);
+}
+
+.vx-palette-trigger-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vx-palette-kbd {
+  padding: 0 var(--vx-space-4);
+  border: 1px solid var(--vx-border);
+  border-radius: var(--vx-radius-6);
+  color: var(--vx-text-muted);
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-palette-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: var(--vx-z-dialog);
+  display: flex;
+  justify-content: center;
+  /* Pas centré verticalement : une palette ancrée haut garde le regard là où
+     la frappe commence, et laisse voir la page derrière. */
+  padding-top: 12vh;
+  background-color: var(--vx-scrim);
+}
+
+.vx-palette {
+  display: flex;
+  flex-direction: column;
+  width: min(680px, calc(100vw - var(--vx-space-32)));
+  max-height: 60vh;
+  border: 1px solid var(--vx-border-strong);
+  border-radius: var(--vx-radius-14);
+  background-color: var(--vx-surface-2);
+  box-shadow: var(--vx-shadow-panel), var(--vx-shadow-inset);
+  overflow: hidden;
+}
+
+.vx-palette-field {
+  display: flex;
+  align-items: center;
+  gap: var(--vx-space-8);
+  padding: var(--vx-space-12) var(--vx-space-16);
+  border-bottom: 1px solid var(--vx-border);
+}
+
+.vx-palette-input {
+  flex: 1 1 auto;
+  min-width: 0;
+  border: none;
+  background: transparent;
+  color: var(--vx-text);
+  font-family: inherit;
+  font-size: var(--vx-font-size-title);
+}
+
+/* LE CHAMP NE PERD PLUS SON REPÈRE DE FOCUS.
+   `outline: none` supprimait purement et simplement l'indication de focus —
+   WCAG 2.4.7. Le repère n'a pas disparu : il a DÉMÉNAGÉ sur le champ entier,
+   qui est bordé, où il se voit mieux qu'un liseré collé au texte. */
+.vx-palette-input:focus {
+  outline: none;
+}
+
+.vx-palette-field:focus-within {
+  border-color: var(--vx-signal);
+  box-shadow: inset 0 -1px 0 var(--vx-signal);
+}
+
+.vx-palette-list {
+  margin: 0;
+  padding: var(--vx-space-8) 0;
+  list-style: none;
+  overflow-y: auto;
+}
+
+.vx-palette-group-title {
+  margin: 0;
+  padding: var(--vx-space-8) var(--vx-space-16) var(--vx-space-4);
+  color: var(--vx-text-muted);
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-meta);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.vx-palette-group ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.vx-palette-item {
+  display: flex;
+  align-items: baseline;
+  gap: var(--vx-space-12);
+  padding: var(--vx-space-8) var(--vx-space-16);
+  /* Le filet est TOUJOURS là, transparent au repos : sans lui, l'élément actif
+     se décalerait de trois pixels au moment où il le devient, et la liste
+     bougerait sous le curseur clavier. */
+  border-left: 3px solid transparent;
+  cursor: pointer;
+}
+
+/* L'élément actif se distingue par une SURFACE, pas par un déplacement ni un
+   agrandissement : la liste ne doit pas bouger sous le curseur clavier.
+ *
+ * MAIS UNE SURFACE SEULE NE SUFFISAIT PAS. `--vx-hover` sur le fond du
+ * panneau donne 1,21:1 — très en dessous des 3:1 qu'exige WCAG 1.4.11 pour un
+ * repère d'interface non textuel. Comme c'est le SEUL indicateur de la
+ * position du curseur clavier dans la palette, un utilisateur qui navigue aux
+ * flèches ne voyait pas où il était.
+ *
+ * Un filet d'ambre pleine s'ajoute donc à gauche : `signal` sur `surface-1`
+ * mesure 8,6:1. La surface reste, parce qu'elle porte la ligne entière ; le
+ * filet porte le seuil. */
+.vx-palette-item[data-active='true'] {
+  border-left-color: var(--vx-signal);
+  background-color: var(--vx-hover);
+}
+
+.vx-palette-item-label {
+  color: var(--vx-text);
+  font-size: var(--vx-font-size-body);
+  white-space: nowrap;
+}
+
+.vx-palette-item-detail {
+  overflow: hidden;
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vx-palette-empty,
+.vx-palette-note {
+  margin: 0;
+  padding: var(--vx-space-12) var(--vx-space-16);
+  border-top: 1px solid var(--vx-border-soft);
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+}
+
+/* ==========================================================================
+   SQUELETTES — un par FORME. Le rôle d'un squelette est de RÉSERVER LA PLACE
+   de ce qui arrive : un rectangle universel laisse la carte changer de hauteur
+   au moment du rendu, et toute la rangée se réorganise sous les yeux.
+   ========================================================================== */
+
+.vx-skel {
+  display: block;
+  min-width: 0;
+}
+
+/* Un seul balayage lent, partagé par toutes les formes. Pas de pulsation :
+   plusieurs squelettes qui clignotent transforment l'attente en agitation. */
+@keyframes vx-skel-sweep {
+  from {
+    background-position: -140% 0;
+  }
+  to {
+    background-position: 240% 0;
+  }
+}
+
+.vx-skel-plot,
+.vx-skel-axis,
+.vx-skel-line,
+.vx-skel-cell,
+.vx-skel-day,
+.vx-skel-tile {
+  display: block;
+  border-radius: var(--vx-radius-6);
+  background-color: var(--vx-surface-2);
+  background-image: linear-gradient(
+    90deg,
+    var(--vx-surface-2) 0%,
+    var(--vx-surface-3) 50%,
+    var(--vx-surface-2) 100%
+  );
+  background-size: 240% 100%;
+  animation: vx-skel-sweep 1800ms ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vx-skel-plot,
+  .vx-skel-axis,
+  .vx-skel-line,
+  .vx-skel-cell,
+  .vx-skel-day,
+  .vx-skel-tile {
+    animation: none;
+  }
+}
+
+/* --- graphique : une surface, puis une bande d'axe --- */
+
+.vx-skel-chart {
+  display: flex;
+  flex-direction: column;
+  gap: var(--vx-space-8);
+}
+
+.vx-skel-chart[data-height='small'] .vx-skel-plot {
+  height: 80px;
+}
+
+.vx-skel-chart[data-height='medium'] .vx-skel-plot {
+  height: 200px;
+}
+
+.vx-skel-chart[data-height='large'] .vx-skel-plot {
+  height: 360px;
+}
+
+.vx-skel-axis {
+  height: var(--vx-space-8);
+}
+
+/* --- métrique : une légende courte, un chiffre --- */
+
+.vx-skel-metric,
+.vx-skel-fact {
+  display: flex;
+  flex-direction: column;
+  gap: var(--vx-space-4);
+}
+
+.vx-skel-line {
+  height: var(--vx-space-12);
+}
+
+.vx-skel-line[data-width='short'] {
+  width: 40%;
+}
+
+.vx-skel-line[data-width='number'] {
+  width: 60%;
+  height: var(--vx-space-20);
+}
+
+.vx-skel-line[data-width='title'] {
+  width: 70%;
+  height: var(--vx-space-16);
+}
+
+/* --- table : autant de lignes que la page en attend --- */
+
+.vx-skel-table {
+  display: flex;
+  flex-direction: column;
+  gap: var(--vx-space-8);
+}
+
+.vx-skel-row {
+  display: flex;
+  gap: var(--vx-space-12);
+}
+
+.vx-skel-cell {
+  flex: 1 1 0;
+  height: var(--vx-space-12);
+}
+
+/* --- calendrier : une grille de sept jours --- */
+
+.vx-skel-calendar {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: var(--vx-space-4);
+}
+
+.vx-skel-day {
+  aspect-ratio: 1;
+}
+
+/* --- heatmap : une mosaïque --- */
+
+.vx-skel-heatmap {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 2px;
+}
+
+.vx-skel-tile {
+  aspect-ratio: 4 / 3;
+}
+
+/* --- inspecteur : un titre, des paires --- */
+
+.vx-skel-inspector {
+  display: flex;
+  flex-direction: column;
+  gap: var(--vx-space-16);
+}
+
+/* ==========================================================================
+   CHARTFRAME — l'anatomie commune de toute visualisation.
+   Elle remplace `vx-chartframe`, dont l'en-tête, la liste de métadonnées et
+   le pied étaient RECOPIÉS dans quatre pages : rien n'obligeait une figure
+   nouvelle à les porter, rien ne signalait qu'il en manquait un.
+   ========================================================================== */
+
+.vx-cf {
+  display: flex;
+  flex-direction: column;
+  gap: var(--vx-space-12);
+  min-width: 0;
+  padding: var(--vx-space-20) var(--vx-space-24) var(--vx-space-16);
+  border: 1px solid var(--vx-border);
+  border-top-color: var(--vx-border-strong);
+  border-radius: var(--vx-radius-14);
+  background-color: var(--vx-surface-0);
+  box-shadow: var(--vx-shadow-glass), var(--vx-shadow-inset);
+}
+
+/* La dominante se distingue par sa PROFONDEUR et son liseré, jamais par un
+   halo : « aucun glow permanent » (canonical-visual.md). */
+.vx-cf[data-rank='dominant'] {
+  border-top-color: var(--vx-signal-deep);
+  box-shadow: var(--vx-shadow-panel), var(--vx-shadow-inset);
+}
+
+.vx-cf-head {
+  display: flex;
+  gap: var(--vx-space-16);
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.vx-cf-head-text {
+  min-width: 0;
+}
+
+.vx-cf-question {
+  margin: 0 0 2px;
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-cf-title {
+  margin: 0;
+  color: var(--vx-text);
+  font-size: var(--vx-font-size-display);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+}
+
+.vx-cf-head-side {
+  display: flex;
+  flex: 0 0 auto;
+  gap: var(--vx-space-12);
+  align-items: center;
+}
+
+.vx-cf-toolbar {
+  display: flex;
+  gap: var(--vx-space-8);
+  align-items: center;
+}
+
+/* Unité, période, fuseau : les trois choses sans lesquelles l'axe ne se lit
+   pas. Au-dessus de la figure, jamais en note de bas de page. */
+.vx-cf-scale {
+  display: flex;
+  gap: var(--vx-space-12);
+  margin: 0;
+  color: var(--vx-text-secondary);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-cf-unit {
+  color: var(--vx-text);
+}
+
+.vx-cf-tz {
+  font-family: var(--vx-font-mono);
+}
+
+.vx-cf-plot {
+  min-width: 0;
+}
+
+.vx-cf-equivalent > summary {
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+  cursor: pointer;
+}
+
+.vx-cf-equivalent > summary:hover {
+  color: var(--vx-text-secondary);
+}
+
+.vx-cf-foot {
+  border-top: 1px solid var(--vx-border-soft);
+  padding-top: var(--vx-space-8);
+}
+
+.vx-cf-provenance {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--vx-space-4) var(--vx-space-20);
+  margin: 0;
+}
+
+.vx-cf-provenance > div {
+  display: flex;
+  gap: var(--vx-space-4);
+  align-items: baseline;
+  min-width: 0;
+}
+
+.vx-cf-provenance dt {
+  color: var(--vx-text-muted);
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-meta);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.vx-cf-provenance dd {
+  margin: 0;
+  color: var(--vx-text-secondary);
+  font-size: var(--vx-font-size-meta);
+}
+
+/* ==========================================================================
+   CHAÎNE D'OPTIONS — colonnes servies, en-tête et strike collants, repère de
+   spot. Cette famille vit dans widgets.css, importé APRÈS global.css : les
+   règles héritées `.vx-chain-*` y sont encore, et à spécificité égale c'est
+   l'ordre source qui tranche.
+   ========================================================================== */
+
+.vx-chain {
+  display: flex;
+  flex-direction: column;
+  gap: var(--vx-space-12);
+  min-width: 0;
+}
+
+/* --- sélecteur de colonnes --- */
+
+.vx-chain-columns > summary {
+  color: var(--vx-text-secondary);
+  font-size: var(--vx-font-size-meta);
+  cursor: pointer;
+}
+
+.vx-chain-columns > summary:hover {
+  color: var(--vx-text);
+}
+
+.vx-chain-columns-body {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--vx-space-16);
+  margin-top: var(--vx-space-8);
+  padding: var(--vx-space-12);
+  border: 1px solid var(--vx-border-soft);
+  border-radius: var(--vx-radius-10);
+  background-color: var(--vx-surface-1);
+}
+
+.vx-chain-columns-group {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+.vx-chain-columns-group > legend {
+  padding: 0 0 var(--vx-space-4);
+  color: var(--vx-text-muted);
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-meta);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.vx-chain-column-option {
+  display: flex;
+  gap: var(--vx-space-8);
+  align-items: baseline;
+  padding: 2px 0;
+  color: var(--vx-text-secondary);
+  font-size: var(--vx-font-size-meta);
+  cursor: pointer;
+}
+
+.vx-chain-column-option:has(input:disabled) {
+  color: var(--vx-text-muted);
+  cursor: not-allowed;
+}
+
+.vx-chain-column-unit {
+  color: var(--vx-text-muted);
+}
+
+.vx-chain-columns-cap,
+.vx-chain-columns-absent {
+  flex: 1 0 100%;
+  margin: 0;
+  padding-top: var(--vx-space-8);
+  border-top: 1px solid var(--vx-border-soft);
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-chain-columns-absent-title {
+  margin: 0 0 var(--vx-space-4);
+  color: var(--vx-text-secondary);
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-meta);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.vx-chain-columns-absent dl {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 2px var(--vx-space-12);
+  margin: 0;
+}
+
+.vx-chain-columns-absent dl > div {
+  display: contents;
+}
+
+.vx-chain-columns-absent dt {
+  color: var(--vx-text-secondary);
+}
+
+.vx-chain-columns-absent dd {
+  margin: 0;
+}
+
+/* --- en-tête collant ET colonne de strike collante ---
+   La chaîne était la SEULE table dense du produit sans en-tête collant : au
+   douzième strike, on ne savait plus quelle colonne on lisait. Le strike colle
+   aussi horizontalement, parce que c'est l'axe : perdre le strike en défilant
+   vers les puts rend la ligne illisible. */
+
+.vx-chain-table-scroll {
+  max-height: 520px;
+  overflow: auto;
+  border: 1px solid var(--vx-border-soft);
+  border-radius: var(--vx-radius-10);
+}
+
+.vx-chain-table thead th {
+  position: sticky;
+  z-index: 2;
+  background-color: var(--vx-surface-1);
+}
+
+.vx-chain-table thead tr:first-child th {
+  top: 0;
+}
+
+/* La seconde rangée d'en-tête se cale SOUS la première : sans ce décalage
+   elles se superposeraient au défilement. */
+.vx-chain-table thead tr:nth-child(2) th {
+  top: var(--vx-space-24);
+}
+
+.vx-chain-table .vx-chain-strike,
+.vx-chain-table .vx-chain-strike-head {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background-color: var(--vx-surface-2);
+  border-left: 1px solid var(--vx-border);
+  border-right: 1px solid var(--vx-border);
+}
+
+.vx-chain-table .vx-chain-strike-head {
+  z-index: 3;
+}
+
+.vx-chain-head-unit {
+  display: block;
+  color: var(--vx-text-muted);
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-meta);
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.vx-chain-caption {
+  display: table-caption;
+  padding: var(--vx-space-8) var(--vx-space-16) var(--vx-space-12);
+  color: var(--vx-text);
+  font-size: var(--vx-font-size-title);
+  text-align: left;
+  caption-side: top;
+}
+
+.vx-chain-caption-detail {
+  display: block;
+  margin-top: 2px;
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+}
+
+/* --- ligne sélectionnée --- */
+
+.vx-chain-table tbody tr[data-selected='true'] > * {
+  background-color: var(--vx-signal-faint);
+}
+
+/* --- repère de spot SERVI ---
+   Ce n'est pas un badge « ATM » : aucun champ ne classe un strike à la monnaie,
+   et ce rangement est un jugement du moteur. C'est une valeur PUBLIÉE posée à
+   sa place sur un axe publié. D'où le trait plein et le libellé explicite. */
+
+.vx-chain-spot > td {
+  padding: var(--vx-space-4) var(--vx-space-16);
+  border-top: 2px solid var(--vx-signal);
+  border-bottom: 1px solid var(--vx-signal-soft);
+  background-color: var(--vx-signal-faint);
+}
+
+.vx-chain-spot-label {
+  margin-right: var(--vx-space-8);
+  color: var(--vx-signal);
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-meta);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.vx-chain-spot-unit {
+  margin-left: var(--vx-space-4);
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-chain-spot-when {
+  margin-left: var(--vx-space-12);
+  color: var(--vx-text-muted);
+  font-family: var(--vx-font-mono);
+  font-size: var(--vx-font-size-meta);
+}
+
+/* --- LARGEUR NATURELLE PLUTÔT QUE COMPRESSION ---
+   La chaîne était forcée à tenir dans son conteneur : avec douze colonnes
+   servies, chaque cellule tombait sous sa largeur utile et `text-overflow`
+   coupait les valeurs — une IV rendue « 0.18… » n'est plus une donnée, et la
+   pastille de statut se réduisait à sa bordure gauche, ce qui ressemblait à
+   une parenthèse égarée. La table prend donc sa largeur NATURELLE et le
+   conteneur défile horizontalement ; la colonne de strike reste collante, ce
+   qui rend ce défilement lisible — c'est la façon dont un desk d'options se
+   consulte. */
+.vx-chain-table {
+  width: max-content;
+  min-width: 100%;
+  /* `table-layout: fixed` (global.css) tirait la largeur des colonnes de la
+     PREMIÈRE rangée — or celle-ci ne contient que trois cellules : « Calls »
+     sur cinq colonnes, le strike, « Puts » sur cinq colonnes. Les colonnes
+     étaient donc dimensionnées sur des groupes, jamais sur leur contenu, et
+     l'en-tête ne tombait plus en face du corps. En chasse automatique, chaque
+     colonne prend la largeur de ce qu'elle contient — et le contenu est
+     désormais BORNÉ par le plafond posé sur `.vx-num`, qui agit enfin. La
+     raison d'être de la chasse fixe (« une IV à seize décimales élargit sa
+     colonne ») est donc traitée à la source, sur la valeur. */
+  table-layout: auto;
+}
+
+/* La valeur garde un plafond — une IV à seize décimales détruirait l'alignement
+   de la colonne — mais elle est maintenant assez large pour être LUE, et la
+   chaîne exacte reste dans l'infobulle et l'inspecteur. */
+.vx-chain-table .vx-num {
+  max-width: 14ch;
+}
+
+/* La pastille de statut ne se laisse jamais rogner : elle porte le seul mot qui
+   dit qu'une cotation n'est pas saine. Elle se place SOUS le nombre plutôt qu'à
+   côté : accolée, elle élargissait sa colonne de 117 px contre 94 pour les
+   autres — le nombre sortait de l'alignement de la colonne alors que
+   l'alignement EST ce qui rend une chaîne comparable. Dessous, la colonne
+   garde sa largeur de nombre et le statut reste entier. */
+.vx-chain-table .vx-quote-status {
+  display: block;
+  overflow: visible;
+  margin-top: 2px;
+  white-space: nowrap;
+}
+
+/* --- LARGEURS PAR NATURE DE COLONNE ---
+   Toutes les colonnes n'ont pas la même largeur utile. Une cotation tient en
+   huit caractères ; une IV servie sur seize décimales n'en tiendra jamais, et
+   lui donner la même place qu'aux autres poussait la table hors de son
+   conteneur — le strike se retrouvait alors hors du champ à l'ouverture, alors
+   qu'il est l'axe de lecture. Les sensibilités sont donc bornées plus court,
+   la valeur exacte restant dans l'infobulle et dans l'inspecteur. */
+.vx-chain-table td[data-col='bid'] .vx-num,
+.vx-chain-table td[data-col='ask'] .vx-num,
+.vx-chain-table td[data-col='bid_size'] .vx-num,
+.vx-chain-table td[data-col='ask_size'] .vx-num,
+.vx-chain-table td[data-col='volume'] .vx-num,
+.vx-chain-table td[data-col='open_interest'] .vx-num {
+  max-width: 9ch;
+}
+
+/* Huit caractères, MESURÉ. Le worker publie l'IV en flottant complet —
+   `0.1848147947607191`, dix-huit caractères. À onze, la chaîne mesurait 998 px
+   dans un conteneur de 879 : les puts s'ouvraient hors du champ. À huit, elle
+   tient, et « 0.184814… » porte cinq chiffres significatifs — de quoi comparer
+   deux strikes, ce qui est la fonction de cette table. La valeur EXACTE reste
+   au survol et dans l'inspecteur ; elle n'est jamais arrondie, seulement
+   bornée au rendu. */
+.vx-chain-table td[data-col='iv'] .vx-num,
+.vx-chain-table td[data-col='delta'] .vx-num,
+.vx-chain-table td[data-col='gamma'] .vx-num,
+.vx-chain-table td[data-col='vega'] .vx-num,
+.vx-chain-table td[data-col='theta_per_calendar_day'] .vx-num,
+.vx-chain-table td[data-col='rho_per_bp'] .vx-num {
+  max-width: 8ch;
+}
+
+/* --- LA LIGNE DE REPÈRE DU SPOT ---
+   Elle héritait de `text-align: right` comme toute cellule de la chaîne : son
+   contenu partait à l'extrémité droite d'une table de quinze colonnes, donc
+   hors du champ visible. Elle s'aligne à gauche et COLLE au bord gauche du
+   conteneur, de sorte que le spot reste lisible quel que soit le défilement
+   horizontal — c'est le repère, il ne doit jamais sortir de l'écran. */
+.vx-chain-spot > td {
+  text-align: left;
+}
+
+/* UN SEUL élément collant, qui porte les autres. Chaque morceau collant au
+   même `left` se superposait aux autres : le libellé et le nombre se
+   chevauchaient à l'écran — « spot servi366.08 ». Le conteneur colle, son
+   contenu s'aligne normalement à l'intérieur. */
+.vx-chain-spot-inner {
+  position: sticky;
+  left: var(--vx-space-16);
+  display: inline-flex;
+  gap: var(--vx-space-8);
+  align-items: baseline;
+}
+
+/* --- LE PLAFOND DE LARGEUR N'AGISSAIT PAS ---
+   `.vx-num` est un `<code>`, donc un élément INLINE non remplacé : `max-width`
+   ne s'y applique pas, et `text-overflow` non plus. La règle héritée
+   `max-width: 12ch` était donc inerte depuis toujours, et la troncature qu'on
+   observait venait de la COMPRESSION de la table, pas d'un plafond. Mesuré :
+   valeur d'IV rendue à 149 px pour un plafond calculé à 86 px, table à 1755 px
+   dans un conteneur de 879. `inline-block` rend le plafond effectif. */
+.vx-chain-table .vx-num {
+  display: inline-block;
+  vertical-align: bottom;
+}
+
+/* Les en-têtes se replient plutôt que d'imposer leur largeur à la colonne :
+   « par unité de spot » sur une seule ligne élargissait la colonne DELTA bien
+   au-delà de ce que ses valeurs demandent, et poussait les puts hors du champ.
+   La phrase complète reste dans la définition, accessible en infobulle. */
+.vx-chain-table thead th {
+  max-width: 12ch;
+  white-space: normal;
+}
+
+.vx-chain-table thead th.vx-chain-side-head {
+  max-width: none;
+}
+
+/* --- DENSITÉ DE DESK ---
+   Dix cellules par ligne à 8 px de marge de chaque côté, c'est 160 px de
+   respiration pure : les puts sortaient du champ pour du blanc. La chaîne est
+   la table la plus dense du produit et prend la densité qui va avec — les
+   valeurs restent alignées, c'est l'alignement qui porte la lisibilité, pas
+   l'espacement. */
+.vx-chain-table th,
+.vx-chain-table td {
+  padding: var(--vx-space-4);
+}
+
+.vx-chain-table .vx-chain-strike {
+  padding: var(--vx-space-4) var(--vx-space-8);
+}
+
+/* Le bouton de détail garde son nom accessible complet et rétrécit à l'écran :
+   son libellé visible est court, `aria-label` porte l'identité entière du
+   contrat. */
+.vx-chain-inspect {
+  padding: 0 var(--vx-space-4);
+  font-size: var(--vx-font-size-meta);
+  white-space: nowrap;
+}
+
+/* ==================================================================== */
+/* DIVULGATION PROGRESSIVE DE L'ABSENCE                                 */
+/*                                                                      */
+/* Onze modules absents sur une planche mettaient près de 3 500         */
+/* caractères de prose grise à l'écran, sous des cartes qui ne portent   */
+/* aucune donnée. Le lecteur cessait de lire, donc l'information         */
+/* cessait d'exister. Le motif court reste ; le reste se replie.         */
+/* Rien n'est supprimé : tout demeure dans le document.                  */
+/* ==================================================================== */
+
+.vx-absent-court {
+  margin: 0;
+  color: var(--vx-text-secondary);
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-absent-why {
+  margin-top: var(--vx-space-8);
+}
+
+.vx-absent-why > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--vx-space-4);
+  width: fit-content;
+  padding: 2px var(--vx-space-4);
+  border-radius: var(--vx-radius-6);
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+  cursor: pointer;
+}
+
+.vx-absent-why > summary:hover {
+  color: var(--vx-text-secondary);
+  background-color: var(--vx-hover);
+}
+
+.vx-absent-why > summary:focus-visible {
+  outline: 2px solid var(--vx-signal);
+  outline-offset: 2px;
+}
+
+/* Le contenu replié respire par rapport au déclencheur, et se rattache à lui
+   par un filet vertical : sans ce rattachement, l'explication ouverte flotte
+   au-dessus de la carte suivante. */
+.vx-absent-why[open] > :not(summary) {
+  margin-top: var(--vx-space-8);
+  padding-left: var(--vx-space-12);
+  border-left: 1px solid var(--vx-border-soft);
+}
+
+/* ==================================================================== */
+/* MÉTHODE ET LIMITES — repliées sous un contrôle nommé                 */
+/*                                                                      */
+/* Quatre pages posaient sous leur module dominant deux paragraphes     */
+/* permanents : 470 caractères de prose grise sur Marchés, sous une     */
+/* carte qui porte déjà figure, légende, provenance et équivalent       */
+/* tabulaire. Le texte reste ; il ne s'impose plus.                     */
+/* ==================================================================== */
+
+.vx-method-note > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--vx-space-4);
+  width: fit-content;
+  padding: 2px var(--vx-space-4);
+  border-radius: var(--vx-radius-6);
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+  cursor: pointer;
+}
+
+.vx-method-note > summary:hover {
+  color: var(--vx-text-secondary);
+  background-color: var(--vx-hover);
+}
+
+.vx-method-note > summary:focus-visible {
+  outline: 2px solid var(--vx-signal);
+  outline-offset: 2px;
+}
+
+.vx-method-note-body {
+  margin-top: var(--vx-space-8);
+  padding-left: var(--vx-space-12);
+  border-left: 1px solid var(--vx-border-soft);
+}
+
+/* Le nom de la rubrique n'est PAS une décoration : ouvert, le repli montre
+   deux paragraphes qui se ressemblent, et « méthode » n'appelle pas la même
+   lecture que « limites ». */
+.vx-method-note-tag {
+  margin-right: var(--vx-space-4);
+  color: var(--vx-text-secondary);
+  font-size: var(--vx-font-size-meta);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+/* L'attribution de licence ne se replie JAMAIS : Apache-2.0 exige que la
+   mention accompagne l'œuvre, et une mention derrière un bouton n'accompagne
+   rien. Elle est courte, elle reste. */
+.vx-method-note-attribution {
+  margin: 0 0 var(--vx-space-8);
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+}
+
+/* ==================================================================== */
+/* ÉCHELLE DIVERGENTE — la légende publie les bornes                    */
+/*                                                                      */
+/* Une gradation sans bornes chiffrées est une décoration : elle dit    */
+/* « plus » sans dire combien. Les pastilles ci-dessous portent          */
+/* exactement les couleurs que la carte emploie, lues sur les mêmes      */
+/* variables — elles ne peuvent donc pas diverger d'elle.                */
+/* ==================================================================== */
+
+.vx-marketmap-scale {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--vx-space-4) var(--vx-space-12);
+  margin: var(--vx-space-8) 0 0;
+  padding: 0;
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+  list-style: none;
+}
+
+.vx-marketmap-scale > li {
+  display: inline-flex;
+  gap: var(--vx-space-4);
+  align-items: center;
+  white-space: nowrap;
+}
+
+.vx-marketmap-swatch {
+  width: 18px;
+  height: 10px;
+  border: 1px solid var(--vx-border-soft);
+  border-radius: 2px;
+}
+
+.vx-marketmap-swatch[data-step='down-3'] {
+  background-color: var(--vx-negative-band-3);
+}
+
+.vx-marketmap-swatch[data-step='down-2'] {
+  background-color: var(--vx-negative-band-2);
+}
+
+.vx-marketmap-swatch[data-step='down-1'] {
+  background-color: var(--vx-negative-band-1);
+}
+
+.vx-marketmap-swatch[data-step='flat'] {
+  background-color: var(--vx-titanium-soft);
+}
+
+.vx-marketmap-swatch[data-step='up-1'] {
+  background-color: var(--vx-positive-band-1);
+}
+
+.vx-marketmap-swatch[data-step='up-2'] {
+  background-color: var(--vx-positive-band-2);
+}
+
+.vx-marketmap-swatch[data-step='up-3'] {
+  background-color: var(--vx-positive-band-3);
+}
+
+/* ==================================================================== */
+/* VALEUR EXACTE SERVIE — une note de bas de mesure, pas un concurrent  */
+/*                                                                      */
+/* La valeur exacte suivait le chiffre SUR LA MÊME LIGNE. Mesuré à      */
+/* l'écran : « −0.34 % (exact : −0.0034193193797471775973762693) » —    */
+/* vingt-huit chiffres qui coupaient au milieu du nombre et prenaient   */
+/* trois fois la place de la mesure qu'ils précisent. Le lecteur ne     */
+/* voyait plus la valeur, et la précision exacte n'était pas lisible    */
+/* non plus : les deux perdaient.                                       */
+/*                                                                      */
+/* Elle reste INTÉGRALE et visible — c'est la preuve, on ne la tronque  */
+/* pas — mais elle passe sous le chiffre, en corps de méta.             */
+/* ==================================================================== */
+
+.vx-perf-metric-raw {
+  display: block;
+  margin-top: 2px;
+  overflow-wrap: break-word;
+  line-height: 1.35;
+}
+
+/* ==================================================================== */
+/* CLASSEMENT DES CANDIDATS — huit colonnes qui doivent TENIR            */
+/*                                                                      */
+/* Vu sur capture à 1440 px, jamais par un test : les deux dernières     */
+/* colonnes — « Gates dégradées » et « Preuves manquantes » — étaient    */
+/* coupées au milieu d'un mot (« • func », « • inv », « • man »). Le     */
+/* conteneur défile, donc rien n'était perdu, mais deux colonnes         */
+/* entières restaient invisibles au repos, sans que rien ne le dise.     */
+/*                                                                      */
+/* La cause : les listes en puces posent chaque code sur SA ligne, donc  */
+/* la largeur minimale de la colonne vaut celle du plus long code —      */
+/* `entitlements_sufficient`, vingt-trois caractères. Deux colonnes      */
+/* ainsi dimensionnées poussaient la table hors du champ.                */
+/*                                                                      */
+/* Les codes se coupent désormais à l'intérieur d'une colonne bornée :   */
+/* la ligne est déjà haute (le motif d'exclusion fait plusieurs lignes), */
+/* donc l'enroulement ne coûte rien, et rien n'est tronqué.              */
+/* ==================================================================== */
+
+/* BUDGET DE LARGEUR, POSÉ COLONNE PAR COLONNE — ET EN CHASSE FIXE.
+   `max-width` sur une cellule de tableau en chasse AUTOMATIQUE n'est qu'un
+   indice : le navigateur dimensionne d'abord sur le contenu, et la colonne la
+   plus bavarde — le motif d'exclusion — prenait toute la place en rejetant les
+   dernières hors du champ. Mesuré : deux colonnes entières invisibles au
+   repos, coupées au milieu d'un mot.
+   En chasse fixe, la PREMIÈRE rangée fixe les colonnes, et les pourcentages
+   sont honorés exactement. La rangée d'en-tête porte ici les huit cellules —
+   contrairement à la chaîne d'options, dont la première rangée n'a que des
+   groupes, et où la chasse fixe produisait l'effet inverse. */
+.vx-opp-table {
+  table-layout: fixed;
+  width: 100%;
+}
+
+.vx-opp-table th[data-col='rank'] {
+  width: 6%;
+}
+
+.vx-opp-table th[data-col='instrument'] {
+  width: 12%;
+}
+
+.vx-opp-table th[data-col='status'] {
+  width: 18%;
+}
+
+.vx-opp-table th[data-col='exclusion'] {
+  width: 20%;
+}
+
+.vx-opp-table th[data-col='degraded_gates'],
+.vx-opp-table th[data-col='missing_evidence'] {
+  width: 17%;
+}
+
+/* La nature de population porte trois énoncés que trois tests différents
+   défendent — phrase française, code servi, pastille de marquage. La colonne
+   reçoit donc la largeur que ce contenu demande, plutôt que de rogner un
+   contenu dont chaque morceau est exigé. */
+.vx-opp-table th[data-col='population'] {
+  width: 16%;
+}
+
+/* La direction sous le statut : deux faits distincts, deux lignes, un seul
+   emplacement. Le libellé n'est pas décoratif — sans lui, « UNKNOWN » posé
+   sous « INSUFFICIENT_DATA » se lirait comme une précision du statut, alors
+   que ce sont deux axes différents. */
+.vx-opp-direction {
+  margin: var(--vx-space-4) 0 0;
+  font-size: var(--vx-font-size-meta);
+}
+
+.vx-opp-direction-label {
+  color: var(--vx-text-muted);
+}
+
+/* Un code serveur ne se coupe qu'en dernier recours : « instrum / ent_res /
+   olved » ne se lit plus. `break-word` ne coupe que le mot qui ne tient pas,
+   là où `anywhere` coupait tout. */
+.vx-opp-table td code,
+.vx-opp-table th code {
+  overflow-wrap: break-word;
+}
+
+/* Le reste de la liste se compte, il ne s'énumère pas : le nombre est lisible
+   d'un coup d'œil là où six codes empilés ne l'étaient pas. */
+.vx-opp-list-more {
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+  white-space: nowrap;
+}
+
+
+/* ==================================================================== */
+/* NOMBRE SERVI — borné au rendu, entier au survol                      */
+/*                                                                      */
+/* `max-width` et `text-overflow` ne s'appliquent PAS à un élément       */
+/* inline non remplacé : sur un `<code>` inline, le plafond est inerte.  */
+/* Mesuré sur la chaîne d'options : valeur rendue à 149 px pour un       */
+/* plafond calculé à 86. `inline-block` le rend effectif.                */
+/* ==================================================================== */
+
+.vx-served-number {
+  display: inline-block;
+  overflow: hidden;
+  vertical-align: bottom;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+
+/* L'unité vit HORS de la boîte bornée du nombre : « 4.413571428571428 SYN »
+   formait une seule chaîne, et borner le rendu faisait disparaître « SYN »
+   derrière l'ellipse. Un nombre sans son unité n'est pas une information
+   abrégée, c'est une information fausse. */
+.vx-indicator-unit {
+  color: var(--vx-text-muted);
+  font-size: var(--vx-font-size-meta);
+}
+
+/* ==================================================================== */
+/* TABLES DE REGISTRE — un horodatage ne pousse plus la table dehors    */
+/*                                                                      */
+/* `2026-09-05T00:40:48.190000+00:00` est un SEUL mot de trente-deux    */
+/* caractères, sans aucune occasion de coupure. Une table ne descend    */
+/* jamais sous sa largeur MIN-CONTENT : un tel mot impose donc sa       */
+/* largeur à sa colonne et pousse les suivantes hors du champ. Mesuré   */
+/* sur Sources & Rapports : la colonne « testé à » se faisait couper au */
+/* milieu de la fraction de seconde.                                    */
+/*                                                                      */
+/* ET C'EST BIEN `anywhere`, PAS `break-word`. Les deux coupent un mot  */
+/* trop long à la mise en page, mais seul `anywhere` RÉDUIT la largeur  */
+/* min-content — donc seul lui laisse la table rétrécir. Posé d'abord   */
+/* en `break-word`, ce correctif n'a strictement rien changé, et la     */
+/* capture l'a montré.                                                  */
+/* ==================================================================== */
+
+.vx-matrix-table code,
+.vx-matrix-table time {
+  overflow-wrap: anywhere;
+}
+
+/* La valeur d'une mesure est bornée AU RENDU, jamais arrondie, et son unité
+   reste hors de la boîte : un nombre sans son unité n'est pas une information
+   abrégée, c'est une information fausse. Mesuré sur Risques : un Herfindahl
+   servi à vingt-huit chiffres écrasait sa carte. */
+.vx-metric-number {
+  display: inline-block;
+  overflow: hidden;
+  max-width: 14ch;
+  vertical-align: bottom;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }

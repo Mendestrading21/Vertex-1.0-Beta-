@@ -68,6 +68,13 @@ export interface WidgetServed {
   readonly asOf?: string | null;
   /** Âge en secondes CALCULÉ PAR LE SERVEUR. `undefined` = non publié. */
   readonly ageSeconds?: number | null;
+  /**
+   * `freshness_policy` SERVIE de la route — l'ÉCHELLE contre laquelle
+   * `ageSeconds` est jugé. Absente ⇒ l'échelle est tue, jamais inventée.
+   */
+  readonly budgetSeconds?: number | null;
+  readonly policyKind?: string | null;
+  readonly policyVersion?: string | null;
   readonly snapshotVersion?: number | string | null;
   readonly population?: string | null;
   readonly sourceLabel?: string;
@@ -156,6 +163,9 @@ function WidgetMeta({ served }: { readonly served: WidgetServed | undefined }) {
       ) : (
         <FreshnessBadge
           ageSeconds={ageSeconds}
+          budgetSeconds={served?.budgetSeconds ?? null}
+          policyKind={served?.policyKind ?? null}
+          policyVersion={served?.policyVersion ?? null}
           {...(served?.sourceLabel === undefined ? {} : { sourceLabel: served.sourceLabel })}
         />
       )}

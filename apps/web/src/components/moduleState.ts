@@ -60,6 +60,17 @@ export function moduleStateOf(queryState: PageDataState, served: ServedFacts | u
   if (state === 'stale') {
     return 'stale';
   }
+  /*
+    UN INSTANTANÉ PARTIEL N'EST PAS UN SERVEUR FERMÉ. Le vocabulaire contenait
+    `partial` et cette fonction ne le rendait JAMAIS : tout état servi hors
+    `ok`/`stale`/`empty` tombait dans `closed`, dont le libellé est « État
+    serveur fermé ». Un instantané partiel porte pourtant des valeurs — il en
+    manque, voilà tout — et confondre les deux fait lire « rien n'est publié »
+    là où le serveur a publié une partie.
+  */
+  if (state === 'partial') {
+    return 'partial';
+  }
   if (state !== null && state !== 'ok') {
     return 'closed';
   }

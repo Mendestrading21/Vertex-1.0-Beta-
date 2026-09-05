@@ -245,8 +245,21 @@ describe('Page Marchés — état nominal', () => {
     // Les trois comptes servis (hausses, baisses, inchangés) sont relayés
     // avec le total couvert : aucun compte n'est déduit des deux autres.
     expect(
-      screen.getByText('2 en hausse, 1 en baisse, 1 stables sur 4 couverts (univers 4)'),
+      screen.getByText('4 couverts sur un univers de 4'),
     ).toBeDefined();
+    // ET LA MÊME DONNÉE N'EST PAS RENDUE DEUX FOIS. La phrase répétait mot
+    // pour mot les trois comptes que les barres portent dix pixels plus haut :
+    // elle n'informait pas deux fois, elle occupait deux fois la place et
+    // faisait douter de laquelle fait foi. Ce qu'elle garde — la population —
+    // est justement ce que les barres ne disent pas.
+    const phrasePopulation = document.querySelector('.vx-breadth-counts');
+    expect(phrasePopulation, 'la phrase de population doit exister').not.toBeNull();
+    for (const mot of ['en hausse', 'en baisse', 'stables']) {
+      expect(
+        phrasePopulation?.textContent ?? '',
+        `« ${mot} » répété hors des barres de dénombrement`,
+      ).not.toContain(mot);
+    }
 
     // Pied : méthode, version moteur et limites — dans la PAGE (l'inspecteur
     // du shell relaie aussi la version du moteur depuis le LOT-A3).
@@ -408,7 +421,13 @@ describe('Page Marchés — états dégradés et vides', () => {
       ),
     );
     await renderMarkets();
-    await screen.findByText('Données partielles');
+    // L'ÉTAT SERVI SE PROPAGE AUX MODULES, il ne reste plus au bandeau.
+    // Les modules satellites annonçaient `state="ready"` en dur : un
+    // instantané PARTIEL s'y affichait comme frais, et seul le bandeau de page
+    // disait la vérité. L'assertion attend donc PLUSIEURS annonces — une par
+    // module qui lit cet instantané — au lieu d'une seule.
+    const partiels = await screen.findAllByText('Données partielles');
+    expect(partiels.length, 'l’état servi doit atteindre les modules').toBeGreaterThan(1);
     expect(
       screen.getByText(/3 instruments couverts sur 4 attendus, 1 écartés/),
     ).toBeDefined();
@@ -421,7 +440,8 @@ describe('Page Marchés — états dégradés et vides', () => {
   it('stale serveur : bandeau « Données périmées », contenu daté conservé', async () => {
     fetchMock.mockResolvedValue(jsonResponse(makeMarketsOverview({ data_state: 'stale' })));
     await renderMarkets();
-    await screen.findByText('Données périmées');
+    const perimes = await screen.findAllByText('Données périmées');
+    expect(perimes.length, 'l’état servi doit atteindre les modules').toBeGreaterThan(1);
     expect(screen.getByText(/as_of 2026-08-25T12:00:00\+00:00/)).toBeDefined();
     expect(screen.getByRole('table', { name: /Table équivalente/ })).toBeDefined();
   });
@@ -454,7 +474,8 @@ describe('Page Marchés — états dégradés et vides', () => {
     fetchMock.mockResolvedValue(jsonResponse(makeObservedMarketsOverview('DELAYED')));
     await renderMarkets();
 
-    await screen.findByText('Données différées');
+    const differes = await screen.findAllByText('Données différées');
+    expect(differes.length, 'l’état servi doit atteindre les modules').toBeGreaterThan(1);
     expect(within(screen.getByRole('main')).getByText('DONNÉES RETARDÉES')).toBeDefined();
     expect(screen.getByText(/Population DELAYED publiée par le worker/)).toBeDefined();
     expect(screen.getByRole('table', { name: /Table équivalente/ })).toBeDefined();
@@ -484,7 +505,7 @@ describe('Page Marchés — états dégradés et vides', () => {
     expect(screen.queryByTestId('arc-figure')).toBeNull();
     // Les comptes restent des faits publiés, même sans ratio.
     expect(
-      screen.getByText('2 en hausse, 1 en baisse, 1 stables sur 4 couverts (univers 4)'),
+      screen.getByText('4 couverts sur un univers de 4'),
     ).toBeDefined();
   });
 

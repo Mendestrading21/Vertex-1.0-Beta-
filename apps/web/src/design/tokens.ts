@@ -24,6 +24,21 @@ export const color = {
   'border-soft': 'rgba(231, 224, 207, 0.07)',
   'border': 'rgba(231, 224, 207, 0.12)',
   'border-strong': 'rgba(231, 224, 207, 0.21)',
+  /**
+   * LA FRONTIÈRE D'UN CHAMP DE SAISIE — 3:1, PARCE QUE C'EST UNE EXIGENCE.
+   *
+   * WCAG 1.4.11 traite la limite d'un composant d'interface comme une
+   * information : sans elle, on ne sait pas où commence le champ ni jusqu'où
+   * on peut cliquer. Les champs portaient `border-soft`, mesuré à 1,14:1 sur
+   * leur fond — la frontière était invisible, et un formulaire de simulateur
+   * occupe autant de place que les modules qu'il sert.
+   *
+   * 0,40 est le plus petit alpha qui tient 3:1 sur les SIX fonds de lecture ;
+   * le pire cas est le fond de survol, à 3,03:1. Plus clair, la bordure
+   * deviendrait un trait de dessin ; plus sombre, elle redeviendrait une
+   * suggestion.
+   */
+  'border-field': 'rgba(231, 224, 207, 0.4)',
   'grid-line': 'rgba(231, 224, 207, 0.045)',
   'text': '#f6f2e8',
   'text-secondary': '#b8b0a0',
@@ -55,6 +70,37 @@ export const color = {
   'positive-soft': 'rgba(80, 201, 146, 0.12)',
   'negative': '#ef6f6c',
   'negative-soft': 'rgba(239, 111, 108, 0.12)',
+  // ÉCHELLE DIVERGENTE À BORNES DÉCLARÉES — trois crans par signe.
+  //
+  // POURQUOI ELLE EXISTE. La carte des marchés peignait ses tuiles avec la
+  // teinte PLEINE : un +0,9 % et un +2,4 % recevaient exactement le même vert.
+  // La couleur occupait donc toute la surface sans rien mesurer — l'inverse de
+  // la deuxième loi de composition (« la couleur est une mesure ») — et une
+  // planche entière de blocs saturés relève de l'esthétique de casino que
+  // l'identité interdit nommément.
+  //
+  // POURQUOI DES BORNES FIXES, ET PAS UN MIN/MAX DES DONNÉES. Normaliser sur
+  // l'étendue observée serait un calcul local : la même valeur changerait de
+  // couleur selon ses voisines, et deux captures ne seraient plus comparables.
+  // Les bornes sont donc FIXES, déclarées dans `signedScale.ts`, publiées dans
+  // la légende, et la valeur reste écrite en toutes lettres sur la tuile.
+  //
+  // POURQUOI CES ALPHAS. Composés sur les fonds de lecture, ils gardent le
+  // texte clair au-dessus du seuil AA — `contrast.test.ts` le mesure cran par
+  // cran, et c'est le cran le plus dense qui décide.
+  // Les deux familles n'ont PAS les mêmes opacités, et ce n'est pas une
+  // négligence : le vert est intrinsèquement plus clair que le rouge. À
+  // opacité égale il éclaircit davantage son fond, donc il approche plus vite
+  // le texte clair — mesuré, `positive` à 0,55 tombe à 4,15:1 sur le fond de
+  // survol, sous le seuil AA, quand `negative` y tient encore 5,28:1. Les
+  // opacités sont donc réglées pour que les deux côtés soient également
+  // LISIBLES, et non également transparents.
+  'positive-band-1': 'rgba(80, 201, 146, 0.16)',
+  'positive-band-2': 'rgba(80, 201, 146, 0.3)',
+  'positive-band-3': 'rgba(80, 201, 146, 0.48)',
+  'negative-band-1': 'rgba(239, 111, 108, 0.18)',
+  'negative-band-2': 'rgba(239, 111, 108, 0.36)',
+  'negative-band-3': 'rgba(239, 111, 108, 0.6)',
   // LOT V2 — RÉSERVE 3 D'ADR-017, ENFIN TRANCHÉE.
   //
   // `warning` valait `#f0c36a` et `signal-bright` vaut `#f2c76b` : ΔE = 1,9,
@@ -217,6 +263,26 @@ export const fontFamily = {
  * conformes AA (docs/05-design/DESIGN_SYSTEM.md).
  */
 export const fontSize = {
+  /**
+   * LE PLANCHER DE L'ÉCHELLE — 11 px, et il est DÉCLARÉ.
+   *
+   * Le CSS portait trente tailles littérales sous le plancher affiché du
+   * système : dix-huit à 10 px, cinq à 10,5 px, six à 11 px, une à 12 px. Le
+   * commentaire de `widgets.css` nommait cette dette et rien ne la gardait —
+   * chaque nouvelle micro-étiquette recopiait le nombre de sa voisine, et
+   * l'échelle typographique cessait d'exister là où le texte est le plus
+   * dense.
+   *
+   * `micro` est réservé aux étiquettes qui ACCOMPAGNENT une valeur — unité,
+   * coiffe, libellé de groupe de navigation — et qui ne portent JAMAIS seules
+   * une information. Une valeur, un statut, un motif d'absence prennent `meta`
+   * au minimum.
+   *
+   * 11 px et non 10 : c'est le plus petit corps où Geist reste lisible sur
+   * fond obsidienne à 100 % de zoom, mesuré sur capture. Une porte refuse
+   * désormais toute taille littérale sous ce plancher.
+   */
+  micro: '11px',
   meta: '13px',
   body: '14px',
   // LOT V2 — `label` retiré : il valait `'13px'`, exactement comme `meta`, et

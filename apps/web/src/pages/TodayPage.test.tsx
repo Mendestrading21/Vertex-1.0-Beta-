@@ -191,7 +191,7 @@ describe("Page Aujourd'hui — la planche §1 est complète, servie ou déclaré
     // propriétaire (`BreadthPanel`), une seule lecture pour une seule donnée.
     expect(
       cellule('global-market').getByText(
-        '2 en hausse, 1 en baisse, 1 stables sur 4 couverts (univers 4)',
+        '4 couverts sur un univers de 4',
       ),
     ).toBeDefined();
     // Les mêmes comptes, en barres de dénombrement, chacun à sa place nommée.

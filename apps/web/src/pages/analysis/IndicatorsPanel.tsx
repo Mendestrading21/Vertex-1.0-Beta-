@@ -6,6 +6,8 @@
  * amplitude, pas un jugement, et aucun seuil n'est déclaré qui permettrait de
  * dire « élevé ».
  */
+import { ServedNumber } from '../../components/widgets/ServedNumber.tsx';
+
 export function IndicatorsPanel({
   indicators,
   currency,
@@ -51,13 +53,23 @@ export function IndicatorsPanel({
     bloc,
     libelle,
     valeurAffichee,
+    unite,
     fenetreCle,
     fenetreLibelle,
     testid,
   }: {
     readonly bloc: Readonly<Record<string, unknown>> | null;
     readonly libelle: string;
+    /** La chaîne SERVIE, seule. L'unité voyage à part — voir ci-dessous. */
     readonly valeurAffichee: string | null;
+    /**
+     * L'UNITÉ NE PEUT PAS ÊTRE ROGNÉE, donc elle n'entre pas dans la boîte
+     * bornée. Elle y était : « 4.413571428571428 SYN » formait une seule
+     * chaîne, et borner le rendu a fait disparaître « SYN » derrière
+     * l'ellipse. Un nombre sans son unité n'est pas une information abrégée,
+     * c'est une information fausse — `architecture.md` l'exige aux frontières.
+     */
+    readonly unite: string | null;
     readonly fenetreCle: string;
     readonly fenetreLibelle: string;
     readonly testid: string;
@@ -78,7 +90,18 @@ export function IndicatorsPanel({
         </dt>
         <dd>
           {statut === 'OK' && valeurAffichee !== null ? (
-            <span className="vx-indicator-value">{valeurAffichee}</span>
+            /*
+              La valeur SERVIE est bornée AU RENDU, jamais arrondie. Le moteur
+              publie ses flottants entiers — « 4.413571428571428 » pour un ATR —
+              et rendus tels quels dans une carte de deux cents pixels ils
+              passaient à la ligne au milieu d'un chiffre. Personne ne lit la
+              seizième décimale d'un ATR à l'écran ; la valeur entière reste au
+              survol, et une porte e2e vérifie ce recours.
+            */
+            <>
+              <ServedNumber className="vx-indicator-value" value={valeurAffichee} />
+              {unite === null ? null : <span className="vx-indicator-unit"> {unite}</span>}
+            </>
           ) : (
             <span className="vx-cell-absent" data-testid={`${testid}-absent`}>
               {statut ?? 'ABSENT'}
@@ -106,7 +129,8 @@ export function IndicatorsPanel({
         <Ligne
           bloc={volatilite}
           libelle="Volatilité réalisée annualisée"
-          valeurAffichee={volPct === null ? null : `${volPct} %`}
+          valeurAffichee={volPct}
+          unite="%"
           fenetreCle="window"
           fenetreLibelle="fenêtre"
           testid="indicator-volatility"
@@ -114,7 +138,8 @@ export function IndicatorsPanel({
         <Ligne
           bloc={atr}
           libelle="ATR (Wilder)"
-          valeurAffichee={atrValeur === null ? null : `${atrValeur} ${currency}`}
+          valeurAffichee={atrValeur}
+          unite={currency}
           fenetreCle="lookback"
           fenetreLibelle="sur"
           testid="indicator-atr"
@@ -122,7 +147,8 @@ export function IndicatorsPanel({
         <Ligne
           bloc={force}
           libelle={`Force relative${forceIndice === null ? '' : ` contre ${forceIndice}`}`}
-          valeurAffichee={forceValeur === null ? null : `${forceValeur} (ratio)`}
+          valeurAffichee={forceValeur}
+          unite="(ratio)"
           fenetreCle="horizon"
           fenetreLibelle="horizon"
           testid="indicator-relative-strength"

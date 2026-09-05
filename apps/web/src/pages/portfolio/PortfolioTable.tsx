@@ -1,6 +1,7 @@
 import { AbsentCell } from '../../components/absence.tsx';
 import { exclusionReasonLabel } from './portfolioView.ts';
 import type { ExcludedLotRow, ValuedLotRow } from './portfolioView.ts';
+import { signGroupOfText } from '../../components/widgets/sign.ts';
 
 /**
  * Lots ouverts VALORISÉS (chaînes serveur verbatim) puis, dans une section
@@ -62,7 +63,21 @@ export function PortfolioTable({
                   <td className="vx-num">{lot.unitCost}</td>
                   <td className="vx-num">{lot.mark}</td>
                   <td className="vx-num">{lot.marketValue}</td>
-                  <td className="vx-num" data-sign={lot.unrealizedPnl.startsWith('-') ? 'negative' : 'positive'}>
+                  {/*
+                    UN P&L LATENT SERVI `0.00` ÉTAIT PEINT EN VERT. La règle
+                    binaire d'ici — « commence par `-` sinon positif » —
+                    n'avait pas d'état neutre, et son vocabulaire
+                    `positive`/`negative` était étranger au reste du produit.
+                    L'autorité de `sign.ts` rend `flat` sur un zéro servi et
+                    `null` quand le signe n'est PAS publié : aucune couleur de
+                    sens n'est alors appliquée.
+                  */}
+                  <td
+                    className="vx-num"
+                    {...(signGroupOfText(lot.unrealizedPnl) === null
+                      ? {}
+                      : { 'data-sign': signGroupOfText(lot.unrealizedPnl) })}
+                  >
                     {lot.unrealizedPnl}
                   </td>
                   <td>

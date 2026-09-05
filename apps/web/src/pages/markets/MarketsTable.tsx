@@ -125,6 +125,26 @@ function marketsCsvFilename(population: string | null): string {
   return population === 'SYNTHETIC' ? 'marches-synthetiques.csv' : 'marches.csv';
 }
 
+/**
+ * Compare deux valeurs servies dont l'une peut être illisible.
+ *
+ * L'illisible va TOUJOURS au bout, quel que soit le sens du tri : l'inverser
+ * avec le reste le ferait remonter en tête au premier clic, comme s'il était
+ * l'extrême le plus élevé.
+ */
+function compareNumeriqueServi(gauche: number | null, droite: number | null): number {
+  if (gauche === null && droite === null) {
+    return 0;
+  }
+  if (gauche === null) {
+    return 1;
+  }
+  if (droite === null) {
+    return -1;
+  }
+  return gauche - droite;
+}
+
 export function MarketsTable({ entries, population, selected = null, onSelect }: MarketsTableProps) {
   const [sortKey, setSortKey] = useState<ColumnKey>('ticker');
   const [descending, setDescending] = useState(false);
@@ -135,8 +155,14 @@ export function MarketsTable({ entries, population, selected = null, onSelect }:
     copy.sort((a, b) => {
       const left = rawValue(a, sortKey);
       const right = rawValue(b, sortKey);
+      // UNE VALEUR ILLISIBLE NE VAUT PAS ZÉRO, MÊME POUR TRIER. La conversion
+      // rendait `0` : une chaîne non analysable se rangeait alors AU MILIEU du
+      // classement, entre les valeurs négatives et positives, comme si elle
+      // avait été mesurée à zéro. Elle est désormais reléguée en fin de tri,
+      // dans les deux sens : « on ne sait pas » n'est pas une position sur
+      // l'échelle, c'est l'absence de position.
       const compared = column?.numeric
-        ? geometryNumber(left) - geometryNumber(right)
+        ? compareNumeriqueServi(geometryNumber(left), geometryNumber(right))
         : left.localeCompare(right, 'fr');
       return descending ? -compared : compared;
     });

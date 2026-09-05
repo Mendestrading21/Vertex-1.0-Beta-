@@ -10,6 +10,7 @@ import type { BarsView } from '../analysis/analysisView.ts';
 import { RebasedComparison } from './RebasedComparison.tsx';
 import { chartsModule, indicatorFamilyOf } from './chartsView.ts';
 import type { ComparisonView, IndicatorBlockView } from './chartsView.ts';
+import type { ModuleState } from '../../components/moduleState.ts';
 
 /**
  * Les modules SERVIS de la planche §8, hors la dominante (le cadre graphique,
@@ -131,7 +132,22 @@ const VOLUME_WINDOW = 10;
 /** Rang du mois dans une date ISO servie (`2026-09-02` → `09-02`). */
 const SHORT_DAY_FROM = 5;
 
-export function VolumeModule({ bars }: { readonly bars: BarsView | null }) {
+export function VolumeModule({
+  bars,
+  servedState,
+}: {
+  readonly bars: BarsView | null;
+  /**
+   * L'ÉTAT SERVI DE L'INSTANTANÉ, propagé par la page.
+   *
+   * Ces modules annonçaient `state="ready"` en dur : un instantané périmé,
+   * différé ou partiel s'y affichait comme frais, et seul le bandeau de page
+   * disait la vérité — or un lecteur qui regarde une carte ne regarde pas le
+   * bandeau. `financial-safety.md` exige que périmé et retardé soient
+   * distingués ; `frontend.md`, que chaque vue connectée couvre ces états.
+   */
+  readonly servedState: ModuleState;
+}) {
   const module = chartsModule('volume');
   const servies = bars === null ? [] : bars.bars.slice(-VOLUME_WINDOW);
   const entries: readonly DayBarEntry[] = servies.map((barre) => ({
@@ -150,7 +166,7 @@ export function VolumeModule({ bars }: { readonly bars: BarsView | null }) {
       kicker="Publié barre à barre"
       title={module.title}
       titleId="vx-charts-volume-title"
-      state="ready"
+      state={servedState}
       footer={<>titres échangés, entiers serveur ; les {VOLUME_WINDOW} dernières séances servies</>}
     >
       <DayBars
@@ -167,8 +183,11 @@ export function VolumeModule({ bars }: { readonly bars: BarsView | null }) {
 
 export function OverlaysModule({
   indicators,
+  servedState,
 }: {
   readonly indicators: Readonly<Record<string, unknown>> | null | undefined;
+  /** L'état SERVI de l'instantané, propagé par la page. */
+  readonly servedState: ModuleState;
 }) {
   const module = chartsModule('overlays');
   const [sma, ema, bollinger] = indicatorFamilyOf(indicators, 'overlays', [
@@ -183,7 +202,7 @@ export function OverlaysModule({
       kicker="Moteur serveur (S6)"
       title={module.title}
       titleId="vx-charts-overlays-title"
-      state="ready"
+      state={servedState}
       footer={<>séries rendues par le worker ; aucune moyenne n’est calculée dans le navigateur</>}
     >
       <div className="vx-charts-figures">
@@ -265,8 +284,11 @@ const INDEX_BOUNDS = { min: '0', max: '100' } as const;
 
 export function RsiModule({
   indicators,
+  servedState,
 }: {
   readonly indicators: Readonly<Record<string, unknown>> | null | undefined;
+  /** L'état SERVI de l'instantané, propagé par la page. */
+  readonly servedState: ModuleState;
 }) {
   const module = chartsModule('rsi');
   const [rsi] = indicatorFamilyOf(indicators, 'oscillators', ['rsi']);
@@ -279,7 +301,7 @@ export function RsiModule({
       kicker="Moteur serveur (S6)"
       title={module.title}
       titleId="vx-charts-rsi-title"
-      state="ready"
+      state={servedState}
       footer={
         rsi?.kind === 'served' ? <BlockProvenance block={rsi} /> : <>force relative publiée par le worker</>
       }
@@ -317,8 +339,11 @@ export function RsiModule({
 
 export function MacdModule({
   indicators,
+  servedState,
 }: {
   readonly indicators: Readonly<Record<string, unknown>> | null | undefined;
+  /** L'état SERVI de l'instantané, propagé par la page. */
+  readonly servedState: ModuleState;
 }) {
   const module = chartsModule('macd');
   const [macd] = indicatorFamilyOf(indicators, 'oscillators', ['macd']);
@@ -329,7 +354,7 @@ export function MacdModule({
       kicker="Moteur serveur (S6)"
       title={module.title}
       titleId="vx-charts-macd-title"
-      state="ready"
+      state={servedState}
       footer={
         macd?.kind === 'served' ? (
           <BlockProvenance block={macd} />
@@ -365,9 +390,12 @@ export function MacdModule({
 export function ComparisonModule({
   comparison,
   instrument,
+  servedState,
 }: {
   readonly comparison: ComparisonView;
   readonly instrument: string;
+  /** L'état SERVI de l'instantané, propagé par la page. */
+  readonly servedState: ModuleState;
 }) {
   const module = chartsModule('comparison');
   return (
@@ -377,7 +405,7 @@ export function ComparisonModule({
       kicker="Rebasée par le serveur"
       title={module.title}
       titleId="vx-charts-comparison-title"
-      state="ready"
+      state={servedState}
       footer={
         comparison.kind === 'served' ? (
           <>

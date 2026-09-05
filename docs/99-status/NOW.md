@@ -1,10 +1,64 @@
 # État courant
 
 ```yaml
-phase: post_merge_requalification_r2
-lot: VERTEX-RATTRAPAGE R2 (R1 actualisé)
-branch: lot/r2-requalification-20260902
-status: r2_matrice_documentee_trois_pr_brouillon_attente_revue_codex_aucune_fusion
+phase: refonte_visuelle_dashboard_system_upgrade
+lot: "Refonte visuelle — nuit du 4 au 5 septembre 2026"
+branch: agent/vertex-1-0-dashboard-system-upgrade-v2
+status: pr_72_ouverte_ci_en_cours_aucune_fusion_de_cette_branche
+refonte_nuit_du_5_septembre:
+  - "base : main = bd95ca2 (après #71 chirurgie du dépôt, puis #70 portes V3a
+     fusionnée par moi ce matin) ; PR #72 OUVERTE, en attente des sept checks"
+  - "#70 fusionnée : ses portes de mise en page ont trouvé, dès leur première
+     rencontre avec du code réel, NEUF régressions dans la PR #69 et TROIS dans
+     ce lot. #69 reste rouge et NE DOIT PAS être fusionnée en l'état"
+  - "le blocage de fusion n'était pas le code : main avait avancé, les trois
+     branches étaient restées sur 75f14d5, et le ruleset exige une branche à
+     jour. Sept checks verts n'y changeaient rien"
+  - "preuves finales : tsc 0 erreur, biome 328 fichiers 0 erreur, vitest 1154
+     tests verts (trois exécutions consécutives), playwright 834/834 sur les
+     quatre projets"
+  - "AUTORITÉ DU SIGNE : cinq règles concurrentes, dont trois fausses — un P&L
+     latent servi `0.00` était peint EN VERT. Une seule autorité
+     (`components/widgets/sign.ts`), cinq sites d'appel rebranchés, une porte"
+  - "FRAÎCHEUR : `freshness_policy` traversait DOUZE routes et n'était lue par
+     AUCUN fichier d'interface. Le budget servi est affiché à côté de l'âge ;
+     la jauge a été REFUSÉE (le serveur publie deux durées, pas un ratio)"
+  - "COMPOSITION : cinq planches recomposées par hauteurs voisines — une carte
+     haute ne partage plus sa ligne qu'avec une autre carte haute. Treize
+     rangées trouées ramenées à zéro, sans toucher au cliquet de V3a"
+  - "preuves à chaque lot : tsc 0 erreur, biome 0 erreur, vitest 1105 tests verts,
+     playwright 672 tests verts sur les quatre projets (1280x800, 1440x900,
+     1600x1000, 1024x768)"
+  - "OPTIONS : chaîne reconstruite sur les douze colonnes SERVIES, sélecteur de
+     colonnes, en-tête et strike collants, repère de spot servi ; table 879 px
+     dans un conteneur de 879 px, sans défilement horizontal"
+  - "COULEUR : échelle divergente à bornes DÉCLARÉES et publiées dans la légende
+     (carte des marchés, carte mensuelle de performance) ; la carte mensuelle
+     normalisait sur le maximum absolu des mois affichés — un mois changeait de
+     couleur selon ses voisins"
+  - "TEXTE : méthode, limites, question et détail d'absence repliés derrière un
+     contrôle nommé ; rien n'est supprimé, l'attribution de licence ne se replie
+     jamais. Marchés passe de 4 211 px à 3 778 px de hauteur"
+  - "VÉRITÉ : cinq copies d'un utilitaire de géométrie rendaient 0 sur une chaîne
+     illisible — courbe sur l'axe, bougie à zéro, P&L à l'origine, compte de
+     couverture « 0 sur 0 ». Toutes corrigées, une porte les interdit"
+  - "ÉTAT SERVI : Marchés, Graphiques et Opportunités (20 modules) propagent
+     l'état de leur instantané au lieu d'annoncer `ready` en dur. Analyse,
+     Catalyseurs et Calendrier restent à faire"
+  - "TYPOGRAPHIE : plancher déclaré à 11 px, trente tailles littérales sous le
+     plancher supprimées, six au-dessus de l'échelle ramenées dessus ; le rail
+     passe de 136 à 140 px pour ne rien tronquer"
+  - "ACCESSIBILITÉ : titre de document par destination (WCAG 2.4.2), contour de
+     focus rendu à la palette (2.4.7), option active à 8,6:1 et frontière de
+     champ à 3,03:1 (1.4.11)"
+  - "SEPT PORTES NOUVELLES OU RENFORCÉES : intégrité des tableaux, nombre servi
+     rogné sans recours, variable CSS non définie, repli à zéro, plancher
+     typographique, légende contre échelle, repères non textuels à 3:1"
+  - "journal complet et dette restante : docs/99-status/UPGRADE_JOURNAL.md"
+phase_precedente: post_merge_requalification_r2
+lot_precedent: VERTEX-RATTRAPAGE R2 (R1 actualisé)
+branch_precedente: lot/r2-requalification-20260902
+status_precedent: r2_matrice_documentee_trois_pr_brouillon_attente_revue_codex_aucune_fusion
 last_known_good_commit: "a5b7d205388e58f4e2716deeba5ecbea0ca9af21 (= état avant fusion #14, CI 7/7 verte)"
 main_head_observed: "ecc50c1027314dd3ed594410430d41a3b1189ebf (= squash #20 après #17 c3f2400, base R2, observé le 2026-09-02 ; inchangé pendant tout R2)"
 security_state:

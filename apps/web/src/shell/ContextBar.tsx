@@ -44,8 +44,17 @@ const SESSION_LABELS: Readonly<Record<SessionState, string>> = {
  */
 const NO_RESOURCE_KEY = ['snapshot', '(aucune tête fixe)'] as const;
 
-/** Barre de contexte — page courante, lien de signalement, état de session. */
-export function ContextBar() {
+export interface ContextBarProps {
+  /**
+   * Ouvre la recherche globale. Fourni par la coquille, qui possède l'état de
+   * la palette : la barre ne fait que déclencher, elle ne connaît ni les
+   * résultats ni le raccourci.
+   */
+  readonly onOpenSearch: () => void;
+}
+
+/** Barre de contexte — page courante, recherche, lien de signalement, session. */
+export function ContextBar({ onOpenSearch }: ContextBarProps) {
   const matches = useMatches();
   const session = useSyncExternalStore(sessionStore.subscribe, sessionStore.getState);
   const link = useSyncExternalStore(sseLinkStore.subscribe, sseLinkStore.getState);
@@ -71,6 +80,16 @@ export function ContextBar() {
         </span>
         <span className="vx-contextbar-page">{title}</span>
       </div>
+      {/*
+        Le déclencheur est VISIBLE, et pas seulement un raccourci : un raccourci
+        que rien n'annonce n'existe que pour qui le connaît déjà. Il est
+        atteignable à la tabulation comme les autres contrôles du bandeau, et
+        occupe l'espace libre entre le titre et les états.
+      */}
+      <button type="button" className="vx-palette-trigger" onClick={onOpenSearch}>
+        <span className="vx-palette-trigger-label">Rechercher une destination ou un instrument</span>
+        <kbd className="vx-palette-kbd">⌘K</kbd>
+      </button>
       <div className="vx-contextbar-meta">
         {/*
           POINT 5 DE L'ANATOMIE CANONIQUE — 2/3, et c'est dit.

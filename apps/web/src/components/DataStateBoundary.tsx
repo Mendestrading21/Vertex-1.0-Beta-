@@ -44,6 +44,20 @@ export interface DataStateBoundaryProps {
   readonly detail?: string;
   /** Horodatage exact fourni par le backend (ex. « 14:32:05 UTC »). */
   readonly asOfLabel?: string;
+  /**
+   * Le squelette du PREMIER CHARGEMENT, à la FORME du contenu attendu.
+   *
+   * Sans lui, l'attente est un rectangle générique de hauteur arbitraire : au
+   * moment où la donnée arrive, la page SAUTE — la carte grandit ou rétrécit,
+   * et ce qu'on lisait plus bas se déplace sous le curseur. Un squelette qui
+   * réserve la place réelle supprime ce sursaut ; c'est sa seule raison d'être,
+   * et c'est pourquoi il appartient à l'APPELANT, seul à savoir quelle forme
+   * viendra.
+   *
+   * Il ne montre JAMAIS de valeur, pas même une valeur d'exemple : une
+   * silhouette n'est pas une donnée, et une donnée grisée en serait une.
+   */
+  readonly skeleton?: ReactNode;
 }
 
 function Banner({
@@ -74,7 +88,13 @@ function Banner({
   );
 }
 
-export function DataStateBoundary({ state, children, detail, asOfLabel }: DataStateBoundaryProps) {
+export function DataStateBoundary({
+  state,
+  children,
+  detail,
+  asOfLabel,
+  skeleton,
+}: DataStateBoundaryProps) {
   if (state === 'ready') {
     // Emplacement STABLE du contenu : `null` occupe la position du bandeau
     // des états dégradés, donc un passage ready ↔ refreshing/partial/stale ne
@@ -96,7 +116,11 @@ export function DataStateBoundary({ state, children, detail, asOfLabel }: DataSt
     return (
       <div data-state={state} role="status" aria-busy="true" className="vx-dsb-message">
         <strong>{label}</strong>
-        <div className="vx-dsb-skeleton" aria-hidden="true" />
+        {skeleton === undefined ? (
+          <div className="vx-dsb-skeleton" aria-hidden="true" />
+        ) : (
+          skeleton
+        )}
       </div>
     );
   }

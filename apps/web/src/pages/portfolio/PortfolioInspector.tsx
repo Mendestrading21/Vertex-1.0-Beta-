@@ -10,6 +10,7 @@ import { moduleShowsContent, moduleStateOf } from '../../components/moduleState.
 import { InspectorPanel } from '../../shell/inspector.tsx';
 import { calendarEventsOf } from '../calendar/calendarView.ts';
 import type { ValuationContentView, ValuedLotRow } from './portfolioView.ts';
+import { signGroupOfText } from '../../components/widgets/sign.ts';
 
 /**
  * Inspecteur de la page Portefeuille (planche §7 : « ligne sélectionnée,
@@ -121,7 +122,12 @@ export function PositionInspector({
             label: 'P&L latent',
             value: (
               <>
-                <code className="vx-num" data-sign={lot.unrealizedPnl.startsWith('-') ? 'negative' : 'positive'}>
+                <code
+                  className="vx-num"
+                  {...(signGroupOfText(lot.unrealizedPnl) === null
+                    ? {}
+                    : { 'data-sign': signGroupOfText(lot.unrealizedPnl) })}
+                >
                   {lot.unrealizedPnl}
                 </code>{' '}
                 {lot.currency}

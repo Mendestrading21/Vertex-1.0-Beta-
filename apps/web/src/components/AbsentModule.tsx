@@ -25,25 +25,32 @@
 export const ABSENCE_REASONS = {
   NO_SOURCE: {
     label: 'AUCUNE SOURCE',
+    court: 'rien ne collecte cette donnée',
     detail:
       'Aucune source ne publie cette donnée aujourd’hui. Ce n’est pas un défaut d’affichage : rien ne la collecte.',
   },
   SUBSCRIPTION_REQUIRED: {
     label: 'ABONNEMENT REQUIS',
+    court: 'abonnement distinct, non souscrit',
     detail:
       'La donnée existe chez le fournisseur mais relève d’un abonnement distinct, non souscrit. Aucun contournement n’est tenté.',
   },
   SERVER_CONTRACT_MISSING: {
     label: 'CONTRAT SERVEUR ABSENT',
+    court: 'aucun contrat versionné ne la publie',
     detail:
       'La donnée serait dérivable, mais aucun contrat versionné ne la publie. La calculer ici créerait une seconde autorité.',
   },
   DECISION_PENDING: {
     label: 'DÉCISION EN ATTENTE',
+    court: 'arbitrage d’autorité financière requis',
     detail:
       'Un arbitrage d’autorité financière est requis avant de pouvoir servir ce module. Le trancher seul reviendrait à inventer une hypothèse.',
   },
-} as const satisfies Record<string, { readonly label: string; readonly detail: string }>;
+} as const satisfies Record<
+  string,
+  { readonly label: string; readonly court: string; readonly detail: string }
+>;
 
 export type AbsenceReason = keyof typeof ABSENCE_REASONS;
 
@@ -60,6 +67,25 @@ export interface AbsentModuleProps {
   readonly note?: string;
 }
 
+/**
+ * DIVULGATION PROGRESSIVE — mesurée, pas esthétique.
+ *
+ * Le module d'absence affichait en permanence sa question (≈ 60 caractères),
+ * le détail de son motif (≈ 150) et sa note (≈ 120). Sur Marchés, onze modules
+ * absents mettaient ainsi près de 3 500 caractères de prose à l'écran, sous
+ * des cartes qui ne portent aucune donnée. Une planche devenait un mur de
+ * texte gris, et le lecteur cessait de lire — donc l'information cessait
+ * d'exister, alors même qu'elle était affichée.
+ *
+ * Ce qui reste TOUJOURS visible : le titre, la pastille du motif typé, et le
+ * motif en une ligne. Ce qui passe derrière « Pourquoi ? » : la question du
+ * module, l'explication complète et la note.
+ *
+ * RIEN N'EST SUPPRIMÉ. Tout le texte reste dans le document, atteignable au
+ * clavier, lu par les technologies d'assistance, trouvable par la recherche du
+ * navigateur. C'est la définition de l'aération : une interaction de plus,
+ * jamais une information de moins.
+ */
 export function AbsentModule({ title, question, reason, note }: AbsentModuleProps) {
   const nature = ABSENCE_REASONS[reason];
   return (
@@ -70,18 +96,24 @@ export function AbsentModule({ title, question, reason, note }: AbsentModuleProp
       aria-labelledby={`vx-absent-${reason}-${title}`}
     >
       <header className="vx-absent-head">
-        <h3 id={`vx-absent-${reason}-${title}`}>{title}</h3>
+        <h3 id={`vx-absent-${reason}-${title}`} title={question}>
+          {title}
+        </h3>
         <span className="vx-absent-badge">{nature.label}</span>
       </header>
-      <p className="vx-absent-question">{question}</p>
       {/*
         Le CORPS ne porte aucune valeur. Le test `AbsentModule.test.tsx` refuse
         tout chiffre ici — le titre peut en contenir (« VaR 95 % »), parce
         qu'il décrit le module et non son contenu.
       */}
       <div className="vx-absent-body" data-testid="absent-body">
-        <p>{nature.detail}</p>
-        {note !== undefined ? <p className="vx-absent-note">{note}</p> : null}
+        <p className="vx-absent-court">{nature.court}</p>
+        <details className="vx-absent-why">
+          <summary>Pourquoi&nbsp;?</summary>
+          <p className="vx-absent-question">{question}</p>
+          <p>{nature.detail}</p>
+          {note !== undefined ? <p className="vx-absent-note">{note}</p> : null}
+        </details>
       </div>
     </section>
   );

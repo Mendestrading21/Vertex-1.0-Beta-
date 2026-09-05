@@ -1,7 +1,9 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Outlet, useMatches } from 'react-router-dom';
 
 import type { PageDef } from '../app/pages.ts';
+import { WorkspaceProvider } from '../app/workspace.tsx';
+import { CommandPalette, useCommandPalette } from './CommandPalette.tsx';
 import { ContextBar } from './ContextBar.tsx';
 import { INSPECTOR_SLOT_ID, useInspectorOccupied } from './inspector.tsx';
 import { NavRail } from './NavRail.tsx';
@@ -94,6 +96,25 @@ export function AppShell() {
     pageMatch !== undefined && isPageHandle(pageMatch.handle) ? pageMatch.handle.page.key : 'unknown';
 
   const occupied = useInspectorOccupied();
+  const palette = useCommandPalette();
+
+  /**
+   * LE TITRE DU DOCUMENT SUIT LA DESTINATION.
+   *
+   * Les treize routes partageaient un unique « Vertex » : dans une fenêtre à
+   * plusieurs onglets, aucun ne se distinguait, l'historique du navigateur
+   * n'était qu'une colonne de doublons, et un signet ne disait pas ce qu'il
+   * pointait. Le titre d'un document EST une information de navigation
+   * (WCAG 2.4.2), pas une décoration.
+   *
+   * La page vient de son `handle` de route, donc du catalogue — jamais d'une
+   * table de correspondance parallèle qui pourrait diverger de lui.
+   */
+  const pageTitle =
+    pageMatch !== undefined && isPageHandle(pageMatch.handle) ? pageMatch.handle.page.title : null;
+  useEffect(() => {
+    document.title = pageTitle === null ? 'Vertex' : `${pageTitle} · Vertex`;
+  }, [pageTitle]);
 
   const toggle = useCallback(() => {
     setCollapsed((previous) => {
@@ -104,6 +125,14 @@ export function AppShell() {
   }, []);
 
   return (
+    /*
+      Le contexte de travail enveloppe la COQUILLE, sous le routeur : les pages
+      doivent pouvoir l'adopter depuis leurs paramètres d'URL, et le bandeau
+      doit pouvoir le lire. Le poser au-dessus du routeur l'aurait coupé des
+      paramètres de route ; le poser dans chaque page en aurait fait autant
+      d'états séparés — le défaut qu'il corrige.
+    */
+    <WorkspaceProvider>
     <div
       className="vx-shell"
       data-rail={collapsed ? 'collapsed' : 'open'}
@@ -123,9 +152,26 @@ export function AppShell() {
           et une bordure entre les deux aurait cassé la continuité.
         */}
         <div className="vx-topbar">
-          <ContextBar />
+          {/*
+            Le déclencheur de recherche vit DANS la barre de contexte, pas à
+            côté : le point 4 de l'anatomie canonique décrit « une surface
+            vitrée continue », et un troisième rang l'aurait coupée en deux.
+            La première version le posait ici, entre la barre et le ticker —
+            la capture l'a montré flottant, désaligné, visiblement rapporté.
+          */}
+          <ContextBar
+            onOpenSearch={() => {
+              palette.setOpen(true);
+            }}
+          />
           <ShellTicker />
         </div>
+        <CommandPalette
+          open={palette.open}
+          onClose={() => {
+            palette.setOpen(false);
+          }}
+        />
         <div className="vx-work">
           <main
             id="vx-main"
@@ -172,5 +218,6 @@ export function AppShell() {
         </div>
       </div>
     </div>
+    </WorkspaceProvider>
   );
 }

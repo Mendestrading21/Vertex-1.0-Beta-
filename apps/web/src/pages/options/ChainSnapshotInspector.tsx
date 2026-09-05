@@ -1,5 +1,5 @@
 import type { OptionChainResponse } from '../../api/client.ts';
-import { FreshnessBadge } from '../../components/FreshnessBadge.tsx';
+import { FreshnessBadge, policyProps } from '../../components/FreshnessBadge.tsx';
 import { SnapshotFacts, publishedOr } from '../../components/inspector/SnapshotFacts.tsx';
 import { InspectorPanel } from '../../shell/inspector.tsx';
 import { rowBudgetOf, sourceEventIdsOf, spotViewOf } from './optionsView.ts';
@@ -27,7 +27,7 @@ export function ChainSnapshotInspector({ data }: { readonly data: OptionChainRes
             ),
           },
           { label: 'as_of', value: data.as_of === null ? 'non publié' : <time dateTime={data.as_of}>{data.as_of}</time> },
-          { label: 'Âge publié', value: <FreshnessBadge ageSeconds={data.age_seconds} sourceLabel="chaîne" /> },
+          { label: 'Âge publié', value: <FreshnessBadge ageSeconds={data.age_seconds} {...policyProps(data.freshness_policy)} sourceLabel="chaîne" /> },
           { label: 'État servi', value: <code>{data.state}</code> },
           { label: 'Population', value: <code>{publishedOr(data.population)}</code> },
           {
